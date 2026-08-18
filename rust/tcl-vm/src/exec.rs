@@ -548,18 +548,6 @@ fn pop(f: &mut Frame) -> Value {
     f.stack.pop().unwrap_or_else(Value::empty)
 }
 
-/// Parse a dict `Value` into ordered `(key, value)` pairs (the list rep).
-fn dict_pairs(v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
-    let items = v.as_list().map_err(|e| err(e.message))?;
-    if items.len() % 2 != 0 {
-        return Err(err("missing value to go with key"));
-    }
-    Ok(items
-        .chunks_exact(2)
-        .map(|c| (c[0].to_str().to_string(), c[1].clone()))
-        .collect())
-}
-
 /// Re-flatten `(key, value)` pairs back into a dict `Value`.
 fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
     let mut v = Vec::with_capacity(ps.len() * 2);
@@ -570,57 +558,90 @@ fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
     Value::list(v)
 }
 
-/// Set the nested `keys` path of dict `cur` to `value`, creating intermediate
-/// dicts as needed. Returns the new top-level dict value.
-fn dict_set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completion<Value>> {
-    let mut ps = dict_pairs(cur)?;
-    let k = keys[0].to_str().to_string();
-    let newv = if keys.len() == 1 {
-        value
-    } else {
-        let sub = ps
-            .iter()
-            .find(|(pk, _)| pk == &k)
-            .map_or_else(Value::empty, |(_, v)| v.clone());
-        dict_set_path(&sub, &keys[1..], value)?
-    };
-    if let Some(slot) = ps.iter_mut().find(|(pk, _)| pk == &k) {
-        slot.1 = newv;
-    } else {
-        ps.push((k, newv));
+/// The dict decode/rebuild helpers behind the `dict*` opcodes.
+///
+/// Every one of them starts from [`Vm::dict_pairs`], the VM's binding of the
+/// shared [`ValueOps::dict_pairs`] owner — so the opcodes see the same
+/// **canonical** pair list `dict size`, `dict get` via `dispatch_canon`, and
+/// the WASM runtime see: first-occurrence position, **last value winning** on a
+/// duplicate key (`SetDictFromAny`, tclDictObj.c(9.0.4):589, feeding
+/// `Tcl_DictObjPut`'s hash overwrite). Decoding the list rep straight into
+/// `chunks_exact(2)` pairs instead — as these opcodes used to — leaves both
+/// values of a duplicate key in the list, and every `find` then reads or
+/// rewrites the *first* one (issue #1427).
+impl Vm {
+    /// The dict's canonical ordered `(key-string, value)` pairs.
+    pub(crate) fn dict_pairs(
+        &mut self,
+        v: &Value,
+    ) -> Result<Vec<(String, Value)>, Completion<Value>> {
+        let pairs = tcl_syntax::value::ValueOps::dict_pairs(self, v)
+            .map_err(|e| err(e.message().to_string()))?;
+        Ok(pairs
+            .into_iter()
+            .map(|(k, val)| (k.to_str().to_string(), val))
+            .collect())
     }
-    Ok(dict_from_pairs(&ps))
-}
 
-/// Remove the nested `keys` path from dict `cur`. Returns the new top-level
-/// dict value (a no-op if the path is absent, matching `dict unset`).
-fn dict_unset_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
-    let mut ps = dict_pairs(cur)?;
-    let k = keys[0].to_str().to_string();
-    if keys.len() == 1 {
-        ps.retain(|(pk, _)| pk != &k);
-    } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
-        ps[idx].1 = dict_unset_path(&ps[idx].1.clone(), &keys[1..])?;
+    /// Set the nested `keys` path of dict `cur` to `value`, creating
+    /// intermediate dicts as needed. Returns the new top-level dict value.
+    fn dict_set_path(
+        &mut self,
+        cur: &Value,
+        keys: &[Value],
+        value: Value,
+    ) -> Result<Value, Completion<Value>> {
+        let mut ps = self.dict_pairs(cur)?;
+        let k = keys[0].to_str().to_string();
+        let newv = if keys.len() == 1 {
+            value
+        } else {
+            let sub = ps
+                .iter()
+                .find(|(pk, _)| pk == &k)
+                .map_or_else(Value::empty, |(_, v)| v.clone());
+            self.dict_set_path(&sub, &keys[1..], value)?
+        };
+        if let Some(slot) = ps.iter_mut().find(|(pk, _)| pk == &k) {
+            slot.1 = newv;
+        } else {
+            ps.push((k, newv));
+        }
+        Ok(dict_from_pairs(&ps))
     }
-    Ok(dict_from_pairs(&ps))
-}
 
-/// Update the single-level `key` of dict `cur` via `f` (given the current value
-/// if present), returning the new top-level dict value. Shared by the
-/// `DICT_INCR_IMM` / `DICT_APPEND` / `DICT_LAPPEND` opcodes.
-fn dict_update_single(
-    cur: &Value,
-    key: &str,
-    f: impl FnOnce(Option<&Value>) -> Result<Value, Completion<Value>>,
-) -> Result<Value, Completion<Value>> {
-    let mut ps = dict_pairs(cur)?;
-    let newv = f(ps.iter().find(|(k, _)| k == key).map(|(_, v)| v))?;
-    if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
-        slot.1 = newv;
-    } else {
-        ps.push((key.to_string(), newv));
+    /// Remove the nested `keys` path from dict `cur`. Returns the new top-level
+    /// dict value (a no-op if the path is absent, matching `dict unset`).
+    fn dict_unset_path(&mut self, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+        let mut ps = self.dict_pairs(cur)?;
+        let k = keys[0].to_str().to_string();
+        if keys.len() == 1 {
+            ps.retain(|(pk, _)| pk != &k);
+        } else if let Some(idx) = ps.iter().position(|(pk, _)| pk == &k) {
+            let inner = ps[idx].1.clone();
+            ps[idx].1 = self.dict_unset_path(&inner, &keys[1..])?;
+        }
+        Ok(dict_from_pairs(&ps))
     }
-    Ok(dict_from_pairs(&ps))
+
+    /// Update the single-level `key` of dict `cur` via `f` (given the current
+    /// value if present), returning the new top-level dict value. Shared by the
+    /// `DICT_INCR_IMM` / `DICT_APPEND` / `DICT_LAPPEND` opcodes.
+    fn dict_update_single(
+        &mut self,
+        cur: &Value,
+        key: &str,
+        f: impl FnOnce(Option<&Value>) -> Result<Value, Completion<Value>>,
+    ) -> Result<Value, Completion<Value>> {
+        let mut ps = self.dict_pairs(cur)?;
+        let newv = f(ps.iter().find(|(k, _)| k == key).map(|(_, v)| v))?;
+        if let Some(slot) = ps.iter_mut().find(|(k, _)| k == key) {
+            slot.1 = newv;
+        } else {
+            ps.push((key.to_string(), newv));
+        }
+        Ok(dict_from_pairs(&ps))
+    }
 }
 
 /// Whether `s` can be safely wrapped in `{…}`: braces are balanced (ignoring
@@ -2780,7 +2801,7 @@ impl Vm {
             Op::DICT_FIRST => {
                 let slot = imm0(instr);
                 let dict = pop(f);
-                let ps = match crate::cmd_dict::pairs(&dict) {
+                let ps = match self.dict_pairs(&dict) {
                     Ok(p) => p
                         .into_iter()
                         .map(|(k, v)| (Value::string(k), v))
@@ -2845,7 +2866,7 @@ impl Vm {
                         "can't read \"{dict_name}\": no such variable"
                     )));
                 };
-                let ps = match dict_pairs(&dict) {
+                let ps = match self.dict_pairs(&dict) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
                 };
@@ -2870,7 +2891,7 @@ impl Vm {
                     Err(e) => return Tick::Return(err(e.message)),
                 };
                 let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
-                let mut ps = match dict_pairs(&cur) {
+                let mut ps = match self.dict_pairs(&cur) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
                 };
@@ -2896,7 +2917,7 @@ impl Vm {
                 // pushing the snapshot dict as the recombine state.
                 let _path = pop(f);
                 let dict = pop(f);
-                let ps = match dict_pairs(&dict) {
+                let ps = match self.dict_pairs(&dict) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
                 };
@@ -2918,12 +2939,12 @@ impl Vm {
                 } else {
                     lvt_name(imm0(instr))
                 };
-                let keys: Vec<String> = match dict_pairs(&state) {
+                let keys: Vec<String> = match self.dict_pairs(&state) {
                     Ok(p) => p.into_iter().map(|(k, _)| k).collect(),
                     Err(c) => return Tick::Return(c),
                 };
                 let cur = self.get_var(&dict_name).unwrap_or_else(Value::empty);
-                let mut ps = match dict_pairs(&cur) {
+                let mut ps = match self.dict_pairs(&cur) {
                     Ok(p) => p,
                     Err(c) => return Tick::Return(c),
                 };
@@ -3456,7 +3477,7 @@ impl Vm {
                 }
                 let keys = f.stack.split_off(f.stack.len() - nkeys);
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
-                match dict_set_path(&cur, &keys, value) {
+                match self.dict_set_path(&cur, &keys, value) {
                     Ok(result) => {
                         try_op!(self.set_var(&name, result.clone()));
                         f.stack.push(result);
@@ -3474,7 +3495,7 @@ impl Vm {
                 }
                 let keys = f.stack.split_off(f.stack.len() - nkeys);
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
-                match dict_unset_path(&cur, &keys) {
+                match self.dict_unset_path(&cur, &keys) {
                     Ok(result) => {
                         try_op!(self.set_var(&name, result.clone()));
                         f.stack.push(result);
@@ -3490,7 +3511,7 @@ impl Vm {
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
                 let inc = Value::int(amount);
-                let updated = dict_update_single(&cur, &key, |old| {
+                let updated = self.dict_update_single(&cur, &key, |old| {
                     // The same tower addition `incr` uses (`value_ops::int_add`):
                     // a sum past `i64` promotes to `i128` and past that to an
                     // arbitrary-precision bignum rather than erroring, matching
@@ -3512,7 +3533,7 @@ impl Vm {
                 let value = pop(f);
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
-                let updated = dict_update_single(&cur, &key, |old| {
+                let updated = self.dict_update_single(&cur, &key, |old| {
                     let mut s = old.map(|v| v.to_str().to_string()).unwrap_or_default();
                     s.push_str(&value.to_str());
                     Ok(Value::string(s))
@@ -3532,7 +3553,7 @@ impl Vm {
                 let value = pop(f);
                 let key = pop(f).to_str().to_string();
                 let cur = self.get_var(&name).unwrap_or_else(Value::empty);
-                let updated = dict_update_single(&cur, &key, |old| {
+                let updated = self.dict_update_single(&cur, &key, |old| {
                     let mut items = match old {
                         Some(v) => (*v.as_list().map_err(|e| err(e.message))?).clone(),
                         None => Vec::new(),
@@ -3558,7 +3579,7 @@ impl Vm {
                 let keys = f.stack.split_off(f.stack.len() - nkeys);
                 let mut cur = pop(f);
                 for k in &keys {
-                    let ps = match dict_pairs(&cur) {
+                    let ps = match self.dict_pairs(&cur) {
                         Ok(p) => p,
                         Err(c) => return Tick::Return(c),
                     };
@@ -3589,7 +3610,7 @@ impl Vm {
                 let mut cur = pop(f);
                 let mut found = true;
                 for k in &keys {
-                    let ps = match dict_pairs(&cur) {
+                    let ps = match self.dict_pairs(&cur) {
                         Ok(p) => p,
                         Err(c) => return Tick::Return(c),
                     };
@@ -3614,7 +3635,7 @@ impl Vm {
                 let mut cur = pop(f);
                 let mut found = true;
                 for k in &keys {
-                    let Ok(ps) = dict_pairs(&cur) else {
+                    let Ok(ps) = self.dict_pairs(&cur) else {
                         found = false;
                         break;
                     };
@@ -4977,10 +4998,8 @@ impl Vm {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        brace_safe, char_find, dict_set_path, dict_unset_path, imm_index, lset_descend,
-        quote_for_script,
-    };
+    use super::{brace_safe, char_find, imm_index, lset_descend, quote_for_script};
+    use crate::interp::Vm;
     use crate::value::Value;
     use tcl_bytecode::INDEX_END;
 
@@ -5057,21 +5076,22 @@ mod tests {
 
     #[test]
     fn dict_set_path_creates_updates_and_autovivifies() {
+        let mut vm = Vm::new();
         let s = Value::string;
         // `dict set {} a 1` → {a 1}.
-        let d = dict_set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
+        let d = vm.dict_set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
         assert_eq!(top_pairs(&d), [("a".into(), "1".into())]);
 
         // Updating an existing key keeps its position (order-preserving).
         let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
-        let updated = dict_set_path(&base, &[s("a")], s("9")).unwrap();
+        let updated = vm.dict_set_path(&base, &[s("a")], s("9")).unwrap();
         assert_eq!(
             top_pairs(&updated),
             [("a".into(), "9".into()), ("b".into(), "2".into())]
         );
 
         // A new key appends at the end.
-        let appended = dict_set_path(&base, &[s("c")], s("3")).unwrap();
+        let appended = vm.dict_set_path(&base, &[s("c")], s("3")).unwrap();
         assert_eq!(
             top_pairs(&appended),
             [
@@ -5083,21 +5103,22 @@ mod tests {
 
         // A multi-key path auto-vivifies intermediate dicts: the inner dict's
         // list string-rep is "b 1".
-        let nested = dict_set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
+        let nested = vm.dict_set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
         assert_eq!(top_pairs(&nested), [("a".into(), "b 1".into())]);
     }
 
     #[test]
     fn dict_unset_path_removes_and_is_a_noop_when_absent() {
+        let mut vm = Vm::new();
         let s = Value::string;
         let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
 
         // Removing a present key drops just that pair.
-        let removed = dict_unset_path(&base, &[s("a")]).unwrap();
+        let removed = vm.dict_unset_path(&base, &[s("a")]).unwrap();
         assert_eq!(top_pairs(&removed), [("b".into(), "2".into())]);
 
         // Removing an absent key leaves the dict unchanged (matching Tcl).
-        let untouched = dict_unset_path(&base, &[s("z")]).unwrap();
+        let untouched = vm.dict_unset_path(&base, &[s("z")]).unwrap();
         assert_eq!(
             top_pairs(&untouched),
             [("a".into(), "1".into()), ("b".into(), "2".into())]
@@ -5106,7 +5127,7 @@ mod tests {
         // A nested unset rewrites only the inner dict: {a {b 1 c 2}} → {a {c 2}}.
         let inner = Value::list(vec![s("b"), s("1"), s("c"), s("2")]);
         let outer = Value::list(vec![s("a"), inner]);
-        let nested = dict_unset_path(&outer, &[s("a"), s("b")]).unwrap();
+        let nested = vm.dict_unset_path(&outer, &[s("a"), s("b")]).unwrap();
         assert_eq!(top_pairs(&nested), [("a".into(), "c 2".into())]);
     }
 

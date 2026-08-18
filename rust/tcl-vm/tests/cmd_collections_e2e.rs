@@ -1284,3 +1284,78 @@ fn lmap_multivar_and_multilist() {
         "11 22 33"
     );
 }
+
+/// Issue #1427 — a dict with a **duplicate key** is canonicalised the way
+/// `SetDictFromAny` (tclDictObj.c(9.0.4):589) does it: the pair keeps its
+/// first-occurrence position and the **last** value wins, because the
+/// `Tcl_DictObjPut` behind it overwrites on a hash collision.
+///
+/// Three VM paths used to decode the list rep straight into `chunks_exact(2)`
+/// pairs and then `find` the *first* match, so they read and rewrote the
+/// stale value: the `Op::DICT_GET` opcode, `dict_set_path` (and the
+/// `dictUpdateStart`/`dictExpand`/`dictRecombine` prologues that share it),
+/// and `cmd_dict`'s command-side `pairs`. All of them now start from the one
+/// `ValueOps::dict_pairs` owner.
+///
+/// Every expectation below is the byte-exact output of `tclsh9.0.4` (and of
+/// `tclsh8.6.16` for the subcommands 8.6 has).
+#[test]
+fn duplicate_dict_keys_canonicalise_last_value_wins() {
+    // `Op::DICT_GET` — the inline opcode shape (`set s [dict get …]` inside a
+    // proc is what the codegen lowers to `dictGet`, unlike `return [dict get …]`
+    // which stays a generic invoke). Both must agree, and both answer 2.
+    assert_eq!(
+        run("proc j {} {set d {a 1 a 2}; set s [dict get $d a]; return $s}\nj").1,
+        "2"
+    );
+    assert_eq!(
+        run("proc j {} {set d {a 1 a 2}; return [dict get $d a]}\nj").1,
+        "2"
+    );
+    // `dict set` rewrites the canonical pair, it does not shadow it.
+    assert_eq!(
+        run("proc k {} {set d {a 1 a 2}; dict set d a 9; return $d}\nk").1,
+        "a 9"
+    );
+    // `dict update` binds the *canonical* value (2), not the first (1).
+    assert_eq!(
+        run("proc l {} {set d {a 1 a 2}; dict update d a v {set v [expr {$v*100+1}]}; return $v}\nl")
+            .1,
+        "201"
+    );
+    // `dict with` expands the canonical value into the local.
+    assert_eq!(
+        run("proc m {} {set d {a 1 a 2}; dict with d {}; return \"$a $a\"}\nm").1,
+        "2 2"
+    );
+    // `dict for` / `dict size` see one pair, not two.
+    assert_eq!(
+        run("proc n {} {set d {a 1 a 2}; set c 0; dict for {kk vv} $d {incr c}; return $c}\nn").1,
+        "1"
+    );
+    assert_eq!(run("dict size {a 1 a 2}").1, "1");
+    assert_eq!(run("dict keys {a 1 a 2}").1, "a");
+    // `dict unset` removes the whole (single) pair.
+    assert_eq!(
+        run("proc q {} {set d {a 1 a 2}; dict unset d a; return \"[dict size $d]|$d\"}\nq").1,
+        "0|"
+    );
+    // The read-modify-write trio all start from the canonical value.
+    assert_eq!(
+        run("proc r {} {set d {a 1 a 2}; dict incr d a 5; return $d}\nr").1,
+        "a 7"
+    );
+    assert_eq!(
+        run("proc s {} {set d {a 1 a 2}; dict append d a X; return $d}\ns").1,
+        "a 2X"
+    );
+    assert_eq!(
+        run("proc t {} {set d {a 1 a 2}; dict lappend d a X; return $d}\nt").1,
+        "a {2 X}"
+    );
+    // Reads that never went through a mutating path agree with the rest.
+    assert_eq!(run("dict getdef {a 1 a 2} a Z").1, "2");
+    assert_eq!(run("dict exists {a 1 a 2} a").1, "1");
+    // Position is first-occurrence, so a later duplicate does not move the key.
+    assert_eq!(run("dict replace {a 1 b 2 a 3} c 4").1, "a 3 b 2 c 4");
+}

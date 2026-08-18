@@ -56,16 +56,14 @@ fn ilen(n: usize) -> i64 {
     i64::try_from(n).unwrap_or(i64::MAX)
 }
 
-/// Parse a dict value into (key-string, value) pairs, preserving order.
-pub(crate) fn pairs(v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
-    let items = v.as_list().map_err(|e| err(e.message))?;
-    if items.len() % 2 != 0 {
-        return Err(err("missing value to go with key"));
-    }
-    Ok(items
-        .chunks_exact(2)
-        .map(|c| (c[0].to_str().to_string(), c[1].clone()))
-        .collect())
+/// The dict's **canonical** ordered `(key-string, value)` pairs, from the one
+/// [`ValueOps::dict_pairs`](tcl_syntax::value::ValueOps::dict_pairs) owner:
+/// first-occurrence position, **last value winning** on a duplicate key
+/// (`SetDictFromAny`, tclDictObj.c(9.0.4):589 → `Tcl_DictObjPut`). Decoding the
+/// list rep straight into `chunks_exact(2)` pairs instead leaves both values of
+/// a duplicate key present, so every [`lookup`] reads the *first* (issue #1427).
+pub(crate) fn pairs(vm: &mut Vm, v: &Value) -> Result<Vec<(String, Value)>, Completion<Value>> {
+    vm.dict_pairs(v)
 }
 
 fn from_pairs(ps: &[(String, Value)]) -> Value {
@@ -92,7 +90,7 @@ fn dict_update(
 ) -> Completion<Value> {
     let name = varname.to_str();
     let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-    let mut ps = match pairs(&cur) {
+    let mut ps = match pairs(vm, &cur) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -122,11 +120,16 @@ fn dict_update(
 /// risk entirely rather than just capping it, and is byte-for-byte
 /// equivalent to the old recursive version (same `pairs`/`upsert` calls, in
 /// the same order, so error precedence is unchanged too).
-fn set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completion<Value>> {
+fn set_path(
+    vm: &mut Vm,
+    cur: &Value,
+    keys: &[Value],
+    value: Value,
+) -> Result<Value, Completion<Value>> {
     let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
     let mut node = cur.clone();
     for key in keys {
-        let ps = pairs(&node)?;
+        let ps = pairs(vm, &node)?;
         let k = key.to_str().to_string();
         let next = lookup(&ps, &k).cloned().unwrap_or_else(Value::empty);
         frames.push((ps, k));
@@ -153,13 +156,13 @@ fn set_path(cur: &Value, keys: &[Value], value: Value) -> Result<Value, Completi
 /// recursive version did by falling through its `if`/`else if` with neither
 /// arm taken). The final key is removed via `retain`, matching the old
 /// leaf case. Rebuild bottom-up via the recorded frames.
-fn unset_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+fn unset_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
     let mut frames: Vec<(Vec<(String, Value)>, String)> = Vec::with_capacity(keys.len());
     let mut node = cur.clone();
     let mut new_value;
     let mut i = 0;
     loop {
-        let ps = pairs(&node)?;
+        let ps = pairs(vm, &node)?;
         let k = keys[i].to_str().to_string();
         if i + 1 == keys.len() {
             // Last key: remove it outright, regardless of whether it was
@@ -197,10 +200,10 @@ fn upsert(ps: &mut Vec<(String, Value)>, key: &str, value: Value) {
 /// Follow the nested `keys` path into dict `cur`, returning the value at the
 /// leaf (`cur` itself when `keys` is empty). Errors if a key is absent or an
 /// intermediate value is not a dict (`dict get` / `dict with` path semantics).
-fn get_path(cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
+fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completion<Value>> {
     let mut v = cur.clone();
     for key in keys {
-        let ps = pairs(&v)?;
+        let ps = pairs(vm, &v)?;
         let ks = key.to_str();
         match lookup(&ps, &ks) {
             Some(found) => v = found.clone(),
@@ -234,7 +237,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             };
             let mut cur = d.clone();
             for k in keys {
-                let ps = match pairs(&cur) {
+                let ps = match pairs(vm, &cur) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
@@ -251,7 +254,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             };
             let mut cur = d.clone();
             for k in keys {
-                let Ok(ps) = pairs(&cur) else {
+                let Ok(ps) = pairs(vm, &cur) else {
                     return ok(Value::bool(false));
                 };
                 match lookup(&ps, &k.to_str()) {
@@ -263,7 +266,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         }
         "keys" => match rest {
             [d] | [d, _] => {
-                let ps = match pairs(d) {
+                let ps = match pairs(vm, d) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
@@ -279,7 +282,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         },
         "values" => match rest {
             [d] | [d, _] => {
-                let ps = match pairs(d) {
+                let ps = match pairs(vm, d) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
@@ -296,7 +299,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             _ => err("wrong # args: should be \"dict values dictionary ?pattern?\""),
         },
         "size" => match rest {
-            [d] => match pairs(d) {
+            [d] => match pairs(vm, d) {
                 Ok(p) => ok(Value::int(ilen(p.len()))),
                 Err(c) => c,
             },
@@ -305,7 +308,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
         "merge" => {
             let mut acc: Vec<(String, Value)> = Vec::new();
             for d in rest {
-                let ps = match pairs(d) {
+                let ps = match pairs(vm, d) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
@@ -325,7 +328,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             }
             let name = varname.to_str();
             let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let result = match set_path(&cur, keys, value.clone()) {
+            let result = match set_path(vm, &cur, keys, value.clone()) {
                 Ok(v) => v,
                 Err(c) => return c,
             };
@@ -343,7 +346,7 @@ fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
             }
             let name = varname.to_str();
             let cur = vm.get_var(&name).unwrap_or_else(Value::empty);
-            let result = match unset_path(&cur, keys) {
+            let result = match unset_path(vm, &cur, keys) {
                 Ok(v) => v,
                 Err(c) => return c,
             };
@@ -424,11 +427,11 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some(root_dict) = vm.get_var(&varname) else {
         return err(format!("can't read \"{varname}\": no such variable"));
     };
-    let leaf = match get_path(&root_dict, keys) {
+    let leaf = match get_path(vm, &root_dict, keys) {
         Ok(v) => v,
         Err(c) => return c,
     };
-    let leaf_pairs = match pairs(&leaf) {
+    let leaf_pairs = match pairs(vm, &leaf) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -444,8 +447,8 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     // variable first (the body may have replaced it outright); if the body
     // unset it, skip the write-back entirely (matching C).
     if let Some(cur) = vm.get_var(&varname)
-        && let Ok(cur_leaf) = get_path(&cur, keys)
-        && let Ok(mut new_pairs) = pairs(&cur_leaf)
+        && let Ok(cur_leaf) = get_path(vm, &cur, keys)
+        && let Ok(mut new_pairs) = pairs(vm, &cur_leaf)
     {
         for (k, _) in &leaf_pairs {
             match vm.get_var(k) {
@@ -457,7 +460,7 @@ fn cmd_dict_with(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         let new_dict = if keys.is_empty() {
             new_leaf
         } else {
-            match set_path(&cur, keys, new_leaf) {
+            match set_path(vm, &cur, keys, new_leaf) {
                 Ok(d) => d,
                 Err(c) => return c,
             }
@@ -485,7 +488,7 @@ fn cmd_dict_for(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [kvar, vvar] = vnames.as_slice() else {
         return err("must have exactly two variable names");
     };
-    let ps = match pairs(dict) {
+    let ps = match pairs(vm, dict) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -526,7 +529,7 @@ fn cmd_dict_map(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let [kvar, vvar] = vnames.as_slice() else {
         return err("must have exactly two variable names");
     };
-    let ps = match pairs(dict) {
+    let ps = match pairs(vm, dict) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -578,7 +581,7 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     }
     let dname = dictvar.to_str().to_string();
     let cur = vm.get_var(&dname).unwrap_or_else(Value::empty);
-    let ps = match pairs(&cur) {
+    let ps = match pairs(vm, &cur) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -605,7 +608,7 @@ fn cmd_dict_update(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     };
     // Write-back (always, even on error): re-read the dict, apply each variable.
     let cur2 = vm.get_var(&dname).unwrap_or_else(Value::empty);
-    if let Ok(mut ps2) = pairs(&cur2) {
+    if let Ok(mut ps2) = pairs(vm, &cur2) {
         let mut i = 0;
         while i + 1 < kv.len() {
             let key = kv[i].to_str().to_string();
@@ -634,7 +637,7 @@ fn cmd_dict_filter(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
             "wrong # args: should be \"dict filter dictionary script {keyVarName valueVarName} filterScript\"",
         );
     };
-    let ps = match pairs(dict) {
+    let ps = match pairs(vm, dict) {
         Ok(p) => p,
         Err(c) => return c,
     };
@@ -676,8 +679,8 @@ mod tests {
     use super::*;
 
     /// A dict `Value`'s top-level `(key, value-string)` pairs.
-    fn top_pairs(v: &Value) -> Vec<(String, String)> {
-        pairs(v)
+    fn top_pairs(vm: &mut Vm, v: &Value) -> Vec<(String, String)> {
+        pairs(vm, v)
             .expect("dict value is a valid list")
             .into_iter()
             .map(|(k, val)| (k, val.to_str().to_string()))
@@ -706,12 +709,13 @@ mod tests {
     /// concern in `Value`'s representation itself, out of scope here.
     #[test]
     fn deeply_nested_dict_set_and_unset_survive() {
+        let vm = &mut Vm::new();
         const DEPTH: usize = 2_000;
         let keys: Vec<Value> = (0..DEPTH).map(|_| Value::string("k")).collect();
-        let set = set_path(&Value::empty(), &keys, Value::string("v")).expect("set_path survives");
+        let set = set_path(vm, &Value::empty(), &keys, Value::string("v")).expect("set_path survives");
         let mut cur = set.clone();
         for _ in 0..DEPTH {
-            let ps = pairs(&cur).expect("valid dict at every level");
+            let ps = pairs(vm, &cur).expect("valid dict at every level");
             assert_eq!(ps.len(), 1);
             assert_eq!(ps[0].0, "k");
             cur = ps[0].1.clone();
@@ -723,7 +727,7 @@ mod tests {
         // level's "k" entry survives holding an emptied-out subdict, matching
         // `dict unset`'s "leaf only" removal semantics — the whole chain does
         // not collapse away).
-        let _ = unset_path(&set, &keys).expect("unset_path survives");
+        let _ = unset_path(vm, &set, &keys).expect("unset_path survives");
     }
 
     /// A moderately nested `dict set`/`dict unset` path (well within
@@ -731,24 +735,25 @@ mod tests {
     /// rewrite.
     #[test]
     fn moderately_nested_dict_set_and_unset_unaffected() {
+        let vm = &mut Vm::new();
         let s = Value::string;
 
         // `dict set {} a 1` -> {a 1}.
-        let d = set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
-        assert_eq!(top_pairs(&d), [("a".into(), "1".into())]);
+        let d = set_path(vm, &Value::list(vec![]), &[s("a")], s("1")).unwrap();
+        assert_eq!(top_pairs(vm, &d), [("a".into(), "1".into())]);
 
         // Updating an existing key keeps its position (order-preserving).
         let base = Value::list(vec![s("a"), s("1"), s("b"), s("2")]);
-        let updated = set_path(&base, &[s("a")], s("9")).unwrap();
+        let updated = set_path(vm, &base, &[s("a")], s("9")).unwrap();
         assert_eq!(
-            top_pairs(&updated),
+            top_pairs(vm, &updated),
             [("a".into(), "9".into()), ("b".into(), "2".into())]
         );
 
         // A new key appends at the end.
-        let appended = set_path(&base, &[s("c")], s("3")).unwrap();
+        let appended = set_path(vm, &base, &[s("c")], s("3")).unwrap();
         assert_eq!(
-            top_pairs(&appended),
+            top_pairs(vm, &appended),
             [
                 ("a".into(), "1".into()),
                 ("b".into(), "2".into()),
@@ -757,29 +762,29 @@ mod tests {
         );
 
         // A multi-key path auto-vivifies intermediate dicts.
-        let nested = set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
-        assert_eq!(top_pairs(&nested), [("a".into(), "b 1".into())]);
+        let nested = set_path(vm, &Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
+        assert_eq!(top_pairs(vm, &nested), [("a".into(), "b 1".into())]);
 
         // Removing a present key drops just that pair.
-        let removed = unset_path(&base, &[s("a")]).unwrap();
-        assert_eq!(top_pairs(&removed), [("b".into(), "2".into())]);
+        let removed = unset_path(vm, &base, &[s("a")]).unwrap();
+        assert_eq!(top_pairs(vm, &removed), [("b".into(), "2".into())]);
 
         // Removing an absent key leaves the dict unchanged.
-        let untouched = unset_path(&base, &[s("z")]).unwrap();
+        let untouched = unset_path(vm, &base, &[s("z")]).unwrap();
         assert_eq!(
-            top_pairs(&untouched),
+            top_pairs(vm, &untouched),
             [("a".into(), "1".into()), ("b".into(), "2".into())]
         );
 
         // A nested unset rewrites only the inner dict.
         let inner = Value::list(vec![s("b"), s("1"), s("c"), s("2")]);
         let outer = Value::list(vec![s("a"), inner]);
-        let nested_unset = unset_path(&outer, &[s("a"), s("b")]).unwrap();
-        assert_eq!(top_pairs(&nested_unset), [("a".into(), "c 2".into())]);
+        let nested_unset = unset_path(vm, &outer, &[s("a"), s("b")]).unwrap();
+        assert_eq!(top_pairs(vm, &nested_unset), [("a".into(), "c 2".into())]);
 
         // A missing intermediate key two levels deep is a no-op, not an
         // error, and does not disturb sibling keys.
-        let nested_absent = unset_path(&outer, &[s("a"), s("z"), s("q")]).unwrap();
-        assert_eq!(top_pairs(&nested_absent), [("a".into(), "b 1 c 2".into())]);
+        let nested_absent = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]).unwrap();
+        assert_eq!(top_pairs(vm, &nested_absent), [("a".into(), "b 1 c 2".into())]);
     }
 }
