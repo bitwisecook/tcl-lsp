@@ -36,15 +36,22 @@ use std::time::Duration;
 const WARNY_SRC: &str = "set x 1  \n";
 
 /// A name-only pattern (`*.ruff` — the motivating report's documentation
-/// files) excludes a matching document from the editor-config layer at open,
-/// while a non-matching sibling keeps its diagnostics.
+/// files) from the editor-config layer clears an open matching document's
+/// squiggles, while a non-matching sibling keeps its diagnostics.  Follows
+/// the master-switch test's shape: open first, flip the config, await the
+/// marker (a config change never bumps the document version, so the marker
+/// is the only reliable barrier).
 #[test]
-fn editor_config_name_pattern_excludes_at_open() {
-    let mut lsp = Lsp::with_config(json!({ "diagnostics": { "exclude": ["*.ruff"] } }));
+fn editor_config_name_pattern_excludes_open_document() {
+    let mut lsp = Lsp::tcl();
+    let excluded = unique_uri("ruff");
+    assert!(
+        !lsp.open_ready(&excluded, WARNY_SRC).is_empty(),
+        "baseline diagnostics expected before the exclusion is configured"
+    );
 
     let since = lsp.notification_cursor();
-    let excluded = unique_uri("ruff");
-    lsp.open_document(&excluded, WARNY_SRC);
+    lsp.apply_configuration(json!({ "diagnostics": { "exclude": ["*.ruff"] } }));
     assert_eq!(
         lsp.await_diagnostics_excluded(&excluded, Duration::from_secs(15), since),
         Vec::<Value>::new(),

@@ -31,6 +31,7 @@
 #![forbid(unsafe_code)]
 
 pub mod config_ini;
+pub mod path_glob;
 pub mod rt;
 pub mod service;
 /// The stdout decoupling pump the native binary serves through. Native only:
@@ -1028,6 +1029,10 @@ struct DiagToggles {
     /// the pipeline publishes an empty set (clearing squiggles) instead of
     /// analysing.
     diagnostics_enabled: bool,
+    /// `tclLsp.diagnostics.exclude` matched this document (#1556): the
+    /// pipeline publishes an empty set (clearing squiggles) instead of
+    /// analysing, exactly as the master switch does.
+    excluded: bool,
     /// `tclLsp.optimiser.enabled`: gates the optimiser/perf-hint diagnostics.
     optimiser_enabled: bool,
     /// The `xcDiagnostics` / `crossFileResolution` pair — see [`XcToggles`].
@@ -1420,6 +1425,27 @@ async fn run_diagnostics_master_off(delivery: &DeliveryCtx<'_>) -> bool {
                 MessageType::LOG,
                 format!(
                     "[timing] diagnostics master-off 0ms (uri={uri}, diags=0)",
+                    uri = delivery.uri.as_str(),
+                ),
+            )
+            .await;
+    }
+    true
+}
+
+/// `tclLsp.diagnostics.exclude` matched this document (#1556): publish an
+/// empty set so any existing squiggles clear, then settle — the master
+/// switch's exact shape, with its own timing marker so "why does this file
+/// show no diagnostics" is answerable from the log.  The e2e harness'
+/// `await_diagnostics_excluded` keys on this exact line + `uri=`.
+async fn run_diagnostics_excluded(delivery: &DeliveryCtx<'_>) -> bool {
+    if delivery.deliver_if_current(Vec::new()).await {
+        delivery
+            .client
+            .log_message(
+                MessageType::LOG,
+                format!(
+                    "[timing] diagnostics excluded 0ms (uri={uri}, diags=0)",
                     uri = delivery.uri.as_str(),
                 ),
             )
@@ -2996,6 +3022,9 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
     if !toggles.diagnostics_enabled {
         return run_diagnostics_master_off(&delivery).await;
     }
+    if toggles.excluded {
+        return run_diagnostics_excluded(&delivery).await;
+    }
 
     let lift_inputs = LiftInputs {
         text: &text,
@@ -4111,6 +4140,12 @@ pub struct Backend {
     /// = false`). Threaded into every analyser build so the disabled
     /// codes are filtered, and consulted by the source-style pass.
     disabled_diagnostics: Mutex<HashSet<String>>,
+    /// Glob patterns naming files that produce **no** diagnostics at all
+    /// (`tclLsp.diagnostics.exclude`, #1556), matched against the
+    /// workspace-folder-relative path (or the file name alone for `/`-less
+    /// patterns).  The process-global fallback; a folder whose merged config
+    /// sets the key overrides it via [`FolderConfig::diagnostics_exclude`].
+    diagnostics_exclude: Mutex<Vec<String>>,
     /// Per-code LSP severity overrides (`tclLsp.diagnosticSeverity.<CODE>`).
     /// A purely display-side re-labelling applied to the lifted diagnostics
     /// after analysis: a listed code is published at the chosen severity,
@@ -4935,6 +4970,12 @@ struct FolderConfig {
     /// and disables the automatic `source`-graph inheritance. `None` / empty
     /// leaves auto-detection on.
     entry_points: Option<Vec<String>>,
+    /// `tclLsp.diagnostics.exclude` override (#1556) — glob patterns naming
+    /// files that produce no diagnostics at all; `None` inherits the global
+    /// list.  `Some` (possibly empty) whenever the folder's merged config
+    /// carries the key, so a folder list replaces the global one rather
+    /// than unioning with it.
+    diagnostics_exclude: Option<Vec<String>>,
 }
 
 /// Pick the value associated with the **longest** folder URI that `uri` sits
@@ -5199,6 +5240,7 @@ impl Backend {
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
+            diagnostics_exclude: Mutex::new(Vec::new()),
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
@@ -7134,6 +7176,7 @@ impl Backend {
             config_reload: _,
             non_ascii_mode: _,
             disabled_diagnostics: _,
+            diagnostics_exclude: _,
             severity_overrides: _,
             package_resolver: _,
             recovery_names: _,
@@ -11806,6 +11849,27 @@ impl Backend {
                 .collect();
             *self.generic_variable_patterns.lock().await = Some(patterns);
         }
+        // `tclLsp.diagnostics.exclude` — glob patterns for files that produce
+        // no diagnostics at all (#1556). Reset unconditionally: the production
+        // caller always passes the fully merged config, so an absent key means
+        // the exclusion list really is empty now — a stale list must not keep
+        // suppressing a file the user just un-excluded.
+        let exclude: Vec<String> = cfg
+            .get("diagnostics")
+            .and_then(serde_json::Value::as_object)
+            .and_then(|d| d.get("exclude"))
+            .and_then(serde_json::Value::as_array)
+            .map(|patterns| {
+                patterns
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|s| !s.is_empty())
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        *self.diagnostics_exclude.lock().await = exclude;
         // The pulled value is the *content* of the `tclLsp` section; the
         // `settings_*` helpers expect it wrapped (they look under `tclLsp`),
         // so re-wrap before reusing them for the W108 mode + disabled codes.
@@ -12151,6 +12215,7 @@ impl Backend {
             .cloned()
             .collect();
         disabled.sort();
+        let exclude = self.diagnostics_exclude.lock().await.clone();
 
         let mut out = String::from("# tcl-lsp configuration (exported)\n\n[features]\n");
         let mut feature_keys: Vec<&String> = features.keys().collect();
@@ -12161,10 +12226,19 @@ impl Backend {
         }
         let _ = write!(out, "\n[optimiser]\nenabled = {optimiser_enabled}\n");
         let _ = write!(out, "\n[style]\nlineLength = {line_length}\n");
-        if !disabled.is_empty() {
+        if !disabled.is_empty() || !exclude.is_empty() {
             out.push_str("\n[diagnostics]\n");
             for code in disabled {
                 let _ = writeln!(out, "{code} = false");
+            }
+            // The exclude globs round-trip as the continuation list the
+            // parser reads (#1556) — never a comma list, which would split
+            // a brace alternation apart.
+            if !exclude.is_empty() {
+                out.push_str("exclude =\n");
+                for pattern in exclude {
+                    let _ = writeln!(out, "    {pattern}");
+                }
             }
         }
         out
@@ -12501,6 +12575,7 @@ impl Backend {
         let generic_variable_patterns = self.resolved_generic_variable_patterns(uri).await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         let diagnostics_enabled = self.feature_enabled("diagnostics", uri).await;
+        let excluded = self.diagnostics_excluded(uri).await;
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
         DiagInputs {
             client: self.client.clone(),
@@ -12530,6 +12605,7 @@ impl Backend {
             closed_diag_gen: Arc::clone(&self.closed_diag_gen),
             toggles: DiagToggles {
                 diagnostics_enabled,
+                excluded,
                 optimiser_enabled,
                 xc: XcToggles {
                     xc_diagnostics,
@@ -12564,6 +12640,64 @@ impl Backend {
                 folder.to_file_path().map(std::borrow::Cow::into_owned),
             ),
             None => (Vec::new(), None),
+        }
+    }
+
+    /// Whether `uri` matches the resolved `tclLsp.diagnostics.exclude` glob
+    /// list (#1556). Path patterns are matched against the workspace-folder-
+    /// relative path; name patterns against the file name alone, so a
+    /// no-folder document can still be excluded by name.
+    async fn diagnostics_excluded(&self, uri: &Uri) -> bool {
+        let (patterns, folder_root) = self.diagnostics_exclude_config(uri).await;
+        if patterns.is_empty() {
+            return false;
+        }
+        let Some(path) = uri.to_file_path() else {
+            return false;
+        };
+        let set = path_glob::PathGlobSet::new(&patterns);
+        if set.is_empty() {
+            return false;
+        }
+        let file_name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let rel = folder_root
+            .as_deref()
+            .and_then(|root| path.strip_prefix(root).ok())
+            .map(path_glob::slash_path);
+        set.matches(rel.as_deref(), &file_name)
+    }
+
+    /// The exclude-glob list and folder root governing `uri`: the longest
+    /// containing workspace folder's `diagnostics.exclude` when its merged
+    /// config sets one (that merge already layers global < editor < project),
+    /// falling back to the process-global list when the folder sets none —
+    /// or when no folder contains `uri` at all, in which case there is no
+    /// root and only name patterns can match.
+    async fn diagnostics_exclude_config(&self, uri: &Uri) -> (Vec<String>, Option<PathBuf>) {
+        let folder = {
+            let configs = self.folder_configs.lock().await;
+            let mut best: Option<&(Uri, FolderConfig)> = None;
+            for entry in configs.iter() {
+                if uri_under_folder(uri.as_str(), entry.0.as_str())
+                    && best.is_none_or(|b| entry.0.as_str().len() > b.0.as_str().len())
+                {
+                    best = Some(entry);
+                }
+            }
+            best.map(|(folder, fc)| {
+                (
+                    fc.diagnostics_exclude.clone(),
+                    folder.to_file_path().map(std::borrow::Cow::into_owned),
+                )
+            })
+        };
+        match folder {
+            Some((Some(patterns), root)) => (patterns, root),
+            Some((None, root)) => (self.diagnostics_exclude.lock().await.clone(), root),
+            None => (self.diagnostics_exclude.lock().await.clone(), None),
         }
     }
 
@@ -12660,6 +12794,11 @@ impl Backend {
         // Master switch off (`tclLsp.features.diagnostics = false`): the pull
         // path returns an empty report, matching the push path's empty-publish.
         if !self.feature_enabled("diagnostics", uri).await {
+            return Vec::new();
+        }
+        // `tclLsp.diagnostics.exclude` (#1556): an excluded file's pull report
+        // is empty too, matching the push path's empty publish.
+        if self.diagnostics_excluded(uri).await {
             return Vec::new();
         }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
@@ -18830,6 +18969,57 @@ fn parse_folder_formatting(
     }
 }
 
+/// Parse the `tclLsp.diagnostics` object keys of one folder's merged config
+/// into `fc` — the ones that are not per-code booleans (those go through
+/// [`settings_disabled_diagnostics`] instead):
+///
+/// - `genericVariablePatterns` — a present array replaces the patterns
+///   (`Replace`); an explicit `null` requests the analyser's built-in
+///   defaults (`BuiltinDefaults`); an absent key inherits the global value
+///   (`Inherit`, the default).
+/// - `exclude` (#1556) — glob patterns naming files that produce no
+///   diagnostics at all. `Some` (possibly empty) whenever the merged config
+///   carries the key, so a folder list replaces the global one rather than
+///   unioning with it.
+fn parse_folder_diagnostics(
+    obj: &serde_json::Map<String, serde_json::Value>,
+    fc: &mut FolderConfig,
+) {
+    let Some(diagnostics) = obj
+        .get("diagnostics")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return;
+    };
+    if let Some(value) = diagnostics.get("genericVariablePatterns") {
+        if let Some(patterns) = value.as_array() {
+            fc.generic_variable_patterns = FolderGenericPatterns::Replace(
+                patterns
+                    .iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .collect(),
+            );
+        } else if value.is_null() {
+            fc.generic_variable_patterns = FolderGenericPatterns::BuiltinDefaults;
+        }
+    }
+    if let Some(patterns) = diagnostics
+        .get("exclude")
+        .and_then(serde_json::Value::as_array)
+    {
+        fc.diagnostics_exclude = Some(
+            patterns
+                .iter()
+                .filter_map(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_owned)
+                .collect(),
+        );
+    }
+}
+
 fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
     let obj = cfg.as_object()?;
     let mut fc = FolderConfig::default();
@@ -18878,27 +19068,7 @@ fn parse_folder_config(cfg: &serde_json::Value) -> Option<FolderConfig> {
                 .collect(),
         );
     }
-    // `tclLsp.diagnostics.genericVariablePatterns` per-folder override. A present
-    // array replaces the patterns (`Replace`); an explicit `null` requests the
-    // analyser's built-in defaults (`BuiltinDefaults`); an absent key leaves the
-    // value inheriting the global (`Inherit`, the default).
-    if let Some(value) = obj
-        .get("diagnostics")
-        .and_then(serde_json::Value::as_object)
-        .and_then(|d| d.get("genericVariablePatterns"))
-    {
-        if let Some(patterns) = value.as_array() {
-            fc.generic_variable_patterns = FolderGenericPatterns::Replace(
-                patterns
-                    .iter()
-                    .filter_map(serde_json::Value::as_str)
-                    .map(str::to_owned)
-                    .collect(),
-            );
-        } else if value.is_null() {
-            fc.generic_variable_patterns = FolderGenericPatterns::BuiltinDefaults;
-        }
-    }
+    parse_folder_diagnostics(obj, &mut fc);
     // `tclLsp.libraryPaths` per-folder override.
     if let Some(paths) = obj
         .get("libraryPaths")
@@ -26398,6 +26568,7 @@ mod tests {
             folder_db_config_tombstones: Arc::new(Mutex::new(HashMap::new())),
             non_ascii_mode: Mutex::new(NonAsciiMode::Default),
             disabled_diagnostics: Mutex::new(default_disabled_set()),
+            diagnostics_exclude: Mutex::new(Vec::new()),
             severity_overrides: Mutex::new(HashMap::new()),
             workspace_index: Arc::new(RwLock::new(new_workspace_index())),
             package_resolver: Arc::new(RwLock::new(PackageResolver::new())),
@@ -34769,6 +34940,110 @@ mod tests {
         assert!(
             off.is_empty(),
             "diagnostics disabled must yield an empty report: {off:?}",
+        );
+    }
+
+    #[tokio::test]
+    async fn diagnostics_exclude_name_glob_clears_the_report() {
+        // `tclLsp.diagnostics.exclude` (#1556): a name pattern empties the
+        // matching document's report, leaves a non-matching sibling alone,
+        // and a re-apply without the key restores the diagnostics (the
+        // global list is reset unconditionally on every apply).
+        let backend = test_backend();
+        let excluded_uri = Uri::from_str("file:///w/gen/api.ruff").unwrap();
+        let kept_uri = Uri::from_str("file:///w/gen/api.tcl").unwrap();
+        let src = "set x 1  \n"; // trailing whitespace → W112
+        register(&backend, &excluded_uri, src).await;
+        register(&backend, &kept_uri, src).await;
+
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "exclude": ["*.ruff"] } }))
+            .await;
+        let excluded = backend
+            .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            excluded.is_empty(),
+            "an excluded file must yield an empty report: {excluded:?}",
+        );
+        let kept = backend
+            .full_diagnostics_for(&kept_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !kept.is_empty(),
+            "a non-matching sibling must keep its diagnostics",
+        );
+
+        backend.apply_global_config(&serde_json::json!({})).await;
+        let restored = backend
+            .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !restored.is_empty(),
+            "dropping the exclude key must restore the diagnostics",
+        );
+    }
+
+    #[tokio::test]
+    async fn diagnostics_exclude_folder_path_glob_is_root_relative() {
+        // A folder-scoped path pattern matches against the folder-relative
+        // path — `docs/**` covers the folder's `docs/` tree, not a file that
+        // merely mentions `docs` elsewhere in its path or name.
+        let backend = test_backend();
+        let folder = Uri::from_file_path("/w").unwrap();
+        let fc = FolderConfig {
+            diagnostics_exclude: Some(vec!["docs/**".to_owned()]),
+            ..FolderConfig::default()
+        };
+        *backend.folder_configs.lock().await = vec![(folder, fc)];
+
+        let excluded_uri = Uri::from_str("file:///w/docs/gen.tcl").unwrap();
+        let kept_uri = Uri::from_str("file:///w/src/docs.tcl").unwrap();
+        let src = "set x 1  \n";
+        register(&backend, &excluded_uri, src).await;
+        register(&backend, &kept_uri, src).await;
+
+        let excluded = backend
+            .full_diagnostics_for(&excluded_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            excluded.is_empty(),
+            "a folder path glob must exclude its subtree: {excluded:?}",
+        );
+        let kept = backend
+            .full_diagnostics_for(&kept_uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !kept.is_empty(),
+            "`docs/**` must not match a file outside the folder's docs/ tree",
+        );
+    }
+
+    #[tokio::test]
+    async fn diagnostics_exclude_folder_list_replaces_the_global_one() {
+        // A folder that sets `diagnostics.exclude` replaces the global list
+        // wholesale — a file matching only the global pattern keeps its
+        // diagnostics inside that folder.
+        let backend = test_backend();
+        backend
+            .apply_global_config(&serde_json::json!({ "diagnostics": { "exclude": ["*.ruff"] } }))
+            .await;
+        let folder = Uri::from_file_path("/w").unwrap();
+        let fc = FolderConfig {
+            diagnostics_exclude: Some(vec!["docs/**".to_owned()]),
+            ..FolderConfig::default()
+        };
+        *backend.folder_configs.lock().await = vec![(folder, fc)];
+
+        let uri = Uri::from_str("file:///w/src/api.ruff").unwrap();
+        let src = "set x 1  \n";
+        register(&backend, &uri, src).await;
+        let diags = backend
+            .full_diagnostics_for(&uri, Arc::from(src), "tcl8.6".to_owned(), "tcl")
+            .await;
+        assert!(
+            !diags.is_empty(),
+            "the folder's own list must replace the global `*.ruff` pattern",
         );
     }
 
