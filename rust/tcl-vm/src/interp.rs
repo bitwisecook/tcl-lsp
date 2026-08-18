@@ -354,14 +354,11 @@ fn tcl_brace(s: &str) -> String {
 }
 
 /// Split an `arr(key)` variable reference into `(base, key)`, or `None` for a
-/// plain scalar/array name. The key may be empty; the base must not be.
+/// plain scalar/array name — `TclObjLookupVarEx`'s rule, from the shared
+/// naming owner. Both halves may be empty: `(x)` is element `x` of the array
+/// named `""` (issue #1458).
 fn elem_ref(name: &str) -> Option<(&str, &str)> {
-    let open = name.find('(')?;
-    if open > 0 && name.ends_with(')') {
-        Some((&name[..open], &name[open + 1..name.len() - 1]))
-    } else {
-        None
-    }
+    tcl_syntax::naming::split_element_ref(name)
 }
 
 /// The bytecode VM: the engine driving a tree of interpreters.
@@ -5367,11 +5364,8 @@ impl Vm {
         name: &str,
         complain: bool,
     ) -> Result<(), Completion<Value>> {
-        if let Some(open) = name.find('(')
-            && name.ends_with(')')
-            && open > 0
-        {
-            self.array_unset_elem(&name[..open], &name[open + 1..name.len() - 1]);
+        if let Some((array, key)) = elem_ref(name) {
+            self.array_unset_elem(array, key);
             return Ok(());
         }
         // A constant cannot be unset; `-nocomplain` leaves it intact (var-26.12).

@@ -364,3 +364,67 @@ fn exit_is_not_catchable() {
     let (_ok, _r, out) = run("catch {exit 5}\nputs after\n");
     assert_eq!(out, "", "catch does not swallow exit");
 }
+
+/// Issue #1458 — a **zero-length array name** is a legal array reference.
+/// `TclObjLookupVarEx` (`tclVar.c(9.0.4):683-686`) treats a name as an array
+/// element whenever it is longer than one byte, ends in `)`, and contains a
+/// `(` — the `(` is allowed at offset 0, so `(x)` is element `x` of the array
+/// named `""`. The VM's splitter required a non-empty base, so every such
+/// reference was silently demoted to an ordinary scalar.
+///
+/// Every vector below is byte-checked against `tclsh8.6.16` and `tclsh9.0.4`
+/// (`array get` output is `lsort`ed because Tcl does not promise hash order).
+#[test]
+fn zero_length_array_name_is_an_array_element() {
+    // Literal element form: the array named "" gains the element.
+    let (ok, _r, out) = run(concat!(
+        "set (x) 5\n",
+        "puts [lsort [array get {}]]\n",
+        "puts [info exists (x)]\n",
+        "puts [array names {}]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "5 x\n1\nx\n");
+
+    // Dynamic-name path: the name only becomes `(q)` at run time, so the
+    // compiler cannot pre-split it — this is the elem_ref-routed write.
+    let (ok, _r, out) = run(concat!(
+        "set nm \"(q)\"\n",
+        "set $nm 1\n",
+        "puts [lsort [array get {}]]\n",
+        "puts [lsearch -exact [info vars] {(q)}]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "1 q\n-1\n", "a dynamic `(q)` is an element, not a scalar");
+
+    // A substituted base that is empty still extends the same array.
+    let (ok, _r, out) = run(concat!(
+        "set (x) 5\n",
+        "set b \"\"\n",
+        "set ${b}(z) 7\n",
+        "puts [lsort [array get {}]]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "5 7 x z\n");
+
+    // `array set` into the empty-named array, then `unset` of an element of it
+    // inside a proc (the unset_one path, which re-derived the split inline).
+    let (ok, _r, out) = run(concat!(
+        "array set {} {k v}\n",
+        "puts [lsort [array get {}]]\n",
+        "proc p {} { set (w) 3; unset (w); return [info exists (w)] }\n",
+        "puts [p]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "k v\n0\n");
+
+    // The rule's own boundary: a name that is *only* `)` has no `(` and a name
+    // of one byte is never an element, so both stay scalars.
+    let (ok, _r, out) = run(concat!(
+        "set {)} plain\n",
+        "puts [info exists {)}]\n",
+        "puts [array exists {}]\n",
+    ));
+    assert!(ok);
+    assert_eq!(out, "1\n0\n");
+}

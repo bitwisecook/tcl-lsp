@@ -966,6 +966,59 @@ pub fn resolve_command_with<S: AsRef<str>, F: FnMut(&str) -> bool>(
         .find(|candidate| exists(candidate))
 }
 
+/// Split a **resolved** variable name into `(array, element)`, or `None` when
+/// it names a scalar / whole array.
+///
+/// This is `TclObjLookupVarEx`'s unparsed-element rule verbatim
+/// (`tclVar.c(9.0.4):683-686`): the name is an array element when it is longer
+/// than one byte, ends in `)`, and contains a `(`. The array name is
+/// everything before the **first** `(` and the element everything between it
+/// and the final `)`.
+///
+/// Note what the rule does *not* require: the `(` may sit at offset 0, so a
+/// **zero-length array name** is legal — `set (x) 5` writes element `x` of the
+/// array named `""`, exactly as tclsh does (issue #1458). A consumer that adds
+/// a "base must be non-empty" test silently demotes those references to
+/// ordinary scalars.
+///
+/// Unlike [`split_array_name`] this takes a name that has already been
+/// resolved — no `$` / `${…}` sigil is stripped — so a variable genuinely
+/// *named* `$foo(x)` splits as array `$foo`, element `x`.
+///
+/// ```
+/// use tcl_syntax::naming::split_element_ref;
+/// assert_eq!(split_element_ref("arr(foo)"), Some(("arr", "foo")));
+/// assert_eq!(split_element_ref("arr"), None);
+/// // Zero-length array name and zero-length element are both legal.
+/// assert_eq!(split_element_ref("(x)"), Some(("", "x")));
+/// assert_eq!(split_element_ref("arr()"), Some(("arr", "")));
+/// assert_eq!(split_element_ref("()"), Some(("", "")));
+/// // Not an element reference: no `(`, or nothing after it closes.
+/// assert_eq!(split_element_ref(")"), None);
+/// assert_eq!(split_element_ref("a(b"), None);
+/// ```
+#[must_use]
+pub fn split_element_ref(name: &str) -> Option<(&str, &str)> {
+    // Both halves are cut at an ASCII `(` / `)`, so each offset is a UTF-8
+    // character boundary and the byte split re-slices `name` directly.
+    let (array, _) = split_element_ref_bytes(name.as_bytes())?;
+    let open = array.len();
+    Some((&name[..open], &name[open + 1..name.len() - 1]))
+}
+
+/// [`split_element_ref`] over raw bytes, for the byte-oriented runtime (a
+/// variable name is not required to be UTF-8 there).
+#[must_use]
+pub fn split_element_ref_bytes(name: &[u8]) -> Option<(&[u8], &[u8])> {
+    if name.last() != Some(&b')') {
+        return None;
+    }
+    // C also demands `len > 1`, which is implied here: a one-byte name ending
+    // in `)` cannot also contain the `(` this scan requires.
+    let open = name.iter().position(|&c| c == b'(')?;
+    Some((&name[..open], &name[open + 1..name.len() - 1]))
+}
+
 /// Split a Tcl variable reference into `(base, element)`.
 ///
 /// Strips `$` / `${…}` substitution sigils first, then separates the
@@ -991,21 +1044,17 @@ pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
         && let Some(rel) = after.find('}')
     {
         let inner = &after[..rel];
-        if inner.ends_with(')')
-            && let Some(idx) = inner.find('(')
-        {
-            return (&inner[..idx], Some(&inner[idx + 1..inner.len() - 1]));
-        }
-        return (inner, None);
+        return match split_element_ref(inner) {
+            Some((array, elem)) => (array, Some(elem)),
+            None => (inner, None),
+        };
     }
     // No closing brace — fall through (gated on `"}" in base`).
     let base = name.strip_prefix('$').unwrap_or(name);
-    if base.ends_with(')')
-        && let Some(idx) = base.find('(')
-    {
-        return (&base[..idx], Some(&base[idx + 1..base.len() - 1]));
+    match split_element_ref(base) {
+        Some((array, elem)) => (array, Some(elem)),
+        None => (base, None),
     }
-    (base, None)
 }
 
 /// True when `word` carries a variable / command substitution anywhere —
