@@ -727,6 +727,13 @@ suite("Configuration Settings", () => {
     assert.strictEqual(value.length, 0);
   });
 
+  // Diagnostics file exclusion (#1556)
+  test("diagnostics.exclude defaults to empty array", () => {
+    const value = cfg().get<string[]>("diagnostics.exclude");
+    assert.ok(Array.isArray(value), "exclude should be an array");
+    assert.strictEqual(value.length, 0);
+  });
+
   // ── Behavioral mutation tests ──────────────────────────────────────
   // Each test verifies that changing a setting actually affects LSP
   // behavior, not just that the config round-trips.

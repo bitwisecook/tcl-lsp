@@ -356,6 +356,16 @@ fn optimiser_section(order: usize) -> Value {
 /// Special properties prepended before the per-diagnostic toggles.
 fn inject_special_leading_props(title: &str, props: &mut Map<String, Value>) {
     match title {
+        "Diagnostics — Errors" => {
+            let k = "tclLsp.diagnostics.exclude";
+            props.insert(k.to_owned(), scoped_prop(k, json!({
+                "type": "array",
+                "items": {"type": "string"},
+                "default": [],
+                "markdownDescription": "Glob patterns for files that produce **no diagnostics at all** (#1556). A pattern containing `/` matches the workspace-folder-relative path (`generated/**`); one without matches the file name at any depth, gitignore-style (`*.gen.tcl`). Supports `*`, `?`, `[a-c]` classes, `**`, and `{a,b}` alternation. Every other feature (hover, navigation, formatting, indexing) keeps working on excluded files. Also configurable via the `[diagnostics] exclude` key of the layered config file (see docs/kcs/kcs-howto-exclude-files-from-diagnostics.md).",
+                "order": -1,
+            }).as_object().unwrap().clone()));
+        }
         "Diagnostics — Style & Best Practice" => {
             let k1 = "tclLsp.style.lineLength";
             props.insert(k1.to_owned(), scoped_prop(k1, json!({

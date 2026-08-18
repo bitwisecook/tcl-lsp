@@ -312,6 +312,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     // Diagnostic patterns
 
     var diagnosticsGenericVariablePatterns: String = ""  // newline-separated regexes
+    var diagnosticsExclude: String = ""  // newline-separated file globs (#1556)
 
     override fun getState(): TclLspSettings = this
 
@@ -543,6 +544,13 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 val patterns = diagnosticsGenericVariablePatterns
                     .split("\n").filter { it.isNotBlank() }
                 if (patterns.isNotEmpty()) map + ("genericVariablePatterns" to patterns) else map
+            }.let { map ->
+                // Omitted when empty for the same reason as the patterns above:
+                // an explicit empty list would *replace* an exclude list set at
+                // another layer (global config file, project .tcl-lsp.ini).
+                val globs = diagnosticsExclude
+                    .split("\n").map { it.trim() }.filter { it.isNotEmpty() }
+                if (globs.isNotEmpty()) map + ("exclude" to globs) else map
             },
             "style" to mapOf(
                 "lineLength" to styleLineLength,

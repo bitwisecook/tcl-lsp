@@ -71,6 +71,13 @@ Controls which diagnostic codes the analyser reports.
 - `generic_variable_patterns` — one regex per line, matched
   case-insensitively against bare `static::` variable names. Use
   this to recognise project-specific globals such as `dbg_level`.
+- `exclude` — one glob pattern per line (not comma-separated, because
+  `{a,b}` alternation already uses commas). Suppresses every
+  diagnostic for a matching file; navigation, hover, and formatting
+  are unaffected. A pattern with a `/` matches relative to the
+  workspace folder root; a pattern with no `/` matches the file name
+  at any depth. See
+  [how do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md).
 
 ### `[optimiser]`
 
@@ -165,5 +172,6 @@ for the full list of layers and where to put each kind of setting.
 - [KCS index](README.md)
 - [How does tcl-lsp load configuration, and what overrides what?](kcs-qa-how-tcl-lsp-loads-configuration.md)
 - [How do I turn a diagnostic, optimisation, or shimmer off?](kcs-howto-suppress-diagnostics.md)
+- [How do I turn off all diagnostics for certain files?](kcs-howto-exclude-files-from-diagnostics.md)
 - [Per-code catalogue](codes/README.md)
 - [Glossary](../GLOSSARY.md)

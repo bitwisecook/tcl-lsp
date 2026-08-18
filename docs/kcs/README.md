@@ -189,6 +189,9 @@ symptom with several possible causes worth telling apart. See rule 13 in
 - [kcs-howto-suppress-diagnostics.md](kcs-howto-suppress-diagnostics.md)
   — turn a diagnostic, warning, optimisation, or shimmer off inline,
   file-wide, per-project, per-editor, or globally.
+- [kcs-howto-exclude-files-from-diagnostics.md](kcs-howto-exclude-files-from-diagnostics.md)
+  — turn off all diagnostics for files matching a glob pattern, via
+  `[diagnostics] exclude` in `.tcl-lsp.ini` or `config.ini`.
 - [kcs-howto-hide-diagnostics-in-diff-views.md](kcs-howto-hide-diagnostics-in-diff-views.md)
   — hide Tcl diagnostics in VS Code diff and compare editors with
   `tclLsp.suppressDiagnosticsInDiffEditors`.

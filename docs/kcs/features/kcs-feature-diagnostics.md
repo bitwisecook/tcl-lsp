@@ -17,11 +17,13 @@ all-editors, MCP, Claude skill, diagnostic, warning
 - **MCP**: `analyze` (full analysis), `validate` (categorised report), `review` (security-focused).
 - **Claude Code**: `/irule-validate`, `/tcl-validate`, `/irule-review`.
 - **VS Code chat**: `@irule /validate`, `@tcl /validate`, `@irule /review`.
-- **Settings**: Individual diagnostic codes can be toggled via `tclLsp.diagnostics.<CODE>`.
+- **Settings**: Individual diagnostic codes can be toggled via `tclLsp.diagnostics.<CODE>`. Whole files can be excluded from diagnostics with `tclLsp.diagnostics.exclude` glob patterns — in editor settings or the `[diagnostics] exclude` key of the layered config file — see [How to exclude files from diagnostics](../kcs-howto-exclude-files-from-diagnostics.md).
 
 ## Operational context
 
 The analyser produces diagnostics in categories: errors (E-codes), security (S-codes), taint (T-codes), performance/style (W-codes), and optimiser suggestions (O-codes). Diagnostics are published on every document change via the LSP `textDocument/publishDiagnostics` notification (the default push model).
+
+Files matching a `tclLsp.diagnostics.exclude` glob (per workspace folder, gitignore-style; #1556) publish an empty diagnostic set instead — every other feature (hover, navigation, formatting, indexing) keeps working on them.
 
 The server also answers pull-model requests — `textDocument/diagnostic` for one document and `workspace/diagnostic` for the whole workspace — from the same cache, for clients that request them directly. Pull is not a user setting: switching delivery models changes the capability advertised during `initialize`, so it must be agreed by the client and server for a fresh session. Push publication remains the editor default.
 
@@ -45,3 +47,4 @@ The server also answers pull-model requests — `textDocument/diagnostic` for on
 - [KCS feature index](README.md)
 - [LSP diagnostics publication](../../../docs/design/contracts/lsp-diagnostics-publication.md)
 - [kcs-feature-cross-file-diagnostics.md](kcs-feature-cross-file-diagnostics.md) — how diagnostics account for procs and `package require`s in *other* files
+- [kcs-howto-exclude-files-from-diagnostics.md](../kcs-howto-exclude-files-from-diagnostics.md) — suppress all diagnostics for files matching glob patterns
