@@ -42,6 +42,23 @@ date_to_epoch() {
     fi
 }
 
+# Split a PEM bundle into one certificate per file.  Do this with awk rather
+# than csplit: BSD csplit (macOS, FreeBSD, NetBSD, OpenBSD) does not implement
+# GNU's `-b` suffix-format option, while awk's basic record handling is
+# available on all of those hosts and produces the same deterministic input
+# files for the generator.
+split_pem_certificates() {
+    local input="$1" prefix="$2"
+    awk -v prefix="$prefix" '
+        /-----BEGIN CERTIFICATE-----/ {
+            if (out != "") close(out)
+            n++
+            out = sprintf("%s%04d.pem", prefix, n)
+        }
+        out != "" { print > out }
+    ' "$input"
+}
+
 REVISION_FILE="$RAW/observatory-revision.txt"
 if [[ ! -s "$REVISION_FILE" ]]; then
     echo "missing pinned Observatory revision: $REVISION_FILE" >&2
@@ -84,7 +101,7 @@ MATERIAL_TSV="$TMP/material.tsv"
 : > "$MATERIAL_TSV"
 for pem in "$RAW"/pem/*.pem; do
     base="$(basename "$pem" .pem)"
-    csplit -s -f "$TMP/$base-" -b '%04d.pem' "$pem" '/-----BEGIN CERTIFICATE-----/' '{*}'
+    split_pem_certificates "$pem" "$TMP/$base-"
     for cert in "$TMP/$base-"*.pem; do
         grep -q -- '-----BEGIN CERTIFICATE-----' "$cert" || continue
         der="$TMP/der"
