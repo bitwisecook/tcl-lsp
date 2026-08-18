@@ -230,6 +230,89 @@ const VECTORS: &[Vector] = &[
                  puts removed-ok\n",
         want: "FIRED\nremoved-ok",
     },
+    // Firing order, issue #1440. Every trace list is prepended in C
+    // (`TraceVarEx` tclTrace.c:3090-3092, `Tcl_TraceCommand` :1016-1018), and
+    // each firing loop walks it head→tail — so the newest registration fires
+    // first everywhere except the `leave`/`leavestep` reverse scan.
+    Vector {
+        name: "command rename/delete traces fire newest-first",
+        script: "proc c1 args { puts \"c1:[join $args |]\" }\n\
+                 proc c2 args { puts \"c2:[join $args |]\" }\n\
+                 proc victim {} {}\n\
+                 trace add command victim {rename delete} c1\n\
+                 trace add command victim {rename delete} c2\n\
+                 rename victim victim2\n\
+                 rename victim2 {}\n",
+        want: "c2:::victim|::victim2|rename\n\
+               c1:::victim|::victim2|rename\n\
+               c2:::victim2||delete\n\
+               c1:::victim2||delete",
+    },
+    Vector {
+        name: "execution enter fires newest-first, leave oldest-first",
+        script: "proc e1 args { puts \"e1:[lindex $args end]\" }\n\
+                 proc e2 args { puts \"e2:[lindex $args end]\" }\n\
+                 proc target {} { return T }\n\
+                 trace add execution target {enter leave} e1\n\
+                 trace add execution target {enter leave} e2\n\
+                 target\n",
+        want: "e2:enter\ne1:enter\ne1:leave\ne2:leave",
+    },
+    Vector {
+        name: "enterstep fires newest-first, leavestep oldest-first",
+        script: "proc s1 args { puts \"s1:[lindex $args end]\" }\n\
+                 proc s2 args { puts \"s2:[lindex $args end]\" }\n\
+                 proc stepped {} { format %s x }\n\
+                 trace add execution stepped {enterstep leavestep} s1\n\
+                 trace add execution stepped {enterstep leavestep} s2\n\
+                 stepped\n",
+        want: "s2:enterstep\ns1:enterstep\ns1:leavestep\ns2:leavestep",
+    },
+    Vector {
+        name: "variable write/read/unset traces fire newest-first",
+        script: "proc t1 args { puts 1 }\n\
+                 proc t2 args { puts 2 }\n\
+                 proc t3 args { puts 3 }\n\
+                 trace add variable v {read write unset} t1\n\
+                 trace add variable v {read write unset} t2\n\
+                 trace add variable v {read write unset} t3\n\
+                 set v x\n\
+                 puts -nonewline \"\"\n\
+                 set ignore $v\n\
+                 unset v\n",
+        want: "3\n2\n1\n3\n2\n1\n3\n2\n1",
+    },
+    Vector {
+        name: "whole-array traces fire before element traces, either registration order",
+        script: "proc W args { puts \"W:[join $args |]\" }\n\
+                 proc E args { puts \"E:[join $args |]\" }\n\
+                 array set a {}\n\
+                 trace add variable a write W\n\
+                 trace add variable a(k) write E\n\
+                 set a(k) 1\n\
+                 array set b {}\n\
+                 trace add variable b(k) write E\n\
+                 trace add variable b write W\n\
+                 set b(k) 2\n",
+        want: "W:a|k|write\nE:a|k|write\nW:b|k|write\nE:b|k|write",
+    },
+    // `trace info` renders the stored op set in the order each C `TRACE_INFO`
+    // arm tests the flag bits — `array read write unset` and `rename delete`,
+    // neither of which is the `opStrings[]` table order.
+    Vector {
+        name: "trace info renders ops in C's fixed per-kind order",
+        script: "proc cb args {}\n\
+                 proc p {} {}\n\
+                 trace add command p {delete rename} cb\n\
+                 trace add execution p {leavestep leave enterstep enter} cb\n\
+                 trace add variable q {unset write read array} cb\n\
+                 puts [trace info command p]\n\
+                 puts [trace info execution p]\n\
+                 puts [trace info variable q]\n",
+        want: "{{rename delete} cb}\n\
+               {{enter leave enterstep leavestep} cb}\n\
+               {{array read write unset} cb}",
+    },
 ];
 
 /// Former divergence from C (issue #946 fault 3), now fixed: step traces used

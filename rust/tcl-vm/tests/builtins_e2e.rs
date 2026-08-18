@@ -734,12 +734,47 @@ fn variable_traces() {
     assert_eq!(msg, "can't trace \"scalar(k)\": variable isn't array");
 }
 
+/// A write-trace error fails the command and wraps the message, but the value
+/// stays stored — C swaps the new value in before calling the traces and never
+/// puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`). Issue #1438; every
+/// line below is byte-pinned against tclsh 8.6.16 and 9.0.4.
 #[test]
-fn write_trace_rejects_assignment() {
-    // A write-trace error aborts the write (rolling back) and wraps the message.
+fn write_trace_error_keeps_the_stored_value() {
     out_eq(
         "proc cb {n1 n2 op} { error nope }\nset x 1\ntrace add variable x write cb\ncatch {set x 2} m\nputs \"$m / $x\"\n",
-        "can't set \"x\": nope / 1\n",
+        "can't set \"x\": nope / 2\n",
+    );
+    // A cell the failing write created survives too.
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\ntrace add variable fresh write cb\ncatch {set fresh new} m\nputs \"$m / [info exists fresh] / $fresh\"\n",
+        "can't set \"fresh\": nope / 1 / new\n",
+    );
+    // Array elements take the same path, existing and fresh alike.
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\narray set a {k old}\ntrace add variable a(k) write cb\ncatch {set a(k) new} m\nputs \"$m / $a(k)\"\n",
+        "can't set \"a(k)\": nope / new\n",
+    );
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\narray set b {}\ntrace add variable b(j) write cb\ncatch {set b(j) new} m\nputs \"$m / [info exists b(j)] / $b(j)\"\n",
+        "can't set \"b(j)\": nope / 1 / new\n",
+    );
+    // Every other writing command reaches the same chokepoint.
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\nset s abc\ntrace add variable s write cb\ncatch {append s def} m\nputs \"$m / $s\"\n",
+        "can't set \"s\": nope / abcdef\n",
+    );
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\nset n 5\ntrace add variable n write cb\ncatch {incr n} m\nputs \"$m / $n\"\n",
+        "can't set \"n\": nope / 6\n",
+    );
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\nset l {a b}\ntrace add variable l write cb\ncatch {lappend l c} m\nputs \"$m / $l\"\n",
+        "can't set \"l\": nope / a b c\n",
+    );
+    // …including when they create the variable.
+    out_eq(
+        "proc cb {n1 n2 op} { error nope }\ntrace add variable f write cb\ncatch {incr f} m\nputs \"$m / [info exists f] / $f\"\n",
+        "can't set \"f\": nope / 1 / 1\n",
     );
 }
 

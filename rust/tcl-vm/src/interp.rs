@@ -928,6 +928,12 @@ struct VarTrace {
     ops: Vec<String>,
     /// The command prefix invoked as `command name1 name2 op`.
     command: String,
+    /// Registered through the deprecated 8.x `trace variable` form (C's
+    /// `TCL_TRACE_OLD_STYLE`), which calls the callback with the single
+    /// `rwua` letter rather than the operation name. It is deliberately not
+    /// part of the `trace remove`/`trace vdelete` match, exactly as C masks
+    /// the flag out there.
+    old_style: bool,
 }
 
 /// One `trace add command|execution` registration: the op set
@@ -4197,13 +4203,21 @@ impl Vm {
             })
     }
 
-    /// Register a `trace add variable` callback.
-    pub(crate) fn add_var_trace(&mut self, name: &str, ops: Vec<String>, command: String) {
+    /// Register a `trace add variable` callback. `old_style` marks the
+    /// deprecated `trace variable` spelling (see [`VarTrace::old_style`]).
+    pub(crate) fn add_var_trace(
+        &mut self,
+        name: &str,
+        ops: Vec<String>,
+        command: String,
+        old_style: bool,
+    ) {
         let key = self.trace_key(name);
-        self.var_traces
-            .entry(key)
-            .or_default()
-            .push(VarTrace { ops, command });
+        self.var_traces.entry(key).or_default().push(VarTrace {
+            ops,
+            command,
+            old_style,
+        });
         self.invalidate_guard_domain(GuardDomain::VariableTrace);
     }
 
@@ -4382,7 +4396,11 @@ impl Vm {
             return;
         };
         let old_display = format!("::{}", key.name());
-        for entry in entries {
+        // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
+        // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
+        // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
+        // newest-last. Issue #1440.
+        for entry in entries.into_iter().rev() {
             if entry.ops.iter().any(|o| o == op) {
                 let _ = self.run_cmd_trace_callback(
                     &entry,
@@ -4560,9 +4578,9 @@ impl Vm {
         r
     }
 
-    /// Inner firing loop for [`Self::fire_var_traces`]: run the element-specific
-    /// traces, then the whole-array traces, with the variable already marked
-    /// active by the caller.
+    /// Inner firing loop for [`Self::fire_var_traces`]: run the whole-array
+    /// traces, then the element-specific ones, with the variable already
+    /// marked active by the caller.
     fn fire_var_traces_inner(
         &mut self,
         name: &str,
@@ -4570,13 +4588,17 @@ impl Vm {
         base: &str,
         elem: &str,
     ) -> Result<(), Completion<Value>> {
-        // Fire the element-specific traces, then the whole-array traces (for an
-        // element write a trace on the base array also fires).
-        let mut keys = vec![self.trace_key(name)];
+        // For an element access C walks the containing array's trace list
+        // first and the element's own list second (`TclCallVarTraces`,
+        // tclTrace.c 9.0.4: the `arrayPtr` loop at :2581 precedes the
+        // `varPtr` loop at :2623) — regardless of which was registered first.
+        // Issue #1440.
+        let mut keys = Vec::with_capacity(2);
         if elem_ref(name).is_some() {
             let (lvl, nm) = self.locate(base);
             keys.push(format!("{lvl}\u{0}{nm}"));
         }
+        keys.push(self.trace_key(name));
         for key in keys {
             let Some(traces) = self.var_traces.get(&key).cloned() else {
                 continue;
@@ -4590,7 +4612,7 @@ impl Vm {
                     tr.command,
                     tcl_brace(base),
                     tcl_brace(elem),
-                    op
+                    tcl_cmd_core::trace::callback_op_word(op, tr.old_style)
                 );
                 let r = self.eval_source(&script);
                 let failed = match r {
@@ -5306,8 +5328,13 @@ impl Vm {
             .unwrap_or_default()
     }
 
-    /// Write a scalar, firing `write` traces afterwards (the old value is
-    /// restored if a trace callback aborts the write).
+    /// Write a scalar, firing `write` traces afterwards. A callback error
+    /// fails the *command* but leaves the new value stored: C swaps the value
+    /// into the cell before calling the traces and its error path jumps
+    /// straight to `cleanup`, which never restores the old one
+    /// (`TclPtrSetVarIdx`, `tclVar.c` 9.0.4:1913 — value in at :2023-2032,
+    /// traces at :2040-2046, `cleanup:` at :2070; same shape in 8.6.16). A
+    /// cell the write created therefore survives too. Issue #1438.
     pub fn set_var(&mut self, name: &str, value: Value) -> Result<(), Completion<Value>> {
         self.validate_var_parent(name)?;
         if self.is_constant(name) {
@@ -5316,24 +5343,11 @@ impl Vm {
         if self.scalar_write_hits_array(name) {
             return Err(err(format!("can't set \"{name}\": variable is array")));
         }
+        self.write_scalar_raw(name, value);
         if self.var_traces.is_empty() {
-            self.write_scalar_raw(name, value);
             return Ok(());
         }
-        let old = self.get_var(name);
-        self.write_scalar_raw(name, value);
-        if let Err(e) = self.fire_var_traces(name, "write") {
-            if let Some(o) = old {
-                self.write_scalar_raw(name, o);
-            } else {
-                let (lvl, nm) = self.locate(name);
-                if let Some(f) = self.frames.get_mut(lvl) {
-                    f.locals.remove(&nm);
-                }
-            }
-            return Err(e);
-        }
-        Ok(())
+        self.fire_var_traces(name, "write")
     }
 
     /// Remove a scalar; returns whether it existed.
@@ -5673,28 +5687,20 @@ impl Vm {
         }
     }
 
+    /// Write an array element, firing `write` traces afterwards. Like
+    /// [`Self::set_var`], a callback error fails the command without
+    /// un-storing the element (issue #1438).
     pub(crate) fn set_array_elem(
         &mut self,
         name: &str,
         key: &str,
         value: Value,
     ) -> Result<(), Completion<Value>> {
-        if self.var_traces.is_empty() {
-            return self.write_array_raw(name, key, value);
-        }
-        let old = self.get_array_elem(name, key);
         self.write_array_raw(name, key, value)?;
-        let full = format!("{name}({key})");
-        if let Err(e) = self.fire_var_traces(&full, "write") {
-            match old {
-                Some(o) => {
-                    let _ = self.write_array_raw(name, key, o);
-                }
-                None => self.array_unset_elem(name, key),
-            }
-            return Err(e);
+        if self.var_traces.is_empty() {
+            return Ok(());
         }
-        Ok(())
+        self.fire_var_traces(&format!("{name}({key})"), "write")
     }
 
     pub(crate) fn array_is(&self, name: &str) -> bool {
@@ -6793,7 +6799,12 @@ mod family_b_tests {
                 GuardDomains::one(GuardDomain::VariableTrace),
             )
             .unwrap();
-        vm.add_var_trace("watched", vec!["write".to_owned()], "callback".to_owned());
+        vm.add_var_trace(
+            "watched",
+            vec!["write".to_owned()],
+            "callback".to_owned(),
+            false,
+        );
         assert!(!vm.check_command_guard(variable_token, "guarded"));
     }
 

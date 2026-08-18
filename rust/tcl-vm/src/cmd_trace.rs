@@ -19,10 +19,14 @@
 //! The `trace` command — variable, command, and execution traces.
 //!
 //! Supports `trace add|remove|info variable name ops command` (the surface the
-//! Tcl library — `tcltest` etc. — relies on). The firing engine lives in
-//! [`Vm`]: read traces fire before a read, write traces after a write (with the
-//! old value restored if the callback aborts the write), and unset traces
-//! before removal (callback errors ignored). See `interp.rs::fire_var_traces`.
+//! Tcl library — `tcltest` etc. — relies on), plus the deprecated 8.x
+//! `trace variable|vdelete|vinfo` forms, which the registry retires at 9.0.
+//! The firing engine lives in [`Vm`]: read traces fire before a read, write
+//! traces after a write, and unset traces before removal (callback errors
+//! ignored). A write callback's error fails the *command* but never un-stores
+//! the value — C swaps the value in before calling the traces and its error
+//! path never puts the old one back (`TclPtrSetVarIdx`, `tclVar.c`; issue
+//! #1438). See `interp.rs::fire_var_traces`.
 //!
 //! Command traces (`rename`/`delete`) and execution traces (`enter`/`leave`/
 //! `enterstep`/`leavestep`) fire too (M16.3), all tclsh-pinned in
@@ -41,21 +45,47 @@ pub(crate) fn register(vm: &mut Vm) {
     vm.register("trace", cmd_trace);
 }
 
+/// The `trace` option words the emulated release carries, in the registry's
+/// declaration order — which is C's `traceOptions[]` order, so the `bad
+/// option` / `ambiguous option` enumeration matches byte for byte. The three
+/// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
+/// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
+fn visible_options(vm: &Vm) -> Vec<&'static str> {
+    let profile = tcl_dialect::DialectProfile::by_name(vm.runtime_version().dialect_profile_name());
+    let registry = tcl_registry::cache::default_registry();
+    let Some(spec) = registry.get_for_dialect("trace", profile.availability_mask) else {
+        return Vec::new();
+    };
+    spec.subcommands
+        .iter()
+        .filter(|sub| {
+            sub.dialects
+                .or(spec.dialects)
+                .is_none_or(|gate| gate.intersects(profile.availability_mask))
+        })
+        .map(|sub| sub.name)
+        .collect()
+}
+
 fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let Some((sub, rest)) = args.split_first() else {
         return err("wrong # args: should be \"trace option ?arg ...?\"");
     };
-    match &*sub.to_str() {
+    let options = visible_options(vm);
+    let option = match core_trace::resolve_option(&sub.to_str(), &options) {
+        Ok(o) => o,
+        Err(e) => return err(e.into_message()),
+    };
+    match option {
         "add" => trace_add_remove(vm, "add", rest, true),
         "remove" => trace_add_remove(vm, "remove", rest, false),
         "info" => trace_info(vm, rest),
-        // Legacy 8.x forms map onto the variable engine.
+        // Legacy 8.x forms map onto the variable engine (C rewrites them into
+        // `trace add|remove variable` with the letters expanded).
         "variable" => legacy_variable(vm, rest, true),
         "vdelete" => legacy_variable(vm, rest, false),
-        "vinfo" => trace_info_variable(vm, rest),
-        other => err(format!(
-            "bad option \"{other}\": must be add, info, or remove"
-        )),
+        "vinfo" => trace_vinfo(vm, rest),
+        other => unreachable!("registry declared an unknown trace option {other:?}"),
     }
 }
 
@@ -93,7 +123,7 @@ fn trace_add_remove(vm: &mut Vm, sub: &str, rest: &[Value], add: bool) -> Comple
                 if let Err(e) = vm.ensure_trace_variable(&name.to_str()) {
                     return e;
                 }
-                vm.add_var_trace(&name.to_str(), ops, command.to_str().to_string());
+                vm.add_var_trace(&name.to_str(), ops, command.to_str().to_string(), false);
             } else {
                 vm.remove_var_trace(&name.to_str(), &ops, &command.to_str());
             }
@@ -148,34 +178,50 @@ fn var_trace_entries(vm: &Vm, name: &str) -> Value {
     )
 }
 
-/// Legacy `trace vinfo name` → the variable's `{ops command}` pairs.
-fn trace_info_variable(vm: &Vm, args: &[Value]) -> Completion<Value> {
+/// Legacy `trace vinfo name` → the variable's `{letters command}` pairs, with
+/// the operations rendered as the `rwua` letter string C's `TRACE_OLD_VINFO`
+/// arm builds (not the word list `trace info variable` reports).
+fn trace_vinfo(vm: &Vm, args: &[Value]) -> Completion<Value> {
     let [name] = args else {
-        return err("wrong # args: should be \"trace info variable name\"");
+        return err("wrong # args: should be \"trace vinfo name\"");
     };
-    ok(var_trace_entries(vm, &name.to_str()))
+    ok(Value::list(
+        vm.var_trace_info(&name.to_str())
+            .into_iter()
+            .map(|(ops, cmd)| {
+                Value::list(vec![
+                    Value::string(core_trace::legacy_ops_letters(&ops)),
+                    Value::string(cmd),
+                ])
+            })
+            .collect(),
+    ))
 }
 
 /// Legacy `trace variable name ops command` / `trace vdelete name ops command`.
-/// The legacy op word uses single letters (`r`/`w`/`u`/`a`); normalise them.
+/// The op word is a concatenation of the letters `r`/`w`/`u`/`a`; the shared
+/// parser expands and validates it, so a non-`rwua` byte is C's `bad
+/// operations "…": should be one or more of rwua` rather than a
+/// silently-installed never-firing trace, and the stored set is the same
+/// canonical set `trace add variable` produces (so a `vdelete` matches an
+/// `add`-installed trace and vice versa).
 fn legacy_variable(vm: &mut Vm, args: &[Value], add: bool) -> Completion<Value> {
+    let form = if add { "variable" } else { "vdelete" };
     let [name, ops, command] = args else {
-        return err("wrong # args: should be \"trace variable name ops command\"");
+        return err(format!(
+            "wrong # args: should be \"trace {form} name ops command\""
+        ));
     };
-    let ops: Vec<String> = ops
-        .to_str()
-        .chars()
-        .filter_map(|c| match c {
-            'r' => Some("read".to_string()),
-            'w' => Some("write".to_string()),
-            'u' => Some("unset".to_string()),
-            'a' => Some("array".to_string()),
-            _ => None,
-        })
-        .collect();
+    let ops: Vec<String> = match core_trace::parse_legacy_variable_ops(ops.to_str().as_bytes()) {
+        Ok(o) => o.iter().map(|s| (*s).to_string()).collect(),
+        Err(e) => return err(e.into_message()),
+    };
     let command = command.to_str().to_string();
     if add {
-        vm.add_var_trace(&name.to_str(), ops, command);
+        if let Err(e) = vm.ensure_trace_variable(&name.to_str()) {
+            return e;
+        }
+        vm.add_var_trace(&name.to_str(), ops, command, true);
     } else {
         vm.remove_var_trace(&name.to_str(), &ops, &command);
     }
