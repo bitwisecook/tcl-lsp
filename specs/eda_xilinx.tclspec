@@ -19,6 +19,19 @@
 
 speclib eda_xilinx 1.0 {
 
+command add_files {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {add_files ?-fileset fileset? ?-of_objects objects? ?-norecurse? ?-copy_to dir? ?-force? ?-scan_for_includes? file_list}
+
+    hover {
+        summary {Add source files (HDL, netlist, memory-init) to a project fileset.}
+        synopsis {add_files ?-fileset fileset? ?-of_objects objects? ?-norecurse? ?-copy_to dir? ?-force? ?-scan_for_includes? file_list}
+        source {Xilinx UG835 2026.1}
+    }
+}
+
 command apply_bd_automation {
     dialects tcl8.5
     required_package vivado
@@ -75,11 +88,11 @@ command config_ip_cache {
     dialects tcl8.5
     required_package vivado
 
-    form Default {config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?}
+    form Default {config_ip_cache ?-use_cache_location dir? ?-use_project_cache? ?-disable_cache? ?-clear_output_repo? ?-clear_local_cache? ?-import_from_project? ?-purge? ?-report? ?ip?}
 
     hover {
         summary {Configure the IP cache settings.}
-        synopsis {config_ip_cache ?-import_from_project? ?-clear_output_repo? ?-cache_location dir?}
+        synopsis {config_ip_cache ?-use_cache_location dir? ?-use_project_cache? ?-disable_cache? ?-clear_output_repo? ?-clear_local_cache? ?-import_from_project? ?-purge? ?-report? ?ip?}
         source {F5}
     }
 }
@@ -114,11 +127,11 @@ command connect_hw_server {
     dialects tcl8.5
     required_package vivado
 
-    form Default {connect_hw_server ?-url url? ?-allow_non_jtag?}
+    form Default {connect_hw_server ?-url url? ?-cs_url url?}
 
     hover {
         summary {Connect to a hardware server.}
-        synopsis {connect_hw_server ?-url url? ?-allow_non_jtag?}
+        synopsis {connect_hw_server ?-url url? ?-cs_url url?}
         source {F5}
     }
 }
@@ -153,14 +166,13 @@ command create_bd_design {
 
 command create_bd_intf_port {
     dialects tcl8.5
-    arity 1..
     required_package vivado
 
-    form Default {create_bd_intf_port -mode mode -vlnv vlnv port_name}
+    form Default {create_bd_intf_port ?-vlnv vlnv? ?-mode mode? ?-default_portmap? ?-board_intf intf? ?-portmaps map? ?port_name?}
 
     hover {
         summary {Create a block design interface port.}
-        synopsis {create_bd_intf_port -mode mode -vlnv vlnv port_name}
+        synopsis {create_bd_intf_port ?-vlnv vlnv? ?-mode mode? ?-default_portmap? ?-board_intf intf? ?-portmaps map? ?port_name?}
         source {F5}
     }
 }
@@ -192,16 +204,30 @@ command create_ip {
     }
 }
 
+command create_pblock {
+    dialects tcl8.5
+    arity 1
+    required_package vivado
+
+    form Default {create_pblock pblock_name}
+
+    hover {
+        summary {Define a new Pblock for floorplanning.}
+        synopsis {create_pblock pblock_name}
+        source {Xilinx UG835 2026.1}
+    }
+}
+
 command create_project {
     dialects tcl8.5
     arity 1..
     required_package vivado
 
-    form Default {create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?}
+    form Default {create_project ?-part part? ?-force? ?-in_memory? ?-ip? ?-rtl_kernel? ?-quiet? ?-verbose? ?project_name? ?project_dir?}
 
     hover {
         summary {Create a new Vivado project.}
-        synopsis {create_project ?-force? ?-part part? ?-in_memory? project_name ?project_dir?}
+        synopsis {create_project ?-part part? ?-force? ?-in_memory? ?-ip? ?-rtl_kernel? ?-quiet? ?-verbose? ?project_name? ?project_dir?}
         source {F5}
     }
 }
@@ -217,6 +243,19 @@ command create_run {
         summary {Create a new run.}
         synopsis {create_run -flow flow ?-strategy strategy? ?-constrset constrset? ?-parent_run parent? run_name}
         source {F5}
+    }
+}
+
+command current_fileset {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {current_fileset ?-constrset? ?-simset? ?fileset?}
+
+    hover {
+        summary {Get or set the active source, constraint or simulation fileset.}
+        synopsis {current_fileset ?-constrset? ?-simset? ?fileset?}
+        source {Xilinx UG835 2026.1}
     }
 }
 
@@ -243,6 +282,58 @@ command generate_target {
         summary {Generate IP output products.}
         synopsis {generate_target target_type ?-force? objects}
         source {F5}
+    }
+}
+
+command get_bd_cells {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_bd_cells ?-regexp? ?-hierarchical? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get cells in the current block design (IP integrator) subsystem.}
+        synopsis {get_bd_cells ?-regexp? ?-hierarchical? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {Xilinx UG835 2026.1}
+    }
+}
+
+command get_drc_violations {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_drc_violations ?-name name? ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+
+    hover {
+        summary {Get violation objects produced by report_drc.}
+        synopsis {get_drc_violations ?-name name? ?-regexp? ?-nocase? ?-filter expr? ?patterns?}
+        source {Xilinx UG835 2026.1}
+    }
+}
+
+command get_files {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_files ?-regexp? ?-nocase? ?-filter expr? ?-compile_order order? ?-used_in usage? ?-references? ?-all? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get file objects in the current project matching a pattern.}
+        synopsis {get_files ?-regexp? ?-nocase? ?-filter expr? ?-compile_order order? ?-used_in usage? ?-references? ?-all? ?-of_objects objects? ?patterns?}
+        source {Xilinx UG835 2026.1}
+    }
+}
+
+command get_filesets {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_filesets ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+
+    hover {
+        summary {Get fileset objects in the current project matching a pattern.}
+        synopsis {get_filesets ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        source {Xilinx UG835 2026.1}
     }
 }
 
@@ -296,6 +387,19 @@ command get_runs {
         summary {Get run objects.}
         synopsis {get_runs ?-regexp? ?-filter expr? ?patterns?}
         source {F5}
+    }
+}
+
+command get_timing_paths {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {get_timing_paths ?-from from? ?-to to? ?-through through? ?-delay_type type? ?-setup? ?-hold? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value? ?-slack_greater_than value? ?-group groups? ?-sort_by attr? ?-filter expr?}
+
+    hover {
+        summary {Get timing path objects meeting the given criteria.}
+        synopsis {get_timing_paths ?-from from? ?-to to? ?-through through? ?-delay_type type? ?-setup? ?-hold? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value? ?-slack_greater_than value? ?-group groups? ?-sort_by attr? ?-filter expr?}
+        source {Xilinx UG835 2026.1}
     }
 }
 
@@ -369,11 +473,11 @@ command open_bd_design {
     arity 1..
     required_package vivado
 
-    form Default {open_bd_design ?-name name? file_name}
+    form Default {open_bd_design ?-quiet? ?-verbose? file_name}
 
     hover {
         summary {Open a block design.}
-        synopsis {open_bd_design ?-name name? file_name}
+        synopsis {open_bd_design ?-quiet? ?-verbose? file_name}
         source {F5}
     }
 }
@@ -463,11 +567,11 @@ command phys_opt_design {
     dialects tcl8.5
     required_package vivado
 
-    form Default {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-rewire? ?-critical_cell_opt? ?-dsp_register_opt? ?-bram_register_opt? ?-hold_fix?}
+    form Default {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-routing_opt? ?-critical_cell_opt? ?-dsp_register_opt? ?-bram_register_opt? ?-memory_rewire_opt? ?-hold_fix?}
 
     hover {
         summary {Run physical optimization after placement.}
-        synopsis {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-rewire? ?-critical_cell_opt?}
+        synopsis {phys_opt_design ?-directive directive? ?-fanout_opt? ?-placement_opt? ?-routing_opt? ?-critical_cell_opt? ?-dsp_register_opt? ?-bram_register_opt? ?-memory_rewire_opt? ?-hold_fix?}
         source {F5}
     }
 }
@@ -556,11 +660,11 @@ command read_vhdl {
     dialects tcl8.5
     required_package vivado
 
-    form Default {read_vhdl ?-library lib? ?-vhdl2008? file_list}
+    form Default {read_vhdl ?-library lib? ?-vhdl2008? ?-vhdl2019? file_list}
 
     hover {
         summary {Add VHDL source files to the project.}
-        synopsis {read_vhdl ?-library lib? ?-vhdl2008? file_list}
+        synopsis {read_vhdl ?-library lib? ?-vhdl2008? ?-vhdl2019? file_list}
         source {F5}
     }
 }
@@ -726,13 +830,28 @@ command reset_run {
     dialects tcl8.5
     arity 1
     required_package vivado
+    deprecated_replacement reset_runs
 
     form Default {reset_run run_name}
 
     hover {
-        summary {Reset a run to its initial state.}
+        summary {Legacy: reset a run to its initial state.}
         synopsis {reset_run run_name}
         source {F5}
+    }
+}
+
+command reset_runs {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {reset_runs ?-prev_step? ?-from_step step? run_list}
+
+    hover {
+        summary {Reset one or more runs to their initial state.}
+        synopsis {reset_runs ?-prev_step? ?-from_step step? run_list}
+        source {Xilinx UG835 2026.1}
     }
 }
 
@@ -832,13 +951,28 @@ command wait_on_run {
     dialects tcl8.5
     arity 1
     required_package vivado
+    deprecated_replacement wait_on_runs
 
     form Default {wait_on_run ?-timeout minutes? run_name}
 
     hover {
-        summary {Wait for a run to complete.}
+        summary {Legacy: wait for a run to complete.}
         synopsis {wait_on_run ?-timeout minutes? run_name}
         source {F5}
+    }
+}
+
+command wait_on_runs {
+    dialects tcl8.5
+    arity 1..
+    required_package vivado
+
+    form Default {wait_on_runs ?-timeout minutes? ?-exit_condition condition? run_list}
+
+    hover {
+        summary {Wait for one or more runs to complete.}
+        synopsis {wait_on_runs ?-timeout minutes? ?-exit_condition condition? run_list}
+        source {Xilinx UG835 2026.1}
     }
 }
 
@@ -867,6 +1001,19 @@ command write_checkpoint {
         summary {Save a design checkpoint (.dcp).}
         synopsis {write_checkpoint ?-force? ?-cell cell? file_name}
         source {F5}
+    }
+}
+
+command write_xdc {
+    dialects tcl8.5
+    required_package vivado
+
+    form Default {write_xdc ?-no_fixed_only? ?-constraints type? ?-cell cell? ?-sdc? ?-no_tool_comments? ?-force? ?-exclude_timing? ?-exclude_physical? ?file_name?}
+
+    hover {
+        summary {Write the current design's constraints out to an XDC or SDC file.}
+        synopsis {write_xdc ?-no_fixed_only? ?-constraints type? ?-cell cell? ?-sdc? ?-no_tool_comments? ?-force? ?-exclude_timing? ?-exclude_physical? ?file_name?}
+        source {Xilinx UG835 2026.1}
     }
 }
 

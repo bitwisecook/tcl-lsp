@@ -16,6 +16,30 @@
 # by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
+#
+# ── 2026-08 refresh, against the Quartus Prime Pro Edition Tcl API reference
+# (Quartus Prime Pro Edition Help 26.1.1, dated 2026-08-07, the per-command
+# `tcl_pkg_*_cmd_*.htm` pages). Blocks written or re-derived from it carry
+# `source {Quartus Prime Pro Tcl API reference}`; blocks whose text still comes
+# from the original registry modules keep their `source {F5}`.
+#
+#   * Commands the current reference no longer documents are kept — real
+#     scripts and old flows still carry them — with a `Legacy:` summary and,
+#     where the reference names a single direct successor, a
+#     `deprecated_replacement`. Where the successor is a *split* (three
+#     commands, not one) the successors are named in the description instead.
+#   * Two package attributions in the reference have no home in this profile:
+#     `::quartus::jtag 1.0` (close_device, device_lock, device_unlock,
+#     open_device, get_hardware_names, get_device_names) and `::quartus::eco
+#     1.0` (make_connection, remove_connection). rust/tcl-dialect/src/profile.rs
+#     pins only quartus-project/flow/sta/sdc-ext/report/device/misc for the
+#     `intel-quartus-eda-tcl` profile, so those commands keep the nearest
+#     shipped `required_package` and state their true package in the hover
+#     description. Adding `quartus-jtag` / `quartus-eco` to the profile is the
+#     real fix and is deliberately left to a profile change.
+#   * `execute_flow` carries both flag sets: Pro Edition's current one and the
+#     Standard Edition (frozen at 18.1) one users still write. The description
+#     says which is which.
 
 speclib eda_quartus 1.0 {
 
@@ -23,11 +47,12 @@ command check_timing {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {check_timing ?-file file?}
+    form Default {check_timing ?-append? ?-file name? ?-include check_list? ?-panel_name name? ?-stdout?}
 
     hover {
         summary {Check for timing analysis issues.}
-        synopsis {check_timing ?-file file?}
+        synopsis {check_timing ?-append? ?-file name? ?-include check_list? ?-panel_name name? ?-stdout?}
+        description {Must be preceded by update_timing_netlist. -include takes a list of check names rather than a closed enum — no_clock, multiple_clock, generated_clock, no_input_delay, no_output_delay, partial_input_delay, partial_output_delay, io_min_max_delay_consistency and others.}
         source {F5}
     }
 }
@@ -41,6 +66,7 @@ command close_device {
     hover {
         summary {Close the active JTAG device.}
         synopsis {close_device}
+        description {Really a member of ::quartus::jtag 1.0, not ::quartus::device — ::quartus::device holds only the part/family query commands. The pack keeps quartus-device because the Quartus dialect profile pins no quartus-jtag package to attribute it to.}
         source {F5}
     }
 }
@@ -49,11 +75,12 @@ command create_timing_netlist {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {create_timing_netlist ?-model model? ?-post_map | -post_fit?}
+    form Default {create_timing_netlist ?-model fast|slow? ?-post_syn? ?-grade c|i|m|e|a? ?-speed speed? ?-temperature degC? ?-voltage mV? ?-snapshot snapshot? ?-force_dat? ?-no_latch? ?-zero_ic_delays? ?operating_conditions?}
 
     hover {
         summary {Create a timing netlist for analysis.}
-        synopsis {create_timing_netlist ?-model model? ?-post_map | -post_fit?}
+        synopsis {create_timing_netlist ?-model fast|slow? ?-post_syn? ?-grade c|i|m|e|a? ?-speed speed? ?-temperature degC? ?-voltage mV? ?-snapshot snapshot? ?-force_dat? ?-no_latch? ?-zero_ic_delays? ?operating_conditions?}
+        description {-post_map no longer exists and there is no -post_fit either: the command already annotates the atom netlist with post-fitting results by default, and -post_syn selects the post-synthesis netlist instead. To change operating corner, prefer set_operating_conditions over deleting and recreating the netlist.}
         source {F5}
     }
 }
@@ -71,6 +98,20 @@ command delete_timing_netlist {
     }
 }
 
+command derive_clock_uncertainty {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {derive_clock_uncertainty ?-add? ?-overwrite?}
+
+    hover {
+        summary {Derive and apply clock uncertainty from the timing model.}
+        synopsis {derive_clock_uncertainty ?-add? ?-overwrite?}
+        description {Calculates inter-clock, intra-clock and I/O interface uncertainty from the device timing-model characterization and applies it to the design. One of the SDC macros write_sdc -expand inlines.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
 command derive_clocks {
     dialects tcl8.5
     required_package quartus-sdc-ext
@@ -78,8 +119,9 @@ command derive_clocks {
     form Default {derive_clocks ?-period period?}
 
     hover {
-        summary {Automatically derive clocks from the design.}
+        summary {Legacy: automatically derive clocks from the design.}
         synopsis {derive_clocks ?-period period?}
+        description {Not a member of ::quartus::sdc_ext 2.0 any more and no longer individually documented in Pro Edition; it survives only as one of the SDC-file macros write_sdc -expand inlines. derive_pll_clocks and derive_clock_uncertainty are the derive_* commands that still have their own reference pages. No single documented successor.}
         source {F5}
     }
 }
@@ -93,6 +135,7 @@ command derive_pll_clocks {
     hover {
         summary {Automatically derive PLL output clocks.}
         synopsis {derive_pll_clocks ?-create_base_clocks? ?-use_net_name?}
+        description {No longer supported for Stratix 10 and later families: only Arria 10 and Cyclone 10 GX still honour it. On every other device the Timing Analyzer auto-derives PLL clocks from the constraints bound to the related IP.}
         source {F5}
     }
 }
@@ -101,11 +144,12 @@ command device_lock {
     dialects tcl8.5
     required_package quartus-device
 
-    form Default {device_lock ?-timeout seconds?}
+    form Default {device_lock -timeout milliseconds}
 
     hover {
         summary {Lock a JTAG device for exclusive access.}
-        synopsis {device_lock ?-timeout seconds?}
+        synopsis {device_lock -timeout milliseconds}
+        description {-timeout is required, and its value is the time to wait for access to the device in milliseconds, not seconds. Really a member of ::quartus::jtag 1.0, not ::quartus::device; the pack keeps quartus-device because the Quartus dialect profile pins no quartus-jtag package.}
         source {F5}
     }
 }
@@ -119,7 +163,36 @@ command device_unlock {
     hover {
         summary {Unlock a previously locked JTAG device.}
         synopsis {device_unlock}
+        description {Really a member of ::quartus::jtag 1.0, not ::quartus::device; the pack keeps quartus-device because the Quartus dialect profile pins no quartus-jtag package.}
         source {F5}
+    }
+}
+
+command download_device_file {
+    dialects tcl8.5
+    required_package quartus-flow
+
+    form Default {download_device_file -file file}
+
+    hover {
+        summary {Populate device/devdata with a device file.}
+        synopsis {download_device_file -file file}
+        description {The file path is relative to the user's acds directory. Used to stage device data a flow needs before execute_flow runs.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command execute_assignment_batch {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {execute_assignment_batch}
+
+    hover {
+        summary {Batch a set of assignment operations.}
+        synopsis {execute_assignment_batch}
+        description {Groups multiple assignment operations so a large scripted flow pays the assignment-database cost once instead of per call. The reference records the command's presence and purpose; its option list is not modelled here.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -127,11 +200,12 @@ command execute_flow {
     dialects tcl8.5
     required_package quartus-flow
 
-    form Default {execute_flow -compile | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_netlist_writer | -signaltap | -export_database}
+    form Default {execute_flow -compile | -export_database | -analysis_and_elaboration | -check_ios | -check_netlist | -design_analysis | -finalize | -implement | -import_database | -incremental_compilation_export | -incremental_compilation_import | -ip_upgrade | -quick_elaboration | -signalprobe | -simulation | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_netlist_writer | -signaltap ?-dni? ?-eco value? ?-flow_args name_value_list? ?-dont_export_assignments?}
 
     hover {
         summary {Execute a Quartus compilation flow.}
-        synopsis {execute_flow -compile | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_net}
+        synopsis {execute_flow -compile | -export_database | -analysis_and_elaboration | -check_ios | -check_netlist | -design_analysis | -finalize | -implement | -import_database | -incremental_compilation_export | -incremental_compilation_import | -ip_upgrade | -quick_elaboration | -signalprobe | -simulation | -analysis_and_synthesis | -fitter | -assembler | -timing_analyzer | -eda_netlist_writer | -signaltap ?-dni? ?-eco value? ?-flow_args name_value_list? ?-dont_export_assignments?}
+        description {Exactly one flow flag per call — you can run only one flow at a time. -compile and -export_database are accepted by both editions. -analysis_and_elaboration, -check_ios, -check_netlist, -design_analysis, -finalize, -implement, -import_database, -incremental_compilation_export, -incremental_compilation_import, -ip_upgrade, -quick_elaboration, -signalprobe and -simulation are the current Pro Edition set of ::quartus::flow 1.1, as are the -dni, -eco, -flow_args and -dont_export_assignments modifiers. -analysis_and_synthesis, -fitter, -assembler, -timing_analyzer, -eda_netlist_writer and -signaltap are absent from current Pro Edition docs; they are the Standard Edition spelling, whose scripting guide is frozen at version 18.1. The nearest Pro equivalents are -analysis_and_elaboration for -analysis_and_synthesis, -implement for -fitter, -finalize for -assembler and -signalprobe for -signaltap; the reference does not document a rename, so both sets are kept.}
         source {F5}
     }
 }
@@ -140,11 +214,12 @@ command execute_module {
     dialects tcl8.5
     required_package quartus-flow
 
-    form Default {execute_module -tool tool_name ?-args arg_list?}
+    form Default {execute_module -tool asm|cdb|eda|fit|map|syn|pow|sta|stp|sim|si|cpf|ipg|pfg|qtlg|quick_elaboration|sh ?-args arg_list? ?-classic? ?-dni? ?-dont_export_assignments?}
 
     hover {
         summary {Execute a specific Quartus module.}
-        synopsis {execute_module -tool tool_name ?-args arg_list?}
+        synopsis {execute_module -tool asm|cdb|eda|fit|map|syn|pow|sta|stp|sim|si|cpf|ipg|pfg|qtlg|quick_elaboration|sh ?-args arg_list? ?-classic? ?-dni? ?-dont_export_assignments?}
+        description {-tool is required and takes one of the executable names above. -classic selects the Classic-mode flow and -dni the DNI-mode tool.}
         source {F5}
     }
 }
@@ -153,11 +228,11 @@ command export_assignments {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {export_assignments}
+    form Default {export_assignments ?-reorganize? ?-report_write_failure?}
 
     hover {
         summary {Export assignments to the .qsf file.}
-        synopsis {export_assignments}
+        synopsis {export_assignments ?-reorganize? ?-report_write_failure?}
         source {F5}
     }
 }
@@ -166,12 +241,109 @@ command get_all_assignments {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {get_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+    form Default {get_all_assignments -name name -type global|instance|parameter|default ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
 
     hover {
         summary {Get all assignments matching criteria.}
-        synopsis {get_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+        synopsis {get_all_assignments -name name -type global|instance|parameter|default ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+        description {-name and -type are both required; -type is a four-way enum. Returns a collection, so iterate it with foreach_in_collection.}
         source {F5}
+    }
+}
+
+command get_available_operating_conditions {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {get_available_operating_conditions ?-all? ?-compile?}
+
+    hover {
+        summary {List the operating conditions available for analysis.}
+        synopsis {get_available_operating_conditions ?-all? ?-compile?}
+        description {Enumerates the corners that set_operating_conditions will accept for the current device and timing netlist.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_current_project {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_current_project}
+
+    hover {
+        summary {Get the name of the currently open project.}
+        synopsis {get_current_project}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_current_revision {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_current_revision ?project_name?}
+
+    hover {
+        summary {Get the current revision name of a project.}
+        synopsis {get_current_revision ?project_name?}
+        description {Defaults to the open project when project_name is omitted.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_device_names {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {get_device_names -hardware_name hardware_name}
+
+    hover {
+        summary {List the devices on a JTAG chain.}
+        synopsis {get_device_names -hardware_name hardware_name}
+        description {-hardware_name is required and comes from get_hardware_names; the result feeds open_device -device_name. Really a member of ::quartus::jtag 1.0 — the pack files it under quartus-device because the Quartus dialect profile pins no quartus-jtag package.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_family_list {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {get_family_list}
+
+    hover {
+        summary {Get all available device families.}
+        synopsis {get_family_list}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_fanins {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {get_fanins ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
+
+    hover {
+        summary {Get a collection of nodes that fan in to the given nodes.}
+        synopsis {get_fanins ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
+        description {Returns a collection; iterate it with foreach_in_collection.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_fanouts {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {get_fanouts ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
+
+    hover {
+        summary {Get a collection of nodes that fan out from the given nodes.}
+        synopsis {get_fanouts ?-asynch? ?-clock? ?-inverting_paths? ?-no_logic? ?-non_inverting_paths? ?-stop_at_clocks? ?-synch? ?-through names? filter}
+        description {Returns a collection; iterate it with foreach_in_collection.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -179,12 +351,26 @@ command get_global_assignment {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {get_global_assignment -name name ?-section_id id?}
+    form Default {get_global_assignment -name name ?-section_id id? ?-front? ?-fall? ?-rise?}
 
     hover {
         summary {Get a global project assignment value.}
-        synopsis {get_global_assignment -name name ?-section_id id?}
+        synopsis {get_global_assignment -name name ?-section_id id? ?-front? ?-fall? ?-rise?}
         source {F5}
+    }
+}
+
+command get_hardware_names {
+    dialects tcl8.5
+    required_package quartus-device
+
+    form Default {get_hardware_names}
+
+    hover {
+        summary {List the attached JTAG programming hardware.}
+        synopsis {get_hardware_names}
+        description {Each name is a type and optional port, for example USB-Blaster [USB-0]; the result feeds open_device -hardware_name and get_device_names -hardware_name. Really a member of ::quartus::jtag 1.0 — the pack files it under quartus-device because the Quartus dialect profile pins no quartus-jtag package.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -192,11 +378,11 @@ command get_instance_assignment {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id?}
+    form Default {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-front? ?-fall? ?-rise?}
 
     hover {
         summary {Get an instance assignment value.}
-        synopsis {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id?}
+        synopsis {get_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-tag data? ?-front? ?-fall? ?-rise?}
         source {F5}
     }
 }
@@ -208,8 +394,9 @@ command get_io_assignment {
     form Default {get_io_assignment -name name -to pin_name}
 
     hover {
-        summary {Get an I/O assignment value.}
+        summary {Legacy: get an I/O assignment value.}
         synopsis {get_io_assignment -name name -to pin_name}
+        description {Not in the current ::quartus::project 7.0 command index — set_io_assignment survives but has no documented getter counterpart any more. get_instance_assignment is the closest surviving read path for pin-level assignments.}
         source {F5}
     }
 }
@@ -237,6 +424,20 @@ command get_names {
         summary {Get signal names from the design.}
         synopsis {get_names ?-filter filter? ?-node_type type? ?-observable_type type?}
         source {F5}
+    }
+}
+
+command get_nodes {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {get_nodes ?-include_generated_clocks? ?-no_duplicates? ?-nocase? ?-nowarn? ?-of_clocks? ?filter?}
+
+    hover {
+        summary {Get a collection of design nodes matching a filter.}
+        synopsis {get_nodes ?-include_generated_clocks? ?-no_duplicates? ?-nocase? ?-nowarn? ?-of_clocks? ?filter?}
+        description {Returns a collection; iterate it with foreach_in_collection.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -270,11 +471,12 @@ command get_part_info {
     dialects tcl8.5
     required_package quartus-device
 
-    form Default {get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name}
+    form Default {get_part_info ?-default_voltage? ?-device? ?-device_group? ?-family? ?-family_variant? ?-fast_grade_revision? ?-grade_revision? ?-hssi_speed_grade? ?-iobank_revision? ?-package? ?-pdn_model_status? ?-pin_count? ?-pof_id? ?-power_model? ?-power_model_status? ?-rohs_grade? ?-sip_tile? ?-speed_grade? ?-subdevice_id_code? ?-subdevice_id_mask? ?-temperature_grade? part_name}
 
     hover {
         summary {Get information about a specific FPGA part.}
-        synopsis {get_part_info -family | -speed_grade | -package | -pin_count | -available_pin_count part_name}
+        synopsis {get_part_info ?-default_voltage? ?-device? ?-device_group? ?-family? ?-family_variant? ?-fast_grade_revision? ?-grade_revision? ?-hssi_speed_grade? ?-iobank_revision? ?-package? ?-pdn_model_status? ?-pin_count? ?-pof_id? ?-power_model? ?-power_model_status? ?-rohs_grade? ?-sip_tile? ?-speed_grade? ?-subdevice_id_code? ?-subdevice_id_mask? ?-temperature_grade? part_name}
+        description {-available_pin_count does not exist in the current option list; -family, -speed_grade, -package and -pin_count are still spelled as before.}
         source {F5}
     }
 }
@@ -283,12 +485,26 @@ command get_part_list {
     dialects tcl8.5
     required_package quartus-device
 
-    form Default {get_part_list ?-family family? ?-speed_grade speed_grade?}
+    form Default {get_part_list ?-family family? ?-device device? ?-package package? ?-pin_count pin_count? ?-speed_grade speed_grade?}
 
     hover {
         summary {Get a list of available FPGA parts.}
-        synopsis {get_part_list ?-family family? ?-speed_grade speed_grade?}
+        synopsis {get_part_list ?-family family? ?-device device? ?-package package? ?-pin_count pin_count? ?-speed_grade speed_grade?}
         source {F5}
+    }
+}
+
+command get_registers {
+    dialects tcl8.5
+    required_package quartus-sdc-ext
+
+    form Default {get_registers ?-latches? ?-no_duplicates? ?-nocase? ?-nowarn? ?filter?}
+
+    hover {
+        summary {Get a collection of registers matching a filter.}
+        synopsis {get_registers ?-latches? ?-no_duplicates? ?-nocase? ?-nowarn? ?filter?}
+        description {Returns a collection; iterate it with foreach_in_collection.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -296,11 +512,12 @@ command get_report_panel_data {
     dialects tcl8.5
     required_package quartus-report
 
-    form Default {get_report_panel_data -name panel_name -row row -col col}
+    form Default {get_report_panel_data ?-name table_name? ?-id table_id? ?-row row? ?-row_name row_name? ?-col column? ?-col_name column_name?}
 
     hover {
         summary {Get data from a specific report panel cell.}
-        synopsis {get_report_panel_data -name panel_name -row row -col col}
+        synopsis {get_report_panel_data ?-name table_name? ?-id table_id? ?-row row? ?-row_name row_name? ?-col column? ?-col_name column_name?}
+        description {Every argument is optional. -id is an alternative to -name, and -row_name and -col_name are name-based alternatives to the numeric -row and -col.}
         source {F5}
     }
 }
@@ -332,16 +549,87 @@ command get_report_panel_row_index {
     }
 }
 
+command get_timing_paths {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {get_timing_paths ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-pairs_only? ?-detail summary|path_only|path_and_clock|full_path?}
+
+    hover {
+        summary {Get a collection of timing paths.}
+        synopsis {get_timing_paths ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-pairs_only? ?-detail summary|path_only|path_and_clock|full_path?}
+        description {The programmatic sibling of report_timing: it takes the same rich filtering options, including the rise_/fall_ families, but hands back a Tcl collection for foreach_in_collection instead of printing a report. The standard way to walk timing paths from a script.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command get_top_level_entity {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {get_top_level_entity}
+
+    hover {
+        summary {Get the name-id of the current focus or top-level entity.}
+        synopsis {get_top_level_entity}
+        description {The returned name-id is what get_name_info -info entity_name expects.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command import_sdc {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {import_sdc}
+
+    hover {
+        summary {Read SDC constraints from the synthesized database.}
+        synopsis {import_sdc}
+        description {Loads the constraints already stored in the database, with no file to name — the common alternative to read_sdc.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command is_database_version_compatible {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {is_database_version_compatible}
+
+    hover {
+        summary {Check whether the project database version is compatible.}
+        synopsis {is_database_version_compatible}
+        description {The guard to run before project_open -force on a database written by another Quartus version. The reference records the command's presence and purpose; its option list is not modelled here.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command is_project_open {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {is_project_open}
+
+    hover {
+        summary {Check whether a project is currently open.}
+        synopsis {is_project_open}
+        description {Returns 1 or 0; the idiomatic guard before project_close.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
 command load_package {
     dialects tcl8.5
-    arity 1
+    arity 1..3
     required_package quartus-misc
 
-    form Default {load_package package_name}
+    form Default {load_package ?-version version_number? package_name}
 
     hover {
         summary {Load a Quartus Tcl package.}
-        synopsis {load_package package_name}
+        synopsis {load_package ?-version version_number? package_name}
+        description {-version pins a specific package version, so a script that already loaded version 2.0 can go back to version 1.0 of the same package.}
         source {F5}
     }
 }
@@ -363,11 +651,12 @@ command make_connection {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {make_connection -from source -to destination}
+    form Default {make_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port? ?-tieoff VCC|GND?}
 
     hover {
         summary {Make a connection in an ECO change.}
-        synopsis {make_connection -from source -to destination}
+        synopsis {make_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port? ?-tieoff VCC|GND?}
+        description {Every argument is optional, and -tieoff drives the destination port to VCC or GND instead of a source net. Really a member of ::quartus::eco 1.0, not ::quartus::project; the pack keeps quartus-project because the Quartus dialect profile pins no quartus-eco package.}
         source {F5}
     }
 }
@@ -376,12 +665,41 @@ command open_device {
     dialects tcl8.5
     required_package quartus-device
 
-    form Default {open_device ?-hardware_name name? ?-device_name name?}
+    form Default {open_device -hardware_name name -device_name name}
 
     hover {
         summary {Open a device on the JTAG chain.}
-        synopsis {open_device ?-hardware_name name? ?-device_name name?}
+        synopsis {open_device -hardware_name name -device_name name}
+        description {Both flags are required. Get their values from get_hardware_names and get_device_names. Really a member of ::quartus::jtag 1.0, not ::quartus::device; the pack keeps quartus-device because the Quartus dialect profile pins no quartus-jtag package.}
         source {F5}
+    }
+}
+
+command post_message {
+    dialects tcl8.5
+    required_package quartus-misc
+
+    form Default {post_message ?-type info|extra_info|warning|critical_warning|error? ?string?}
+
+    hover {
+        summary {Post a message to the Quartus message window.}
+        synopsis {post_message ?-type info|extra_info|warning|critical_warning|error? ?string?}
+        description {The standard way a script emits diagnostics. -type extra_info is itself flagged deprecated in the reference — use info.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command project_archive {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {project_archive archive_name}
+
+    hover {
+        summary {Archive the open project into a .qar file.}
+        synopsis {project_archive archive_name}
+        description {The scripted equivalent of the GUI Archive Project action, commonly used to hand a design off from CI. The reference documents further options this pack does not model.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -431,25 +749,40 @@ command project_open {
     arity 1..
     required_package quartus-project
 
-    form Default {project_open ?-revision rev? ?-current_revision? ?-force? project_name}
+    form Default {project_open ?-revision rev? ?-current_revision? ?-force? ?-preserve_revision_order? project_name}
 
     hover {
         summary {Open an existing Quartus project.}
-        synopsis {project_open ?-revision rev? ?-current_revision? ?-force? project_name}
+        synopsis {project_open ?-revision rev? ?-current_revision? ?-force? ?-preserve_revision_order? project_name}
+        description {-preserve_revision_order maintains the existing revision ordering in the .qpf file.}
         source {F5}
+    }
+}
+
+command qexec {
+    dialects tcl8.5
+    arity 1
+    required_package quartus-misc
+
+    form Default {qexec command}
+
+    hover {
+        summary {Run a shell command from a Quartus Tcl script.}
+        synopsis {qexec command}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
 command read_sdc {
     dialects tcl8.5
-    arity 1..
     required_package quartus-sta
 
-    form Default {read_sdc ?-echo? file_name}
+    form Default {read_sdc ?-hdl? ?-instance instance_name? ?-no_import? ?-no_sdc_promotion? ?-post_fit | -post_syn? ?-project_relative? ?file_name?}
 
     hover {
         summary {Read SDC constraint file for TimeQuest.}
-        synopsis {read_sdc ?-echo? file_name}
+        synopsis {read_sdc ?-hdl? ?-instance instance_name? ?-no_import? ?-no_sdc_promotion? ?-post_fit | -post_syn? ?-project_relative? ?file_name?}
+        description {-echo does not exist in the current syntax. file_name is optional: with no arguments the command loads the default SDC files plus the HDL-embedded constraints.}
         source {F5}
     }
 }
@@ -461,9 +794,52 @@ command remove_all_assignments {
     form Default {remove_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
 
     hover {
-        summary {Remove all assignments matching criteria.}
+        summary {Legacy: remove all assignments matching criteria.}
         synopsis {remove_all_assignments ?-name name? ?-to to? ?-entity entity? ?-type type? ?-section_id id?}
+        description {Split by type in current ::quartus::project 7.0: use remove_all_global_assignments, remove_all_instance_assignments or remove_all_parameters instead — there is no single successor to name.}
         source {F5}
+    }
+}
+
+command remove_all_global_assignments {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {remove_all_global_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+
+    hover {
+        summary {Remove every global assignment matching criteria.}
+        synopsis {remove_all_global_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+        description {One of the three type-specific commands that replaced remove_all_assignments. -name is required.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command remove_all_instance_assignments {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {remove_all_instance_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+
+    hover {
+        summary {Remove every instance assignment matching criteria.}
+        synopsis {remove_all_instance_assignments -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+        description {One of the three type-specific commands that replaced remove_all_assignments. -name is required.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command remove_all_parameters {
+    dialects tcl8.5
+    required_package quartus-project
+
+    form Default {remove_all_parameters -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+
+    hover {
+        summary {Remove every parameter assignment matching criteria.}
+        synopsis {remove_all_parameters -name name ?-entity entity? ?-section_id id? ?-tag data? ?-fall? ?-rise?}
+        description {One of the three type-specific commands that replaced remove_all_assignments. -name is required.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -471,11 +847,12 @@ command remove_connection {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {remove_connection -from source -to destination}
+    form Default {remove_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port?}
 
     hover {
         summary {Remove a connection in an ECO change.}
-        synopsis {remove_connection -from source -to destination}
+        synopsis {remove_connection ?-from output_net_name? ?-from_node from_node? ?-from_port from_port? ?-to dest_node_name? ?-to_node to_node? ?-to_port to_port? ?-port dest_node_port?}
+        description {Same shape as make_connection minus -tieoff, and every argument is optional. Really a member of ::quartus::eco 1.0, not ::quartus::project; the pack keeps quartus-project because the Quartus dialect profile pins no quartus-eco package.}
         source {F5}
     }
 }
@@ -487,8 +864,9 @@ command rename_node {
     form Default {rename_node -from old_name -to new_name}
 
     hover {
-        summary {Rename a node in an ECO change.}
+        summary {Legacy: rename a node in an ECO change.}
         synopsis {rename_node -from old_name -to new_name}
+        description {Not in the current ::quartus::project 7.0 index, and not in ::quartus::eco 1.0 either — the package that owns the sibling ECO node commands create_new_node, remove_node, place_node, unplace_node and modify_lutmask. No documented successor under any package or name.}
         source {F5}
     }
 }
@@ -497,11 +875,11 @@ command report_clock_fmax_summary {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {report_clock_fmax_summary ?-file file? ?-panel_name name?}
+    form Default {report_clock_fmax_summary ?-file file? ?-panel_name name? ?-append? ?-split_by_corner? ?-stdout?}
 
     hover {
         summary {Report maximum clock frequency summary.}
-        synopsis {report_clock_fmax_summary ?-file file? ?-panel_name name?}
+        synopsis {report_clock_fmax_summary ?-file file? ?-panel_name name? ?-append? ?-split_by_corner? ?-stdout?}
         source {F5}
     }
 }
@@ -510,12 +888,26 @@ command report_datasheet {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {report_datasheet ?-file file? ?-panel_name name?}
+    form Default {report_datasheet ?-file file? ?-panel_name name? ?-append? ?-expand_bus? ?-stdout?}
 
     hover {
         summary {Report I/O timing datasheet.}
-        synopsis {report_datasheet ?-file file? ?-panel_name name?}
+        synopsis {report_datasheet ?-file file? ?-panel_name name? ?-append? ?-expand_bus? ?-stdout?}
         source {F5}
+    }
+}
+
+command report_device_info {
+    dialects tcl8.5
+    arity 1
+    required_package quartus-device
+
+    form Default {report_device_info device}
+
+    hover {
+        summary {Report information about a specific device.}
+        synopsis {report_device_info device}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -523,12 +915,26 @@ command report_min_pulse_width {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {report_min_pulse_width ?-nworst n? ?-file file?}
+    form Default {report_min_pulse_width ?-nworst n? ?-file file? ?-panel_name name? ?-append? ?-detail summary|full_path? ?-show_routing? ?-split_by_corner? ?-stdout? ?-type all|min_period|clock_pulse?}
 
     hover {
         summary {Report minimum pulse width violations.}
-        synopsis {report_min_pulse_width ?-nworst n? ?-file file?}
+        synopsis {report_min_pulse_width ?-nworst n? ?-file file? ?-panel_name name? ?-append? ?-detail summary|full_path? ?-show_routing? ?-split_by_corner? ?-stdout? ?-type all|min_period|clock_pulse?}
         source {F5}
+    }
+}
+
+command report_path {
+    dialects tcl8.5
+    required_package quartus-sta
+
+    form Default {report_path ?-from names? ?-fall_from names? ?-fall_through names? ?-fall_to names? ?-npaths n? ?-nworst n? ?-min_path? ?-list_clocks? ?-logic_depth? ?-pairs_only? ?-panel_name name? ?-file name? ?-append?}
+
+    hover {
+        summary {Report the delay of paths between two points.}
+        synopsis {report_path ?-from names? ?-fall_from names? ?-fall_through names? ?-fall_to names? ?-npaths n? ?-nworst n? ?-min_path? ?-list_clocks? ?-logic_depth? ?-pairs_only? ?-panel_name name? ?-file name? ?-append?}
+        description {A detailed path report that, unlike report_timing, does not require the endpoints to be clocked. The reference's option list continues past the options modelled here, in the same rise_/fall_ and -to/-through families report_timing uses.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -536,11 +942,12 @@ command report_timing {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?-detail detail? ?-panel_name name? ?-file file?}
+    form Default {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-from_clock clocks? ?-to_clock clocks? ?-rise_from names? ?-fall_from names? ?-rise_through names? ?-fall_through names? ?-rise_to names? ?-fall_to names? ?-rise_from_clock clocks? ?-fall_from_clock clocks? ?-rise_to_clock clocks? ?-fall_to_clock clocks? ?-setup | -hold | -recovery | -removal? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-detail summary|path_only|path_and_clock|full_path? ?-extra_info basic|all|none? ?-asynch_clock? ?-inter_clock? ?-intra_clock? ?-data_delay? ?-false_path? ?-pairs_only? ?-show_routing? ?-split_by_corner? ?-panel_name name? ?-file file? ?-append? ?-stdout?}
 
     hover {
         summary {Report timing paths.}
-        synopsis {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-setup | -hold? ?-npaths n? ?}
+        synopsis {report_timing ?-from from_list? ?-to to_list? ?-through through_list? ?-from_clock clocks? ?-to_clock clocks? ?-rise_from names? ?-fall_from names? ?-rise_through names? ?-fall_through names? ?-rise_to names? ?-fall_to names? ?-rise_from_clock clocks? ?-fall_from_clock clocks? ?-rise_to_clock clocks? ?-fall_to_clock clocks? ?-setup | -hold | -recovery | -removal? ?-npaths n? ?-nworst n? ?-less_than_slack slack? ?-detail summary|path_only|path_and_clock|full_path? ?-extra_info basic|all|none? ?-asynch_clock? ?-inter_clock? ?-intra_clock? ?-data_delay? ?-false_path? ?-pairs_only? ?-show_routing? ?-split_by_corner? ?-panel_name name? ?-file file? ?-append? ?-stdout?}
+        description {-detail and -extra_info are enum-valued: summary, path_only, path_and_clock or full_path, and basic, all or none. Use get_timing_paths for the same query as a collection instead of a printed report.}
         source {F5}
     }
 }
@@ -549,11 +956,11 @@ command report_ucp {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {report_ucp ?-file file? ?-panel_name name?}
+    form Default {report_ucp ?-file file? ?-panel_name name? ?-append? ?-stdout? ?-summary?}
 
     hover {
         summary {Report unconstrained paths.}
-        synopsis {report_ucp ?-file file? ?-panel_name name?}
+        synopsis {report_ucp ?-file file? ?-panel_name name? ?-append? ?-stdout? ?-summary?}
         source {F5}
     }
 }
@@ -561,13 +968,29 @@ command report_ucp {
 command save_report {
     dialects tcl8.5
     required_package quartus-report
+    deprecated_replacement save_report_database
 
     form Default {save_report}
 
     hover {
-        summary {Save the compilation report.}
+        summary {Legacy: save the compilation report.}
         synopsis {save_report}
+        description {Renamed: ::quartus::report 2.1 exposes save_report_database instead, with the same zero-argument shape.}
         source {F5}
+    }
+}
+
+command save_report_database {
+    dialects tcl8.5
+    required_package quartus-report
+
+    form Default {save_report_database}
+
+    hover {
+        summary {Save the report database.}
+        synopsis {save_report_database}
+        description {Saves the report database, including any new report panel. The current name for what older scripts call save_report.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 
@@ -576,11 +999,11 @@ command set_global_assignment {
     arity 1..
     required_package quartus-project
 
-    form Default {set_global_assignment -name name value ?-section_id id?}
+    form Default {set_global_assignment -name name value ?-section_id id? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise?}
 
     hover {
         summary {Set a global project assignment.}
-        synopsis {set_global_assignment -name name value ?-section_id id?}
+        synopsis {set_global_assignment -name name value ?-section_id id? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise?}
         source {F5}
     }
 }
@@ -589,11 +1012,11 @@ command set_instance_assignment {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? value}
+    form Default {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? value}
 
     hover {
         summary {Set an assignment on a specific instance.}
-        synopsis {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? value}
+        synopsis {set_instance_assignment -name name ?-to to? ?-from from? ?-entity entity? ?-section_id id? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? value}
         source {F5}
     }
 }
@@ -602,11 +1025,12 @@ command set_io_assignment {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {set_io_assignment -name name -to pin_name value}
+    form Default {set_io_assignment -name name ?-io_standard io_standard? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
 
     hover {
         summary {Set an I/O assignment.}
-        synopsis {set_io_assignment -name name -to pin_name value}
+        synopsis {set_io_assignment -name name ?-io_standard io_standard? ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
+        description {There is no -to flag in the current syntax: the target is not named through a -to-style option. The reference's own example is set_io_assignment 30 -name OUTPUT_PIN_LOAD -io_standard LVTTL.}
         source {F5}
     }
 }
@@ -616,11 +1040,11 @@ command set_location_assignment {
     arity 1..
     required_package quartus-project
 
-    form Default {set_location_assignment -to pin_name location}
+    form Default {set_location_assignment -to pin_name ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? location}
 
     hover {
         summary {Set a location assignment for a pin.}
-        synopsis {set_location_assignment -to pin_name location}
+        synopsis {set_location_assignment -to pin_name ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? location}
         source {F5}
     }
 }
@@ -629,11 +1053,12 @@ command set_parameter {
     dialects tcl8.5
     required_package quartus-project
 
-    form Default {set_parameter -name name -to instance value}
+    form Default {set_parameter -name name ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
 
     hover {
-        summary {Set a parameter on a design entity.}
-        synopsis {set_parameter -name name -to instance value}
+        summary {Set a parameter on the top-level entity.}
+        synopsis {set_parameter -name name ?-comment comment? ?-tag data? ?-disable? ?-remove? ?-fall? ?-rise? ?value?}
+        description {-to and -entity are no longer in the syntax: assignments that use them are ignored and raise a critical warning. set_parameter is now project-wide, overwriting the parameters of the design's top-level entity.}
         source {F5}
     }
 }
@@ -642,12 +1067,41 @@ command update_timing_netlist {
     dialects tcl8.5
     required_package quartus-sta
 
-    form Default {update_timing_netlist}
+    form Default {update_timing_netlist ?-full? ?-dynamic_borrow? ?-loop_aware_dynamic_borrow? ?-no_borrow? ?-recompute_borrow?}
 
     hover {
         summary {Update the timing netlist after changes.}
-        synopsis {update_timing_netlist}
+        synopsis {update_timing_netlist ?-full? ?-dynamic_borrow? ?-loop_aware_dynamic_borrow? ?-no_borrow? ?-recompute_borrow?}
         source {F5}
+    }
+}
+
+command write_flow_assignment_digest {
+    dialects tcl8.5
+    required_package quartus-flow
+
+    form Default {write_flow_assignment_digest}
+
+    hover {
+        summary {Write a digest of the flow assignments.}
+        synopsis {write_flow_assignment_digest}
+        description {The digest is what later runs compare against to detect stale incremental-compile state. The reference records the command's presence and purpose; its option list is not modelled here.}
+        source {Quartus Prime Pro Tcl API reference}
+    }
+}
+
+command write_sdc {
+    dialects tcl8.5
+    arity 1..
+    required_package quartus-sta
+
+    form Default {write_sdc ?-expand? ?-history? ?-valid_exceptions? file_name}
+
+    hover {
+        summary {Write the current constraint set to an SDC file.}
+        synopsis {write_sdc ?-expand? ?-history? ?-valid_exceptions? file_name}
+        description {-expand inlines the SDC macros — derive_clocks, derive_pll_clocks, derive_lvds_clocks and derive_clock_uncertainty — before writing, so the output is a flat constraint set.}
+        source {Quartus Prime Pro Tcl API reference}
     }
 }
 

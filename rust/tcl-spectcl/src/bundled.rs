@@ -82,10 +82,10 @@ pub fn load_from(dir: &Path) -> PackSet {
     crate::pack::load(&files)
 }
 
-/// The seven shipped EDA loadables' `.tclspec` sources, compiled into the
+/// The eight shipped EDA loadables' `.tclspec` sources, compiled into the
 /// binary — see "The embedded fallback" above for why this exists.
 ///
-/// The same seven files `specs/` ships, by `include_str!` on the identical
+/// The same eight files `specs/` ships, by `include_str!` on the identical
 /// path the crate's own tests resolve `specs/` from — not a hand-copied
 /// second source that could drift from the on-disk one.
 const EMBEDDED_PACKS: &[(&str, &str)] = &[
@@ -96,6 +96,10 @@ const EMBEDDED_PACKS: &[(&str, &str)] = &[
     (
         "eda_mentor.tclspec",
         include_str!("../../../specs/eda_mentor.tclspec"),
+    ),
+    (
+        "eda_microchip.tclspec",
+        include_str!("../../../specs/eda_microchip.tclspec"),
     ),
     (
         "eda_quartus.tclspec",
@@ -254,7 +258,7 @@ pub fn active_registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
 /// axis: hold it while you read it, drop it when done, and a later pack edit
 /// can retire this generation.
 ///
-/// The bundled tier carries *all seven* EDA libraries regardless of dialect —
+/// The bundled tier carries *all eight* EDA libraries regardless of dialect —
 /// discovery cannot know which shell a document belongs to — and
 /// [`install`](crate::install) is what narrows them to the packages this
 /// profile ships ambient, so a Vivado registry never takes a Cadence
@@ -313,13 +317,14 @@ mod tests {
             vec![
                 "eda_cadence",
                 "eda_mentor",
+                "eda_microchip",
                 "eda_quartus",
                 "eda_synopsys",
                 "eda_xilinx",
                 "sdc_base",
                 "upf"
             ],
-            "the seven EDA loadables"
+            "the eight EDA loadables"
         );
         let warnings: Vec<String> = set
             .notices
@@ -347,7 +352,7 @@ mod tests {
     /// `tcl-lsp-server-<triple>` release asset, or the Zed extension's
     /// runtime download of it.
     #[test]
-    fn the_embedded_packs_carry_the_same_seven_eda_vendor_libraries() {
+    fn the_embedded_packs_carry_the_same_eight_eda_vendor_libraries() {
         let _cache = cache_guard();
         let set = load_embedded();
         let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
@@ -357,13 +362,14 @@ mod tests {
             vec![
                 "eda_cadence",
                 "eda_mentor",
+                "eda_microchip",
                 "eda_quartus",
                 "eda_synopsys",
                 "eda_xilinx",
                 "sdc_base",
                 "upf"
             ],
-            "the seven EDA loadables, embedded"
+            "the eight EDA loadables, embedded"
         );
         let warnings: Vec<String> = set
             .notices

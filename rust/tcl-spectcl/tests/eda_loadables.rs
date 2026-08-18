@@ -63,13 +63,14 @@ const PROFILES: &[(&str, &str, &str)] = &[
     ("cadence-eda-tcl", "cadence-innovus", "ccopt_design"),
     ("intel-quartus-eda-tcl", "quartus-flow", "execute_flow"),
     ("mentor-eda-tcl", "questa", "vsim"),
+    ("microchip-libero-eda-tcl", "libero", "run_designer"),
 ];
 
-/// The seven packs are on disk, load without a warning, and carry the whole
+/// The eight packs are on disk, load without a warning, and carry the whole
 /// command surface the Rust modules used to — plus the UPF library added for
 /// issue #1560.
 #[test]
-fn the_seven_packs_load_clean_and_carry_every_command() {
+fn the_eight_packs_load_clean_and_carry_every_command() {
     let set = shipped();
     let counts: Vec<(String, usize)> = set
         .packs
@@ -79,18 +80,22 @@ fn the_seven_packs_load_clean_and_carry_every_command() {
     assert_eq!(
         counts,
         vec![
-            ("eda_cadence".to_owned(), 56),
-            ("eda_mentor".to_owned(), 49),
-            ("eda_quartus".to_owned(), 48),
-            ("eda_synopsys".to_owned(), 67),
-            ("eda_xilinx".to_owned(), 64),
+            ("eda_cadence".to_owned(), 77),
+            ("eda_mentor".to_owned(), 69),
+            // 257: the Libero SoC v11.8 Tcl Command Reference surface, minus
+            // the SmartTime commands that are portable SDC (sdc_base owns
+            // those).
+            ("eda_microchip".to_owned(), 257),
+            ("eda_quartus".to_owned(), 77),
+            ("eda_synopsys".to_owned(), 68),
+            ("eda_xilinx".to_owned(), 75),
             ("sdc_base".to_owned(), 86),
             ("upf".to_owned(), 67),
         ],
         "the shipped command counts, pack by pack"
     );
     let total: usize = set.packs.iter().map(|p| p.commands.len()).sum();
-    assert_eq!(total, 437, "every command the seven shipped packs carry");
+    assert_eq!(total, 776, "every command the eight shipped packs carry");
 
     let warnings: Vec<String> = set
         .notices
