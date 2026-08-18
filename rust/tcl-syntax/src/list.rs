@@ -441,14 +441,17 @@ enum Quote {
     Mask,
 }
 
-/// Decide the quoting for `s` as a list element. `leading_hash_unsafe` is the
+/// Decide the quoting for `b` as a list element. `leading_hash_unsafe` is the
 /// `#`-could-start-a-comment case (true for the first element of a list / a
 /// command word; the `TCL_DONT_QUOTE_HASH` inverse).
-fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
-    if s.is_empty() {
+///
+/// Byte-oriented because every character this decision turns on is ASCII: a
+/// UTF-8 continuation byte is `>= 0x80` and so falls in the `_` arm, exactly as
+/// C's `CHAR_TYPE` table classifies it `TYPE_NORMAL`.
+fn scan_element(b: &[u8], leading_hash_unsafe: bool) -> Quote {
+    if b.is_empty() {
         return Quote::Brace; // the empty element renders as `{}`.
     }
-    let b = s.as_bytes();
     // Follows `TclScanElement` (tclUtil.c, `COMPAT 1` — the form Tcl 9.0
     // actually ships). Flags:
     //   forbid_none    ⇒ cannot copy verbatim (must brace or escape).
@@ -531,57 +534,84 @@ fn scan_element(s: &str, leading_hash_unsafe: bool) -> Quote {
     }
 }
 
-fn convert_element(s: &str, quote: Quote, leading_hash_unsafe: bool, out: &mut String) {
+fn convert_element(b: &[u8], quote: Quote, leading_hash_unsafe: bool, out: &mut Vec<u8>) {
     // `TclConvertElement`: a leading `#` is forced into brace quoting unless we
     // are already in full-escape mode (where it becomes `\#`).
-    let lead_hash = leading_hash_unsafe && s.starts_with('#');
+    let lead_hash = leading_hash_unsafe && b.first() == Some(&b'#');
     let quote = if lead_hash && quote != Quote::Escape {
         Quote::Brace
     } else {
         quote
     };
     match quote {
-        Quote::None => out.push_str(s),
+        Quote::None => out.extend_from_slice(b),
         Quote::Brace => {
-            out.push('{');
-            out.push_str(s);
-            out.push('}');
+            out.push(b'{');
+            out.extend_from_slice(b);
+            out.push(b'}');
         }
         Quote::Escape | Quote::Mask => {
             // MASK mode leaves balanced braces bare; ESCAPE escapes them too.
             let escape_braces = quote == Quote::Escape;
-            for (i, ch) in s.char_indices() {
-                match ch {
-                    '#' if i == 0 && leading_hash_unsafe => out.push_str("\\#"),
-                    '{' | '}' => {
+            for (i, &c) in b.iter().enumerate() {
+                match c {
+                    b'#' if i == 0 && leading_hash_unsafe => out.extend_from_slice(b"\\#"),
+                    b'{' | b'}' => {
                         if escape_braces {
-                            out.push('\\');
+                            out.push(b'\\');
                         }
-                        out.push(ch);
+                        out.push(c);
                     }
-                    '[' | ']' | '$' | ';' | '\\' | '"' | ' ' => {
-                        out.push('\\');
-                        out.push(ch);
+                    b'[' | b']' | b'$' | b';' | b'\\' | b'"' | b' ' => {
+                        out.push(b'\\');
+                        out.push(c);
                     }
-                    '\n' => out.push_str("\\n"),
-                    '\t' => out.push_str("\\t"),
-                    '\r' => out.push_str("\\r"),
-                    '\x0b' => out.push_str("\\v"),
-                    '\x0c' => out.push_str("\\f"),
-                    _ => out.push(ch),
+                    b'\n' => out.extend_from_slice(b"\\n"),
+                    b'\t' => out.extend_from_slice(b"\\t"),
+                    b'\r' => out.extend_from_slice(b"\\r"),
+                    0x0b => out.extend_from_slice(b"\\v"),
+                    0x0c => out.extend_from_slice(b"\\f"),
+                    _ => out.push(c),
                 }
             }
         }
     }
 }
 
+/// Append `elem` to `out` quoted as one Tcl list element (`Tcl_ScanElement` +
+/// `Tcl_ConvertElement`, tclUtil.c:1056 / :1422) — the **byte** entry point.
+///
+/// This is the single renderer behind [`list_element`] and [`join_list`] *and*
+/// behind the WASM runtime's list/dict string-rep generation, which works in
+/// raw bytes (a Tcl value is not required to be UTF-8) and previously carried
+/// its own port of the same four `CONVERT_*` modes (issue #1439).
+///
+/// `leading_hash_unsafe` is the `TCL_DONT_QUOTE_HASH` inverse: pass `true` for
+/// the first element of a list or a command word, where a bare leading `#`
+/// would be read as a comment.
+pub fn append_list_element(out: &mut Vec<u8>, elem: &[u8], leading_hash_unsafe: bool) {
+    convert_element(
+        elem,
+        scan_element(elem, leading_hash_unsafe),
+        leading_hash_unsafe,
+        out,
+    );
+}
+
+/// The rendered bytes as a `String`. Every byte the escaper *adds* is ASCII and
+/// every byte it copies comes from the (valid UTF-8) input, so the result is
+/// still valid UTF-8.
+fn rendered_utf8(bytes: Vec<u8>) -> String {
+    String::from_utf8(bytes).expect("ASCII-only escaping over valid UTF-8 stays UTF-8")
+}
+
 /// Quote a single value as a Tcl list element (`Tcl_ScanElement` +
 /// `Tcl_ConvertElement`). The standalone form treats a leading `#` as unsafe.
 #[must_use]
 pub fn list_element(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    convert_element(s, scan_element(s, true), true, &mut out);
-    out
+    let mut out = Vec::with_capacity(s.len() + 2);
+    append_list_element(&mut out, s.as_bytes(), true);
+    rendered_utf8(out)
 }
 
 /// Join values into a Tcl list string (`Tcl_Merge`). Only the first element's
@@ -592,16 +622,14 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<str>,
 {
-    let mut out = String::new();
+    let mut out = Vec::new();
     for (idx, e) in elems.into_iter().enumerate() {
         if idx != 0 {
-            out.push(' ');
+            out.push(b' ');
         }
-        let s = e.as_ref();
-        let hash_unsafe = idx == 0;
-        convert_element(s, scan_element(s, hash_unsafe), hash_unsafe, &mut out);
+        append_list_element(&mut out, e.as_ref().as_bytes(), idx == 0);
     }
-    out
+    rendered_utf8(out)
 }
 
 /// Re-render `s` as a canonical Tcl list: the same elements, separated by
@@ -859,9 +887,63 @@ mod tests {
             ("a]b", "a\\]b"),
             ("a[b", "{a[b}"),
             ("a\"b", "a\\\"b"),
+            // Merged in from the WASM runtime's own table when its second port
+            // of this codec was replaced by a binding of this one (#1439).
+            ("[append", "{[append}"),
+            ("a$b", "{a$b}"),
+            ("a[b]c", "{a[b]c}"),
+            (".b]", ".b\\]"),
+            ("#c", "{#c}"),
+            ("a b", "{a b}"),
+            // A trailing backslash and a `\<newline>` both forbid braces, so
+            // they take full escape mode — the newline as `\n`, not literally.
+            ("a\\", "a\\\\"),
+            ("a\\\nb", "a\\\\\\nb"),
+            // Whitespace on its own prefers braces, so it stays literal there.
+            ("a\nb", "{a\nb}"),
+            ("a\tb", "{a\tb}"),
+            ("a\rb", "{a\rb}"),
+            ("\x0b", "{\x0b}"),
+            // Multi-byte text is copied through: every byte the codec reacts to
+            // is ASCII, and a UTF-8 continuation byte is `>= 0x80`.
+            ("éx", "éx"),
         ] {
             assert_eq!(list_element(value), want, "list_element({value:?})");
         }
+    }
+
+    /// Issue #1439 — the byte entry point is the *same* renderer
+    /// [`list_element`] uses, and it stays byte-exact for input the `&str` API
+    /// cannot carry: a Tcl value is a byte string, and the WASM runtime feeds
+    /// this codec raw object bytes that need not be valid UTF-8.
+    #[test]
+    fn append_list_element_is_byte_exact_and_agrees_with_the_str_api() {
+        let render = |elem: &[u8], hash_unsafe: bool| {
+            let mut out = Vec::new();
+            append_list_element(&mut out, elem, hash_unsafe);
+            out
+        };
+        // Agreement with the `&str` façade on every parity row above.
+        for value in [
+            "b{}", "a{}}", "c}", "a{b}c", "a{b", "{}", "#", "abc", "$x", "[x]", "a;b", "a]b",
+            "a\"b", "a b", "a\\", "éx",
+        ] {
+            assert_eq!(
+                render(value.as_bytes(), true),
+                list_element(value).into_bytes(),
+                "byte/str disagreement on {value:?}"
+            );
+        }
+        // Lone high bytes are neither mangled nor UTF-8-replaced.
+        assert_eq!(render(&[0x80, b'a', 0xff], true), vec![0x80, b'a', 0xff]);
+        assert_eq!(
+            render(&[0xff, b' ', 0xfe], true),
+            vec![b'{', 0xff, b' ', 0xfe, b'}']
+        );
+        // `leading_hash_unsafe = false` is `TCL_DONT_QUOTE_HASH`: a non-first
+        // element's leading `#` needs no protection.
+        assert_eq!(render(b"#c", false), b"#c".to_vec());
+        assert_eq!(render(b"#c", true), b"{#c}".to_vec());
     }
 
     #[test]
