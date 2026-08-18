@@ -49,7 +49,10 @@ impl CompileService for CompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        self.compile_for_profile(src, DialectProfile::by_name(TclVersion::V9_0.dialect_name()))
+        self.compile_for_profile(
+            src,
+            DialectProfile::by_name(TclVersion::V9_0.dialect_name()),
+        )
     }
 
     fn compile_for_profile(

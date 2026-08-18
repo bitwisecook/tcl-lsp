@@ -1134,7 +1134,10 @@ mod tests {
     fn command_traces_fire_newest_first() {
         leak_free(|i| {
             ok(i, b"set ::log {}");
-            ok(i, b"proc rec {label args} {lappend ::log $label-[lindex $args end]}");
+            ok(
+                i,
+                b"proc rec {label args} {lappend ::log $label-[lindex $args end]}",
+            );
             ok(i, b"proc victim {} {}");
             ok(i, b"trace add command victim {rename delete} {rec one}");
             ok(i, b"trace add command victim {rename delete} {rec two}");
@@ -1158,7 +1161,10 @@ mod tests {
             ok(i, b"proc cb args {}");
             ok(i, b"proc p {} {}");
             ok(i, b"trace add command p {delete rename} cb");
-            ok(i, b"trace add execution p {leavestep leave enterstep enter} cb");
+            ok(
+                i,
+                b"trace add execution p {leavestep leave enterstep enter} cb",
+            );
             ok(i, b"trace add variable q {unset write read array} cb");
             assert_eq!(ok(i, b"trace info command p"), b"{{rename delete} cb}");
             assert_eq!(
