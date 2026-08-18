@@ -27,7 +27,7 @@
 //! model does (issue #946).
 
 use std::cell::RefCell;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::io::{self, Write};
 use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -125,14 +125,13 @@ const CONTROL_FALLBACK_DEPTH_LIMIT: RecursionLimit = RecursionLimit(24);
 /// measured crash floor.
 const OO_DISPATCH_DEPTH_LIMIT: RecursionLimit = RecursionLimit(20);
 
-/// Render a subcommand list as C's ensemble `must be …` clause — note the
-/// ensemble formatter puts a comma before `or` even for two items
-/// (`x1, or x2`), unlike `Tcl_GetIndexFromObj`.
-fn oxford_or(items: &[String]) -> String {
-    match items {
-        [] => String::new(),
-        [a] => a.clone(),
-        [head @ .., last] => format!("{}, or {last}", head.join(", ")),
+/// The display form of a canonical (unrooted) namespace name: `""` → `::`,
+/// `foo` → `::foo`. C's `Namespace.fullName`.
+pub(crate) fn display_namespace(canonical: &str) -> String {
+    if canonical.is_empty() {
+        "::".to_string()
+    } else {
+        format!("::{canonical}")
     }
 }
 
@@ -151,23 +150,14 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
     Err(format!("expected integer but got \"{s}\""))
 }
 
-/// Resolve an `interp limit` option by unambiguous prefix against `opts`,
-/// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
-/// `bad option "X": must be …` error.
+/// Resolve an `interp limit` option against `opts` through the shared
+/// `Tcl_GetIndexFromObj` port (C passes flags `0` and the noun `"option"`).
+/// Returns the canonical spelling or the C miss message.
 fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
-    let matches: Vec<&str> = opts
-        .iter()
-        .copied()
-        .filter(|o| o.starts_with(arg))
-        .collect();
-    match matches.as_slice() {
-        [exact] => Ok(exact),
-        _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
-        _ => Err(format!(
-            "bad option \"{arg}\": must be {}",
-            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
-        )),
-    }
+    tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts)
+        .index_of_str(arg)
+        .map(|index| opts[index])
+        .map_err(tcl_cmd_core::error::CmdError::into_message)
 }
 
 /// Parse an `interp limit` integer option value, mirroring `parse_recursion_limit`'s
@@ -558,6 +548,14 @@ pub struct InterpState {
     /// `rename lassign escaped` remains the `lassign` builtin for release
     /// availability purposes.
     builtin_identities: HashMap<String, String>,
+    /// The `Command::Object` entries the engine installs on the registry's
+    /// behalf rather than a script creating them — the TclOO roots
+    /// (`oo::object`, `oo::class`, `oo::configurable`). They carry a registry
+    /// availability gate the way a builtin does; every other object command is
+    /// user-created and release-invariant. Populated at bootstrap
+    /// (`cmd_oo::register`), read by
+    /// [`builtin_command_visible_for_identity`](Self::builtin_command_visible_for_identity).
+    registry_object_roots: HashSet<String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -1190,7 +1188,20 @@ impl InterpState {
         command: &Command,
         identity: Option<&str>,
     ) -> bool {
-        if !matches!(command, Command::Builtin(_) | Command::Native(_)) {
+        // `Command::Object` joins the gated kinds for the TclOO **roots** only.
+        // `oo::object`/`oo::class`/`oo::configurable` are command-table entries
+        // the engine installs on behalf of the registry (which dates them
+        // TCL86_PLUS / TCL90_PLUS), so an 8.4 or 8.5 surface must not carry
+        // them and an 8.6 surface must not carry `oo::configurable`. Every
+        // *other* object command is script-created — `oo::class create lpop`
+        // is a user command that happens to share a registry name — so it is
+        // invariant, exactly like a proc.
+        let gated = match command {
+            Command::Builtin(_) | Command::Native(_) => true,
+            Command::Object(_) => self.registry_object_roots.contains(name),
+            _ => false,
+        };
+        if !gated {
             return true;
         }
         let origin = identity
@@ -1256,6 +1267,7 @@ impl InterpState {
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
             builtin_identities: HashMap::new(),
+            registry_object_roots: HashSet::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -3210,21 +3222,33 @@ impl Vm {
         out
     }
 
-    /// Dispatch a `namespace ensemble` call (`ens sub ?arg …?`): resolve `sub`
-    /// (exact, or unambiguous prefix) against the ensemble's subcommands and
-    /// invoke the mapped target (`-map`, else `namespace::sub`).
+    /// Dispatch a `namespace ensemble` call (`ens ?param …? sub ?arg …?`):
+    /// resolve `sub` against the ensemble's subcommands through the shared
+    /// `tcl_cmd_core::ensemble` scan and invoke the mapped target (`-map`, else
+    /// `namespace::sub`), threading any `-parameters` values in after the
+    /// target prefix (`NsEnsembleImplementationCmd`, `tclEnsemble.c`).
     pub(crate) fn dispatch_ensemble(
         &mut self,
         ens_name: &str,
         e: &EnsembleDef,
         argv: &[Value],
     ) -> Completion<Value> {
-        let Some((sub_val, rest)) = argv.split_first() else {
+        // `-parameters` formals sit between the ensemble command and the
+        // subcommand word, so the subcommand is at `nparams`.
+        let nparams = e.parameters.len();
+        if argv.len() <= nparams {
+            let mut usage = ens_name.to_string();
+            for p in &e.parameters {
+                usage.push(' ');
+                usage.push_str(p);
+            }
             return err(format!(
-                "wrong # args: should be \"{ens_name} subcommand ?arg ...?\""
+                "wrong # args: should be \"{usage} subcommand ?arg ...?\""
             ));
-        };
-        let sub = sub_val.to_str().to_string();
+        }
+        let params = &argv[..nparams];
+        let sub = argv[nparams].to_str().to_string();
+        let rest = &argv[nparams + 1..];
         let mut subs: Vec<String> = match &e.subcommands {
             Some(list) => list.clone(),
             None => self.exported_command_tails(&e.namespace),
@@ -3236,43 +3260,38 @@ impl Vm {
         }
         subs.sort();
         subs.dedup();
-        let resolved = if subs.iter().any(|s| s == &sub) {
-            Some(sub.clone())
-        } else if e.prefixes {
-            let m: Vec<&String> = subs.iter().filter(|s| s.starts_with(&sub)).collect();
-            if m.len() == 1 {
-                Some(m[0].clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        match resolved {
-            Some(s) => {
-                let mut full: Vec<Value> = match e.map.get(&s) {
+        match tcl_cmd_core::ensemble::resolve_subcommand(&subs, sub.as_bytes(), e.prefixes) {
+            Some(index) => {
+                let resolved = &subs[index];
+                let mut full: Vec<Value> = match e.map.get(resolved) {
                     Some(words) => words.clone(),
                     None => vec![Value::string(if e.namespace.is_empty() {
-                        s.clone()
+                        resolved.clone()
                     } else {
-                        format!("{}::{s}", e.namespace)
+                        format!("{}::{resolved}", e.namespace)
                     })],
                 };
+                full.extend_from_slice(params);
                 full.extend_from_slice(rest);
                 let target = full[0].to_str().to_string();
                 self.invoke_command(&target, &full[1..])
             }
             None if e.unknown.is_some() => {
-                let mut full = e.unknown.clone().unwrap();
+                let mut full = e.unknown.clone().unwrap_or_default();
                 full.push(Value::string(ens_name));
                 full.extend_from_slice(argv);
                 let target = full[0].to_str().to_string();
                 self.invoke_command(&target, &full[1..])
             }
-            None => err(format!(
-                "unknown or ambiguous subcommand \"{sub}\": must be {}",
-                oxford_or(&subs)
-            )),
+            None => err(String::from_utf8_lossy(
+                &tcl_cmd_core::ensemble::unknown_subcommand_message(
+                    &subs,
+                    sub.as_bytes(),
+                    e.prefixes,
+                    display_namespace(&e.namespace).as_bytes(),
+                ),
+            )
+            .into_owned()),
         }
     }
 
@@ -3835,13 +3854,50 @@ impl Vm {
         }
     }
 
-    /// Record `namespace export` patterns for the current namespace.
+    /// Record `namespace export` patterns for the current namespace. C's
+    /// `Tcl_Export` skips a pattern already in the array, so the list is a
+    /// set in insertion order — `namespace export a; namespace export a`
+    /// still reports `a`.
     pub(crate) fn add_exports(&mut self, patterns: &[String]) {
         let ns = self.current_ns().to_string();
+        let entry = self.ns_exports.entry(ns).or_default();
+        for pattern in patterns {
+            if !entry.iter().any(|existing| existing == pattern) {
+                entry.push(pattern.clone());
+            }
+        }
+    }
+
+    /// The current namespace's `namespace export` pattern list (C's
+    /// `Tcl_AppendExportList`, the `namespace export` query form).
+    pub(crate) fn exports_get(&self) -> Vec<String> {
         self.ns_exports
-            .entry(ns)
-            .or_default()
-            .extend_from_slice(patterns);
+            .get(self.current_ns())
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    /// Drop the current namespace's export patterns — the state change
+    /// `namespace export -clear` makes (`Tcl_Export`'s `resetListFirst`).
+    pub(crate) fn clear_exports(&mut self) {
+        let ns = self.current_ns().to_string();
+        self.ns_exports.remove(&ns);
+    }
+
+    /// The unqualified names of the current namespace's commands that
+    /// `namespace import` created — C's `NamespaceImportCmd` introspection
+    /// form (`objc == 1`), a `cmdTable` walk for `deleteProc ==
+    /// DeleteImportedCmd`. Sorted, since the VM's table has no hash order to
+    /// reproduce.
+    pub(crate) fn imported_command_tails(&self) -> Vec<String> {
+        let ns = self.current_ns();
+        let mut names: Vec<String> = self
+            .imported_commands
+            .keys()
+            .filter_map(|key| direct_member_tail(key, ns).map(str::to_owned))
+            .collect();
+        names.sort();
+        names
     }
 
     /// Declare a built-in namespace (`ns`, unrooted) and record its
@@ -3980,6 +4036,13 @@ impl Vm {
         self.builtin_identities.insert(key.to_owned(), identity);
     }
 
+    /// Record `key` as an engine-installed TclOO root object command, so the
+    /// release-availability gate treats it like a builtin (see
+    /// [`InterpState::registry_object_roots`]).
+    pub(crate) fn declare_registry_object_root(&mut self, key: &str) {
+        self.registry_object_roots.insert(key.to_owned());
+    }
+
     /// `namespace forget pattern` — remove previously imported commands matching
     /// `pattern` from the current namespace (C `Tcl_ForgetImport`). Only commands
     /// created by `namespace import` are removed; a real command of the same name
@@ -4065,34 +4128,57 @@ impl Vm {
         }
         let prefix = format!("{canonical}::");
         let in_tree = |k: &str| k == canonical || k.starts_with(&prefix);
+        // C deletes the namespace's ensembles *first* (`Tcl_DeleteNamespace`,
+        // `tclNamesp.c:944-959`: `while (nsPtr->ensembles != NULL)` →
+        // `Tcl_DeleteCommandFromToken`). An ensemble command is owned by the
+        // namespace it dispatches into, wherever the command itself is bound —
+        // `namespace ensemble create -command ::myens` inside `::ens1` puts the
+        // command in the global table, and `namespace delete ::ens1` must still
+        // take it with it.
         // Commands and namespace variables are keyed by their fully-qualified
         // (unrooted) name, so a member of the namespace or a descendant begins
         // with `canonical::`.
-        let removed_commands: Vec<String> = self
+        let removed_commands: HashSet<String> = self
             .commands
-            .keys()
-            .filter(|key| key.starts_with(&prefix))
-            .cloned()
+            .iter()
+            .filter(|(key, command)| {
+                key.starts_with(&prefix)
+                    || matches!(command, Command::Ensemble(def) if in_tree(&def.namespace))
+            })
+            .map(|(key, _)| key.clone())
             .collect();
         self.bump_cmd_epoch();
-        self.commands.retain(|k, _| !k.starts_with(&prefix));
-        for key in removed_commands {
-            let was_coroutine = crate::cmd_coro::is_coroutine(self, &key);
-            self.detach_active_sidecars(&CommandSidecarKey::visible(&key));
+        self.commands.retain(|k, _| !removed_commands.contains(k));
+        for key in &removed_commands {
+            let was_coroutine = crate::cmd_coro::is_coroutine(self, key);
+            self.detach_active_sidecars(&CommandSidecarKey::visible(key));
             if was_coroutine {
-                crate::cmd_coro::on_command_deleted(self, &key);
+                crate::cmd_coro::on_command_deleted(self, key);
             }
         }
         self.imported_commands
-            .retain(|k, _| !k.starts_with(&prefix));
+            .retain(|k, _| !removed_commands.contains(k));
         self.builtin_identities
-            .retain(|k, _| !k.starts_with(&prefix));
+            .retain(|k, _| !removed_commands.contains(k));
         if let Some(g) = self.frames.first_mut() {
             g.locals.retain(|k, _| !k.starts_with(&prefix));
         }
         self.namespaces.retain(|n| !in_tree(n));
         self.ns_exports.retain(|k, _| !in_tree(k));
         self.ns_intern.retain(|k, _| !in_tree(k));
+        // `TclTeardownNamespace` resets the namespace's own parameters
+        // (`tclNamesp.c:1148-1165`): it drops its `namespace path`
+        // (`UnlinkNsPath`), frees its `namespace unknown` handler, and then
+        // walks `commandPathSourceList` to NULL *this* namespace out of every
+        // other namespace's path (bumping their `cmdRefEpoch`). Both
+        // directions matter: without the first a recreated namespace inherits
+        // its predecessor's path and unknown handler, without the second a
+        // stale path entry resurrects when the name comes back.
+        self.ns_paths.retain(|k, _| !in_tree(k));
+        self.ns_unknowns.retain(|k, _| !in_tree(k));
+        for path in self.ns_paths.values_mut() {
+            path.retain(|entry| !in_tree(entry));
+        }
         true
     }
 
@@ -6384,6 +6470,37 @@ impl Namespaces for Vm {
 
     fn vars_in(&self, ns: NsId) -> Vec<String> {
         self.vars_directly_in(&self.ns_name(ns))
+    }
+
+    // `Tcl_FindNamespaceVar`'s single probe. The VM keeps namespace variables
+    // in the global frame keyed by their canonical (unrooted) FQN, so the
+    // namespace's own table is the set of `canonical::simple` cells — links
+    // (`upvar`/`global`/`variable` aliases) are deliberately excluded, exactly
+    // as C's `varTable` walk never sees a `CompiledLocal`.
+    fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool {
+        let canonical = self.ns_name(ns);
+        let key = if canonical.is_empty() {
+            simple.to_owned()
+        } else {
+            format!("{canonical}::{simple}")
+        };
+        self.frames.first().is_some_and(|frame| {
+            matches!(
+                frame.locals.get(&key),
+                Some(Local::Scalar(_) | Local::Array(_))
+            )
+        })
+    }
+
+    fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {
+        let fqn = self.command_fqn(cmd.0)?;
+        let key = fqn.strip_prefix("::").unwrap_or(&fqn);
+        // `command_origin_key` owns the walk because the VM's import links are
+        // name-keyed across two domains (visible / hidden token), which a bare
+        // FQN cannot distinguish.
+        Some(CommandId(
+            self.intern_cmd(&format!("::{}", self.command_origin_key(key))),
+        ))
     }
 }
 

@@ -565,8 +565,19 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let v84 = DialectProfile::by_name("tcl8.4");
     let v86 = DialectProfile::by_name("tcl8.6");
     let mut vm = Vm::new();
-    vm.set_dialect_profile(v85);
+    // TclOO is an 8.6 command surface (issue #1463), so the class factory is
+    // only reachable there; the resulting object command is script-created and
+    // stays callable on every release, which is what the flips below exercise.
+    vm.set_dialect_profile(v86);
     vm.set_compiler(Box::new(CompilerSvc::for_profile(v85)));
+    let oo_setup = vm
+        .eval_source(
+            "oo::class create C {method m {} {lassign {a b} x; return $x}}\n\
+             C create o",
+        )
+        .expect("8.6 TclOO setup compiles");
+    assert!(oo_setup.code.is_ok(), "{}", oo_setup.result.to_str());
+    vm.set_dialect_profile(v85);
 
     // Prime every cache/body owner that retains executable bytecode: an
     // ordinary proc, TclOO method, child proc reached through an alias,
@@ -575,8 +586,6 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
     let setup = vm
         .eval_source(
             "proc p {} {lassign {a b} x; return $x}\n\
-             oo::class create C {method m {} {lassign {a b} x; return $x}}\n\
-             C create o\n\
              expr {0b10 + 1}",
         )
         .expect("8.5 setup compiles");
@@ -754,7 +763,9 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
 fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
     let calls = Rc::new(Cell::new(0));
     let mut vm = Vm::new();
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+    // TclOO's class factory is 8.6+ (issue #1463); the object it makes is
+    // script-created and survives the flip to 8.4 below.
+    vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
     vm.set_compiler(Box::new(CountingCompilerSvc {
         calls: Rc::clone(&calls),
     }));

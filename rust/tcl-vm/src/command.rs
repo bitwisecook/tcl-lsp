@@ -155,6 +155,10 @@ pub struct EnsembleDef {
     pub subcommands: Option<Vec<String>>,
     /// `-prefixes`: whether an unambiguous prefix of a subcommand resolves.
     pub prefixes: bool,
+    /// `-parameters`: formal parameter names that precede the subcommand word
+    /// (`ens p1 p2 sub arg…`); their values thread in after the resolved
+    /// target prefix (`target p1 p2 arg…`). Empty for an ordinary ensemble.
+    pub parameters: Vec<String>,
     /// `-unknown`: a handler prefix invoked when no subcommand matches.
     pub unknown: Option<Vec<Value>>,
 }

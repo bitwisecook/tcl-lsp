@@ -161,6 +161,92 @@ pub fn which_command<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Va
     }
 }
 
+/// `namespace which -variable name` — the fully-qualified name `name` resolves
+/// to as a **namespace** variable from the current namespace, or the empty
+/// string.
+///
+/// C's `NamespaceWhichCmd` case 1 calls `Tcl_FindNamespaceVar(interp, name,
+/// NULL, 0)` (`tclNamesp.c:4657-4664`), which walks namespace `varTable`s and
+/// **never** the call frame: a proc-local variable answers the empty string
+/// even while it is set, and a qualified name commits to the namespace its
+/// qualifier resolves to.
+///
+/// The one release axis is the *alternate* search. `ObjFindNamespaceVar`
+/// (`tclVar.c`) hands `TclGetNamespaceForQualName` two candidate namespaces
+/// and tries both; Tcl 9.0 added `flags |= TCL_NAMESPACE_ONLY`
+/// (`tcl9.0.4 tclVar.c:5951-5953`), which blanks the second, so 8.x falls back
+/// to the **global** namespace where 9.0 does not — tclsh-pinned:
+/// `set ::gv 1; namespace eval n {namespace which -variable gv}` is `::gv` on
+/// 8.6.16 and `{}` on 9.0.4.
+pub fn which_variable<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> O::Value {
+    match variable_fqn(ops, name, profile) {
+        Some(fqn) => ops.new_string(fqn),
+        None => ops.empty(),
+    }
+}
+
+/// [`which_variable`]'s resolution step, as the FQN string (or `None`) — the
+/// `&self` form for adapters that build their own result bytes.
+pub fn variable_fqn<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<String> {
+    let cur = ops.current();
+    // Variable resolution has no existence-checked fall-through the way
+    // command resolution does (`tclVar.c`'s `TclLookupSimpleVar`): the
+    // qualifier names the namespace outright.
+    let (primary, simple) = match qualifier(name.as_bytes()) {
+        Qualifier::Unqualified => (Some(cur), name.to_owned()),
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => {
+            let prefix = core::str::from_utf8(prefix).ok()?;
+            let simple = core::str::from_utf8(tail(name.as_bytes())).ok()?.to_owned();
+            (ops.find_namespace(cur, prefix), simple)
+        }
+    };
+    // The alternate (global-rooted) candidate — dropped from 9.0 on. An
+    // absolute name has no alternate in either release: it already names the
+    // global-rooted namespace.
+    let alternate = match qualifier(name.as_bytes()) {
+        _ if profile
+            .availability_mask
+            .intersects(tcl_dialect::DialectSet::TCL90_PLUS) => None,
+        Qualifier::Absolute(_) => None,
+        Qualifier::Unqualified => ops.find_namespace(cur, "::"),
+        Qualifier::Relative(prefix) => {
+            let prefix = core::str::from_utf8(prefix).ok()?;
+            ops.find_namespace(cur, &format!("::{prefix}"))
+        }
+    };
+    let ns = [primary, alternate]
+        .into_iter()
+        .flatten()
+        .find(|ns| ops.namespace_var_exists(*ns, &simple))?;
+    let ns_fqn = ops.name(ns);
+    Some(if ns_fqn == "::" {
+        format!("::{simple}")
+    } else {
+        format!("{ns_fqn}::{simple}")
+    })
+}
+
+/// `namespace origin command` — the fully-qualified name of the *original*
+/// command `name` resolves to, following `namespace import` links to their
+/// source. This is `NamespaceOriginCmd` (`tclNamesp.c`): resolve the word to a
+/// command token, ask `TclGetOriginalCommand` for the token it was imported
+/// from (falling back to the token itself when it was not imported), and
+/// report that token's fully-qualified name. `None` when the word resolves to
+/// no command at all — the caller reports `invalid command name "<name>"`.
+pub fn origin<O: Namespaces + ?Sized>(ops: &O, name: &str) -> Option<String> {
+    let cur = ops.current();
+    let cmd = ops.find_command(cur, name)?;
+    ops.command_name(ops.command_origin(cmd).unwrap_or(cmd))
+}
+
 /// `namespace exists name` — whether `name` (resolved from the current
 /// namespace) names an existing namespace.
 pub fn exists<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {

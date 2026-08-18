@@ -5253,9 +5253,8 @@ impl Interp {
         if self.oo.borrow().objects.contains_key(&fqn) {
             return fqn;
         }
-        if let Some(o) = self
-            .namespaces()
-            .command_origin(self.current_ns(), name)
+        if let Some(o) = tcl_cmd_core::namespace::origin(self, &String::from_utf8_lossy(name))
+            .map(String::into_bytes)
             .filter(|o| self.oo.borrow().objects.contains_key(o))
         {
             return o;

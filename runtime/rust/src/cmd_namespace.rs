@@ -300,10 +300,13 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"namespace which ?-command? ?-variable? name");
     };
     if want_variable {
-        // `-variable` resolution is runtime-local (not in the Family-B contract).
-        let cur = interp.current_ns();
-        let fqn = interp.namespaces().which_variable(cur, &name);
-        interp.set_result_bytes(&fqn.unwrap_or_default());
+        // `-variable` through the shared `Tcl_FindNamespaceVar` core — the
+        // 8.x global-fallback candidate is a release axis, so the profile
+        // goes with it.
+        let name_str = String::from_utf8_lossy(&name).into_owned();
+        let profile = interp.dialect_profile();
+        let fqn = tcl_cmd_core::namespace::variable_fqn(interp, &name_str, profile);
+        interp.set_result_bytes(fqn.unwrap_or_default().as_bytes());
     } else {
         // `-command` via the shared `Namespaces` resolution core.
         let name_str = String::from_utf8_lossy(&name);
@@ -648,11 +651,11 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp.wrong_args(b"namespace origin name");
     }
     let name = obj_bytes(argv[2]);
-    let cur = interp.current_ns();
-    let origin = interp.namespaces().command_origin(cur, &name);
+    // The shared `TclGetOriginalCommand` walk (`tcl_cmd_core::namespace`).
+    let origin = tcl_cmd_core::namespace::origin(interp, &String::from_utf8_lossy(&name));
     match origin {
         Some(fqn) => {
-            interp.set_result_bytes(&fqn);
+            interp.set_result_bytes(fqn.as_bytes());
             Code::Ok
         }
         None => {

@@ -425,6 +425,20 @@ impl Namespaces for Interp {
             .map(|s| String::from_utf8_lossy(s).into_owned())
             .collect()
     }
+
+    // `Tcl_FindNamespaceVar`'s single probe: the namespace's own `varTable`,
+    // including a `variable`-declared but as-yet-unset cell, and never a call
+    // frame.
+    fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool {
+        self.namespaces()
+            .var_table(ns.0 as usize)
+            .cell(simple.as_bytes())
+            .is_some()
+    }
+
+    fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {
+        self.imported_source_id(cmd.0).map(CommandId)
+    }
 }
 
 #[cfg(test)]

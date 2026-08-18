@@ -271,6 +271,29 @@ pub trait Namespaces {
     /// global namespace's variables). The variable analogue of
     /// [`commands_in`](Self::commands_in).
     fn vars_in(&self, ns: NsId) -> Vec<String>;
+
+    // -- resolution accessors the shared `namespace which -variable` / `origin`
+    // cores need beyond navigation (`tcl_cmd_core::namespace`).
+
+    /// Does namespace `ns`'s **own** variable table hold an entry named
+    /// `simple` (an unqualified name)? This is `Tcl_FindNamespaceVar`'s single
+    /// probe: the namespace's `varTable` only — never the call frame, so a
+    /// proc local of the same name is invisible here. Backs
+    /// [`which_variable`](../tcl_cmd_core/namespace/fn.which_variable.html).
+    fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool;
+
+    /// The command `cmd` was ultimately imported from — C's
+    /// `TclGetOriginalCommand`, which is itself the whole walk (`while
+    /// (cmdPtr->deleteProc == DeleteImportedCmd) cmdPtr = realCmdPtr`), not a
+    /// single hop. `None` when `cmd` is not an imported command.
+    ///
+    /// The walk stays with the runtime because an import link is a command
+    /// *token*, and a runtime whose tokens are name-keyed needs its own
+    /// disambiguation (the VM's hidden/visible domains: `interp hide {} a b`
+    /// leaves a hidden token `b` whose provenance must not be confused with an
+    /// unrelated visible command also called `b`). Backs
+    /// [`origin`](../tcl_cmd_core/namespace/fn.origin.html).
+    fn command_origin(&self, cmd: CommandId) -> Option<CommandId>;
 }
 
 /// Variable traces (read/write/unset). (Contract surface; not yet

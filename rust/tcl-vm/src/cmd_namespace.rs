@@ -170,49 +170,28 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 .map(|v| v.to_str().to_string())
                 .unwrap_or_default();
             if want_var {
-                if vm.exists_var(&name) {
-                    ok(Value::string(display_ns(&vm.qualify_name(&name))))
-                } else {
-                    ok(Value::empty())
-                }
+                // `Tcl_FindNamespaceVar` semantics via the shared core: the
+                // namespace variable tables only, never the call frame (the VM
+                // used to gate on `exists_var`, which walks proc locals).
+                ok(tcl_cmd_core::namespace::which_variable(vm, &name, profile))
             } else {
                 ok(tcl_cmd_core::namespace::which_command(vm, &name))
             }
         }
         "origin" => {
             // `namespace origin command` → the original command's fully-qualified
-            // name (following imports).  Visibility is checked before exposing
-            // the provenance: an import of a builtin absent from this emulated
-            // release is no more observable than a missing command.
+            // name (following imports) via the shared `TclGetOriginalCommand`
+            // walk.  Visibility is checked before exposing the provenance: an
+            // import of a builtin absent from this emulated release is no more
+            // observable than a missing command.
             let name = first(rest);
-            match vm.resolve_command_fqn(vm.current_ns(), &name) {
-                Some(key) if vm.lookup_command(&name).is_some() => {
-                    ok(Value::string(display_ns(&vm.command_origin_key(&key))))
-                }
+            match tcl_cmd_core::namespace::origin(vm, &name) {
+                Some(fqn) if vm.lookup_command(&name).is_some() => ok(Value::string(fqn)),
                 _ => err(format!("invalid command name \"{name}\"")),
             }
         }
-        "export" => {
-            // `namespace export ?-clear? pattern ...` — record export patterns.
-            let pats: Vec<String> = rest
-                .iter()
-                .map(|v| v.to_str().to_string())
-                .filter(|p| p != "-clear")
-                .collect();
-            vm.add_exports(&pats);
-            ok(Value::empty())
-        }
-        "import" => {
-            // `namespace import ?-force? pattern ...`
-            for p in rest {
-                let pat = p.to_str();
-                if &*pat == "-force" {
-                    continue;
-                }
-                vm.import_commands(&pat);
-            }
-            ok(Value::empty())
-        }
+        "export" => ns_export(vm, rest),
+        "import" => ns_import(vm, rest),
         // `namespace delete ?ns ...?` — destroy each namespace (and its
         // descendants, commands, and variables). An unknown namespace errors,
         // after deleting any that preceded it (matching tclsh).
@@ -244,7 +223,18 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                     Ok(e) => e,
                     Err(e) => return err(e.message),
                 };
-                let path: Vec<String> = elems.iter().map(|e| canon_ns(vm, &e.to_str())).collect();
+                // C resolves every entry with `TclGetNamespaceFromObj` *before*
+                // installing the path (`NamespacePathCmd`), so an unresolvable
+                // entry errors and leaves the old path in place.
+                let mut path: Vec<String> = Vec::with_capacity(elems.len());
+                for e in elems.iter() {
+                    let written = e.to_str().to_string();
+                    let canonical = canon_ns(vm, &written);
+                    if !vm.namespace_exists(&canonical) {
+                        return err(ns_not_found(vm, &written));
+                    }
+                    path.push(canonical);
+                }
                 vm.ns_path_set(path);
                 ok(Value::empty())
             }
@@ -271,7 +261,15 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             [] => {
                 let h = vm.ns_unknown_get();
                 if h.is_empty() {
-                    ok(Value::string("::unknown"))
+                    // Only the global namespace carries a handler by default
+                    // (`Tcl_Init` installs `::unknown` there); every other
+                    // namespace reports the empty string until one is set —
+                    // tclsh 8.6.16/9.0.4-pinned.
+                    if vm.current_ns().is_empty() {
+                        ok(Value::string("::unknown"))
+                    } else {
+                        ok(Value::empty())
+                    }
                 } else {
                     ok(Value::list(h))
                 }
@@ -337,86 +335,235 @@ fn ns_upvar(
     ok(Value::empty())
 }
 
+/// `TclGetNamespaceFromObj`'s not-found message: a *relative* name names the
+/// current namespace context (`… not found in "::ns"`), an absolute one does
+/// not (`… not found`).
+fn ns_not_found(vm: &Vm, written: &str) -> String {
+    if written.starts_with("::") {
+        format!("namespace \"{written}\" not found")
+    } else {
+        format!(
+            "namespace \"{written}\" not found in \"{}\"",
+            display_ns(vm.current_ns())
+        )
+    }
+}
+
+/// `namespace export ?-clear? ?pattern ...?` (`NamespaceExportCmd` /
+/// `Tcl_Export`, `tclNamesp.c:3526-3570`).
+///
+/// The flag is **positional**: only the first word may be `-clear`, so a
+/// second one is an ordinary pattern (`namespace export -clear -clear x`
+/// leaves `-clear x` exported — the registry states the same fact as
+/// `max_leading_option_words: Some(1)`). With no words at all the command is
+/// the query form and reports the current pattern list.
+fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    if rest.is_empty() {
+        return ok(Value::list(
+            vm.exports_get().into_iter().map(Value::string).collect(),
+        ));
+    }
+    let mut words = rest.iter().map(|v| v.to_str().to_string());
+    let mut first_word = words.next();
+    if first_word.as_deref() == Some("-clear") {
+        vm.clear_exports();
+        first_word = words.next();
+    }
+    let patterns: Vec<String> = first_word.into_iter().chain(words).collect();
+    // An export pattern names commands in the *current* namespace, so it may
+    // not carry a namespace qualifier.
+    for pattern in &patterns {
+        if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+            return err(format!(
+                "invalid export pattern \"{pattern}\": pattern can't specify a namespace"
+            ));
+        }
+    }
+    vm.add_exports(&patterns);
+    ok(Value::empty())
+}
+
+/// `namespace import ?-force? ?pattern ...?` (`NamespaceImportCmd` /
+/// `Tcl_Import`, `tclNamesp.c:3668-3732`).
+///
+/// `-force` is positional in the same way: only `objv[1]` is read as the flag,
+/// and every later word is a pattern — including a trailing `-force`, which
+/// then fails the "the pattern must name a source namespace" check.
+fn ns_import(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
+    if rest.is_empty() {
+        // The introspection form: the current namespace's imported commands.
+        return ok(Value::list(
+            vm.imported_command_tails()
+                .into_iter()
+                .map(Value::string)
+                .collect(),
+        ));
+    }
+    let mut words = rest.iter().map(|v| v.to_str().to_string());
+    let mut first_word = words.next();
+    if first_word.as_deref() == Some("-force") {
+        first_word = words.next();
+    }
+    for pattern in first_word.into_iter().chain(words) {
+        if pattern.is_empty() {
+            return err("empty import pattern");
+        }
+        // A pattern with no qualifier would import from the importing
+        // namespace itself; C reports that as a missing source namespace.
+        if !tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+            return err(format!(
+                "no namespace specified in import pattern \"{pattern}\""
+            ));
+        }
+        vm.import_commands(&pattern);
+    }
+    ok(Value::empty())
+}
+
 fn first(rest: &[Value]) -> String {
     rest.first()
         .map(|v| v.to_str().to_string())
         .unwrap_or_default()
 }
 
-/// `namespace ensemble create|exists|configure` (`tclEnsemble.c`).
+/// `namespace ensemble create|exists|configure` (`TclNamespaceEnsembleCmd`,
+/// `tclEnsemble.c:140`). The subcommand word resolves through the shared
+/// `ensembleSubcommands` table, so `namespace ensemble cr` is `create` and a
+/// miss reads `bad subcommand "…": must be configure, create, or exists`.
 fn ns_ensemble(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
     let Some((op, args)) = rest.split_first() else {
         return err("wrong # args: should be \"namespace ensemble subcommand ?arg ...?\"");
     };
-    match &*op.to_str() {
-        "create" => ns_ensemble_create(vm, args),
-        "exists" => match args {
+    let index = match tcl_cmd_core::ensemble::SUBCOMMANDS.index_of_str(&op.to_str()) {
+        Ok(i) => i,
+        Err(e) => return err(e.into_message()),
+    };
+    match index {
+        // configure
+        0 => ns_ensemble_configure(vm, args),
+        // create
+        1 => ns_ensemble_create(vm, args),
+        // exists
+        _ => match args {
             [cmd] => ok(Value::bool(matches!(
                 vm.lookup_command(&cmd.to_str()),
                 Some(crate::command::Command::Ensemble(_))
             ))),
-            _ => err("wrong # args: should be \"namespace ensemble exists cmd\""),
+            _ => err("wrong # args: should be \"namespace ensemble exists cmdname\""),
         },
-        // `configure` query/set is not modelled; accept it so setup code runs.
-        "configure" => ok(Value::empty()),
-        other => err(format!(
-            "unknown or ambiguous subcommand \"{other}\": must be configure, create, or exists"
-        )),
     }
 }
 
-/// `namespace ensemble create ?option value ...?` — build the ensemble command.
-fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    use crate::command::{Command, EnsembleDef};
-    let mut ns = vm.current_ns().to_string();
-    let mut command: Option<String> = None;
-    let mut map: std::collections::HashMap<String, Vec<Value>> = std::collections::HashMap::new();
-    let mut subcommands: Option<Vec<String>> = None;
-    let mut prefixes = true;
-    let mut unknown: Option<Vec<Value>> = None;
-    let mut i = 0;
-    while i < args.len() {
-        let opt = args[i].to_str().to_string();
-        let Some(val) = args.get(i + 1) else {
-            return err(format!("missing value to go with \"{opt}\""));
-        };
-        match &*opt {
-            "-command" => command = Some(val.to_str().to_string()),
-            "-namespace" => ns = canon_ns(vm, &val.to_str()),
-            "-map" => {
-                let elems = match val.as_list() {
-                    Ok(e) => e,
-                    Err(e) => return err(e.message),
-                };
-                let mut it = elems.iter();
-                while let (Some(k), Some(v)) = (it.next(), it.next()) {
-                    let prefix = v.as_list().map_or_else(|_| vec![v.clone()], |l| l.to_vec());
-                    map.insert(k.to_str().to_string(), prefix);
-                }
-            }
-            "-subcommands" => {
-                let elems = match val.as_list() {
-                    Ok(e) => e,
-                    Err(e) => return err(e.message),
-                };
-                subcommands = Some(elems.iter().map(|v| v.to_str().to_string()).collect());
-            }
-            "-prefixes" => prefixes = val.as_bool().unwrap_or(true),
-            "-unknown" => {
-                let elems = match val.as_list() {
-                    Ok(e) => e,
-                    Err(e) => return err(e.message),
-                };
-                unknown = (!elems.is_empty()).then(|| elems.to_vec());
-            }
-            _ => {
-                return err(format!(
-                    "bad option \"{opt}\": must be -command, -map, -namespace, \
-                     -parameters, -prefixes, -subcommands, or -unknown"
-                ));
+/// The mutable half of an ensemble definition — the options `create` and
+/// `configure` share. `-command` is create-only and `-namespace` is
+/// configure-read-only, so neither lives here.
+struct EnsembleOptions {
+    map: std::collections::HashMap<String, Vec<Value>>,
+    subcommands: Option<Vec<String>>,
+    prefixes: bool,
+    parameters: Vec<String>,
+    unknown: Option<Vec<Value>>,
+}
+
+impl EnsembleOptions {
+    fn from_def(def: &crate::command::EnsembleDef) -> Self {
+        Self {
+            map: def.map.clone(),
+            subcommands: def.subcommands.clone(),
+            prefixes: def.prefixes,
+            parameters: def.parameters.clone(),
+            unknown: def.unknown.clone(),
+        }
+    }
+}
+
+/// Apply one `-option value` pair that `create` and `configure` share. The
+/// caller has already resolved the option word against its own table, so this
+/// only owns the value parsing (C's per-`case` bodies).
+fn apply_shared_option(
+    opts: &mut EnsembleOptions,
+    which: SharedEnsembleOption,
+    val: &Value,
+) -> Result<(), String> {
+    match which {
+        SharedEnsembleOption::Map => {
+            let elems = val.as_list().map_err(|e| e.message)?;
+            let mut it = elems.iter();
+            opts.map.clear();
+            while let (Some(k), Some(v)) = (it.next(), it.next()) {
+                let prefix = v.as_list().map_or_else(|_| vec![v.clone()], |l| l.to_vec());
+                opts.map.insert(k.to_str().to_string(), prefix);
             }
         }
-        i += 2;
+        SharedEnsembleOption::Subcommands => {
+            let elems = val.as_list().map_err(|e| e.message)?;
+            opts.subcommands =
+                (!elems.is_empty()).then(|| elems.iter().map(|v| v.to_str().to_string()).collect());
+        }
+        SharedEnsembleOption::Parameters => {
+            let elems = val.as_list().map_err(|e| e.message)?;
+            opts.parameters = elems.iter().map(|v| v.to_str().to_string()).collect();
+        }
+        SharedEnsembleOption::Prefixes => {
+            opts.prefixes = val.as_bool().map_err(|e| e.message)?;
+        }
+        SharedEnsembleOption::Unknown => {
+            let elems = val.as_list().map_err(|e| e.message)?;
+            opts.unknown = (!elems.is_empty()).then(|| elems.to_vec());
+        }
+    }
+    Ok(())
+}
+
+/// The options `namespace ensemble create` and `configure` have in common.
+#[derive(Clone, Copy)]
+enum SharedEnsembleOption {
+    Map,
+    Subcommands,
+    Parameters,
+    Prefixes,
+    Unknown,
+}
+
+/// `namespace ensemble create ?option value ...?` — build the ensemble command.
+///
+/// C checks the pair arity *before* looking at any option word (`if (objc & 1)`
+/// → `wrong # args`, `tclEnsemble.c:192-196`), then resolves each option
+/// through `ensembleCreateOptions` with `Tcl_GetIndexFromObj` flags `0` — a
+/// table that has `-command` and, deliberately, **no** `-namespace`: an
+/// ensemble is always created over the namespace the command runs in.
+fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use crate::command::{Command, EnsembleDef};
+    use tcl_cmd_core::ensemble::CreateOption;
+    if args.len() % 2 != 0 {
+        return err("wrong # args: should be \"namespace ensemble create ?option value ...?\"");
+    }
+    let ns = vm.current_ns().to_string();
+    let mut command: Option<String> = None;
+    let mut opts = EnsembleOptions {
+        map: std::collections::HashMap::new(),
+        subcommands: None,
+        prefixes: true,
+        parameters: Vec::new(),
+        unknown: None,
+    };
+    for pair in args.chunks_exact(2) {
+        let word = pair[0].to_str();
+        let shared = match CreateOption::resolve(word.as_bytes()) {
+            Ok(CreateOption::Command) => {
+                command = Some(pair[1].to_str().to_string());
+                continue;
+            }
+            Ok(CreateOption::Map) => SharedEnsembleOption::Map,
+            Ok(CreateOption::Parameters) => SharedEnsembleOption::Parameters,
+            Ok(CreateOption::Prefixes) => SharedEnsembleOption::Prefixes,
+            Ok(CreateOption::Subcommands) => SharedEnsembleOption::Subcommands,
+            Ok(CreateOption::Unknown) => SharedEnsembleOption::Unknown,
+            Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+        };
+        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
+            return err(message);
+        }
     }
     // The default command is the namespace itself; an explicit -command binds in
     // the current namespace when unqualified.
@@ -428,13 +575,113 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         &cmd_key,
         Command::Ensemble(std::rc::Rc::new(EnsembleDef {
             namespace: ns,
-            map,
-            subcommands,
-            prefixes,
-            unknown,
+            map: opts.map,
+            subcommands: opts.subcommands,
+            prefixes: opts.prefixes,
+            parameters: opts.parameters,
+            unknown: opts.unknown,
         })),
     );
     ok(Value::string(display_ns(&cmd_key)))
+}
+
+/// `namespace ensemble configure cmdname ?-option? ?value ...?`
+/// (`tclEnsemble.c:377-630`): with no options a dict of every setting, with a
+/// single option that option's value, otherwise `-option value` updates.
+/// `ensembleConfigOptions` differs from the create table — it carries
+/// `-namespace` (readable, never writable) and has no `-command`.
+fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    use tcl_cmd_core::ensemble::ConfigOption;
+    const USAGE: &str =
+        "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
+    let Some((cmd_val, rest)) = args.split_first() else {
+        return err(USAGE);
+    };
+    // C's arity gate: one bare option word is a read, anything else must be
+    // `-option value` pairs.
+    if rest.len() > 1 && rest.len() % 2 != 0 {
+        return err(USAGE);
+    }
+    let written = cmd_val.to_str().to_string();
+    let Some(crate::command::Command::Ensemble(def)) = vm.lookup_command(&written) else {
+        return err(format!("\"{written}\" is not an ensemble command"));
+    };
+    let cmd_key = vm
+        .resolve_command_fqn(vm.current_ns(), &written)
+        .unwrap_or_else(|| vm.qualify_name(&written));
+    if rest.is_empty() {
+        let mut pairs: Vec<Value> = Vec::new();
+        for option in ConfigOption::all() {
+            pairs.push(Value::string(option.name()));
+            pairs.push(ensemble_option_value(&def, option));
+        }
+        return ok(Value::list(pairs));
+    }
+    if let [only] = rest {
+        return match ConfigOption::resolve(only.to_str().as_bytes()) {
+            Ok(option) => ok(ensemble_option_value(&def, option)),
+            Err(message) => err(String::from_utf8_lossy(&message).into_owned()),
+        };
+    }
+    let mut opts = EnsembleOptions::from_def(&def);
+    for pair in rest.chunks_exact(2) {
+        let shared = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
+            Ok(ConfigOption::Namespace) => return err("option -namespace is read-only"),
+            Ok(ConfigOption::Map) => SharedEnsembleOption::Map,
+            Ok(ConfigOption::Parameters) => SharedEnsembleOption::Parameters,
+            Ok(ConfigOption::Prefixes) => SharedEnsembleOption::Prefixes,
+            Ok(ConfigOption::Subcommands) => SharedEnsembleOption::Subcommands,
+            Ok(ConfigOption::Unknown) => SharedEnsembleOption::Unknown,
+            Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+        };
+        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
+            return err(message);
+        }
+    }
+    vm.register_command(
+        &cmd_key,
+        crate::command::Command::Ensemble(std::rc::Rc::new(crate::command::EnsembleDef {
+            namespace: def.namespace.clone(),
+            map: opts.map,
+            subcommands: opts.subcommands,
+            prefixes: opts.prefixes,
+            parameters: opts.parameters,
+            unknown: opts.unknown,
+        })),
+    );
+    ok(Value::empty())
+}
+
+/// One `namespace ensemble configure` option's value.
+fn ensemble_option_value(
+    def: &crate::command::EnsembleDef,
+    option: tcl_cmd_core::ensemble::ConfigOption,
+) -> Value {
+    use tcl_cmd_core::ensemble::ConfigOption;
+    match option {
+        ConfigOption::Namespace => Value::string(display_ns(&def.namespace)),
+        ConfigOption::Prefixes => Value::bool(def.prefixes),
+        ConfigOption::Parameters => Value::list(
+            def.parameters
+                .iter()
+                .map(|p| Value::string(p.clone()))
+                .collect(),
+        ),
+        ConfigOption::Unknown => def.unknown.clone().map_or_else(Value::empty, Value::list),
+        ConfigOption::Subcommands => def.subcommands.as_ref().map_or_else(Value::empty, |subs| {
+            Value::list(subs.iter().map(|s| Value::string(s.clone())).collect())
+        }),
+        ConfigOption::Map => {
+            let mut keys: Vec<&String> = def.map.keys().collect();
+            keys.sort();
+            let mut flat: Vec<Value> = Vec::with_capacity(keys.len() * 2);
+            for key in keys {
+                flat.push(Value::string(key.clone()));
+                flat.push(Value::list(def.map[key].clone()));
+            }
+            Value::list(flat)
+        }
+    }
 }
 
 /// `namespace qualifiers`/`tail`: run the first argument (lenient — defaults to

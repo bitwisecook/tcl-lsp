@@ -3644,6 +3644,28 @@ impl Interp {
         self.cmd_arena.borrow().fqns.get(id as usize).cloned()
     }
 
+    /// The command an interned command was ultimately imported from — C's
+    /// `TclGetOriginalCommand` (`Command::Imported { source }` followed to a
+    /// fixed point), interned in its turn. `None` when it is not an imported
+    /// command. Backs `Namespaces::command_origin`. Bounded against a cycle a
+    /// retargeting bug could leave behind; a well-formed chain is acyclic.
+    pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
+        let mut fqn = self.command_fqn(id)?;
+        let mut hops = 0;
+        loop {
+            let next = match self.namespaces.borrow().resolve(GLOBAL, &fqn) {
+                Some(Command::Imported { source }) => source,
+                _ => break,
+            };
+            fqn = next;
+            hops += 1;
+            if hops >= 64 {
+                break;
+            }
+        }
+        (hops > 0).then(|| self.intern_cmd(&fqn))
+    }
+
     /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
     /// `Namespaces::name` (`state_traits.rs`), keeping the namespace-table access here.
     pub(crate) fn ns_qualified_name(&self, ns: NsId) -> Vec<u8> {
