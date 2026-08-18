@@ -2039,11 +2039,7 @@ async fn stable_diagnostics_generation(
     loop {
         let generation = {
             let mut guard = slots.lock().await;
-            let Some((dirty, generation)) =
-                guard.get(uri).map(|slot| (slot.dirty, slot.generation))
-            else {
-                return None;
-            };
+            let (dirty, generation) = guard.get(uri).map(|slot| (slot.dirty, slot.generation))?;
             if !dirty {
                 retire_slot(&mut guard, uri);
                 return None;
@@ -2052,11 +2048,8 @@ async fn stable_diagnostics_generation(
         };
         crate::rt::sleep(DIAGNOSTICS_DEBOUNCE).await;
         let mut guard = slots.lock().await;
-        let Some((dirty, current_generation)) =
-            guard.get(uri).map(|slot| (slot.dirty, slot.generation))
-        else {
-            return None;
-        };
+        let (dirty, current_generation) =
+            guard.get(uri).map(|slot| (slot.dirty, slot.generation))?;
         if !dirty {
             retire_slot(&mut guard, uri);
             return None;
