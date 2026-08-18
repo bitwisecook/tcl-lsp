@@ -352,7 +352,11 @@ impl DialectSet {
     pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
         Some(match name {
             "tcl8.4" | "f5-irules" | "cadence-eda-tcl" => Self::TCL84,
-            "tcl8.5" | "f5-iapps" | "f5-tmsh" | "xilinx-eda-tcl" | "intel-quartus-eda-tcl"
+            "tcl8.5"
+            | "f5-iapps"
+            | "f5-tmsh"
+            | "xilinx-eda-tcl"
+            | "intel-quartus-eda-tcl"
             | "microchip-libero-eda-tcl" => Self::TCL85,
             "tcl8.6" | "synopsys-eda-tcl" | "mentor-eda-tcl" | "expect" => Self::TCL86,
             // SpecTcl's hook bodies are evaluated on our own Tcl 9.0-shaped
