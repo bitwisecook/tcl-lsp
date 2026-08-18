@@ -97,7 +97,7 @@ impl ListError {
             ListError::QuoteFollowedByJunk => "quotes",
             _ => return self.message().to_string(),
         };
-        let frag = list_junk_fragment(src);
+        let frag = junk_fragment(src);
         format!("list element in {kind} followed by \"{frag}\" instead of space")
     }
 }
@@ -106,7 +106,12 @@ impl ListError {
 /// failed to parse — the `"X"` in `…followed by "X" instead of space`. Walks the
 /// successfully-parsed prefix to the failing element, past its closing `}`/`"`,
 /// and returns the run of non-whitespace bytes there (capped, matching C).
-fn list_junk_fragment(src: &str) -> String {
+///
+/// Public because the same fragment appears in the *dict*-worded form of these
+/// errors (`dict element in braces followed by …`), which the WASM runtime
+/// composes itself rather than taking [`ListError::full_message`] verbatim.
+#[must_use]
+pub fn junk_fragment(src: &str) -> String {
     let bytes = src.as_bytes();
     let len = bytes.len();
     // The failing element begins where the last successful element left off.
