@@ -351,6 +351,35 @@ async function main() {
       "    two release archives unpacked and diffed in-page: " +
         `${derived.map((c) => `${c.name} [${c.ranges.join(" ")}]`).join(", ")}`,
     );
+
+    // 9. Mutate Monaco's semantic-token consumer out of the page.  The LSP
+    // readiness status must still go green: it is based on an explicit
+    // post-didOpen request, not on Monaco deciding to schedule its provider.
+    // The direct hover probe is part of that readiness path too.  This is a
+    // separate page so the ordinary path above still proves semantic colours
+    // are visible in the real Monaco editor.
+    const mutation = await browser.newPage();
+    await mutation.addInitScript(() => {
+      window.__tclSpecStudioTestSuppressMonacoSemanticProvider = true;
+    });
+    await mutation.goto(base, { waitUntil: "load" });
+    await mutation.waitForFunction(
+      () => (document.getElementById("count")?.textContent ?? "").match(/\d/),
+      null,
+      { timeout: 60_000 },
+    );
+    await mutation.click("#tab-dsl");
+    await mutation.waitForSelector("#dslEditor .monaco-editor", { timeout: 60_000 });
+    await mutation.waitForFunction(
+      () =>
+        (document.getElementById("lspStatus")?.textContent ?? "").includes(
+          "language server is running in this page",
+        ),
+      null,
+      { timeout: 60_000 },
+    );
+    await mutation.close();
+    console.log("    explicit post-didOpen LSP readiness survives a suppressed Monaco provider");
   } catch (e) {
     const status = await page.textContent("#lspStatus").catch(() => "");
     fail(`${e instanceof Error ? e.message : String(e)}; LSP status: ${status?.trim() ?? ""}`);
