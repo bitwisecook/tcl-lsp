@@ -1757,6 +1757,30 @@ disabled = O109
 For the complete reference, see
 [`docs/kcs/kcs-howto-suppress-diagnostics.md`](docs/kcs/kcs-howto-suppress-diagnostics.md).
 
+### Excluding files from diagnostics entirely
+
+The scopes above turn individual *codes* off.  To turn **all** diagnostics
+off for files matching a glob — for example, `.ruff` documentation files
+containing purely virtual procs — use `[diagnostics] exclude` in
+`.tcl-lsp.ini` or the global `config.ini`, one pattern per line:
+
+```ini
+[diagnostics]
+exclude =
+    docs/**
+    generated/[a-c]*.tcl
+    *.ruff
+```
+
+A pattern with a `/` matches the file's path relative to its workspace
+folder root; a pattern with no `/` matches the file's name at any depth,
+gitignore-style.  A matching file publishes no diagnostics at all — every
+code, not a subset — while hover, completion, navigation, and formatting
+keep working on it.  The server watches `.tcl-lsp.ini`, so saving it
+re-applies the exclusion list with no restart.  See
+[`docs/kcs/kcs-howto-exclude-files-from-diagnostics.md`](docs/kcs/kcs-howto-exclude-files-from-diagnostics.md)
+for the full glob syntax and multi-root behaviour.
+
 ### Diff and compare views (VS Code)
 
 The analyser never runs on diff *content* — a diff editor is two real

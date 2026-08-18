@@ -70,6 +70,28 @@ are load-bearing:
 or `W213` ("may not exist") despite their adjacency in the W21x family: those
 describe genuine defects, and fading a defect hides it.
 
+### Diagnostics exclusion by glob (issue #1556)
+
+`tclLsp.diagnostics.exclude` is a second, coarser gate alongside the
+`tclLsp.features.diagnostics` master switch: instead of turning
+diagnostics off everywhere, it turns them off for files whose path or
+name matches one of the configured glob patterns. The list is resolved
+per workspace folder from the layered config (project `.tcl-lsp.ini`
+overriding editor settings overriding the global `config.ini`), the
+same way any other `[diagnostics]` key is. A file with no owning
+folder can only match a no-`/` name pattern, since there is no folder
+root to relativise a path pattern against.
+
+The check sits beside the master switch: `run_diagnostics_core` tests
+it immediately after `toggles.diagnostics_enabled`, and
+`full_diagnostics_for` repeats it on the pull path, so push and pull
+agree. Either gate short-circuits analysis and publishes an empty
+diagnostic set, which is what clears existing squiggles on the next
+publish — the file is still opened, indexed, and available to every
+other feature. A match logs `[timing] diagnostics excluded 0ms
+(uri=..., diags=0)` in place of the usual timing line, so the
+exclusion is visible in the same place a slow analysis would be.
+
 ### Encoding integrity and abstention (issue #1326)
 
 `W107` and `W109` answer "are the bytes on disk the text we analysed?". They
