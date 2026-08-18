@@ -88,14 +88,14 @@ fn the_eight_packs_load_clean_and_carry_every_command() {
             ("eda_microchip".to_owned(), 257),
             ("eda_quartus".to_owned(), 77),
             ("eda_synopsys".to_owned(), 68),
-            ("eda_xilinx".to_owned(), 787),
+            ("eda_xilinx".to_owned(), 788),
             ("sdc_base".to_owned(), 86),
             ("upf".to_owned(), 67),
         ],
         "the shipped command counts, pack by pack"
     );
     let total: usize = set.packs.iter().map(|p| p.commands.len()).sum();
-    assert_eq!(total, 1488, "every command the eight shipped packs carry");
+    assert_eq!(total, 1489, "every command the eight shipped packs carry");
 
     let warnings: Vec<String> = set
         .notices

@@ -1543,6 +1543,22 @@ command config_linter {
         source {Xilinx UG835 2026.1}
     }
 }
+command linter {
+    dialects tcl8.5
+    required_package vivado
+
+    arity 1..
+
+    form Default {linter files}
+
+    hover {
+        summary {Run the Vivado Tcl Store linter on Tcl script files.}
+        synopsis {linter files}
+        description {Runs the Vivado Tcl Store linter over the given Tcl script(s). The linter enforces the Tcl Store app rules — no global variables, mandatory meta-comments on every proc, explicit sub-namespace creation — and every error it reports must be fixed before an app can be submitted to the Tcl Store.}
+        returns {Linter messages for each script.}
+        source {Xilinx UG894 2026.1 (Vivado Tcl Store linter)}
+    }
+}
 command config_timing_analysis {
     dialects tcl8.5
     required_package vivado
