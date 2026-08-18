@@ -495,17 +495,39 @@ jobs:
   rust-tests:
     # Historically the longest pole (155s on the 16-core self-hosted box when
     # healthy — a 2026-08 regression to 16 min turned out to be two oversized
-    # `tcl-compiler` per_item tests, since fixed; if this job blows past ~5
-    # min again, suspect a runaway test before suspecting the box or the
-    # cache).  No longer the longest pole: `lsp-e2e` now is (~390s vs ~150s
-    # here).  Note that neither is the workflow's critical path — the
-    # `build-tcl-lsp-server` -> `test-ext` chain is, finishing 40-80s after
-    # `lsp-e2e` does, so shortening the test jobs cuts cost and the local
-    # `make test-rust` loop rather than PR turnaround.
+    # `tcl-compiler` per_item tests, since fixed).  No longer the longest
+    # pole: `lsp-e2e` now is (~390s vs ~150s here).  Note that neither is the
+    # workflow's critical path — the `build-tcl-lsp-server` -> `test-ext`
+    # chain is, finishing 40-80s after `lsp-e2e` does, so shortening the test
+    # jobs cuts cost and the local `make test-rust` loop rather than PR
+    # turnaround.
     #
     # It is the ONLY job routed to the self-hosted runner, and that
     # is deliberate: the box has one runner instance, so anything sent there
     # executes serially and queues behind this job.
+    #
+    # 2026-08-17/18 incident: the v2.1.19 -> v2.1.20 apparent regression
+    # (this step going from ~90s to ~640s) looked like a runaway test at
+    # first glance, same as the per_item incident above, but wasn't. The
+    # `tank` box went offline 2026-08-17 13:45-17:50 UTC, and every job
+    # after it came back was slow regardless of commit — including commits
+    # that had been fast before the outage. Effective test parallelism
+    # (sum of per-test CPU-seconds / nextest wall time) collapsed from
+    # ~12.4 to ~4.0 with identical test counts and individual tests running
+    # *faster*, i.e. the host lost roughly two-thirds of its usable
+    # concurrency, it did not get more work to do. On top of that, the box
+    # showed a hot-box link-phase stall: `cargo build`'s final codegen/link
+    # phase over the ~275 test binaries took ~115s when the machine had
+    # been idle for hours vs 460-700s when jobs ran back-to-back, with the
+    # Swatinem cache key unchanged between runs — a memory-pressure/
+    # neighbour-contention signature, not a cache miss. So: if this job
+    # blows past ~5 min again, do NOT assume a runaway test and start
+    # bisecting commits. Read the "Runner host telemetry" step and the
+    # `nextest-metrics:` / `::warning::` lines emitted by the nextest step
+    # first — they report host core count, memory, cgroup CPU limits, and
+    # computed parallelism for that specific run, and will point at the box
+    # if this signature recurs. Only fall back to bisecting once telemetry
+    # rules the host out.
     #
     # Untrusted code must never reach the self-hosted runner, so PRs from forks
     # stay on GitHub-hosted; everything else (push, dispatch, and PRs from
@@ -534,6 +556,47 @@ jobs:
         with:
           tool: nextest
 
+      # Snapshot of the host's resources right before the expensive step.
+      # Never fails the job (`-uo pipefail`, not `-e`; every source is
+      # tolerated with `|| true`/fallbacks) — this is diagnostics, not a
+      # gate. Added after the 2026-08-17/18 incident (see the job header)
+      # so the next slowdown is readable straight from the log instead of
+      # requiring someone to SSH into `tank` mid-incident.
+      - name: Runner host telemetry
+        run: |
+          set -uo pipefail
+          echo "--- nproc ---"
+          nproc || true
+          echo "--- lscpu (CPU/model/max MHz) ---"
+          lscpu 2>/dev/null | grep -E '^(CPU\(s\)|Model name|CPU max MHz)' || true
+          echo "--- free -m ---"
+          free -m || true
+          echo "--- uptime ---"
+          uptime || true
+          echo "--- cgroup cpu limit ---"
+          if [ -r /sys/fs/cgroup/cpu.max ]; then
+            cat /sys/fs/cgroup/cpu.max
+          elif [ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us ] && [ -r /sys/fs/cgroup/cpu/cpu.cfs_period_us ]; then
+            echo "cfs_quota_us=$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us) cfs_period_us=$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us)"
+          else
+            echo "cgroup cpu limit: unavailable"
+          fi
+          echo "--- swap ---"
+          swapon --show 2>/dev/null || true
+          free -m 2>/dev/null | awk '/^Swap:/ {print "Swap (MB): total=" $2 " used=" $3 " free=" $4}' || true
+
+          cores="$(nproc 2>/dev/null || echo unknown)"
+          mem_avail="$(free -m 2>/dev/null | awk '/^Mem:/ {print $7}')"
+          [ -z "$mem_avail" ] && mem_avail="unknown"
+          if [ -r /sys/fs/cgroup/cpu.max ]; then
+            cpu_max="$(tr ' ' '/' < /sys/fs/cgroup/cpu.max)"
+          elif [ -r /sys/fs/cgroup/cpu/cpu.cfs_quota_us ]; then
+            cpu_max="$(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us)/$(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us 2>/dev/null || echo '?')"
+          else
+            cpu_max="unknown"
+          fi
+          echo "host-telemetry: cores=${cores} mem_avail_mb=${mem_avail} cpu.max=${cpu_max}"
+
       # --no-fail-fast: report every failure, not just the first.
       # Skipped entirely for docs-only changes and already-green tags;
       # downgraded to a cache-warming build (--no-run) on an already-green
@@ -548,12 +611,43 @@ jobs:
         env:
           ALREADY_GREEN: ${{ needs.channel.outputs.already_green }}
         run: |
+          # The bare `run:` shell on Linux is NOT guaranteed to carry
+          # `pipefail` (only `-e` is default), and we pipe through `tee`
+          # below, so set it explicitly or a failing `cargo nextest` behind
+          # `tee` would report success.
+          set -o pipefail
+
           extra="--no-fail-fast"
           if [ "$ALREADY_GREEN" = "true" ]; then
             echo "tree already green on its PR run — building test binaries (cache warmth) without re-running them"
             extra="--no-run"
           fi
-          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features
+
+          # Guardrail added after the 2026-08-17/18 tank-host incident (see
+          # the job header): tee the run to a log so we can measure test
+          # parallelism after the fact, without changing what runs or how.
+          nextest_log="/tmp/nextest-rust-tests.log"
+          start="$SECONDS"
+          set +e
+          cargo nextest run $extra --workspace --exclude tcl-irule-test --exclude f5-cli --exclude tcl-lsp-server --exclude tcl-fuzz --all-features 2>&1 | tee "$nextest_log"
+          status=$?
+          set -e
+          wall=$(( SECONDS - start ))
+          echo "nextest step wall time: ${wall}s"
+
+          if [ "$extra" = "--no-run" ]; then
+            # Cache-warm mode compiles but runs nothing, so there is no
+            # per-test timing to derive parallelism from.
+            echo "nextest-metrics: skipped (--no-run cache-warm mode, no tests executed)"
+          else
+            python3 .github/scripts/nextest_metrics.py "$nextest_log" "$wall" "$(nproc 2>/dev/null || echo 0)" || echo "nextest-metrics: parser errored, skipping"
+          fi
+
+          if [ "$wall" -gt 300 ]; then
+            echo "::warning::rust-tests nextest step took ${wall}s (>300s). Likely cause: the tank runner host (fewer usable cores / memory pressure during linking), not this commit's tests -- this exact signature occurred 2026-08-17. Check the tank box (see the Runner host telemetry step above) before bisecting commits."
+          fi
+
+          exit "$status"
 
       # nextest does not run doctests; run them for the WHOLE workspace (incl.
       # the crates excluded above — doctests are cheap) so the other jobs need
