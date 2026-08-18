@@ -540,25 +540,25 @@ fn subst_command() {
 /// prefixes all three entries, so C calls it `ambiguous`, not `bad`.
 #[test]
 fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
     let msg = |src: &str| {
         let (ok, result, _) = run(src);
         assert!(!ok, "expected an error for {src}, got ok");
         result
     };
-    const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
     // The empty option word abbreviates every entry ⇒ `ambiguous` (tclsh
     // 8.6.16 and 9.0.4 agree).
-    assert_eq!(msg("subst {} abc\n"), format!("ambiguous option \"\": {MUST}"));
+    assert_eq!(
+        msg("subst {} abc\n"),
+        format!("ambiguous option \"\": {MUST}")
+    );
     // A word that prefixes more than one entry is likewise ambiguous.
     assert_eq!(
         msg("subst -no abc\n"),
         format!("ambiguous option \"-no\": {MUST}")
     );
     // A word that prefixes nothing is `bad`.
-    assert_eq!(
-        msg("subst -q abc\n"),
-        format!("bad option \"-q\": {MUST}")
-    );
+    assert_eq!(msg("subst -q abc\n"), format!("bad option \"-q\": {MUST}"));
     // A unique prefix still resolves (subst-7.7).
     out_eq("puts [subst -nov {$x}]\n", "$x\n");
     out_eq("puts [subst -nob {a\\tb}]\n", "a\\tb\n");

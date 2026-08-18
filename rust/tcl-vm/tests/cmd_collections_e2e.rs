@@ -1319,8 +1319,10 @@ fn duplicate_dict_keys_canonicalise_last_value_wins() {
     );
     // `dict update` binds the *canonical* value (2), not the first (1).
     assert_eq!(
-        run("proc l {} {set d {a 1 a 2}; dict update d a v {set v [expr {$v*100+1}]}; return $v}\nl")
-            .1,
+        run(
+            "proc l {} {set d {a 1 a 2}; dict update d a v {set v [expr {$v*100+1}]}; return $v}\nl"
+        )
+        .1,
         "201"
     );
     // `dict with` expands the canonical value into the local.

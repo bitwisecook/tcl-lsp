@@ -709,10 +709,11 @@ mod tests {
     /// concern in `Value`'s representation itself, out of scope here.
     #[test]
     fn deeply_nested_dict_set_and_unset_survive() {
-        let vm = &mut Vm::new();
         const DEPTH: usize = 2_000;
+        let vm = &mut Vm::new();
         let keys: Vec<Value> = (0..DEPTH).map(|_| Value::string("k")).collect();
-        let set = set_path(vm, &Value::empty(), &keys, Value::string("v")).expect("set_path survives");
+        let set =
+            set_path(vm, &Value::empty(), &keys, Value::string("v")).expect("set_path survives");
         let mut cur = set.clone();
         for _ in 0..DEPTH {
             let ps = pairs(vm, &cur).expect("valid dict at every level");
@@ -785,6 +786,9 @@ mod tests {
         // A missing intermediate key two levels deep is a no-op, not an
         // error, and does not disturb sibling keys.
         let nested_absent = unset_path(vm, &outer, &[s("a"), s("z"), s("q")]).unwrap();
-        assert_eq!(top_pairs(vm, &nested_absent), [("a".into(), "b 1 c 2".into())]);
+        assert_eq!(
+            top_pairs(vm, &nested_absent),
+            [("a".into(), "b 1 c 2".into())]
+        );
     }
 }

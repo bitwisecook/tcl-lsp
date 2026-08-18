@@ -187,7 +187,6 @@ mod tests {
         resolve_with(&scan(src, SubstFlags::default(), config), &var, &cmd)
     }
 
-
     /// Issue #1457 — the `${…}` close rule moves with the release.
     ///
     /// `Tcl_ParseVarName` ends the brace form at the **first** literal `}` in

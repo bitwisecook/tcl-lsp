@@ -428,28 +428,14 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
     let mut cmd_start: Option<usize> = None;
     for t in toks {
         match t.kind {
-            TokenType::Sep => flush_word(
-                &sm,
-                src,
-                &mut words,
-                &mut word_toks,
-                &mut expand,
-                config,
-            ),
+            TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config),
             TokenType::Comment => {} // a comment is an empty command
             TokenType::Expand => {
                 expand = true; // the next word is expanded
                 cmd_start.get_or_insert(t.span.start() as usize);
             }
             TokenType::Eol | TokenType::Eof => {
-                flush_word(
-                    &sm,
-                    src,
-                    &mut words,
-                    &mut word_toks,
-                    &mut expand,
-                    config,
-                );
+                flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config);
                 if !words.is_empty() {
                     cmds.push(Command {
                         words: core::mem::take(&mut words),

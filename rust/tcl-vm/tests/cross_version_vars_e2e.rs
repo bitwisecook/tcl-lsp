@@ -516,7 +516,6 @@ fn foreach_completion_vectors_match_real_tclsh() {
     }
 }
 
-
 /// The `${…}` close rule is release-specific, and `subst` must follow it.
 ///
 /// `Tcl_ParseVarName` delimits the brace form differently across the supported

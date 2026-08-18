@@ -395,7 +395,10 @@ fn zero_length_array_name_is_an_array_element() {
         "puts [lsearch -exact [info vars] {(q)}]\n",
     ));
     assert!(ok);
-    assert_eq!(out, "1 q\n-1\n", "a dynamic `(q)` is an element, not a scalar");
+    assert_eq!(
+        out, "1 q\n-1\n",
+        "a dynamic `(q)` is an element, not a scalar"
+    );
 
     // A substituted base that is empty still extends the same array.
     let (ok, _r, out) = run(concat!(

@@ -267,9 +267,8 @@ fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
             tcl_syntax::backslash::decode_bytes(raw).into_owned()
         }
     };
-    let next = |pos: usize| {
-        tcl_syntax::list::find_element(src, pos).map_err(|e| dict_error(e, src))
-    };
+    let next =
+        |pos: usize| tcl_syntax::list::find_element(src, pos).map_err(|e| dict_error(e, src));
     let mut pairs = Vec::new();
     let mut pos = 0;
     while let Some(key) = next(pos)? {

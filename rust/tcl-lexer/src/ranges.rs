@@ -130,7 +130,7 @@ pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle)
 /// for a stray continuation byte, so the scan always advances).
 const fn utf8_char_len(b: u8) -> usize {
     match b {
-        0x00..=0x7f | 0x80..=0xbf => 1,
+        0x00..=0xbf => 1,
         0xc0..=0xdf => 2,
         0xe0..=0xef => 3,
         _ => 4,
@@ -564,7 +564,6 @@ mod tests {
     use super::*;
     use crate::{Lexer, SourceMap, Span, TokenType};
 
-
     /// The `${…}` close rule (issue #1457). `Tcl_ParseVarName` delimits the
     /// brace form differently in the 8.x family (`tclParse.c(8.6.16):1398` —
     /// first literal `}`) and in 9.x (`tclParse.c(9.0.4):1315` — brace depth
@@ -572,8 +571,8 @@ mod tests {
     /// `parse_var` resolve the form here.
     #[test]
     fn braced_var_name_end_follows_the_release_rule() {
-        let end = |src: &str, style| braced_var_name_end(src.as_bytes(), 2, style);
         use BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let end = |src: &str, style| braced_var_name_end(src.as_bytes(), 2, style);
 
         // A plain name closes at the same place under both rules.
         assert_eq!(end("${abc}", Tcl9Nesting), Some(5));

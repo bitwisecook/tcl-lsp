@@ -576,7 +576,7 @@ impl Vm {
         v: &Value,
     ) -> Result<Vec<(String, Value)>, Completion<Value>> {
         let pairs = tcl_syntax::value::ValueOps::dict_pairs(self, v)
-            .map_err(|e| err(e.message().to_string()))?;
+            .map_err(|e| err(e.message().clone()))?;
         Ok(pairs
             .into_iter()
             .map(|(k, val)| (k.to_str().to_string(), val))
@@ -5079,7 +5079,9 @@ mod tests {
         let mut vm = Vm::new();
         let s = Value::string;
         // `dict set {} a 1` → {a 1}.
-        let d = vm.dict_set_path(&Value::list(vec![]), &[s("a")], s("1")).unwrap();
+        let d = vm
+            .dict_set_path(&Value::list(vec![]), &[s("a")], s("1"))
+            .unwrap();
         assert_eq!(top_pairs(&d), [("a".into(), "1".into())]);
 
         // Updating an existing key keeps its position (order-preserving).
@@ -5103,7 +5105,9 @@ mod tests {
 
         // A multi-key path auto-vivifies intermediate dicts: the inner dict's
         // list string-rep is "b 1".
-        let nested = vm.dict_set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1")).unwrap();
+        let nested = vm
+            .dict_set_path(&Value::list(vec![]), &[s("a"), s("b")], s("1"))
+            .unwrap();
         assert_eq!(top_pairs(&nested), [("a".into(), "b 1".into())]);
     }
 
