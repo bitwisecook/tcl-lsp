@@ -347,6 +347,54 @@ fn pack_load_notices_are_diagnostics_on_the_pack_file() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// `tclLsp.diagnostics.exclude` (#1556) suppresses pack-load notices too.
+///
+/// Pack notices publish outside the analyser pipeline's exclusion gate, so
+/// they need their own filter: without it, a `.tclspec` matching an exclude
+/// glob keeps its `SPECTCL` badge indefinitely — the one diagnostic the
+/// "produces no diagnostics at all" promise would still leak. Excluding the
+/// pack after the notice is on screen also exercises the clearing path (the
+/// config apply reloads packs, and the newly excluded URI joins the stale
+/// set).
+#[test]
+fn diagnostics_exclude_suppresses_pack_load_notices() {
+    let root = workspace("notices-excluded");
+    let pack = root.join(".tcl-lsp/mylib.tclspec");
+    write(
+        &pack,
+        "speclib mylib 1 {\n    command mylib::x {\n        arity 1\n        \
+         nonsense_property yes\n    }\n}\n",
+    );
+
+    let mut lsp =
+        Lsp::with_config_at_root(json!({ "features": { "linkedEditingRange": true } }), &root);
+    let pack_uri = file_uri(&pack);
+
+    let diagnostics =
+        lsp.await_diagnostics_settled(&pack_uri, std::time::Duration::from_secs(15), |diags| {
+            !diags.is_empty()
+        });
+    assert!(
+        diagnostics.iter().any(|d| {
+            d.get("message")
+                .and_then(Value::as_str)
+                .is_some_and(|m| m.contains("nonsense_property"))
+        }),
+        "expected a notice about the unknown property before excluding: {diagnostics:#?}"
+    );
+
+    // Exclude every pack file: the badge must clear without touching the pack.
+    lsp.apply_configuration(json!({ "diagnostics": { "exclude": ["*.tclspec"] } }));
+    let cleared = lsp.await_diagnostics_settled(
+        &pack_uri,
+        std::time::Duration::from_secs(15),
+        <[Value]>::is_empty,
+    );
+    assert!(cleared.is_empty(), "{cleared:#?}");
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// `tclLsp.specPacks` reaches a pack that convention would never find — a
 /// directory that is neither `.tcl-lsp/` nor beside a `tclpkg.tcl`.
 #[test]

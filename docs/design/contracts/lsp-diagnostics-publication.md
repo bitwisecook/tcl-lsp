@@ -92,6 +92,14 @@ other feature. A match logs `[timing] diagnostics excluded 0ms
 (uri=..., diags=0)` in place of the usual timing line, so the
 exclusion is visible in the same place a slow analysis would be.
 
+`SpecTcl` pack-load notices publish outside this pipeline
+(`publish_spec_pack_notices` calls `client.publish_diagnostics`
+directly), so they carry their own copy of the gate: an excluded URI is
+dropped from the batch before the stale-set computation, which both
+suppresses new notices and clears previously published ones on the next
+pack reload — and adding an exclusion *is* a config apply, which
+triggers that reload.
+
 ### Encoding integrity and abstention (issue #1326)
 
 `W107` and `W109` answer "are the bytes on disk the text we analysed?". They

@@ -319,6 +319,7 @@ class TclLspSettingsPanel {
 
     // Diagnostic patterns
     private val genericPatternsField = JBTextField(30)
+    private val diagnosticsExcludeField = JBTextField(30)
 
     val root: JComponent
 
@@ -517,6 +518,8 @@ class TclLspSettingsPanel {
         builder.addComponent(TitledSeparator("Diagnostic Patterns"))
         builder.addLabeledComponent(JBLabel("Generic variable patterns:"), genericPatternsField)
         builder.addTooltip("Newline-separated regex patterns for IRULE4002 generic variable detection.")
+        builder.addLabeledComponent(JBLabel("Exclude files from diagnostics:"), diagnosticsExcludeField)
+        builder.addTooltip("Newline-separated glob patterns (e.g. generated/** or *.gen.tcl); matching files publish no diagnostics. Longer lists are easier to keep in the [diagnostics] exclude key of .tcl-lsp.ini.")
 
         builder.addComponentFillVertically(JPanel(), 0)
 
@@ -783,7 +786,8 @@ class TclLspSettingsPanel {
             aiEnabled.isSelected != s.aiEnabled ||
             aiExtraPrompts.text != s.aiExtraPrompts ||
             // Diagnostic patterns
-            genericPatternsField.text != s.diagnosticsGenericVariablePatterns
+            genericPatternsField.text != s.diagnosticsGenericVariablePatterns ||
+            diagnosticsExcludeField.text != s.diagnosticsExclude
     }
 
     fun apply() {
@@ -1046,6 +1050,7 @@ class TclLspSettingsPanel {
         s.aiEnabled = aiEnabled.isSelected
         s.aiExtraPrompts = aiExtraPrompts.text
         s.diagnosticsGenericVariablePatterns = genericPatternsField.text
+        s.diagnosticsExclude = diagnosticsExcludeField.text
 
         if (s.serverPath != oldServerPath) {
             restartLspServers()
@@ -1328,5 +1333,6 @@ class TclLspSettingsPanel {
         aiEnabled.isSelected = s.aiEnabled
         aiExtraPrompts.text = s.aiExtraPrompts
         genericPatternsField.text = s.diagnosticsGenericVariablePatterns
+        diagnosticsExcludeField.text = s.diagnosticsExclude
     }
 }

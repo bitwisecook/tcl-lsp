@@ -36,8 +36,10 @@ exclude =
     *.ruff
 ```
 
-This flows through configuration as `tclLsp.diagnostics.exclude`, so
-it follows the usual [precedence](kcs-qa-how-tcl-lsp-loads-configuration.md):
+The same list is exposed as an editor setting: `tclLsp.diagnostics.exclude`
+in VS Code (Settings → *Diagnostics — Errors*, or `settings.json`), and
+*Exclude files from diagnostics* in the JetBrains plugin's settings panel.
+It follows the usual [precedence](kcs-qa-how-tcl-lsp-loads-configuration.md):
 the global `config.ini` sets a baseline, editor settings replace it,
 and a project `.tcl-lsp.ini` replaces both. The lists do not merge —
 the highest layer that sets `exclude` wins whole. In a multi-root

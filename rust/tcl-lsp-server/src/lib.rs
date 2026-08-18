@@ -13612,6 +13612,19 @@ impl Backend {
             });
         }
 
+        // `tclLsp.diagnostics.exclude` (#1556) promises *no* diagnostics for a
+        // matching file, and pack notices publish outside the analyser
+        // pipeline's exclusion gate, so filter them here too. A newly excluded
+        // URI drops out of `by_uri`, joins the stale set below, and has its
+        // previously published notices cleared on this rescan (adding an
+        // exclusion reloads packs via `ReloadTrigger::Config`).
+        let candidates: Vec<Uri> = by_uri.keys().cloned().collect();
+        for uri in candidates {
+            if self.diagnostics_excluded(&uri).await {
+                by_uri.remove(&uri);
+            }
+        }
+
         // Files that had notices last time and do not now must be cleared, or
         // a fixed pack keeps its badge until the editor restarts.
         let stale: Vec<Uri> = {

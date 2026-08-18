@@ -453,6 +453,13 @@ export async function activate(context: ExtensionContext) {
                   ) {
                     delete diag.genericVariablePatterns;
                   }
+                  // Same absent-vs-empty distinction for `diagnostics.exclude`
+                  // (#1556): a folder answering with the explicit `[]` default
+                  // would *replace* an exclude list configured at another layer
+                  // (global config file, user settings) with "exclude nothing".
+                  if (Array.isArray(diag.exclude) && diag.exclude.length === 0) {
+                    delete diag.exclude;
+                  }
                 }
               }
             }
