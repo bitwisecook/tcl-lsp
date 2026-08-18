@@ -5883,6 +5883,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 

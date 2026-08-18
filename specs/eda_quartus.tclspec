@@ -43,6 +43,8 @@
 
 speclib eda_quartus 1.1 {
 
+display_name {Intel Quartus Prime}
+
 command check_timing {
     dialects tcl8.5
     required_package quartus-sta

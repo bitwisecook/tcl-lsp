@@ -103,6 +103,12 @@ pub struct MergedPack {
     pub tier: Tier,
     /// The files that contributed, in merge (sorted path) order.
     pub files: Vec<PathBuf>,
+    /// The pack's human-readable name, from the first file that declares
+    /// one (`display_name {IEEE 1801 UPF}`).
+    pub display_name: Option<String>,
+    /// The file extensions the pack's language is written under, merged
+    /// first-declaration-wins across the pack's files.
+    pub file_extensions: Vec<crate::loader::FileExtension>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -156,6 +162,24 @@ impl PackSet {
     pub fn notices_for<'a>(&'a self, path: &Path) -> impl Iterator<Item = &'a PackNotice> {
         let path = path.to_path_buf();
         self.notices.iter().filter(move |n| n.path == path)
+    }
+
+    /// Every `(extension, dialect)` routing pair the set's packs declare —
+    /// the rows with a `-dialect`, deduplicated first-pack-wins in the
+    /// set's (name-sorted) pack order.
+    #[must_use]
+    pub fn extension_dialects(&self) -> Vec<(String, &'static str)> {
+        let mut out: Vec<(String, &'static str)> = Vec::new();
+        for pack in &self.packs {
+            for row in &pack.file_extensions {
+                if let Some(dialect) = row.dialect
+                    && !out.iter().any(|(ext, _)| *ext == row.extension)
+                {
+                    out.push((row.extension.clone(), dialect));
+                }
+            }
+        }
+        out
     }
 }
 
@@ -270,11 +294,17 @@ pub(crate) fn load_sources(
     });
     notices.dedup();
 
-    PackSet {
+    let set = PackSet {
         packs,
         notices,
         key,
-    }
+    };
+    // Publish the packs' declared extension routing so dialect detection's
+    // extension tier sees it — every consumer funnels through this merge
+    // (bundled, discovered, server reloads), which is what makes a pack the
+    // source of truth for its own extensions.
+    tcl_registry::dialects::register_pack_extension_dialects(set.extension_dialects());
+    set
 }
 
 /// Merge one tier's files for one pack name, first-definition-wins.
@@ -289,6 +319,8 @@ fn merge_group(
         dsl_version: String::new(),
         tier,
         files: files.iter().map(|(f, _)| f.path.clone()).collect(),
+        display_name: None,
+        file_extensions: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -314,6 +346,18 @@ fn merge_group(
         }
         for notice in &pack.notices {
             notices.push(PackNotice::from_loader(&file.path, notice));
+        }
+        if merged.display_name.is_none() {
+            merged.display_name.clone_from(&pack.display_name);
+        }
+        for row in pack.file_extensions {
+            if !merged
+                .file_extensions
+                .iter()
+                .any(|prior| prior.extension == row.extension)
+            {
+                merged.file_extensions.push(row);
+            }
         }
         for command in pack.commands {
             if let Some(first) = first_seen.get(command.spec.name) {

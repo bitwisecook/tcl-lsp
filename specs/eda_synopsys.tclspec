@@ -19,6 +19,8 @@
 
 speclib eda_synopsys 1.1 {
 
+display_name {Synopsys EDA Shells}
+
 command analyze {
     dialects tcl8.6
     required_package synopsys-dc

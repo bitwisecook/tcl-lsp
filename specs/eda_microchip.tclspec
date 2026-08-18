@@ -24,6 +24,8 @@
 
 speclib eda_microchip 1.1 {
 
+display_name {Microchip Libero SoC}
+
 default dialects all-tcl
 default required_package libero
 

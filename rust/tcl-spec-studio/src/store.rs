@@ -313,6 +313,8 @@ impl PackStore {
                 dsl_version: self.pack.dsl_version.clone(),
                 tier: tcl_spectcl::Tier::Workspace,
                 files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
+                display_name: self.pack.display_name.clone(),
+                file_extensions: self.pack.file_extensions.clone(),
                 commands: self.pack.commands.clone(),
             }],
             notices: Vec::new(),

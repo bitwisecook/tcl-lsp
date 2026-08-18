@@ -59,6 +59,7 @@ mod audit_option_dialects;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
+mod editor_extensions;
 mod fp_sweep;
 mod gen_ai;
 mod gen_editor_catalogs;
@@ -152,6 +153,10 @@ enum Command {
         #[arg(long)]
         check: bool,
     },
+
+    /// Verify every pack-declared file extension (`file_extension` rows in
+    /// `specs/*.tclspec`) is registered in the shipped editor integrations.
+    EditorExtensions,
 
     /// Generate selectable editor dialect lists from `DialectProfile::all`.
     GenEditorDialects {
@@ -326,6 +331,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DiagTables { check } => diag_tables::run(check),
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
+        Command::EditorExtensions => editor_extensions::run(),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),

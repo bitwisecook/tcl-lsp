@@ -175,6 +175,32 @@ fn a_profile_never_sees_a_rival_vendors_library() {
     }
 }
 
+/// The packs' declared file extensions route dialect detection: `upf.tclspec`
+/// declares `file_extension upf -dialect synopsys-eda-tcl`, and once the set
+/// is loaded, a `.upf` filename resolves through the pack declaration (the
+/// static fallback arm keeps the same answer for consumers with no packs).
+#[test]
+fn pack_declared_extensions_route_dialect_detection() {
+    let set = shipped();
+    let upf = set
+        .packs
+        .iter()
+        .find(|p| p.name == "upf")
+        .expect("the upf pack");
+    assert_eq!(upf.display_name.as_deref(), Some("IEEE 1801 UPF"));
+    let row = upf
+        .file_extensions
+        .first()
+        .expect("upf declares its extension");
+    assert_eq!(row.extension, "upf");
+    assert_eq!(row.display_name.as_deref(), Some("Unified Power Format"));
+    assert_eq!(row.dialect, Some("synopsys-eda-tcl"));
+    assert_eq!(
+        tcl_registry::dialects::dialect_from_extension("soc.upf"),
+        Some("synopsys-eda-tcl")
+    );
+}
+
 /// A plain-Tcl profile gets none of it, exactly as before the migration: the
 /// packs are discovered for every dialect, and the vendor gate is what keeps
 /// `get_cells` out of a `tcl9.0` document.

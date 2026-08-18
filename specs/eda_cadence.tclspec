@@ -19,6 +19,8 @@
 
 speclib eda_cadence 1.1 {
 
+display_name {Cadence EDA Shells}
+
 command add_endcap {
     dialects tcl8.4
     required_package cadence-innovus

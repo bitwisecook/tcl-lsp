@@ -391,8 +391,45 @@ pub fn tcl_source_glob_any_case() -> String {
     format!("**/*.{{{}}}", alternatives.join(","))
 }
 
+/// Extension-to-dialect routing declared by loaded `SpecTcl` packs
+/// (`file_extension upf -dialect synopsys-eda-tcl`), published by the pack
+/// merge so a pack — bundled or private — is the source of truth for its
+/// own extensions. Inserted additively: a later registration for the same
+/// extension wins, and nothing here ever removes the static fallback arms
+/// below, which keep working for consumers that load no packs.
+static PACK_EXTENSION_DIALECTS: std::sync::RwLock<
+    Option<std::collections::HashMap<String, &'static str>>,
+> = std::sync::RwLock::new(None);
+
+/// Publish extension routing declared by loaded packs. Keys are lower-case
+/// extensions without the leading dot; values must be canonical profile
+/// names (the loader validates them against the profile catalogue).
+pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String, &'static str)>) {
+    let mut guard = match PACK_EXTENSION_DIALECTS.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let map = guard.get_or_insert_with(std::collections::HashMap::new);
+    for (ext, dialect) in pairs {
+        map.insert(ext, dialect);
+    }
+}
+
+/// The pack-declared dialect for `ext`, if any pack registered one.
+fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.as_ref()?.get(ext).copied()
+}
+
 /// The dialect implied by a filename extension, or `None` when the extension
 /// is generic (`.tcl`) or unknown — in which case content heuristics decide.
+///
+/// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
+/// first, so a loaded pack owns its extensions; the static arms below are
+/// the no-packs fallback and the home of everything no pack declares.
 #[must_use]
 pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     let base = filename
@@ -411,6 +448,9 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
         return Some("cadence-eda-tcl");
     }
     let ext = base.rsplit('.').next()?;
+    if let Some(dialect) = pack_extension_dialect(ext) {
+        return Some(dialect);
+    }
     Some(match ext {
         "irul" | "irule" | "irules" => "f5-irules",
         "iapp" => "f5-iapps",

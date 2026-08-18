@@ -27,6 +27,9 @@
 
 speclib upf 1.1 {
 
+display_name {IEEE 1801 UPF}
+file_extension upf -name {Unified Power Format} -dialect synopsys-eda-tcl
+
 default dialects all-tcl
 default required_package upf
 

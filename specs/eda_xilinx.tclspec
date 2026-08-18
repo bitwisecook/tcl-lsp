@@ -28,6 +28,8 @@
 
 speclib eda_xilinx 1.1 {
 
+display_name {AMD Xilinx Vivado}
+
 command add_bp {
     dialects tcl8.5
     required_package vivado

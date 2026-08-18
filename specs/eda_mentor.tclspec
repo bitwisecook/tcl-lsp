@@ -28,6 +28,8 @@
 
 speclib eda_mentor 1.1 {
 
+display_name {Siemens Questa/ModelSim}
+
 command add {
     dialects tcl8.6
     required_package questa

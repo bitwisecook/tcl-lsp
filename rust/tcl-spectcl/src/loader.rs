@@ -547,10 +547,33 @@ pub struct Pack {
     pub name: String,
     /// The **DSL vocabulary** version, not the library's.
     pub dsl_version: String,
+    /// The pack's human-readable name (`display_name {IEEE 1801 UPF}`),
+    /// for editor surfaces that show a library rather than a file.
+    pub display_name: Option<String>,
+    /// The file extensions this pack's language is written under
+    /// (`file_extension upf -name {Unified Power Format} -dialect …`),
+    /// in declaration order.
+    pub file_extensions: Vec<FileExtension>,
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
+}
+
+/// One `file_extension` row: an extension the pack's language is written
+/// under, with an optional human-readable name and an optional dialect the
+/// server routes files of this extension to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileExtension {
+    /// The extension, lower-case, without the leading dot (`upf`).
+    pub extension: String,
+    /// Human-readable name for editor pickers (`Unified Power Format`).
+    pub display_name: Option<String>,
+    /// The canonical dialect-profile name files of this extension detect
+    /// as; validated against the profile catalogue at load.
+    pub dialect: Option<&'static str>,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
 }
 
 impl Pack {
@@ -574,6 +597,8 @@ pub fn load_pack(source: &str) -> Pack {
     };
     let mut pack = Pack {
         name: String::new(),
+        display_name: None,
+        file_extensions: Vec::new(),
         dsl_version: String::new(),
         commands: Vec::new(),
         notices: Vec::new(),
@@ -607,6 +632,33 @@ pub fn load_pack(source: &str) -> Pack {
             "descriptor" => tables.add_descriptor(&stmt, &mut log),
             "hook" => tables.add_hook(&stmt, &mut log),
             "default" => tables.add_default(&stmt, &mut log),
+            "display_name" => {
+                let name = stmt.word_text(1);
+                if name.is_empty() {
+                    log.say(stmt.line, "`display_name` needs a name");
+                } else {
+                    if pack.display_name.is_some() {
+                        log.say(stmt.line, "`display_name` redeclared; last wins");
+                    }
+                    pack.display_name = Some(name.to_owned());
+                }
+            }
+            "file_extension" => {
+                if let Some(row) = file_extension_row(&stmt, &mut log) {
+                    if pack
+                        .file_extensions
+                        .iter()
+                        .any(|prior| prior.extension == row.extension)
+                    {
+                        log.say(
+                            stmt.line,
+                            format!("`file_extension {}` redeclared; first wins", row.extension),
+                        );
+                    } else {
+                        pack.file_extensions.push(row);
+                    }
+                }
+            }
             "command" => declarations.push(stmt),
             _ => log.unknown_property(&stmt),
         }
@@ -654,6 +706,63 @@ pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
 pub const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+
+/// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
+/// pack's language is written under. The extension is normalised to
+/// lower-case without a leading dot; `-dialect` must name a canonical
+/// profile (the routing consumer needs an interned name), and a typo drops
+/// only the routing, not the row.
+fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
+    let raw = stmt.word_text(1);
+    if raw.is_empty() {
+        log.say(stmt.line, "`file_extension` needs an extension");
+        return None;
+    }
+    let extension = raw.trim_start_matches('.').to_ascii_lowercase();
+    if extension.is_empty() || extension.contains('.') || extension.contains(char::is_whitespace) {
+        log.say(
+            stmt.line,
+            format!("`file_extension {raw}` is not a single extension"),
+        );
+        return None;
+    }
+    let mut row = FileExtension {
+        extension,
+        display_name: None,
+        dialect: None,
+        line: stmt.line,
+    };
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-name" => {
+                let name = next_text(words, &mut i);
+                if name.is_empty() {
+                    log.say(stmt.line, "`-name` needs a value");
+                } else {
+                    row.display_name = Some(name);
+                }
+            }
+            "-dialect" => {
+                let dialect = next_text(words, &mut i);
+                match tcl_dialect::DialectProfile::find(&dialect) {
+                    Some(profile) => row.dialect = Some(profile.name),
+                    None => log.say(
+                        stmt.line,
+                        format!(
+                            "`-dialect {dialect}` names no dialect profile; \
+                             the extension is kept without routing"
+                        ),
+                    ),
+                }
+            }
+            other => log.unknown_flag("file_extension", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(row)
+}
 
 /// Warn when `speclib`'s version word is not a vocabulary this build knows.
 fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
@@ -4612,5 +4721,37 @@ mod tests {
             let demo = pack.command("demo").expect("demo loads");
             assert_eq!(demo.spec.options.len(), 1, "{known}");
         }
+    }
+    /// `display_name` and `file_extension` are pack-level metadata: names
+    /// for humans, extensions for editors, and `-dialect` routing that must
+    /// resolve to a canonical profile — a typo keeps the row and drops only
+    /// the routing, with a notice.
+    #[test]
+    fn display_name_and_file_extension_rows_load() {
+        let pack = load_pack(
+            "speclib upfdemo 1.1 {\n             display_name {IEEE 1801 UPF}\n             file_extension .UPF -name {Unified Power Format} -dialect synopsys-eda-tcl\n             file_extension pwr -dialect no-such-dialect\n             file_extension upf -name {duplicate}\n             command demo { arity 1 }\n}",
+        );
+        assert_eq!(pack.display_name.as_deref(), Some("IEEE 1801 UPF"));
+        assert_eq!(pack.file_extensions.len(), 2, "{:?}", pack.file_extensions);
+        let upf = &pack.file_extensions[0];
+        assert_eq!(upf.extension, "upf", "lower-cased, dot stripped");
+        assert_eq!(upf.display_name.as_deref(), Some("Unified Power Format"));
+        assert_eq!(upf.dialect, Some("synopsys-eda-tcl"));
+        let pwr = &pack.file_extensions[1];
+        assert_eq!(pwr.extension, "pwr");
+        assert_eq!(pwr.dialect, None, "typo'd dialect drops only the routing");
+        let messages: Vec<&str> = pack.notices.iter().map(|n| n.message.as_str()).collect();
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("`-dialect no-such-dialect` names no dialect profile")),
+            "{messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("`file_extension upf` redeclared")),
+            "{messages:?}"
+        );
     }
 }
