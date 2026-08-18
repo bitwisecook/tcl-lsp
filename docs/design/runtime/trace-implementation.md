@@ -8,9 +8,10 @@ firing must satisfy — ordering, error reshaping, re-entrancy, and
 introspection coherence — is
 [`../contracts/variable-trace-dispatch-and-introspection.md`](../contracts/variable-trace-dispatch-and-introspection.md).
 
-Reference: `tmp/tcl9.0.3/generic/tclTrace.c` (`Tcl_TraceObjCmd`,
+Reference: `tmp/tcl9.0.4/generic/tclTrace.c` (`Tcl_TraceObjCmd`,
 `TraceVariableObjCmd` / `TraceCommandObjCmd` / `TraceExecutionObjCmd`,
-`TclCallVarTraces`) and `tclVar.c`.
+`TclCallVarTraces`) and `tclVar.c`, cross-checked against `tmp/tcl8.6.16/`
+for the deprecated forms 9.0 dropped.
 
 ## What is shared, and what is not
 
@@ -19,15 +20,40 @@ firing is wired into that runtime's own variable, command, and dispatch
 chokepoints. Only the **argument decoding** is shared, in
 `tcl_cmd_core::trace`:
 
+- `resolve_option` resolves `trace`'s first word (`add`/`info`/`remove`, plus
+  8.x's `variable`/`vdelete`/`vinfo`) with C's `Tcl_GetIndexFromObj` rule —
+  exact match first, then a unique prefix — against the option set the caller
+  passes, and produces the `bad option` / `ambiguous option` text enumerating
+  exactly those options;
 - `TraceKind` (`Variable` / `Command` / `Execution`) selects the valid
   operation names in C's `opStrings[]` table order, which is the order the
   bad-operation error enumerates them in;
 - the op-list parser validates `{read write}`-shaped specs and produces the
-  canonical `bad type` / `bad operation` messages.
+  canonical `bad type` / `bad operation` messages;
+- `parse_legacy_variable_ops` does the same for the 8.x `rwua` letter string,
+  `legacy_ops_letters` renders a stored set back to letters for `trace vinfo`,
+  and `callback_op_word` supplies the single letter an old-style trace's
+  callback receives.
 
-Each runtime converts the canonical op names into its own representation: the
-bytecode VM keeps the name list, the WASM runtime folds them into an op
-bitset.
+**Op sets are stored in `TraceKind::info_order`** — the order each C
+`TRACE_INFO` arm tests the stored flag bits, which is *not* the `opStrings[]`
+table order: `array read write unset` for variable and `rename delete` for
+command (execution alone agrees with its table). Because Tcl keeps the
+selection as a bitset, the reported order never depends on how the op list was
+spelled, so a runtime that stores the canonical set renders `trace info`
+correctly by construction. Each runtime converts those names into its own
+representation: the bytecode VM keeps the name list, the WASM runtime folds
+them into an op bitset (and back through the same fixed order on the way out).
+
+### The release boundary is the registry's
+
+Tcl 9.0 dropped `trace variable`, `trace vdelete`, and `trace vinfo` (C
+compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES`). Neither runtime
+carries a list of its own: both filter the `trace` spec's subcommands by the
+pinned profile's availability mask, so the three `DialectSet::TCL8X` entries
+vanish at 9.0+ — the forms stop working *and* the `bad option` enumeration
+shortens to `add, info, or remove`, in one step. A spec edit moves both
+runtimes with it.
 
 ## Chokepoints
 
@@ -71,17 +97,23 @@ trace's arguments appended as list elements.
 
 | Kind | Appended words |
 |---|---|
-| variable | `name1 name2 op` — `name2` is the element key for an array access, empty for a scalar; `op` is the full word (`read`/`write`/`unset`/`array`) |
+| variable | `name1 name2 op` — `name2` is the element key for an array access, empty for a scalar; `op` is the full word (`read`/`write`/`unset`/`array`), or the single `rwua` letter when the trace was installed by 8.x's `trace variable` (C's `TCL_TRACE_OLD_STYLE`) |
 | command | `oldName newName rename`, or `oldName {} delete` |
 | execution | the command's own words, plus the op word |
 
-In `runtime/rust` the variable-trace table is scanned once per access in
-**registration order**, with a whole-variable trace (no element) and an
-element-specific trace on the same variable matched by the same pass —
-`cmd_trace::matches` filters on identity, element, and op together rather than
-grouping. `trace info variable` lists in the opposite order (newest first), as
-C does. Execution traces are the ordered pair: `enter`/`enterstep` fire
-newest-first, `leave`/`leavestep` oldest-first.
+**Firing order is uniform across the kinds** because C prepends every new
+registration (`TraceVarEx`, `Tcl_TraceCommand`) and each firing loop walks the
+list head→tail: the **newest** trace fires first for variable `read`/`write`/
+`unset`/`array`, for command `rename`/`delete`, and for execution
+`enter`/`enterstep`. The single exception is C's explicit reverse scan for
+`leave`/`leavestep`, which run **oldest-first**. Both runtimes push
+newest-last, so each firing site iterates reversed; `trace info` also lists
+newest-first, so it iterates reversed too.
+
+For an array-element access the two lists are walked as **groups**: the
+containing array's traces first, then the element's own (`TclCallVarTraces`
+runs its `arrayPtr` loop before its `varPtr` loop). Registration order does
+not decide which group runs first — only the order within a group.
 
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching
@@ -95,8 +127,14 @@ A read or write callback that errors reshapes the operation's result
 C's abort-the-chain-on-first-error. An `unset` or `array` callback's error is
 discarded and the remaining traces still fire. Command-trace
 (`rename`/`delete`) callback errors are ignored outright, matching C's "we
-ignore errors in these traced commands". The mutation itself is never gated on
-the callback's outcome.
+ignore errors in these traced commands".
+
+**The mutation is never gated on the callback's outcome.** C stores the new
+value before calling the write traces (`TclPtrSetVarIdx` swaps it in, then
+jumps to `cleanup` on a trace error without restoring the old one), so a
+failed `set`/`append`/`incr`/`lappend` — on a scalar, an array element, or a
+variable the write itself created — still leaves the new value in place. Only
+the command's *result* changes.
 
 Ordering the contract fixes but the implementations reach differently is
 authoritative in
@@ -107,10 +145,12 @@ not here.
 
 | File | Role |
 |---|---|
-| `rust/tcl-cmd-core/src/trace.rs` | shared op-list parsing + error catalogue |
+| `rust/tcl-cmd-core/src/trace.rs` | shared option/op-list parsing, canonical op order, legacy letter rendering, error catalogue |
+| `rust/tcl-registry/src/commands/tcl/trace.rs` | the `trace` spec — the option set per release, including the 8.x-only legacy forms |
 | `runtime/rust/src/cmd_trace.rs` | the `trace` command for the tree-walking runtime |
 | `runtime/rust/src/interp.rs` | `fire_var_trace`, `fire_cmd_trace`, the dispatch-side execution hook |
 | `runtime/rust/src/frame.rs` | per-frame variable cells the variable-trace key resolves against |
 | `rust/tcl-vm/src/cmd_trace.rs` | the `trace` command for the bytecode VM |
 | `rust/tcl-vm/src/interp.rs` | VM trace tables, the step-trace epoch, `cmd_trace_entries` |
-| `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution trace vectors |
+| `rust/tcl-vm/tests/command_traces_e2e.rs` | tclsh-pinned command/execution/variable trace vectors, including firing order |
+| `rust/tcl-vm/tests/legacy_variable_traces_e2e.rs` | tclsh-pinned cross-version vectors for `trace variable`/`vdelete`/`vinfo` |

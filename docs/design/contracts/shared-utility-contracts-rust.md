@@ -43,6 +43,7 @@ entry point, or gate moves without this contract being updated.
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at` | `${...}` close rule per release; tmsh brace mode per dialect | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index` | option surface per release/dialect | `xtask-option-registry-drift` |
+| trace argument decoding | `rust/tcl-cmd-core/src/trace.rs` | `TraceKind`; `resolve_option`; `resolve_type`; `parse_ops`; `parse_legacy_variable_ops`; `legacy_ops_letters`; `callback_op_word` | option surface per release (the 8.x-only `variable`/`vdelete`/`vinfo` forms) | none |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
@@ -131,6 +132,25 @@ entry point, or gate moves without this contract being updated.
   modules MUST resolve through `OptionTable` (or `scan` +
   `bad_key_message` where a byte noun or interleaved control flow
   demands composition) — never a hand-rolled scan.
+- `trace` — the whole argument-decoding surface of the `trace` command,
+  shared by the VM and the WASM runtime (which own only their trace
+  tables and firing sites). `resolve_option` resolves the first word
+  with C's `Tcl_GetIndexFromObj` rule against the option set the caller
+  passes — release-gated, because the registry retires
+  `variable`/`vdelete`/`vinfo` at 9.0 — and produces the matching
+  `bad option` / `ambiguous option` enumeration; `resolve_type` does the
+  same for the type word. `parse_ops` validates an op list and
+  `parse_legacy_variable_ops` the 8.x `rwua` letter string; **both return
+  the set in `TraceKind::info_order`**, the order C's `TRACE_INFO` arms
+  render (`array read write unset`, `rename delete`), which is *not*
+  `TraceKind::ops`' `opStrings[]` table order used by the bad-operation
+  error. Storing that canonical order is what makes `trace info`
+  byte-identical without per-runtime render tables.
+  `legacy_ops_letters` renders a stored set back to `rwua` for
+  `trace vinfo`, and `callback_op_word` supplies the single letter an
+  old-style (`trace variable`-installed) trace's callback receives.
+  Firing order, storage, and re-entrancy stay per-runtime — see
+  [variable-trace-dispatch-and-introspection.md](variable-trace-dispatch-and-introspection.md).
 - `sort::parse_wide` / `sort::parse_real` — the `-integer` / `-real`
   key parsers (`parse_wide` is the whole-string integer-only shape of
   `tcl_syntax::number`, `i128`-wide; `binary`'s wide parse narrows it

@@ -2815,14 +2815,25 @@ impl Interp {
         op: &[u8],
     ) -> bool {
         let traces = self.traces.borrow();
-        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>)> = traces
-            .traces
-            .iter()
-            .filter(|t| {
-                crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
-                    && !traces.active_var_scopes.contains(&t.scope())
-            })
-            .map(|t| (t.scope(), t.command.clone()))
+        // C fires the containing array's traces before the element's own
+        // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
+        // precedes the `varPtr` loop at :2623), and walks each list head→tail
+        // — newest-first, since `TraceVarEx` prepends (:3090-3092). Our Vec
+        // pushes newest-last, so each group is reversed. Issue #1440.
+        let selected = |whole_array: bool| {
+            traces
+                .traces
+                .iter()
+                .rev()
+                .filter(move |t| t.elem.is_none() == whole_array)
+                .filter(|t| {
+                    crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
+                        && !traces.active_var_scopes.contains(&t.scope())
+                })
+        };
+        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = selected(true)
+            .chain(selected(false))
+            .map(|t| (t.scope(), t.command.clone(), t.old_style))
             .collect();
         drop(traces);
         if cmds.is_empty() {
@@ -2834,12 +2845,16 @@ impl Interp {
         unsafe { obj::incr_ref_count(saved) };
 
         let mut errored = false;
-        for (scope, cmd) in cmds {
-            // Append `base element op` as properly-quoted trailing words.
+        let op_name = String::from_utf8_lossy(op).into_owned();
+        for (scope, cmd, old_style) in cmds {
+            // Append `base element op` as properly-quoted trailing words. A
+            // trace installed by the deprecated `trace variable` form is
+            // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).
+            let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(base),
                 new_string(elem.unwrap_or(b"")),
-                new_string(op),
+                new_string(op_word.as_bytes()),
             ]);
             let mut line = cmd;
             line.push(b' ');
@@ -2906,11 +2921,16 @@ impl Interp {
         if self.traces.borrow().exec_firing > 0 {
             return;
         }
+        // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
+        // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
+        // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
+        // newest-last. Issue #1440.
         let cmds: Vec<Vec<u8>> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
+            .rev()
             .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
             .map(|t| t.command.clone())
             .collect();
