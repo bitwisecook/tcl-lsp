@@ -5740,6 +5740,197 @@ fn emit_cfg_ssa_diagnostics_w210_fires_at_top_level() {
 }
 
 #[test]
+fn w210_uses_registry_owned_startup_lifecycle_facts() {
+    // #1557: availability in SPECIAL_VARS is intentionally broader than
+    // startup readability.  Build this probe from the central table so a new
+    // default global gains W210 coverage automatically; the registry's own
+    // exact fixture guards the audited release-by-release inventory.
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
+            .filter(|spec| tcl_registry::special_vars::is_readable_at_startup(spec.name, dialect))
+            .filter_map(|spec| match spec.kind {
+                tcl_registry::special_vars::SpecialVarKind::Scalar => {
+                    Some(format!("puts ${}\n", spec.name))
+                }
+                // Array elements are normalised to their registry-owned base
+                // by the SSA model.  The synthetic key need not exist at
+                // runtime; the assertion is specifically about W210's entry
+                // binding knowledge, not an array-key value claim.
+                tcl_registry::special_vars::SpecialVarKind::Array => {
+                    Some(format!("puts ${}(__tcl_lsp_startup_probe__)\n", spec.name))
+                }
+                tcl_registry::special_vars::SpecialVarKind::Namespace => None,
+            })
+            .collect();
+        let result = Analyser::new().analyse(&source, dialect);
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "startup-readable special vars must not emit W210 for {dialect}: {:?}",
+            result.diagnostics
+        );
+    }
+
+    // Controls make the test mutation-sensitive: these names remain special
+    // / documented but are not default-readable in the cited lifecycle.
+    for name in ["auto_index", "auto_execs", "auto_noexec", "auto_noload"] {
+        let result = Analyser::new().analyse(&format!("puts ${name}\n"), "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "lazy special variable {name} must still emit W210: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = Analyser::new().analyse("puts $tcl_precision\n", "tcl9.0");
+    assert!(result.diagnostics.iter().any(|d| d.code == DiagCode::W210));
+    let result = Analyser::new().analyse("puts $argv\n", "f5-irules");
+    assert!(result.diagnostics.iter().any(|d| d.code == DiagCode::W210));
+
+    // Startup facts are global-only and version-zero-only.  They must not
+    // leak into a fresh procedure local, nor survive an explicit deletion.
+    for src in [
+        "proc local {} { puts $argv }\n",
+        "proc local_return {} { return $argv }\n",
+        "unset argv\nputs $argv\n",
+        "unset ::argv\nputs $::argv\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "{src:?} must retain W210 after scope/lifecycle handling: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = Analyser::new().analyse("proc global {} { global argv; puts $argv }\n", "tcl8.6");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "an explicit global alias must retain the startup binding: {:?}",
+        result.diagnostics
+    );
+
+    // The startup version can also be one incoming of an SSA phi.  A
+    // conditional write must not turn its untouched global incoming into a
+    // synthetic undef; this covers both ordinary statement reads and return
+    // values, whose phi walk is a separate consumer of the shared fact.
+    for src in [
+        "if {[info exists tcl_interactive]} { set argv replacement }\nputs $argv\n",
+        "if {[info exists tcl_interactive]} { set argv replacement }\nreturn $argv\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "a phi including startup-bound argv must remain defined for {src:?}: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = Analyser::new().analyse(
+        "if {[info exists tcl_interactive]} { unset argv }\nputs $argv\n",
+        "tcl8.6",
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "an unset incoming must keep the phi possibly undefined: {:?}",
+        result.diagnostics
+    );
+
+    // `tcl_precision` is the Tcl 8.x registry-owned read-trace exception:
+    // unlike an eager startup binding, reading it after `unset` materialises
+    // its value again. Exercise both W210 consumers and the Tcl 9 boundary.
+    for src in [
+        "unset tcl_precision\nputs $tcl_precision\n",
+        "unset tcl_precision\nreturn $tcl_precision\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 8 read trace must rematerialise after unset for {src:?}: {:?}",
+            result.diagnostics
+        );
+        let result = Analyser::new().analyse(src, "tcl9.0");
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 9 must not inherit Tcl 8 read-trace behaviour for {src:?}: {:?}",
+            result.diagnostics
+        );
+    }
+}
+
+#[test]
+fn w210_startup_read_trace_respects_global_alias_and_unset_lifecycle() {
+    // The trace belongs to the global storage cell even when that cell is
+    // reached through `global` or an explicit `::` spelling.  A same-named
+    // procedure local remains an ordinary local and must not inherit it.
+    for src in [
+        "proc global_lazy {} { global tcl_precision; set seen $tcl_precision; unset tcl_precision; puts $tcl_precision }\n",
+        "proc global_lazy_return {} { global tcl_precision; set seen $tcl_precision; unset tcl_precision; return $tcl_precision }\n",
+        "set seen $::tcl_precision\nunset ::tcl_precision\nputs $::tcl_precision\n",
+    ] {
+        let result = Analyser::new().analyse(src, "tcl8.6");
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+            "Tcl 8 global read trace must rematerialise for {src:?}: {:?}",
+            result.diagnostics
+        );
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::W213),
+            "a prior Tcl 8 trace read makes its unset valid for {src:?}: {:?}",
+            result.diagnostics
+        );
+    }
+    let result = Analyser::new().analyse(
+        "proc local_lazy {} { unset tcl_precision; puts $tcl_precision }\n",
+        "tcl8.6",
+    );
+    assert!(
+        result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
+        "a same-named procedure local must remain undefined: {:?}",
+        result.diagnostics
+    );
+
+    // Readability through a trace is not eager existence.  In a fresh Tcl 8
+    // interpreter `unset tcl_precision` itself errors; once an ordinary read
+    // has materialised it, the unset is valid.  Eager argv is valid to unset
+    // immediately, yet its later read remains W210.
+    let fresh_unset = Analyser::new().analyse("unset tcl_precision\n", "tcl8.6");
+    assert!(
+        fresh_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "a fresh lazy trace must not be mistaken for an eager binding: {:?}",
+        fresh_unset.diagnostics
+    );
+    let materialised_unset = Analyser::new().analyse(
+        "set observed $tcl_precision\nunset tcl_precision\n",
+        "tcl8.6",
+    );
+    assert!(
+        !materialised_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "a prior trace read must make its unset valid: {:?}",
+        materialised_unset.diagnostics
+    );
+    let eager_unset = Analyser::new().analyse("unset argv\nputs $argv\n", "tcl8.6");
+    assert!(
+        !eager_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W213),
+        "an eagerly-bound startup global is safe to unset: {:?}",
+        eager_unset.diagnostics
+    );
+    assert!(
+        eager_unset
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W210),
+        "the later argv read must still see the deletion: {:?}",
+        eager_unset.diagnostics
+    );
+}
+
+#[test]
 fn emit_cfg_ssa_diagnostics_w210_suppressed_when_proc_writes_global() {
     // A helper proc ``init`` writes ``::counter`` via ``set``,
     // so the top-level read should not flag W210 — the proc

@@ -58,7 +58,22 @@ struct PhiUndefIndex<'a> {
     killed: &'a FxHashSet<(String, crate::ssa::Version)>,
 }
 
+/// The read-only scope and suppression facts for the version-0 / statement
+/// W210 pass. Keeping this alongside [`ReturnUndefCtx`] prevents the two W210
+/// emitters from acquiring separate, subtly divergent entry-scope contracts.
+pub(super) struct ReadBeforeSetCtx<'a> {
+    pub initial_global: bool,
+    pub global_aliases: &'a HashSet<String>,
+    pub defined_vars: &'a HashSet<String>,
+    pub scope_aliases: &'a HashSet<String>,
+    pub extra_known_defined: &'a HashSet<String>,
+    pub supp: &'a UndefSuppression,
+}
+
 pub(super) struct ReturnUndefCtx<'a> {
+    pub initial_global: bool,
+    pub global_aliases: &'a HashSet<String>,
+    pub dialect: &'a str,
     pub params: &'a HashSet<&'a str>,
     pub exists_guards: &'a [(String, crate::cfg::BlockId)],
     pub scope_aliases: &'a HashSet<String>,
@@ -66,6 +81,45 @@ pub(super) struct ReturnUndefCtx<'a> {
     pub defined_vars: &'a HashSet<String>,
     pub considered: &'a HashSet<crate::cfg::BlockId>,
     pub supp: &'a UndefSuppression,
+}
+
+/// Registry-owned startup lifecycle facts for one SSA variable version.
+#[derive(Clone, Copy)]
+struct StartupReadFacts {
+    readable: bool,
+    initially_bound: bool,
+    lazy_read: bool,
+}
+
+fn startup_read_facts(
+    name: &str,
+    version: crate::ssa::Version,
+    killed: bool,
+    initial_global: bool,
+    global_aliases: &HashSet<String>,
+    dialect: &str,
+) -> StartupReadFacts {
+    let global_binding =
+        super::helpers::has_global_startup_binding(name, initial_global, global_aliases);
+    let startup_name = super::helpers::startup_var_name(name);
+    StartupReadFacts {
+        readable: global_binding
+            && version == 0
+            && !killed
+            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect),
+        initially_bound: global_binding
+            && version == 0
+            && tcl_registry::special_vars::is_initially_bound(startup_name, dialect),
+        lazy_read: global_binding
+            && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect),
+    }
+}
+
+/// Facts used while recording the read sites of one undef def-use chain.
+struct W210ChainCtx<'a> {
+    exists_guards: &'a [(String, crate::cfg::BlockId)],
+    supp: &'a UndefSuppression,
+    startup: StartupReadFacts,
 }
 
 impl Analyser {
@@ -1040,10 +1094,7 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         ir_proc: Option<&crate::ir::Procedure>,
-        defined_vars: &HashSet<String>,
-        scope_aliases: &HashSet<String>,
-        extra_known_defined: &HashSet<String>,
-        supp: &UndefSuppression,
+        ctx: &ReadBeforeSetCtx<'_>,
     ) {
         use crate::def_use::DefKind;
         use std::fmt::Write as _;
@@ -1089,15 +1140,34 @@ file; this call falls through to the 'unknown' handler."
             // undef at their reads too — all flow through the same
             // suppression + emission logic below.
             if chain.definition.kind != DefKind::Parameter
-                && !supp.killed.contains(&chain.key)
-                && !supp.can_undef.contains(&chain.key)
+                && !ctx.supp.killed.contains(&chain.key)
+                && !ctx.supp.can_undef.contains(&chain.key)
             {
                 continue;
             }
-            let (var, _version) = &chain.key;
+            let (var, version) = &chain.key;
             if params.contains(var.as_str()) {
                 continue;
             }
+            // Tcl 8.x's registry-declared `tcl_precision` read trace
+            // recreates its value after `unset`; an eager startup binding
+            // (for example argv) deliberately does not get this exemption.
+            let startup = startup_read_facts(
+                var,
+                *version,
+                ctx.supp.killed.contains(&chain.key),
+                ctx.initial_global,
+                ctx.global_aliases,
+                self.dialect(),
+            );
+            if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
+                continue;
+            }
+            // `SPECIAL_VARS` distinguishes recognised runtime-sensitive names
+            // from the subset the default host actually makes readable before
+            // user code. That entry fact belongs only to this document's
+            // initial global frame and version zero: local shadows and a
+            // version killed by `unset` are still genuine W210 reads.
             // An element read (`$arr(a)`) of an array whose *base* is
             // defined, aliased, or a parameter anywhere in the function
             // stays silent: which elements a dynamic write / whole-array
@@ -1116,9 +1186,9 @@ file; this call falls through to the 'unknown' handler."
                 });
                 if base_defined
                     || params.contains(base)
-                    || scope_aliases.contains(base)
-                    || extra_known_defined.contains(base)
-                    || supp.suppresses(base)
+                    || (ctx.scope_aliases.contains(base) && !ctx.supp.killed.contains(&chain.key))
+                    || ctx.extra_known_defined.contains(base)
+                    || ctx.supp.suppresses(base)
                 {
                     continue;
                 }
@@ -1127,10 +1197,10 @@ file; this call falls through to the 'unknown' handler."
             // targets the global / a named namespace scope, whose definition
             // may live in another proc, another namespace, or — for a
             // multi-file project — another file entirely.  Single-unit
-            // dataflow can't see those writers, so a qualified read must never
-            // be flagged read-before-set (matches the phi-undef emitter and
-            // the dead-store pass, which already exempt `::`-qualified names).
-            if var.contains("::") {
+            // dataflow cannot see those writers, so an otherwise-unresolved
+            // qualified read is conservatively exempt. A same-unit `unset`
+            // records a killed chain, however, so it must still be reported.
+            if var.contains("::") && !ctx.supp.killed.contains(&chain.key) {
                 continue;
             }
             // A scope-aliased local (`global` / `variable` / `upvar` /
@@ -1141,13 +1211,13 @@ file; this call falls through to the 'unknown' handler."
             // variable is missing — a runtime condition, not a static one — so
             // the dynamic target is suppressed exactly like the literal one
             // (matching C Tcl and the "assume the may-run path does run" stance
-            // the loop / cross-event passes already take). This is the standard
-            // Tcl pass-by-reference idiom; a genuinely unrelated local that is
-            // not an alias is absent from `scope_aliases` and still fires.
-            if scope_aliases.contains(var) {
+            // the loop / cross-event passes already take). A known `unset` of
+            // the alias wins over that conservative assumption; a genuinely
+            // unrelated local is absent from `scope_aliases` and still fires.
+            if ctx.scope_aliases.contains(var) && !ctx.supp.killed.contains(&chain.key) {
                 continue;
             }
-            if extra_known_defined.contains(var) {
+            if ctx.extra_known_defined.contains(var) {
                 continue;
             }
             // `dict with`/`dict update` unpacking + qualified-`variable`
@@ -1157,17 +1227,26 @@ file; this call falls through to the 'unknown' handler."
             // CONST("") (keys = ∅, not unknown), so the blanket variant fires
             // on a genuine missing-key read while still suppressing an
             // unknown-shape (mixed-caller / no-caller) dict.
-            if supp.suppresses(var) {
+            if ctx.supp.suppresses(var) {
                 continue;
             }
-            self.record_chain_w210_uses(fu, chain, &exists_guards, supp, &mut w210_min);
+            self.record_chain_w210_uses(
+                fu,
+                chain,
+                &W210ChainCtx {
+                    exists_guards: &exists_guards,
+                    supp: ctx.supp,
+                    startup,
+                },
+                &mut w210_min,
+            );
         }
 
         let mut entries: Vec<(String, tcl_lexer::Span)> = w210_min.into_iter().collect();
         entries.sort_by_key(|(_, s)| s.start());
         for (var, span) in entries {
             let mut message = format!("Variable '{var}' is read before it is set");
-            if let Some(similar) = undefined_var_suggestion(&var, defined_vars) {
+            if let Some(similar) = undefined_var_suggestion(&var, ctx.defined_vars) {
                 let _ = write!(message, "; did you mean '{similar}'?");
             }
             self.result
@@ -1190,8 +1269,7 @@ file; this call falls through to the 'unknown' handler."
         &mut self,
         fu: &crate::compilation_unit::FunctionUnit,
         chain: &crate::def_use::DefUseChain,
-        exists_guards: &[(String, crate::cfg::BlockId)],
-        supp: &UndefSuppression,
+        ctx: &W210ChainCtx<'_>,
         w210_min: &mut std::collections::HashMap<String, tcl_lexer::Span>,
     ) {
         use crate::def_use::UseKind;
@@ -1216,7 +1294,7 @@ file; this call falls through to the 'unknown' handler."
             // `UndefSuppression::loop_entry_only_undef`): we assume a may-run
             // loop runs, matching C Tcl. A read *inside* the loop body still
             // fires.
-            if supp.after_loop_defined(&chain.key, &use_site.block) {
+            if ctx.supp.after_loop_defined(&chain.key, &use_site.block) {
                 continue;
             }
             let Some(block) = fu.cfg.block_by_name(&use_site.block) else {
@@ -1260,7 +1338,7 @@ file; this call falls through to the 'unknown' handler."
             }
             // Skip the existence-query word itself and
             // reads narrowed by an enclosing `[info exists X]` guard.
-            if existence_exempt(stmt_opt, var, exists_guards, &fu.ssa, &use_site.block) {
+            if existence_exempt(stmt_opt, var, ctx.exists_guards, &fu.ssa, &use_site.block) {
                 continue;
             }
             // ``unset`` without ``-nocomplain`` → W213.
@@ -1273,6 +1351,21 @@ file; this call falls through to the 'unknown' handler."
                 && command == "unset"
                 && !args.iter().any(|a| a == "-nocomplain")
             {
+                // Eager startup bindings (`argv`, `tcl_version`, …) already
+                // exist when their first `unset` runs. A lazy read trace is
+                // different: its first `unset` still errors until an earlier
+                // actual read has materialised its value in this block.
+                if ctx.startup.initially_bound
+                    || (ctx.startup.lazy_read
+                        && chain.uses.iter().any(|prior| {
+                            prior.block == use_site.block
+                                && prior.statement_index >= 0
+                                && prior.statement_index < use_site.statement_index
+                                && prior.class != crate::ssa::UseClass::Quoted
+                        }))
+                {
+                    continue;
+                }
                 let message = format!(
                     "Variable '{var}' may not exist; \
                          use 'unset -nocomplain' to suppress the error",
@@ -1298,6 +1391,13 @@ file; this call falls through to the 'unknown' handler."
             // (`safe_on_uninit` calls like `lappend`/`dict set`, or an
             // `incr` of its own target) is not read-before-set.
             if use_site_safe_initialises(stmt_opt, var) {
+                continue;
+            }
+            // This is an ordinary initial read, not the destructive `unset`
+            // target handled above.  Its startup fact is registry-owned and
+            // applies to the initial global frame, a qualified global, or a
+            // registry-declared global alias — never a same-named local.
+            if ctx.startup.readable {
                 continue;
             }
             // Anchor at the `$var` read token; fall back to the command
@@ -1409,8 +1509,7 @@ file; this call falls through to the 'unknown' handler."
                     .and_then(|s| ssa_block.exit_versions.get(&s))
                     .copied()
                     .unwrap_or(0);
-                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx, self.dialect())
-                {
+                if !Self::return_read_fires_w210(fu, &name, ver, bn, &phi_idx, ctx) {
                     continue;
                 }
                 reported.insert(name.clone());
@@ -1433,7 +1532,7 @@ file; this call falls through to the 'unknown' handler."
     /// Decide whether a single `return`-value read of `(name, ver)` in block
     /// `bn` is a W210 phi-from-undef read: its reaching version must be able to
     /// reach an undef origin, and it must not be a parameter / scope alias /
-    /// known-defined / implicit / qualified / suppressed name or be proven
+    /// known-defined / qualified / suppressed name or be proven
     /// defined by a dominating existence guard.  Version-0 reads are handled by
     /// the def-use `DefKind::Parameter` emitter, so they never fire here.
     fn return_read_fires_w210(
@@ -1443,7 +1542,6 @@ file; this call falls through to the 'unknown' handler."
         bn: crate::cfg::BlockId,
         phi_idx: &PhiUndefIndex<'_>,
         ctx: &ReturnUndefCtx<'_>,
-        dialect: &str,
     ) -> bool {
         // Version-0 return reads are now recorded in def_use, so the version-0
         // (`DefKind::Parameter`) emitter handles them with the full suppression
@@ -1461,16 +1559,22 @@ file; this call falls through to the 'unknown' handler."
             considered: ctx.considered,
             executable_edges: &fu.sccp.executable_edges,
             exists_guards: ctx.exists_guards,
+            initial_global: ctx.initial_global,
+            global_aliases: ctx.global_aliases,
+            dialect: ctx.dialect,
             ssa: &fu.ssa,
         };
         if !phi_can_undef(name, ver, &undef_ctx, &mut seen) {
             return false;
         }
+        // A killed SSA version is concrete same-unit evidence that overrides
+        // the conservative external-scope assumptions for `global`/`upvar`
+        // aliases and qualified names.
+        let known_killed = phi_idx.killed.contains(&(name.to_owned(), ver));
         if ctx.params.contains(name)
-            || ctx.scope_aliases.contains(name)
+            || (ctx.scope_aliases.contains(name) && !known_killed)
             || ctx.extra_known_defined.contains(name)
-            || is_implicit_var(name, dialect)
-            || name.contains("::")
+            || (name.contains("::") && !known_killed)
             || ctx.supp.suppresses(name)
         {
             return false;
@@ -2676,15 +2780,6 @@ fn w213_span_and_fix(
         }]
     });
     (diag_span, fixes)
-}
-
-/// Implicit / interpreter-provided variables that are always defined and
-/// must never raise a read-before-set.  Dialect-aware: the set is sourced from
-/// the [`tcl_registry::special_vars`] registry, which knows that iRules
-/// provides a different set (its `static::` namespace, no `argv`/`env`) than
-/// standard Tcl.
-fn is_implicit_var(name: &str, dialect: &str) -> bool {
-    tcl_registry::special_vars::is_special_var(crate::naming::normalise_var_name(name), dialect)
 }
 
 /// Tcl ARE metacharacters: a pattern free of these reduces to a literal

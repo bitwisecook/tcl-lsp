@@ -1323,6 +1323,32 @@ pub(crate) fn scan_scope_aliases(
     aliases
 }
 
+/// Scan one CFG for registry-declared aliases that target the interpreter's
+/// global namespace.  This is intentionally narrower than
+/// [`scan_scope_aliases`]: a `variable` or `upvar` alias may name a same-named
+/// local or caller variable, whereas a global alias can inherit an
+/// interpreter startup binding.
+pub(crate) fn scan_global_scope_aliases(
+    cfg: &CfgFunction,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashSet<String> {
+    let mut aliases = HashSet::new();
+    for block in cfg.blocks.values() {
+        for stmt in &block.statements {
+            if let Statement::Call { command, args, .. } = stmt {
+                for i in
+                    crate::var_scoping::global_scope_alias_local_indices(registry, command, args)
+                {
+                    if let Some(alias) = args.get(i) {
+                        aliases.insert(alias.clone());
+                    }
+                }
+            }
+        }
+    }
+    aliases
+}
+
 /// Module-wide set of namespace-qualified (`::`) globals that carry a variable
 /// **write trace** anywhere in the compilation unit.
 ///

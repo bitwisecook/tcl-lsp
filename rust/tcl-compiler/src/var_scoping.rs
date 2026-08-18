@@ -172,6 +172,36 @@ pub fn scope_alias_local_indices(
         .collect()
 }
 
+/// Indices (into `args`) of the local names bound to the interpreter's
+/// global namespace by this registry-described command, or empty when the
+/// alias targets a namespace or caller frame instead.
+///
+/// This refines [`scope_alias_local_indices`] with the registry-owned
+/// [`tcl_registry::Traits::ALIASES_GLOBAL`] fact.  It deliberately does not
+/// name Tcl's `global` command: a dialect extension can declare the same
+/// target scope without teaching analysis consumers another spelling.
+#[must_use]
+pub fn global_scope_alias_local_indices(
+    registry: &tcl_registry::CommandRegistry,
+    command: &str,
+    args: &[String],
+) -> Vec<usize> {
+    let canonical = command.trim_start_matches(':');
+    let Some(spec) = registry.get(canonical) else {
+        return Vec::new();
+    };
+    if !spec
+        .traits
+        .contains(tcl_registry::prelude::Traits::ALIASES_GLOBAL)
+    {
+        return Vec::new();
+    }
+    registry_role_indices(registry, canonical, args)
+        .into_iter()
+        .filter(|&i| args.get(i).is_some_and(|a| !a.starts_with('$')))
+        .collect()
+}
+
 /// Indices (into `args`) of the variable names a scope-alias command
 /// *declares* for **navigation** consumers (the LSP go-to-declaration
 /// provider), or empty for any other command. Layout and parity come from the
@@ -230,6 +260,18 @@ mod tests {
     #[test]
     fn global_decls_empty_input() {
         assert!(global_declaration_indices(&[]).is_empty());
+    }
+
+    #[test]
+    fn global_scope_aliases_are_registry_described() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        assert_eq!(
+            global_scope_alias_local_indices(&registry, "global", &v(&["x", "y"])),
+            vec![0, 1]
+        );
+        assert!(
+            global_scope_alias_local_indices(&registry, "upvar", &v(&["1", "x", "y"])).is_empty()
+        );
     }
 
     // -- variable --
