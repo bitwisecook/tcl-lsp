@@ -322,22 +322,23 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// the current namespace's export patterns.
 fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let cur = interp.current_ns();
-    let mut patterns: Vec<Vec<u8>> = Vec::new();
-    let mut clear = false;
-    for &a in &argv[2..] {
-        let b = obj_bytes(a);
-        if patterns.is_empty() && b == b"-clear" {
-            clear = true;
-        } else {
-            patterns.push(b);
-        }
-    }
-    // No patterns and no -clear ⇒ query.
-    if patterns.is_empty() && !clear {
+    // No words at all ⇒ query (C's `objc == 1` arm, before `-clear` is even
+    // looked at).
+    if argv.len() == 2 {
         let pats = interp.namespaces().exports(cur).to_vec();
         set_list_bytes(interp, &pats);
         return Code::Ok;
     }
+    // `-clear` is *positional*: C tests only `objv[1]`, so a second `-clear`
+    // is an ordinary pattern (the registry says the same with
+    // `max_leading_option_words: Some(1)`).
+    let mut words = argv[2..].iter().map(|&a| obj_bytes(a));
+    let mut first = words.next();
+    let clear = first.as_deref() == Some(b"-clear");
+    if clear {
+        first = words.next();
+    }
+    let patterns: Vec<Vec<u8>> = first.into_iter().chain(words).collect();
     // An export pattern names commands in the *current* namespace only, so it
     // may not be namespace-qualified (C's `NamespaceExportCmd`).
     for p in &patterns {
@@ -362,16 +363,16 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// redirects in the current ns for the exported commands matching each pattern.
 fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let dest = interp.current_ns();
-    let mut force = false;
-    let mut patterns: Vec<Vec<u8>> = Vec::new();
-    for &a in &argv[2..] {
-        let b = obj_bytes(a);
-        if patterns.is_empty() && b == b"-force" {
-            force = true;
-        } else {
-            patterns.push(b);
-        }
+    // `-force` is positional in the same way `-clear` is: C reads it from
+    // `objv[1]` only, so a trailing `-force` becomes a pattern — and then
+    // fails the "the pattern must name a source namespace" check below.
+    let mut words = argv[2..].iter().map(|&a| obj_bytes(a));
+    let mut first = words.next();
+    let force = first.as_deref() == Some(b"-force");
+    if force {
+        first = words.next();
     }
+    let patterns: Vec<Vec<u8>> = first.into_iter().chain(words).collect();
     if patterns.is_empty() {
         interp.set_result_bytes(b"");
         return Code::Ok;
@@ -382,10 +383,19 @@ fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(b"empty import pattern");
         }
         // Split into the source-namespace qualifier and the simple glob tail.
+        // C distinguishes the two ways a pattern can fail to name another
+        // namespace: no qualifier at all (`pattern == simplePattern`) reports
+        // a *missing* source namespace, a qualifier that resolves back to the
+        // importing namespace reports the self-import.
         let q = match tcl_cmd_core::namespace::qualifier(pat) {
             tcl_cmd_core::namespace::Qualifier::Absolute(q)
             | tcl_cmd_core::namespace::Qualifier::Relative(q) => q,
-            tcl_cmd_core::namespace::Qualifier::Unqualified => b"",
+            tcl_cmd_core::namespace::Qualifier::Unqualified => {
+                let mut m = b"no namespace specified in import pattern \"".to_vec();
+                m.extend_from_slice(pat);
+                m.push(b'"');
+                return interp.set_error(&m);
+            }
         };
         let tail_pat = tcl_cmd_core::namespace::tail(pat);
         let Some(src_ns) = interp.namespaces().find_namespace(dest, q) else {
@@ -744,28 +754,13 @@ fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 3 {
         return interp.wrong_args(b"namespace ensemble subcommand ?arg ...?");
     }
-    // Subcommands resolve by exact name or unambiguous prefix (Tcl's index table).
+    // The shared `ensembleSubcommands` table (flags 0, so `cr` is `create`).
     let sub = obj_bytes(argv[2]);
-    const ENS_SUBS: [&[u8]; 3] = [b"configure", b"create", b"exists"];
-    let resolved: &[u8] = if let Some(&exact) = ENS_SUBS.iter().find(|s| **s == sub.as_slice()) {
-        exact
-    } else {
-        let mut it = ENS_SUBS.iter().filter(|s| s.starts_with(sub.as_slice()));
-        match (it.next(), it.next()) {
-            (Some(&c), None) => c,
-            _ => b"",
-        }
-    };
-    match resolved {
-        b"create" => ens_create(interp, argv),
-        b"exists" => ens_exists(interp, argv),
-        b"configure" => ens_configure(interp, argv),
-        _ => {
-            let mut m = b"bad subcommand \"".to_vec();
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\": must be configure, create, or exists");
-            interp.set_error(&m)
-        }
+    match tcl_cmd_core::ensemble::SUBCOMMANDS.index_of(&sub) {
+        Ok(0) => ens_configure(interp, argv),
+        Ok(1) => ens_create(interp, argv),
+        Ok(_) => ens_exists(interp, argv),
+        Err(message) => interp.set_error(&message),
     }
 }
 
@@ -785,18 +780,26 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     let opts = &argv[3..];
+    // C checks the pair arity before it looks at any option word
+    // (`if (objc & 1)` → `wrong # args`, `tclEnsemble.c:192-196`).
     if opts.len() % 2 != 0 {
-        return interp.set_error(b"missing value for option");
+        return interp.wrong_args(b"namespace ensemble create ?option value ...?");
     }
     for pair in opts.chunks_exact(2) {
         let opt = obj_bytes(pair[0]);
-        // `-command` (create-only) names the ensemble command; the rest are the
-        // shared configuration options.
-        if opt.as_slice() == b"-command" {
+        // `ensembleCreateOptions`: `-command` (create-only) names the ensemble
+        // command, the rest are the shared configuration options, and there is
+        // deliberately no `-namespace`.
+        let resolved = match tcl_cmd_core::ensemble::CreateOption::resolve(&opt) {
+            Ok(resolved) => resolved,
+            Err(message) => return interp.set_error(&message),
+        };
+        let Some(shared) = resolved.shared() else {
+            // `-command` names the command rather than configuring it.
             command = obj_bytes(pair[1]);
             continue;
-        }
-        if let Err(e) = apply_ensemble_option(&mut cfg, &opt, &obj_bytes(pair[1])) {
+        };
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1])) {
             return interp.set_error(&e);
         }
     }
@@ -806,41 +809,39 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     Code::Ok
 }
 
-/// Apply one `-option value` to an [`EnsembleConfig`] (shared by `namespace
-/// ensemble create` and `configure`). Returns the C error text on a bad option
-/// or value.
-fn apply_ensemble_option(cfg: &mut EnsembleConfig, opt: &[u8], val: &[u8]) -> Result<(), Vec<u8>> {
+/// Apply one already-resolved shared `-option value` to an
+/// [`EnsembleConfig`] (`namespace ensemble create` and `configure` both land
+/// here; the option word itself is resolved by the caller's own table).
+/// Returns the C error text on a bad value.
+fn apply_ensemble_option(
+    cfg: &mut EnsembleConfig,
+    opt: tcl_cmd_core::ensemble::SharedOption,
+    val: &[u8],
+) -> Result<(), Vec<u8>> {
+    use tcl_cmd_core::ensemble::SharedOption;
     match opt {
-        b"-subcommands" => {
+        SharedOption::Subcommands => {
             cfg.subcommands =
                 Some(crate::parse::split_list(val).map_err(|e| e.message().to_vec())?);
         }
-        b"-map" => {
+        SharedOption::Map => {
             // An empty `-map` clears it (C: a zero-length dict ⇒ no map).
             let m = parse_map(val)?;
             cfg.map = if m.is_empty() { None } else { Some(m) };
         }
-        b"-parameters" => {
+        SharedOption::Parameters => {
             cfg.parameters = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
         }
-        b"-unknown" => {
+        SharedOption::Unknown => {
             cfg.unknown = crate::parse::split_list(val).map_err(|e| e.message().to_vec())?;
         }
-        b"-prefixes" => {
+        SharedOption::Prefixes => {
             cfg.prefixes = parse_bool(val).ok_or_else(|| {
                 let mut m = b"expected boolean value but got \"".to_vec();
                 m.extend_from_slice(val);
                 m.push(b'"');
                 m
             })?;
-        }
-        _ => {
-            let mut m = b"bad option \"".to_vec();
-            m.extend_from_slice(opt);
-            m.extend_from_slice(
-                b"\": must be -command, -map, -parameters, -prefixes, -subcommands, or -unknown",
-            );
-            return Err(m);
         }
     }
     Ok(())
@@ -875,58 +876,66 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         interp.set_result_bytes(&d);
         return Code::Ok;
     }
-    // Read a single option's value.
+    // Read a single option's value (`ensembleConfigOptions`, abbreviating).
     if rest.len() == 1 {
         let opt = obj_bytes(rest[0]);
-        match ensemble_option_value(interp, &cfg, &opt) {
-            Some(v) => {
+        return match tcl_cmd_core::ensemble::ConfigOption::resolve(&opt) {
+            Ok(option) => {
+                let v = ensemble_option_value(interp, &cfg, option);
                 interp.set_result_bytes(&v);
                 Code::Ok
             }
-            None => {
-                let mut m = b"bad option \"".to_vec();
-                m.extend_from_slice(&opt);
-                m.extend_from_slice(b"\": must be -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown");
-                interp.set_error(&m)
-            }
-        }
-    } else {
-        // Update: `-option value` pairs.
-        if rest.len() % 2 != 0 {
-            return interp.set_error(b"missing value for option");
-        }
-        for pair in rest.chunks_exact(2) {
-            if let Err(e) =
-                apply_ensemble_option(&mut cfg, &obj_bytes(pair[0]), &obj_bytes(pair[1]))
-            {
-                return interp.set_error(&e);
-            }
-        }
-        interp.set_ensemble_config(&cmd, cfg);
-        interp.set_result_bytes(b"");
-        Code::Ok
+            Err(message) => interp.set_error(&message),
+        };
     }
+    // Update: `-option value` pairs. C's arity gate is
+    // `objc != 4 && !(objc & 1)`, i.e. anything but 0, 1, or an even number of
+    // trailing words is `wrong # args`.
+    if rest.len() % 2 != 0 {
+        return interp
+            .wrong_args(b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?");
+    }
+    for pair in rest.chunks_exact(2) {
+        let resolved = match tcl_cmd_core::ensemble::ConfigOption::resolve(&obj_bytes(pair[0])) {
+            Ok(resolved) => resolved,
+            Err(message) => return interp.set_error(&message),
+        };
+        let Some(shared) = resolved.shared() else {
+            return interp.set_error(b"option -namespace is read-only");
+        };
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1])) {
+            return interp.set_error(&e);
+        }
+    }
+    interp.set_ensemble_config(&cmd, cfg);
+    interp.set_result_bytes(b"");
+    Code::Ok
 }
 
 /// One ensemble `configure`/cget option's value (string form).
-fn ensemble_option_value(interp: &Interp, cfg: &EnsembleConfig, opt: &[u8]) -> Option<Vec<u8>> {
-    Some(match opt {
-        b"-namespace" => interp.namespaces().qualified_name(cfg.ns),
-        b"-prefixes" => {
+fn ensemble_option_value(
+    interp: &Interp,
+    cfg: &EnsembleConfig,
+    opt: tcl_cmd_core::ensemble::ConfigOption,
+) -> Vec<u8> {
+    use tcl_cmd_core::ensemble::ConfigOption;
+    match opt {
+        ConfigOption::Namespace => interp.namespaces().qualified_name(cfg.ns),
+        ConfigOption::Prefixes => {
             if cfg.prefixes {
                 b"1".to_vec()
             } else {
                 b"0".to_vec()
             }
         }
-        b"-parameters" => join_words(&cfg.parameters),
-        b"-unknown" => join_words(&cfg.unknown),
-        b"-subcommands" => cfg
+        ConfigOption::Parameters => join_words(&cfg.parameters),
+        ConfigOption::Unknown => join_words(&cfg.unknown),
+        ConfigOption::Subcommands => cfg
             .subcommands
             .as_deref()
             .map(join_words)
             .unwrap_or_default(),
-        b"-map" => match &cfg.map {
+        ConfigOption::Map => match &cfg.map {
             Some(m) => {
                 let mut flat: Vec<Vec<u8>> = Vec::with_capacity(m.len() * 2);
                 for (k, prefix) in m {
@@ -937,8 +946,7 @@ fn ensemble_option_value(interp: &Interp, cfg: &EnsembleConfig, opt: &[u8]) -> O
             }
             None => Vec::new(),
         },
-        _ => return None,
-    })
+    }
 }
 
 /// Join words into a Tcl list string.
@@ -952,16 +960,9 @@ fn join_words(words: &[Vec<u8>]) -> Vec<u8> {
 /// in C's alphabetical option order.
 fn ensemble_config_dict(interp: &Interp, cfg: &EnsembleConfig) -> Vec<u8> {
     let mut pairs: Vec<Vec<u8>> = Vec::new();
-    for opt in [
-        &b"-map"[..],
-        b"-namespace",
-        b"-parameters",
-        b"-prefixes",
-        b"-subcommands",
-        b"-unknown",
-    ] {
-        pairs.push(opt.to_vec());
-        pairs.push(ensemble_option_value(interp, cfg, opt).unwrap_or_default());
+    for opt in tcl_cmd_core::ensemble::ConfigOption::all() {
+        pairs.push(opt.name().as_bytes().to_vec());
+        pairs.push(ensemble_option_value(interp, cfg, opt));
     }
     join_words(&pairs)
 }
@@ -1737,6 +1738,228 @@ mod tests {
             );
 
             i.eval_str(b"unset name result");
+        });
+    }
+
+    // -- issue regression vectors (#1442, #1446, #1453, #1463) -------------
+    // Each expectation is pinned against tclsh 8.6.16 and 9.0.4; the
+    // interpreter emulates 9.0 by default, so a release-axis vector says so.
+
+    /// `namespace which -variable` is `Tcl_FindNamespaceVar`: namespace
+    /// variable tables only, never a call frame (#1442).
+    #[test]
+    fn which_variable_never_answers_with_a_proc_local() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(b"proc t {} {set loc 1; namespace which -variable loc}; t"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"");
+            // A local shadowing a real namespace variable still reports the
+            // namespace one.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval ns2 {variable shadow 5\n\
+                      proc q {} {set shadow 9; namespace which -variable shadow}}\n\
+                      ns2::q"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::ns2::shadow");
+        });
+    }
+
+    /// `namespace origin` follows `namespace import` links to their source
+    /// through the shared `TclGetOriginalCommand` core (#1442).
+    #[test]
+    fn origin_follows_import_chains() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval src {namespace export p; proc p {} {return P}}\n\
+                      namespace eval dst {namespace import ::src::p}\n\
+                      namespace origin ::dst::p"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::src::p");
+            assert_eq!(i.eval_str(b"namespace origin set"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::set");
+        });
+    }
+
+    /// Only `objv[1]` is the `-clear` / `-force` flag: the registry pins
+    /// `max_leading_option_words: Some(1)` and C tests that one word (#1446).
+    #[test]
+    fn only_the_first_word_is_the_export_or_import_flag() {
+        leak_free(|i| {
+            // tclsh 8.6.16 / 9.0.4: `-clear x`.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval e {namespace export -clear -clear x}\n\
+                      namespace eval e {namespace export}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"-clear x");
+            // A trailing `-force` is an ordinary pattern, and an unqualified
+            // pattern names no source namespace.
+            i.eval_str(b"namespace eval s3 {namespace export q; proc q {} {return Q}}");
+            assert_eq!(
+                i.eval_str(b"namespace eval t3 {catch {namespace import ::s3::q -force} m; set m}"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"no namespace specified in import pattern \"-force\""
+            );
+            // …and the import that preceded it still happened.
+            assert_eq!(i.eval_str(b"info commands ::t3::*"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::t3::q");
+            i.eval_str(b"unset -nocomplain m");
+        });
+    }
+
+    /// `namespace export -clear` empties the list before the patterns that
+    /// follow it are added (#1446).
+    #[test]
+    fn export_clear_resets_the_pattern_list() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval e {namespace export a b; namespace export -clear}\n\
+                      namespace eval e {namespace export}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"");
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval f {namespace export a b; namespace export -clear c}\n\
+                      namespace eval f {namespace export}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"c");
+        });
+    }
+
+    /// The ensemble option tables come from the shared owner: `create` has no
+    /// `-namespace`, both tables abbreviate, and the `namespace ensemble`
+    /// subcommand word abbreviates too (#1453).
+    #[test]
+    fn ensemble_option_tables_match_c() {
+        leak_free(|i| {
+            i.eval_str(b"namespace eval e5 {namespace export *; proc go {} {return G}}");
+            assert_eq!(
+                i.eval_str(b"namespace eval e5 {namespace ensemble create -comm ::ab5 -sub go}"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"::ab5");
+            assert_eq!(i.eval_str(b"namespace ensemble ex ::ab5"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"1");
+            assert_eq!(
+                i.eval_str(b"catch {namespace ensemble frobnicate} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"bad subcommand \"frobnicate\": must be configure, create, or exists"
+            );
+            assert_eq!(
+                i.eval_str(b"catch {namespace ensemble create -namespace ::x} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"bad option \"-namespace\": must be -command, -map, -parameters, \
+                  -prefixes, -subcommands, or -unknown"
+            );
+            i.eval_str(b"unset -nocomplain m");
+        });
+    }
+
+    /// C's `if (objc & 1)` fires before any option word is looked at, so an
+    /// odd tail is `wrong # args`, never `bad option` (#1453).
+    #[test]
+    fn ensemble_create_checks_pair_arity_first() {
+        leak_free(|i| {
+            for src in [
+                &b"catch {namespace ensemble create -command} m; set m"[..],
+                b"catch {namespace ensemble create -bogus} m; set m",
+            ] {
+                assert_eq!(i.eval_str(src), Code::Ok);
+                assert_eq!(
+                    i.result_bytes(),
+                    b"wrong # args: should be \"namespace ensemble create ?option value ...?\""
+                );
+            }
+            i.eval_str(b"unset -nocomplain m");
+        });
+    }
+
+    /// `namespace ensemble configure` reads through the shared config table:
+    /// `-namespace` is readable but never writable, `-command` is not in it,
+    /// and abbreviations resolve (#1453).
+    #[test]
+    fn ensemble_configure_uses_the_config_table() {
+        leak_free(|i| {
+            i.eval_str(
+                b"namespace eval e5 {namespace export *; proc go {} {return G}\n\
+                  namespace ensemble create -command ::ab5 -subcommands go}",
+            );
+            assert_eq!(
+                i.eval_str(b"namespace ensemble configure ::ab5 -sub"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"go");
+            assert_eq!(
+                i.eval_str(b"catch {namespace ensemble configure ::ab5 -namespace ::e5} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"option -namespace is read-only");
+            assert_eq!(
+                i.eval_str(b"catch {namespace ensemble configure ::ab5 -command ::zz} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"bad option \"-command\": must be -map, -namespace, -parameters, \
+                  -prefixes, -subcommands, or -unknown"
+            );
+            i.eval_str(b"unset -nocomplain m");
+        });
+    }
+
+    /// TclOO's root object commands are engine-installed on the registry's
+    /// behalf, so they follow their introducing release; a script-created
+    /// object command does not (#1463).
+    #[test]
+    fn tcloo_roots_follow_their_introducing_release() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_4);
+            assert_eq!(
+                i.eval_str(b"catch {oo::class create C {}} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"invalid command name \"oo::class\"");
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"catch {oo::configurable create C {}} m; set m"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.result_bytes(),
+                b"invalid command name \"oo::configurable\""
+            );
+            // A user object named after a 9.0-only builtin stays callable.
+            assert_eq!(
+                i.eval_str(b"oo::class create lpop {method m {} {return M}}; [lpop new] m"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"M");
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            i.eval_str(b"unset -nocomplain m");
         });
     }
 }

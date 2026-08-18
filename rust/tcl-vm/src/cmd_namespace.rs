@@ -482,11 +482,12 @@ impl EnsembleOptions {
 /// only owns the value parsing (C's per-`case` bodies).
 fn apply_shared_option(
     opts: &mut EnsembleOptions,
-    which: SharedEnsembleOption,
+    which: tcl_cmd_core::ensemble::SharedOption,
     val: &Value,
 ) -> Result<(), String> {
+    use tcl_cmd_core::ensemble::SharedOption;
     match which {
-        SharedEnsembleOption::Map => {
+        SharedOption::Map => {
             let elems = val.as_list().map_err(|e| e.message)?;
             let mut it = elems.iter();
             opts.map.clear();
@@ -495,34 +496,24 @@ fn apply_shared_option(
                 opts.map.insert(k.to_str().to_string(), prefix);
             }
         }
-        SharedEnsembleOption::Subcommands => {
+        SharedOption::Subcommands => {
             let elems = val.as_list().map_err(|e| e.message)?;
             opts.subcommands =
                 (!elems.is_empty()).then(|| elems.iter().map(|v| v.to_str().to_string()).collect());
         }
-        SharedEnsembleOption::Parameters => {
+        SharedOption::Parameters => {
             let elems = val.as_list().map_err(|e| e.message)?;
             opts.parameters = elems.iter().map(|v| v.to_str().to_string()).collect();
         }
-        SharedEnsembleOption::Prefixes => {
+        SharedOption::Prefixes => {
             opts.prefixes = val.as_bool().map_err(|e| e.message)?;
         }
-        SharedEnsembleOption::Unknown => {
+        SharedOption::Unknown => {
             let elems = val.as_list().map_err(|e| e.message)?;
             opts.unknown = (!elems.is_empty()).then(|| elems.to_vec());
         }
     }
     Ok(())
-}
-
-/// The options `namespace ensemble create` and `configure` have in common.
-#[derive(Clone, Copy)]
-enum SharedEnsembleOption {
-    Map,
-    Subcommands,
-    Parameters,
-    Prefixes,
-    Unknown,
 }
 
 /// `namespace ensemble create ?option value ...?` — build the ensemble command.
@@ -535,7 +526,7 @@ enum SharedEnsembleOption {
 fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use crate::command::{Command, EnsembleDef};
     use tcl_cmd_core::ensemble::CreateOption;
-    if args.len() % 2 != 0 {
+    if !args.len().is_multiple_of(2) {
         return err("wrong # args: should be \"namespace ensemble create ?option value ...?\"");
     }
     let ns = vm.current_ns().to_string();
@@ -549,17 +540,14 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     for pair in args.chunks_exact(2) {
         let word = pair[0].to_str();
-        let shared = match CreateOption::resolve(word.as_bytes()) {
-            Ok(CreateOption::Command) => {
-                command = Some(pair[1].to_str().to_string());
-                continue;
-            }
-            Ok(CreateOption::Map) => SharedEnsembleOption::Map,
-            Ok(CreateOption::Parameters) => SharedEnsembleOption::Parameters,
-            Ok(CreateOption::Prefixes) => SharedEnsembleOption::Prefixes,
-            Ok(CreateOption::Subcommands) => SharedEnsembleOption::Subcommands,
-            Ok(CreateOption::Unknown) => SharedEnsembleOption::Unknown,
+        let resolved = match CreateOption::resolve(word.as_bytes()) {
+            Ok(resolved) => resolved,
             Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+        };
+        let Some(shared) = resolved.shared() else {
+            // `-command` names the command rather than configuring it.
+            command = Some(pair[1].to_str().to_string());
+            continue;
         };
         if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
             return err(message);
@@ -592,14 +580,13 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// `-namespace` (readable, never writable) and has no `-command`.
 fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     use tcl_cmd_core::ensemble::ConfigOption;
-    const USAGE: &str =
-        "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
+    const USAGE: &str = "wrong # args: should be \"namespace ensemble configure cmdname ?-option value ...? ?arg ...?\"";
     let Some((cmd_val, rest)) = args.split_first() else {
         return err(USAGE);
     };
     // C's arity gate: one bare option word is a read, anything else must be
     // `-option value` pairs.
-    if rest.len() > 1 && rest.len() % 2 != 0 {
+    if rest.len() > 1 && !rest.len().is_multiple_of(2) {
         return err(USAGE);
     }
     let written = cmd_val.to_str().to_string();
@@ -625,14 +612,12 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
     let mut opts = EnsembleOptions::from_def(&def);
     for pair in rest.chunks_exact(2) {
-        let shared = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
-            Ok(ConfigOption::Namespace) => return err("option -namespace is read-only"),
-            Ok(ConfigOption::Map) => SharedEnsembleOption::Map,
-            Ok(ConfigOption::Parameters) => SharedEnsembleOption::Parameters,
-            Ok(ConfigOption::Prefixes) => SharedEnsembleOption::Prefixes,
-            Ok(ConfigOption::Subcommands) => SharedEnsembleOption::Subcommands,
-            Ok(ConfigOption::Unknown) => SharedEnsembleOption::Unknown,
+        let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
+            Ok(resolved) => resolved,
             Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
+        };
+        let Some(shared) = resolved.shared() else {
+            return err("option -namespace is read-only");
         };
         if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
             return err(message);

@@ -32,7 +32,7 @@ entry point, or gate moves without this contract being updated.
 <!-- owner-resolution-manifest -->
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
-| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail` | invariant; absolute-marker contract from #1493 | `xtask-resolution-drift` |
+| names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `which_command`; `which_variable`; `variable_fqn`; `origin` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `split_list`; `list_element` | invariant | none |
 | dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `split_list`; `ValueOps::dict_pairs` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
@@ -42,7 +42,7 @@ entry point, or gate moves without this contract being updated.
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
 | quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at` | `${...}` close rule per release; tmsh brace mode per dialect | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
-| option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index` | option surface per release/dialect | `xtask-option-registry-drift` |
+| option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-cmd-core/src/ensemble.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index`; `ensemble::CREATE_OPTIONS`; `ensemble::CONFIG_OPTIONS`; `ensemble::SUBCOMMANDS`; `ensemble::resolve_subcommand`; `ensemble::subcommand_choices`; `ensemble::unknown_subcommand_message` | option surface per release/dialect | `xtask-option-registry-drift` |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
@@ -109,6 +109,29 @@ entry point, or gate moves without this contract being updated.
   these — the VM's `interp.rs` canonicalisers (`canonical_cmd_key`,
   namespace declare/find/parent/import/forget) and `command.rs`
   (rename re-homing, `proc` namespace derivation) are built on them.
+  The generic cores cover `current` / `exists` / `parent` / `children`
+  / `which_command` and, since #1442, `which_variable` (the
+  `Tcl_FindNamespaceVar` probe — namespace variable tables only, never
+  a call frame; its *alternate* global-rooted candidate is the one
+  release axis, dropped by 9.0's `flags |= TCL_NAMESPACE_ONLY`) and
+  `origin` (`NamespaceOriginCmd`). The two accessors they need are on
+  the `Namespaces` role trait: `namespace_var_exists` and
+  `command_origin`. `command_origin` is the *whole* import walk, not a
+  single hop, because C's `TclGetOriginalCommand` is, and because a
+  runtime whose import links are name-keyed needs its own
+  disambiguation (the VM's hidden/visible token domains).
+- `ensemble` — `tclEnsemble.c`'s tables and rules: the
+  `namespace ensemble` subcommand table, the **two** option tables
+  (`create` carries `-command` and no `-namespace`; `configure`
+  carries `-namespace`, read-only, and no `-command`), the
+  exact-then-unique-prefix subcommand scan, and the dispatch miss
+  messages. The scan is `prefix::scan`'s rule with one documented
+  divergence: C's ensemble path is a `strncmp` over the word's length,
+  so an **empty** subcommand prefixes every entry and resolves against
+  a one-entry table, where `Tcl_GetIndexFromObj` forces the error
+  path. `subcommand_choices` is the ensemble enumeration, which keeps
+  a comma before `or` even for two entries (`bar, or baz`) — the
+  wording `prefix::choice_list` must not be used for.
 - `index` — Tcl index parsing (`Tcl_GetIntForIndex`: `end`, `end-2`,
   `1+1`) and nested-index drilling.
 - `prefix` — the `Tcl_GetIndexFromObjStruct` port, with
@@ -253,10 +276,13 @@ helper without reading the rationale:
   ensemble-rewrite prefix, so single-command definition forms report
   the whole original command (`oo::define Foo method …`) as C's
   `Tcl_WrongNumArgs` rewrite path does.
-- `rust/tcl-vm/src/interp.rs::oxford_or` — the **ensemble** subcommand
-  enumeration, which C renders with a comma before `or` even for two
-  items (`x1, or x2`), unlike `Tcl_GetIndexFromObj`; it must not be
-  collapsed onto `tcl-cmd-core::prefix::choice_list`.
+- `tcl-cmd-core::ensemble::subcommand_choices` — the **ensemble**
+  subcommand enumeration, which C renders with a comma before `or`
+  even for two items (`x1, or x2`), unlike `Tcl_GetIndexFromObj`; it
+  must not be collapsed onto `tcl-cmd-core::prefix::choice_list`.
+  (Both runtimes used to keep their own copy — the VM's `oxford_or`
+  and the WASM runtime's `ensemble::must_be`; #1453 moved the quirk
+  into the owner instead of leaving it duplicated.)
 - The LSP-side matchers (semantic-tokens / minify candidate ranking)
   and `tcl_syntax::boolean` keep their own prefix rules — different
   contracts (ranking, fixed vocabulary with cross-set ambiguity), not
@@ -284,6 +310,14 @@ helper without reading the rationale:
 - `rust/tcl-cmd-core/src/namespace.rs` — `qualifiers_and_tail_match_c`.
 - `rust/tcl-cmd-core/src/prefix.rs` — C-parity unit tests (empty-key,
   empty-entry, exact-mode wording).
+- `rust/tcl-cmd-core/src/ensemble.rs` — the two option tables, the
+  ensemble subcommand scan's empty-word divergence, and the
+  comma-before-`or` enumeration.
+- `rust/tcl-vm/tests/namespace_surface_e2e.rs` and the
+  `cmd_namespace.rs` test module in `runtime/rust` — the `namespace`
+  command surface (`which -variable`, `origin`, `export`/`import`
+  leading options, teardown, `ensemble`) pinned against tclsh 8.6.16
+  and 9.0.4 on both engines.
 - `rust/tcl-cmd-core/src/sort.rs` —
   `parse_wide_shares_the_canonical_integer_grammar`.
 - `rust/tcl-vm/tests/namespace_colon_runs_e2e.rs` — colon-run

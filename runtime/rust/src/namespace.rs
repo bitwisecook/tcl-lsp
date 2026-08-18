@@ -36,9 +36,7 @@
 
 use std::collections::BTreeMap;
 
-use tcl_syntax::naming::{
-    ends_with_separator, is_qualified as contains_qualifier, qualifier_segments as split_qualifier,
-};
+use tcl_syntax::naming::{ends_with_separator, qualifier_segments as split_qualifier};
 
 use crate::frame::VarTable;
 use crate::interp::Command;

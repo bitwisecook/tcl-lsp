@@ -214,7 +214,10 @@ pub fn variable_fqn<O: Namespaces + ?Sized>(
     let alternate = match qualifier(name.as_bytes()) {
         _ if profile
             .availability_mask
-            .intersects(tcl_dialect::DialectSet::TCL90_PLUS) => None,
+            .intersects(tcl_dialect::DialectSet::TCL90_PLUS) =>
+        {
+            None
+        }
         Qualifier::Absolute(_) => None,
         Qualifier::Unqualified => ops.find_namespace(cur, "::"),
         Qualifier::Relative(prefix) => {

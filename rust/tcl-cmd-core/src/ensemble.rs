@@ -74,6 +74,24 @@ pub const CONFIG_OPTIONS: OptionTable<'static> = OptionTable::abbreviating(
     ],
 );
 
+/// The options `namespace ensemble create` and `configure` have in common —
+/// everything that lands in the ensemble's stored configuration. `-command`
+/// (create-only, it names the command rather than configuring it) and
+/// `-namespace` (configure-only, and read-only there) are the two that do not.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SharedOption {
+    /// `-map dict`
+    Map,
+    /// `-parameters list`
+    Parameters,
+    /// `-prefixes boolean`
+    Prefixes,
+    /// `-subcommands list`
+    Subcommands,
+    /// `-unknown prefix`
+    Unknown,
+}
+
 /// A resolved `namespace ensemble create` option (the index into
 /// [`CREATE_OPTIONS`], named).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -107,6 +125,20 @@ impl CreateOption {
             4 => Self::Subcommands,
             _ => Self::Unknown,
         })
+    }
+
+    /// The shared configuration option this is, or `None` for `-command`,
+    /// which names the ensemble command rather than configuring it.
+    #[must_use]
+    pub const fn shared(self) -> Option<SharedOption> {
+        match self {
+            Self::Command => None,
+            Self::Map => Some(SharedOption::Map),
+            Self::Parameters => Some(SharedOption::Parameters),
+            Self::Prefixes => Some(SharedOption::Prefixes),
+            Self::Subcommands => Some(SharedOption::Subcommands),
+            Self::Unknown => Some(SharedOption::Unknown),
+        }
     }
 }
 
@@ -143,6 +175,20 @@ impl ConfigOption {
             4 => Self::Subcommands,
             _ => Self::Unknown,
         })
+    }
+
+    /// The shared configuration option this is, or `None` for `-namespace`,
+    /// which C rejects as a *write* (`option -namespace is read-only`).
+    #[must_use]
+    pub const fn shared(self) -> Option<SharedOption> {
+        match self {
+            Self::Namespace => None,
+            Self::Map => Some(SharedOption::Map),
+            Self::Parameters => Some(SharedOption::Parameters),
+            Self::Prefixes => Some(SharedOption::Prefixes),
+            Self::Subcommands => Some(SharedOption::Subcommands),
+            Self::Unknown => Some(SharedOption::Unknown),
+        }
     }
 
     /// The canonical spelling, for the `configure` query result's key order.

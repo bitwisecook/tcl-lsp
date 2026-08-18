@@ -392,6 +392,9 @@ pub fn install(interp: &mut Interp) {
             },
         );
         interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
+        // Engine-installed, not script-created: the registry dates these
+        // (TCL86_PLUS) and the availability gate must honour that (#1463).
+        interp.declare_registry_object_root(fqn);
         interp.oo_register_my(fqn);
     }
     // `oo::object` has a built-in (unexported) `unknown` method — the standard
@@ -557,6 +560,16 @@ fn install_configurable(interp: &mut Interp) {
           oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
     );
     install_abstract_singleton(interp);
+    // The 9.0 metaclasses are engine-installed on the registry's behalf too,
+    // so the release gate hides them below their introducing release the way
+    // it hides a builtin (#1463) — real tclsh 8.6.16 has no `oo::configurable`.
+    for root in [
+        b"::oo::configurable".as_slice(),
+        b"::oo::singleton",
+        b"::oo::abstract",
+    ] {
+        interp.declare_registry_object_root(root);
+    }
 }
 
 /// TIP-less foundation metaclasses created by `InitFoundation` in C

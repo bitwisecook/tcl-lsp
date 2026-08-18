@@ -808,6 +808,14 @@ pub struct InterpState {
     /// consulted on every command dispatch). `None` for the permissive
     /// fallback profile, which gates nothing.
     profile_registry: Cell<Option<&'static tcl_registry::CommandRegistry>>,
+    /// The `Command::OoObject` entries the engine installs on the registry's
+    /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
+    /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
+    /// a script creating them. They carry the registry's release gate the way
+    /// a builtin does; every other object command is user-created and
+    /// release-invariant. Filled at bootstrap (`cmd_oo::install`), read by
+    /// [`Interp::resolve_dispatchable`].
+    registry_object_roots: RefCell<std::collections::HashSet<Vec<u8>>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -1111,6 +1119,7 @@ impl Interp {
             runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
             dialect_profile: Cell::new(tcl_dialect::DialectProfile::plain_tcl()),
             profile_registry: Cell::new(None),
+            registry_object_roots: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
@@ -1242,6 +1251,16 @@ impl Interp {
         })
     }
 
+    /// Record `fqn` as an engine-installed TclOO root object command, so the
+    /// release-availability gate treats it like a builtin (see
+    /// [`InterpState::registry_object_roots`]).
+    pub(crate) fn declare_registry_object_root(&self, fqn: &[u8]) {
+        self.0
+            .registry_object_roots
+            .borrow_mut()
+            .insert(fqn.to_vec());
+    }
+
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
     /// whether the pinned profile admits registry builtin `name`. Names the
     /// registry does not know are always admitted — they may be engine
@@ -1284,9 +1303,19 @@ impl Interp {
             let ns = self.namespaces.borrow();
             let cmd = ns.resolve(origin, name)?;
             // Only a *directly* bound builtin carries a release identity. Procs,
-            // aliases, ensembles and objects are script-created, and a nested
-            // redirect (import/alias) is gated when it resolves in its turn.
-            if !matches!(cmd, Command::Builtin(_)) {
+            // aliases and ensembles are script-created, and a nested redirect
+            // (import/alias) is gated when it resolves in its turn. The one
+            // object exception is the TclOO **roots** the engine installs on
+            // the registry's behalf (`::oo::class` and friends, dated
+            // TCL86_PLUS / TCL90_PLUS): those must vanish with the release the
+            // way a builtin does, while every script-created object command
+            // stays release-invariant.
+            let gated = match &cmd {
+                Command::Builtin(_) => true,
+                Command::OoObject(fqn) => self.0.registry_object_roots.borrow().contains(fqn),
+                _ => false,
+            };
+            if !gated {
                 return Some(cmd);
             }
             let fqn = ns.resolve_fqn(origin, name)?;
@@ -6449,7 +6478,8 @@ impl Interp {
         let mut reparsed = false;
         loop {
             let subs = self.ensemble_subcommands(cfg);
-            if let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) {
+            if let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes)
+            {
                 let resolved = &subs[idx];
                 // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
                 let prefix: Vec<Vec<u8>> = cfg
@@ -6496,22 +6526,13 @@ impl Interp {
                 c.extend_from_slice(&sub);
                 c
             };
-            if subs.is_empty() {
-                let mut m = b"unknown subcommand \"".to_vec();
-                m.extend_from_slice(&sub);
-                m.extend_from_slice(b"\": namespace ");
-                m.extend_from_slice(&self.namespaces.borrow().qualified_name(cfg.ns));
-                m.extend_from_slice(b" does not export any commands");
-                return self.error_with_code(&m, &ecode);
-            }
-            let mut m = if cfg.prefixes {
-                b"unknown or ambiguous subcommand \"".to_vec()
-            } else {
-                b"unknown subcommand \"".to_vec()
-            };
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\": must be ");
-            m.extend_from_slice(&crate::ensemble::must_be(&subs));
+            let ns_fqn = self.namespaces.borrow().qualified_name(cfg.ns);
+            let m = tcl_cmd_core::ensemble::unknown_subcommand_message(
+                &subs,
+                &sub,
+                cfg.prefixes,
+                &ns_fqn,
+            );
             return self.error_with_code(&m, &ecode);
         }
     }

@@ -549,7 +549,7 @@ pub struct InterpState {
     /// availability purposes.
     builtin_identities: HashMap<String, String>,
     /// The `Command::Object` entries the engine installs on the registry's
-    /// behalf rather than a script creating them — the TclOO roots
+    /// behalf rather than a script creating them — the `TclOO` roots
     /// (`oo::object`, `oo::class`, `oo::configurable`). They carry a registry
     /// availability gate the way a builtin does; every other object command is
     /// user-created and release-invariant. Populated at bootstrap
@@ -4036,7 +4036,7 @@ impl Vm {
         self.builtin_identities.insert(key.to_owned(), identity);
     }
 
-    /// Record `key` as an engine-installed TclOO root object command, so the
+    /// Record `key` as an engine-installed `TclOO` root object command, so the
     /// release-availability gate treats it like a builtin (see
     /// [`InterpState::registry_object_roots`]).
     pub(crate) fn declare_registry_object_root(&mut self, key: &str) {

@@ -73,7 +73,7 @@ The current owners and their semantic axes are:
 | Backslash escapes | shared lexer/syntax decoder | `LexerGrammar::escapes` per release |
 | Quotes, braces, word spans | `tcl-lexer::ranges` | close rule per release; tmsh mode per dialect |
 | Indices | `tcl-cmd-core::index` | grammar-parameterised; number axis |
-| Option words / subcommands | `tcl-cmd-core::prefix` + registry tables | release/dialect surface |
+| Option words / subcommands | `tcl-cmd-core::prefix` + `tcl-cmd-core::ensemble` + registry tables | release/dialect surface |
 | Expr grammar / evaluation | `tcl-syntax::expr` + `RuntimeExprSurface` | per release |
 | Command / word segmentation | `tcl-compiler::segmenter` over the red-green CST | `LexerConfig` per document dialect |
 | Tcl comment lines | `tcl-lexer::comment_line_starts` plus registry-declared script bodies | resolved `LexerConfig` and registry |
