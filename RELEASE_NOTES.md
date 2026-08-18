@@ -1,4 +1,4 @@
-# v2.1.19
+# v2.1.20
 
 **2.x alpha — pre-release channel.**
 
@@ -8,87 +8,102 @@ Marketplace **pre-release** channel, the JetBrains Marketplace **eap** channel,
 or the assets on this GitHub release. The stable **1.x** line remains the
 default.
 
-The `v2.1.19` tag dereferences to commit
-`54229c4f6cfd38bcb8efece7f797cbd8aca332bc`.
+## Compiler and runtime correctness
 
-## Compiler and runtime
+- Optimisation now respects dynamic variable observation, trace state,
+  executable control-flow edges, computed names, frame reach, and NaN-sensitive
+  comparisons. This closes a batch of silent-miscompile cases while retaining
+  guarded fast paths when their proofs hold.
+- Tcl release selection now drives lexing, escape decoding, expression
+  operators and numerals, formatting, command availability, compilation, and
+  host execution end to end. Tcl 8.4 through 9.1 programs no longer inherit
+  syntax or built-ins from the host's default release.
+- Shared syntax owners now handle substitution literals, parameter lists,
+  word closers, case-list layouts, expression numeral boundaries, comments,
+  and iRules event regions. Compiler, analyser, formatter, diagram, and LSP
+  consumers use those facts instead of maintaining divergent parsers.
+- The virtual machine preserves command-surface and profile identity through
+  aliases, hide/expose, rename, imports, coroutines, child interpreters, traces,
+  and cached bytecode. Switch, try/return, expression, and host-fallback paths
+  now retain their exact Tcl completion and dialect behaviour.
 
-- The compiler now has one registry-owned semantic invocation contract for
-  effects, state transitions, dispatch dependencies, completion behaviour,
-  executable intermediate representation, and WebAssembly backend selection.
-  Optimisation and analysis consumers use typed registry facts instead of
-  command-name branches.
-- A semantic ahead-of-time optimisation foundation adds proof-carrying,
-  dialect-aware native paths with guarded fallback to the exact evaluated
-  argument vector. The new optimisation switches remain off by default while
-  the proof surface expands.
-- Tcl's release-dependent numeral grammar is now handled by one shared facility
-  across syntax, analysis, optimisation, code generation, the virtual machine,
-  and the WebAssembly runtime. This fixes nine defects, including Tcl 8 octal
-  handling, `string is` options, frame-level parsing, and inconsistent constant
-  folding.
-- The virtual machine now covers all 191 Tcl 9.0.4 opcodes, including
-  coroutine, TclOO, exception-range, variable, array, and introspection
-  families.
+## Language server, iRules, and extensibility
 
-## Language server and extensibility
+- iRules event discovery, symbols, semantic tokens, comments, selection,
+  diagnostics, and compilation now share top-level, registry-resolved event
+  boundaries. Nested or unreachable declarations are excluded, exact command
+  identity survives aliases, and conflicting event priorities are diagnosed.
+- Dialect strings are resolved once at CLI and LSP ingress and carried as typed
+  profiles. Editor dialect choices and lexical grammars are generated from the
+  same registry and syntax owners for VS Code, JetBrains, and Sublime.
+- Registry lifecycle facts model Tcl startup globals for W210 without hiding
+  genuine undefined locals or values invalidated by `unset`. Other LSP
+  features now consume shared case, frame, reference, and embedded-language
+  contracts, including canonical Windows diagnostic URIs.
+- Project SpecTcl packs apply consistently across the CLI and VS Code, with
+  version ranges and release history enforced throughout their lifecycle. Spec
+  Studio gains native editor hosts, import/export provenance, formatting,
+  highlighting, and a Monaco-backed Pack DSL client whose LSP readiness is
+  explicitly verified.
 
-- Computed `source` paths now resolve through `file normalize`, chained local
-  constants, namespace variables, and cross-file constants. Document links
-  anchor on the file-name token instead of painting across substitutions.
-- W308 now recognises generated `oo::configurable` accessors and template
-  methods supplied by known subclasses, while retaining warnings for genuine
-  unknown methods.
-- Registry semantic proofs now drive option, callback-arity, formal-parameter,
-  lifecycle, dispatch, and optimisation decisions. The compiler explorer shows
-  the durable world-state and proof evidence behind those decisions.
-- SpecTcl packs can provide live, sandboxed hooks and folder-scoped overlays.
-  The bundled EDA command libraries have moved to loadable `.tclspec` packs,
-  and the Spec Studio can edit, validate, and render the same source format.
+## BIG-IP and TLS assurance
 
-## Engineering
+- A new safe, non-executing SslicTcl engine models certificates, keys, chains,
+  trust programmes, protocols, ciphers, HSTS, endpoint evidence, nginx,
+  OpenSSL, and testssl.sh input. Its pinned Chromium and Trust Stores
+  Observatory data is embedded with deterministic provenance and offline
+  verification.
+- BIG-IP reports now project effective client- and server-SSL configuration,
+  correlate certificate and key material, validate object references, and
+  surface TLS assurance and chain findings across native, compatibility, and
+  WebAssembly outputs. Unknown evidence remains explicitly unknown rather than
+  receiving an optimistic grade.
 
-- The local and continuous-integration test surface is now split into fast
-  smoke, deep, and explicitly manual exhaustive tiers. Consolidated integration
-  binaries and smaller build artefacts reduce test startup time and disk use.
-- Rust, TypeScript, Kotlin, editor, continuous-integration action, Wasmtime,
-  Binaryen, and wasi-sdk dependencies have been refreshed. The TypeScript
-  updates also clear the affected transitive dependency advisories.
-- Design and user documentation has been rewritten around the current native
-  Rust architecture, with obsolete Python-era APIs and port narratives removed.
+## Engineering and delivery
+
+- The native installer is stricter and more portable, including archive
+  verification, platform selection, upgrade behaviour, and a broader harness.
+  CI cache-warming and VS Code test downloads are corrected and faster.
+- New owner-resolution, editor-generator, documentation-link, diagnostic-tag,
+  iRule-test-data, and tooling drift gates keep generated assets and semantic
+  contracts aligned with their Rust sources of truth.
+- Differential-fuzz campaigns now pin one Tcl release across both engines and
+  replay it from durable, race-safe finding records, preventing deliberate
+  cross-release differences or incomplete record pairs from being reported as
+  findings.
 
 ## Performance across the 2.1 pre-releases
 
 These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
-`v2.1.19`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+`v2.1.20`, run by `scripts/perf/` against a pinned 113-file corpus (scope
 `small`, revision `1`). The corpus, scope, and revision are fixed across the
 whole series, so the lines are comparable with each other.
 
 There is no `v2.1.2` point: that version was never released.
 
-**`2.1.19` is this release**: in the wall-time graph, it is the rightmost bar
-in each group. In the memory and CPU graphs, identify its line using the graph
-legend; these immutable assets use categorical colours and dash patterns to
-distinguish the series.
+**`2.1.20` is this release**: it is the bright-blue line in the memory and CPU
+graphs and the rightmost bar in each wall-time group. Earlier releases are
+drawn in grey and fade with age.
 
 The series spans more than one measurement host — Apple M1 Max (darwin-arm64);
 AMD EPYC 9V74 80-Core Processor (linux-x86_64); AMD EPYC 7763 64-Core
-Processor (linux-x86_64). Wall time and CPU are properties of the machine as
-much as of the build, so compare within a host era rather than reading the
-boundary as a product change. Resident memory is far less host-sensitive.
+Processor (linux-x86_64); Apple M5 Max (darwin-arm64). Wall time and CPU are
+properties of the machine as much as of the build, so compare within a host
+era rather than reading the boundary as a product change. Resident memory is
+far less host-sensitive.
 
 ### Resident memory
 
-![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-memory.svg)
+![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.20/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-cpu.svg)
+![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.20/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-walltime.svg)
+![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.20/perf-walltime.svg)
 
 [Benchmark table and method
-notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.19/perf-summary.md)
-— the raw result JSON is attached to this release as `perf-2.1.19.json`.
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.20/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.1.20.json`.
