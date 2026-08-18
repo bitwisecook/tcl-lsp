@@ -980,6 +980,11 @@ struct DiagSlot {
     /// it is robust to out-of-order edit processing (a late, lower-version edit
     /// can't clobber a captured job — there is no captured job).
     dirty: bool,
+    /// Advances whenever new work is scheduled.  The worker samples this
+    /// before its debounce sleep and only starts analysis when the generation
+    /// remains unchanged for the whole window, making the debounce trailing-
+    /// edge rather than a fixed delay from the burst's first edit.
+    generation: u64,
     /// A worker task is currently draining this document.
     running: bool,
     /// The freshest analyser inputs (registry + per-URI config toggles),
@@ -990,6 +995,13 @@ struct DiagSlot {
     /// stale ones — otherwise a disabled optimiser would keep emitting O-codes
     /// until the next document edit.
     latest_inputs: Option<DiagInputs>,
+}
+
+impl DiagSlot {
+    fn mark_dirty(&mut self) {
+        self.dirty = true;
+        self.generation = self.generation.wrapping_add(1);
+    }
 }
 
 /// The two independent, both-default-off cross-file-adjacent toggles,
@@ -2011,6 +2023,43 @@ fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
     }
 }
 
+/// Wait until `uri`'s scheduled diagnostics generation has stayed unchanged
+/// for one full debounce window.  Returns that stable generation, or `None`
+/// when the slot disappeared or no longer has work.
+///
+/// When no work remains, this retires the worker's slot while still holding
+/// the slot-map lock.  That makes observing a clean slot and releasing its
+/// worker claim one transition: an edit that follows either sees a removed /
+/// non-running slot and starts a new worker, or is folded into the still-live
+/// worker before it makes that decision.
+async fn stable_diagnostics_generation(
+    slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
+    uri: &Uri,
+) -> Option<u64> {
+    loop {
+        let generation = {
+            let mut guard = slots.lock().await;
+            let (dirty, generation) = guard.get(uri).map(|slot| (slot.dirty, slot.generation))?;
+            if !dirty {
+                retire_slot(&mut guard, uri);
+                return None;
+            }
+            generation
+        };
+        crate::rt::sleep(DIAGNOSTICS_DEBOUNCE).await;
+        let mut guard = slots.lock().await;
+        let (dirty, current_generation) =
+            guard.get(uri).map(|slot| (slot.dirty, slot.generation))?;
+        if !dirty {
+            retire_slot(&mut guard, uri);
+            return None;
+        }
+        if current_generation == generation {
+            return Some(generation);
+        }
+    }
+}
+
 /// The debounced, detached diagnostics worker for one document.
 ///
 /// A free function rather than an inline `tokio::spawn` body so it can
@@ -2020,18 +2069,21 @@ fn retire_slot(slots: &mut HashMap<Uri, DiagSlot>, uri: &Uri) {
 fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri) {
     crate::rt::spawn(async move {
         loop {
-            // Debounce, then claim the dirty flag *and* the freshest inputs.
-            // A burst collapses to one run; with nothing dirty we retire the
-            // worker (under the lock, so a concurrent edit either sees
-            // `running` and skips the spawn while we run, or sees
-            // `!running` and starts a fresh one).
-            crate::rt::sleep(DIAGNOSTICS_DEBOUNCE).await;
+            // A true trailing-edge debounce. Starting analysis every fixed
+            // interval *during* a long typing burst makes each salsa write
+            // cancel fresh reads; a reader waiting on a shared query can then
+            // hold `set_text` for seconds and pin the global edit-order barrier.
+            let Some(generation) = stable_diagnostics_generation(&slots, &uri).await else {
+                return;
+            };
             let inputs = {
                 let mut guard = slots.lock().await;
                 let Some(slot) = guard.get_mut(&uri) else {
                     return;
                 };
-                if slot.dirty {
+                if slot.generation != generation {
+                    continue;
+                } else if slot.dirty {
                     slot.dirty = false;
                     slot.latest_inputs.clone()
                 } else {
@@ -2073,10 +2125,25 @@ fn spawn_diagnostics_worker(slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: Uri)
             let settled = run_diagnostics_core(inputs, &uri, job).await;
             if !settled {
                 // Cancelled mid-flight — re-mark dirty so we retry the latest
-                // state next loop.
+                // state next loop. There was no successful publish to enrich,
+                // and the newer edit has already invalidated the project view,
+                // so do not launch the whole-project evidence/factory refresh
+                // for this stale run. Under a typing storm those doomed
+                // refreshes otherwise compete with every queued `didChange`
+                // for the salsa database and can pin the edit-order barrier.
                 if let Some(slot) = slots.lock().await.get_mut(&uri) {
-                    slot.dirty = true;
+                    slot.mark_dirty();
                 }
+                continue;
+            }
+            // `run_diagnostics_core` can also settle by declining to publish a
+            // revision that a newer edit already superseded. In that case the
+            // slot is dirty again and the only useful next step is to debounce
+            // and analyse its latest state. Refreshing project-wide evidence
+            // here would derive it from an obsolete run while contending with
+            // the queued document writes that made the run obsolete.
+            if slots.lock().await.get(&uri).is_some_and(|slot| slot.dirty) {
+                continue;
             }
             // Refresh the project's cross-file call-site evidence *after*
             // publishing (issue #977). Off the edit handler, as it must be —
@@ -2158,7 +2225,7 @@ async fn refresh_cross_file_evidence(
         && refresh_can_change_result(&handles.db, &handles.db_files, uri).await
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.dirty = true;
+        slot.mark_dirty();
     }
     // The subclass-provided-method view (issue #1367) rides the same
     // refresh: computed off the workspace index the publish just updated,
@@ -2170,7 +2237,7 @@ async fn refresh_cross_file_evidence(
     if subclass_moved.iter().any(|u| u == uri)
         && let Some(slot) = slots.lock().await.get_mut(uri)
     {
-        slot.dirty = true;
+        slot.mark_dirty();
     }
     for moved in subclass_moved {
         if !changed.contains(&moved) {
@@ -2315,7 +2382,7 @@ async fn reschedule_peers(
             if slot.latest_inputs.is_none() {
                 continue;
             }
-            slot.dirty = true;
+            slot.mark_dirty();
             if !slot.running {
                 slot.running = true;
                 to_spawn.push(peer);
@@ -12928,7 +12995,7 @@ impl Backend {
             if let Some(inputs) = fresh_inputs {
                 slot.latest_inputs = Some(inputs);
             }
-            slot.dirty = true;
+            slot.mark_dirty();
             if slot.running {
                 false
             } else {
@@ -21795,6 +21862,81 @@ mod tests {
         Diagnostic, DiagnosticSeverity, NumberOrString, PartialResultParams, Range,
         ReferenceContext, TextDocumentIdentifier, WorkDoneProgressParams,
     };
+
+    /// A typing burst must reset the diagnostics debounce window on every edit.
+    /// The old fixed-from-first-edit delay launched fresh salsa reads throughout
+    /// the burst, so `set_text` repeatedly waited for their cancellation and the
+    /// request-side edit barrier could exceed its 30-second budget.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_debounce_waits_for_a_quiet_window() {
+        let uri = Uri::from_str("file:///debounce.tcl").unwrap();
+        let slots = Arc::new(Mutex::new(HashMap::new()));
+        {
+            let mut guard = slots.lock().await;
+            let slot = guard.entry(uri.clone()).or_insert_with(DiagSlot::default);
+            slot.mark_dirty();
+        }
+
+        let mut waiter = crate::rt::spawn({
+            let slots = Arc::clone(&slots);
+            let uri = uri.clone();
+            async move { stable_diagnostics_generation(&slots, &uri).await }
+        });
+
+        for _ in 0..2 {
+            crate::rt::sleep(std::time::Duration::from_millis(30)).await;
+            slots.lock().await.get_mut(&uri).unwrap().mark_dirty();
+        }
+
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_millis(30), &mut waiter)
+                .await
+                .is_err(),
+            "the waiter resolved before a full quiet debounce window elapsed"
+        );
+        let generation = crate::rt::timeout(std::time::Duration::from_millis(250), waiter)
+            .await
+            .expect("debounce waiter should settle after the burst")
+            .expect("debounce waiter task panicked");
+        assert_eq!(generation, Some(3));
+    }
+
+    /// A clean slot must be retired before the debounce waiter yields.  A
+    /// subsequent edit then sees no active worker claim and can start one;
+    /// retiring only after the waiter returned left a gap where that edit set
+    /// `dirty` behind the still-running worker and no future worker was spawned.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn diagnostics_clean_slot_retires_before_waiter_returns() {
+        let uri = Uri::from_str("file:///retire-clean-slot.tcl").unwrap();
+        let slots = Arc::new(Mutex::new(HashMap::new()));
+        slots.lock().await.insert(
+            uri.clone(),
+            DiagSlot {
+                running: true,
+                ..DiagSlot::default()
+            },
+        );
+
+        assert_eq!(stable_diagnostics_generation(&slots, &uri).await, None);
+
+        // This mirrors `schedule_diagnostics_impl`'s worker-start decision for
+        // an edit arriving immediately after the clean observation.
+        let starts_worker = {
+            let mut guard = slots.lock().await;
+            let slot = guard.entry(uri).or_insert_with(DiagSlot::default);
+            slot.mark_dirty();
+            if slot.running {
+                false
+            } else {
+                slot.running = true;
+                true
+            }
+        };
+        assert!(
+            starts_worker,
+            "an edit after clean-slot retirement must start a diagnostics worker"
+        );
+    }
 
     fn lifted_diag(code: &str, range: Range) -> Diagnostic {
         Diagnostic {
