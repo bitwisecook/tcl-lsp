@@ -618,6 +618,7 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
             "f5-tmsh" to "F5 tmsh Scripts",
             "intel-quartus-eda-tcl" to "Intel Quartus EDA Tcl",
             "mentor-eda-tcl" to "Mentor EDA Tcl",
+            "microchip-libero-eda-tcl" to "Microchip Libero EDA Tcl",
             "spectcl" to "SpecTcl",
             "synopsys-eda-tcl" to "Synopsys EDA Tcl",
             "tcl8.4" to "Tcl 8.4",

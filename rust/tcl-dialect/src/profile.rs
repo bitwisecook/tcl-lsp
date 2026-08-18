@@ -288,7 +288,7 @@ impl Eq for DialectProfile {}
 ///
 /// Mask and behaviour values follow the per-dialect table in
 /// `docs/design/dialect-profile-model.md` §7.
-static CATALOG: [DialectProfile; 17] = [
+static CATALOG: [DialectProfile; 18] = [
     // bpf embeds a genuine Tcl 9.0 (design doc D7): 9.0 runtime semantics —
     // decimal leading zeros, 9.0 expr grammar, the nesting `${…}` rule —
     // and the precise `TCL90|BPF` availability mask:
@@ -639,6 +639,55 @@ static CATALOG: [DialectProfile; 17] = [
             },
         ],
         help_terms: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
+    },
+    DialectProfile {
+        name: "microchip-libero-eda-tcl",
+        aliases: &[],
+        vendor_bit: None,
+        // Libero SoC's embedded interpreter is an 8.5-era core (the v11.x
+        // reference documents plain-8.5 idiom and none of the 8.6 additions;
+        // no public source pins a newer interpreter). Judgement call pending
+        // owner confirmation against a live install — the conservative choice
+        // mirrors the Quartus/Xilinx 8.5 base.
+        availability_mask: DialectSet::TCL85,
+        base_layers: &[DialectSet::TCL85],
+        grammar_union: DialectSet::ALL_TCL,
+        version_ceiling: Some(TclVersion::V8_5),
+        signature_base: Some(TclVersion::V8_5),
+        runtime_base: Some(TclVersion::V8_5),
+        leading_zero_is_octal: Ternary::Yes,
+        expr_grammar_base: Some(TclVersion::V8_5),
+        grammar: GRAMMAR_TCL85,
+        operators_as_commands: true,
+        tcloo: false,
+        has_fixed_ensembles: false,
+        vm_runtime_version: TclVersion::V8_5,
+        libraries: &[
+            LibraryPin {
+                package: "sdc",
+                version: LibraryVersion::Keyed(VersionKey::SdcVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "upf",
+                version: LibraryVersion::Keyed(VersionKey::UpfVersion),
+                ambient: true,
+            },
+            LibraryPin {
+                package: "libero",
+                version: LibraryVersion::Keyed(VersionKey::ToolVersion),
+                ambient: true,
+            },
+        ],
+        help_terms: &[
+            "microchip",
+            "microsemi",
+            "actel",
+            "libero",
+            "smartfusion",
+            "igloo",
+            "proasic",
+        ],
     },
     // SpecTcl — the `.tclspec` spec-pack authoring DSL (`spec-packs.md`).
     // A pack is an ordinary Tcl script read from the CST and never executed;

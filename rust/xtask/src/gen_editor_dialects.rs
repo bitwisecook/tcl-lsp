@@ -68,6 +68,7 @@ fn editor_dialect(profile: &DialectProfile) -> EditorDialect {
         "f5-tmsh" => "F5 tmsh Scripts",
         "intel-quartus-eda-tcl" => "Intel Quartus EDA Tcl",
         "mentor-eda-tcl" => "Mentor EDA Tcl",
+        "microchip-libero-eda-tcl" => "Microchip Libero EDA Tcl",
         "spectcl" => "SpecTcl",
         "synopsys-eda-tcl" => "Synopsys EDA Tcl",
         "tcl8.4" => "Tcl 8.4",

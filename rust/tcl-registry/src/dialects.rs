@@ -578,6 +578,20 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
         "mentor-eda-tcl",
         &["vsim", "vlog", "vcom", "vlib", "vmap", "vopt", "questa"],
     ),
+    // Microchip (Microsemi) Libero SoC project/flow scripting. Markers are
+    // Libero-proprietary command spellings only — the SmartTime SDC verbs are
+    // excluded for the same portable-`.sdc` reason as the vendors above.
+    (
+        "microchip-libero-eda-tcl",
+        &[
+            "run_designer",
+            "select_libero_design_device",
+            "smartpower_report_power",
+            "export_prog_job",
+            "pin_fix_all",
+            "configure_tool",
+        ],
+    ),
     // Expect automation.
     (
         "expect",
@@ -972,6 +986,19 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("vlib work\nvmap work work\n", None, DEF),
             "mentor-eda-tcl"
+        );
+        // Microchip Libero flow verbs.
+        assert_eq!(
+            detect_dialect("open_project {a.prjx}\nrun_designer\n", None, DEF),
+            "microchip-libero-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect(
+                "configure_tool -name {PLACEROUTE} -params {EFFORT_LEVEL:false}\n",
+                None,
+                DEF
+            ),
+            "microchip-libero-eda-tcl"
         );
     }
 
