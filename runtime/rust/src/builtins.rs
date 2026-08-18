@@ -582,13 +582,11 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
     let mut flags = crate::subst::SubstFlags::default();
     for &opt in &argv[1..argv.len() - 1] {
-        let name = obj_bytes(opt);
-        match subst_option_index(&name) {
-            SubstOpt::Backslashes => flags.backslashes = false,
-            SubstOpt::Commands => flags.cmds = false,
-            SubstOpt::Variables => flags.vars = false,
-            SubstOpt::Bad => return subst_bad_option(interp, b"bad", &name),
-            SubstOpt::Ambiguous => return subst_bad_option(interp, b"ambiguous", &name),
+        match SUBST_OPTIONS.index_of(&obj_bytes(opt)) {
+            Ok(0) => flags.backslashes = false,
+            Ok(1) => flags.cmds = false,
+            Ok(_) => flags.vars = false,
+            Err(m) => return interp.set_error(&m),
         }
     }
     let last = argv[argv.len() - 1];
@@ -605,47 +603,15 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// The resolution of a `subst` option word against `{-nobackslashes,
-/// -nocommands, -novariables}` (Tcl's exact-or-unique-prefix matching).
-enum SubstOpt {
-    Backslashes,
-    Commands,
-    Variables,
-    Bad,
-    Ambiguous,
-}
-
-fn subst_option_index(name: &[u8]) -> SubstOpt {
-    const NAMES: [&[u8]; 3] = [b"-nobackslashes", b"-nocommands", b"-novariables"];
-    let mut found = None;
-    let mut count = 0;
-    for (k, n) in NAMES.iter().enumerate() {
-        if *n == name {
-            count = 1;
-            found = Some(k);
-            break;
-        }
-        if n.starts_with(name) {
-            found = Some(k);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(0)) => SubstOpt::Backslashes,
-        (1, Some(1)) => SubstOpt::Commands,
-        (1, Some(2)) => SubstOpt::Variables,
-        (0, _) => SubstOpt::Bad,
-        _ => SubstOpt::Ambiguous,
-    }
-}
-
-fn subst_bad_option(interp: &mut Interp, kind: &[u8], name: &[u8]) -> Code {
-    let mut m = kind.to_vec();
-    m.extend_from_slice(b" option \"");
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\": must be -nobackslashes, -nocommands, or -novariables");
-    interp.set_error(&m)
-}
+/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
+/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
+/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
+/// Shared with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
+const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &[b"-nobackslashes", b"-nocommands", b"-novariables"],
+    );
 
 // -- helpers ---------------------------------------------------------------
 
@@ -1035,6 +1001,37 @@ mod tests {
             // an unset variable is an error.
             assert_eq!(i.eval_str(b"subst {$nope}"), Code::Error);
             i.eval_str(b"unset -nocomplain x");
+        });
+    }
+
+    /// Issue #1443 — `subst`'s option words go through the one shared
+    /// `tcl-cmd-core::prefix` matcher, so every miss is worded exactly as
+    /// `Tcl_GetIndexFromObj` at flags `0` words it (`TclSubstOptions`,
+    /// `tclCmdMZ.c:3341`): the empty word prefixes all three entries and is
+    /// therefore `ambiguous`, not `bad`.
+    #[test]
+    fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"subst {} abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"subst -no abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"-no\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"subst -q abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad option \"-q\": {MUST}").as_bytes()
+            );
+            // Unique prefixes still resolve (subst-7.7).
+            assert_eq!(ok(i, b"subst -nov {$x}"), b"$x");
+            assert_eq!(ok(i, br"subst -nob {a\tb}"), br"a\tb");
+            assert_eq!(ok(i, b"subst -noc {[cmd]}"), b"[cmd]");
         });
     }
 

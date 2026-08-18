@@ -1013,6 +1013,16 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
+/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
+/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
+/// Shared with the WASM runtime through the one `tcl-cmd-core::prefix` matcher.
+const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &["-nobackslashes", "-nocommands", "-novariables"],
+    );
+
 /// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
 /// backslash / command / variable substitution on a string.
 fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -1027,17 +1037,11 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let (mut backslashes, mut commands, mut variables) = (true, true, true);
     for opt in opts {
-        let s = opt.to_str();
-        match match_subst_option(&s) {
+        match SUBST_OPTIONS.index_of(opt.to_str().as_bytes()) {
             Ok(0) => backslashes = false,
             Ok(1) => commands = false,
             Ok(_) => variables = false,
-            Err(ambiguous) => {
-                let kind = if ambiguous { "ambiguous" } else { "bad" };
-                return err(format!(
-                    "{kind} option \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
-                ));
-            }
+            Err(m) => return err(String::from_utf8_lossy(&m).into_owned()),
         }
     }
     // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable:
@@ -1053,29 +1057,6 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         variables,
     });
     ok(Value::empty())
-}
-
-/// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):
-/// `Ok(index)` into `[-nobackslashes, -nocommands, -novariables]`, or `Err(true)`
-/// when the prefix is ambiguous / `Err(false)` when it matches none.
-fn match_subst_option(s: &str) -> Result<usize, bool> {
-    const NAMES: [&str; 3] = ["-nobackslashes", "-nocommands", "-novariables"];
-    if let Some(i) = NAMES.iter().position(|n| *n == s) {
-        return Ok(i); // exact match
-    }
-    let mut found = None;
-    let mut count = 0u8;
-    for (i, n) in NAMES.iter().enumerate() {
-        if !s.is_empty() && n.starts_with(s) {
-            found = Some(i);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(i)) => Ok(i),
-        (0, _) => Err(false),
-        _ => Err(true),
-    }
 }
 
 /// `puts ?-nonewline? ?channelId? string` — write to the VM's output sink.

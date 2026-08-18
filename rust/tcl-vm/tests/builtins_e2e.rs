@@ -533,6 +533,38 @@ fn subst_command() {
     out_eq("puts [subst {x[expr 1][expr 2]y}]\n", "x12y\n");
 }
 
+/// Issue #1443 — `subst`'s option words resolve through the one shared
+/// `tcl-cmd-core::prefix` matcher, so they word every miss exactly as
+/// `Tcl_GetIndexFromObj` at flags `0` does (`TclSubstOptions`,
+/// `tclCmdMZ.c:3341`). The **empty** word is the case that used to diverge: it
+/// prefixes all three entries, so C calls it `ambiguous`, not `bad`.
+#[test]
+fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
+    // The empty option word abbreviates every entry ⇒ `ambiguous` (tclsh
+    // 8.6.16 and 9.0.4 agree).
+    assert_eq!(msg("subst {} abc\n"), format!("ambiguous option \"\": {MUST}"));
+    // A word that prefixes more than one entry is likewise ambiguous.
+    assert_eq!(
+        msg("subst -no abc\n"),
+        format!("ambiguous option \"-no\": {MUST}")
+    );
+    // A word that prefixes nothing is `bad`.
+    assert_eq!(
+        msg("subst -q abc\n"),
+        format!("bad option \"-q\": {MUST}")
+    );
+    // A unique prefix still resolves (subst-7.7).
+    out_eq("puts [subst -nov {$x}]\n", "$x\n");
+    out_eq("puts [subst -nob {a\\tb}]\n", "a\\tb\n");
+    out_eq("puts [subst -noc {[cmd]}]\n", "[cmd]\n");
+}
+
 #[test]
 fn regexp_regsub() {
     out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");
