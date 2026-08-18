@@ -8823,6 +8823,7 @@ mod tests {
             allow_omitted_final_body: true,
             keyword_patterns: &[],
             keyword_patterns_require_final: false,
+            optional_subject_separator: None,
             warn_unbraced_bodies: false,
         };
         let options = [

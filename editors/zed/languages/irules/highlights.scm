@@ -54,7 +54,7 @@
 (command
   name: (simple_word) @keyword.control
   (#any-of? @keyword.control
-    "\u0000never"))
+    "case"))
 
 ; --- generated from tcl-registry: language keywords ---
 (command

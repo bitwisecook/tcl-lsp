@@ -247,6 +247,10 @@ const KNOWN_UNBACKED: &[(&str, &str)] = &[
         "TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust",
     ),
     (
+        "fpclassify",
+        "Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust",
+    ),
+    (
         "lfilter",
         "Tcl 9.1 list-filter command; not yet implemented in runtime/rust",
     ),

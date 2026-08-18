@@ -354,6 +354,13 @@ pub struct CaseListSpec {
     /// Expect actions deliberately use a different evaluation model, so its
     /// descriptor leaves this off rather than making a consumer name `switch`.
     pub warn_unbraced_bodies: bool,
+    /// A literal word that may sit between the subject and the clause list and
+    /// is syntax rather than a pattern — Tcl 8.x's `case string ?in? …`, whose
+    /// `Tcl_CaseObjCmd` consumes an `in` at exactly that position
+    /// (`generic/tclCmdAH.c`). Recognised only as an exact spelling, because a
+    /// substituted word cannot be told apart from a first pattern. `None` for
+    /// every descriptor without one.
+    pub optional_subject_separator: Option<&'static str>,
 }
 
 /// Registry-owned position/arity shape for an outer clause-list selector.
@@ -440,6 +447,44 @@ impl CaseListSpec {
         allow_omitted_final_body: false,
         keyword_patterns: &["default"],
         keyword_patterns_require_final: true,
+        optional_subject_separator: None,
+        warn_unbraced_bodies: true,
+    };
+
+    /// The obsolete Tcl 8.x `case string ?in? { pat body … }` shape.
+    ///
+    /// `switch`'s ancestor, with none of its options: `Tcl_CaseObjCmd`
+    /// (`generic/tclCmdAH.c`) scans no leading flags at all, always matches
+    /// with `Tcl_StringMatch` glob semantics, and consumes an exact literal
+    /// `in` between the subject and the clauses.  `default` is honoured
+    /// wherever it appears rather than only last, and there is no `-`
+    /// fall-through body.
+    pub const CASE: Self = Self {
+        subject_args: 1,
+        two_arg_optionless_dialects: None,
+        regex_option: None,
+        exact_option: None,
+        glob_option: None,
+        nocase_option: None,
+        end_options_option: None,
+        fallthrough_body: None,
+        value_options_require_regex: &[],
+        special_match_options: &[],
+        clause_flags: &[],
+        clause_regex_flag: None,
+        clause_value_flags: &[],
+        clause_end_options_flag: None,
+        clause_force_inline_flag: None,
+        clause_force_list_flag: None,
+        clause_force_list_shape: None,
+        allow_omitted_final_body: false,
+        keyword_patterns: &["default"],
+        // `Tcl_CaseObjCmd` records a `default` clause's body as it walks and
+        // only falls back to it after every pattern has failed, so a
+        // non-final `default` is honoured — unlike `switch`, whose manpage
+        // requires it last.
+        keyword_patterns_require_final: false,
+        optional_subject_separator: Some("in"),
         warn_unbraced_bodies: true,
     };
 
@@ -485,6 +530,7 @@ impl CaseListSpec {
         allow_omitted_final_body: true,
         keyword_patterns: &["timeout", "eof", "default", "full_buffer", "null"],
         keyword_patterns_require_final: false,
+        optional_subject_separator: None,
         warn_unbraced_bodies: false,
     };
 
@@ -636,6 +682,16 @@ impl CaseListSpec {
         }
         let subject_index = (self.subject_args == 1).then_some(i);
         i += usize::from(self.subject_args);
+        // A descriptor-declared literal separator between the subject and the
+        // clauses (Tcl 8.x `case string ?in? …`).  Matched exactly, mirroring
+        // `Tcl_CaseObjCmd`'s own `strcmp(arg, "in")`: a substituted word at
+        // this position is a first pattern, not the separator.
+        if self
+            .optional_subject_separator
+            .is_some_and(|sep| args.get(i).copied() == Some(sep))
+        {
+            i += 1;
+        }
         if i >= args.len() {
             return None;
         }

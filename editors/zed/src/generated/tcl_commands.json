@@ -1269,6 +1269,10 @@
       ]
     },
     {
+      "name": "case",
+      "summary": "Obsolete glob-pattern branching — use `switch` instead."
+    },
+    {
       "name": "cat",
       "summary": "Dump the contents of a file as a result."
     },
@@ -2297,6 +2301,11 @@
     {
       "name": "format",
       "summary": "Format a string in the style of C's sprintf.",
+      "pure": true
+    },
+    {
+      "name": "fpclassify",
+      "summary": "Classify a floating-point value.",
       "pure": true
     },
     {

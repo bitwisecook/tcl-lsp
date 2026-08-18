@@ -2245,6 +2245,7 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
         allow_omitted_final_body: false,
         keyword_patterns: &[],
         keyword_patterns_require_final: false,
+        optional_subject_separator: None,
         warn_unbraced_bodies: false,
     };
     for stmt in stmts {
@@ -2281,6 +2282,9 @@ fn case_list_block(stmts: &[Stmt], log: &mut Log) -> CaseListSpec {
                 };
             }
             "allow_omitted_final_body" => spec.allow_omitted_final_body = parse_flag(stmt.tail()),
+            "optional_subject_separator" => {
+                spec.optional_subject_separator = Some(leak_str(&value));
+            }
             "warn_unbraced_bodies" => spec.warn_unbraced_bodies = parse_flag(stmt.tail()),
             "keyword_patterns" => {
                 spec.keyword_patterns = leak_strs(&list_words(&value));

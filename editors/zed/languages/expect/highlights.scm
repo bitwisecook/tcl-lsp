@@ -54,7 +54,7 @@
 (command
   name: (simple_word) @keyword.control
   (#any-of? @keyword.control
-    "foreachLine" "lfilter" "lmap"))
+    "case" "foreachLine" "lfilter" "lmap"))
 
 ; --- generated from tcl-registry: language keywords ---
 (command
@@ -80,24 +80,24 @@
     "exp_internal" "exp_pid" "exp_version" "expect" "expect_after" "expect_background"
     "expect_before" "expect_tty" "expect_user" "fblocked" "fconfigure" "fcopy"
     "file" "fileevent" "filename" "flush" "fork" "format"
-    "frexp" "ge" "gets" "gettimes" "glob" "gt"
-    "history" "http" "in" "incr" "info" "interact"
-    "join" "lappend" "lassign" "le" "ledit" "lgen"
-    "lindex" "linsert" "list" "llength" "load" "log_file"
-    "log_user" "lpop" "lrange" "lremove" "lrepeat" "lreplace"
-    "lreverse" "lsearch" "lseq" "lset" "lsort" "lstring"
-    "lt" "match_max" "memory" "modf" "ne" "ni"
-    "noop" "oo::copy" "open" "overlay" "parity" "parray"
-    "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd"
-    "re_quote" "read" "readFile" "regex::quote" "regex_quote" "regexp"
-    "regexp::quote" "registry" "regsub" "remove_nulls" "remquo" "scan"
-    "seek" "send" "send_error" "send_log" "send_tty" "send_user"
-    "sleep" "socket" "spawn" "split" "strace" "string"
-    "stty" "subst" "system" "tclLog" "tclPkgSetup" "tclPkgUnknown"
-    "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore"
-    "tell" "time" "timer" "timerate" "timestamp" "trace"
-    "trap" "unicode" "unknown" "unload" "unset" "update"
-    "vwait" "wait" "writeFile" "zipfs" "zlib"))
+    "fpclassify" "frexp" "ge" "gets" "gettimes" "glob"
+    "gt" "history" "http" "in" "incr" "info"
+    "interact" "join" "lappend" "lassign" "le" "ledit"
+    "lgen" "lindex" "linsert" "list" "llength" "load"
+    "log_file" "log_user" "lpop" "lrange" "lremove" "lrepeat"
+    "lreplace" "lreverse" "lsearch" "lseq" "lset" "lsort"
+    "lstring" "lt" "match_max" "memory" "modf" "ne"
+    "ni" "noop" "oo::copy" "open" "overlay" "parity"
+    "parray" "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts"
+    "pwd" "re_quote" "read" "readFile" "regex::quote" "regex_quote"
+    "regexp" "regexp::quote" "registry" "regsub" "remove_nulls" "remquo"
+    "scan" "seek" "send" "send_error" "send_log" "send_tty"
+    "send_user" "sleep" "socket" "spawn" "split" "strace"
+    "string" "stty" "subst" "system" "tclLog" "tclPkgSetup"
+    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
+    "tcl_wordBreakBefore" "tell" "time" "timer" "timerate" "timestamp"
+    "trace" "trap" "unicode" "unknown" "unload" "unset"
+    "update" "vwait" "wait" "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command

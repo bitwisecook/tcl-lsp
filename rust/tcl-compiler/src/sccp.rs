@@ -962,6 +962,12 @@ pub struct ExistenceFrame<'a> {
     /// `TclOO` method body's [`crate::ir::MethodDef::instance_vars`].
     /// `None` for every body kind that has none.
     pub object_state: Option<&'a HashSet<String>>,
+    /// Whether this body is the document's **initial global frame** (the
+    /// compilation unit's top level).  Only there does the frame share the
+    /// interpreter's own globals, so only there must the fold abstain on the
+    /// registry's special variables — a procedure-local `argv` is an ordinary
+    /// fresh Tcl name and keeps folding.
+    pub initial_global: bool,
 }
 
 /// The array base name of an existence query written as an element guard —
@@ -998,7 +1004,11 @@ fn array_element_base(var: &str) -> Option<&str> {
 /// unknown command could `unset` or `upvar`-define the variable).
 /// Scope-alias locals (`global` / `variable` / `upvar` / `namespace
 /// upvar` bindings) are never folded — their existence tracks the
-/// linked out-of-frame variable.
+/// linked out-of-frame variable.  In the **initial global frame**
+/// ([`ExistenceFrame::initial_global`]) the registry's special variables join
+/// them for the same reason: that frame is the interpreter's own global
+/// namespace, whose startup bindings and runtime-materialised entries the
+/// body's assignment scan cannot see (issue #1557).
 ///
 /// `dynamic_names` carries the function's
 /// [dynamic-name barrier](crate::dynamic_names) and gates each direction
@@ -1113,6 +1123,32 @@ pub fn existence_constant_branches(
                 .iter()
                 .filter(|name| !frame.params.iter().any(|p| p == *name))
                 .cloned(),
+        );
+    }
+    // The document's initial global frame *is* the interpreter's global
+    // namespace, so every name the special-variable registry recognises there
+    // is out-of-frame runtime state exactly like object state above (issue
+    // #1557).  Some are bound before user code (`argv`, `env`, `tcl_platform`,
+    // `auto_path`), some are materialised by a later runtime event this body
+    // cannot see (`errorInfo` after a `catch`, `auto_index` after an
+    // auto-load), and some by a read trace (`tcl_precision` on Tcl 8.x) — none
+    // is provably absent merely because the body never assigned it, and
+    // tclsh 8.4.20 / 8.5.19 / 8.6.14 / 9.0.4 / 9.1b0 all answer
+    // `info exists argv` → 1 at the top level.  Folding them "always absent"
+    // produced a false I230 and, worse, an O101 rewrite of
+    // `if {[info exists argv]} …` to `if {0} …`.
+    //
+    // The set is dialect-versioned registry data, so a release that drops a
+    // variable (`tcl_precision` in Tcl 9) or a dialect that never had one
+    // (iRules has no `argv`) keeps folding it.  Inside a procedure the name is
+    // an ordinary local and still folds; an explicit `global argv` there is
+    // already covered by the scope-alias skip above.
+    if frame.initial_global {
+        aliased.extend(
+            tcl_registry::special_vars::special_vars_for_dialect(
+                registry.profile().map_or("", |p| p.name),
+            )
+            .map(|spec| spec.name.to_owned()),
         );
     }
     for block in cfg.blocks.values() {

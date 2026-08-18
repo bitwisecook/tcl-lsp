@@ -1160,6 +1160,7 @@ pub fn witness_case_list_spec(spec: &CaseListSpec) {
         allow_omitted_final_body: _,
         keyword_patterns: _,
         keyword_patterns_require_final: _,
+        optional_subject_separator: _,
         warn_unbraced_bodies: _,
     } = spec;
 }
@@ -1199,6 +1200,10 @@ pub const CASE_LIST_SPEC: &[Field] = &[
     f("keyword_patterns", Surface::Excluded(NAMED_CONSTANT)),
     f(
         "keyword_patterns_require_final",
+        Surface::Excluded(NAMED_CONSTANT),
+    ),
+    f(
+        "optional_subject_separator",
         Surface::Excluded(NAMED_CONSTANT),
     ),
     f("warn_unbraced_bodies", Surface::Excluded(NAMED_CONSTANT)),

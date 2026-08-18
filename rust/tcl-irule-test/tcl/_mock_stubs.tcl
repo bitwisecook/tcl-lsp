@@ -249,6 +249,7 @@ namespace eval ::itest::cmd {
     cmd_binary {toplevel binary}
     cmd_break {toplevel break}
     cmd_call {toplevel call}
+    cmd_case {toplevel case}
     cmd_catch {toplevel catch}
     cmd_check {toplevel check}
     cmd_client_addr {toplevel client_addr}
@@ -1015,4 +1016,4 @@ namespace eval ::itest::cmd {
     }
 }
 
-# Total stub actions generated: 978
+# Total stub actions generated: 979
