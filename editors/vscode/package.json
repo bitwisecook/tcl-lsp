@@ -60,7 +60,8 @@
           ".itcl",
           ".tm",
           ".test",
-          ".tclspec"
+          ".tclspec",
+          ".upf"
         ],
         "configuration": "./language-configuration.json"
       },

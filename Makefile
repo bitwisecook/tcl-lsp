@@ -1506,6 +1506,26 @@ $(CLAUDE_SKILLS): $(shell find $(ROOT)ai/claude/skills -type f)
 	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills
 	@cp -R $(ROOT)ai/claude/skills/. \
 		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/
+# The spec-author skill's background reading is assembled from the living
+# docs at build time — a committed snapshot drifted (the installed 2.1.21
+# skill shipped a pre-1.1 syntax memo), so the zip now copies the current
+# files and rewrites the SKILL.md paths to the bundled layout.
+	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references
+	@cp -R $(ROOT)docs/design/spec-dsl-examples \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@cp $(ROOT)docs/kcs/kcs-howto-create-command-specs-without-rust.md \
+		$(ROOT)docs/kcs/kcs-howto-annotate-commands-with-stubs.md \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@cp $(ROOT)docs/design/compiler/command-registry.md \
+		$(ROOT)docs/design/contracts/proc-arg-traits.md \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@sed -i.bak \
+		-e 's|docs/design/spec-dsl-examples|references/spec-dsl-examples|g' \
+		-e 's|docs/kcs/kcs-howto-|references/kcs-howto-|g' \
+		-e 's|docs/design/compiler/command-registry.md|references/command-registry.md|g' \
+		-e 's|docs/design/contracts/proc-arg-traits.md|references/proc-arg-traits.md|g' \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/SKILL.md \
+		&& rm -f $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/SKILL.md.bak
 	@mkdir -p $(BUILD_DIR)
 	@rm -f $@
 	@cd $(BUILD_DIR)/claude-skills-stage && zip -qr $(abspath $@) tcl-lsp-claude-skills-$(VERSION)

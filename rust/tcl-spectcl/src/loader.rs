@@ -148,9 +148,21 @@ impl fmt::Display for Notice {
 struct Log {
     context: String,
     notices: Vec<Notice>,
+    /// Sites that used `SpecTcl` 1.1-only vocabulary: `(context, line, word)`.
+    /// Drained by [`load_pack`] into per-site notices when the pack's
+    /// `speclib` line declares an older vocabulary — the words still load
+    /// (additions never gate), but a genuinely-1.0 loader drops them
+    /// silently, and the declaration is the pack's only way to say it needs
+    /// them.
+    v11_uses: Vec<(String, u32, String)>,
 }
 
 impl Log {
+    fn v11(&mut self, line: u32, word: &str) {
+        self.v11_uses
+            .push((self.context.clone(), line, word.to_owned()));
+    }
+
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
             context: self.context.clone(),
@@ -558,7 +570,7 @@ impl Pack {
 pub fn load_pack(source: &str) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
-        notices: Vec::new(),
+        ..Log::default()
     };
     let mut pack = Pack {
         name: String::new(),
@@ -606,6 +618,27 @@ pub fn load_pack(source: &str) -> Pack {
         }
     }
 
+    // Vocabulary consistency: 1.1-only words under an older declaration.
+    // Additions never gate, so THIS loader read them fine — but a genuinely
+    // 1.0 loader drops each one silently, and declaring 1.1 is how a pack
+    // says it needs them. One notice per site, so an editor can mark every
+    // offending row.
+    if matches!(pack.dsl_version.as_str(), "1" | "1.0") {
+        let declared = pack.dsl_version.clone();
+        let name = pack.name.clone();
+        for (context, line, word) in std::mem::take(&mut log.v11_uses) {
+            log.notices.push(Notice {
+                context,
+                line,
+                message: format!(
+                    "`{word}` is SpecTcl 1.1 vocabulary, but this pack declares \
+                     vocabulary {declared}; a 1.0 loader drops the word — declare \
+                     `speclib {name} 1.1`"
+                ),
+            });
+        }
+    }
+
     pack.notices = log.notices;
     pack
 }
@@ -617,10 +650,10 @@ pub fn load_pack(source: &str) -> Pack {
 /// `1.1` all name a vocabulary this build understands in full. A pack naming
 /// anything else still loads: the words it uses that this build knows are read,
 /// and the rest hit the ordinary unknown-property rule.
-const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "1.1";
 
 /// Warn when `speclib`'s version word is not a vocabulary this build knows.
 fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
@@ -781,7 +814,9 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
                     }
                 }
                 other => {
-                    if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                    if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                        log.v11(stmt.line, other);
+                    } else {
                         log.unknown_flag("value", stmt.line, other);
                     }
                 }
@@ -2020,6 +2055,7 @@ fn option_row(
             // statement uses. The contextual-callback variant stays
             // reference-only.
             "-deprecation-fix" => {
+                log.v11(stmt.line, "-deprecation-fix");
                 i += 1;
                 match words.get(i) {
                     Some(value) => {
@@ -3270,7 +3306,10 @@ fn apply_command_stmt(
         }
         // The command-level mirror of the subcommand row, sharing its parser:
         // a literal value of one argument gated on the package's own axis.
+        // The statement is 1.1 vocabulary at THIS scope (it was
+        // subcommand-only in 1.0).
         "versioned_arg_value" => {
+            log.v11(stmt.line, "versioned_arg_value");
             if let Some(gate) = versioned_arg_value_row(stmt, log) {
                 acc.versioned_arg_values.push(gate);
             }
@@ -3466,7 +3505,9 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
                 form.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("form", stmt.line, other);
                 }
             }
@@ -3513,7 +3554,9 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
                 effect.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("side_effect", stmt.line, other);
                 }
             }
@@ -3543,7 +3586,9 @@ fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::Option
                 constraint.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("option_conflict", stmt.line, other);
                 }
             }
@@ -4001,7 +4046,9 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
                 row.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("sub_subcommand", stmt.line, other);
                 }
             }
@@ -4509,5 +4556,61 @@ mod tests {
                  `introduced_version`, not the `speclib` slot"
             ]
         );
+    }
+    /// A 1.1-only word under a 1.0 declaration draws one notice per site:
+    /// this loader reads the word fine (additions never gate), but a
+    /// genuinely-1.0 loader drops it silently, so the declaration must say
+    /// 1.1. Declaring 1.1 clears every notice; the option row's lifecycle
+    /// flags stay 1.0 vocabulary and never trip it.
+    #[test]
+    fn v11_words_under_a_10_declaration_draw_a_per_site_notice() {
+        let body = "\n command demo {\n                        arity 1\n                        option -x -introduced 1.2\n                        form Default {demo word} -introduced 1.2\n                        side_effect FileIo -writes -deprecated 2.0\n                        versioned_arg_value 0 utf-8 -introduced 1.2\n                    }\n}";
+
+        let pack = load_pack(&format!("speclib probe 1.0 {{{body}"));
+        let v11_notices: Vec<&str> = pack
+            .notices
+            .iter()
+            .filter(|n| n.message.contains("SpecTcl 1.1 vocabulary"))
+            .map(|n| n.message.as_str())
+            .collect();
+        // form -introduced, side_effect -deprecated, and the command-scope
+        // versioned_arg_value statement; the option row's -introduced is 1.0
+        // vocabulary and stays silent.
+        assert_eq!(v11_notices.len(), 3, "{:?}", pack.notices);
+        assert!(
+            v11_notices
+                .iter()
+                .all(|m| m.contains("declare `speclib probe 1.1`")),
+            "{v11_notices:?}"
+        );
+        assert!(
+            !v11_notices.iter().any(|m| m.contains("`-x`")),
+            "option-row lifecycle is 1.0 vocabulary: {v11_notices:?}"
+        );
+
+        let pack = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        assert!(
+            pack.notices.is_empty(),
+            "declaring 1.1 clears it: {:?}",
+            pack.notices
+        );
+    }
+
+    /// The all-versions contract: the same pack body loads to the identical
+    /// command surface under every vocabulary this loader knows — a pack is
+    /// never refused, and no known version reads fewer words than another.
+    #[test]
+    fn every_known_vocabulary_loads_the_same_command_surface() {
+        let body = "{\n command demo {\n                        arity 1..\n                        option -mode -takes mode -values {a b} -closed\n                        form Default {demo ?-mode mode? word}\n                        hover { summary {Demo.} synopsis {demo word} }\n                    }\n command other { arity 0 }\n}";
+        let baseline = load_pack(&format!("speclib probe 1.1 {body}"));
+        let baseline_names: Vec<&str> = baseline.commands.iter().map(|c| c.spec.name).collect();
+        for known in ["1", "1.0"] {
+            let pack = load_pack(&format!("speclib probe {known} {body}"));
+            let names: Vec<&str> = pack.commands.iter().map(|c| c.spec.name).collect();
+            assert_eq!(names, baseline_names, "{known}");
+            assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
+            let demo = pack.command("demo").expect("demo loads");
+            assert_eq!(demo.spec.options.len(), 1, "{known}");
+        }
     }
 }

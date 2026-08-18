@@ -17,7 +17,7 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib eda_synopsys 1.0 {
+speclib eda_synopsys 1.1 {
 
 command analyze {
     dialects tcl8.6

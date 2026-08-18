@@ -4162,6 +4162,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sandbox",
  "tcl-spec-studio",
+ "tcl-spectcl",
  "tcl-version",
  "zip",
 ]

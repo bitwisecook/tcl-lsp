@@ -26,7 +26,7 @@
 # The SDC-shared constraint/query commands live in sdc_base, which rides
 # along with the xilinx-eda-tcl profile.
 
-speclib eda_xilinx 1.0 {
+speclib eda_xilinx 1.1 {
 
 command add_bp {
     dialects tcl8.5

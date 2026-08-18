@@ -1,5 +1,5 @@
 # Test-only specification for the package in ../lib/tcl_lsp_fixture.tcl.
-speclib tcl_lsp_fixture 1.0 {
+speclib tcl_lsp_fixture 1.1 {
 
 command ::tcl_lsp_fixture::collect {
     dialects tcl8.6+

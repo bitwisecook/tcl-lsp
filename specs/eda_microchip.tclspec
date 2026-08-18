@@ -22,7 +22,7 @@
 # Edit this file to change the specs; there is no generator to re-run.
 # Syntax: docs/design/spec-dsl-examples/README.md.
 
-speclib eda_microchip 1.0 {
+speclib eda_microchip 1.1 {
 
 default dialects all-tcl
 default required_package libero

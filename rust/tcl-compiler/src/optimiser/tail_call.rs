@@ -45,53 +45,33 @@ use crate::naming::normalise_qualified_name;
 use super::helpers::spans::full_rewrite_span;
 use super::{Optimisation, PassContext};
 
-/// Dialects whose base Tcl version supports `tailcall` (Tcl 8.6+,
-/// TIP 327): every dialect whose documented runtime base version is
-/// `tcl8.6` or later.
-/// `f5-irules` / `cadence-eda-tcl` (tcl8.4-based), `f5-iapps` /
-/// `f5-tmsh` / `xilinx-eda-tcl` / `intel-quartus-eda-tcl`
-/// (tcl8.5-based) are deliberately excluded.
+/// Whether `tailcall` is available in `dialect` — TIP 327, Tcl 8.6+,
+/// derived from the profile's modelled runtime rather than a name list
+/// (AGENTS.md: profile facts, never `match dialect_name` special-casing —
+/// a list here silently excluded `tcl9.1` and every future 8.6+ shell).
+/// A profile with no runtime at all (`f5-bigip`) has no Tcl surface to
+/// rewrite and gates out naturally.
 ///
-/// O122's `lassign`-based loop conversion needs a separate 8.5+
-/// gate (lassign is TIP 57, Tcl 8.5+), but a single-param body emits
-/// a bare `set` and is dialect-agnostic.
-const TAILCALL_DIALECTS: &[&str] = &[
-    "tcl8.6",
-    "tcl9.0",
-    "synopsys-eda-tcl",
-    "mentor-eda-tcl",
-    "expect",
-];
+/// O122's `lassign`-based loop conversion needs a separate 8.5+ gate
+/// (lassign is TIP 57, Tcl 8.5+), but a single-param body emits a bare
+/// `set` and is dialect-agnostic.
+fn runtime_at_least(
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    floor: tcl_dialect::TclVersion,
+) -> bool {
+    // `None` (no dialect info on the context — only set by the public-API
+    // entry points that don't carry one) defaults to **enabled**.
+    dialect.is_none_or(|profile| profile.runtime_base.is_some_and(|base| base >= floor))
+}
 
-/// Dialects whose base Tcl version supports `lassign` (Tcl 8.5+,
-/// TIP 57).  Used by `emit_loop_conversion` to decide whether a
-/// multi-param body can be rewritten using `lassign`.  Tcl 8.4 /
-/// f5-irules / cadence-eda-tcl fall back to a sequence of single
-/// `set` statements.
-const LASSIGN_DIALECTS: &[&str] = &[
-    "tcl8.5",
-    "tcl8.6",
-    "tcl9.0",
-    "f5-iapps",
-    "f5-tmsh",
-    "synopsys-eda-tcl",
-    "xilinx-eda-tcl",
-    "intel-quartus-eda-tcl",
-    "mentor-eda-tcl",
-    "expect",
-];
-
-/// Whether `tailcall` is available in `dialect`.  `None` (no dialect
-/// info on the context — only set by the public-API entry points
-/// that don't carry one) defaults to **enabled**.
 fn tailcall_supported(dialect: Option<&tcl_dialect::DialectProfile>) -> bool {
-    dialect.is_none_or(|profile| TAILCALL_DIALECTS.contains(&profile.name))
+    runtime_at_least(dialect, tcl_dialect::TclVersion::V8_6)
 }
 
 /// Whether `lassign` is available in `dialect`.  Same `None`-means-
 /// enabled fallback as [`tailcall_supported`].
 fn lassign_supported(dialect: Option<&tcl_dialect::DialectProfile>) -> bool {
-    dialect.is_none_or(|profile| LASSIGN_DIALECTS.contains(&profile.name))
+    runtime_at_least(dialect, tcl_dialect::TclVersion::V8_5)
 }
 
 /// Run the tail-call detection pass. Emits `O121` for every

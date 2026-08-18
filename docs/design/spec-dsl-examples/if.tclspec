@@ -5,7 +5,7 @@
 # field is to make it unnecessary.  One `clause_grammar` declaration replaces
 # BOTH `if_arg_roles` and `check_if_shape` with no hook body at all.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 command if {
     dialects {all-tcl f5-irules}

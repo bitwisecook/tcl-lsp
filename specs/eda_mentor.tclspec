@@ -26,7 +26,7 @@
 # member list is known to be partial the block also states
 # `allow_unknown_subcommands`.
 
-speclib eda_mentor 1.0 {
+speclib eda_mentor 1.1 {
 
 command add {
     dialects tcl8.6

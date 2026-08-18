@@ -12,6 +12,7 @@ file_extensions:
   - itcl
   - tm
   - tclspec
+  - upf
 
 first_line_match: '^#!.*(?:tclsh|wish)'
 

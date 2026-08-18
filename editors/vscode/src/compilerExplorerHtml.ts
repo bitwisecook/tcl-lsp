@@ -911,6 +911,7 @@ body {
       <option value="xilinx-eda-tcl">Xilinx EDA</option>
       <option value="intel-quartus-eda-tcl">Intel Quartus</option>
       <option value="mentor-eda-tcl">Mentor EDA</option>
+      <option value="microchip-libero-eda-tcl">Microchip Libero EDA</option>
       <option value="f5-iapps">F5 iapps</option>
       <option value="f5-irules">F5 irules</option>
       <option value="tcl8.4">Tcl 8.4</option>

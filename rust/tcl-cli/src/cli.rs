@@ -483,6 +483,30 @@ pub enum SpecCommand {
     /// `introduced_version` / `retired_version` say what the releases witness
     /// instead of repeating whatever version the newest sources declare.
     Import(SpecImportArgs),
+
+    /// Rewrite a pack's `speclib` version word to the newest `SpecTcl`
+    /// vocabulary.
+    ///
+    /// The vocabulary is additive and every loader reads all known versions
+    /// in full, so the upgrade is the declaration alone — no statement in the
+    /// pack changes. Declaring the newest vocabulary is what entitles a pack
+    /// to the 1.1-only words (row-level lifecycle flags, command-scope
+    /// `versioned_arg_value`, an option's `-deprecation-fix`) without the
+    /// loader's declares-1.0 notice.
+    Upgrade(SpecUpgradeArgs),
+}
+
+/// Flags of `tcl spec upgrade`.
+#[derive(Debug, Args)]
+pub struct SpecUpgradeArgs {
+    /// The `.tclspec` files to upgrade.
+    #[arg(value_name = "FILE", required = true)]
+    pub files: Vec<PathBuf>,
+
+    /// Report what would change without writing anything; exits non-zero if
+    /// any file is behind the newest vocabulary.
+    #[arg(long)]
+    pub check: bool,
 }
 
 /// Flags of `tcl spec import`.

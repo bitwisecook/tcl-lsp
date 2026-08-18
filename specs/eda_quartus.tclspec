@@ -41,7 +41,7 @@
 #     Standard Edition (frozen at 18.1) one users still write. The description
 #     says which is which.
 
-speclib eda_quartus 1.0 {
+speclib eda_quartus 1.1 {
 
 command check_timing {
     dialects tcl8.5

@@ -4,7 +4,7 @@
 # an appended arity, an integer-domain option), per-option dialect gates,
 # forms, hover.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 command lsort {
     dialects {all-tcl f5-irules}
