@@ -16,9 +16,9 @@ or an explicit *not required* classification.
 | handler (native) | 177 |
 | stdlib | 11 |
 | not-required | 54 |
-| known-gap | 41 |
+| known-gap | 42 |
 | **UNCLASSIFIED** | 0 |
-| **total** | 388 |
+| **total** | 389 |
 
 | command | backing | note |
 | --- | --- | --- |
@@ -199,6 +199,7 @@ or an explicit *not required* classification.
 | `foreach` | handler |  |
 | `foreachLine` | not-required | non-core EDA/dialect file helper, absent from bare tclsh 9 |
 | `format` | handler |  |
+| `fpclassify` | known-gap | Tcl 9.0 floating-point classifier (TIP 521); not yet implemented in runtime/rust |
 | `frexp` | known-gap | TIP 745 (Tcl 9.1) IEEE-754 mantissa/exponent split; not yet implemented in runtime/rust |
 | `ge` | not-required | `expr` operator/function; evaluated inside `expr`, not a standalone runtime command |
 | `gets` | handler |  |

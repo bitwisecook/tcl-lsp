@@ -38,6 +38,7 @@ mod auto_reset;
 mod bgerror;
 mod binary_;
 mod break_;
+mod case_;
 mod catch_;
 mod cd;
 mod chan_;
@@ -69,6 +70,7 @@ mod for_;
 mod foreach_;
 mod foreachline;
 mod format_;
+mod fpclassify;
 mod gets_;
 mod glob_;
 mod global_;
@@ -244,6 +246,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         binary_::spec(),
         break_::spec(),
         oo_callback::spec(),
+        case_::spec(),
         catch_::spec(),
         cd::spec(),
         chan_::spec(),
@@ -274,6 +277,7 @@ fn tcl_specs_a_through_l() -> Vec<CommandSpec> {
         foreach_::spec(),
         foreachline::spec(),
         format_::spec(),
+        fpclassify::spec(),
         gets_::spec(),
         glob_::spec(),
         global_::spec(),

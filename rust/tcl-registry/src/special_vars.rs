@@ -666,6 +666,27 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
         summary: "Directory holding the standard Tcl script library (`init.tcl` et al.).",
     },
     SpecialVarSpec {
+        name: "tcl_libPath",
+        kind: SpecialVarKind::Scalar,
+        access: VarAccess::ReadWrite,
+        origin: VarOrigin::Interpreter,
+        // Tcl 8.4 only: `Tcl_Init` set it on both Unix and Windows
+        // (`tclUnixInit.c` / `tclWinInit.c`).  Tcl 8.5 marks it "OBSOLETE:
+        // This variable is no longer set by Tcl" (`tclInterp.c`) and no
+        // later release restores it.
+        dialects: DialectSet::TCL84,
+        initially_bound: DialectSet::TCL84,
+        lazily_readable: DialectSet::empty(),
+        startup_binding: StartupBinding::TclInit,
+        keys: &[],
+        externally_read: true,
+        cmp_unsafe: false,
+        write_effect: Some(SideEffectTarget::InterpState),
+        read_taint: None,
+        summary: "Tcl 8.4 only: the library search path `Tcl_Init` seeded before \
+                  sourcing `init.tcl`. Removed in Tcl 8.5.",
+    },
+    SpecialVarSpec {
         name: "tcl_pkgPath",
         kind: SpecialVarKind::Scalar,
         access: VarAccess::ReadWrite,
@@ -907,7 +928,11 @@ mod tests {
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
             let mut expected = common.to_vec();
             if dialect == "tcl8.4" {
-                expected.extend(["errorCode", "errorInfo"]);
+                // 8.4's `Tcl_Init` also seeds `tcl_libPath` before sourcing
+                // `init.tcl` (`tclUnixInit.c` / `tclWinInit.c`); 8.5's
+                // `tclInterp.c` records the name as OBSOLETE and no release
+                // since restores it.
+                expected.extend(["errorCode", "errorInfo", "tcl_libPath"]);
             }
             if matches!(dialect, "tcl8.4" | "tcl8.5" | "tcl8.6") {
                 expected.push("tcl_precision");
@@ -949,6 +974,12 @@ mod tests {
         assert!(is_lazily_readable("tcl_precision", "tcl8.6"));
         assert!(!is_lazily_readable("tcl_precision", "tcl9.0"));
         assert!(!is_lazily_readable("argv", "tcl8.6"));
+        // `tcl_libPath` exists only in 8.4 — availability, not just the
+        // startup fact, ends there.
+        assert!(is_special_var("tcl_libPath", "tcl8.4"));
+        for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            assert!(!is_special_var("tcl_libPath", dialect), "{dialect}");
+        }
         // iApps uses its host Tcl interpreter profile, whereas the embedded
         // iRules runtime has only the explicitly evidenced metadata globals.
         assert!(is_readable_at_startup("argv", "f5-iapps"));

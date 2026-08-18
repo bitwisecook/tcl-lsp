@@ -5855,6 +5855,75 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
 }
 
 #[test]
+fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
+    // #1557 follow-up: the `[info exists X]` / `[array exists X]` fold decided
+    // "never assigned in this body, therefore absent".  In the initial global
+    // frame that body *is* the interpreter's global namespace, so every name
+    // the special-variable registry owns there is out-of-frame runtime state:
+    // startup-bound (`argv`, `env`, `tcl_platform`), materialised by a later
+    // event (`errorInfo` after a `catch`, `auto_index` after an auto-load), or
+    // read-traced (`tcl_precision` on Tcl 8.x).  Folding them false produced a
+    // false I230 and an O101 rewrite of `if {[info exists argv]} …` to
+    // `if {0} …`.  Drive the probe from the table so a new global is covered
+    // automatically.
+    for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
+            .filter_map(|spec| match spec.kind {
+                tcl_registry::special_vars::SpecialVarKind::Scalar => {
+                    Some(format!("if {{[info exists {}]}} {{ puts hit }}\n", spec.name))
+                }
+                tcl_registry::special_vars::SpecialVarKind::Array => Some(format!(
+                    "if {{[info exists {0}(k)]}} {{ puts hit }}\nif {{[array exists {0}]}} {{ puts hit }}\n",
+                    spec.name
+                )),
+                tcl_registry::special_vars::SpecialVarKind::Namespace => None,
+            })
+            .collect();
+        let result = Analyser::new().analyse(&source, dialect);
+        assert!(
+            !result.diagnostics.iter().any(|d| d.code == DiagCode::I230),
+            "an interpreter global's existence must not fold in {dialect}: {:?}",
+            result.diagnostics
+        );
+    }
+
+    // Mutation controls.  The abstention is dialect-versioned and frame-local:
+    // a release that never had the variable keeps folding it (tclsh 9.0.4 /
+    // 9.1b0: `info exists tcl_precision` → 0), a dialect that never had it
+    // keeps folding it (iRules has no `argv`), a procedure-local name of the
+    // same spelling is an ordinary fresh Tcl variable (tclsh 8.4.20 / 8.5.19 /
+    // 8.6.14 / 9.0.4 / 9.1b0: `proc p {} {info exists argv}` → 0), and an
+    // ordinary never-assigned global still folds.
+    for (src, dialect) in [
+        ("if {[info exists tcl_precision]} { puts hit }\n", "tcl9.0"),
+        ("if {[info exists tcl_precision]} { puts hit }\n", "tcl9.1"),
+        ("if {[info exists tcl_libPath]} { puts hit }\n", "tcl8.5"),
+        (
+            "proc p {} { if {[info exists argv]} { puts hit } }\n",
+            "tcl8.6",
+        ),
+        ("if {[info exists no_such_global]} { puts hit }\n", "tcl8.6"),
+    ] {
+        let result = Analyser::new().analyse(src, dialect);
+        assert!(
+            result.diagnostics.iter().any(|d| d.code == DiagCode::I230),
+            "{src:?} must still fold in {dialect}: {:?}",
+            result.diagnostics
+        );
+    }
+
+    // `tcl_libPath` is the Tcl 8.4-only `Tcl_Init` global (`tclUnixInit.c` /
+    // `tclWinInit.c`; Tcl 8.5's `tclInterp.c` records it as OBSOLETE), so the
+    // 8.4 side must abstain where 8.5+ folds.
+    let result = Analyser::new().analyse("if {[info exists tcl_libPath]} { puts hit }\n", "tcl8.4");
+    assert!(
+        !result.diagnostics.iter().any(|d| d.code == DiagCode::I230),
+        "Tcl 8.4 tcl_libPath must not fold: {:?}",
+        result.diagnostics
+    );
+}
+
+#[test]
 fn w210_startup_read_trace_respects_global_alias_and_unset_lifecycle() {
     // The trace belongs to the global storage cell even when that cell is
     // reached through `global` or an explicit `::` spelling.  A same-named

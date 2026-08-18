@@ -128,6 +128,12 @@ fn analyser_hook_stamps_match_the_former_guard_list() {
         ("foreach_in_collection", "", H::Foreach),
         ("for", "", H::For),
         ("switch", "", H::Switch),
+        // The obsolete Tcl 8.x `case` shares `switch`'s clause-list handler:
+        // one subject then either separate `patList body` pairs or a single
+        // braced clause list, with the differences (no options, glob-only
+        // matching, the optional `in` separator) carried by its own
+        // `CaseListSpec::CASE` descriptor rather than by handler code.
+        ("case", "", H::Switch),
         // Expect's clause-list commands share the switch analyser's generic
         // case-list body walker; their grammar is carried by `case_list`.
         ("expect", "", H::Switch),

@@ -100,6 +100,13 @@ const PROBES: &[&str] = &[
     "oo::abstract",
     "oo::configurable",
     "oo::singleton",
+    // New in Tcl 9.0: the floating-point classifier, whose own manual page
+    // (`doc/fpclassify.n`) exists only in the 9.x trees.
+    "fpclassify",
+    // Removed in Tcl 9.0: `case`, obsolete since 7.0 and dropped along with
+    // its manual page. The one probe running the gate in the *other*
+    // direction — present in 8.6, absent in 9.0.
+    "case",
     // Stable across both (present in 8.6 and 9.0).
     "foreach",
     "lassign",

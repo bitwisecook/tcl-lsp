@@ -26,9 +26,12 @@ Special variables differ from user variables in ways the analysis must respect:
   version; a same-named procedure local or a value removed with `unset` still
   warns.
 - The default-host qualification matters: Tcl 8.4's successful stock
-  `Tcl_Init` runs `init.tcl`, which seeds `errorCode` and `errorInfo`; a bare
-  `Tcl_CreateInterp`, failed/overridden initialisation, and Tcl 8.5+ do not
-  provide that entry fact. `auto_index` is similarly not a startup binding:
+  `Tcl_Init` runs `init.tcl`, which seeds `errorCode` and `errorInfo`, and sets
+  `tcl_libPath` itself (`tclUnixInit.c` / `tclWinInit.c`) before doing so; a
+  bare `Tcl_CreateInterp`, failed/overridden initialisation, and Tcl 8.5+ do
+  not provide those entry facts — 8.5's `tclInterp.c` records `tcl_libPath` as
+  "OBSOLETE: This variable is no longer set by Tcl", and no later release
+  restores it. `auto_index` is similarly not a startup binding:
   interactive or auto-loader activity can materialise it later, but a normal
   script's direct read remains undefined.
 - A **write can carry an interpreter side effect** beyond the variable slot
@@ -92,6 +95,18 @@ The crate exposes name + dialect queries; consumers never hold their own list:
   not imply an initial value.
 - `is_readable_at_startup(name, dialect)` — the lifecycle-aware W210 entry
   fact, applied only to the initial global SSA version by `tcl-compiler`.
+- `special_vars_for_dialect(dialect)` — also the abstention set for
+  `tcl-compiler`'s `[info exists X]` / `[array exists X]` fold
+  (`sccp::existence_constant_branches`). In the **initial global frame** that
+  body is the interpreter's global namespace, so a recognised special variable
+  the body never assigns is not provably absent: it may be startup-bound
+  (`argv`), materialised by a later runtime event (`errorInfo` after a `catch`,
+  `auto_index` after an auto-load), or read-traced (`tcl_precision` on Tcl
+  8.x). These names join the scope-alias / object-state abstentions rather than
+  folding, which keeps I230 quiet and stops the optimiser rewriting
+  `if {[info exists argv]} …` to `if {0} …`. Inside a procedure the same
+  spelling is an ordinary fresh local and still folds; an explicit `global`
+  alias there is already covered by the scope-alias skip.
 - `is_externally_read(name, dialect)` — dead-store (W220) and unused-variable
   (W211) suppression.
 - `special_var_write_effect(name, dialect)` — `classify_variable_assignment`

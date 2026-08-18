@@ -379,6 +379,10 @@ struct FunctionBuildInputs<'a> {
     /// for procs, lambdas, and the top level, none of which have any.  The
     /// `[info exists]` fold must abstain on these (issue #1129).
     object_state: Option<&'a HashSet<String>>,
+    /// Whether this is the compilation unit's **top-level** body — the
+    /// interpreter's initial global frame.  The `[info exists]` fold must
+    /// abstain on the registry's special variables there (issue #1557).
+    initial_global: bool,
 }
 
 impl ModuleTraceFacts<'_> {
@@ -485,6 +489,7 @@ impl FunctionUnit {
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
                 object_state: None,
+                initial_global: false,
             },
         )
     }
@@ -513,6 +518,7 @@ impl FunctionUnit {
                 extra_global_escaping,
                 trace_facts,
                 object_state: None,
+                initial_global: true,
             },
         )
     }
@@ -550,6 +556,7 @@ impl FunctionUnit {
                 extra_global_escaping: &no_extra_escaping,
                 trace_facts,
                 object_state: Some(&facts.instance_vars),
+                initial_global: false,
             },
         );
         unit.method_facts = Some(facts);
@@ -581,6 +588,7 @@ impl FunctionUnit {
             extra_global_escaping,
             trace_facts,
             object_state,
+            initial_global,
         } = inputs;
         // Complexity guard (block-count half): a pathologically large body
         // would cost seconds of SSA + dataflow for near-zero findings, so skip
@@ -652,6 +660,7 @@ impl FunctionUnit {
                 crate::sccp::ExistenceFrame {
                     params,
                     object_state,
+                    initial_global,
                 },
                 registry,
                 dynamic_names,

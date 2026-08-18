@@ -304,14 +304,20 @@ impl<'a> BodyFrame<'a> {
     #[must_use]
     fn existence_frame(self) -> crate::sccp::ExistenceFrame<'a> {
         match self {
-            Self::TopLevel => crate::sccp::ExistenceFrame::default(),
+            Self::TopLevel => crate::sccp::ExistenceFrame {
+                params: &[],
+                object_state: None,
+                initial_global: true,
+            },
             Self::Procedure(p) => crate::sccp::ExistenceFrame {
                 params: &p.params,
                 object_state: None,
+                initial_global: false,
             },
             Self::Method(m) => crate::sccp::ExistenceFrame {
                 params: &m.params,
                 object_state: Some(&m.instance_vars),
+                initial_global: false,
             },
         }
     }

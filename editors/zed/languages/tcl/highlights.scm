@@ -54,7 +54,7 @@
 (command
   name: (simple_word) @keyword.control
   (#any-of? @keyword.control
-    "foreachLine" "lfilter" "lmap"))
+    "case" "foreachLine" "lfilter" "lmap"))
 
 ; --- generated from tcl-registry: language keywords ---
 (command
@@ -77,22 +77,22 @@
     "binary" "cd" "chan" "clock" "close" "concat"
     "coroinject" "coroprobe" "dict" "divmod" "encoding" "eof"
     "eq" "exec" "exit" "fblocked" "fconfigure" "fcopy"
-    "file" "fileevent" "filename" "flush" "format" "frexp"
-    "ge" "gets" "gettimes" "glob" "gt" "history"
-    "http" "in" "incr" "info" "join" "lappend"
-    "lassign" "le" "ledit" "lgen" "lindex" "linsert"
-    "list" "llength" "load" "lpop" "lrange" "lremove"
-    "lrepeat" "lreplace" "lreverse" "lsearch" "lseq" "lset"
-    "lsort" "lstring" "lt" "memory" "modf" "ne"
-    "ni" "noop" "oo::copy" "open" "parray" "pid"
-    "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd" "re_quote"
-    "read" "readFile" "regex::quote" "regex_quote" "regexp" "regexp::quote"
-    "registry" "regsub" "remquo" "scan" "seek" "socket"
-    "split" "string" "subst" "tclLog" "tclPkgSetup" "tclPkgUnknown"
-    "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter" "tcl_wordBreakBefore"
-    "tell" "time" "timer" "timerate" "trace" "unicode"
-    "unknown" "unload" "unset" "update" "vwait" "writeFile"
-    "zipfs" "zlib"))
+    "file" "fileevent" "filename" "flush" "format" "fpclassify"
+    "frexp" "ge" "gets" "gettimes" "glob" "gt"
+    "history" "http" "in" "incr" "info" "join"
+    "lappend" "lassign" "le" "ledit" "lgen" "lindex"
+    "linsert" "list" "llength" "load" "lpop" "lrange"
+    "lremove" "lrepeat" "lreplace" "lreverse" "lsearch" "lseq"
+    "lset" "lsort" "lstring" "lt" "memory" "modf"
+    "ne" "ni" "noop" "oo::copy" "open" "parray"
+    "pid" "pkg::create" "pkg_mkIndex" "pkg_mkindex" "puts" "pwd"
+    "re_quote" "read" "readFile" "regex::quote" "regex_quote" "regexp"
+    "regexp::quote" "registry" "regsub" "remquo" "scan" "seek"
+    "socket" "split" "string" "subst" "tclLog" "tclPkgSetup"
+    "tclPkgUnknown" "tcl_endOfWord" "tcl_findLibrary" "tcl_startOfNextWord" "tcl_startOfPreviousWord" "tcl_wordBreakAfter"
+    "tcl_wordBreakBefore" "tell" "time" "timer" "timerate" "trace"
+    "unicode" "unknown" "unload" "unset" "update" "vwait"
+    "writeFile" "zipfs" "zlib"))
 
 ; Highlight unset / variable arguments as variables
 (command
