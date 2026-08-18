@@ -87,6 +87,34 @@ fn diagnostics_disabled_and_patterns() {
 }
 
 #[test]
+fn diagnostics_exclude_glob_list() {
+    // `exclude` is a one-pattern-per-line list (#1556); it is never
+    // comma-split, so a brace alternation keeps its comma.
+    let ini = "[diagnostics]\n\
+               exclude =\n\
+               \x20   docs/**\n\
+               \x20   generated/[a-c]*.tcl\n\
+               \x20   {vendor,third_party}/**\n\
+               \x20   *.ruff\n";
+    let s = settings_from_ini(ini, Layer::Project);
+    assert_eq!(
+        s["diagnostics"]["exclude"],
+        json!([
+            "docs/**",
+            "generated/[a-c]*.tcl",
+            "{vendor,third_party}/**",
+            "*.ruff"
+        ])
+    );
+    // A one-line value is a single pattern, commas included.
+    let one = settings_from_ini("[diagnostics]\nexclude = {a,b}/*.tcl\n", Layer::Project);
+    assert_eq!(one["diagnostics"]["exclude"], json!(["{a,b}/*.tcl"]));
+    // Absent key ⇒ no `exclude` entry at all.
+    let none = settings_from_ini("[diagnostics]\ndisabled = W111\n", Layer::Project);
+    assert!(none["diagnostics"].get("exclude").is_none());
+}
+
+#[test]
 fn multiline_disabled_codes_list() {
     // A `configparser`-style continuation list joins into the same code set a
     // comma list would.

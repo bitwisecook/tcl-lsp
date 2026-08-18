@@ -276,8 +276,9 @@ fn json_enabled(b: bool) -> Value {
     Value::Object(m)
 }
 
-/// `[diagnostics]`: `disabled` codes → `{CODE: false}` plus
-/// `generic_variable_patterns` → `genericVariablePatterns`.
+/// `[diagnostics]`: `disabled` codes → `{CODE: false}`,
+/// `generic_variable_patterns` → `genericVariablePatterns`, and `exclude`
+/// glob patterns → `exclude`.
 fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
     if !has_section(sections, "diagnostics") {
         return;
@@ -286,6 +287,20 @@ fn insert_diagnostics(sections: &[Section], out: &mut Map<String, Value>) {
     if let Some(raw) = section_value(sections, "diagnostics", "disabled") {
         for code in parse_comma_list(raw) {
             diag.insert(code, Value::Bool(false));
+        }
+    }
+    // `exclude` — glob patterns naming files that produce no diagnostics at
+    // all (#1556). One pattern per line (configparser continuation), never
+    // comma-split: brace alternation (`{a,b}`) puts commas inside a pattern.
+    if let Some(raw) = section_value(sections, "diagnostics", "exclude") {
+        let patterns: Vec<Value> = raw
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty())
+            .map(|l| Value::String(l.to_owned()))
+            .collect();
+        if !patterns.is_empty() {
+            diag.insert("exclude".to_owned(), Value::Array(patterns));
         }
     }
     if let Some(raw) = section_value(sections, "diagnostics", "generic_variable_patterns") {

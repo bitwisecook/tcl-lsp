@@ -1145,6 +1145,38 @@ impl Lsp {
         timeout: Duration,
         since: usize,
     ) -> Vec<Value> {
+        self.await_marker_diagnostics("diagnostics master-off", uri, timeout, since)
+    }
+
+    /// Block until the server's `[timing] diagnostics excluded` marker for
+    /// `uri` is logged, then return the diagnostics from the
+    /// `publishDiagnostics` immediately preceding it — the
+    /// `tclLsp.diagnostics.exclude` (#1556) analogue of
+    /// [`Self::await_diagnostics_master_off`], with the same rationale: the
+    /// marker (`run_diagnostics_excluded` in `tcl-lsp-server/src/lib.rs`) is
+    /// logged only after the exclusion's empty publish landed, so keying on it
+    /// cannot confuse a pre-exclusion publish with the clear.
+    pub fn await_diagnostics_excluded(
+        &self,
+        uri: &str,
+        timeout: Duration,
+        since: usize,
+    ) -> Vec<Value> {
+        self.await_marker_diagnostics("diagnostics excluded", uri, timeout, since)
+    }
+
+    /// The shared scan behind the marker-keyed diagnostics barriers: find the
+    /// first `window/logMessage` containing `marker` and `uri=<uri>` (from
+    /// entry `since` onward) and return the last preceding
+    /// `publishDiagnostics` for `uri`, waiting on the notification condvar
+    /// until it appears or `timeout` (load-scaled) elapses.
+    fn await_marker_diagnostics(
+        &self,
+        marker: &str,
+        uri: &str,
+        timeout: Duration,
+        since: usize,
+    ) -> Vec<Value> {
         let needle_uri = format!("uri={uri}");
         let deadline = Instant::now() + scaled_timeout(timeout);
         let mut notes = self.shared.notifications.lock().unwrap();
@@ -1170,13 +1202,13 @@ impl Lsp {
                             .and_then(|p| p.get("message"))
                             .and_then(Value::as_str)
                             .unwrap_or("");
-                        if msg.contains("diagnostics master-off") && msg.contains(&needle_uri) {
+                        if msg.contains(marker) && msg.contains(&needle_uri) {
                             return last_diags_before_marker.unwrap_or_else(|| {
                                 drop(notes);
                                 panic!(
-                                    "diagnostics master-off marker for {uri:?} logged with no \
-                                     preceding publishDiagnostics for it — the marker/publish \
-                                     ordering contract in `run_diagnostics_master_off` broke"
+                                    "{marker} marker for {uri:?} logged with no preceding \
+                                     publishDiagnostics for it — the marker/publish ordering \
+                                     contract in the server broke"
                                 )
                             });
                         }
@@ -1188,7 +1220,7 @@ impl Lsp {
             if remaining.is_zero() {
                 drop(notes);
                 panic!(
-                    "no diagnostics master-off marker for {uri:?} within {timeout:?}{}",
+                    "no {marker} marker for {uri:?} within {timeout:?}{}",
                     latency_barrier_timeout_note()
                 );
             }
