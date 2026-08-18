@@ -3233,6 +3233,15 @@
       },
       "[tcl-expect]": {
         "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-tmsh]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tcl-microchip]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
+      },
+      "[tclspec]": {
+        "editor.stickyScroll.defaultModel": "foldingProviderModel"
       }
     },
     "configuration": [

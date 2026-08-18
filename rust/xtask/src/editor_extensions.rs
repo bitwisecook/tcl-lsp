@@ -245,6 +245,25 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
     }
     root["contributes"]["grammars"] = Value::Array(out);
 
+    // Every registered language needs the per-language editor defaults the
+    // existing languages carry — sticky scroll follows the LSP folding
+    // provider, not the outline (`[tcl]` set the pattern). Adding a
+    // language without this block regresses it to outlineModel, which the
+    // extension's stickyScroll suite pins per language id.
+    let defaults = root["contributes"]["configurationDefaults"]
+        .as_object_mut()
+        .context("contributes.configurationDefaults must be an object")?;
+    for id in &all_ids {
+        let key = format!("[{id}]");
+        let entry = defaults
+            .entry(key)
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+        if entry.get("editor.stickyScroll.defaultModel").is_none() {
+            entry["editor.stickyScroll.defaultModel"] =
+                Value::String("foldingProviderModel".into());
+        }
+    }
+
     let mut rendered =
         serde_json::to_string_pretty(&root).context("serialising VS Code package.json")?;
     rendered.push('\n');
