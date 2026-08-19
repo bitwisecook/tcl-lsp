@@ -86,9 +86,13 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// re-implementing a scan, because an engine that hard-codes one release's rule
 /// answers `subst {${a{b}c}}` wrongly on the other (issue #1457).
 ///
-/// `src` need not be valid UTF-8; the scan reacts only to ASCII bytes, and the
-/// 9.x backslash pair consumes a whole UTF-8 character so it matches the
-/// lexer's `char`-based walk byte for byte.
+/// `src` need not be valid UTF-8. The scan steps a byte at a time, which is
+/// safe because the only bytes it reacts to — `{`, `}`, `\` — are ASCII, and
+/// no byte of a multi-byte UTF-8 sequence is below `0x80`: a lead byte is
+/// `0xc2..=0xf4` and a continuation byte `0x80..=0xbf`. So a multi-byte
+/// character can neither be mistaken for a delimiter nor be split in a way
+/// that invents one, and this agrees byte for byte with the lexer's
+/// `char`-based walk.
 #[must_use]
 pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle) -> Option<usize> {
     let n = src.len();
@@ -113,28 +117,14 @@ pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle)
                 i += 1;
             }
             b'\\' => {
-                // The backslash and the following *character* are one inert
-                // unit, so an escaped `}` does not close the reference.
-                i += 1;
-                if i < n {
-                    i += utf8_char_len(src[i]);
-                }
+                // The backslash and the byte after it are one inert unit, so an
+                // escaped `}` does not close the reference.
+                i += 2;
             }
-            b => i += utf8_char_len(b),
+            _ => i += 1,
         }
     }
     None
-}
-
-/// Byte length of the UTF-8 character whose lead byte is `b` (1 for ASCII and
-/// for a stray continuation byte, so the scan always advances).
-const fn utf8_char_len(b: u8) -> usize {
-    match b {
-        0x00..=0xbf => 1,
-        0xc0..=0xdf => 2,
-        0xe0..=0xef => 3,
-        _ => 4,
-    }
 }
 
 /// Position of the closing delimiter one byte past *end*.
