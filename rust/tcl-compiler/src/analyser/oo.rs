@@ -6093,6 +6093,179 @@ mod tests {
         );
     }
 
+    /// Issue #1593 — the reporter's snippet. A class-shared variable set up
+    /// by the class-level `initialize` script and reached from a method
+    /// through `classvariable` must not draw a read-before-set.
+    ///
+    /// Oracled on tclsh 9.0.4: this exact class answers `5e-6`. The
+    /// `initialize` body runs in the class's own object namespace, so the
+    /// write and the read live in different frames — which is precisely why
+    /// `classvariable` has to be modelled as a declaration rather than as a
+    /// plain local.
+    #[test]
+    fn classvariable_reaches_a_variable_initialise_declared() {
+        let src = "oo::class create Foo {\n\
+                   initialize {\n\
+                   variable Pitch\n\
+                   const Pitch 5e-6\n\
+                   }\n\
+                   method m {} { classvariable Pitch; return $Pitch }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        assert!(
+            !r.diagnostics.iter().any(|d| d.code.as_str() == "W210"),
+            "classvariable reaches the initialise-declared cell: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The near variants of the reporter's shape, each **run** on tclsh
+    /// 9.0.4 first: a plain `set` instead of `const`, a value-bearing
+    /// `variable`, the British `initialise` spelling, the `oo::define`
+    /// form, two names in one `classvariable` call (the second name used to
+    /// be left unbound because only index 0 carried a `VarWrite` role), and
+    /// a write/read split across two methods.
+    ///
+    /// The reporter's `variable Pitch` before the `const` is load-bearing,
+    /// not noise: an `initialize` script runs in a call frame, so a bare
+    /// `const Pitch 5e-6` there makes a *frame-local* constant that no
+    /// method can reach (tclsh 9.0.4: `can't read "Pitch": no such
+    /// variable`). Only the `variable` declaration aims the write at the
+    /// class-shared cell — which is why that shape is absent from this
+    /// clean-list.
+    #[test]
+    fn classvariable_variants_stay_clean() {
+        for (label, src) in [
+            (
+                "set instead of const",
+                "oo::class create Foo {\n\
+                 initialize { variable Pitch; set Pitch 5e-6 }\n\
+                 method m {} { classvariable Pitch; return $Pitch }\n\
+                 }",
+            ),
+            (
+                "value-bearing variable",
+                "oo::class create Foo {\n\
+                 initialize { variable Pitch 5e-6 }\n\
+                 method m {} { classvariable Pitch; return $Pitch }\n\
+                 }",
+            ),
+            (
+                "initialise spelling",
+                "oo::class create Foo {\n\
+                 initialise { variable Pitch; const Pitch 5e-6 }\n\
+                 method m {} { classvariable Pitch; return $Pitch }\n\
+                 }",
+            ),
+            (
+                "oo::define form",
+                "oo::class create Foo {}\n\
+                 oo::define Foo {\n\
+                 initialize { variable Pitch; const Pitch 5e-6 }\n\
+                 method m {} { classvariable Pitch; return $Pitch }\n\
+                 }",
+            ),
+            (
+                "two names in one call",
+                "oo::class create Foo {\n\
+                 initialize { variable a 1; variable b 2 }\n\
+                 method m {} { classvariable a b; return [list $a $b] }\n\
+                 }",
+            ),
+            (
+                "written in one method, read in another",
+                "oo::class create Foo {\n\
+                 method w {} { classvariable Count; set Count 1 }\n\
+                 method r {} { classvariable Count; return $Count }\n\
+                 }",
+            ),
+            (
+                // The `classvariable(n)` manual page's own example.
+                "manual-page Counted example",
+                "oo::class create Counted {\n\
+                 initialise { variable count 0 }\n\
+                 variable number\n\
+                 constructor {} { classvariable count; set number [incr count] }\n\
+                 method report {} { classvariable count; puts \"$number of $count\" }\n\
+                 }",
+            ),
+        ] {
+            let mut a = Analyser::new();
+            let r = a.analyse(src, "tcl9.0");
+            assert!(
+                !r.diagnostics
+                    .iter()
+                    .any(|d| matches!(d.code.as_str(), "W210" | "W211")),
+                "{label}: {:?}",
+                r.diagnostics
+            );
+        }
+    }
+
+    /// The other half of issue #1593: the fix must not silence a genuine
+    /// unbound read. Without `classvariable`, a method's `$Pitch` is an
+    /// *instance* variable that the class-level `initialize` never wrote —
+    /// tclsh 9.0.4 raises `can't read "Pitch": no such variable` — so W210
+    /// is correct and has to stay.
+    #[test]
+    fn a_method_read_without_classvariable_still_warns() {
+        let src = "oo::class create Foo {\n\
+                   initialize { variable Pitch; const Pitch 5e-6 }\n\
+                   method m {} { return $Pitch }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code.as_str() == "W210"),
+            "an instance-side read of a class-scoped cell is a real bug: {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// The same snippet under 8.6 reports what 8.6 actually lacks —
+    /// `initialize` and `const` are both 9.0 members — and never W210.
+    /// `classvariable` itself is reachable there only through Tcllib's
+    /// `ooutil`, which the document requires.
+    #[test]
+    fn the_reporter_snippet_under_86_reports_the_missing_commands() {
+        let src = "package require ooutil\n\
+                   oo::class create Foo {\n\
+                   initialize { variable Pitch; const Pitch 5e-6 }\n\
+                   method m {} { classvariable Pitch; return $Pitch }\n\
+                   }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl8.6");
+        let codes: Vec<&str> = r.diagnostics.iter().map(|d| d.code.as_str()).collect();
+        assert!(
+            !codes.contains(&"W210"),
+            "8.6 must not add a read-before-set: {:?}",
+            r.diagnostics
+        );
+        assert!(
+            r.diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "W002" && d.message.contains("'const'")),
+            "8.6 has no `const` (TIP 677 is 9.0): {:?}",
+            r.diagnostics
+        );
+    }
+
+    /// `classvariable` binds only literal, unqualified names: a
+    /// substitution names no cell the analyser can see, so it stays the
+    /// W212 it already was rather than silently declaring `$dyn`.
+    #[test]
+    fn a_dynamic_classvariable_name_is_not_a_declaration() {
+        let src = "oo::class create Foo { method m {} { classvariable $dyn; return $Pitch } }";
+        let mut a = Analyser::new();
+        let r = a.analyse(src, "tcl9.0");
+        assert!(
+            r.diagnostics.iter().any(|d| d.code.as_str() == "W212"),
+            "a substituted name is still reported: {:?}",
+            r.diagnostics
+        );
+    }
+
     #[test]
     fn oo_property_accessor_bodies_are_walked() {
         // `-get`/`-set` accessor bodies are walked with the instance variable
