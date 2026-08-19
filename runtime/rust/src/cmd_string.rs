@@ -365,7 +365,6 @@ fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-
 /// Split `s` as a Tcl list, or set the full list-parse error and return the
 /// failing `Code` (used by the `tcl::prefix` subcommands).
 ///

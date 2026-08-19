@@ -1018,6 +1018,11 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 	cd $(ROOT); \
 	cargo fmt --all --check; \
 	cargo clippy --workspace --all-targets -- -D warnings; \
+	if [ -f "$(RUNTIME_RUST_DIR)/Cargo.toml" ]; then \
+		echo "==> Checking runtime/rust (fmt)"; \
+		cd $(RUNTIME_RUST_DIR); \
+		cargo fmt --all --check; \
+	fi; \
 	if [ -f "$(ZED_DIR)/Cargo.toml" ]; then \
 		echo "==> Checking Zed extension (fmt + clippy --target wasm32-wasip2 + host tests)"; \
 		cd $(ZED_DIR); \
