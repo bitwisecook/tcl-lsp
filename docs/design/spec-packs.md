@@ -583,6 +583,25 @@ one gap: the *signature* was the last axis nothing could version.
 pack at all (issue #1631): a package's version floor must not depend on
 this repository happening to know the package's name.
 
+**Deriving windows rather than writing them.** The version importer
+(`tcl-spec-studio`'s `import_package_versions`) reads several releases of
+a package's sources and now *derives* the windows: runs of equal shape
+across the snapshots become windows, each closed where the next shape
+arrives. It used to report an arity change as a note and stop, because
+the registry had nowhere to put the answer. The note survives beside the
+derived field as its evidence — this is a derivation from observed
+snapshots rather than a transcription, so the trail that produced it has
+to be inspectable.
+
+**What the analyser does with them.** The window covering the document's
+resolved floor is the shape a call is checked against, and the plain
+`arity` is the fallback when no window covers it. A call whose count
+fails the selected shape but fits *another* declared window draws
+[W149](../kcs/codes/kcs-diagnostic-w149-arity-matches-other-version.md)
+rather than a bare "too many arguments": the call is not malformed, it is
+written for a different release, and the two have different fixes. A
+count fitting no window at all stays an ordinary E002/E003.
+
 ## Loading and tooling
 
 - **A pack is a logical unit, not a file.** Authors group however they
