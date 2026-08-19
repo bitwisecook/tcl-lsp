@@ -73,7 +73,7 @@ use tcl_dialect::{DialectSet, TclVersion};
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
-use tcl_registry::arity::Arity;
+use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::body_kind::BodyKind;
 use tcl_registry::byte_array_effect::ByteArrayEffect;
 use tcl_registry::clause_shape::ClauseShapeError;
@@ -106,7 +106,8 @@ use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::semantic_operation::SemanticOperationId;
 use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, SubCommand, SubSubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ProjectedArgs, SubCommand,
+    SubSubCommand, VersionedArgRow, project_arg_rows,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
 use tcl_registry::taint::SetterConstraint;
@@ -148,19 +149,35 @@ impl fmt::Display for Notice {
 struct Log {
     context: String,
     notices: Vec<Notice>,
-    /// Sites that used `SpecTcl` 1.1-only vocabulary: `(context, line, word)`.
-    /// Drained by [`load_pack`] into per-site notices when the pack's
-    /// `speclib` line declares an older vocabulary — the words still load
-    /// (additions never gate), but a genuinely-1.0 loader drops them
-    /// silently, and the declaration is the pack's only way to say it needs
-    /// them.
-    v11_uses: Vec<(String, u32, String)>,
+    /// Sites that used vocabulary newer than 1.0, as
+    /// `(context, line, word, first vocabulary that has it)`.
+    ///
+    /// Drained by [`load_pack`] into per-site notices for every site whose
+    /// word is newer than the pack's declared vocabulary — the words still
+    /// load (additions never gate), but a loader speaking only the declared
+    /// vocabulary drops them silently, and the declaration is the pack's only
+    /// way to say it needs them.
+    ///
+    /// Carrying the introducing version per site is what lets one mechanism
+    /// serve every future vocabulary: a 1.2 word under a 1.1 declaration is
+    /// the same defect as a 1.1 word under 1.0, and neither is a defect under
+    /// a declaration at or above it.
+    newer_words: Vec<(String, u32, String, &'static str)>,
 }
 
 impl Log {
+    /// Record a use of `word`, which no vocabulary before `since` has.
+    fn since(&mut self, line: u32, word: &str, since: &'static str) {
+        self.newer_words
+            .push((self.context.clone(), line, word.to_owned(), since));
+    }
+
     fn v11(&mut self, line: u32, word: &str) {
-        self.v11_uses
-            .push((self.context.clone(), line, word.to_owned()));
+        self.since(line, word, "1.1");
+    }
+
+    fn v12(&mut self, line: u32, word: &str) {
+        self.since(line, word, "1.2");
     }
 
     fn say(&mut self, line: u32, message: impl Into<String>) {
@@ -698,22 +715,29 @@ pub fn load_pack(source: &str) -> Pack {
         }
     }
 
-    // Vocabulary consistency: 1.1-only words under an older declaration.
-    // Additions never gate, so THIS loader read them fine — but a genuinely
-    // 1.0 loader drops each one silently, and declaring 1.1 is how a pack
-    // says it needs them. One notice per site, so an editor can mark every
-    // offending row.
-    if matches!(pack.dsl_version.as_str(), "1" | "1.0") {
+    // Vocabulary consistency: words newer than the pack's declaration.
+    // Additions never gate, so THIS loader read them fine — but a loader
+    // speaking only the declared vocabulary drops each one silently, and
+    // raising the declaration is how a pack says it needs them. One notice
+    // per site, so an editor can mark every offending row.
+    //
+    // A pack with no `speclib` line declares nothing to be inconsistent with,
+    // and one declaring a vocabulary at or above the word's own is correct;
+    // both are skipped.
+    if !pack.dsl_version.is_empty() {
         let declared = pack.dsl_version.clone();
         let name = pack.name.clone();
-        for (context, line, word) in std::mem::take(&mut log.v11_uses) {
+        for (context, line, word, since) in std::mem::take(&mut log.newer_words) {
+            if tcl_registry::version::compare(&declared, since).is_ge() {
+                continue;
+            }
             log.notices.push(Notice {
                 context,
                 line,
                 message: format!(
-                    "`{word}` is SpecTcl 1.1 vocabulary, but this pack declares \
-                     vocabulary {declared}; a 1.0 loader drops the word — declare \
-                     `speclib {name} 1.1`"
+                    "`{word}` is SpecTcl {since} vocabulary, but this pack declares \
+                     vocabulary {declared}; a {declared} loader drops the word — declare \
+                     `speclib {name} {since}`"
                 ),
             });
         }
@@ -726,14 +750,14 @@ pub fn load_pack(source: &str) -> Pack {
 /// The `SpecTcl` **vocabulary** versions this loader reads, newest last.
 ///
 /// Additive words never bump the vocabulary version
-/// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0` and
-/// `1.1` all name a vocabulary this build understands in full. A pack naming
+/// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0`, `1.1`
+/// and `1.2` all name a vocabulary this build understands in full. A pack naming
 /// anything else still loads: the words it uses that this build knows are read,
 /// and the rest hit the ordinary unknown-property rule.
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "1.2";
 
 /// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
 /// pack's language is written under. The extension is normalised to
@@ -996,6 +1020,40 @@ fn lifecycle_flag(lifecycle: &mut Lifecycle, flag: &str, words: &[Word], i: &mut
         _ => return false,
     }
     true
+}
+
+/// The arity windows a body declared, with overlapping ones dropped.
+///
+/// Two windows covering the same release make the selected signature depend on
+/// declaration order, which is not something a pack can have meant. The pack
+/// keeps the first — the ordinary degradation — and gets a notice naming the
+/// one dropped, so an editor can mark the row.
+///
+/// `registry_sweep` rejects the same shape outright for shipped specs. A pack
+/// only ever gets a notice: it is authored outside this repository and must
+/// still load.
+fn checked_arity_windows(
+    windows: Vec<ArityWindow>,
+    what: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [ArityWindow] {
+    let mut kept: Vec<ArityWindow> = Vec::with_capacity(windows.len());
+    for window in windows {
+        if let Some(clash) = kept.iter().find(|other| other.overlaps(window)) {
+            log.say(
+                line,
+                format!(
+                    "{what} arity window {:?} overlaps {:?}, which would make the \
+                     signature depend on declaration order; the later one is dropped",
+                    window.arity, clash.arity
+                ),
+            );
+            continue;
+        }
+        kept.push(window);
+    }
+    leak_slice(kept)
 }
 
 /// A parsed lifecycle, or nothing when its releases are impossibly ordered.
@@ -1423,8 +1481,14 @@ const INTRINSICS: &[IntrinsicId] = &[
     IntrinsicId::ChannelWrite,
 ];
 
-/// `arity 3.. -step 2 -also 2` and its five simpler spellings.
-fn parse_arity(stmt: &Stmt, log: &mut Log) -> Arity {
+/// `arity 3.. -step 2 -also 2` and its five simpler spellings, optionally
+/// gated by the three lifecycle flags (`SpecTcl` 1.2, issue #1627).
+///
+/// Returns the shape, and the lifecycle when the row carried one. An ungated
+/// row is the command's plain arity exactly as before 1.2; a gated one is one
+/// *window* of a signature that changed across the owning package's releases,
+/// and several may be declared for the same command.
+fn parse_arity(stmt: &Stmt, log: &mut Log) -> (Arity, Option<Lifecycle>) {
     let range = stmt.word_text(1);
     let mut arity = match range.split_once("..") {
         None => range.parse::<u16>().map_or_else(
@@ -1452,16 +1516,37 @@ fn parse_arity(stmt: &Stmt, log: &mut Log) -> Arity {
         }
     };
     let words = &stmt.words;
+    let mut lifecycle = Lifecycle::UNSPECIFIED;
+    let mut gated = false;
     let mut i = 2;
     while i < words.len() {
-        match words[i].text.as_str() {
+        let flag = words[i].text.clone();
+        if lifecycle_flag(&mut lifecycle, &flag, words, &mut i) {
+            log.v12(stmt.line, &flag);
+            gated = true;
+            i += 1;
+            continue;
+        }
+        match flag.as_str() {
             "-step" => arity.step = next_text(words, &mut i).parse().unwrap_or(0),
             "-also" => arity.also_exact = next_text(words, &mut i).parse().ok(),
             other => log.unknown_flag("arity", stmt.line, other),
         }
         i += 1;
     }
-    arity
+    if !gated {
+        return (arity, None);
+    }
+    let lifecycle = checked_lifecycle(lifecycle, "arity window", stmt.line, log);
+    // A lifecycle rejected as impossibly ordered comes back UNSPECIFIED, which
+    // as a window would silently cover every release and shadow the ones that
+    // are well formed. The row keeps its shape and loses only the gate, so it
+    // becomes the plain arity — the same degradation every other rejected
+    // lifecycle takes.
+    if lifecycle == Lifecycle::UNSPECIFIED {
+        return (arity, None);
+    }
+    (arity, Some(lifecycle))
 }
 
 /// `{Range 2 max}`, `Any`, `Port` — `max` / `min` are the integer sentinels.
@@ -2026,17 +2111,40 @@ fn object_class_row(
 /// a notice rather than wrapping.
 const MAX_ARG_INDEX: usize = 255;
 
+/// The `arg` rows a command or subcommand body declared, in source order.
+///
+/// One record per row rather than six parallel vectors: a row's lifecycle
+/// gates the whole row, and a parallel-vector accumulator would have to gate
+/// six places consistently forever. [`project_arg_rows`] turns the records
+/// into the parallel form the registry stores, in one place (issue #1627).
 #[derive(Debug, Default)]
 struct ArgRows {
-    roles: Vec<(u8, ArgRole)>,
-    types: Vec<(u8, ArgTypeHint)>,
-    values: Vec<(u8, &'static [ArgValue])>,
-    closed: Vec<u8>,
-    presentation: Vec<(u8, ArgPresentation)>,
-    prefixes: Vec<(u8, AppendedArity)>,
+    rows: Vec<VersionedArgRow>,
 }
 
 impl ArgRows {
+    /// The parallel slices to store, and the authored rows to retain beside
+    /// them.
+    ///
+    /// The slices are the projection at **no floor**, so an unversioned pack —
+    /// which is every pack today — gets byte-for-byte what the parallel
+    /// accumulator used to build. The rows are retained only when some row is
+    /// actually gated: a consumer re-projects from them at a resolved floor,
+    /// and there is nothing to re-project when no row can be filtered out.
+    fn seal(self) -> (ProjectedArgs, &'static [VersionedArgRow]) {
+        let projected = project_arg_rows(&self.rows, None);
+        let versioned = self
+            .rows
+            .iter()
+            .any(|row| row.lifecycle != Lifecycle::UNSPECIFIED);
+        let rows: &'static [VersionedArgRow] = if versioned {
+            leak_slice(self.rows)
+        } else {
+            &[]
+        };
+        (projected, rows)
+    }
+
     // One flag per `arg` row column, and there are eleven of them; splitting
     // the match would put each column further from the others it constrains.
     #[allow(clippy::too_many_lines)]
@@ -2060,6 +2168,10 @@ impl ArgRows {
         }
         let index = u8::try_from(index).unwrap_or(u8::MAX);
 
+        let mut row = VersionedArgRow {
+            index,
+            ..VersionedArgRow::DEFAULT
+        };
         let mut hint = ArgTypeHint {
             expected: None,
             shimmers: false,
@@ -2069,13 +2181,25 @@ impl ArgRows {
         let words = &stmt.words;
         let mut i = 2;
         while i < words.len() {
-            match words[i].text.as_str() {
+            let flag = words[i].text.clone();
+            // The three lifecycle flags are 1.2 vocabulary on this row: they
+            // are what makes a per-argument fact versionable at all.
+            if lifecycle_flag(&mut row.lifecycle, &flag, words, &mut i) {
+                log.v12(stmt.line, &flag);
+                i += 1;
+                continue;
+            }
+            match flag.as_str() {
                 "-role" => {
                     let name = next_text(words, &mut i);
                     if let Some(role) =
                         enum_by_name(ArgRole::ALL, &name, "argument role", stmt.line, log)
                     {
-                        self.roles.push((index, role));
+                        // First declaration wins, matching `arg_role_at`'s
+                        // `find` over the parallel slice: a row that named a
+                        // role twice always resolved to the first one, and a
+                        // `-appends`-implied `CommandPrefix` counts as one.
+                        row.role.get_or_insert(role);
                     }
                 }
                 "-type" => {
@@ -2107,34 +2231,42 @@ impl ArgRows {
                             ..ArgValue::DEFAULT
                         })
                         .collect();
-                    self.values.push((index, leak_slice(values)));
+                    row.values = leak_slice(values);
                 }
                 "-values-from" => {
                     let name = next_text(words, &mut i);
                     match tables.values.get(&name) {
-                        Some(values) => self.values.push((index, leak_slice(values.clone()))),
+                        Some(values) => row.values = leak_slice(values.clone()),
                         None => log.say(
                             stmt.line,
                             format!("no `values {name}` table in this pack; row dropped"),
                         ),
                     }
                 }
-                "-closed" => self.closed.push(index),
+                "-closed" => row.closed = true,
                 "-layout" => {
                     let name = next_text(words, &mut i);
                     if let Some(layout) =
                         enum_by_name(PRESENTATIONS, &name, "argument layout", stmt.line, log)
                     {
-                        self.presentation.push((index, layout));
+                        row.presentation = Some(layout);
                     }
                 }
                 "-appends" => {
                     let text = next_text(words, &mut i);
                     if let Some(appended) = parse_appended_arity(&text, stmt.line, log) {
-                        self.prefixes.push((index, appended));
-                        // `-appends` implies the position is a command prefix.
-                        if !self.roles.iter().any(|(at, _)| *at == index) {
-                            self.roles.push((index, ArgRole::CommandPrefix));
+                        row.appends = Some(appended);
+                        // `-appends` implies the position is a command prefix,
+                        // unless this index already has a role — from this row
+                        // or an earlier one, since the parallel slice this
+                        // projects into is index-keyed across rows.
+                        if row.role.is_none()
+                            && !self
+                                .rows
+                                .iter()
+                                .any(|other| other.index == index && other.role.is_some())
+                        {
+                            row.role = Some(ArgRole::CommandPrefix);
                         }
                     }
                 }
@@ -2143,8 +2275,11 @@ impl ArgRows {
             i += 1;
         }
         if saw_type_flag {
-            self.types.push((index, hint));
+            row.type_hint = Some(hint);
         }
+        row.lifecycle =
+            checked_lifecycle(row.lifecycle, &format!("argument {index}"), stmt.line, log);
+        self.rows.push(row);
     }
 }
 
@@ -2961,6 +3096,7 @@ fn shipped_case_list(name: &str) -> Option<&'static CaseListSpec> {
 #[derive(Default)]
 struct CommandAcc {
     args: ArgRows,
+    arity_windows: Vec<ArityWindow>,
     options: Vec<OptionSpec>,
     forms: Vec<FormSpec>,
     side_effects: Vec<SideEffect>,
@@ -3039,12 +3175,15 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             }
         }
 
-        spec.arg_roles = leak_slice(acc.args.roles);
-        spec.arg_types = leak_slice(acc.args.types);
-        spec.arg_values = leak_slice(acc.args.values);
-        spec.closed_value_args = leak_slice(acc.args.closed);
-        spec.arg_presentation = leak_slice(acc.args.presentation);
-        spec.command_prefixes = leak_slice(acc.args.prefixes);
+        let (args, arg_rows) = acc.args.seal();
+        spec.arg_roles = leak_slice(args.roles);
+        spec.arg_types = leak_slice(args.types);
+        spec.arg_values = leak_slice(args.values);
+        spec.closed_value_args = leak_slice(args.closed);
+        spec.arg_presentation = leak_slice(args.presentation);
+        spec.command_prefixes = leak_slice(args.prefixes);
+        spec.arg_rows = arg_rows;
+        spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", stmt.line, log);
         spec.options = leak_slice(acc.options);
         spec.forms = leak_slice(acc.forms);
         spec.side_effects = leak_slice(acc.side_effects);
@@ -3081,6 +3220,24 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
 /// carries the `command` statement's line rather than the row's.
 fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
     let parent = spec.lifecycle;
+    for window in spec.arity_windows {
+        check_contained(
+            &format!("arity window {:?}", window.arity),
+            window.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for row in spec.arg_rows {
+        check_contained(
+            &format!("arg {}", row.index),
+            row.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
     for option in spec.options {
         check_contained(
             &format!("option `{}`", option.name),
@@ -3153,6 +3310,24 @@ fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
 fn check_subcommand_containment(sub: &SubCommand, line: u32, log: &mut Log) {
     let parent = sub.lifecycle;
     let path = sub.name;
+    for window in sub.arity_windows {
+        check_contained(
+            &format!("subcommand `{path}` arity window {:?}", window.arity),
+            window.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
+    for row in sub.arg_rows {
+        check_contained(
+            &format!("subcommand `{path}` arg {}", row.index),
+            row.lifecycle,
+            parent,
+            line,
+            log,
+        );
+    }
     for option in sub.options {
         check_contained(
             &format!("subcommand `{path}` option `{}`", option.name),
@@ -3257,7 +3432,10 @@ fn apply_command_stmt(
         // --- identity and availability -----------------------------------
         "dialects" => spec.dialects = parse_dialects(&value, stmt.line, log),
         "traits" => spec.traits |= parse_traits(&value, stmt.line, log),
-        "arity" => spec.arity = parse_arity(stmt, log),
+        "arity" => match parse_arity(stmt, log) {
+            (arity, None) => spec.arity = arity,
+            (arity, Some(lifecycle)) => acc.arity_windows.push(ArityWindow { lifecycle, arity }),
+        },
         "required_package" => spec.required_package = Some(leak_str(&value)),
         "tcllib_package" => spec.tcllib_package = Some(leak_str(&value)),
         "implementation_namespace" => spec.implementation_namespace = Some(leak_str(&value)),
@@ -3924,6 +4102,7 @@ fn state_transitions_value(
 #[derive(Default)]
 struct SubAcc {
     args: ArgRows,
+    arity_windows: Vec<ArityWindow>,
     options: Vec<OptionSpec>,
     side_effects: Vec<SideEffect>,
     sub_subcommands: Vec<SubSubCommand>,
@@ -3954,12 +4133,15 @@ fn load_subcommand(
         for stmt in block(body) {
             apply_subcommand_stmt(&mut sub, &mut acc, &stmt, tables, hooks, &name, log);
         }
-        sub.arg_roles = leak_slice(acc.args.roles);
-        sub.arg_types = leak_slice(acc.args.types);
-        sub.arg_values = leak_slice(acc.args.values);
-        sub.closed_value_args = leak_slice(acc.args.closed);
-        sub.arg_presentation = leak_slice(acc.args.presentation);
-        sub.command_prefixes = leak_slice(acc.args.prefixes);
+        let (args, arg_rows) = acc.args.seal();
+        sub.arg_roles = leak_slice(args.roles);
+        sub.arg_types = leak_slice(args.types);
+        sub.arg_values = leak_slice(args.values);
+        sub.closed_value_args = leak_slice(args.closed);
+        sub.arg_presentation = leak_slice(args.presentation);
+        sub.command_prefixes = leak_slice(args.prefixes);
+        sub.arg_rows = arg_rows;
+        sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, stmt.line, log);
         sub.options = leak_slice(acc.options);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
@@ -3986,7 +4168,10 @@ fn apply_subcommand_stmt(
     let value = stmt.word_text(1).to_owned();
     match key.as_str() {
         "traits" => sub.traits |= parse_traits(&value, stmt.line, log),
-        "arity" => sub.arity = parse_arity(stmt, log),
+        "arity" => match parse_arity(stmt, log) {
+            (arity, None) => sub.arity = arity,
+            (arity, Some(lifecycle)) => acc.arity_windows.push(ArityWindow { lifecycle, arity }),
+        },
         "detail" => sub.detail = leak_str(&value),
         "synopsis" => sub.synopsis = leak_str(&value),
         "hover" => {
@@ -4656,11 +4841,11 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0` and `1.1` are all this vocabulary; anything else loads with
-    /// a notice rather than being refused.
+    /// `1`, `1.0`, `1.1` and `1.2` are all this vocabulary; anything else
+    /// loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
-        for known in ["1", "1.0", "1.1"] {
+        for known in ["1", "1.0", "1.1", "1.2"] {
             let pack = load_pack(&format!(
                 "speclib probe {known} {{\n command demo {{ arity 1 }}\n}}"
             ));
@@ -4676,7 +4861,7 @@ mod tests {
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — \
+                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.2 — \
                  newer words may be dropped"
             ]
         );
@@ -4693,11 +4878,12 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 1.1); if it is the library's own version, it belongs in \
+                 1.2); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );
     }
+
     /// A 1.1-only word under a 1.0 declaration draws one notice per site:
     /// this loader reads the word fine (additions never gate), but a
     /// genuinely-1.0 loader drops it silently, so the declaration must say
@@ -4743,9 +4929,9 @@ mod tests {
     #[test]
     fn every_known_vocabulary_loads_the_same_command_surface() {
         let body = "{\n command demo {\n                        arity 1..\n                        option -mode -takes mode -values {a b} -closed\n                        form Default {demo ?-mode mode? word}\n                        hover { summary {Demo.} synopsis {demo word} }\n                    }\n command other { arity 0 }\n}";
-        let baseline = load_pack(&format!("speclib probe 1.1 {body}"));
+        let baseline = load_pack(&format!("speclib probe 1.2 {body}"));
         let baseline_names: Vec<&str> = baseline.commands.iter().map(|c| c.spec.name).collect();
-        for known in ["1", "1.0"] {
+        for known in ["1", "1.0", "1.1"] {
             let pack = load_pack(&format!("speclib probe {known} {body}"));
             let names: Vec<&str> = pack.commands.iter().map(|c| c.spec.name).collect();
             assert_eq!(names, baseline_names, "{known}");
@@ -4754,6 +4940,220 @@ mod tests {
             assert_eq!(demo.spec.options.len(), 1, "{known}");
         }
     }
+
+    /// The 1.2 words go through the *same* per-site mechanism the 1.1 words
+    /// do, which is the point of generalising it: a 1.2 word is a defect
+    /// under a 1.1 declaration exactly as a 1.1 word is under 1.0, and the
+    /// notice names the version that actually has the word rather than a
+    /// hard-coded one.
+    #[test]
+    fn v12_words_under_an_older_declaration_draw_a_per_site_notice() {
+        let body = "\n command demo {\n \
+             arity 1\n \
+             arity 2 -introduced 3.0\n \
+             arg 0 -role Body -introduced 3.0\n \
+             option -x -introduced 1.2\n \
+             }\n}";
+
+        // Under 1.1, only the 1.2 words are noticed — the option row's
+        // lifecycle flags have been 1.0 vocabulary all along.
+        let pack = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        let messages: Vec<&str> = pack.notices.iter().map(|n| n.message.as_str()).collect();
+        assert_eq!(
+            messages.len(),
+            2,
+            "one per 1.2 site, and nothing else: {messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .all(|m| m.contains("is SpecTcl 1.2 vocabulary")
+                    && m.contains("declare `speclib probe 1.2`")),
+            "{messages:?}"
+        );
+
+        // Under 1.0 the same two sites are still the only 1.2 ones, and the
+        // older mechanism keeps working beside it.
+        let older = load_pack(&format!("speclib probe 1.0 {{{body}"));
+        assert_eq!(
+            older
+                .notices
+                .iter()
+                .filter(|n| n.message.contains("SpecTcl 1.2 vocabulary"))
+                .count(),
+            2,
+            "{:?}",
+            older.notices
+        );
+
+        // Declaring 1.2 clears them.
+        let declared = load_pack(&format!("speclib probe 1.2 {{{body}"));
+        assert!(
+            declared.notices.is_empty(),
+            "declaring 1.2 clears it: {:?}",
+            declared.notices
+        );
+    }
+
+    /// An `arity` row without lifecycle flags is the command's plain arity,
+    /// exactly as before 1.2; one *with* them is a window, and the two
+    /// coexist — the plain row stays the fallback for a floor no window
+    /// covers.
+    ///
+    /// Consecutive windows are written **closed**: a window with no
+    /// `-retired` never ends, so "two arguments from 3.0, three from 5.0" is
+    /// spelled with the first retiring where the second begins. Leaving it
+    /// open would overlap, which is what
+    /// `overlapping_arity_windows_draw_a_notice_and_the_later_one_is_dropped`
+    /// covers.
+    #[test]
+    fn a_gated_arity_row_becomes_a_window_and_leaves_the_plain_arity_alone() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 1\n \
+             arity 2 -introduced 3.0 -retired 5.0\n \
+             arity 3 -introduced 5.0\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.arity, Arity::exact(1), "the ungated row is the arity");
+        assert_eq!(spec.arity_windows.len(), 2, "{:?}", spec.arity_windows);
+        assert_eq!(spec.arity_windows[0].arity, Arity::exact(2));
+        assert_eq!(spec.arity_windows[0].lifecycle.introduced, Some("3.0"));
+        assert_eq!(spec.arity_windows[1].arity, Arity::exact(3));
+
+        // The selection contract the windows exist for.
+        assert_eq!(
+            ArityWindow::select(spec.arity_windows, Some("3.0")).map(|w| w.arity),
+            Some(Arity::exact(2))
+        );
+        assert_eq!(
+            ArityWindow::select(spec.arity_windows, Some("5.0")).map(|w| w.arity),
+            Some(Arity::exact(3))
+        );
+        assert_eq!(
+            ArityWindow::select(spec.arity_windows, Some("1.0")),
+            None,
+            "below every window, the plain arity is the fallback"
+        );
+    }
+
+    /// Two windows covering one release would make the selected signature
+    /// depend on declaration order. The pack keeps the first and is told.
+    #[test]
+    fn overlapping_arity_windows_draw_a_notice_and_the_later_one_is_dropped() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 1\n \
+             arity 2 -introduced 3.0\n \
+             arity 9 -introduced 4.0\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.arity_windows.len(), 1, "{:?}", spec.arity_windows);
+        assert_eq!(spec.arity_windows[0].arity, Arity::exact(2), "the first");
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("overlaps") && n.message.contains("dropped")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// A gated `arg` row is retained beside the parallel slices *and* still
+    /// projected into them, because the registry's slices are the projection
+    /// at no floor. An ungated pack retains no rows at all — there would be
+    /// nothing for a consumer to re-project.
+    #[test]
+    fn gated_arg_rows_are_retained_beside_the_slices_they_project_into() {
+        let gated = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 2\n \
+             arg 0 -role Body\n \
+             arg 1 -role Expr -introduced 3.0\n \
+             }\n}",
+        );
+        assert!(gated.notices.is_empty(), "{:?}", gated.notices);
+        let spec = gated.command("demo").expect("demo loads").spec;
+        assert_eq!(
+            spec.arg_rows.len(),
+            2,
+            "both rows retained, not just the gated one"
+        );
+        assert_eq!(
+            spec.arg_roles,
+            &[(0, ArgRole::Body), (1, ArgRole::Expr)],
+            "the slices are the projection at no floor, so both rows appear"
+        );
+        assert_eq!(
+            project_arg_rows(spec.arg_rows, Some("1.0")).roles,
+            vec![(0, ArgRole::Body)],
+            "re-projected at a real floor, the 3.0 row is gone"
+        );
+
+        let ungated = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 2\n \
+             arg 0 -role Body\n \
+             }\n}",
+        );
+        let spec = ungated.command("demo").expect("demo loads").spec;
+        assert_eq!(spec.arg_roles, &[(0, ArgRole::Body)]);
+        assert!(
+            spec.arg_rows.is_empty(),
+            "no row can be filtered out, so none are kept: {:?}",
+            spec.arg_rows
+        );
+    }
+
+    /// Windows and gated argument rows join the containment pass every other
+    /// lifecycle already goes through: a row that outlives the command
+    /// declaring it is a pack defect the author can only find if told.
+    #[test]
+    fn a_window_reaching_outside_the_command_lifecycle_is_noticed() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             introduced_version 2.0\n \
+             retired_version 4.0\n \
+             arity 1\n \
+             arity 2 -introduced 5.0\n \
+             arg 0 -role Body -introduced 6.0\n \
+             }\n}",
+        );
+        let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
+        assert!(said("arity window"), "{:?}", pack.notices);
+        assert!(said("arg 0"), "{:?}", pack.notices);
+    }
+
+    /// An impossibly-ordered window lifecycle comes back UNSPECIFIED, which
+    /// as a window would cover every release and shadow the well-formed ones.
+    /// The row keeps its shape and loses only the gate — the same degradation
+    /// every other rejected lifecycle takes.
+    #[test]
+    fn an_arity_window_with_an_impossible_lifecycle_falls_back_to_the_plain_arity() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 7 -introduced 5.0 -retired 2.0\n \
+             }\n}",
+        );
+        let spec = pack.command("demo").expect("demo loads").spec;
+        assert!(
+            spec.arity_windows.is_empty(),
+            "a rejected gate must not become an always-on window: {:?}",
+            spec.arity_windows
+        );
+        assert_eq!(spec.arity, Arity::exact(7), "the shape survives");
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("arity window")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
     /// `display_name` and `file_extension` are pack-level metadata: names
     /// for humans, extensions for editors, and `-dialect` routing that must
     /// resolve to a canonical profile — a typo keeps the row and drops only

@@ -307,9 +307,9 @@ fn arity_window_gate_rejects_each_malformed_shape() {
             arity,
         }
     }
-    fn rejects(windows: Vec<ArityWindow>, parent: Lifecycle, why: &str) {
+    fn rejects(windows: &[ArityWindow], parent: Lifecycle, why: &str) {
         let caught = std::panic::catch_unwind(|| {
-            assert_arity_windows_consistent(&windows, parent, "probe");
+            assert_arity_windows_consistent(windows, parent, "probe");
         });
         assert!(caught.is_err(), "the gate must reject {why}");
     }
@@ -326,12 +326,12 @@ fn arity_window_gate_rejects_each_malformed_shape() {
     );
 
     rejects(
-        vec![window(Some("3.0"), Some("2.0"), Arity::exact(2))],
+        &[window(Some("3.0"), Some("2.0"), Arity::exact(2))],
         Lifecycle::UNSPECIFIED,
         "a window retired before it was introduced",
     );
     rejects(
-        vec![
+        &[
             window(None, Some("3.0"), Arity::exact(2)),
             window(Some("2.0"), None, Arity::exact(3)),
         ],
@@ -339,7 +339,7 @@ fn arity_window_gate_rejects_each_malformed_shape() {
         "two windows that both cover release 2.0",
     );
     rejects(
-        vec![
+        &[
             window(None, None, Arity::exact(1)),
             window(None, None, Arity::exact(2)),
         ],
@@ -347,12 +347,12 @@ fn arity_window_gate_rejects_each_malformed_shape() {
         "two unbounded windows",
     );
     rejects(
-        vec![window(Some("1.0"), None, Arity::exact(2))],
+        &[window(Some("1.0"), None, Arity::exact(2))],
         Lifecycle::introduced_in("2.0"),
         "a window introduced before the command that hosts it",
     );
     rejects(
-        vec![window(None, None, Arity::new(5, 2))],
+        &[window(None, None, Arity::new(5, 2))],
         Lifecycle::UNSPECIFIED,
         "a window whose own arity has min > max",
     );

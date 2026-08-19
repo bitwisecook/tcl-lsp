@@ -168,9 +168,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     let CommandSpec {
         name: _, traits: _,
         dialects: _,
-        arity: _,
-        arity_windows: _,
-        arg_rows: _,
+        arity: _, arity_windows: _, arg_rows: _,
         arg_roles: _,
         arg_role_resolver: _,
         arg_presentation: _,
