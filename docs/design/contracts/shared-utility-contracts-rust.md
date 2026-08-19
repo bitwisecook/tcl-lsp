@@ -175,7 +175,28 @@ entry point, or gate moves without this contract being updated.
   style comes from the layer's existing dialect view:
   `optimiser::PassContext::braced_var`, `analyser::Analyser::braced_var`,
   the taint `TaintCtx` / `TaintScan` / `SinkCall`, `ScanCtx`'s `LexerConfig`,
-  the `Lowerer`'s `config`.
+  the `Lowerer`'s `config`. In `tcl-lsp-core` it comes from the resolved
+  `DialectProfile` the rename entry points already carry.
+
+  A **defaulting convenience overload beside a style-taking one is a trap**,
+  not a courtesy: `dynamic_names::dynamic_variable_word_can_spell` had one,
+  and all three production callers (`rename_safety` twice,
+  `namespace_rename` once) silently took it although each held a resolved
+  profile. The style is a required parameter there now, so it cannot be
+  omitted by accident (PR #1645 review). Where a defaulted spelling *is* kept
+  — the `naming` readers, whose callers number in the hundreds — the rule is
+  that a caller holding a resolved dialect must use the `_for_style` form;
+  the default is for a document that genuinely has no dialect, not a
+  shorthand for one that does.
+
+  That gate shows why the direction matters as much as the rule. The literal
+  characters around a substitution bound which cells a computed name can
+  spell, so the two rules move a rename decision opposite ways: 9.x reads
+  `${a{b}c}` as one wildcard that can spell anything (refuse the rename),
+  while 8.x ends the name at the first `}` and leaves the literal `c}`
+  (provably out of reach, allow it). Reading an 8.x document with the 9.x
+  default refuses a rename that is provably safe; reading a 9.x document with
+  the 8.x rule lets an unsafe one through.
 
   Two classes of site are deliberately **not** threaded, and both are
   documented in place so they are not "fixed" back into plumbing that cannot
