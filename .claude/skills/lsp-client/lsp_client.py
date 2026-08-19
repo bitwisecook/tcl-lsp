@@ -301,7 +301,17 @@ class LspClient:
         # (observed directly — not just a documentation nuance — in this
         # project's sandboxed CI/dev containers), which would silently
         # reintroduce the unbounded wait `_send` exists to remove.
-        os.set_blocking(self.process.stdin.fileno(), False)
+        #
+        # `Popen.stdin` is typed `IO[Any] | None` because Popen doesn't know
+        # statically that this call passed `stdin=PIPE`; it always does here,
+        # so a `None` at this point is not a "maybe" — it means Popen itself
+        # is broken, and an assert says so honestly instead of a silent
+        # AttributeError three lines further down.
+        stdin = self.process.stdin
+        assert stdin is not None, (
+            "Popen was called with stdin=PIPE but has no stdin pipe"
+        )
+        os.set_blocking(stdin.fileno(), False)
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()

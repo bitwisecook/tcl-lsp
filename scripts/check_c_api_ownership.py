@@ -349,21 +349,26 @@ def _self_test_doc_rows_ignore_tables_before_subsystems(tmp_dir: Path) -> None:
 class _EnvVarGuard:
     """Save/restore one environment variable around a self-test body, so a
     test that sets `CHECK_C_API_OWNERSHIP_TCL_SOURCE` can never leak that
-    setting into the tests that run after it (or into the caller's shell)."""
+    setting into the tests that run after it (or into the caller's shell).
+
+    `os.environ.get` returns `None` exactly when the variable is absent
+    (a present variable is always a `str`, never `None`), so `old_value`
+    alone — with no separate `had_value` flag — is enough to tell "wasn't
+    set" from "was set to some string" on restore.
+    """
 
     def __init__(self, name: str) -> None:
         self.name = name
-        self.had_value = name in os.environ
-        self.old_value = os.environ.get(name)
+        self.old_value: str | None = os.environ.get(name)
 
     def __enter__(self) -> "_EnvVarGuard":
         return self
 
     def __exit__(self, *exc: object) -> None:
-        if self.had_value:
-            os.environ[self.name] = self.old_value  # type: ignore[assignment]
-        else:
+        if self.old_value is None:
             os.environ.pop(self.name, None)
+        else:
+            os.environ[self.name] = self.old_value
 
 
 def _self_test_tcl_source_stays_unconfigured_when_trees_are_present(
