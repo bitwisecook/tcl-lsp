@@ -649,28 +649,41 @@ jobs:
         with:
           toolchain: stable
           # The wasm32 std is a job-specific dependency, so this job keeps its
-          # own cache rather than racing the other cargo jobs on save.
+          # own cache rather than racing the other cargo jobs on save.  The
+          # reserved runtime builds into `target/tcl_reserved_runtime` inside
+          # the checkout, so this cache covers it too.
           target: wasm32-wasip1
           cache-key: wasm-real-link
 
+      # Pinned to an exact version: the whole point of this job is a
+      # reproducible link, and an unpinned `wasmtime` would let the runtime
+      # under test drift without a commit.
       - name: Install the wasmtime CLI
+        if: needs.channel.outputs.docs_only != 'true'
         uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
         with:
-          tool: wasmtime
+          tool: wasmtime@47.0.3
 
       # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
-      # wasm objects.  Pinned by version + checksum-bearing release asset; the
-      # test finds it at the default /opt/wasi-sdk, so no env var is needed.
+      # wasm objects.  The test finds it at the default /opt/wasi-sdk, so no
+      # env var is needed.  The tarball is pinned by version AND verified
+      # against a recorded sha256 before it is unpacked: this step runs
+      # `sudo tar` over a download from a third-party release, so "pinned by
+      # tag" alone is not enough — a retagged or substituted asset would be
+      # unpacked with root privileges.  Regenerate with `sha256sum` when
+      # bumping WASI_SDK_RELEASE.
       - name: Install wasi-sdk
         if: needs.channel.outputs.docs_only != 'true'
         env:
           WASI_SDK_VERSION: '33'
           WASI_SDK_RELEASE: '33.0'
+          WASI_SDK_SHA256: '0ba8b5bfaeb2adf3f29bab5841d76cf5318ab8e1642ea195f88baba1abd47bce'
         run: |
           set -euo pipefail
           asset="wasi-sdk-${WASI_SDK_RELEASE}-x86_64-linux.tar.gz"
           url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${asset}"
           curl -fsSL --retry 3 -o /tmp/wasi-sdk.tar.gz "$url"
+          echo "${WASI_SDK_SHA256}  /tmp/wasi-sdk.tar.gz" | sha256sum --check --strict -
           sudo mkdir -p /opt/wasi-sdk
           sudo tar -xzf /tmp/wasi-sdk.tar.gz -C /opt/wasi-sdk --strip-components=1
           test -x /opt/wasi-sdk/bin/clang

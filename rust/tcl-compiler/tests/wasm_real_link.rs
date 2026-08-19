@@ -78,11 +78,20 @@
 //! `"6\n2"` — indistinguishable from a codegen regression. So it is checked
 //! up front and passed explicitly, never left to the build script's fallback.
 //!
-//! Every scratch path — including the reserved runtime's cargo `--target-dir`
-//! — lives under [`scratch_root`], which is unique per checkout (worktrees
-//! must never share a target dir; see AGENTS.md and issue #1052) and short
-//! (a deep scratch root breaks `make test-ext`'s VS Code IPC socket against
-//! the 103-byte `AF_UNIX` limit).
+//! # Hermetic across checkouts and processes
+//!
+//! The reserved runtime builds into [`reserved_runtime_target_dir`] — inside
+//! *this* checkout's `target/`, never a machine-global `/tmp` name — and every
+//! transient module/bootstrap goes through [`scratch`], which is keyed by both
+//! checkout and pid. Sharing either was not a tidiness problem: a suite could
+//! link a `tcl_runtime.wasm` built from a different checkout's source, and
+//! when that stale runtime lacks the current tree's host wiring `puts` is
+//! silently dropped into a hostless `StdIo` (`runtime/rust`'s
+//! `cmd_chan.rs:474`). The module still runs and still exits 0, so the failure
+//! surfaces only as `"2"` against `"6\n2"` — which is how issue #1590 was
+//! first read as a `puts` leak in the runtime, and how #1542 was first read as
+//! a capture bug. See AGENTS.md and issue #1052 on never sharing a target dir
+//! across worktrees.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -313,27 +322,54 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
-/// A short, stable, **per-checkout** scratch directory for everything this
-/// file writes: the reserved-runtime cargo target dir and every `.wasm` /
-/// `.wat` the bootstraps are composed from.
+/// Where the reserved `wasm32-wasip1` runtime is built: **inside this
+/// checkout's own `target/`**, never a machine-global `/tmp` name.
 ///
-/// *Per-checkout* because the target dir must never be shared across
-/// worktrees — cargo's unit hashing does not disambiguate workspace members
-/// built from different worktree paths of the same workspace, so concurrent
-/// checkouts serve each other stale rlibs and the greens stop meaning
-/// anything (AGENTS.md "Parallel worktrees and agent build isolation", issue
-/// #1052). It also removes the cross-worktree collision on the scratch module
-/// files, the most plausible mechanism for #1542's original one-off, which was
-/// first seen during a broad `make test`.
+/// This is the isolation that matters most, and getting it wrong is what
+/// issue #1590 turned out to be. A shared `--target-dir` means every
+/// concurrent checkout builds its own `runtime/rust` over the same
+/// `tcl_runtime.wasm`; cargo's lock serialises the *builds* but nothing holds
+/// it across the gap between building the runtime and linking against it, so a
+/// suite can link a runtime compiled from a different checkout's source. When
+/// that stale runtime lacks the current tree's host wiring, `puts` writes into
+/// a hostless `StdIo` and is silently dropped (`runtime/rust`'s
+/// `cmd_chan.rs:474`) — the module still runs, still exits 0, and the
+/// assertion reads `"2"` against `"6\n2"`. That is exactly the shape #1542 was
+/// filed as, and it is indistinguishable from a codegen regression.
 ///
-/// *Short* because "unique" must not mean "deep": `make test-ext` puts a VS
-/// Code IPC socket under the scratch root, and an `AF_UNIX` `sun_path` is
-/// capped at 103 bytes. `/tmp/tclwl-XXXXXXXX` is 19.
+/// Keying on the checkout keeps the first-run build cached (the point of a
+/// fixed path) without ever handing this suite someone else's runtime, and
+/// living under `target/` means CI's existing cache covers it — a `/tmp` path
+/// would be rebuilt from scratch on every run.
+fn reserved_runtime_target_dir() -> PathBuf {
+    workspace_root().join("target/tcl_reserved_runtime")
+}
+
+/// A scratch path for one transient `.wasm` / `.wat`, private to this
+/// **checkout** and this **process**.
 ///
-/// The id is an FNV-1a hash of the canonical workspace root — deterministic
-/// across runs and toolchain upgrades, so the expensive runtime build stays
-/// cached for a given checkout.
-fn scratch_root() -> PathBuf {
+/// Two independent collisions had to be closed. The `tag` callers weave into
+/// `name` keeps concurrent *cases* apart, but only within one process, and the
+/// path was otherwise machine-global: two checkouts running this suite at the
+/// same time (one worktree per agent, or a `make test` beside an editor's test
+/// run) wrote, read, and `remove_file`d each other's modules mid-run. The
+/// per-checkout directory closes the cross-worktree hole and the pid prefix
+/// closes the cross-process one, leaving `tag` doing its original job.
+///
+/// These stay under the system temp dir rather than `target/`: they are
+/// deleted immediately after each run and there is nothing to cache.
+///
+/// *Short* because "unique" must not mean "deep" — `make test-ext` puts a VS
+/// Code IPC socket under the system temp dir and an `AF_UNIX` `sun_path` is
+/// capped at 103 bytes, so `/tmp/tclwl-XXXXXXXX/<pid>-<name>` stays well
+/// inside it. (A `TMPDIR` that is itself deep eats into that budget; nothing
+/// here can recover it, so keep agent `TMPDIR`s shallow.)
+///
+/// The directory id is an FNV-1a hash of the **canonicalised** workspace root
+/// — `workspace_root` resolves symlinks and `..`, so two spellings of one
+/// checkout hash alike, and the id is stable across runs and toolchain
+/// upgrades.
+fn scratch(name: &str) -> PathBuf {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in workspace_root().as_os_str().as_encoded_bytes() {
         hash ^= u64::from(*byte);
@@ -343,7 +379,7 @@ fn scratch_root() -> PathBuf {
     // concurrent checkouts apart, and eight hex digits keep the path short.
     let dir = std::env::temp_dir().join(format!("tclwl-{:08x}", hash & 0xffff_ffff));
     std::fs::create_dir_all(&dir).expect("create the real-link scratch root");
-    dir
+    dir.join(format!("{}-{name}", std::process::id()))
 }
 
 /// One dimension of the real-link toolchain, with the remedy for it.
@@ -460,42 +496,54 @@ fn missing_requirements() -> Vec<MissingRequirement> {
 ///
 /// Without the variable the skip is still **loud and specific** — it names the
 /// dimension, not just "skipping".
+///
+/// A *build* failure is treated the same way, and symmetrically: required ⇒
+/// panic with cargo's own output, otherwise a loud skip. Every precondition
+/// has already been checked at that point, so a failing build is far more
+/// likely to be a real breakage than a missing tool — but a developer whose
+/// unrelated `cargo test -p tcl-compiler` cannot build a wasm runtime should
+/// still be told why rather than handed a red suite they did not cause.
 #[must_use]
 fn real_link_runtime() -> Option<PathBuf> {
     let required = std::env::var(REQUIRE_VAR).is_ok_and(|v| v != "0" && !v.is_empty());
-    let missing = missing_requirements();
-    if !missing.is_empty() {
-        let mut report = String::new();
-        for item in &missing {
-            let _ = writeln!(
-                report,
-                "  - missing {}\n    remedy: {}",
-                item.what, item.remedy
-            );
-        }
-        assert!(
-            !required,
-            "{REQUIRE_VAR} is set, so the real WASM link must actually run, but:\n{report}"
+    let mut report = String::new();
+    for item in &missing_requirements() {
+        let _ = writeln!(
+            report,
+            "  - missing {}\n    remedy: {}",
+            item.what, item.remedy
         );
-        eprintln!(
-            "SKIPPING the real WASM link — the toolchain is incomplete:\n{report}\
-             Set {REQUIRE_VAR}=1 to turn this skip into a failure."
-        );
-        return None;
     }
-    Some(build_reserved_runtime())
+    if report.is_empty() {
+        match build_reserved_runtime() {
+            Ok(runtime) => return Some(runtime),
+            Err(why) => report = why,
+        }
+    }
+    assert!(
+        !required,
+        "{REQUIRE_VAR} is set, so the real WASM link must actually run, but:\n{report}"
+    );
+    eprintln!(
+        "SKIPPING the real WASM link:\n{report}\
+         Set {REQUIRE_VAR}=1 to turn this skip into a failure."
+    );
+    None
 }
 
 /// Build `runtime/rust` to `wasm32-wasip1` with the reserved-region linker
-/// flag, into this checkout's own target dir.
+/// flag, into this checkout's own target dir
+/// ([`reserved_runtime_target_dir`]).
 ///
-/// Every precondition is checked by [`missing_requirements`] before this runs,
-/// so a failure here is a *real* failure and panics with cargo's own output —
-/// it never degrades to a skip, and the bignum backend is never silently
-/// disabled (`TCL_TOMMATH_DIR` is always passed explicitly).
-fn build_reserved_runtime() -> PathBuf {
+/// `Err(report)` carries cargo's own output for the caller to raise or report,
+/// so the required-vs-skip decision stays in one place ([`real_link_runtime`])
+/// rather than being taken twice with different rules. Every precondition is
+/// checked before this runs, and the bignum backend is never silently disabled
+/// — `TCL_TOMMATH_DIR` is always passed explicitly rather than left to the
+/// build script's fallback.
+fn build_reserved_runtime() -> Result<PathBuf, String> {
     let root = workspace_root();
-    let target_dir = scratch_root().join("rt");
+    let target_dir = reserved_runtime_target_dir();
     let out = Command::new("cargo")
         .env("WASI_SDK_PATH", wasi_sdk_root().expect("wasi-sdk checked"))
         .env(
@@ -513,22 +561,25 @@ fn build_reserved_runtime() -> PathBuf {
         // the emitted constant pool.
         .env("RUSTFLAGS", "-C link-arg=--global-base=2097152")
         .output()
-        .expect("run cargo for the wasm32-wasip1 runtime");
-    assert!(
-        out.status.success(),
-        "building the wasm32-wasip1 reserved runtime failed \
-         (every toolchain precondition was present, so this is a real failure, \
-         not a missing tool):\n--- stdout ---\n{}\n--- stderr ---\n{}",
-        String::from_utf8_lossy(&out.stdout),
-        String::from_utf8_lossy(&out.stderr),
-    );
+        .map_err(|e| format!("  - could not run cargo for the wasm32-wasip1 runtime: {e}\n"))?;
+    if !out.status.success() {
+        return Err(format!(
+            "  - the wasm32-wasip1 reserved runtime failed to build.\n    \
+             Every toolchain precondition was present, so this is far more \
+             likely a real breakage than a missing tool.\n\
+             --- cargo stdout ---\n{}\n--- cargo stderr ---\n{}\n",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        ));
+    }
     let artifact = target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm");
-    assert!(
-        artifact.is_file(),
-        "cargo reported success but {} does not exist",
-        artifact.display(),
-    );
-    artifact
+    if !artifact.is_file() {
+        return Err(format!(
+            "  - cargo reported success but {} does not exist\n",
+            artifact.display()
+        ));
+    }
+    Ok(artifact)
 }
 
 /// Emit `program`, link it against the real `runtime`, run its `::top`, then
@@ -642,9 +693,8 @@ fn run_link_bytes(
     program: &str,
     query: &str,
 ) -> String {
-    let tmp = scratch_root();
-    let user = tmp.join(format!("tcl_real_link_user_{tag}.wasm"));
-    let boot = tmp.join(format!("tcl_real_link_boot_{tag}.wat"));
+    let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
+    let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
     std::fs::write(&user, user_bytes).expect("write user module");
     std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
 
@@ -713,9 +763,8 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
         "native proof did not select: {:?}",
         output.plan
     );
-    let tmp = scratch_root();
-    let user = tmp.join("tcl_real_native_i64_user.wasm");
-    let boot = tmp.join("tcl_real_native_i64_boot.wat");
+    let user = scratch("tcl_real_native_i64_user.wasm");
+    let boot = scratch("tcl_real_native_i64_boot.wat");
     std::fs::write(&user, output.to_bytes()).expect("write native i64 user module");
     std::fs::write(&boot, native_i64_add_bootstrap_wat()).expect("write native i64 bootstrap");
     let out = Command::new("wasmtime")
@@ -750,9 +799,8 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
     );
     let user_bytes = output.to_bytes();
 
-    let tmp = scratch_root();
-    let user = tmp.join("tcl_real_generic_user.wasm");
-    let boot = tmp.join("tcl_real_generic_boot.wat");
+    let user = scratch("tcl_real_generic_user.wasm");
+    let boot = scratch("tcl_real_generic_boot.wat");
     std::fs::write(&user, user_bytes).expect("write generic user module");
     std::fs::write(&boot, generic_invoke_bootstrap_wat(expected_code)).expect("write bootstrap");
     let out = Command::new("wasmtime")
@@ -798,9 +846,8 @@ fn run_real_guarded_intrinsic_invoke(
     assert!(wat.contains("tcl_intrinsic_invoke_argv"), "{wat}");
     let user_bytes = output.to_bytes();
 
-    let tmp = scratch_root();
-    let user = tmp.join("tcl_real_guarded_user.wasm");
-    let boot = tmp.join("tcl_real_guarded_boot.wat");
+    let user = scratch("tcl_real_guarded_user.wasm");
+    let boot = scratch("tcl_real_guarded_boot.wat");
     std::fs::write(&user, user_bytes).expect("write guarded user module");
     std::fs::write(&boot, semantic_invoke_bootstrap_wat(expected_code, setup))
         .expect("write guarded bootstrap");
@@ -825,8 +872,7 @@ fn run_real_guarded_intrinsic_invoke(
 }
 
 fn run_real_native_wide_int_abi(runtime: &Path, value: i64) -> String {
-    let tmp = scratch_root();
-    let boot = tmp.join("tcl_real_native_wide_int_boot.wat");
+    let boot = scratch("tcl_real_native_wide_int_boot.wat");
     std::fs::write(&boot, native_wide_int_bootstrap_wat(value))
         .expect("write native wide-int bootstrap");
     let out = Command::new("wasmtime")
@@ -980,9 +1026,8 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
             "set go 1\nwhile {$go} {string index\nlappend never x}\nstring length abc\n",
         ),
     ] {
-        let tmp = scratch_root();
-        let user = tmp.join(format!("tcl_real_leak_user_{tag}.wasm"));
-        let boot = tmp.join(format!("tcl_real_leak_boot_{tag}.wat"));
+        let user = scratch(&format!("tcl_real_leak_user_{tag}.wasm"));
+        let boot = scratch(&format!("tcl_real_leak_boot_{tag}.wat"));
         // The frame-alloc requirement is what keeps this honest: under source
         // evaluation no transient frame is ever allocated, so the outstanding
         // count the bootstrap checks would balance at zero and the case would
