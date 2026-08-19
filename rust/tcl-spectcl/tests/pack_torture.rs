@@ -234,28 +234,84 @@ fn degenerate_byte_sequences_never_panic() {
     }
 }
 
-/// A truncated pack — cut at every byte offset of a valid one — never panics
-/// and never hangs.
+/// The well-formed pack the truncation tests below cut down.
+const TRUNCATION_SUBJECT: &str = "speclib demo 1.1 {\n\
+     \x20 display_name {Demo}\n\
+     \x20 file_extension dem -name {Demo files} -dialect tcl9.0\n\
+     \x20 values level { value fast -detail {Quick.} }\n\
+     \x20 command demo::run {\n\
+     \x20   dialects tcl8.6+\n\
+     \x20   arity 2\n\
+     \x20   introduced_version 1.2\n\
+     \x20   arg 0 -role VarWrite\n\
+     \x20   arg 1 -role Body\n\
+     \x20   option -verbose -detail {Chatter.}\n\
+     \x20   subcommand now { arity 0 }\n\
+     \x20   hover { summary {Runs the demo.} }\n\
+     \x20 }\n\
+     }\n";
+
+/// A pack truncated at each of the loader's distinct parse states loads
+/// without panicking or hanging.
 ///
 /// Truncation is the shape a real editor produces constantly: a file saved
-/// mid-keystroke, a partial write, a `git checkout` racing the watcher. Every
-/// prefix of a well-formed pack is therefore an input the loader will see.
+/// mid-keystroke, a partial write, a `git checkout` racing the watcher.
+///
+/// These six cuts are fixed and hand-picked, one per state the loader can be
+/// interrupted in — the exhaustive every-byte sweep is
+/// [`every_prefix_of_a_valid_pack_loads`], which is `#[ignore]`d into the
+/// manual tier because a permuted-input loop is fuzz-shaped
+/// (`AGENTS.md`, "Fuzzing is always manual"). Keeping the representative set
+/// here is what that policy asks for: "deterministic fixed-input tests
+/// covering the same code stay in CI".
+#[test]
+fn truncation_at_each_parse_state_loads() {
+    let cases = [
+        ("mid-keyword", "speclib demo 1.1 {\n  comm"),
+        ("just past the speclib header", "speclib demo 1.1 {\n"),
+        (
+            "inside an open command body",
+            "speclib demo 1.1 {\n  command demo::run {\n",
+        ),
+        (
+            "mid-lifecycle, a flag with no value",
+            "speclib demo 1.1 {\n  command demo::run {\n    arity 2\n    introduced_version",
+        ),
+        (
+            "mid-string, inside a braced summary",
+            "speclib demo 1.1 {\n  command demo::run {\n    hover { summary {Runs the",
+        ),
+        (
+            "the last byte, one newline short of complete",
+            &TRUNCATION_SUBJECT[..TRUNCATION_SUBJECT.len() - 1],
+        ),
+    ];
+
+    for (label, source) in cases {
+        let owned = source.to_owned();
+        let pack = within(label, Duration::from_secs(20), move || load_pack(&owned));
+        assert!(
+            pack.commands.iter().all(|c| !c.spec.name.is_empty()),
+            "`{label}` produced a nameless command"
+        );
+    }
+}
+
+/// The exhaustive companion to [`truncation_at_each_parse_state_loads`]: every
+/// byte offset of the same pack, not just the six representative ones.
+///
+/// Deliberately in the manual tier. The body is a permuted-input loop over
+/// generated inputs, which `AGENTS.md` ("Fuzzing is always manual") puts
+/// behind `#[ignore]` "regardless of how fast it happens to be today" — the
+/// six-case test above is the CI cover for the same code.
+#[ignore = "permuted-input sweep over every truncation offset; fuzz-shaped, so \
+            manual tier only — run explicitly with `cargo test -p tcl-spectcl \
+            --test pack_torture -- --ignored`, or via `make test-exhaustive`. \
+            The representative fixed cases run in CI as \
+            truncation_at_each_parse_state_loads"]
 #[test]
 fn every_prefix_of_a_valid_pack_loads() {
-    let full = "speclib demo 1.1 {\n\
-                \x20 display_name {Demo}\n\
-                \x20 file_extension dem -name {Demo files} -dialect tcl9.0\n\
-                \x20 values level { value fast -detail {Quick.} }\n\
-                \x20 command demo::run {\n\
-                \x20   dialects tcl8.6+\n\
-                \x20   arity 2\n\
-                \x20   arg 0 -role VarWrite\n\
-                \x20   arg 1 -role Body\n\
-                \x20   option -verbose -detail {Chatter.}\n\
-                \x20   subcommand now { arity 0 }\n\
-                \x20   hover { summary {Runs the demo.} }\n\
-                \x20 }\n\
-                }\n";
+    let full = TRUNCATION_SUBJECT;
 
     for cut in 0..=full.len() {
         if !full.is_char_boundary(cut) {
@@ -978,8 +1034,21 @@ fn one_broken_pack_does_not_cost_the_others() {
 /// pack would be a remote-code-execution vector on open.
 #[test]
 fn injection_shapes_in_spec_strings_stay_literal() {
-    let hostile_summary =
-        r"[exec /bin/sh -c {touch /tmp/tcl-lsp-pwned}] ${env(HOME)} $::argv \x41 %s %n";
+    // The sentinel lives in this test's own scratch directory, never at a
+    // fixed path: a shared `/tmp` name collides between concurrent runs and
+    // between checkouts, and — worse — a single genuine failure would leave
+    // the file behind and make every later run fail for a reason that has
+    // nothing to do with the code under test. Removed before the load so the
+    // assertion cannot inherit a stale file, and again afterwards so a failure
+    // here does not poison the next run.
+    let root = scratch("injection");
+    let sentinel = root.join("pwned");
+    let _ = std::fs::remove_file(&sentinel);
+
+    let hostile_summary = format!(
+        r"[exec /bin/sh -c {{touch {}}}] ${{env(HOME)}} $::argv \x41 %s %n",
+        sentinel.display()
+    );
     let source = format!(
         "speclib evil 1.1 {{\n\
         \x20 command evil::cmd {{\n\
@@ -995,10 +1064,10 @@ fn injection_shapes_in_spec_strings_stay_literal() {
         summary.contains("[exec") && summary.contains("${env(HOME)}"),
         "the injection shapes must survive verbatim as data, got: {summary:?}"
     );
-    assert!(
-        !Path::new("/tmp/tcl-lsp-pwned").exists(),
-        "loading a pack executed its `hover` body"
-    );
+    let executed = sentinel.exists();
+    let _ = std::fs::remove_file(&sentinel);
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(!executed, "loading a pack executed its `hover` body");
 }
 
 /// Path traversal in a path-like field is carried as text and never resolved

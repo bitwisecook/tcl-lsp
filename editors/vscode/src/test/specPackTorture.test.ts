@@ -73,8 +73,17 @@ const docUri = getDocUri("specPackTorture.tcl");
  *  merely that the consumer's queue happens to be alive. */
 const probeUri = getDocUri("livenessProbe.tcl");
 
-/** A well-formed pack: the state every hostile write is measured against. */
-const GOOD_PACK = `speclib ${PACK_NAME} 1.1 {
+/**
+ * A well-formed pack, stamped with `generation` in its hover summary.
+ *
+ * The stamp is what makes "which write is in effect" observable. Without it
+ * every well-formed generation is byte-identical in the fields a test can
+ * read, so a convergence assertion would be satisfied by *any* of them — a
+ * stale publish two generations old would pass. `gen=<generation>` reaches the
+ * hover, so a test can name the exact write it expects to win.
+ */
+function goodPack(generation: string): string {
+  return `speclib ${PACK_NAME} 1.1 {
 
 command ::torturepack::apply {
     dialects tcl8.6+
@@ -87,13 +96,28 @@ command ::torturepack::apply {
     form Default {::torturepack::apply resultVar script}
 
     hover {
-        summary {${HOVER_MARKER} — evaluate a script collecting into a caller variable.}
+        summary {${HOVER_MARKER} gen=${generation} — evaluate a script collecting into a caller variable.}
         synopsis {::torturepack::apply resultVar script}
     }
 }
 
 }
 `;
+}
+
+/** The baseline well-formed pack every hostile write is measured against. */
+const GOOD_PACK = goodPack("base");
+
+/** Opt-in for the manual-tier edit storm below.
+ *
+ *  Matches the Rust corpus sweep's `SPECTCL_CORPUS_TMP` convention: any
+ *  non-empty value other than `0` counts, so `SPECTCL_EXT_EDIT_STORM=1` reads
+ *  the way it is documented without `=0` silently meaning the opposite. */
+const EDIT_STORM_ENV = "SPECTCL_EXT_EDIT_STORM";
+function editStormOptedIn(): boolean {
+  const value = process.env[EDIT_STORM_ENV];
+  return value !== undefined && value !== "" && value !== "0";
+}
 
 /**
  * The hostile battery, each entry a complete file body.
@@ -281,6 +305,32 @@ async function awaitHoverMarker(label: string): Promise<void> {
   );
 }
 
+/**
+ * Wait until the hover shows exactly `generation`, then assert no other
+ * generation's stamp is present.
+ *
+ * The equality is the point. `awaitHoverMarker` only proves *some* well-formed
+ * generation is in effect, which any of a burst's writes would satisfy — this
+ * names the one that must have won.
+ */
+async function awaitHoverGeneration(generation: string, label: string): Promise<void> {
+  const stamp = `gen=${generation}`;
+  const text = await pollUntil(
+    () => hoverTextAt(COMMAND_POSITION),
+    (t) => t.includes(stamp),
+    {
+      timeout: 40_000,
+      label,
+    },
+  );
+  const others = [...text.matchAll(/gen=([A-Za-z0-9-]+)/g)].map((m) => m[1]);
+  assert.deepStrictEqual(
+    [...new Set(others)],
+    [generation],
+    `the hover must show only generation ${generation}, got ${JSON.stringify(others)}`,
+  );
+}
+
 suite("SpecTcl pack torture through the extension host", () => {
   let originalSetting: string[] | undefined;
 
@@ -369,42 +419,85 @@ suite("SpecTcl pack torture through the extension host", () => {
     await awaitHoverMarker("the repaired pack's hover to come back");
   });
 
-  test("rapid successive edits settle on the last write, not an earlier one", async function () {
-    // The pack-reload analogue of the #1619 / #1622 index-removal window: a
-    // reload takes its sequence number before it reads the disk, so a slower
-    // earlier reload must never publish over a faster later one. Ten writes
-    // back to back, with no wait between them, is what makes the interleaving
-    // likely rather than theoretical.
-    this.timeout(240_000);
+  test("a second write immediately after a first wins", async function () {
+    // The minimal stale-publish shape, and the one that belongs in CI: two
+    // writes with no wait between them, so the first reload is still reading
+    // the disk when the second lands. A reload takes its sequence number
+    // *before* it reads (`PublishedPackSet::seq`), so the earlier snapshot must
+    // never publish over the later one however long it then spends parsing.
+    //
+    // The generation stamps are what make this a real assertion: both writes
+    // are well-formed, so without them "some good pack is loaded" would be
+    // true of the loser too. `awaitHoverGeneration` demands `gen=second` and
+    // no other stamp — a stale publish leaves `gen=first` and fails.
+    this.timeout(180_000);
 
     const since = getServerLogSize();
-    for (let i = 0; i < 10; i++) {
-      // Alternate broken and well-formed so consecutive writes cannot
-      // coalesce into one content key, and so the *final* state is one whose
-      // effect is observable.
-      fs.writeFileSync(
-        PACK,
-        i % 2 === 0
-          ? `speclib ${PACK_NAME} 1.1 {\n  command ::torturepack::apply { arity ${i}\n`
-          : `${GOOD_PACK}\n# generation ${i}\n`,
-        "utf8",
-      );
-    }
-    // Last write is i === 9, an odd index, so the good pack is the final state.
-    fs.writeFileSync(PACK, `${GOOD_PACK}\n# final generation\n`, "utf8");
+    fs.writeFileSync(PACK, goodPack("first"), "utf8");
+    fs.writeFileSync(PACK, goodPack("second"), "utf8");
 
     await waitForServerLog((line) => line.includes("SpecTcl:"), {
       since,
       timeout: 40_000,
-      label: "at least one reload from the rapid-edit burst",
+      label: "a reload from the two back-to-back writes",
     });
-    await assertServerAlive("a burst of ten rapid pack edits");
+    await assertServerAlive("two back-to-back pack writes");
 
-    // The registry must converge on what is *on disk now*, not on whichever
-    // reload finished last. A stale publish would leave the truncated
-    // generation in effect and this would never hold.
-    await awaitPackLoaded("the pack set to converge on the final write");
-    await awaitHoverMarker("the hover to converge on the final write");
+    await awaitPackLoaded("the pack set to converge on the second write");
+    await awaitHoverGeneration("second", "the hover to converge on the second write");
+
+    // Leave the suite's baseline in place for whatever runs next.
+    await writePack(GOOD_PACK, "the baseline pack, restored");
+    await awaitHoverGeneration("base", "the baseline hover to return");
+  });
+
+  // Manual tier. The body is a generated edit storm, which `AGENTS.md`
+  // ("Fuzzing is always manual") keeps out of the automatic tiers "regardless
+  // of how fast it happens to be today" — the deterministic two-write test
+  // above is the CI cover for the same window. Opt in the way the Rust corpus
+  // sweep does (`SPECTCL_CORPUS_TMP`), with an env var:
+  //
+  //     SPECTCL_EXT_EDIT_STORM=1 make test-ext
+  test("a twenty-write edit storm still converges on the last write", async function () {
+    if (!editStormOptedIn()) {
+      this.skip();
+    }
+    this.timeout(300_000);
+
+    const since = getServerLogSize();
+    let last = "";
+    for (let i = 0; i < 20; i++) {
+      // Alternate broken and well-formed so consecutive writes cannot coalesce
+      // into one content key, and stamp every well-formed one so the winner is
+      // identifiable rather than merely well-formed.
+      if (i % 2 === 0) {
+        fs.writeFileSync(
+          PACK,
+          `speclib ${PACK_NAME} 1.1 {\n  command ::torturepack::apply { arity ${i}\n`,
+          "utf8",
+        );
+      } else {
+        last = `storm-${i}`;
+        fs.writeFileSync(PACK, goodPack(last), "utf8");
+      }
+    }
+    // End on a well-formed generation whose stamp nothing else in the burst
+    // used, so convergence is checkable.
+    last = "storm-final";
+    fs.writeFileSync(PACK, goodPack(last), "utf8");
+
+    await waitForServerLog((line) => line.includes("SpecTcl:"), {
+      since,
+      timeout: 40_000,
+      label: "at least one reload from the edit storm",
+    });
+    await assertServerAlive("a twenty-write edit storm");
+
+    await awaitPackLoaded("the pack set to converge after the storm");
+    await awaitHoverGeneration(last, "the hover to converge on the storm's final write");
+
+    await writePack(GOOD_PACK, "the baseline pack, restored after the storm");
+    await awaitHoverGeneration("base", "the baseline hover to return after the storm");
   });
 
   test("deleting the pack retires its command, and re-creating it brings it back", async function () {
