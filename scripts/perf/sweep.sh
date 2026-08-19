@@ -12,6 +12,7 @@
 # changes, re-run the whole sweep — that is what this script is for.
 #
 # Usage: sweep.sh [--scope small] [--out results] [--only 2.1.5,2.1.6]
+#                  [--timeout 600] [--bench-deadline 240]
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$here"
@@ -19,15 +20,26 @@ cd "$here"
 scope=small
 out=results
 only=""
-# Generous: a healthy version takes well under a minute, but one
-# whose workspace scan never settles burns 120s on that alone.
+# External backstop only, now that bench.py enforces its own outer
+# `--deadline` (issue #1399, default 240s — see bench.py's DEFAULT_DEADLINE_S
+# and BENCH_DEADLINE_S). This external `timeout --foreground` still exists
+# for the case bench.py's own watchdog cannot cover — the interpreter itself
+# wedged, or a `--deadline` misconfigured below the true need — so it stays
+# generous rather than tight: a healthy version takes well under a minute,
+# but one whose workspace scan never settles burns 120s on that alone.
 per_version_timeout=600
+# Forwarded to `bench.py --deadline`. Independent knob from the external
+# backstop above: this is what actually produces the phase/binary/last-
+# request diagnostic on expiry; the external timeout only produces a bare
+# "killed after Ns" with no attribution.
+bench_deadline=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --scope) scope="$2"; shift 2 ;;
     --out)   out="$2";   shift 2 ;;
     --only)  only="$2";  shift 2 ;;
     --timeout) per_version_timeout="$2"; shift 2 ;;
+    --bench-deadline) bench_deadline="$2"; shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
@@ -64,15 +76,21 @@ for tag in "${tags[@]}"; do
   fi
   echo
   echo "########## $tag ##########"
-  # Hard wall-clock cap per version. bench.py bounds every *request*, but the
-  # LSP transport is a pipe and a blocking write to a server that has stopped
-  # draining stdin has no timeout at all: one wedged this sweep for 8h45m,
-  # with the client stuck in write() and the server idle in read(). That
-  # deadlock is intermittent and not yet root-caused, so the sweep refuses to
-  # wait on it rather than silently losing a night.
-  if timeout --foreground "$per_version_timeout" \
-       python3 bench.py --server "$bin" --version "$version" \
-       --scope "$scope" --out "$out"; then
+  # Hard wall-clock cap per version, as a *backstop* behind bench.py's own
+  # `--deadline` (issue #1399): a blocking write to a server that had
+  # stopped draining stdin used to have no timeout at all anywhere in the
+  # stack — one wedged this sweep for 8h45m, client stuck in write(),
+  # server idle in read(). `lsp_client.py`'s transport now bounds that write
+  # too, and bench.py's own watchdog reports which phase/binary/request died
+  # and exits cleanly well inside this window — so a hit here now means
+  # bench.py's own deadline didn't fire (misconfigured, or a fault outside
+  # even its coverage), not a silent multi-hour wedge.
+  bench_args=(
+    python3 bench.py --server "$bin" --version "$version"
+    --scope "$scope" --out "$out"
+  )
+  [ -n "$bench_deadline" ] && bench_args+=(--deadline "$bench_deadline")
+  if timeout --foreground "$per_version_timeout" "${bench_args[@]}"; then
     ok=$((ok + 1))
   elif [ $? -eq 124 ]; then
     echo "::: $tag TIMED OUT after ${per_version_timeout}s — see the pipe-deadlock note above :::"

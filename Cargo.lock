@@ -5876,6 +5876,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "tcl-bigip-query",
  "tcl-cli-support",
  "tcl-compiler",
  "tcl-core-types",

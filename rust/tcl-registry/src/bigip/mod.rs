@@ -23,8 +23,10 @@
 //! header keys) and the schema of its properties (value kind, enum
 //! values, references to other kinds, list operators, defaults, …).
 //!
-//! The spec data is `&'static` const data emitted by the
-//! registry-data generator.
+//! The spec data (`data::ltm`, `data::apm`, `data::gtm`, … — one file per
+//! tmsh module word) is hand-maintained `&'static` const
+//! data; see `data/mod.rs` and issue #1404 for provenance and the
+//! `cargo xtask bigip-data-schema --check` consistency gate.
 
 use std::collections::HashMap;
 
