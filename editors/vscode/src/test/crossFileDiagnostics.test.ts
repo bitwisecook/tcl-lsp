@@ -35,7 +35,7 @@
 
 import * as assert from "assert";
 import * as vscode from "vscode";
-import { getDocUri, activate, pollUntil } from "./helper";
+import { getDocUri, activate, pollUntil, waitForDeepDiagnostics } from "./helper";
 
 /** The diagnostic codes present on `uri`, as plain strings. */
 function codesFor(uri: vscode.Uri): string[] {
@@ -89,6 +89,28 @@ suite("Cross-file diagnostics in a multi-file workspace (#1331, #1332)", () => {
   const noTk = getDocUri("crossFileNoTk.tcl");
   const mutableDef = getDocUri("crossFileMutableDef.tcl");
   const mutableCaller = getDocUri("crossFileMutableCaller.tcl");
+
+  // Open the definition once, and wait for the server to have *published* it,
+  // before any test opens a caller (issue #1619).
+  //
+  // `did_open` momentarily drops a document's workspace-index entry, and the
+  // debounced diagnostics publish is what puts it back. A caller opened inside
+  // that window is analysed against an index with no `libtest` in it, settles
+  // `W123`, and — because re-activating an already-open, unedited document
+  // starts no new analysis — never gets another verdict, so `openUntil`'s
+  // barrier can never hold. The deep-diagnostics marker is emitted *after* the
+  // index write that restores the entry, so waiting on it here closes the
+  // window for the whole suite.
+  //
+  // It belongs in `suiteSetup` rather than in `openUntil`: the marker is
+  // emitted per analysis, and these tests re-open the same documents, so only
+  // the first open produces one.
+  suiteSetup(async () => {
+    await activate(defLib);
+    await waitForDeepDiagnostics(defLib);
+    await activate(mutableDef);
+    await waitForDeepDiagnostics(mutableDef);
+  });
 
   test("a call to a proc defined in another file is not flagged unknown", async () => {
     await activate(defLib);
