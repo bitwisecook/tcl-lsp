@@ -155,11 +155,19 @@ struct Log {
     /// silently, and the declaration is the pack's only way to say it needs
     /// them.
     v11_uses: Vec<(String, u32, String)>,
+    /// The same, for 1.2-only vocabulary — today the `option` rows a
+    /// `sub_subcommand` body may carry (issue #1610).
+    v12_uses: Vec<(String, u32, String)>,
 }
 
 impl Log {
     fn v11(&mut self, line: u32, word: &str) {
         self.v11_uses
+            .push((self.context.clone(), line, word.to_owned()));
+    }
+
+    fn v12(&mut self, line: u32, word: &str) {
+        self.v12_uses
             .push((self.context.clone(), line, word.to_owned()));
     }
 
@@ -835,9 +843,9 @@ pub fn load_pack(source: &str) -> Pack {
     // 1.0 loader drops each one silently, and declaring 1.1 is how a pack
     // says it needs them. One notice per site, so an editor can mark every
     // offending row.
-    if matches!(pack.dsl_version.as_str(), "1" | "1.0") {
-        let declared = pack.dsl_version.clone();
-        let name = pack.name.clone();
+    let declared = pack.dsl_version.clone();
+    let name = pack.name.clone();
+    if matches!(declared.as_str(), "1" | "1.0") {
         for (context, line, word) in std::mem::take(&mut log.v11_uses) {
             log.notices.push(Notice {
                 context,
@@ -846,6 +854,19 @@ pub fn load_pack(source: &str) -> Pack {
                     "`{word}` is SpecTcl 1.1 vocabulary, but this pack declares \
                      vocabulary {declared}; a 1.0 loader drops the word — declare \
                      `speclib {name} 1.1`"
+                ),
+            });
+        }
+    }
+    if matches!(declared.as_str(), "1" | "1.0" | "1.1") {
+        for (context, line, word) in std::mem::take(&mut log.v12_uses) {
+            log.notices.push(Notice {
+                context,
+                line,
+                message: format!(
+                    "`{word}` is SpecTcl 1.2 vocabulary, but this pack declares \
+                     vocabulary {declared}; a {declared} loader drops the word — \
+                     declare `speclib {name} 1.2`"
                 ),
             });
         }
@@ -888,13 +909,13 @@ fn report_extra_speclib_blocks(top: &[Stmt], log: &mut Log) {
 ///
 /// Additive words never bump the vocabulary version
 /// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0` and
-/// `1.1` all name a vocabulary this build understands in full. A pack naming
-/// anything else still loads: the words it uses that this build knows are read,
-/// and the rest hit the ordinary unknown-property rule.
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
+/// `1.1` and `1.2` all name a vocabulary this build understands in full. A pack
+/// naming anything else still loads: the words it uses that this build knows
+/// are read, and the rest hit the ordinary unknown-property rule.
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "1.2";
 
 /// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
 /// pack's language is written under. The extension is normalised to
@@ -4287,7 +4308,9 @@ fn apply_subcommand_stmt(
                 acc.side_effects.push(effect);
             }
         }
-        "sub_subcommand" => acc.sub_subcommands.push(sub_subcommand_row(stmt, log)),
+        "sub_subcommand" => acc
+            .sub_subcommands
+            .push(sub_subcommand_row(stmt, tables, log)),
         "versioned_arg_value" => {
             if let Some(gate) = versioned_arg_value_row(stmt, log) {
                 acc.versioned_arg_values.push(gate);
@@ -4363,7 +4386,19 @@ fn apply_subcommand_stmt(
     }
 }
 
-fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
+/// `sub_subcommand NAME ?flags? ?{ option … }?`.
+///
+/// The trailing block is optional and holds `option` rows: a second-level
+/// operation whose option table genuinely differs from its siblings'
+/// (`namespace ensemble create` has `-command`, `configure` has `-namespace`)
+/// declares its own, and a consumer that can see the dispatch word prefers it
+/// over the owning subcommand's (issue #1610). Everything else stays a flag
+/// row — the block is only written where there is a table to write.
+///
+/// The block is recognised by being a **braced** word in a position where a
+/// flag name was expected, which no flag value can be: every flag here is
+/// `-name value`, so a value is only ever read through `next_text`.
+fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSubCommand {
     let mut row = SubSubCommand {
         name: leak_str(stmt.word_text(1)),
         ..SubSubCommand::DEFAULT
@@ -4377,6 +4412,11 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
             "-dialects" => {
                 let text = next_text(words, &mut i);
                 row.dialects = parse_dialects(&text, stmt.line, log);
+            }
+            other if !other.starts_with('-') && words[i].braced => {
+                log.v12(stmt.line, "an option block on `sub_subcommand`");
+                row.options =
+                    leak_slice(sub_subcommand_options(&words[i], row.name, tables, log));
             }
             other => {
                 if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
@@ -4395,6 +4435,47 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
         log,
     );
     row
+}
+
+/// The `option` rows inside a `sub_subcommand NAME { … }` body.
+///
+/// An `-arity-hook` here is reported rather than dropped in silence: the hook
+/// binder walks the command and its subcommands only, so a hook declared at
+/// the second level would never be bound, and a pack that wrote one would get
+/// a silently arity-hookless option. The option itself survives; only the hook
+/// is refused.
+fn sub_subcommand_options(
+    body: &Word,
+    owner: &str,
+    tables: &PackTables,
+    log: &mut Log,
+) -> Vec<OptionSpec> {
+    let mut options = Vec::new();
+    for stmt in block(body) {
+        if stmt.word_text(0) != "option" {
+            log.say(
+                stmt.line,
+                format!(
+                    "a `sub_subcommand` body holds `option` rows only; `{}` dropped",
+                    stmt.word_text(0)
+                ),
+            );
+            continue;
+        }
+        let (option, hook) = option_row(&stmt, tables, log);
+        if hook.is_some() {
+            log.say(
+                stmt.line,
+                format!(
+                    "`-arity-hook` on `{}`'s option `{}` is not bindable at the \
+                     second subcommand level; the option is kept, the hook is not",
+                    owner, option.name
+                ),
+            );
+        }
+        options.push(option);
+    }
+    options
 }
 
 fn versioned_arg_value_row(
@@ -4848,11 +4929,11 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0` and `1.1` are all this vocabulary; anything else loads with
-    /// a notice rather than being refused.
+    /// `1`, `1.0`, `1.1` and `1.2` are all this vocabulary; anything else
+    /// loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
-        for known in ["1", "1.0", "1.1"] {
+        for known in ["1", "1.0", "1.1", "1.2"] {
             let pack = load_pack(&format!(
                 "speclib probe {known} {{\n command demo {{ arity 1 }}\n}}"
             ));
@@ -4868,7 +4949,7 @@ mod tests {
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — \
+                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.2 — \
                  newer words may be dropped"
             ]
         );
@@ -4885,7 +4966,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 1.1); if it is the library's own version, it belongs in \
+                 1.2); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );

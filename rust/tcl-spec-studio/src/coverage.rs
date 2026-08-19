@@ -635,6 +635,7 @@ pub fn witness_sub_sub_command(sub: &SubSubCommand) {
         synopsis: _,
         dialects: _,
         lifecycle: _,
+        options: _,
     } = sub;
 }
 
@@ -645,6 +646,7 @@ pub const SUB_SUB_COMMAND: &[Field] = &[
     f("synopsis", Surface::Key("synopsis")),
     f("dialects", Surface::Key("dialects")),
     f("lifecycle", Surface::Keys(LIFECYCLE_KEYS)),
+    f("options", Surface::Key("options")),
 ];
 
 /// Compile-time witness for [`OPTION_SPEC`].

@@ -570,6 +570,97 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-writable",
         "catch {vwait -writable stdout -timeout 1}",
     ),
+    // ---- namespace ensemble (issue #1610) ----
+    //
+    // `create` and `configure` are two different C option tables
+    // (`ensembleCreateOptions` / `ensembleConfigOptions`, `tclEnsemble.c`),
+    // and the audit has to probe each separately or the pair's whole point —
+    // that `-command` is create-only and `-namespace` configure-only — is
+    // exactly what stays invisible. Each probe builds its own ensemble in a
+    // throwaway namespace first, so the option word is the only thing under
+    // test; `namespace ensemble` itself is 8.5+, so on 8.4 every one of these
+    // reports as unsupported through the same "invalid command"/"bad option"
+    // path any other post-8.4 surface does.
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-command",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-map",
+        "namespace eval ::probe {proc p {} {}; namespace export p; \
+         namespace ensemble create -map {q p}}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-parameters",
+        "namespace eval ::probe {namespace ensemble create -parameters arg}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-prefixes",
+        "namespace eval ::probe {namespace ensemble create -prefixes 0}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-subcommands",
+        "namespace eval ::probe {proc p {} {}; namespace ensemble create -subcommands p}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-unknown",
+        "namespace eval ::probe {namespace ensemble create -unknown ::puts}",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-map",
+        "namespace eval ::probe {proc p {} {}; namespace export p; \
+         namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -map {q ::probe::p}",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-namespace",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -namespace",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-parameters",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -parameters arg",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-prefixes",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -prefixes 0",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-subcommands",
+        "namespace eval ::probe {proc p {} {}; namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -subcommands p",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-unknown",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -unknown ::puts",
+    ),
 ];
 
 /// Probed options the registry does not declare, each with the issue tracking
@@ -618,6 +709,18 @@ fn registry_option_names(command: &str) -> Option<Vec<&'static str>> {
     for sub in spec.subcommands {
         for opt in sub.options {
             push(opt, &mut names);
+        }
+        // A two-level ensemble may hang its real tables off the *second*
+        // level, where the two operations disagree about what exists
+        // (`namespace ensemble create` has `-command`, `configure` has
+        // `-namespace`; issue #1610). Fold those in for the same reason the
+        // subcommand surface is folded in: this guard is about an option
+        // surface the audit knows and the registry has never heard of, not
+        // about which level declares it.
+        for op in sub.sub_subcommands {
+            for opt in op.options {
+                push(opt, &mut names);
+            }
         }
     }
     names.sort_unstable();

@@ -573,3 +573,79 @@ fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
         .map(ToOwned::to_owned)
         .collect()
 }
+
+/// A second-level subcommand that carries its own option table is written as a
+/// **block**, and the block survives the round trip (issue #1610).
+///
+/// `namespace ensemble create` and `configure` are the case the field exists
+/// for: two different C option tables (`ensembleCreateOptions` /
+/// `ensembleConfigOptions`, `tclEnsemble.c`), so a pack that could only say
+/// one of them would silently re-merge the bug the split removed.
+#[test]
+fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
+    let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
+    let trip = round_trip(&shipped);
+
+    assert!(
+        trip.text.contains("sub_subcommand create") && trip.text.contains("option -command"),
+        "`create`'s own table must be written out:\n{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("sub_subcommand configure") && trip.text.contains("option -namespace"),
+        "`configure`'s own table must be written out:\n{}",
+        trip.text
+    );
+    // `exists` declares none, so it stays a flag row (wrapped, but no block).
+    assert!(
+        trip.text.contains("sub_subcommand exists \\\n")
+            && !trip.text.contains("sub_subcommand exists -detail {Return whether command is an ensemble command.} -synopsis {namespace ensemble exists command} {"),
+        "an operation with no table of its own keeps the flag row:\n{}",
+        trip.text
+    );
+
+    let reloaded = &trip.reloaded;
+    let ensemble = reloaded["subcommands"]
+        .as_array()
+        .expect("subcommands is a list")
+        .iter()
+        .find(|sub| sub["name"] == "ensemble")
+        .expect("`namespace ensemble` survives");
+    let ops = ensemble["sub_subcommands"]
+        .as_array()
+        .expect("sub_subcommands is a list");
+    let names_of = |op: &str| -> Vec<String> {
+        ops.iter()
+            .find(|row| row["name"] == op)
+            .and_then(|row| row["options"].as_array())
+            .map(|opts| {
+                opts.iter()
+                    .map(|o| o["name"].as_str().unwrap_or_default().to_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert_eq!(
+        names_of("create"),
+        vec![
+            "-command",
+            "-map",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert_eq!(
+        names_of("configure"),
+        vec![
+            "-map",
+            "-namespace",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert!(names_of("exists").is_empty());
+}

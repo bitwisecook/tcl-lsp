@@ -296,6 +296,14 @@ struct SwitchCompletionCtx<'a> {
 /// options live on the subcommand (`SubCommand::options`), and only that
 /// table is dialect-correct for a subcommand-specific option (e.g. `chan
 /// configure -inputmode`, 9.0+, absent from `chan`'s own top-level table).
+///
+/// A two-level ensemble narrows once more: `namespace ensemble create` and
+/// `namespace ensemble configure` recognise different options, so the
+/// dispatch word at index 2 selects between them through
+/// [`SubCommand::option_scope`] (issue #1610). Offering the merged set put
+/// `-command` — a guaranteed `bad option` — in `configure`'s list and left
+/// its readable `-namespace` out of it.
+///
 /// Mirrors the sub-arg-value resolution in [`context_aware_completions`].
 /// Returns `None` when the resolved table has no options at all (so the
 /// caller falls through to the next completion context).
@@ -318,8 +326,24 @@ fn switch_completion_items(
         .and_then(|sub_name| {
             spec.resolve_subcommand_for_dialect(&sub_name, profile.availability_mask)
         });
+    let floor = package_version_floor(analysis, spec, profile);
     let (options, parent_dialects) = match sub {
-        Some(sub) => (sub.options, sub.dialects.or(spec.dialects)),
+        Some(sub) => {
+            // The dispatch word of a two-level ensemble, when the cursor is
+            // past it — `namespace ensemble configure -⟨tab⟩` has it at
+            // index 2. `None` (nothing typed there yet, or a `$var`) keeps
+            // the subcommand's own, wider table.
+            let next = (word_idx >= 3)
+                .then(|| nth_word_on_line(source, line, 2))
+                .flatten();
+            let scope = sub.option_scope(
+                next.as_deref(),
+                Some(profile.availability_mask),
+                floor.as_deref(),
+                spec.dialects,
+            );
+            (scope.options, scope.dialects)
+        }
         None => (spec.options, spec.dialects),
     };
     if options.is_empty() {
@@ -334,7 +358,6 @@ fn switch_completion_items(
         char_col_to_utf16(line_text, dash_col),
         char_col_to_utf16(line_text, cursor_col),
     );
-    let floor = package_version_floor(analysis, spec, profile);
     Some(switch_completions(
         options,
         profile,

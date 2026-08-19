@@ -528,7 +528,9 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("dialects".into(), dialects(sub.dialects));
-    let complete = insert_lifecycle(&mut d, sub.lifecycle);
+    let mut lost = Unrecovered::default();
+    d.insert("options".into(), option_rows(sub.options, &mut lost));
+    let complete = insert_lifecycle(&mut d, sub.lifecycle) && lost.is_empty();
     (Value::Object(d), complete)
 }
 
@@ -816,6 +818,13 @@ impl Unrecovered {
         if !self.0.contains(&key) {
             self.0.push(key);
         }
+    }
+
+    /// Nothing was lost — the "complete" answer a nested row reports upward
+    /// when it seeds a sub-draft of its own (a second-level subcommand's
+    /// option table) rather than sharing its parent's accumulator.
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     fn into_value(self) -> Value {

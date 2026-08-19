@@ -78,7 +78,7 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
-pub const DSL_VERSION: &str = "1.1";
+pub const DSL_VERSION: &str = "1.2";
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -2411,7 +2411,21 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
             );
         }
         push_lifecycle_flags(&mut words, &mut lost, row);
-        emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
+        // A second-level operation with its own option table (`namespace
+        // ensemble create` vs `configure`, issue #1610) takes a block body,
+        // exactly as a subcommand does; without one it stays a flag row, so
+        // the shape a reader sees still matches what the operation carries.
+        let mut ops = Out::at(out_body.indent + 1);
+        for option in as_array(row.get("options").unwrap_or(&Value::Null)).to_vec() {
+            option_row(&mut ops, ctx, &option);
+        }
+        if lost || ops.text.is_empty() {
+            emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
+        } else {
+            out_body.line(&format!("{} {{", words.join(" ")));
+            out_body.block(&ops);
+            out_body.line("}");
+        }
     }
     hover_block(out_body, ctx, sub);
 

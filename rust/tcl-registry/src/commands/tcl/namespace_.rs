@@ -44,83 +44,167 @@ const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
     },
 ];
 
-/// `namespace ensemble create`'s options — the six settable names match
-/// this project's own `namespace ensemble` implementations (compare
-/// `runtime/rust/src/cmd_namespace.rs`'s `apply_ensemble_option` and
-/// `rust/tcl-vm/src/cmd_namespace.rs`'s `ns_ensemble_create`). Every one
-/// takes a single value word — `create` (and `configure`'s update form)
-/// both parse strict `-option value` pairs, no bare flags. `-namespace`
-/// is deliberately excluded: it's a read-only property `configure` can
-/// report but neither `create` nor `configure` accepts as a setter
-/// (rejected by `apply_ensemble_option`'s `_` arm).
+/// `namespace ensemble create` and `namespace ensemble configure` are two
+/// **different** option tables, not one shared table (issue #1610).
+///
+/// C Tcl declares them side by side in `tclEnsemble.c` and dispatches each
+/// through its own `Tcl_GetIndexFromObj` — `ensembleCreateOptions` is
+/// `-command -map -parameters -prefixes -subcommands -unknown`,
+/// `ensembleConfigOptions` is `-map -namespace -parameters -prefixes
+/// -subcommands -unknown`. They differ at exactly two entries, in opposite
+/// directions, so each table's distinctive option is the *other* one's error.
+/// Pinned on tclsh 8.6.16 and 9.0.4 (byte identical):
+///
+/// ```text
+/// namespace ensemble configure ::E -namespace  → ::M
+/// namespace ensemble configure ::E -command x  → bad option "-command": must be
+///     -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown
+/// namespace ensemble create -namespace ::M     → bad option "-namespace": must be
+///     -command, -map, -parameters, -prefixes, -subcommands, or -unknown
+/// ```
+///
+/// `-namespace` is *readable* but not settable: the setter path's
+/// `CONF_NAMESPACE` arm answers `option -namespace is read-only`
+/// (`TCL ENSEMBLE READ_ONLY`) rather than `bad option`, which is why it
+/// belongs in `configure`'s table — a query (`configure ::E -namespace`) is
+/// a perfectly ordinary use of it, and a Tk-library idiom. The earlier merged
+/// table reasoned from this project's own older runtime code instead of from
+/// C Tcl, and so simultaneously offered `configure` a `-command` that always
+/// errors and hid the `-namespace` it accepts.
+///
+/// Every option in both tables takes a single value word: `create` and
+/// `configure`'s update form both parse strict `-option value` pairs, no bare
+/// flags.
 ///
 /// Dialect gating below is checked directly against the Tcl 8.5, 8.6,
 /// 9.0, and 9.1 `namespace.n` manpages (this project's own
 /// implementations don't themselves version-gate any option, so they
-/// can't be the source of truth here): `-command`, `-map`, `-prefixes`,
-/// `-subcommands`, and `-unknown` are present from 8.5 (when `namespace
-/// ensemble` itself was introduced) onward and so inherit the
+/// can't be the source of truth here): `-command`, `-map`, `-namespace`,
+/// `-prefixes`, `-subcommands`, and `-unknown` are present from 8.5 (when
+/// `namespace ensemble` itself was introduced) onward and so inherit the
 /// subcommand's own `TCL85_PLUS` gate. `-parameters` is the one
 /// exception — it is absent from the Tcl 8.5 ENSEMBLE OPTIONS list
 /// (missing from both the option table and the `-map`/`-prefixes`/
 /// `-subcommands`/`-unknown`/`-command`/`-namespace` enumeration) and
 /// first appears in the Tcl 8.6 manpage, so it carries its own,
 /// narrower `TCL86_PLUS` gate.
+/// `-command`: in `ensembleCreateOptions` only.
+const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
+    name: "-command",
+    value: OptionValue::value("name"),
+    detail: "Name of the ensemble's dispatch command (default: the fully-qualified name of the invoking namespace). Write-only, and valid only with create — configure rejects it as a bad option.",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+/// `-namespace`: in `ensembleConfigOptions` only, and read-only even there —
+/// `configure ::E -namespace` answers with the linked namespace, while
+/// `configure ::E -namespace ::M` raises `option -namespace is read-only`
+/// (`CONF_NAMESPACE`, `tclEnsemble.c`).
+const ENSEMBLE_OPT_NAMESPACE: OptionSpec = OptionSpec {
+    name: "-namespace",
+    value: OptionValue::value("namespace"),
+    detail: "The namespace the ensemble dispatches into, fixed when it was created. Readable through configure; supplying a value raises \"option -namespace is read-only\", and create rejects it as a bad option.",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+/// The five options both C tables carry, in their shared (alphabetical) order.
+const ENSEMBLE_OPT_MAP: OptionSpec = OptionSpec {
+    name: "-map",
+    value: OptionValue::value("dict"),
+    detail: "Maps subcommand names to target command-prefix lists, similar to interp alias (default: empty, meaning each subcommand maps to the identically-named command in the linked namespace).",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+const ENSEMBLE_OPT_PARAMETERS: OptionSpec = OptionSpec {
+    name: "-parameters",
+    value: OptionValue::value("list"),
+    detail: "Named arguments inserted between the ensemble command and the subcommand, used when generating error messages (default: none).",
+    dialects: Some(DialectSet::TCL86_PLUS),
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+const ENSEMBLE_OPT_PREFIXES: OptionSpec = OptionSpec {
+    name: "-prefixes",
+    value: OptionValue::boolean(),
+    detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
+    name: "-subcommands",
+    value: OptionValue::value("list"),
+    detail: "Explicit list of valid subcommand names (default: empty, meaning the -map keys or the linked namespace's exported commands).",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
+    name: "-unknown",
+    value: OptionValue::command_prefix("prefix"),
+    detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
+    dialects: None,
+    aliases: &[],
+    lifecycle: Lifecycle::UNSPECIFIED,
+    min_abbrev: None,
+};
+
+/// `ensembleCreateOptions` (`tclEnsemble.c`), in C's own order.
 static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
-    OptionSpec {
-        name: "-command",
-        value: OptionValue::value("name"),
-        detail: "Name of the ensemble's dispatch command (default: the fully-qualified name of the invoking namespace). Write-only, and valid only with create.",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
-        name: "-map",
-        value: OptionValue::value("dict"),
-        detail: "Maps subcommand names to target command-prefix lists, similar to interp alias (default: empty, meaning each subcommand maps to the identically-named command in the linked namespace).",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
-        name: "-parameters",
-        value: OptionValue::value("list"),
-        detail: "Named arguments inserted between the ensemble command and the subcommand, used when generating error messages (default: none).",
-        dialects: Some(DialectSet::TCL86_PLUS),
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
-        name: "-prefixes",
-        value: OptionValue::boolean(),
-        detail: "Whether unambiguous subcommand prefixes are accepted (default: on).",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
-        name: "-subcommands",
-        value: OptionValue::value("list"),
-        detail: "Explicit list of valid subcommand names (default: empty, meaning the -map keys or the linked namespace's exported commands).",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
-    OptionSpec {
-        name: "-unknown",
-        value: OptionValue::command_prefix("prefix"),
-        detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
-    },
+    ENSEMBLE_OPT_COMMAND,
+    ENSEMBLE_OPT_MAP,
+    ENSEMBLE_OPT_PARAMETERS,
+    ENSEMBLE_OPT_PREFIXES,
+    ENSEMBLE_OPT_SUBCOMMANDS,
+    ENSEMBLE_OPT_UNKNOWN,
+];
+
+/// `ensembleConfigOptions` (`tclEnsemble.c`), in C's own order — `-namespace`
+/// where `create` has `-command`.
+static ENSEMBLE_CONFIG_OPTIONS: &[OptionSpec] = &[
+    ENSEMBLE_OPT_MAP,
+    ENSEMBLE_OPT_NAMESPACE,
+    ENSEMBLE_OPT_PARAMETERS,
+    ENSEMBLE_OPT_PREFIXES,
+    ENSEMBLE_OPT_SUBCOMMANDS,
+    ENSEMBLE_OPT_UNKNOWN,
+];
+
+/// The union of both tables, carried on the `ensemble` subcommand itself for
+/// the **abstain** path only: a call whose dispatch word is dynamic
+/// (`namespace ensemble $op …`) or not yet typed, where no consumer can say
+/// which of the two tables applies.
+///
+/// A union is the right answer there and the wrong one anywhere else. It
+/// cannot draw a false "not in the table" for either operation, which is what
+/// a consumer facing an unknown dispatch word needs; but it also offers both
+/// `-command` and `-namespace`, exactly one of which is always an error, so
+/// every consumer that *can* see the dispatch word must take the narrower
+/// table through [`SubCommand::option_scope`](tcl_registry::SubCommand::option_scope)
+/// instead (issue #1610).
+static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
+    ENSEMBLE_OPT_COMMAND,
+    ENSEMBLE_OPT_MAP,
+    ENSEMBLE_OPT_NAMESPACE,
+    ENSEMBLE_OPT_PARAMETERS,
+    ENSEMBLE_OPT_PREFIXES,
+    ENSEMBLE_OPT_SUBCOMMANDS,
+    ENSEMBLE_OPT_UNKNOWN,
 ];
 
 /// `namespace which ?-command? ?-variable? name` — the two leading flags select
@@ -217,16 +301,24 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
         name: "create",
         detail: "Create an ensemble command for the current namespace.",
         synopsis: "namespace ensemble create ?-option value ...?",
+        options: ENSEMBLE_CREATE_OPTIONS,
         ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "configure",
         detail: "Query or update an existing ensemble command.",
         synopsis: "namespace ensemble configure command ?-option? ?value ...?",
+        options: ENSEMBLE_CONFIG_OPTIONS,
         ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "exists",
+        // `exists` takes no options at all — an empty table here would read as
+        // "declares none, ask the parent", which is the abstain answer and
+        // wrong for an operation whose whole argument list is one command
+        // name. There is nothing to declare either way, so it stays empty and
+        // the parent's union table applies; `exists` never reaches an option
+        // scan because it has no `-`-shaped word to scan.
         detail: "Return whether command is an ensemble command.",
         synopsis: "namespace ensemble exists command",
         ..SubSubCommand::DEFAULT
@@ -741,12 +833,12 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "namespace ensemble subcommand ?arg ...?",
         return_type: Some(TclType::String),
         dialects: Some(DialectSet::TCL85_PLUS),
-        // Shared by `create`/`configure` (see `ENSEMBLE_CREATE_OPTIONS`'s
-        // own doc comment) — `ensemble`'s own dispatch (`create` /
-        // `configure` / `exists`) isn't modelled as nested subcommands, so
-        // this covers the whole `namespace ensemble …` surface rather than
-        // just `create`'s.
-        options: ENSEMBLE_CREATE_OPTIONS,
+        // The abstain-path table only: `create` and `configure` carry their
+        // own, genuinely different tables on `ENSEMBLE_SUB_SUBCOMMANDS`, and
+        // a consumer that can read the dispatch word takes those. This union
+        // is what is left when the dispatch word is dynamic or absent — see
+        // `ENSEMBLE_ANY_OPTIONS` (issue #1610).
+        options: ENSEMBLE_ANY_OPTIONS,
         // The dispatch word itself (index 0, right after `ensemble`) is a
         // closed 3-word enum in every version that has `namespace
         // ensemble` at all — see `ENSEMBLE_OP_VALUES`. Like the top-level

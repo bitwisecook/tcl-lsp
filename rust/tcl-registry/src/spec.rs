@@ -2925,6 +2925,37 @@ pub struct SubSubCommand {
     /// version — orthogonal to [`Self::dialects`], which gates on the Tcl
     /// *core* version.
     pub lifecycle: Lifecycle,
+    /// Options recognised by **this** second-level word only.
+    ///
+    /// Empty — the usual case — means the second-level word narrows nothing
+    /// and the owning [`SubCommand::options`] table is the whole answer.
+    /// Declare a table here only when the operations genuinely disagree about
+    /// which options exist, and then declare it on **every** operation that
+    /// takes options: a consumer that resolves this word prefers this table
+    /// outright rather than merging it with the parent's, because "merged" is
+    /// exactly the wrong answer for the case this field exists for.
+    ///
+    /// `namespace ensemble` is that case (issue #1610). `create` and
+    /// `configure` are two different C option tables — `ensembleCreateOptions`
+    /// has `-command` and no `-namespace`, `ensembleConfigOptions` the reverse
+    /// (`tclEnsemble.c`) — so one merged table simultaneously offers `create`'s
+    /// `-command` to `configure` (a guaranteed `bad option "-command"`) and
+    /// hides `configure`'s readable `-namespace`.
+    pub options: &'static [OptionSpec],
+}
+
+/// The option table one call dispatches on, as resolved by
+/// [`SubCommand::option_scope`] — the table itself, the dialect gate its
+/// options inherit, and which second-level operation (if any) supplied it.
+#[derive(Debug, Clone, Copy)]
+pub struct OptionScope {
+    /// The options this call recognises.
+    pub options: &'static [OptionSpec],
+    /// The gate an option declaring none of its own inherits.
+    pub dialects: Option<DialectSet>,
+    /// The second-level operation whose own table this is; `None` when the
+    /// answer came from the subcommand's table.
+    pub sub_subcommand: Option<&'static str>,
 }
 
 /// Whether `sub_sub` is present in `dialect`, inheriting `parent_dialects`
@@ -2948,7 +2979,33 @@ impl SubSubCommand {
         synopsis: "",
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
+        options: &[],
     };
+
+    /// This second-level subcommand's own option keyword table, filtered to
+    /// what exists for `dialect` and `package_version`.
+    ///
+    /// `parent_dialects` is the owning subcommand's resolved gate, inherited
+    /// by an option that declares none of its own — the same inheritance
+    /// [`SubCommand::option_table`] applies. Empty when [`Self::options`] is,
+    /// which is the caller's signal to fall back to the owning subcommand's
+    /// table.
+    #[must_use]
+    pub fn option_table(
+        &self,
+        dialect: Option<DialectSet>,
+        parent_dialects: Option<DialectSet>,
+        package_version: Option<&str>,
+        prefix_matching: PrefixMatching,
+    ) -> KeywordTable<'static> {
+        option_table_from(
+            self.options.iter(),
+            dialect,
+            self.dialects.or(parent_dialects),
+            package_version,
+            prefix_matching,
+        )
+    }
 
     /// Whether this second-level subcommand exists given the resolved
     /// *`package_version`*.
@@ -3118,6 +3175,53 @@ impl SubCommand {
             package_version,
             prefix_override.unwrap_or(self.prefix_matching),
         )
+    }
+
+    /// Which option table a call against this subcommand actually dispatches
+    /// on, once the word *after* the subcommand name is taken into account.
+    ///
+    /// For the overwhelmingly common single-level subcommand this is just
+    /// [`Self::options`]. For a two-level ensemble whose operations disagree
+    /// about their options — `namespace ensemble create` vs `configure`,
+    /// issue #1610 — it is the resolved [`SubSubCommand::options`] instead,
+    /// and *instead* is the point: merging the two tables reintroduces the
+    /// bug, since each table's distinctive entry is the other's error.
+    ///
+    /// `next_word` is the literal word after the subcommand name, or `None`
+    /// when the caller has no literal there (nothing typed yet, a `$var`, a
+    /// `{*}` expansion). `None`, an unresolvable word, and an operation that
+    /// declares no options of its own all fall back to this subcommand's own
+    /// table — the permissive answer, so a dynamic dispatch word never
+    /// narrows what is offered or accepted.
+    ///
+    /// `spec_dialects` is the owning [`CommandSpec::dialects`], for the
+    /// standard option-gate inheritance chain (option → sub-sub → sub →
+    /// command).
+    #[must_use]
+    pub fn option_scope(
+        &self,
+        next_word: Option<&str>,
+        dialect: Option<DialectSet>,
+        package_version: Option<&str>,
+        spec_dialects: Option<DialectSet>,
+    ) -> OptionScope {
+        let inherited = self.dialects.or(spec_dialects);
+        if let Some(word) = next_word.filter(|w| !w.is_empty())
+            && !self.sub_subcommands.is_empty()
+            && let Some(op) = self.resolve_sub_subcommand_gated(word, dialect, package_version)
+            && !op.options.is_empty()
+        {
+            return OptionScope {
+                options: op.options,
+                dialects: op.dialects.or(inherited),
+                sub_subcommand: Some(op.name),
+            };
+        }
+        OptionScope {
+            options: self.options,
+            dialects: inherited,
+            sub_subcommand: None,
+        }
     }
 
     /// Resolve an option word against this subcommand's option table.

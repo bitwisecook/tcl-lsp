@@ -1346,15 +1346,24 @@ fn option_hover_text(
     // -inputmode`) before falling back to the command's own top-level
     // table — an ensemble's real options live on the subcommand, and only
     // that table is dialect-correct for a subcommand-specific option.
+    //
+    // A two-level ensemble narrows once more, on the word after the
+    // subcommand: `namespace ensemble configure -namespace` is a readable
+    // option and `namespace ensemble create -namespace` is a bad one, so
+    // only the operation's own table can answer either (issue #1610). The
+    // owner line names whichever level supplied the table.
     let (options, parent_dialects, owner) = match words
         .next()
         .and_then(|sub_name| spec.resolve_subcommand_for_dialect(sub_name, dialect))
     {
-        Some(sub) => (
-            sub.options,
-            sub.dialects.or(spec.dialects),
-            format!("{cmd_name} {}", sub.name),
-        ),
+        Some(sub) => {
+            let scope = sub.option_scope(words.next(), Some(dialect), None, spec.dialects);
+            let owner = match scope.sub_subcommand {
+                Some(op) => format!("{cmd_name} {} {op}", sub.name),
+                None => format!("{cmd_name} {}", sub.name),
+            };
+            (scope.options, scope.dialects, owner)
+        }
         None => (spec.options, spec.dialects, cmd_name.to_owned()),
     };
     let opt = options.iter().find(|o| o.matches(option.as_str()))?;

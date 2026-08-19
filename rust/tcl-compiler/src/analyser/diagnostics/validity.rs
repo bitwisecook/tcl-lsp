@@ -264,8 +264,10 @@ struct OptionScanContext {
     parent_dialects: Option<tcl_registry::prelude::DialectSet>,
     /// First argument index the scan starts at (1 past a subcommand word).
     start_idx: usize,
-    /// The resolved subcommand name, for messages.
-    sub_name: Option<&'static str>,
+    /// The resolved subcommand path, for messages — just the subcommand
+    /// (`chan configure`), or the subcommand plus the second-level operation
+    /// whose own option table answered (`namespace ensemble configure`).
+    sub_name: Option<String>,
     /// Whether abbreviations resolve in this table.
     prefix_matching: tcl_registry::abbrev::PrefixMatching,
 }
@@ -3631,7 +3633,7 @@ before this value so it is treated as data, not an option."
             spec.prefix_matching
         };
         let (options, parent_dialects, start_idx, sub_name) = if spec.subcommands.is_empty() {
-            (spec.options, spec.dialects, 0usize, None)
+            (spec.options, spec.dialects, 0usize, None::<String>)
         } else {
             // Ensemble-shaped: index 0 is always the subcommand word.  A
             // `{*}`-expanded or substituted word resolves to an unknown name
@@ -3647,12 +3649,30 @@ before this value so it is treated as data, not an option."
             }
             let sub =
                 spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)?;
-            (
-                sub.options,
-                sub.dialects.or(spec.dialects),
-                1usize,
-                Some(sub.name),
-            )
+            // A two-level ensemble dispatches once more on the next word, and
+            // its operations can carry genuinely different option tables
+            // (`namespace ensemble create` vs `configure`, issue #1610). Read
+            // that word only when it is a literal: a `{*}`-expanded or
+            // substituted dispatch word resolves at run time, and
+            // `option_scope` keeps the subcommand's wider table for it rather
+            // than guessing which operation is meant.
+            let dispatch = args.get(1).filter(|_| {
+                !arg_expand.get(1).copied().unwrap_or(false)
+                    && !arg_tokens
+                        .get(1)
+                        .is_some_and(|tok| has_substitution(&args[1], tok))
+            });
+            let scope = sub.option_scope(
+                dispatch.map(String::as_str),
+                Some(self.profile.availability_mask),
+                None,
+                spec.dialects,
+            );
+            let name = match scope.sub_subcommand {
+                Some(op) => format!("{} {op}", sub.name),
+                None => sub.name.to_owned(),
+            };
+            (scope.options, scope.dialects, 1usize, Some(name))
         };
         (!options.is_empty()).then_some(OptionScanContext {
             options,
@@ -3761,7 +3781,9 @@ before this value so it is treated as data, not an option."
                     let span = arg_tokens[i].span;
                     // Message exactly: `Option 'X' on 'cmd'[ sub] is not
                     // available in the active dialect (D).`
-                    let sub_suffix = sub_name.map_or(String::new(), |n| format!(" {n}"));
+                    let sub_suffix = sub_name
+                        .as_deref()
+                        .map_or(String::new(), |n| format!(" {n}"));
                     let consumed = 1 + opt.value_word_count(args, i);
                     let fixes = self.w004_remove_option_fix(arg, arg_tokens, i, consumed);
                     let diag = crate::analyser::types::Diagnostic::new(
@@ -3799,7 +3821,13 @@ in the active dialect ({}).",
                     let candidates: Vec<String> =
                         candidates.iter().map(|s| (*s).to_string()).collect();
                     let span = arg_tokens[i].span;
-                    self.emit_w145_ambiguous_option(cmd_name, sub_name, arg, &candidates, span);
+                    self.emit_w145_ambiguous_option(
+                    cmd_name,
+                    sub_name.as_deref(),
+                    arg,
+                    &candidates,
+                    span,
+                );
                 }
                 tcl_registry::abbrev::KeywordMatch::Unique(canonical) => {
                     // A unique abbreviation consumes exactly what the
