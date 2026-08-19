@@ -82,18 +82,30 @@ fn eval_str_env(expr: &str, env: &Env) -> Option<TclValue> {
 /// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
 fn eval_irules(expr: &str) -> Option<TclValue> {
     let env = Env::new();
-    eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), &env, "f5-irules")
+    eval_tcl_expr_in_dialect(
+        &parse_expr(expr, Some("f5-irules")),
+        &env,
+        tcl_dialect::DialectProfile::irules(),
+    )
 }
 
 /// iRules-dialect fold over a caller-supplied environment.
 fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-    eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), env, "f5-irules")
+    eval_tcl_expr_in_dialect(
+        &parse_expr(expr, Some("f5-irules")),
+        env,
+        tcl_dialect::DialectProfile::irules(),
+    )
 }
 
 /// Fold under a named dialect (resolves the 8.x-octal vs 9.0-decimal
 /// leading-zero rule for comparison operands).
 fn eval_dialect(expr: &str, dialect: &str) -> Option<TclValue> {
-    eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+    eval_tcl_expr_in_dialect(
+        &parse_expr(expr, None),
+        &Env::new(),
+        tcl_dialect::DialectProfile::by_name(dialect),
+    )
 }
 
 /// Convenience constructors keeping assertions terse.
