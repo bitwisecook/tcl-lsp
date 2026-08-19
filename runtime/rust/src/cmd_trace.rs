@@ -1211,6 +1211,23 @@ mod tests {
         });
     }
 
+    /// The commands the same teardown deletes fire their `delete` traces
+    /// newest-first too (`CallCommandTraces` walks head→tail). Issue #1440;
+    /// tclsh 8.6.16 and 9.0.4 both report `second first`.
+    #[test]
+    fn namespace_teardown_fires_command_delete_traces_newest_first() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::doomed {proc victim {} {}}");
+            ok(i, b"trace add command ::doomed::victim delete {rec first}");
+            ok(i, b"trace add command ::doomed::victim delete {rec second}");
+            ok(i, b"namespace delete ::doomed");
+            assert_eq!(ok(i, b"set ::log"), b"second first");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
     /// `trace info` renders the stored op set in the order each C `TRACE_INFO`
     /// arm tests the flag bits — `array read write unset` and `rename delete`,
     /// neither of which is the `opStrings[]` table order the bad-operation
