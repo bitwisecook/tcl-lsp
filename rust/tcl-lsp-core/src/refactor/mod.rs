@@ -72,11 +72,80 @@ pub use inline_variable::inline_variable;
 pub use switch_to_dict::switch_to_dict;
 
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
+use tcl_dialect::BracedVarStyle;
 use tcl_lexer::{LineIndex, Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 use tcl_syntax::switch_body::parse_braced_pairs;
 
 use crate::definition::LspRange;
+
+/// The `${…}` close rule the document's dialect uses.
+///
+/// A refactor rewrites *text*, so reading a variable name by one release's
+/// rule while the document is another's changes what the edit means: on a
+/// Tcl 9 document `${a{b}c}` is one variable named `a{b}c`, but the 8.x
+/// first-`}` rule reads `a{b` and leaves `c}` looking like ordinary word
+/// text (issue #1605).
+pub(crate) fn braced_var_style(
+    analysis: &tcl_compiler::analyser::AnalysisResult,
+) -> BracedVarStyle {
+    tcl_dialect::DialectProfile::by_name(&analysis.dialect)
+        .grammar
+        .braced_var
+}
+
+/// Every `$name` / `${name}` reference in `text`, as
+/// `(name, start, end)` byte offsets covering the whole reference
+/// (`$` through the closing `}`).
+///
+/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] — the
+/// one release-aware `Tcl_ParseVarName` port — rather than a `find('}')`,
+/// so a brace-bearing name is read the way the document's own release reads
+/// it. An unterminated `${` is not a reference: it is a parse error in the
+/// document, and inventing a name for it would put that name into a
+/// generated parameter list.
+///
+/// Array elements are **not** reduced here; a caller that wants the array's
+/// own name (extract-proc's captured set) trims at the `(`.
+pub(crate) fn variable_reference_spans(
+    text: &str,
+    style: BracedVarStyle,
+) -> Vec<(String, usize, usize)> {
+    let bytes = text.as_bytes();
+    let mut out = Vec::new();
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index] != b'$' {
+            index += 1;
+            continue;
+        }
+        if bytes.get(index + 1) == Some(&b'{') {
+            let name_start = index + 2;
+            if let tcl_lexer::BracedVarEnd::Closed(close) =
+                tcl_lexer::braced_var_name_end(bytes, name_start, style)
+            {
+                out.push((text[name_start..close].to_string(), index, close + 1));
+                index = close + 1;
+                continue;
+            }
+            index += 1;
+            continue;
+        }
+        let mut end = index + 1;
+        while end < bytes.len()
+            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b':')
+        {
+            end += 1;
+        }
+        if end > index + 1 {
+            out.push((text[index + 1..end].to_string(), index, end));
+            index = end;
+        } else {
+            index += 1;
+        }
+    }
+    out
+}
 
 /// A single text replacement, in byte-offset space.
 ///

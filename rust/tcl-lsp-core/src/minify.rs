@@ -1568,7 +1568,7 @@ fn collect_live_names(
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'$' {
-            let (end, name) = parse_var_ref(source, i);
+            let (end, name) = parse_var_ref(source, i, dialect.grammar.braced_var);
             if let Some(name) = name {
                 out.insert(name.to_owned());
                 i = end.max(i + 1);
@@ -2365,7 +2365,11 @@ fn fold_static_substrings(
     let mut scopes: Vec<&FunctionUnit> = vec![&cu.top_level];
     scopes.extend(cu.procedures.values());
     for fu in scopes {
-        collect_folds_for_scope(source, fu, &mut edits, &mut fold_map);
+        let cx = FoldContext {
+            fu,
+            style: dialect.grammar.braced_var,
+        };
+        collect_folds_for_scope(source, cx, &mut edits, &mut fold_map);
     }
     if edits.is_empty() {
         return (source.to_owned(), 0, fold_map);
@@ -2383,13 +2387,23 @@ fn fold_static_substrings(
     (result, fold_count, fold_map)
 }
 
+/// The read-only context a constant-fold decision needs: the scope's
+/// analysed unit and the document's `${…}` close rule (which decides where
+/// a `${…}` reference's name ends — issue #1605).
+#[derive(Clone, Copy)]
+struct FoldContext<'a> {
+    fu: &'a FunctionUnit,
+    style: tcl_dialect::BracedVarStyle,
+}
+
 /// Collect static-fold edits for one function scope.
 fn collect_folds_for_scope(
     source: &str,
-    fu: &FunctionUnit,
+    cx: FoldContext<'_>,
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
+    let (fu, style) = (cx.fu, cx.style);
     for (block_id, block) in &fu.cfg.blocks {
         let Some(ssa_block) = fu.ssa.blocks.get(block_id) else {
             continue;
@@ -2417,7 +2431,7 @@ fn collect_folds_for_scope(
                     value_needs_backsubst: true,
                     ..
                 } if value.contains('$') || value.contains('[') => {
-                    try_fold_region(source, *span, value, &uses, fu, edits, fold_map);
+                    try_fold_region(source, *span, value, &uses, cx, edits, fold_map);
                 }
                 Statement::Call {
                     tokens: Some(toks), ..
@@ -2432,9 +2446,10 @@ fn collect_folds_for_scope(
                             continue;
                         }
                         if let Some(folded) =
-                            fold_string_via_sccp(content, &uses, &fu.sccp.values, &fu.ssa)
+                            fold_string_via_sccp(content, &uses, &fu.sccp.values, &fu.ssa, style)
                         {
-                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa) {
+                            if has_unsafe_tainted_inputs(content, &uses, &fu.taints, &fu.ssa, style)
+                            {
                                 continue;
                             }
                             if let Some(close) = close_quote_offset(source, arg_off) {
@@ -2464,14 +2479,15 @@ fn try_fold_region(
     span: Span,
     value: &str,
     uses: &HashMap<String, Version>,
-    fu: &FunctionUnit,
+    cx: FoldContext<'_>,
     edits: &mut Vec<Edit>,
     fold_map: &mut BTreeMap<String, String>,
 ) {
-    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, &fu.ssa) else {
+    let (fu, style) = (cx.fu, cx.style);
+    let Some(folded) = fold_string_via_sccp(value, uses, &fu.sccp.values, &fu.ssa, style) else {
         return;
     };
-    if has_unsafe_tainted_inputs(value, uses, &fu.taints, &fu.ssa) {
+    if has_unsafe_tainted_inputs(value, uses, &fu.taints, &fu.ssa, style) {
         return;
     }
     let (start, end) = (span.start() as usize, span.end() as usize);
@@ -2499,6 +2515,7 @@ fn fold_string_via_sccp(
     uses: &HashMap<String, Version>,
     values: &HashMap<(tcl_compiler::ssa::Symbol, Version), LatticeValue>,
     ssa: &tcl_compiler::ssa::SsaFunction,
+    style: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     let bytes = content.as_bytes();
     let n = bytes.len();
@@ -2508,7 +2525,7 @@ fn fold_string_via_sccp(
     while pos < n {
         match bytes[pos] {
             b'$' => {
-                let (end, name) = parse_var_ref(content, pos);
+                let (end, name) = parse_var_ref(content, pos, style);
                 let name = name?;
                 let ver = uses.get(name).copied().unwrap_or(0);
                 if ver == 0 {
@@ -2559,13 +2576,14 @@ fn has_unsafe_tainted_inputs(
     uses: &HashMap<String, Version>,
     taints: &HashMap<(tcl_compiler::ssa::Symbol, Version), TaintLattice>,
     ssa: &tcl_compiler::ssa::SsaFunction,
+    style: tcl_dialect::BracedVarStyle,
 ) -> bool {
     let safe = safe_taint_colours();
     let mut pos = 0;
     let bytes = content.as_bytes();
     while pos < bytes.len() {
         if bytes[pos] == b'$' {
-            let (end, name) = parse_var_ref(content, pos);
+            let (end, name) = parse_var_ref(content, pos, style);
             if let Some(name) = name {
                 let ver = uses.get(name).copied().unwrap_or(0);
                 if ver > 0
@@ -2590,7 +2608,17 @@ fn has_unsafe_tainted_inputs(
 /// Parse a `$var` / `${var}` reference at `pos`, returning
 /// `(end, name)`.  Rejects array (`$a(i)`) and namespaced
 /// (`$a::b`) forms.
-fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
+///
+/// The braced form is delimited by [`tcl_lexer::braced_var_name_end`] under
+/// the document's own `${…}` close rule: on a Tcl 9 document `${a{b}c}` is
+/// one variable named `a{b}c`, where the 8.x first-`}` rule reads `a{b` and
+/// leaves `c}` as word text. Minify rewrites these spans, so reading the
+/// wrong one changes what the output program means (issue #1605).
+fn parse_var_ref(
+    text: &str,
+    pos: usize,
+    style: tcl_dialect::BracedVarStyle,
+) -> (usize, Option<&str>) {
     let bytes = text.as_bytes();
     if pos >= bytes.len() || bytes[pos] != b'$' {
         return (pos + 1, None);
@@ -2600,12 +2628,9 @@ fn parse_var_ref(text: &str, pos: usize) -> (usize, Option<&str>) {
         return (start, None);
     }
     if bytes[start] == b'{' {
-        return match text[start + 1..].find('}') {
-            Some(rel) => {
-                let close = start + 1 + rel;
-                (close + 1, Some(&text[start + 1..close]))
-            }
-            None => (start, None),
+        return match tcl_lexer::braced_var_name_end(bytes, start + 1, style) {
+            tcl_lexer::BracedVarEnd::Closed(close) => (close + 1, Some(&text[start + 1..close])),
+            tcl_lexer::BracedVarEnd::Unterminated => (start, None),
         };
     }
     let mut end = start;
@@ -2934,6 +2959,15 @@ fn reconstruct_raw(
         TokenType::Str => format!("{{{}}}", sm.token_text(tok)),
         TokenType::Cmd => format!("[{}]", minify_body(sm.token_text(tok), env, depth + 1)),
         TokenType::Var => {
+            let name = sm.token_text(tok);
+            // A name that is not a bare `$name` word can only ever be written
+            // braced: `${a{b}c}` names the variable `a{b}c`, but `$a{b}c` is
+            // the variable `a` followed by the literal `{b}c`. The predicate
+            // is the shared one quick fixes use for exactly this `${x}` ↔
+            // `$x` equivalence (issue #1605).
+            if !tcl_syntax::naming::is_bare_var_name(name) {
+                return format!("${{{name}}}");
+            }
             // Keep `${var}` when the next token would otherwise extend the
             // variable name.  Beyond name characters, `(` (array index) and `:`
             // (namespace separator) also extend a `$` reference, so dropping
@@ -2943,9 +2977,9 @@ fn reconstruct_raw(
                 && let Some(c) = first_rendered_char(sm, next)
                 && (c.is_alphanumeric() || c == '_' || c == '(' || c == ':')
             {
-                return format!("${{{}}}", sm.token_text(tok));
+                return format!("${{{name}}}");
             }
-            format!("${}", sm.token_text(tok))
+            format!("${name}")
         }
         TokenType::Expand => "{*}".to_owned(),
         _ => sm.token_text(tok).to_owned(),
@@ -2956,7 +2990,7 @@ fn reconstruct_raw(
 const NEEDS_QUOTING: &[char] = &[' ', '\t', '\n', '\r', '\u{0b}', '\u{0c}', ';', '"', '\0'];
 
 /// Whether a quoted argument can safely drop its double quotes.
-fn can_strip_quotes(raw: &str) -> bool {
+fn can_strip_quotes(raw: &str, style: tcl_dialect::BracedVarStyle) -> bool {
     if raw.is_empty() {
         return false;
     }
@@ -2971,13 +3005,19 @@ fn can_strip_quotes(raw: &str) -> bool {
         return false;
     }
     // Any `{` / `}` outside `${var}` references blocks stripping.
-    let stripped = strip_braced_var_refs(raw);
+    let stripped = strip_braced_var_refs(raw, style);
     !(stripped.contains('{') || stripped.contains('}'))
 }
 
 /// Remove `${…}` references from `raw` so the residual brace check
 /// in [`can_strip_quotes`] only sees bare braces.
-fn strip_braced_var_refs(raw: &str) -> String {
+///
+/// Delimited by the document's own `${…}` close rule: under 8.x `${a{b}c}`
+/// ends at the first `}`, so `c}` is a *real* residual brace and the quotes
+/// must stay; under 9.x the whole thing is one reference and they may go.
+/// Scanning by the wrong rule strips quotes that were load-bearing, or
+/// keeps ones that were not (issue #1605).
+fn strip_braced_var_refs(raw: &str, style: tcl_dialect::BracedVarStyle) -> String {
     let bytes = raw.as_bytes();
     let n = bytes.len();
     let mut out = String::with_capacity(n);
@@ -2986,9 +3026,10 @@ fn strip_braced_var_refs(raw: &str) -> String {
         if bytes[i] == b'$'
             && i + 1 < n
             && bytes[i + 1] == b'{'
-            && let Some(close) = raw[i + 2..].find('}')
+            && let tcl_lexer::BracedVarEnd::Closed(close) =
+                tcl_lexer::braced_var_name_end(bytes, i + 2, style)
         {
-            i = i + 2 + close + 1;
+            i = close + 1;
             continue;
         }
         let ch_len = utf8_len(bytes[i]);
@@ -3022,7 +3063,7 @@ fn reconstruct_arg(sm: &SourceMap, arg: &Arg, env: MinifyEnv<'_>, depth: u32) ->
         let next = arg.tokens.get(idx + 1).copied();
         raw.push_str(&reconstruct_raw(sm, tok, next, env, arg.is_quoted, depth));
     }
-    if arg.is_quoted && !can_strip_quotes(&raw) {
+    if arg.is_quoted && !can_strip_quotes(&raw, env.dialect.grammar.braced_var) {
         format!("\"{raw}\"")
     } else {
         raw
@@ -3588,6 +3629,115 @@ mod tests {
             tcl_dialect::DialectProfile::by_name("tcl8.6"),
             &registry,
         )
+    }
+
+    /// A `${…}` whose name is not a bare `$name` word may never shed its
+    /// braces, whatever follows it: `${a{b}c}` reads the variable `a{b}c`,
+    /// while `$a{b}c` reads `a` and appends the literal `{b}c`.
+    ///
+    /// Found while pinning the plumb above — minify dropped the braces
+    /// because it only asked whether the *next* token would extend the
+    /// reference, never whether the name itself could be written bare
+    /// (issue #1605).
+    #[test]
+    fn a_non_bare_braced_name_keeps_its_braces() {
+        let registry = CommandRegistry::build_default();
+        for release in ["tcl9.0", "tcl8.6"] {
+            let out = minify_tcl(
+                "set {a b} 1\nputs ${a b}\n",
+                tcl_dialect::DialectProfile::by_name(release),
+                &registry,
+            );
+            assert!(
+                out.contains("${a b}"),
+                "a name with a space must stay braced on {release}: {out}"
+            );
+        }
+        // A plain name still sheds them.
+        let out = minify_tcl(
+            "set plain 1\nputs ${plain}\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+        );
+        assert!(out.contains("$plain"), "{out}");
+        assert!(!out.contains("${plain}"), "{out}");
+    }
+
+    /// The **plumb**: minify must take the `${…}` rule from the document's
+    /// own dialect, not a constant. A quoted `"${a{b}c}"` may shed its
+    /// quotes on 9.x (the whole word is one variable reference) but not on
+    /// 8.x, where the reference stops at the first `}` and the residual `c}`
+    /// is a bare brace.
+    #[test]
+    fn quote_stripping_follows_the_documents_dialect() {
+        let registry = CommandRegistry::build_default();
+        let src = "puts \"${a{b}c}\"\n";
+        let nine = minify_tcl(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+        );
+        let eight = minify_tcl(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
+        assert!(
+            !nine.contains('"'),
+            "9.x reads one reference, so the quotes may go: {nine}"
+        );
+        assert!(
+            eight.contains('"'),
+            "8.x leaves a bare `c}}`, so the quotes must stay: {eight}"
+        );
+    }
+
+    /// Issue #1605 — minify decides whether a quoted word may drop its
+    /// quotes by checking for braces left over after `${…}` references are
+    /// removed, so the removal must use the document's own `${…}` close
+    /// rule.
+    ///
+    /// Oracle: `puts ${a{b}c}` prints `NINE` on tclsh 9.0.4 (the whole thing
+    /// is one reference, so nothing brace-like remains) and `EIGHTc}` on
+    /// 8.6.16 (the reference ends at the first `}` and the residual `c}`
+    /// really is a bare brace).
+    #[test]
+    fn braced_var_stripping_follows_the_documents_release() {
+        use tcl_dialect::BracedVarStyle;
+        // 9.x: one reference, nothing left behind.
+        assert_eq!(
+            strip_braced_var_refs("${a{b}c}", BracedVarStyle::Tcl9Nesting),
+            ""
+        );
+        // 8.x: the reference is `${a{b}`, so `c}` survives as a bare brace.
+        assert_eq!(
+            strip_braced_var_refs("${a{b}c}", BracedVarStyle::FirstClose),
+            "c}"
+        );
+        // …which is exactly what decides whether the quotes may go.
+        assert!(can_strip_quotes("${a{b}c}", BracedVarStyle::Tcl9Nesting));
+        assert!(!can_strip_quotes("${a{b}c}", BracedVarStyle::FirstClose));
+    }
+
+    /// The `$var` reader behind constant folding and the live-name sweep
+    /// splits the same bytes at the same release-dependent point.
+    #[test]
+    fn parse_var_ref_reads_braced_names_by_the_documents_release() {
+        use tcl_dialect::BracedVarStyle;
+        let text = "${a{b}c}";
+        assert_eq!(
+            parse_var_ref(text, 0, BracedVarStyle::Tcl9Nesting),
+            (8, Some("a{b}c"))
+        );
+        assert_eq!(
+            parse_var_ref(text, 0, BracedVarStyle::FirstClose),
+            (6, Some("a{b"))
+        );
+        // An unterminated `${` yields no name under either rule.
+        assert_eq!(
+            parse_var_ref("${abc", 0, BracedVarStyle::Tcl9Nesting),
+            (1, None)
+        );
     }
 
     /// Regression coverage for issue #996: `minify_body`'s recursive

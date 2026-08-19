@@ -671,12 +671,6 @@ pub struct Analyser {
     /// their tail names become valid commands.
     pub ensemble_namespaces: HashSet<String>,
 
-    /// Resolved command names of ensembles this file configured with
-    /// `namespace ensemble … -prefixes 0`, which turns off `Tcl_GetIndexFromObj`
-    /// prefix matching for that ensemble.  Consulted by the abbreviation
-    /// machinery (W145 and the formatter's expansion) so an abbreviation on a
-    /// `-prefixes 0` ensemble is never reported ambiguous or rewritten.
-    pub prefixless_ensembles: HashSet<String>,
     /// Source offset of the **latest** `namespace ensemble` list token that
     /// (re)filed each [`super::types::AnalysisResult::ensemble_subcommand_targets`]
     /// key.  Analyser-side book-keeping for the per-item path only: the
@@ -1378,7 +1372,6 @@ impl Analyser {
             widget_dispatch_sites: Vec::new(),
             cmd_command_sites: Vec::new(),
             ensemble_namespaces: HashSet::new(),
-            prefixless_ensembles: HashSet::new(),
             ensemble_command_maps: HashMap::new(),
             ensemble_record_offsets: HashMap::new(),
             pending_ensemble_subcommands: Vec::new(),
