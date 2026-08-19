@@ -46,6 +46,9 @@ entry point, or gate moves without this contract being updated.
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
 | command errors | `rust/tcl-cmd-core/src/error.rs` | `CmdError`; `wrong_args`; `bad_choice` | invariant | none |
 | expression grammar / evaluation | `rust/tcl-syntax/src/expr/parser.rs`; `rust/tcl-syntax/src/expr/eval.rs`; `rust/tcl-registry/src/expr_surface.rs` | `parse_expr`; `eval`; `RuntimeExprSurface` | `RuntimeExprSurface` per release | none |
+| expr math functions | `rust/tcl-syntax/src/expr/mathfunc.rs` | `dispatch`; `dispatch_with_backend`; `IntFuncWidth`; `added_in`; `spec` | `MathFuncSince` availability and `IntFuncWidth` (`int()`'s width) per release | none |
+| numeric tower operators | `rust/tcl-syntax/src/number_tower.rs` | `BigIntOps`; `int_pow`; `int_div`; `int_mod`; `int_shr`; `int_sqrt`; `MAX_EXPONENT` | invariant (`tclExecute.c`'s integer semantics are release-stable) | none |
+| expr rand / srand | `rust/tcl-syntax/src/expr/rand.rs` | `seed_from_wide`; `next`; `srand_operand_error`; `RAND_IM` | `srand` operand-rejection surface per release | none |
 | command / word segmentation | `rust/tcl-compiler/src/segmenter.rs` | `SegmentedCommand`; `segment_commands` | `LexerConfig` per document dialect | none |
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
@@ -81,6 +84,24 @@ entry point, or gate moves without this contract being updated.
   vocabulary with cross-set ambiguity (`o`), so it stays here.
 - `expr` — the expression AST, parser, evaluator seam, and walk
   (`ExprOps`, `mathfunc`).
+- `mathfunc` — the `::tcl::mathfunc::*` table both engines and the
+  const-folder evaluate through (`dispatch_with_backend` over a
+  caller-supplied `BigIntOps` backend), plus the static facts
+  (`added_in`, `spec`, `accepts_boolean_operand`). One release axis lives
+  here: `IntFuncWidth`, because `int()` narrows to a machine word up to
+  8.6 and *is* `entier()` from 9.0.
+- `rand` — `expr rand()` / `srand()`: C's Park–Miller step, the seed
+  nudge, the reciprocal-multiply scaling, and the release-shaped `srand`
+  operand error. Deliberately outside `mathfunc::dispatch` (the seed is
+  interpreter state), but the pure half has exactly one home so the two
+  engines cannot drift by an ulp again.
+- `number_tower` — the integer operator semantics of `tclExecute.c`
+  (`int_pow`'s collapses and 2^28 ceiling, floor `int_div`/`int_mod`,
+  `int_shr`'s width collapse, `int_sqrt`, and
+  `BigIntOps::from_f64_trunc`, the exact `Tcl_InitBignumFromDouble`
+  port), written once and generic over the big-integer backend.
+  `conformance::assert_backend` is the corpus every adopter's backend
+  must pass.
 - `backslash` — the byte-slice convenience over the lexer's decoder
   (see next); deliberately no second decode implementation.
 
