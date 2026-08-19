@@ -54,12 +54,26 @@ fn ref_lines(ranges: &[LspRange]) -> Vec<u32> {
 /// Reference lines for the cursor at (`line`, `col`), declaration included.
 fn refs_at(src: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = analyse(src);
-    ref_lines(&references(src, tcl_dialect::DialectProfile::by_name("tcl"), line, col, &analysis, true))
+    ref_lines(&references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        line,
+        col,
+        &analysis,
+        true,
+    ))
 }
 
 fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = Analyser::new().analyse(src, dialect).clone();
-    ref_lines(&references(src, tcl_dialect::DialectProfile::by_name(dialect), line, col, &analysis, true))
+    ref_lines(&references(
+        src,
+        tcl_dialect::DialectProfile::by_name(dialect),
+        line,
+        col,
+        &analysis,
+        true,
+    ))
 }
 
 /// W210 (read-before-set) diagnostic codes for `src` analysed as `path`.
@@ -488,7 +502,11 @@ mod itcl_class_proc_dispatch {
         for (line, character) in [(4, 37), (5, 39)] {
             assert_eq!(
                 tcl_lsp_core::definition::itcl_class_proc_target_at(
-                    src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, character, &analysis
+                    src,
+                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    line,
+                    character,
+                    &analysis
                 ),
                 Some(("::app::Factory".to_owned(), "make".to_owned())),
                 "line {line}: itcl's class resolver must pre-empt the global proc",
@@ -505,7 +523,13 @@ mod itcl_class_proc_dispatch {
         }
         // From the global namespace the ordinary proc wins (oracle rows D/E).
         assert_eq!(
-            tcl_lsp_core::definition::itcl_class_proc_target_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 8, 2, &analysis),
+            tcl_lsp_core::definition::itcl_class_proc_target_at(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                8,
+                2,
+                &analysis
+            ),
             None,
             "from global, `Factory::make` is the plain ::Factory::make proc",
         );

@@ -100,13 +100,7 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &formatted,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect,
-    )?;
+    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
     Ok(0)
 }
 
@@ -178,13 +172,7 @@ pub fn run_opt(
     }
 
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect,
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if !target.is_stdout() {
         eprintln!(
@@ -260,13 +248,8 @@ pub fn run_minify(
 
     let (rendered, map) = match tier {
         MinifyTier::Aggressive => {
-            let result = minify_tcl_aggressive_with(
-                &source,
-                dialect,
-                isolated,
-                &registry,
-                abbreviations,
-            );
+            let result =
+                minify_tcl_aggressive_with(&source, dialect, isolated, &registry, abbreviations);
             (result.source, Some(result.symbol_map))
         }
         MinifyTier::Compact => {
@@ -276,13 +259,7 @@ pub fn run_minify(
         MinifyTier::Default => (minify_tcl(&source, dialect, &registry), None),
     };
 
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect,
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if let Some(path) = symbol_map {
         // Always honour `--symbol-map FILE`, even for plain minify (which does

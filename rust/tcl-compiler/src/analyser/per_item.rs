@@ -467,7 +467,10 @@ impl Analyser {
         }
         super::state::merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name(dialect)),
+            super::utils::parse_noqa_line_suppressions_for_dialect(
+                source,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            ),
         );
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));

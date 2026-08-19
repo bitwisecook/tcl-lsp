@@ -1445,7 +1445,14 @@ proc RestoreFocusGrab {grab focus} {
             );
             let defs = crate::definition::definition(src, line, col, &analysis);
             assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
-            let refs = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
+            let refs = crate::references::references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                line,
+                col,
+                &analysis,
+                true,
+            );
             let spans: Vec<(u32, u32)> = refs
                 .iter()
                 .map(|r| (r.start_line, r.start_character))
@@ -1555,11 +1562,25 @@ oo::class create chart {
     fn references_link_the_call_site_word_and_the_read() {
         let analysis = analysis();
         let (line, character) = read_position();
-        let refs = crate::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, character, &analysis, true);
+        let refs = crate::references::references(
+            SRC,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            line,
+            character,
+            &analysis,
+            true,
+        );
         assert_eq!(refs.len(), 2, "call-site word + read: {refs:?}");
         // …and from the bare call-site word too.
         let (cl, cc) = call_site_position();
-        let from_call = crate::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), cl, cc, &analysis, true);
+        let from_call = crate::references::references(
+            SRC,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            cl,
+            cc,
+            &analysis,
+            true,
+        );
         assert_eq!(from_call, refs, "both anchors give one reference set");
     }
 
@@ -1604,8 +1625,15 @@ oo::class create chart {
                 "`upvar {level}` must draw no caller-frame hover"
             );
             assert!(
-                crate::references::references(&src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true)
-                    .is_empty(),
+                crate::references::references(
+                    &src,
+                    tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                    line,
+                    col,
+                    &analysis,
+                    true
+                )
+                .is_empty(),
                 "`upvar {level}` must report no references"
             );
             assert!(
@@ -1647,13 +1675,27 @@ proc caller {} {
                 + 2,
         )
         .unwrap();
-        let with_decls = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
+        let with_decls = crate::references::references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            line,
+            col,
+            &analysis,
+            true,
+        );
         assert_eq!(
             with_decls.len(),
             3,
             "make + peek + the read: {with_decls:?}"
         );
-        let without = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, false);
+        let without = crate::references::references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            line,
+            col,
+            &analysis,
+            false,
+        );
         assert_eq!(
             without.len(),
             2,
@@ -1737,7 +1779,14 @@ proc build {} {
             locs[0].start_line, call_line,
             "definition must reach the creating call: {locs:?}"
         );
-        let refs = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
+        let refs = crate::references::references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            line,
+            col,
+            &analysis,
+            true,
+        );
         assert!(
             refs.iter().any(|r| r.start_line == call_line),
             "the creating call is part of the reference set: {refs:?}"
@@ -1826,7 +1875,15 @@ oo::class create widget {
             "an unbound `$`-led read must draw no hover at all"
         );
         assert!(
-            crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true).is_empty(),
+            crate::references::references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                line,
+                col,
+                &analysis,
+                true
+            )
+            .is_empty(),
             "an unbound `$`-led read must report no references"
         );
         assert!(

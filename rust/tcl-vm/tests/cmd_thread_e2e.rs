@@ -133,7 +133,7 @@ fn result(src: &str) -> String {
 }
 
 fn assert_workers_inherit_a_separate_host_command_surface() {
-    let dialect = DialectProfile::by_name("f5-irules");
+    let dialect = DialectProfile::irules();
     let host = DialectProfile::by_name("tcl8.4");
     let registry = tcl_registry::registry_for_profile(dialect);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);

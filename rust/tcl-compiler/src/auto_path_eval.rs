@@ -408,7 +408,10 @@ pub enum PathConstantValue {
 /// facts wherever the file lives, which is what makes it safe to cache
 /// alongside the rest of the analysis.
 #[must_use]
-pub fn constant_path_assignments(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<PathConstantWrite> {
+pub fn constant_path_assignments(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<PathConstantWrite> {
     constant_path_assignments_from_commands(
         &segment_commands_with_offset_and_config(
             source,
@@ -1634,7 +1637,11 @@ mod tests {
         let src = "set dir [file dirname [file normalize [info script]]]\n\
                    set libDir [file join $dir lib]\n\
                    set sourceDir [file join $dir src]\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/proj/SpiceGenTcl.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj/SpiceGenTcl.tcl"),
+        );
         assert_eq!(constants.get("dir").map(String::as_str), Some("/proj"));
         assert_eq!(
             constants.get("libDir").map(String::as_str),
@@ -1771,7 +1778,11 @@ mod tests {
         let src = "namespace eval ::snit:: {\n\
                    \x20   variable library [file dirname [info script]]\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/lib/snit/snit.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/lib/snit/snit.tcl"),
+        );
         assert_eq!(
             constants.get("::snit::library").map(String::as_str),
             Some("/lib/snit"),
@@ -1801,7 +1812,11 @@ mod tests {
                    \x20       set names(display) \"Ruff!\"\n\
                    \x20   }\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/proj/src/ruff.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj/src/ruff.tcl"),
+        );
         assert_eq!(
             constants
                 .get("::ruff::private::ruff_dir")
@@ -1825,7 +1840,11 @@ mod tests {
                    \x20   variable LIBDIR [file join $DIR lib]\n\
                    \x20   variable HLDIR [file join $LIBDIR hl_tcl]\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/app/src/alited.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/app/src/alited.tcl"),
+        );
         assert_eq!(
             constants.get("::alited::HLDIR").map(String::as_str),
             Some("/app/src/lib/hl_tcl"),
@@ -1899,13 +1918,19 @@ mod tests {
             .into_iter()
             .collect();
         let replaced = fold_constant_assignments_with_imports(
-            &constant_path_assignments("set dir /own\n", tcl_dialect::DialectProfile::by_name("tcl")),
+            &constant_path_assignments(
+                "set dir /own\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+            ),
             None,
             &imported,
         );
         assert_eq!(replaced.get("dir").map(String::as_str), Some("/own"));
         let removed = fold_constant_assignments_with_imports(
-            &constant_path_assignments("set dir [pwd]\n", tcl_dialect::DialectProfile::by_name("tcl")),
+            &constant_path_assignments(
+                "set dir [pwd]\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+            ),
             None,
             &imported,
         );
@@ -1928,7 +1953,11 @@ mod tests {
                    \x20   set ::e_menu_dir [file join $LIBDIR e_menu]\n\
                    \x20   variable PAVEDIR [file join $::e_menu_dir src]\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/app/alited.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/app/alited.tcl"),
+        );
         assert_eq!(
             constants.get("::e_menu_dir").map(String::as_str),
             Some("/app/e_menu"),
@@ -1952,7 +1981,8 @@ mod tests {
             "set dir /a\nlappend dir x\n",
             "set dir /a\nset other [file join $dir y]\nincr dir\n",
         ] {
-            let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+            let constants =
+                constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
             assert!(
                 !constants.contains_key("dir"),
                 "a mutated name must not fold to its first value: {src:?} -> {constants:?}",
@@ -1972,7 +2002,11 @@ mod tests {
     /// poisons.
     #[test]
     fn a_scope_alias_poisons_every_bound_name() {
-        let constants = constant_path_vars("set dir /a\nupvar 1 elsewhere dir\n", tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            "set dir /a\nupvar 1 elsewhere dir\n",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+        );
         assert!(!constants.contains_key("dir"), "{constants:?}");
     }
 
@@ -1981,7 +2015,11 @@ mod tests {
     /// (issue #1370 review).
     #[test]
     fn a_braced_value_is_literal_data() {
-        let constants = constant_path_vars("set root /a\nset dir {$root}\n", tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            "set root /a\nset dir {$root}\n",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+        );
         assert_eq!(constants.get("dir").map(String::as_str), Some("$root"));
         assert_eq!(
             evaluate_auto_path_expr_with_constants("[file join $dir x.tcl]", None, &constants,)
@@ -1990,7 +2028,11 @@ mod tests {
             "the folded target is the literal directory Tcl would use",
         );
         // The quoted twin *does* substitute — the distinction is real.
-        let quoted = constant_path_vars("set root /a\nset dir \"$root\"\n", tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let quoted = constant_path_vars(
+            "set root /a\nset dir \"$root\"\n",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+        );
         assert_eq!(quoted.get("dir").map(String::as_str), Some("/a"));
     }
 
@@ -1999,7 +2041,11 @@ mod tests {
     #[test]
     fn a_relative_qualified_reference_resolves() {
         let src = "namespace eval demo {\n    variable dir [file dirname [info script]]\n}\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/ex/config.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/ex/config.tcl"),
+        );
         assert_eq!(
             evaluate_auto_path_expr_with_constants(
                 "[file join $demo::dir config.tcl]",
@@ -2023,7 +2069,11 @@ mod tests {
                    \x20       set library [file dirname [info script]]\n\
                    \x20   }\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/tk/ttk/ttk.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/tk/ttk/ttk.tcl"),
+        );
         assert!(!constants.contains_key("::ttk::library"), "{constants:?}");
         assert_eq!(
             evaluate_auto_path_expr_with_constants(
@@ -2150,7 +2200,11 @@ mod tests {
         let src = "set dir [file dirname [file normalize [info script]]]\n\
                    set libDir [file join $dir lib]\n\
                    lappend auto_path $libDir\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/proj/SpiceGenTcl.tcl"));
+        let constants = constant_path_vars(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj/SpiceGenTcl.tcl"),
+        );
         let entry = AutoPathEntry {
             raw_path: "$libDir".to_owned(),
             range: tcl_lexer::Span::new(0, 0),

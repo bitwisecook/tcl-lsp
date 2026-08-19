@@ -460,8 +460,14 @@ mod tests {
     /// reason.
     fn renamed(source: &str, cell: &str, new_tail: &str) -> Result<String, String> {
         let analysis = analyse(source);
-        let edits = namespace_rename_edits(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, cell, new_tail)
-            .map_err(|r| r.reason)?;
+        let edits = namespace_rename_edits(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            cell,
+            new_tail,
+        )
+        .map_err(|r| r.reason)?;
         // Apply back-to-front so earlier spans keep their offsets.
         let line_index = LineIndex::new(source);
         let mut offsets: Vec<(usize, usize, String)> = edits

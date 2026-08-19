@@ -108,7 +108,14 @@ fn references_class_includes_decl_and_every_instantiation() {
         "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
     // Cursor on `Dog` in the `oo::class create Dog` head (line 0, col 18).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 3, 4],
@@ -126,8 +133,22 @@ fn references_class_exclude_declaration_keeps_only_instantiations() {
     let src =
         "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
-    let with_decl = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, true);
-    let without_decl = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, false);
+    let with_decl = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        true,
+    );
+    let without_decl = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        false,
+    );
     assert_eq!(
         ref_lines(&without_decl),
         vec![3, 4],
@@ -152,7 +173,14 @@ fn references_class_includes_superclass_usage_in_other_class() {
     let src = "oo::class create Dog {\n    method bark {} {}\n}\noo::class create Puppy {\n    superclass Dog\n}\nset p [Puppy new]\n";
     let analysis = analyse(src);
     // Cursor on `Dog` in its decl (line 0, col 18).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&0), "class decl missing: {refs:?}");
     assert!(
@@ -174,7 +202,14 @@ fn references_class_includes_mixin_usage_in_other_class() {
     let src = "oo::class create M {\n    method m {} {}\n}\noo::class create C {\n    mixin M\n}\nset c [C new]\n";
     let analysis = analyse(src);
     // Cursor on `M` in its decl (line 0, col 18).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&0), "M decl missing: {refs:?}");
     assert!(
@@ -204,7 +239,14 @@ fn references_class_superclass_does_not_cross_a_namespace_collision() {
     );
     let analysis = analyse(src);
     // Cursor on `Base` in ::a's declaration (line 1, col 21).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 21, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        21,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "::a::Base decl missing: {refs:?}");
     assert!(
@@ -225,7 +267,14 @@ fn references_class_from_qualified_name_at_decl_resolves() {
     let analysis = analyse(src);
     // Cursor on `Dog` in the decl — resolves the class whose qualified name is
     // `::Dog`.
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+        true,
+    );
     assert_eq!(ref_lines(&refs), vec![0, 3], "{refs:?}");
 }
 
@@ -240,7 +289,13 @@ fn document_highlights_var_marks_def_write_and_reads_read() {
     let src = "set x 1\nputs $x\nputs $x\n";
     let analysis = analyse(src);
     // Cursor inside the first `$x` (line 1).
-    let h = document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &analysis);
+    let h = document_highlights(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        &analysis,
+    );
     assert!(
         h.iter()
             .any(|(r, k)| r.start_line == 0 && *k == HighlightKind::Write),
@@ -258,7 +313,14 @@ fn document_highlights_var_out_of_scope_is_empty() {
     let analysis = analyse(src);
     // Cursor inside `$undefined_xyz` (line 0, col 7).
     assert!(
-        document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 7, &analysis).is_empty(),
+        document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            7,
+            &analysis
+        )
+        .is_empty(),
         "an unresolved `$var` must produce no highlights",
     );
 }
@@ -293,7 +355,13 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
     };
     let src = "set x 1\nputs $x\n";
     // Cursor on `$x` (line 1, col 6).
-    let h = document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &analysis);
+    let h = document_highlights(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        &analysis,
+    );
     assert_eq!(
         h.len(),
         1,
@@ -319,7 +387,13 @@ fn document_highlights_class_decl_and_instantiations_are_text() {
         "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nset e [Dog new]\n";
     let analysis = analyse(src);
     // Cursor on `Dog` in the decl (line 0, col 18).
-    let h = document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, &analysis);
+    let h = document_highlights(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        &analysis,
+    );
     assert_eq!(
         hl_lines(&h),
         vec![0, 3, 4],
@@ -350,7 +424,14 @@ fn references_external_obj_method_two_instances_both_sites() {
     let src = "oo::class create Dog {\n    method bark {} {}\n}\nset a [Dog new]\nset b [Dog new]\n$a bark\n$b bark\n";
     let analysis = analyse(src);
     // Cursor on `bark` in `$a bark` (line 5, col 3).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 3, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        5,
+        3,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![1, 5, 6],
@@ -368,7 +449,14 @@ fn references_external_obj_method_inside_proc_body_subst() {
     let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc run {} {\n    puts [$d bark]\n}\n";
     let analysis = analyse(src);
     // Cursor on the `bark` declaration (line 1, col 11).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        11,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "method decl missing: {refs:?}");
     assert!(
@@ -386,7 +474,14 @@ fn references_method_with_empty_body_sibling_still_resolves() {
     let src = "oo::class create Dog {\n    method idle {} {}\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
     let analysis = analyse(src);
     // Cursor on `bark` in `$d bark` (line 5, col 3).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 3, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        5,
+        3,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![2, 5],
@@ -407,7 +502,14 @@ fn references_classmethod_decl_resolves_to_member() {
         "oo::class create C {\n    classmethod build {} {}\n    classmethod make {} { build }\n}\n";
     let analysis = analyse(src);
     // Cursor on the `build` classmethod declaration (line 1, col 17).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 17, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        17,
+        &analysis,
+        true,
+    );
     assert!(
         ref_lines(&refs).contains(&1),
         "classmethod declaration (line 1) must resolve; got {refs:?}",
@@ -430,13 +532,27 @@ fn references_property_decl_resolves_to_declaration_only() {
         a.analyse(src, "tcl9.0").clone()
     };
     // Cursor on the `color` property declaration (line 1, col 14).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 1, 14, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        1,
+        14,
+        &analysis,
+        true,
+    );
     assert!(
         ref_lines(&refs).contains(&1),
         "property declaration (line 1) must resolve; got {refs:?}",
     );
     // Excluding the declaration leaves no external `$obj color` dispatch sites.
-    let without_decl = references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 1, 14, &analysis, false);
+    let without_decl = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        1,
+        14,
+        &analysis,
+        false,
+    );
     assert!(
         !without_decl.iter().any(|r| r.start_line == 1),
         "the decl span itself must be gone when excluded; got {without_decl:?}",
@@ -451,7 +567,13 @@ fn document_highlights_method_decl_and_external_site_all_text() {
     let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
     let analysis = analyse(src);
     // Cursor on the `bark` declaration (line 1, col 11).
-    let h = document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, &analysis);
+    let h = document_highlights(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        11,
+        &analysis,
+    );
     let lines = hl_lines(&h);
     assert!(lines.contains(&1), "method decl highlight missing: {h:?}");
     assert!(
@@ -474,17 +596,71 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     let analysis = analyse(src);
     // A bare literal that is neither class, proc, method, nor var.
     assert!(
-        references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 4, &analysis, true).is_empty()
-            || !references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 4, &analysis, true).is_empty(),
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            4,
+            &analysis,
+            true
+        )
+        .is_empty()
+            || !references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                1,
+                4,
+                &analysis,
+                true
+            )
+            .is_empty(),
         "must not panic on `method` keyword position",
     );
     // Far past EOF.
-    assert!(references(src, tcl_dialect::DialectProfile::by_name("tcl"), 99, 0, &analysis, true).is_empty());
-    assert!(document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 99, 0, &analysis).is_empty());
+    assert!(
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            99,
+            0,
+            &analysis,
+            true
+        )
+        .is_empty()
+    );
+    assert!(
+        document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            99,
+            0,
+            &analysis
+        )
+        .is_empty()
+    );
     // Empty document.
     let empty = analyse("");
-    assert!(references("", tcl_dialect::DialectProfile::by_name("tcl"), 0, 0, &empty, true).is_empty());
-    assert!(document_highlights("", tcl_dialect::DialectProfile::by_name("tcl"), 0, 0, &empty).is_empty());
+    assert!(
+        references(
+            "",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            0,
+            &empty,
+            true
+        )
+        .is_empty()
+    );
+    assert!(
+        document_highlights(
+            "",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            0,
+            &empty
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -498,7 +674,15 @@ fn references_var_out_of_scope_is_empty() {
     let analysis = analyse(src);
     // Cursor inside `$undefined_xyz` (line 0, col 7).
     assert!(
-        references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 7, &analysis, true).is_empty(),
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            7,
+            &analysis,
+            true
+        )
+        .is_empty(),
         "an unresolved `$var` must produce no references",
     );
 }
@@ -508,7 +692,16 @@ fn document_highlights_unknown_word_is_empty() {
     // A bare literal argument is not a highlightable symbol.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis).is_empty());
+    assert!(
+        document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -520,7 +713,13 @@ fn document_highlights_proc_decl_and_calls_are_text() {
     let src = "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n";
     let analysis = analyse(src);
     // Cursor on the `greet` declaration (line 0, col 6).
-    let h = document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis);
+    let h = document_highlights(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+    );
     assert_eq!(hl_lines(&h), vec![0, 1, 2], "decl + both calls; got {h:?}");
     assert!(
         h.iter().all(|(_, k)| *k == HighlightKind::Text),
@@ -542,7 +741,14 @@ fn references_method_with_destructor_resolves_external_site() {
     let src = "oo::class create Dog {\n    method bark {} {}\n    destructor { puts [my bark] }\n}\nset d [Dog new]\n$d bark\n";
     let analysis = analyse(src);
     // Cursor on the `bark` declaration (line 1, col 11).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        11,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "method decl missing: {refs:?}");
     assert!(
@@ -580,7 +786,14 @@ fn bug_intra_class_my_method_call_sites_are_missed() {
     let src = "oo::class create C {\n    method bark {} {}\n    method twice {} { my bark ; my bark }\n}\n";
     let analysis = analyse(src);
     // Cursor on the `bark` declaration (line 1, col 11).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        11,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     // CORRECT behaviour: the two `my bark` dispatch sites on line 2 are real
     // references and must be surfaced.
@@ -616,7 +829,14 @@ fn bug_intra_class_bare_head_is_not_a_real_reference() {
         "oo::class create C {\n    method greet {} {}\n    method twice {} { greet ; greet }\n}\n";
     let analysis = analyse(src);
     // Cursor on the `greet` declaration (line 1, col 11).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, &analysis, false); // exclude decl
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        11,
+        &analysis,
+        false,
+    ); // exclude decl
     // CORRECT behaviour: with the declaration excluded there are NO real
     // references — the bare `greet` heads are not valid method dispatches.
     assert!(

@@ -1920,7 +1920,13 @@ mod tests {
             "helper prod\nrename helper legacy\n",
             "helper prod\ninterp alias {} h {} helper\n",
         ] {
-            let evidence = scan_source_call_sites(src, &reg, tcl_dialect::DialectProfile::by_name(""), &known(&["::helper"]), &[]);
+            let evidence = scan_source_call_sites(
+                src,
+                &reg,
+                tcl_dialect::DialectProfile::by_name(""),
+                &known(&["::helper"]),
+                &[],
+            );
             let helper = evidence.get("::helper").expect("calls recorded");
             assert_eq!(helper.uniform_literal_at(0), None, "{src}");
         }
@@ -2136,7 +2142,13 @@ mod tests {
     #[test]
     fn slice_for_keeps_only_the_named_callees() {
         let reg = registry();
-        let evidence = scan_source_call_sites("a 1\nb 2\n", &reg, tcl_dialect::DialectProfile::by_name(""), &known(&["::a", "::b"]), &[]);
+        let evidence = scan_source_call_sites(
+            "a 1\nb 2\n",
+            &reg,
+            tcl_dialect::DialectProfile::by_name(""),
+            &known(&["::a", "::b"]),
+            &[],
+        );
         let sliced = evidence.slice_for(["::a"].into_iter());
         assert_eq!(sliced.callees().collect::<Vec<_>>(), vec!["::a"]);
         assert!(evidence.slice_for(["::zzz"].into_iter()).is_empty());
@@ -2145,7 +2157,10 @@ mod tests {
     /// Build the evidence for `src` under a named dialect's registry, the
     /// way `CompilationUnit` does minus the method / body-unit callers
     /// (which need a CFG context these unit tests do not exercise).
-    fn evidence_for_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> CallSiteEvidence {
+    fn evidence_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> CallSiteEvidence {
         let reg = tcl_registry::cache::registry_for_profile(dialect);
         let ir = crate::lowering::lower_to_ir(src, reg);
         let cfg_module = crate::cfg_builder::build_cfg(&ir, false);
@@ -2411,7 +2426,7 @@ mod tests {
     fn a_registry_declared_user_proc_invoker_is_a_call_site() {
         let ev = evidence_for_dialect(
             "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
-            tcl_dialect::DialectProfile::by_name("irules"),
+            tcl_dialect::DialectProfile::irules(),
         );
         assert_eq!(uniform(&ev, "::helper", 0).as_deref(), Some("dev"));
     }
@@ -2502,7 +2517,13 @@ mod tests {
             // it in the callee's component because something sources it.
             "set cmd [gets stdin]\n$cmd dev\n",
         ] {
-            let opaque = scan_source_call_sites(src, &reg, tcl_dialect::DialectProfile::by_name("tcl"), &known, &linked);
+            let opaque = scan_source_call_sites(
+                src,
+                &reg,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                &known,
+                &linked,
+            );
             let mut project =
                 evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
             project.merge_from(&opaque);

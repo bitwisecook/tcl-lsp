@@ -6944,9 +6944,7 @@ mod family_b_tests {
         // an embedded Tcl 8.4 surface, so routing it through the profile must
         // also update the release globals rather than retaining the default.
         let mut vm = Vm::new();
-        vm.set_runtime_version(
-            tcl_dialect::DialectProfile::by_name("f5-irules").vm_runtime_version,
-        );
+        vm.set_runtime_version(tcl_dialect::DialectProfile::irules().vm_runtime_version);
         assert_eq!(vm.runtime_version(), tcl_dialect::TclVersion::V8_4);
         assert_eq!(
             vm.get_var("tcl_version").map(|v| v.to_str().to_string()),

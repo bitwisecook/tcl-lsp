@@ -444,7 +444,11 @@ fn build_nodes(
 
 /// Build the full call-graph payload.
 #[must_use]
-pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+pub fn call_graph(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Value {
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
@@ -762,7 +766,11 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
 
 /// Build the dataflow / taint graph payload.
 #[must_use]
-pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+pub fn dataflow_graph(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Value {
     let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
@@ -927,7 +935,11 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
 /// counts, lattice values, types), def→use edges, and memory-SSA alias info.
 /// The top-level scope is included first, then each procedure.
 #[must_use]
-pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+pub fn def_use_graph(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Value {
     fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
@@ -1008,7 +1020,11 @@ fn memory_function_json(
 /// analysis proved may refer to the same storage, via `upvar` / `global` /
 /// `variable`) with the reason and locations, plus memory-op counts.
 #[must_use]
-pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+pub fn memory_alias_graph(
+    source: &str,
+    registry: &CommandRegistry,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Value {
     let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))

@@ -241,17 +241,20 @@ pub fn prepare_rename_in_program(
     // (issue #923 idx 24) — and neither is the `$n` inside a brace-quoted
     // *name* word (PR #1106 review, P2).
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some(var_name) =
-        crate::definition::substituting_var_at_position(source, tcl_dialect::DialectProfile::by_name(""), line, character, byte_offset)
-        && let Some(var_def) = crate::definition::lookup_var_read_at(
-            &analysis.global_scope,
-            source,
-            tcl_dialect::DialectProfile::by_name(""),
-            byte_offset,
-            &var_name,
-            analysis.ns_var_global_fallback(),
-        )
-    {
+    if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        tcl_dialect::DialectProfile::by_name(""),
+        line,
+        character,
+        byte_offset,
+    ) && let Some(var_def) = crate::definition::lookup_var_read_at(
+        &analysis.global_scope,
+        source,
+        tcl_dialect::DialectProfile::by_name(""),
+        byte_offset,
+        &var_name,
+        analysis.ns_var_global_fallback(),
+    ) {
         return Some(PrepareRename {
             range: span_to_range(source, &line_index, var_def.definition_span),
             placeholder: var_def.name.clone(),
@@ -788,9 +791,13 @@ fn rename_variable_at(
     // search, so it names the literal cell; the refusal gate in
     // `rename_with_diagnosis` has already stopped it before this point, but
     // resolving it correctly here keeps the two from disagreeing.
-    let name = if let Some(var_name) =
-        crate::definition::substituting_var_at_position(source, tcl_dialect::DialectProfile::by_name(""), line, character, def_byte)
-    {
+    let name = if let Some(var_name) = crate::definition::substituting_var_at_position(
+        source,
+        tcl_dialect::DialectProfile::by_name(""),
+        line,
+        character,
+        def_byte,
+    ) {
         var_name
     } else {
         crate::definition::var_def_at_declaration_offset(&analysis.global_scope, def_byte)?
@@ -2137,7 +2144,15 @@ mod tests {
                    puts [::app::widget show]\n";
         let analysis = analyse(src);
         // Cursor on the `Show` of the declaration (line 1, col 20).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 20, "Display", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            20,
+            "Display",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("proc ::app::widget::Display {}"),
@@ -2171,7 +2186,15 @@ mod tests {
                    puts [::app::widget alpha]\n";
         let analysis = analyse(src);
         // Cursor on the `alpha` of the declaration (line 1, col 9).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, "beta", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            "beta",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("proc beta {}"),
@@ -2200,7 +2223,14 @@ mod tests {
                        -map {show ::app::widget::Show}\n\
                        puts [::app::widget show]\n";
         let analysis = analyse(map_src);
-        let refs = crate::references::references(map_src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 20, &analysis, false);
+        let refs = crate::references::references(
+            map_src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            20,
+            &analysis,
+            false,
+        );
         assert!(
             refs.iter().any(|r| r.start_line == 3),
             "the -map dispatch site is a reference: {refs:?}"
@@ -2213,7 +2243,14 @@ mod tests {
                        }\n\
                        puts [::app::widget alpha]\n";
         let analysis = analyse(sub_src);
-        let refs = crate::references::references(sub_src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, &analysis, false);
+        let refs = crate::references::references(
+            sub_src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            false,
+        );
         assert!(
             refs.iter().any(|r| r.start_line == 4),
             "the -subcommands dispatch site is a reference: {refs:?}"
@@ -2240,7 +2277,15 @@ mod tests {
             "a dynamic -map records no mapping: {:?}",
             analysis.ensemble_subcommand_targets,
         );
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 20, "Display", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            20,
+            "Display",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("puts [::app::widget show]"),
@@ -2262,7 +2307,15 @@ mod tests {
                    $b greet\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 29).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 29, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            29,
+            "salute",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&1), "declaration edit missing: {edits:?}");
         assert!(
@@ -2289,7 +2342,15 @@ mod tests {
         let analysis = analyse(src);
         // `x` is a proc parameter — the lattice has no caller to type it
         // from, so it stays untracked.
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 28, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            28,
+            "salute",
+            &analysis,
+            None,
+        );
         assert!(
             edits.is_empty(),
             "an untracked `$x greet` dispatch must keep refusing the rename: {edits:?}"
@@ -2300,7 +2361,15 @@ mod tests {
     fn rename_proc_includes_decl_and_calls() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "hi", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "hi",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty());
         assert!(edits.iter().all(|e| e.new_text == "hi"));
         // First edit is the declaration on line 0 col 5.
@@ -2321,7 +2390,15 @@ mod tests {
         let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `classvar` declaration (line 0, col 20).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 20, "renamedClassvar", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            20,
+            "renamedClassvar",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {edits:?}");
         assert!(
@@ -2356,7 +2433,15 @@ mod tests {
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
         // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, "tolerance", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            14,
+            "tolerance",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&1), "the `global tolComp` decl: {edits:?}");
         assert!(lines.contains(&2), "the in-proc $tolComp read: {edits:?}");
@@ -2381,7 +2466,15 @@ mod tests {
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
         // Cursor on the `set ::tolComp` declaration (line 4, col 8).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 4, 8, "tolerance", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            8,
+            "tolerance",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
             lines.contains(&4),
@@ -2401,7 +2494,18 @@ mod tests {
     fn rename_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "x", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                "x",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2419,7 +2523,15 @@ mod tests {
         let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
         let analysis = analyse(src);
         // Cursor on the `bar` declaration (line 1, col 9).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, "baz", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            "baz",
+            &analysis,
+            None,
+        );
         assert_eq!(edits.len(), 1, "{edits:?}");
         assert_eq!(edits[0].range.start_line, 1);
         assert_eq!(edits[0].new_text, "baz");
@@ -2435,7 +2547,15 @@ mod tests {
         // command doesn't exist" and no diagnostic warning anywhere.
         let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "newName", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "newName",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert_eq!(edits.len(), 3, "{edits:?}");
         assert!(lines.contains(&0), "decl missing: {edits:?}");
@@ -2519,7 +2639,15 @@ mod tests {
                    ::app make\n";
         let analysis = analyse(src);
         // Cursor on the `::Widget` of the class declaration (line 0, col 17).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 17, "Panel", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            17,
+            "Panel",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         // (The class tier's own qualifier handling writes the short form
         // here; the identity is the same command at global level. What this
@@ -2602,7 +2730,15 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         // Cursor inside `$x`.
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "y", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "y",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty());
         // Declaration replaces just `x` → `y`; reference
         // replaces `$x` → `$y` so the `$` prefix is preserved.
@@ -2623,7 +2759,15 @@ mod tests {
         let src = "proc greet {name} { return $name }\n";
         let analysis = analyse(src);
         // Cursor on `name` inside the parameter list (col 12-16).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 13, "label", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            13,
+            "label",
+            &analysis,
+            None,
+        );
         assert_eq!(edits.len(), 2, "{edits:?}");
         // The declaration rewrites bare `name` -> `label`; the `$name` read
         // preserves its `$` prefix -> `$label` (mirrors
@@ -2643,7 +2787,15 @@ mod tests {
         let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
         let analysis = analyse(src);
         // Cursor on the catch result-var `name` (line 1, col 16-20).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 17, "resolved", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            17,
+            "resolved",
+            &analysis,
+            None,
+        );
         assert!(
             edits.iter().any(|e| e.range.start_line == 0),
             "original param declaration must be rewritten too: {edits:?}"
@@ -2670,7 +2822,15 @@ mod tests {
         let src = "set x 1\nputs ${x}\n";
         let analysis = analyse(src);
         // Cursor inside `${x}` on the `x`.
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "y", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "y",
+            &analysis,
+            None,
+        );
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains(&"y"), "{texts:?}");
         assert!(texts.contains(&"${y}"), "{texts:?}");
@@ -2759,7 +2919,15 @@ mod tests {
         let src = "set arr(0) 1\nputs ${arr(0)}\n";
         let analysis = analyse(src);
         // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "data", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "data",
+            &analysis,
+            None,
+        );
         assert_eq!(apply_edits(src, &edits), "set data(0) 1\nputs ${data(0)}\n");
     }
 
@@ -2776,7 +2944,15 @@ mod tests {
         // above already pins `new_text`; this applies the edit for real.
         let src = "set x 1\nputs ${x}\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "y", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "y",
+            &analysis,
+            None,
+        );
         assert_eq!(apply_edits(src, &edits), "set y 1\nputs ${y}\n");
     }
 
@@ -2792,7 +2968,15 @@ mod tests {
         let src = "proc ::tk::MouseWheel {w dir amount {factor -120.0} {units units}} {\n    $w ${dir}view scroll [expr {$amount/$factor}] $units\n}\n";
         let analysis = analyse(src);
         // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, "direction", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            "direction",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("${direction}view"),
@@ -2811,7 +2995,15 @@ mod tests {
         let src = "set arr(0) 1\nputs $arr(0)\n";
         let analysis = analyse(src);
         // Cursor on `arr` in the `set` target (line 0, col 4).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, "data", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            "data",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "expected array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -2827,7 +3019,15 @@ mod tests {
         let src = "set arr(0) 1\nputs ${arr(0)}\n";
         let analysis = analyse(src);
         // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "data", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "data",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "expected braced array rename edits");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -2955,11 +3155,44 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         // Whitespace in the new name fails the shape gate.
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "bad name", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                "bad name",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
         // Leading digit fails.
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "1lead", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                "1lead",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
         // Dash fails.
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "with-dash", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                "with-dash",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2967,7 +3200,18 @@ mod tests {
         // The shape gate applies to variable renames too.
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "bad name", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                1,
+                7,
+                "bad name",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -2978,7 +3222,15 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "puts", &analysis, Some(&registry));
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "puts",
+            &analysis,
+            Some(&registry),
+        );
         assert!(
             edits.is_empty(),
             "rename to built-in `puts` must produce no edits, got {edits:?}",
@@ -2992,7 +3244,15 @@ mod tests {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "salut", &analysis, Some(&registry));
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "salut",
+            &analysis,
+            Some(&registry),
+        );
         assert!(
             !edits.is_empty(),
             "rename to non-built-in `salut` should produce edits",
@@ -3008,7 +3268,15 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "puts", &analysis, Some(&registry));
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "puts",
+            &analysis,
+            Some(&registry),
+        );
         assert!(
             !edits.is_empty(),
             "variable rename to `puts` should succeed (different namespace)",
@@ -3033,7 +3301,15 @@ mod tests {
         // just `hello` (which would clobber the prefix).
         let src = "proc ::myns::greet {} {}\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 14, "hello", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            14,
+            "hello",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "{edits:?}");
         assert!(
             edits.iter().any(|e| e.new_text == "::myns::hello"),
@@ -3055,7 +3331,15 @@ mod tests {
                        greet\n\
                    }\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 14, "hello", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            14,
+            "hello",
+            &analysis,
+            None,
+        );
         let replacements: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         // Should include both `::myns::hello` (qualified) and
         // `hello` (short).
@@ -3077,7 +3361,15 @@ mod tests {
         // unqualified (`hello`, not `::hello`).
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "hello", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "hello",
+            &analysis,
+            None,
+        );
         assert!(
             edits.iter().any(|e| e.new_text == "hello"),
             "expected short `hello` at decl; got {:?}",
@@ -3104,7 +3396,15 @@ mod tests {
                    MyClass new\n";
         let analysis = analyse(src);
         // Cursor on the `MyClass` declaration name (column 17).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 17, "Renamed", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            17,
+            "Renamed",
+            &analysis,
+            None,
+        );
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(!edits.is_empty(), "expected non-empty edits");
         assert!(
@@ -3123,7 +3423,15 @@ mod tests {
         let src = "oo::class create MyClass {\n}\nMyClass new\n";
         let analysis = analyse(src);
         // Cursor on the `MyClass` in `MyClass new` (line 2, col 3).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 3, "Renamed", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            3,
+            "Renamed",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "{edits:?}");
         let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(
@@ -3136,7 +3444,15 @@ mod tests {
     fn rename_class_rejects_unsafe_new_name() {
         let src = "oo::class create MyClass {}\nMyClass new\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 17, "1bad", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            17,
+            "1bad",
+            &analysis,
+            None,
+        );
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -3146,7 +3462,15 @@ mod tests {
         let analysis = analyse(src);
         let mut r = tcl_registry::CommandRegistry::build_default();
         r.load_dialect(tcl_dialect::DialectSet::IRULES);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 17, "if", &analysis, Some(&r));
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            17,
+            "if",
+            &analysis,
+            Some(&r),
+        );
         assert!(
             edits.is_empty(),
             "renaming to a built-in should be blocked; got {edits:?}",
@@ -3176,7 +3500,15 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1 col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "salute",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "{edits:?}");
         // All three sites should be present.
         assert!(edits.len() >= 3, "{edits:?}");
@@ -3197,7 +3529,15 @@ mod tests {
         let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `bar` declaration (line 1, col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "baz", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "baz",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {edits:?}");
         assert!(
@@ -3220,7 +3560,15 @@ mod tests {
         let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `Helper` declaration (line 4, col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 4, 11, "Assist", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            11,
+            "Assist",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(lines.contains(&4), "decl missing: {edits:?}");
         assert!(
@@ -3238,7 +3586,15 @@ mod tests {
         let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
         let analysis = analyse(src);
         // Cursor on `Sub::greet`'s declaration (line 5, col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 11, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            11,
+            "salute",
+            &analysis,
+            None,
+        );
         assert!(!edits.is_empty(), "{edits:?}");
         // The declaration (line 5, col 11) is rewritten; nothing in the `{ next
         // }` body region (col >= 20 on line 5) is.
@@ -3255,7 +3611,15 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` call site (line 2 col 25, after `my `).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 25, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            25,
+            "salute",
+            &analysis,
+            None,
+        );
         assert!(edits.len() >= 3, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "salute");
@@ -3274,7 +3638,15 @@ mod tests {
         let src = "oo::class create C {\n    method format {} {}\n    method show {} { format %d 1 }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `format` method's declaration (line 1, col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "render", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "render",
+            &analysis,
+            None,
+        );
         // Only the declaration is renamed — the bare `format %d 1` call
         // inside `show` invokes the builtin, not this method.
         assert_eq!(edits.len(), 1, "{edits:?}");
@@ -3291,7 +3663,15 @@ mod tests {
         let src = "oo::class create C {\n    property color\n    method color {} { return c }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         // Cursor on the *property* declaration (line 1, col 13).
-        let property_edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 1, 13, "shade", &analysis, None);
+        let property_edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            1,
+            13,
+            "shade",
+            &analysis,
+            None,
+        );
         assert_eq!(
             property_edits.len(),
             1,
@@ -3300,7 +3680,15 @@ mod tests {
         assert_eq!(property_edits[0].range.start_line, 1, "{property_edits:?}");
         // Cursor on the *method* declaration (line 2) picks the method
         // instead, leaving the same-named property untouched.
-        let method_edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 2, 11, "shade", &analysis, None);
+        let method_edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            2,
+            11,
+            "shade",
+            &analysis,
+            None,
+        );
         assert!(
             method_edits.iter().any(|e| e.range.start_line == 2),
             "{method_edits:?}"
@@ -3325,7 +3713,15 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    classmethod greet {} {}\n    method twice {} { my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the *classmethod* declaration (line 2, col 16).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 16, "hail", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            16,
+            "hail",
+            &analysis,
+            None,
+        );
         assert_eq!(
             edits.len(),
             1,
@@ -3512,7 +3908,15 @@ mod tests {
         // dialect at 8.6, so this test analyses at 9.0 directly.
         let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         // Cursor on the `color` property declaration (line 1, col 13).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 1, 13, "shade", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            1,
+            13,
+            "shade",
+            &analysis,
+            None,
+        );
         assert_eq!(edits.len(), 2, "decl + `my color` call site: {edits:?}");
         assert!(edits.iter().all(|e| e.new_text == "shade"));
         assert_eq!(edits[0].range.start_line, 1);
@@ -3526,7 +3930,15 @@ mod tests {
     fn rename_property_rewrites_control_flow_nested_call_site() {
         let src = "oo::class create C {\n    property color\n    method describe {} {\n        if {1} {\n            return [my color]\n        }\n    }\n}\n";
         let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 1, 13, "shade", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            1,
+            13,
+            "shade",
+            &analysis,
+            None,
+        );
         assert_eq!(
             edits.len(),
             2,
@@ -3543,7 +3955,15 @@ mod tests {
         // returns empty.
         let src = "oo::class create C {\n    method greet {} {}\n}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 2, "salute", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            3,
+            2,
+            "salute",
+            &analysis,
+            None,
+        );
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -3557,7 +3977,15 @@ mod tests {
         let src = "oo::class create C {\n    method getOptions {k} { return $k }\n    method get {k} {\n        if {1} {\n            switch -- $k {\n                default {\n                    my getOptions $k\n                }\n            }\n        }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `getOptions` declaration (line 1, col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "fetchOptions", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "fetchOptions",
+            &analysis,
+            None,
+        );
         assert_eq!(edits.len(), 2, "decl + nested `my` site: {edits:?}");
         assert!(edits.iter().all(|e| e.new_text == "fetchOptions"));
         assert_eq!(edits[0].range.start_line, 1);
@@ -3569,7 +3997,15 @@ mod tests {
     fn rename_method_rejects_unsafe_new_name() {
         let src = "oo::class create C {\n    method greet {} {}\n}\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "1bad", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "1bad",
+            &analysis,
+            None,
+        );
         assert!(edits.is_empty(), "{edits:?}");
     }
 
@@ -3589,7 +4025,15 @@ mod tests {
         // external `$d bark` / `[$d bark]` call sites.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "yip", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "yip",
+            &analysis,
+            None,
+        );
         // Declaration + 2 external sites = 3 edits, all "yip".
         assert!(edits.len() >= 3, "{edits:?}");
         for e in &edits {
@@ -3608,7 +4052,15 @@ mod tests {
         // shared resolver drives the peek, the lens, and the rename.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "yip", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "yip",
+            &analysis,
+            None,
+        );
         for e in &edits {
             assert_eq!(e.new_text, "yip");
         }
@@ -3632,7 +4084,15 @@ mod tests {
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
         let analysis = analyse(src);
         // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 13, "lookup", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            7,
+            13,
+            "lookup",
+            &analysis,
+            None,
+        );
         assert_eq!(edits.len(), 3, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "lookup");
@@ -3654,7 +4114,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
         // Line 4 `rex bark` — cursor on `bark` (col 4).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 4, 4, "yip", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            4,
+            "yip",
+            &analysis,
+            None,
+        );
         assert!(edits.len() >= 2, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "yip");
@@ -3671,7 +4139,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
         let analysis = analyse(src);
         // Cursor on `bark` in `$d bark` (line 4, col 3).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 4, 3, "yip", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            3,
+            "yip",
+            &analysis,
+            None,
+        );
         assert!(edits.len() >= 2, "{edits:?}");
         for e in &edits {
             assert_eq!(e.new_text, "yip");
@@ -3685,7 +4161,15 @@ mod tests {
     fn rename_method_external_rewrites_proc_body_sites() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "yip", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "yip",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         // Declaration (1) + proc-body call (4).
         assert!(lines.contains(&1) && lines.contains(&4), "{edits:?}");
@@ -3697,7 +4181,15 @@ mod tests {
         // resolver must find the variable and rewrite decl + reads.
         let src = "set x 42\nputs $x\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 4, "newvar", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            4,
+            "newvar",
+            &analysis,
+            None,
+        );
         let texts: std::collections::HashSet<&str> =
             edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains("newvar"), "decl edit missing: {edits:?}");
@@ -3708,7 +4200,15 @@ mod tests {
     fn rename_var_preserves_namespace_qualifier_at_decl() {
         let src = "set myns::count 0\nputs $myns::count\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 10, "total", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            10,
+            "total",
+            &analysis,
+            None,
+        );
         let texts: std::collections::HashSet<&str> =
             edits.iter().map(|e| e.new_text.as_str()).collect();
         assert!(texts.contains("myns::total"), "decl ns lost: {edits:?}");
@@ -3720,7 +4220,15 @@ mod tests {
         let src = "proc demo {} {\n    set x 1\n    set y 2\n    puts $x\n}\n";
         let analysis = analyse(src);
         // Rename `x` (read site, line 3) to `y` which already exists in scope.
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 10, "y", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            3,
+            10,
+            "y",
+            &analysis,
+            None,
+        );
         assert!(edits.is_empty(), "collision not rejected: {edits:?}");
     }
 
@@ -3728,7 +4236,15 @@ mod tests {
     fn rename_proc_rejected_on_existing_proc_collision() {
         let src = "proc greet {} {}\nproc hello {} {}\ngreet\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "hello", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "hello",
+            &analysis,
+            None,
+        );
         assert!(edits.is_empty(), "proc collision not rejected: {edits:?}");
     }
 
@@ -3748,7 +4264,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `speak` in Animal's declaration (line 1 col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "vocalise", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "vocalise",
+            &analysis,
+            None,
+        );
         assert!(edits.iter().all(|e| e.new_text == "vocalise"));
         // Both declarations rewritten: line 1 (Animal) and line 5 (Dog).
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
@@ -3771,7 +4295,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `speak` in Dog's declaration (line 5 col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 7, "vocalise", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            7,
+            "vocalise",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
             lines.contains(&1) && lines.contains(&5),
@@ -3797,7 +4329,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `area` in Circle (line 5 col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 7, "measure", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            7,
+            "measure",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         // Shape (l1), Circle (l5), Square (l9) all rewritten.
         assert!(
@@ -3818,7 +4358,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `run` in Engine (line 1 col 7).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, "start", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            "start",
+            &analysis,
+            None,
+        );
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
             lines.contains(&1),
@@ -3845,7 +4393,15 @@ mod tests {
                    $d speak\n";
         let analysis = analyse(src);
         // Cursor on `speak` in `$d speak` (line 7 col 3).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 3, "vocalise", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            7,
+            3,
+            "vocalise",
+            &analysis,
+            None,
+        );
         assert!(
             !edits.is_empty(),
             "inherited-method rename produced nothing"
@@ -3873,7 +4429,15 @@ mod tests {
                    $d speak\n";
         let analysis = analyse(src);
         // Cursor on `speak` in Animal's declaration (line 1 col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "vocalise", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "vocalise",
+            &analysis,
+            None,
+        );
         assert!(edits.iter().all(|e| e.new_text == "vocalise"));
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
@@ -3897,7 +4461,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `speak` in Animal's declaration (line 1 col 11).
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 11, "vocalise", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            "vocalise",
+            &analysis,
+            None,
+        );
         assert!(edits.iter().all(|e| e.new_text == "vocalise"));
         let lines: Vec<u32> = edits.iter().map(|e| e.range.start_line).collect();
         assert!(
@@ -3920,7 +4492,15 @@ mod tests {
     fn tp_rename_method_rewrites_its_export_list() {
         let src = "oo::class create A {\n    method Foo {} { return 1 }\n    export Foo\n}\nset a [A new]\nputs [$a Foo]\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 12, "Bar", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            1,
+            12,
+            "Bar",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("export Bar"),
@@ -3938,7 +4518,15 @@ mod tests {
     fn tp_rename_method_rewrites_an_export_in_a_separate_oo_define_block() {
         let src = "oo::class create A {\n    method Foo {} { return 1 }\n}\noo::define A {\n    export Foo\n}\n";
         let analysis = analyse(src);
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 12, "Bar", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            1,
+            12,
+            "Bar",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("export Bar"),
@@ -3974,7 +4562,15 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         // Cursor on `make` in `::b::Widget`'s declaration.
-        let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 9, 15, "produce", &analysis, None);
+        let edits = rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            9,
+            15,
+            "produce",
+            &analysis,
+            None,
+        );
         let applied = apply_edits(src, &edits);
         assert!(
             applied.contains("method produce {} { return \"b-made\" }"),
@@ -4217,13 +4813,32 @@ mod tests {
                    \x20   method X {} { return $_x }\n\
                    }\n";
         let analysis = analyse(src);
-        let err = rename_with_diagnosis(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 6, 11, "GetX", &analysis, None)
-            .expect_err("idx 79's shape must refuse");
+        let err = rename_with_diagnosis(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            6,
+            11,
+            "GetX",
+            &analysis,
+            None,
+        )
+        .expect_err("idx 79's shape must refuse");
         assert!(err.reason.contains("not tracked"), "{}", err.reason);
         assert!(err.range.is_some(), "the refusal must point at the site");
         // And the plain entry point must produce no edits at all — never a
         // partial set.
-        assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 6, 11, "GetX", &analysis, None).is_empty());
+        assert!(
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                6,
+                11,
+                "GetX",
+                &analysis,
+                None
+            )
+            .is_empty()
+        );
     }
 
     // -- idx 79: the gate must not depend on the trigger position ---------
@@ -4335,7 +4950,13 @@ mod tests {
             (6, 9, "the tracked `[$v X]` call site"),
         ] {
             let edits = rename_with_diagnosis(
-                IDX79_SAFE, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, character, "GetX", &analysis, None,
+                IDX79_SAFE,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                line,
+                character,
+                "GetX",
+                &analysis,
+                None,
             )
             .unwrap_or_else(|err| panic!("{what} must not refuse: {}", err.reason));
             let applied = apply_edits(IDX79_SAFE, &edits);

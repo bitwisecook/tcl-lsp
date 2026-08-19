@@ -314,7 +314,11 @@ pub fn document_links_in_context(
 ///
 /// A single-word substitution (`[pwd]`) has only its command name to offer
 /// and so abstains too, hence the `1..` lower bound.
-fn link_anchor(source: &str, dialect: &'static tcl_dialect::DialectProfile, arg: &Token) -> Option<(u32, u32)> {
+fn link_anchor(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    arg: &Token,
+) -> Option<(u32, u32)> {
     let content_start = arg.span.start() + u32::from(arg.content_offset);
     if arg.kind != TokenType::Cmd {
         return Some((content_start, arg.span.end()));
@@ -556,8 +560,22 @@ mod tests {
 
     #[test]
     fn empty_links_for_non_source_commands() {
-        assert!(document_links("set x 1\n", tcl_dialect::DialectProfile::by_name("tcl"), None).is_empty());
-        assert!(document_links("puts hello\n", tcl_dialect::DialectProfile::by_name("tcl"), None).is_empty());
+        assert!(
+            document_links(
+                "set x 1\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                None
+            )
+            .is_empty()
+        );
+        assert!(
+            document_links(
+                "puts hello\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -571,7 +589,11 @@ mod tests {
     #[test]
     fn relative_path_resolves_against_workspace_root() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/home/user/project"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/project"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/project/helper.tcl");
     }
@@ -724,7 +746,11 @@ mod tests {
             home: None,
             script_path: Some("/proj/test/caller.tcl"),
         };
-        let literal = document_links_in_context("source helper.tcl\n", tcl_dialect::DialectProfile::by_name("tcl"), &ctx);
+        let literal = document_links_in_context(
+            "source helper.tcl\n",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &ctx,
+        );
         let computed = document_links_in_context(
             "set dir .\nsource [file join $dir helper.tcl]\n",
             tcl_dialect::DialectProfile::by_name("tcl"),
@@ -851,7 +877,11 @@ mod tests {
     #[test]
     fn a_literal_file_join_link_anchors_on_the_file_name_only_775() {
         let src = "source [file join lib helper.tcl]\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/proj"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
         assert_eq!(covered, "helper.tcl", "{links:?}");
@@ -886,7 +916,11 @@ mod tests {
     #[test]
     fn a_literal_source_link_still_covers_the_whole_word_775() {
         let src = "source lib/helper.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/proj"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
         assert_eq!(covered, "lib/helper.tcl", "{links:?}");
@@ -903,7 +937,11 @@ mod tests {
     #[test]
     fn trailing_slash_on_workspace_root_handled() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/home/user/"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/helper.tcl");
     }
@@ -911,7 +949,12 @@ mod tests {
     #[test]
     fn tilde_expansion_uses_supplied_home() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, Some("/test-home"));
+        let links = document_links_with_home(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+            Some("/test-home"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
     }
@@ -919,14 +962,20 @@ mod tests {
     #[test]
     fn tilde_without_home_produces_no_link() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, None);
+        let links =
+            document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn bare_tilde_expands_to_home() {
         let src = "source ~\n";
-        let links = document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, Some("/test-home"));
+        let links = document_links_with_home(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+            Some("/test-home"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
     }
@@ -1060,7 +1109,11 @@ mod tests {
     #[test]
     fn source_with_literal_file_join_surfaces_link() {
         let src = "source [file join lib helper.tcl]\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), Some("/home/user/project"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/project"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl",);
     }

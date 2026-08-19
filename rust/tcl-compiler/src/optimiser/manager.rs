@@ -1010,7 +1010,7 @@ mod tests {
         let opts = optimise_with_dialect(
             source,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             opts.iter().all(|opt| {
@@ -1373,7 +1373,7 @@ mod tests {
         let opts = optimise_with_dialect(
             src,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O124),

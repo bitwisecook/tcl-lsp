@@ -868,14 +868,21 @@ mod tests {
 
     /// Convenience wrapper for the original two-argument test
     /// signature; threads a fresh registry through the new API.
-    fn folding_ranges_default(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<FoldingRange> {
+    fn folding_ranges_default(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<FoldingRange> {
         folding_ranges(source, dialect, &registry())
     }
 
     fn folding_ranges_expect(source: &str) -> Vec<FoldingRange> {
         let mut registry = registry();
         registry.load_dialect(tcl_dialect::DialectSet::EXPECT);
-        folding_ranges(source, tcl_dialect::DialectProfile::by_name("expect"), &registry)
+        folding_ranges(
+            source,
+            tcl_dialect::DialectProfile::by_name("expect"),
+            &registry,
+        )
     }
 
     fn fold_lines(ranges: &[FoldingRange], kind: FoldKind) -> Vec<(u32, u32)> {
@@ -896,12 +903,17 @@ mod tests {
 
     #[test]
     fn empty_source_yields_no_folds() {
-        assert!(folding_ranges_default("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
+        assert!(
+            folding_ranges_default("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty()
+        );
     }
 
     #[test]
     fn single_line_proc_has_no_fold() {
-        let ranges = folding_ranges_default("proc foo {} { return 1 }\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            "proc foo {} { return 1 }\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -987,13 +999,20 @@ mod tests {
     #[test]
     fn braced_data_comment_lines_do_not_fold() {
         let src = "set help {\n# data one\n# data two\n# data three\n}\n";
-        let ranges = folding_ranges(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry());
+        let ranges = folding_ranges(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry(),
+        );
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
 
     #[test]
     fn single_comment_line_does_not_fold() {
-        let ranges = folding_ranges_default("# Just one comment\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            "# Just one comment\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
 
@@ -1022,7 +1041,10 @@ mod tests {
             "    }\n",                     // 8
             "}\n",                         // 9
         );
-        let regions = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")), FoldKind::Region);
+        let regions = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            FoldKind::Region,
+        );
         assert!(
             regions.iter().any(|&(s, _)| s == 0),
             "the outer switch block must still fold: {regions:?}",
@@ -1173,7 +1195,10 @@ mod tests {
             "    }\n",                   // 6
             "}\n",                       // 7
         );
-        let regions = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")), FoldKind::Region);
+        let regions = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            FoldKind::Region,
+        );
         assert!(
             regions.contains(&(2, 4)),
             "the `foreach` inside the arm must fold: {regions:?}",
@@ -1194,7 +1219,10 @@ mod tests {
             "    puts four\n",  // 5
             "}\n",              // 6
         );
-        let regions = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")), FoldKind::Region);
+        let regions = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            FoldKind::Region,
+        );
         assert!(regions.contains(&(0, 2)), "{regions:?}");
         assert!(regions.contains(&(3, 5)), "{regions:?}");
     }
@@ -1213,7 +1241,10 @@ mod tests {
             "    }\n",          // 5
             "}\n",              // 6
         );
-        let regions = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")), FoldKind::Region);
+        let regions = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            FoldKind::Region,
+        );
         assert!(regions.contains(&(2, 4)), "{regions:?}");
         assert!(
             !regions.iter().any(|&(s, _)| s == 1),
@@ -1269,7 +1300,8 @@ mod tests {
             source.push_str(&"    ".repeat(i));
             source.push_str("}\n");
         }
-        let ranges = folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges =
+            folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let regions = fold_lines(&ranges, FoldKind::Region).len();
         assert!(
             regions >= LEVELS - 1,
@@ -1435,8 +1467,14 @@ mod tests {
             "}\n",
         );
 
-        let tcl86 = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")), FoldKind::Region);
-        let tcl90 = fold_lines(&folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl9.0")), FoldKind::Region);
+        let tcl86 = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            FoldKind::Region,
+        );
+        let tcl90 = fold_lines(
+            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            FoldKind::Region,
+        );
 
         assert!(
             !tcl86.iter().any(|&(start, _)| start == 1),
@@ -1813,7 +1851,8 @@ mod tests {
         ];
         for (label, source) in cases {
             let line_count = lsp_line_count(source);
-            for r in folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")) {
+            for r in folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+            {
                 assert!(
                     r.end_line < line_count,
                     "{label}: fold {}..{} ends past the last line (line_count {line_count})",
@@ -1840,7 +1879,8 @@ mod tests {
     fn tcloo_class_fixture_meets_the_sticky_scroll_bounds_contract() {
         let source = format!("{CLASS_AT_EOF}\n");
         let line_count = lsp_line_count(&source);
-        let ranges = folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges =
+            folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert!(!ranges.is_empty(), "expected folds for the class fixture");
 
         for r in &ranges {

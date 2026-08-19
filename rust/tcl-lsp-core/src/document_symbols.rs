@@ -169,7 +169,10 @@ pub struct DocumentSymbol {
 ///
 /// Runs the Rust analyser internally and walks its scope tree.
 #[must_use]
-pub fn document_symbols(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<DocumentSymbol> {
+pub fn document_symbols(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<DocumentSymbol> {
     if source.is_empty() {
         return Vec::new();
     }
@@ -972,7 +975,10 @@ mod tests {
         // TN: `set test 5` defines a *variable* named `test`; it must list as a
         // Variable, never as a Test case.
         let source = "set test 5\n";
-        let kinds = flat(&document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6")));
+        let kinds = flat(&document_symbols(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        ));
         assert!(
             kinds
                 .iter()
@@ -988,7 +994,10 @@ mod tests {
     #[test]
     fn tn_plain_proc_file_has_no_test_symbols() {
         // TN: a file with only a proc yields no Test symbols at all.
-        let kinds = flat(&document_symbols("proc greet {} { return 1 }\n", tcl_dialect::DialectProfile::by_name("tcl8.6")));
+        let kinds = flat(&document_symbols(
+            "proc greet {} { return 1 }\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        ));
         assert!(
             !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
             "plain proc file must have no Test symbols, got {kinds:?}"
@@ -1120,7 +1129,10 @@ mod tests {
             "customMatch approx ::approxEq\n",
             "test t-1 {desc} -body { set x 1 } -result 1\n",
         );
-        let kinds = flat(&document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6")));
+        let kinds = flat(&document_symbols(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        ));
         assert!(
             kinds.contains(&("slow".to_string(), SymbolKind::Constant)),
             "{kinds:?}"
@@ -1203,7 +1215,10 @@ mod tests {
 
     #[test]
     fn proc_with_no_params_renders_empty_parens() {
-        let symbols = document_symbols("proc nop {} { return }\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let symbols = document_symbols(
+            "proc nop {} { return }\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].detail.as_deref(), Some("()"));
     }
@@ -1240,7 +1255,8 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(STACK_SIZE)
             .spawn(move || {
-                let symbols = document_symbols(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+                let symbols =
+                    document_symbols(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
                 assert!(!symbols.is_empty());
             })
             .unwrap()
@@ -1310,7 +1326,10 @@ mod tests {
 
     #[test]
     fn global_set_emits_variable_symbol() {
-        let symbols = document_symbols("set myvar 42\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let symbols = document_symbols(
+            "set myvar 42\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let vars: Vec<&DocumentSymbol> = symbols
             .iter()
             .filter(|s| s.kind == SymbolKind::Variable)
@@ -1489,7 +1508,8 @@ mod tests {
             ),
         ] {
             for dialect in ["tcl8.6", "tcl9.0"] {
-                let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
+                let symbols =
+                    document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
                 let cls = &symbols[0];
                 let make = cls
                     .children
@@ -1652,7 +1672,8 @@ mod tests {
             ),
         ] {
             for dialect in ["tcl8.6", "tcl9.0"] {
-                let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
+                let symbols =
+                    document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
                 let names: Vec<&str> = symbols[0]
                     .children
                     .iter()
@@ -1680,7 +1701,9 @@ mod tests {
             "}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let members = &document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect))[0].children;
+            let members = &document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect))
+                [0]
+            .children;
             let mut names: Vec<&str> = members.iter().map(|c| c.name.as_str()).collect();
             names.sort_unstable();
             assert_eq!(names, ["kept", "new"], "{dialect}");
@@ -2110,7 +2133,10 @@ mod tests {
         // `when $evt { … }` has no statically-known event; the definer walk
         // skips a non-constant name rather than listing `$evt`.
         let src = "set evt HTTP_REQUEST\nwhen $evt {\n    set x 1\n}\n";
-        let all = flat(&document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES)));
+        let all = flat(&document_symbols(
+            src,
+            tcl_dialect::DialectProfile::by_name(IRULES),
+        ));
         assert!(
             !all.iter().any(|(name, _)| name.contains('$')),
             "dynamic event name leaked into the outline: {all:?}"

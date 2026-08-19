@@ -3715,7 +3715,10 @@ mod tests {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = document_symbols(&db, file, cfg(&db));
-        let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, tcl_dialect::DialectProfile::by_name("tcl"));
+        let expected = tcl_lsp_core::document_symbols::document_symbols(
+            SRC,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+        );
         assert_eq!(got, expected);
     }
 
@@ -3725,7 +3728,11 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::semantic_tokens::full(SRC, tcl_dialect::DialectProfile::by_name("tcl"), reg);
+        let expected = tcl_lsp_core::semantic_tokens::full(
+            SRC,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            reg,
+        );
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
     }
@@ -3748,7 +3755,11 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            reg,
+        );
         assert_ne!(
             enriched, coarse,
             "the CompilationUnit-informed regex-source retag must change the \
@@ -3768,7 +3779,11 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            reg,
+        );
         assert_eq!(
             enriched, coarse,
             "a non-constant pattern source must not be retagged by either tier"
@@ -4417,7 +4432,11 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::folding::folding_ranges(SRC, tcl_dialect::DialectProfile::by_name("tcl"), reg);
+        let expected = tcl_lsp_core::folding::folding_ranges(
+            SRC,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            reg,
+        );
         assert_eq!(got, expected);
     }
 

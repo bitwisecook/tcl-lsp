@@ -25,9 +25,9 @@
 
 use std::collections::HashSet;
 
-use tcl_registry::cache::registry_for_profile;
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{Lexer, TokenType};
+use tcl_registry::cache::registry_for_profile;
 
 const ANSI_RESET: &str = "\x1b[0m";
 
@@ -98,7 +98,10 @@ fn token_kind(
 }
 
 /// Collect the spans of command heads and resolved subcommands.
-fn collect_command_spans(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
+fn collect_command_spans(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
     let registry = registry_for_profile(dialect);
     let mut command_spans = HashSet::new();
     let mut subcommand_spans = HashSet::new();
@@ -137,7 +140,11 @@ pub fn highlight_ansi(source: &str, dialect: &'static tcl_dialect::DialectProfil
     highlight_ansi_inner(source, dialect, 0)
 }
 
-fn highlight_ansi_inner(source: &str, dialect: &'static tcl_dialect::DialectProfile, depth: u32) -> String {
+fn highlight_ansi_inner(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    depth: u32,
+) -> String {
     if source.is_empty() || depth > 8 {
         return source.to_owned();
     }

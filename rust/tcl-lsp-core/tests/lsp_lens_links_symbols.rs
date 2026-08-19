@@ -258,7 +258,10 @@ fn symbols_global_set_emits_variable() {
     // tclsh: `set myvar 42` creates a real variable:
     //   set myvar 42; info exists myvar -> 1; set myvar -> 42  (8.6 + 9.0)
     // A top-level `set` therefore surfaces as a Variable symbol.
-    let symbols = document_symbols("set myvar 42\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+    let symbols = document_symbols(
+        "set myvar 42\n",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+    );
     let vars: Vec<&DocumentSymbol> = symbols
         .iter()
         .filter(|s| s.kind == SymbolKind::Variable)
@@ -419,7 +422,16 @@ fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
 #[test]
 fn lens_none_without_analysis() {
     // With `analysis = None` the provider emits nothing (the stub-call shape).
-    assert!(code_lenses("proc foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None, None, "").is_empty());
+    assert!(
+        code_lenses(
+            "proc foo {} {}\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            None,
+            None,
+            ""
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -427,7 +439,13 @@ fn lens_none_for_file_with_no_eligible_symbols() {
     // A file with no procs / classes has no symbols to annotate, so no lenses.
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     assert!(lenses.is_empty(), "expected no lenses; got {lenses:?}");
 }
 
@@ -437,7 +455,13 @@ fn lens_one_per_user_proc() {
     // own reference-count lens anchored at its name span.
     let src = "proc foo {} {}\nproc bar {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     assert_eq!(lenses.len(), 2, "{lenses:?}");
     // Both anchor on the proc-name token, not the `proc` keyword (col 5).
     assert!(
@@ -454,7 +478,13 @@ fn lens_reports_zero_for_unused_proc() {
     // the one-line script.)
     let src = "proc lonely {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     assert_eq!(lenses.len(), 1);
     assert_eq!(lenses[0].command_title, "0 references");
 }
@@ -466,7 +496,13 @@ fn lens_counts_call_sites() {
     // tool; tool; tool` runs to completion). The lens counts exactly 3.
     let src = "proc tool {} {}\ntool\ntool\ntool\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     let tool = lens_on_line(&lenses, 0);
     assert_eq!(tool.command_title, "3 references", "{lenses:?}");
     assert_eq!(lens_count(tool), 3);
@@ -478,7 +514,13 @@ fn lens_singular_grammar_for_one_reference() {
     // `1 references` (presentation grammar).
     let src = "proc helper {} {}\nhelper\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -488,7 +530,13 @@ fn lens_carries_qualified_name_in_data() {
     // editor's references-jump command.
     let src = "proc greet {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     assert_eq!(lenses.len(), 1);
     assert_eq!(lenses[0].qname, "::greet", "{lenses:?}");
 }
@@ -510,7 +558,13 @@ fn lens_counts_method_calls_inside_class_body() {
     if analysis.all_classes.is_empty() {
         return;
     }
-    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        "",
+    );
     // The `greet` declaration's name span is on line 1.
     assert_eq!(
         lens_on_line(&lenses, 1).command_title,
@@ -532,8 +586,22 @@ fn link_start(link: &DocumentLink) -> (u32, u32) {
 fn links_none_for_non_source_commands() {
     // tclsh: `set` and `puts` are not path-bearing — `source` is the command
     // the provider keys on, so neither yields a link.
-    assert!(document_links("set x 1\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
-    assert!(document_links("puts hello\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
+    assert!(
+        document_links(
+            "set x 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            None
+        )
+        .is_empty()
+    );
+    assert!(
+        document_links(
+            "puts hello\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -555,7 +623,11 @@ fn links_absolute_source_path_surfaces_file_uri() {
 fn links_relative_source_resolves_against_workspace_root() {
     // A relative `source` path resolves against the supplied workspace root.
     let src = "source helper.tcl\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some("/home/user/project"));
+    let links = document_links(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some("/home/user/project"),
+    );
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///home/user/project/helper.tcl");
 }
@@ -591,7 +663,12 @@ fn links_encoding_flag_skipped_before_path() {
 fn links_tilde_expands_against_supplied_home() {
     // `source ~/lib/init.tcl` expands `~` against the injected home dir.
     let src = "source ~/lib/init.tcl\n";
-    let links = document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None, Some("/test-home"));
+    let links = document_links_with_home(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        None,
+        Some("/test-home"),
+    );
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
 }
@@ -603,7 +680,11 @@ fn links_literal_file_join_source_resolves() {
     // for literal segments; variable segments are declined — covered by the
     // provider's own unit tests.)
     let src = "source [file join lib helper.tcl]\n";
-    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some("/home/user/project"));
+    let links = document_links(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some("/home/user/project"),
+    );
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl");
 }

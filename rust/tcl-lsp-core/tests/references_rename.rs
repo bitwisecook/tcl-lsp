@@ -100,7 +100,14 @@ fn references_proc_from_definition_includes_decl_and_both_calls() {
     let src = "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n";
     let analysis = analyse(src);
     // Cursor on `greet` in the declaration (line 0, col 6).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1, 2],
@@ -117,7 +124,14 @@ fn references_proc_from_call_site_finds_the_same_set() {
     let src = "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n";
     let analysis = analyse(src);
     // Cursor on the first `greet` CALL (line 1, inside `[greet]`).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 7, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        7,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1, 2],
@@ -133,7 +147,14 @@ fn references_proc_named_in_info_body_include_the_introspection_site() {
     let src = "proc greet {} { return hi }\ninfo body greet\n";
     let analysis = analyse(src);
     // Cursor on `greet` in the declaration (line 0, col 6).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1],
@@ -153,7 +174,14 @@ fn references_proc_called_inside_oo_objdefine_method_body() {
                    method greet {} { helper }\n\
                }\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert!(
         ref_lines(&refs).contains(&4),
         "the call in the per-object method body (line 4) should be a reference: {refs:?}",
@@ -170,14 +198,29 @@ fn namespace_which_command_probe_navigates_and_renames_945() {
     // whose record never feeds W123.
     let src = "proc greet {} {}\nnamespace which -command greet\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1],
         "the probe site is a navigable reference: got {refs:?}",
     );
     // Rename rewrites the exact probe token alongside the declaration.
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "salute", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "salute",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1],
@@ -187,7 +230,14 @@ fn namespace_which_command_probe_navigates_and_renames_945() {
     // no reference, no rename edit (the dynamic/pattern abstention).
     let src2 = "proc greet {} {}\ninfo commands gr*\ninfo commands greet\n";
     let analysis2 = analyse(src2);
-    let refs2 = references(src2, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis2, true);
+    let refs2 = references(
+        src2,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis2,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs2),
         vec![0, 2],
@@ -204,7 +254,14 @@ fn references_proc_named_in_trace_add_execution_include_the_trace_site() {
     let src = "proc greet {} {}\nproc handler {args} {}\ntrace add execution greet enter handler\n";
     let analysis = analyse(src);
     // Cursor on `greet` in the declaration (line 0, col 6).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 2],
@@ -218,8 +275,22 @@ fn references_proc_exclude_declaration_drops_the_decl_line() {
     // remain (lines 1 and 2).
     let src = "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n";
     let analysis = analyse(src);
-    let with_decl = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
-    let without_decl = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, false);
+    let with_decl = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
+    let without_decl = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        false,
+    );
     assert_eq!(
         ref_lines(&without_decl),
         vec![1, 2],
@@ -241,7 +312,14 @@ fn references_proc_only_at_real_call_sites_not_substrings() {
     let src = "proc greet {} { return a }\nproc greeter {} { return b }\ngreet\ngreeter\n";
     let analysis = analyse(src);
     // References for `greet` (cursor on its decl, line 0).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&0), "decl missing: {refs:?}");
     assert!(
@@ -269,7 +347,14 @@ fn references_var_includes_definition_and_every_read() {
     let src = "set x 1\nputs $x\nputs $x\n";
     let analysis = analyse(src);
     // Cursor inside the first `$x` read (line 1).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1, 2],
@@ -281,7 +366,14 @@ fn references_var_includes_definition_and_every_read() {
 fn references_var_exclude_declaration_keeps_only_reads() {
     let src = "set x 1\nputs $x\nputs $x\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &analysis, false);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        &analysis,
+        false,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![1, 2],
@@ -299,7 +391,14 @@ fn references_var_scoped_to_its_proc_not_a_same_named_local_elsewhere() {
     let src = "proc a {} {\n    set v 10\n    return $v\n}\nproc b {} {\n    set v 20\n    return $v\n}\n";
     let analysis = analyse(src);
     // Cursor on `$v` in proc a's body (line 2).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 12, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        12,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         lines.iter().all(|&l| l == 1 || l == 2),
@@ -323,7 +422,14 @@ fn references_namespaced_proc_matches_qualified_and_short_calls() {
     let src = "namespace eval ::myns {\n    proc greet {} { return ns-hi }\n}\n::myns::greet\nnamespace eval ::myns {\n    greet\n}\n";
     let analysis = analyse(src);
     // Cursor on the `greet` declaration (line 1).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        9,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "declaration missing: {refs:?}");
     assert!(
@@ -350,7 +456,14 @@ fn references_relative_qualified_call_falls_back_to_global_target() {
     );
     let analysis = analyse(src);
     // Cursor on the `::inner::p` declaration (line 1).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 13, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        13,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "declaration missing: {refs:?}");
     assert!(
@@ -376,14 +489,28 @@ fn references_relative_qualified_call_prefers_existing_local_over_global() {
     let analysis = analyse(src);
     // Cursor on the *global* `::inner::p` declaration (line 1): the call in
     // `outer` belongs to the local proc, so it must not appear here.
-    let global_refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 13, &analysis, true);
+    let global_refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        13,
+        &analysis,
+        true,
+    );
     let global_lines = ref_lines(&global_refs);
     assert!(
         !global_lines.contains(&2),
         "call inside `outer` resolves to the local proc, not the global: {global_refs:?}",
     );
     // Cursor on the *local* `::outer::inner::p` declaration (line 3).
-    let local_refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 55, &analysis, true);
+    let local_refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        55,
+        &analysis,
+        true,
+    );
     let local_lines = ref_lines(&local_refs);
     assert!(
         local_lines.contains(&2),
@@ -399,7 +526,14 @@ fn references_namespaced_proc_does_not_leak_to_same_name_in_other_namespace() {
     let src = "namespace eval ::a {\n    proc helper {} { return a }\n}\nnamespace eval ::b {\n    proc helper {} { return b }\n}\n::a::helper\n::b::helper\n";
     let analysis = analyse(src);
     // Cursor on `::a`'s helper declaration (line 1).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        9,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert_eq!(
         lines,
@@ -450,7 +584,14 @@ fn references_two_level_nested_namespace_bare_call_matches_from_same_namespace()
     );
     let analysis = analyse(src);
     // Cursor on the `specAddButtonPopUp` declaration (line 2).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        14,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&2), "decl missing: {refs:?}");
     assert!(
@@ -480,7 +621,14 @@ fn references_two_level_nested_namespace_qualified_call_in_bind_style_body_match
         "bind $win.fra.tool.buT_specAddIconLarge <ButtonRelease-1> {::modelTestVerTool::gui::specAddButtonPopUp %X %Y}\n",
     );
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        14,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&2), "decl missing: {refs:?}");
     assert!(
@@ -508,7 +656,14 @@ fn references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
     );
     let analysis = analyse(src);
     // specAddButtonPopUp: fully-qualified call site (line 4).
-    let spec_refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, &analysis, true);
+    let spec_refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        14,
+        &analysis,
+        true,
+    );
     let spec_lines = ref_lines(&spec_refs);
     assert!(spec_lines.contains(&2), "spec decl missing: {spec_refs:?}");
     assert!(
@@ -516,7 +671,14 @@ fn references_issue_923_two_bind_lines_qualified_and_bare_both_resolve_correctly
         "spec's fully-qualified bind call site missing: {spec_refs:?}"
     );
     // testAddButtonPopUp: bare call site (line 5), same namespace.
-    let test_refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 14, &analysis, true);
+    let test_refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        14,
+        &analysis,
+        true,
+    );
     let test_lines = ref_lines(&test_refs);
     assert!(test_lines.contains(&3), "test decl missing: {test_refs:?}");
     assert!(
@@ -541,7 +703,14 @@ fn references_bare_call_outside_the_namespace_is_correctly_not_a_reference() {
         "bind $win.fra.tool.buT_testAddIconLarge <ButtonRelease-1> {testAddButtonPopUp %X %Y}\n",
     );
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        14,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![2],
@@ -570,14 +739,28 @@ fn references_two_level_nested_namespace_isolates_same_named_procs() {
     );
     let analysis = analyse(src);
     // References for `::a::b::helper` (cursor on its decl, line 2).
-    let refs_ab = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 14, &analysis, true);
+    let refs_ab = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        14,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs_ab),
         vec![2],
         "::a::b::helper has no callers; must not pick up ::c::d's call: {refs_ab:?}"
     );
     // References for `::c::d::helper` (cursor on its decl, line 7).
-    let refs_cd = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 14, &analysis, true);
+    let refs_cd = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        7,
+        14,
+        &analysis,
+        true,
+    );
     let lines_cd = ref_lines(&refs_cd);
     assert!(lines_cd.contains(&7), "::c::d decl missing: {refs_cd:?}");
     assert!(
@@ -603,7 +786,14 @@ fn references_three_level_nested_namespace_bare_and_qualified_calls() {
         "::a::b::c::deep\n",
     );
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 18, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        18,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&3), "decl missing: {refs:?}");
     assert!(
@@ -639,7 +829,14 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     );
     let analysis = analyse(src);
     // References for `::outer::inner::p` (cursor on its decl, line 5).
-    let refs_outer = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 5, 13, &analysis, true);
+    let refs_outer = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        5,
+        13,
+        &analysis,
+        true,
+    );
     let lines_outer = ref_lines(&refs_outer);
     assert!(lines_outer.contains(&5), "decl missing: {refs_outer:?}");
     assert!(
@@ -648,7 +845,14 @@ fn references_relative_name_with_embedded_colons_prefers_current_namespace() {
     );
     // References for the *global* `::inner::p` (cursor on its decl, line 1)
     // must NOT include ::outer's caller.
-    let refs_global = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, &analysis, true);
+    let refs_global = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        9,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs_global),
         vec![1],
@@ -687,14 +891,28 @@ fn references_class_two_level_nested_namespace_isolates_same_named_classes() {
         return;
     }
     // References for `::a::b::Widget` (cursor on its decl, line 2).
-    let refs_ab = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, 26, &analysis, true);
+    let refs_ab = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        26,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs_ab),
         vec![2],
         "::a::b::Widget has no instantiations; must not pick up ::c::d's: {refs_ab:?}"
     );
     // References for `::c::d::Widget` (cursor on its decl, line 7).
-    let refs_cd = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 26, &analysis, true);
+    let refs_cd = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        7,
+        26,
+        &analysis,
+        true,
+    );
     let lines_cd = ref_lines(&refs_cd);
     assert!(lines_cd.contains(&7), "::c::d decl missing: {refs_cd:?}");
     assert!(
@@ -725,7 +943,14 @@ fn references_class_and_method_two_level_nested_namespace_dollar_dispatch() {
         return;
     }
     // Cursor on the `render` method declaration (line 3).
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 20, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        20,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&3), "method decl missing: {refs:?}");
     assert!(
@@ -756,7 +981,15 @@ fn rename_proc_two_level_nested_namespace_scoped_correctly() {
         "}\n",
     );
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 14, "assist", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        7,
+        14,
+        "assist",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![7, 8],
@@ -786,7 +1019,15 @@ fn rename_class_two_level_nested_namespace_scoped_correctly() {
     if analysis.all_classes.len() < 2 {
         return;
     }
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 7, 26, "Panel", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        7,
+        26,
+        "Panel",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![7, 8],
@@ -815,7 +1056,15 @@ fn rename_class_rewrites_its_superclass_and_mixin_sites() {
     );
     let analysis = analyse(src);
     // Cursor on `Base` in its declaration (line 0, col 18).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 18, "Base2", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        18,
+        "Base2",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 2, 5],
@@ -841,7 +1090,14 @@ fn references_variable_held_command_name_is_not_resolved_documented_limitation()
     let src =
         "proc helper {} { return hi }\nset cmd [dict get $tbl k]\n$cmd\nset cmd2 x$suffix\n$cmd2\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0],
@@ -859,7 +1115,15 @@ fn references_builtin_command_yields_nothing() {
     let src = "puts hello\nputs world\n";
     let analysis = analyse(src);
     assert!(
-        references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 1, &analysis, true).is_empty(),
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            1,
+            &analysis,
+            true
+        )
+        .is_empty(),
         "built-in `puts` should have no provider references",
     );
 }
@@ -869,7 +1133,17 @@ fn references_unrelated_word_yields_nothing() {
     // A bare literal argument (`hello`) is neither a proc, class, nor var.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true).is_empty());
+    assert!(
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -877,11 +1151,41 @@ fn references_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
     // Way past EOF — must return empty, not panic.
-    assert!(references(src, tcl_dialect::DialectProfile::by_name("tcl"), 99, 0, &analysis, true).is_empty());
-    assert!(references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 999, &analysis, true).is_empty());
+    assert!(
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            99,
+            0,
+            &analysis,
+            true
+        )
+        .is_empty()
+    );
+    assert!(
+        references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            999,
+            &analysis,
+            true
+        )
+        .is_empty()
+    );
     // Empty document.
     let empty = analyse("");
-    assert!(references("", tcl_dialect::DialectProfile::by_name("tcl"), 0, 0, &empty, true).is_empty());
+    assert!(
+        references(
+            "",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            0,
+            &empty,
+            true
+        )
+        .is_empty()
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -896,7 +1200,15 @@ fn rename_proc_updates_definition_and_all_call_sites() {
     let src = "proc greet {} { return hi }\nputs [greet]\nputs [greet]\n";
     let analysis = analyse(src);
     // Cursor on the declaration (line 0).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "salute", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "salute",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1, 2],
@@ -922,7 +1234,15 @@ fn rename_parent_proc_does_not_edit_a_child_interp_body() {
     let src = "interp create child\nproc foo {} {}\ninterp eval child { proc foo {} {} }\nfoo\n";
     let analysis = analyse(src);
     // Cursor on the parent `foo` declaration (line 1, col 6).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, "bar", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        "bar",
+        &analysis,
+        None,
+    );
     assert!(
         edits.iter().all(|e| e.range.start_line != 2),
         "the isolated child interp body must be untouched: {edits:?}",
@@ -940,7 +1260,15 @@ fn rename_proc_from_call_site_rewrites_declaration_too() {
     let src = "proc greet {} { return hi }\ngreet\ngreet\n";
     let analysis = analyse(src);
     // Cursor on the first call (line 1).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 2, "salute", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        2,
+        "salute",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![0, 1, 2], "{edits:?}");
     assert!(
         edits.iter().any(|e| e.range.start_line == 0),
@@ -955,7 +1283,15 @@ fn rename_proc_rejected_when_new_name_collides_with_existing_proc() {
     // refuses with an empty edit set rather than merge them.
     let src = "proc greet {} { return a }\nproc hello {} { return b }\ngreet\n";
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "hello", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "hello",
+        &analysis,
+        None,
+    );
     assert!(
         edits.is_empty(),
         "collision with existing proc must be refused: {edits:?}"
@@ -973,7 +1309,15 @@ fn rename_var_updates_definition_and_reads_with_dollar_preserved() {
     let src = "set x 1\nputs $x\nputs $x\n";
     let analysis = analyse(src);
     // Cursor in the first `$x` read.
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, "y", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        "y",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1, 2],
@@ -998,7 +1342,15 @@ fn rename_var_from_definition_site_resolves_without_dollar() {
     let src = "set x 1\nputs $x\nputs $x\n";
     let analysis = analyse(src);
     // Cursor on `x` in `set x` (line 0, col 4).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 4, "y", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        4,
+        "y",
+        &analysis,
+        None,
+    );
     let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
     assert!(texts.contains(&"y"), "decl edit missing: {edits:?}");
     assert!(texts.contains(&"$y"), "ref edit missing: {edits:?}");
@@ -1017,7 +1369,15 @@ fn rename_local_var_is_scoped_and_leaves_same_named_var_in_other_proc_intact() {
     let src = "proc a {} {\n    set v 10\n    return $v\n}\nproc b {} {\n    set v 20\n    return $v\n}\n";
     let analysis = analyse(src);
     // Cursor on the def site `v` in proc a (line 1, col 8).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 8, "w", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        8,
+        "w",
+        &analysis,
+        None,
+    );
     assert!(
         !edits.is_empty(),
         "expected a scoped rename of proc a's `v`"
@@ -1045,7 +1405,15 @@ fn rename_var_rejected_on_same_scope_collision() {
     let src = "proc demo {} {\n    set x 1\n    set y 2\n    puts $x\n}\n";
     let analysis = analyse(src);
     // Rename `x` (its read site on line 3) to the already-present `y`.
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, 10, "y", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        10,
+        "y",
+        &analysis,
+        None,
+    );
     assert!(
         edits.is_empty(),
         "same-scope collision must be refused: {edits:?}"
@@ -1065,7 +1433,15 @@ fn rename_namespaced_proc_rewrites_qualified_and_short_forms() {
     let src = "namespace eval ::myns {\n    proc greet {} { return ns-hi }\n}\n::myns::greet\nnamespace eval ::myns {\n    greet\n}\n";
     let analysis = analyse(src);
     // Cursor on the declaration (line 1).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, "hello", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        9,
+        "hello",
+        &analysis,
+        None,
+    );
     let texts: Vec<&str> = edits.iter().map(|e| e.new_text.as_str()).collect();
     assert!(
         texts.contains(&"::myns::hello"),
@@ -1091,7 +1467,15 @@ fn rename_namespaced_proc_from_its_own_decl_isolates_to_that_namespace() {
     let src = "namespace eval ::a {\n    proc helper {} { return a }\n}\nnamespace eval ::b {\n    proc helper {} { return b }\n}\n::a::helper\n::b::helper\n";
     let analysis = analyse(src);
     // Cursor on ::a's helper declaration (line 1).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 9, "assist", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        9,
+        "assist",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![1, 6],
@@ -1123,7 +1507,15 @@ fn rename_second_same_named_proc_resolves_to_that_proc_not_the_first() {
     let src = "namespace eval ::a {\n    proc helper {} { return a }\n}\nnamespace eval ::b {\n    proc helper {} { return b }\n}\n::a::helper\n::b::helper\n";
     let analysis = analyse(src);
     // Cursor on ::b's helper declaration (line 4) — should rename ::b::helper.
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 4, 9, "assist", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        4,
+        9,
+        "assist",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![4, 7],
@@ -1162,7 +1554,16 @@ fn rename_rejects_syntactically_unsafe_new_names() {
         "",
     ] {
         assert!(
-            rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, bad, &analysis, None).is_empty(),
+            rename(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                bad,
+                &analysis,
+                None
+            )
+            .is_empty(),
             "unsafe new name {bad:?} must yield no edits",
         );
     }
@@ -1173,7 +1574,18 @@ fn rename_var_also_rejects_unsafe_new_name() {
     // The shape gate applies to variable renames too.
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, "bad name", &analysis, None).is_empty());
+    assert!(
+        rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            "bad name",
+            &analysis,
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -1184,7 +1596,15 @@ fn rename_proc_to_builtin_command_name_is_blocked_with_registry() {
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "puts", &analysis, Some(&registry));
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "puts",
+        &analysis,
+        Some(&registry),
+    );
     assert!(
         edits.is_empty(),
         "rename to built-in `puts` must be blocked: {edits:?}"
@@ -1197,7 +1617,15 @@ fn rename_proc_to_non_builtin_succeeds_with_registry() {
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "salut", &analysis, Some(&registry));
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "salut",
+        &analysis,
+        Some(&registry),
+    );
     assert!(
         !edits.is_empty(),
         "non-built-in rename should succeed with a registry"
@@ -1212,7 +1640,15 @@ fn rename_var_to_builtin_name_is_allowed() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
     let registry = CommandRegistry::build_default();
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, "puts", &analysis, Some(&registry));
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        6,
+        "puts",
+        &analysis,
+        Some(&registry),
+    );
     assert!(
         !edits.is_empty(),
         "variable rename to `puts` should succeed"
@@ -1228,7 +1664,18 @@ fn rename_unknown_word_yields_no_edits() {
     let src = "puts hello\n";
     let analysis = analyse(src);
     // `hello` is a bare literal — nothing to rename.
-    assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "x", &analysis, None).is_empty());
+    assert!(
+        rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            "x",
+            &analysis,
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
@@ -1237,17 +1684,61 @@ fn rename_builtin_without_registry_still_yields_no_edits() {
     // symbol whose definition/calls could be rewritten.
     let src = "puts hello\n";
     let analysis = analyse(src);
-    assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 1, "show", &analysis, None).is_empty());
+    assert!(
+        rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            1,
+            "show",
+            &analysis,
+            None
+        )
+        .is_empty()
+    );
 }
 
 #[test]
 fn rename_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 99, 0, "z", &analysis, None).is_empty());
-    assert!(rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 999, "z", &analysis, None).is_empty());
+    assert!(
+        rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            99,
+            0,
+            "z",
+            &analysis,
+            None
+        )
+        .is_empty()
+    );
+    assert!(
+        rename(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            999,
+            "z",
+            &analysis,
+            None
+        )
+        .is_empty()
+    );
     let empty = analyse("");
-    assert!(rename("", tcl_dialect::DialectProfile::by_name("tcl"), 0, 0, "z", &empty, None).is_empty());
+    assert!(
+        rename(
+            "",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            0,
+            "z",
+            &empty,
+            None
+        )
+        .is_empty()
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1351,7 +1842,15 @@ const OBJECT_VAR_SRC: &str = "oo::class create C {\n    variable n\n    method g
 fn object_var_rename_never_rewrites_method_body() {
     let analysis = analyse(OBJECT_VAR_SRC);
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
-    let edits = rename(OBJECT_VAR_SRC, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, col, "w", &analysis, None);
+    let edits = rename(
+        OBJECT_VAR_SRC,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        col,
+        "w",
+        &analysis,
+        None,
+    );
     assert!(!edits.is_empty(), "expected a rename to be produced");
     for e in &edits {
         assert_eq!(
@@ -1373,7 +1872,15 @@ fn object_var_rename_never_rewrites_method_body() {
 fn object_var_rename_edits_declaration_and_use() {
     let analysis = analyse(OBJECT_VAR_SRC);
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
-    let edits = rename(OBJECT_VAR_SRC, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, col, "w", &analysis, None);
+    let edits = rename(
+        OBJECT_VAR_SRC,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        col,
+        "w",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.contains(&1),
@@ -1403,7 +1910,14 @@ fn object_var_rename_edits_declaration_and_use() {
 fn object_var_references_are_token_sized() {
     let analysis = analyse(OBJECT_VAR_SRC);
     let col = OBJECT_VAR_SRC.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
-    let refs = references(OBJECT_VAR_SRC, tcl_dialect::DialectProfile::by_name("tcl"), 2, col, &analysis, true);
+    let refs = references(
+        OBJECT_VAR_SRC,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        col,
+        &analysis,
+        true,
+    );
     assert!(!refs.is_empty());
     for r in &refs {
         assert_eq!(
@@ -1421,7 +1935,15 @@ fn plain_proc_local_rename_unaffected() {
     let analysis = analyse(src);
     // cursor on `$count` (line 3)
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, col, "total", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        3,
+        col,
+        "total",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.contains(&1),
@@ -1444,7 +1966,14 @@ fn uplevel_zero_resolves_global_not_proc_local() {
     // cursor on `$g` inside the uplevel body (line 3)
     let body_line = src.lines().nth(3).unwrap();
     let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         lines.contains(&0),
@@ -1464,7 +1993,14 @@ fn non_uplevel_proc_local_still_resolves_locally() {
     let analysis = analyse(src);
     let body_line = src.lines().nth(3).unwrap();
     let col = body_line.find("$g").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         lines.contains(&2),
@@ -1482,7 +2018,14 @@ fn uplevel_nonzero_abstains_from_proc_and_global() {
     let analysis = analyse(src);
     let body_line = src.lines().nth(3).unwrap();
     let col = body_line.find("$g").unwrap() as u32 + 1; // on the `g`
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         !lines.contains(&2),
@@ -1503,7 +2046,14 @@ fn uplevel_nonzero_body_local_resolves_within_body() {
     // cursor on `$h` (line 3)
     let body_line = src.lines().nth(3).unwrap();
     let col = body_line.find("$h").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         lines.contains(&2),
@@ -1573,7 +2123,14 @@ fn proc_references_from_callsite_targets_caller_namespace() {
         .find("{ helper }")
         .unwrap() as u32
         + 2;
-    let refs = references(NS_COLLISION_PROC_SRC, tcl_dialect::DialectProfile::by_name("tcl"), 2, col, &analysis, true);
+    let refs = references(
+        NS_COLLISION_PROC_SRC,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "decl line 1 expected: {refs:?}");
     assert!(lines.contains(&2), "call line 2 expected: {refs:?}");
@@ -1588,7 +2145,15 @@ fn proc_references_from_callsite_targets_caller_namespace() {
 fn proc_rename_unambiguous_callsite_unaffected() {
     let src = "proc greet {} { return hi }\ngreet\ngreet\n";
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 0, "welcome", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        0,
+        "welcome",
+        &analysis,
+        None,
+    );
     assert!(edits.len() >= 3, "decl + 2 calls: {edits:?}");
     assert!(edits.iter().all(|e| e.new_text == "welcome"));
 }
@@ -1602,7 +2167,15 @@ fn class_rename_from_callsite_targets_caller_namespace() {
     let analysis = analyse(src);
     // cursor on `Widget` in `Widget new` inside ::a::mk (line 2)
     let col = src.lines().nth(2).unwrap().find("Widget new").unwrap() as u32 + 1;
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, col, "Panel", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        col,
+        "Panel",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.contains(&1),
@@ -1622,7 +2195,14 @@ fn object_var_references_unify_across_methods() {
     let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
     let analysis = analyse(src);
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(
         lines.contains(&1),
@@ -1645,7 +2225,15 @@ fn object_var_rename_unifies_declaration_and_all_method_uses() {
     let src = "oo::class create C {\n    variable n\n    method get {} { return $n }\n    method bump {} { incr n }\n}\n";
     let analysis = analyse(src);
     let col = src.lines().nth(2).unwrap().find("$n").unwrap() as u32 + 1;
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, col, "count", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        col,
+        "count",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.contains(&1),
@@ -1673,7 +2261,14 @@ fn namespace_variable_unifies_across_procs() {
     let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
     let analysis = analyse(src);
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 3, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        3,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     eprintln!("namespace-variable reference lines = {lines:?}");
     assert!(
@@ -1694,7 +2289,14 @@ fn global_variable_unifies_across_procs() {
     let src = "set g 0\nproc a {} { global g; incr g }\nproc b {} { global g; return $g }\n";
     let analysis = analyse(src);
     let col = src.lines().nth(2).unwrap().find("$g").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 2, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     eprintln!("global-variable reference lines = {lines:?}");
     assert!(
@@ -1714,7 +2316,15 @@ fn namespace_variable_rename_unifies_all_aliases() {
     let src = "namespace eval ::app {\n    variable count 0\n    proc bump {} { variable count; incr count }\n    proc get {} { variable count; return $count }\n}\n";
     let analysis = analyse(src);
     let col = src.lines().nth(3).unwrap().find("$count").unwrap() as u32 + 1;
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, col, "total", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        3,
+        col,
+        "total",
+        &analysis,
+        None,
+    );
     let lines = edit_lines(&edits);
     assert!(
         lines.contains(&1),
@@ -1742,7 +2352,14 @@ fn namespace_variables_in_different_namespaces_do_not_unify() {
     let analysis = analyse(src);
     // `$count` in ::a::p (line 1)
     let col = src.lines().nth(1).unwrap().find("$count").unwrap() as u32 + 1;
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, col, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        col,
+        &analysis,
+        true,
+    );
     let lines = ref_lines(&refs);
     assert!(lines.contains(&1), "::a's own use (line 1): {refs:?}");
     assert!(
@@ -1763,7 +2380,14 @@ fn references_include_a_const_cmd_dispatch_site_m7() {
     // (issue #945 fault 1).
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1, 2, 3],
@@ -1827,7 +2451,15 @@ fn rename_rewrites_the_defining_literal_and_never_the_dispatch_span_945() {
     // tclsh 9.0.4.
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "renamed", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "renamed",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1, 3],
@@ -1879,7 +2511,15 @@ fn rename_from_the_defining_literal_cursor_follows_the_dispatch_945() {
     // same command — rename from there produces the identical edit set.
     let src = "proc target {} { return hi }\nset cmd target\n$cmd\ntarget\n";
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 8, "renamed", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        1,
+        8,
+        "renamed",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1, 3],
@@ -1900,7 +2540,15 @@ fn rename_abstains_when_a_contributing_constant_has_no_writable_span_945() {
         .command_invocations
         .iter()
         .any(|i| i.indirect && !i.rename_safe);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "renamed", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "renamed",
+        &analysis,
+        None,
+    );
     if has_unsafe_indirect {
         assert!(
             edits.is_empty(),
@@ -1924,13 +2572,28 @@ fn rename_rewrites_a_consumed_dispatch_table_literal_m7() {
     // proc rewrites the table entry too — keeping the dispatch alive.
     let src = "proc do_add {a b} { }\narray set ops {add do_add}\nset k add\n$ops($k) 1 2\n";
     let analysis = analyse(src);
-    let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, &analysis, true);
+    let refs = references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![0, 1],
         "decl + table literal expected; got {refs:?}",
     );
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl"), 0, 6, "sum", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        0,
+        6,
+        "sum",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![0, 1],
@@ -1964,7 +2627,15 @@ fn rename_itcl_class_proc_rewrites_every_dispatch_spelling() {
     );
     let analysis = analyse(src);
     // Cursor on the declaration name.
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 10, "produce", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        10,
+        "produce",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![1, 2, 4, 5], "{edits:?}");
     assert_eq!(
         apply_edits(src, &edits),
@@ -1991,8 +2662,24 @@ fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
         "Factory::make\n",
     );
     let analysis = analyse(src);
-    let from_site = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, 11, "produce", &analysis, None);
-    let from_decl = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 10, "produce", &analysis, None);
+    let from_site = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        3,
+        11,
+        "produce",
+        &analysis,
+        None,
+    );
+    let from_decl = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        10,
+        "produce",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&from_site), vec![1, 3], "{from_site:?}");
     assert_eq!(edit_lines(&from_site), edit_lines(&from_decl));
 }
@@ -2004,7 +2691,15 @@ fn rename_itcl_class_proc_from_the_call_site_matches_the_declaration() {
 fn rename_plain_namespace_qualified_proc_is_unaffected() {
     let src = "namespace eval ::Factory {\n    proc make {} { return 1 }\n}\nFactory::make\n";
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, 11, "produce", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        3,
+        11,
+        "produce",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![1, 3], "{edits:?}");
     assert_eq!(
         apply_edits(src, &edits),
@@ -2041,7 +2736,15 @@ const TWO_NAMESPACE_FACTORIES: &str = concat!(
 fn rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch() {
     let src = TWO_NAMESPACE_FACTORIES;
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, 20, "produce", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        20,
+        "produce",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![2, 4], "{edits:?}");
     assert_eq!(
         apply_edits(src, &edits),
@@ -2068,7 +2771,15 @@ fn rename_classmethod_does_not_rewrite_a_sibling_namespaces_dispatch() {
 fn rename_classmethod_is_scoped_in_the_other_direction_too() {
     let src = TWO_NAMESPACE_FACTORIES;
     let analysis = analyse(src);
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 8, 20, "produce", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        8,
+        20,
+        "produce",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![8, 10], "{edits:?}");
 }
 
@@ -2102,7 +2813,14 @@ puts [set {$n}]\n\
 fn references_of_the_plain_name_exclude_the_brace_literal_cell() {
     let analysis = analyse(BRACE_LITERAL_MIX);
     // Cursor on the `n` of `set n 2` (line 2).
-    let refs = references(BRACE_LITERAL_MIX, tcl_dialect::DialectProfile::by_name("tcl"), 2, 8, &analysis, true);
+    let refs = references(
+        BRACE_LITERAL_MIX,
+        tcl_dialect::DialectProfile::by_name("tcl"),
+        2,
+        8,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![2, 3],
@@ -2114,7 +2832,15 @@ fn references_of_the_plain_name_exclude_the_brace_literal_cell() {
 #[test]
 fn rename_of_the_plain_name_never_rewrites_a_brace_literal_word() {
     let analysis = analyse(BRACE_LITERAL_MIX);
-    let edits = rename(BRACE_LITERAL_MIX, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, 8, "q", &analysis, None);
+    let edits = rename(
+        BRACE_LITERAL_MIX,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        8,
+        "q",
+        &analysis,
+        None,
+    );
     assert_eq!(
         edit_lines(&edits),
         vec![2, 3],
@@ -2134,8 +2860,16 @@ fn rename_of_a_brace_literal_name_is_refused_with_a_reason() {
     use tcl_lsp_core::rename::rename_with_diagnosis;
     let analysis = analyse(BRACE_LITERAL_MIX);
     // Cursor inside the `{$n}` word on line 1.
-    let refusal = rename_with_diagnosis(BRACE_LITERAL_MIX, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 10, "q", &analysis, None)
-        .expect_err("a quoted-only name cannot be renamed by span substitution");
+    let refusal = rename_with_diagnosis(
+        BRACE_LITERAL_MIX,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        10,
+        "q",
+        &analysis,
+        None,
+    )
+    .expect_err("a quoted-only name cannot be renamed by span substitution");
     assert!(
         refusal.reason.contains("$n") && refusal.reason.contains("quoted"),
         "the refusal must name the cell and say why; got {:?}",
@@ -2152,8 +2886,16 @@ fn rename_of_an_ordinary_name_is_still_allowed() {
     // not merely on a brace-quoted word being present in the document.
     use tcl_lsp_core::rename::rename_with_diagnosis;
     let analysis = analyse(BRACE_LITERAL_MIX);
-    let edits = rename_with_diagnosis(BRACE_LITERAL_MIX, tcl_dialect::DialectProfile::by_name("tcl8.6"), 2, 8, "q", &analysis, None)
-        .expect("an ordinary local is renameable");
+    let edits = rename_with_diagnosis(
+        BRACE_LITERAL_MIX,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        2,
+        8,
+        "q",
+        &analysis,
+        None,
+    )
+    .expect("an ordinary local is renameable");
     assert_eq!(edit_lines(&edits), vec![2, 3], "{edits:?}");
 }
 
@@ -2251,7 +2993,14 @@ declaration"
                 end_line: read_line,
                 end_character: 17,
             };
-            let refs = references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), decl_line, col, &analysis, true);
+            let refs = references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                decl_line,
+                col,
+                &analysis,
+                true,
+            );
             assert_eq!(
                 refs,
                 vec![want, read],
@@ -2267,7 +3016,11 @@ own declaration and read"
             // the plain declaration cursor does.  Teaching that provider
             // declaration cursors is an independent gap, not this finding.
             let highlights = tcl_lsp_core::references::document_highlights(
-                src, tcl_dialect::DialectProfile::by_name("tcl8.6"), decl_line, col, &analysis,
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                decl_line,
+                col,
+                &analysis,
             );
             assert!(
                 highlights.is_empty(),
@@ -2293,7 +3046,14 @@ fn a_brace_literal_cursor_never_answers_the_plain_cells_sites() {
                 "definition at column {col} leaked a plain-`n` site: {r:?}"
             );
         }
-        for r in references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, col, &analysis, true) {
+        for r in references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            3,
+            col,
+            &analysis,
+            true,
+        ) {
             assert!(
                 !plain_lines.contains(&r.start_line),
                 "references at column {col} leaked a plain-`n` site: {r:?}"
@@ -2329,7 +3089,14 @@ fn a_plain_cursor_is_unaffected_by_the_shared_gate() {
         let hover = hover_text(src, line, col, &analysis).expect("plain hover");
         assert!(hover.contains("**Variable** `n`"), "{hover:?}");
         assert_eq!(
-            ref_lines(&references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col, &analysis, true)),
+            ref_lines(&references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                line,
+                col,
+                &analysis,
+                true
+            )),
             vec![1, 2],
             "the plain cell's own sites, and only those"
         );
@@ -2344,8 +3111,16 @@ fn rename_still_refuses_from_every_column_of_the_brace_literal_word() {
     let src = BRACE_LITERAL_PLAIN_FIRST;
     let analysis = analyse(src);
     for col in [8u32, 9, 10] {
-        let refusal = rename_with_diagnosis(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 3, col, "q", &analysis, None)
-            .expect_err("a quoted-only name is refused from every column");
+        let refusal = rename_with_diagnosis(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            3,
+            col,
+            "q",
+            &analysis,
+            None,
+        )
+        .expect_err("a quoted-only name is refused from every column");
         assert!(
             refusal.reason.contains("`$n`"),
             "column {col} must refuse for the literal cell: {:?}",
@@ -2354,7 +3129,15 @@ fn rename_still_refuses_from_every_column_of_the_brace_literal_word() {
     }
     // TN control: the plain cell in the same document still renames, and the
     // edits stay off the `{$n}` words (lines 3 and 4).
-    let edits = rename(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 8, "q", &analysis, None);
+    let edits = rename(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        8,
+        "q",
+        &analysis,
+        None,
+    );
     assert_eq!(edit_lines(&edits), vec![1, 2], "{edits:?}");
 }
 
@@ -2377,7 +3160,15 @@ fn genuinely_inert_dollar_shapes_still_resolve_to_nothing() {
             "{src:?} at ({line},{col}) must stay suppressed"
         );
         assert!(
-            references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col, &analysis, true).is_empty(),
+            references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                line,
+                col,
+                &analysis,
+                true
+            )
+            .is_empty(),
             "{src:?} at ({line},{col}) must stay suppressed"
         );
     }
@@ -2406,7 +3197,14 @@ puts [info exists m]\n\
 fn find_references_reports_var_read_role_name_words() {
     let analysis = analyse(ROLE_READ_SRC);
     // Cursor on the `m` of `set m 1`.
-    let refs = references(ROLE_READ_SRC, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 8, &analysis, true);
+    let refs = references(
+        ROLE_READ_SRC,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        1,
+        8,
+        &analysis,
+        true,
+    );
     assert_eq!(
         ref_lines(&refs),
         vec![1, 2, 3],
@@ -2453,7 +3251,14 @@ fn tn_a_value_word_of_the_same_spelling_is_not_a_reference() {
     let src = "proc f {} {\n    set m 1\n    puts m\n}\n";
     let analysis = analyse(src);
     assert_eq!(
-        ref_lines(&references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 8, &analysis, true)),
+        ref_lines(&references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            1,
+            8,
+            &analysis,
+            true
+        )),
         vec![1],
         "a plain value word is not a variable reference"
     );
@@ -2500,7 +3305,14 @@ fn a_parameter_read_inside_a_list_built_body_navigates() {
         "go-to-definition must reach the `{{file}}` parameter"
     );
     assert_eq!(
-        references(TK_SOURCE_LIB_FILE, tcl_dialect::DialectProfile::by_name("tcl8.6"), 1, 62, &analysis, true),
+        references(
+            TK_SOURCE_LIB_FILE,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            1,
+            62,
+            &analysis,
+            true
+        ),
         vec![decl, read],
         "find-references must report the declaration and the read"
     );

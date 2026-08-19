@@ -394,7 +394,12 @@ mod tests {
             "eval {puts $level}\n",
         ] {
             assert!(
-                !offset_in_data_brace(src, offset_of(src, "$level"), reg(), tcl_dialect::DialectProfile::by_name("tcl8.6")),
+                !offset_in_data_brace(
+                    src,
+                    offset_of(src, "$level"),
+                    reg(),
+                    tcl_dialect::DialectProfile::by_name("tcl8.6")
+                ),
                 "should be live: {src:?}"
             );
         }

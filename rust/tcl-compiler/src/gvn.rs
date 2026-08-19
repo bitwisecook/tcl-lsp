@@ -595,7 +595,7 @@ pub fn is_worth_reporting_with_procs(
 /// purposes — i.e. has no observable side effects.
 ///
 /// Bridges to [`classify_side_effects`]. An optional
-/// dialect (`Some(tcl_dialect::DialectProfile::by_name("irules"))` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
+/// dialect (`Some(tcl_dialect::DialectProfile::irules())` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
 /// the classifier.
 #[must_use]
 pub fn is_pure_command(
@@ -2224,7 +2224,10 @@ mod tests {
             "lreverse {a b}\nlreverse {a b}",
         ] {
             let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
-                source, &registry, false, tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                source,
+                &registry,
+                false,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
             );
             assert_eq!(
                 find_redundancies_for_function(
@@ -2307,7 +2310,10 @@ mod tests {
                       llength {a b}\n\
                       llength {a b}";
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
-            source, &registry, false, tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            source,
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
 
         assert!(matches!(
@@ -2380,7 +2386,10 @@ mod tests {
             "clock add 0 1 day\nclock add 0 1 day",
         ] {
             let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
-                source, &registry, false, tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                source,
+                &registry,
+                false,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
             );
             assert!(
                 find_redundancies_for_function(
@@ -3885,7 +3894,10 @@ mod tests {
     /// empty result meaningless.
     fn stable_call_findings(registry: &CommandRegistry, source: &str) -> Vec<RedundantComputation> {
         let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
-            source, registry, false, tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            source,
+            registry,
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(
             matches!(

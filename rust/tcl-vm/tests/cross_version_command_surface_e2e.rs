@@ -84,7 +84,12 @@ impl CompileService for CompilerSvc {
         {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, self.registry, self.config, Some(tcl_dialect::DialectProfile::by_name(self.dialect)));
+        let ir = lower_to_ir(
+            src,
+            self.registry,
+            self.config,
+            Some(tcl_dialect::DialectProfile::by_name(self.dialect)),
+        );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
@@ -236,7 +241,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
 
 #[test]
 fn compatible_irules_host_surface_override_remains_accepted() {
-    let irules = DialectProfile::by_name("f5-irules");
+    let irules = DialectProfile::irules();
     let host = DialectProfile::by_name("tcl8.4");
     let mut vm = Vm::new();
     vm.set_dialect_profile(irules);

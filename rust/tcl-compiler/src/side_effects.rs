@@ -1467,7 +1467,7 @@ mod tests {
             &registry,
             "set",
             &["static::counter".into(), "0".into()],
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         let eff = &cse.effects[0];
@@ -1482,7 +1482,7 @@ mod tests {
             &registry,
             "set",
             &["local".into(), "0".into()],
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         let eff = &cse.effects[0];
@@ -1557,7 +1557,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["value".into(), "Host".into()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         assert!(getter.pure, "HTTP::header getter should stay pure");
@@ -1571,7 +1571,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["insert".into(), "X-Foo".into(), "y".into()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         assert!(

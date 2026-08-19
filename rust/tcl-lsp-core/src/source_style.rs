@@ -302,7 +302,10 @@ pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
 /// Dialect-aware W115 detector. Comment position is a lexer/registry fact,
 /// not a textual `#` prefix, so quoted and braced data never become comments.
 #[must_use]
-pub fn check_comment_continuation_for_dialect(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<StyleDiagnostic> {
+pub fn check_comment_continuation_for_dialect(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<StyleDiagnostic> {
     let lines: Vec<&str> = source.split('\n').collect();
     let profile = dialect;
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
@@ -661,15 +664,36 @@ mod tests {
         let braced = "set payload {# hidden \\\nputs live}\n";
         let quoted = "set payload \"# hidden \\\nputs live\"\n";
         let tail = "set marker \"noqa\"; # ordinary comment \\\nputs live\n";
-        assert!(check_comment_continuation_for_dialect(braced, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
-        assert!(check_comment_continuation_for_dialect(quoted, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
-        assert!(check_comment_continuation_for_dialect(tail, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
+        assert!(
+            check_comment_continuation_for_dialect(
+                braced,
+                tcl_dialect::DialectProfile::by_name("tcl9.0")
+            )
+            .is_empty()
+        );
+        assert!(
+            check_comment_continuation_for_dialect(
+                quoted,
+                tcl_dialect::DialectProfile::by_name("tcl9.0")
+            )
+            .is_empty()
+        );
+        assert!(
+            check_comment_continuation_for_dialect(
+                tail,
+                tcl_dialect::DialectProfile::by_name("tcl9.0")
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn w115_reaches_a_proven_alias_proc_body() {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # swallowed \\\n    puts hidden\n}\n";
-        let diags = check_comment_continuation_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let diags = check_comment_continuation_for_dialect(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].range.start_line, 2);
         assert!(
@@ -683,7 +707,10 @@ mod tests {
     #[test]
     fn w115_reaches_a_switch_case_list_arm_in_a_command_substitution() {
         let src = "set result [switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}]\n";
-        let diags = check_comment_continuation_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let diags = check_comment_continuation_for_dialect(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].code, "W115");
         assert_eq!(diags[0].range.start_line, 2);

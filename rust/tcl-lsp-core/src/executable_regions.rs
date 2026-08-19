@@ -295,7 +295,10 @@ pub(crate) fn cursor_in_command_substitution(
 mod tests {
     use super::*;
 
-    fn visited_format_heads(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<(String, String, u32)> {
+    fn visited_format_heads(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<(String, String, u32)> {
         let profile = dialect;
         let registry = crate::registry_for_dialect_profile(profile);
         let config = LexerConfig::for_file_dialect(profile.name);
@@ -370,7 +373,8 @@ mod tests {
             "switch $x {a \"format {%d} 1\" orphan}",
         ] {
             assert!(
-                visited_format_heads(source, tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty(),
+                visited_format_heads(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                    .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }

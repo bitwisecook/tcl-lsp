@@ -421,7 +421,7 @@ mod tests {
     #[test]
     fn reports_direct_live_substitutions_with_exact_unicode_offsets() {
         let source = "\"☃[HTTP::host]\" eq \"host\" || [HTTP::uri] eq \"/\"";
-        let profile = DialectProfile::by_name("f5-irules");
+        let profile = DialectProfile::irules();
         let spans = command_substitution_spans(
             source,
             profile,

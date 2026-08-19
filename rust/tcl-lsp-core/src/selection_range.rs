@@ -90,7 +90,13 @@ pub fn selection_range(
     character: u32,
     analysis: Option<&AnalysisResult>,
 ) -> Vec<SelectionRange> {
-    selection_range_for_dialect(source, line, character, analysis, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+    selection_range_for_dialect(
+        source,
+        line,
+        character,
+        analysis,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+    )
 }
 
 /// Compute the selection-range chain using the document's resolved dialect.

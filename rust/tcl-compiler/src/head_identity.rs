@@ -698,7 +698,7 @@ mod tests {
 
     fn irules_map_for(src: &str) -> HeadIdentityMap {
         let registry = tcl_registry::registry_for_dialect("f5-irules");
-        command_head_identities(src, tcl_dialect::DialectProfile::by_name("f5-irules"), registry)
+        command_head_identities(src, tcl_dialect::DialectProfile::irules(), registry)
     }
 
     /// Offset just past the first line of `src`, i.e. "after statement 1".
@@ -1033,7 +1033,8 @@ mod tests {
         // F5 K36322151: iRules disables `interp`, `rename`, and `namespace`.
         // Their Tcl shapes are data/error commands here, never identity facts.
         let source = "interp alias {} event {} when\nrename when event\nnamespace import ::x::*\nwhen HTTP_REQUEST {}\n";
-        let identities = command_head_identities(source, tcl_dialect::DialectProfile::by_name("f5-irules"), registry);
+        let identities =
+            command_head_identities(source, tcl_dialect::DialectProfile::irules(), registry);
         assert!(
             identities.is_empty(),
             "disabled commands must not produce command-identity facts"
@@ -1051,7 +1052,8 @@ mod tests {
         // `proc` is available, so a genuine, executable rebinding still
         // removes the registry event-handler grammar.
         let rebound = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
-        let identities = command_head_identities(rebound, tcl_dialect::DialectProfile::by_name("f5-irules"), registry);
+        let identities =
+            command_head_identities(rebound, tcl_dialect::DialectProfile::irules(), registry);
         let inferred =
             tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
                 rebound,

@@ -523,14 +523,8 @@ fn variable_position_hover(
         return PositionHover::Answer(hover);
     }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    if crate::caller_frame::substituted_var_read_at(
-        source,
-        profile,
-        line,
-        character,
-        cursor_offset,
-    )
-    .is_some()
+    if crate::caller_frame::substituted_var_read_at(source, profile, line, character, cursor_offset)
+        .is_some()
     {
         return PositionHover::Abstain;
     }

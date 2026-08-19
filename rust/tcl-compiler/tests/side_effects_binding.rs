@@ -358,7 +358,7 @@ fn classify_set_static_var_irules() {
         &reg,
         "set",
         &["static::counter", "0"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
@@ -374,7 +374,7 @@ fn classify_set_static_var_f5_irules() {
         &reg,
         "set",
         &["static::counter", "0"],
-        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.scope, StorageScope::Static);
@@ -439,7 +439,7 @@ fn classify_table_set() {
         &reg,
         "table",
         &["set", "mykey", "myval"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.writes_any());
     let e = only_effect(&r);
@@ -457,7 +457,7 @@ fn classify_table_lookup() {
         &reg,
         "table",
         &["lookup", "mykey"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert!(e.reads);
@@ -477,7 +477,7 @@ fn classify_pool_selection() {
         &reg,
         "pool",
         &["mypool"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.writes_target(SideEffectTarget::PoolSelection));
     let e = only_effect(&r);
@@ -492,7 +492,7 @@ fn classify_node_selection() {
         &reg,
         "node",
         &["10.0.0.1"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.writes_target(SideEffectTarget::NodeSelection));
 }
@@ -505,7 +505,7 @@ fn classify_snat_selection() {
         &reg,
         "snat",
         &["automap"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.writes_target(SideEffectTarget::SnatSelection));
 }
@@ -527,7 +527,7 @@ fn classify_class_lookup() {
         &reg,
         "class",
         &["__nosuchsub", "x"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(unknown_sub.reads_target(SideEffectTarget::DataGroup));
 }
@@ -541,7 +541,7 @@ fn classify_persist_command() {
         &reg,
         "persist",
         &["source_addr"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::PersistenceTable);
@@ -557,7 +557,7 @@ fn classify_session_add() {
         &reg,
         "session",
         &["add", "key", "val"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::PersistenceTable);
@@ -577,7 +577,7 @@ fn classify_session_lookup() {
         &reg,
         "session",
         &["lookup", "key"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(
         r.pure,
@@ -597,7 +597,7 @@ fn classify_http_header_read() {
         &reg,
         "HTTP::header",
         &["value", "Host"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert!(e.reads);
@@ -620,7 +620,7 @@ fn classify_http_uri_normalized_getter_is_read_only() {
         &reg,
         "HTTP::uri",
         &["-normalized"],
-        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.pure, "HTTP::uri -normalized is a pure getter");
     assert!(!r.writes_any(), "a getter must not write");
@@ -634,7 +634,7 @@ fn classify_dialect_propagation() {
         &reg,
         "set",
         &["x", "1"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert_eq!(r.dialect.as_deref(), Some("f5-irules"));
     let e = only_effect(&r);
@@ -661,7 +661,7 @@ fn classify_command_level_hint_is_applied() {
         &reg,
         "HTTP2::disable",
         &[],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.writes_target(SideEffectTarget::Http2State));
     let e = only_effect(&r);
@@ -678,7 +678,7 @@ fn classify_subcommand_hint_overrides_command_level() {
         &reg,
         "HTTP::header",
         &["replace", "Host", "example.com"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::HttpHeader);
@@ -693,7 +693,7 @@ fn classify_hint_precedence_beats_fallback() {
         &reg,
         "call",
         &["my_proc"],
-        Some(tcl_dialect::DialectProfile::by_name("irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     assert!(r.reads_target(SideEffectTarget::ProcDefinition));
     assert!(!r.writes_any());
@@ -740,7 +740,7 @@ fn classify_close_in_irules_is_connection_control() {
         &reg,
         "close",
         &[],
-        Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+        Some(tcl_dialect::DialectProfile::irules()),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::ConnectionControl);
@@ -816,7 +816,7 @@ fn conformance_irules_protocol_namespace_targets() {
         assert_conformance_target(
             &reg,
             cmd,
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             *target,
         );
     }
@@ -860,12 +860,7 @@ fn hinted_irules_commands_return_non_unknown_effects() {
         "redirect",
     ];
     for cmd in cmds {
-        let r = classify(
-            &reg,
-            cmd,
-            &[],
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
-        );
+        let r = classify(&reg, cmd, &[], Some(tcl_dialect::DialectProfile::irules()));
         assert!(!r.effects.is_empty(), "{cmd}: expected non-empty effects");
     }
 }

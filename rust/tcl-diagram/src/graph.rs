@@ -256,7 +256,7 @@ pub fn irule_flowchart_graph(source: &str, registry: &CommandRegistry) -> String
     // Always the iRules dialect: lex with the f5-irules preset so `if {expr}{body}`
     // (`}{` valid in TMM) forms correct control-flow branches instead of the
     // stock-Tcl mis-segmentation.
-    let data = diagram_data_for_dialect(source, registry, tcl_dialect::DialectProfile::by_name("f5-irules"));
+    let data = diagram_data_for_dialect(source, registry, tcl_dialect::DialectProfile::irules());
     let events = data
         .get("events")
         .and_then(Value::as_array)

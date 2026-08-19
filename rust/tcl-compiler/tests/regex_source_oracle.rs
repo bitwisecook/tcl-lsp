@@ -85,9 +85,9 @@ fn highlighted_literals(source: &str) -> Vec<String> {
         &registry,
         tcl_dialect::DialectProfile::by_name("tcl9.0"),
     )
-        .into_iter()
-        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-        .collect()
+    .into_iter()
+    .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
+    .collect()
 }
 
 #[test]

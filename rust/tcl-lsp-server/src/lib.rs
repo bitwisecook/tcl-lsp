@@ -1465,7 +1465,8 @@ async fn run_diagnostics_f5_dialect(
     analysis_text: &str,
     language_id: &str,
 ) -> Option<bool> {
-    if !Backend::is_bigip_dialect(inputs.dialect.name) && !is_apl_source(delivery.uri, language_id) {
+    if !Backend::is_bigip_dialect(inputs.dialect.name) && !is_apl_source(delivery.uri, language_id)
+    {
         return None;
     }
     let encoding_abstains = inputs
@@ -3416,7 +3417,7 @@ async fn publish_fast_tier(
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
-            &dialect,
+            dialect,
         ));
         finalise_diagnostics(
             &mut diagnostics,
@@ -3545,8 +3546,7 @@ async fn refine_and_lift_diagnostics(
     let optimiser_enabled = inputs.optimiser_enabled;
     let style_line_length = inputs.style_line_length;
     let dialect = inputs.dialect.to_owned();
-    let xc_for_irules =
-        inputs.xc_diagnostics && inputs.dialect.is_irules();
+    let xc_for_irules = inputs.xc_diagnostics && inputs.dialect.is_irules();
     let compiler_diags = Arc::clone(compiler_diags);
     crate::rt::spawn_blocking(move || {
         // `analyser_diags` includes opt-in callback checks when enabled; direct
@@ -3568,7 +3568,7 @@ async fn refine_and_lift_diagnostics(
             &analysis_lifts.suppressed_lines,
             &disabled,
             style_line_length as usize,
-            &dialect,
+            dialect,
         ));
         // Opt-in: append the XC100-301 translatability diagnostics
         // for `f5-irules` documents when `xcDiagnostics` is enabled.
@@ -6625,7 +6625,12 @@ impl Backend {
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let (text, dialect) = (doc.text.clone(), doc.dialect.clone());
         crate::rt::spawn_blocking(move || {
-            core_semantic_tokens::full(&text, tcl_lsp_core::profile_for_dialect(&dialect), &registry).data
+            core_semantic_tokens::full(
+                &text,
+                tcl_lsp_core::profile_for_dialect(&dialect),
+                &registry,
+            )
+            .data
         })
         .await
         .map_err(|err| jsonrpc::Error {
@@ -6997,7 +7002,9 @@ impl Backend {
         // Bump this URI's closed-run generation and capture it, so a newer close
         // / watched-change refresh supersedes this run at publish time.
         let generation = self.next_closed_diag_generation(uri).await;
-        let inputs = self.diag_inputs(uri, tcl_lsp_core::profile_for_dialect(&dialect)).await;
+        let inputs = self
+            .diag_inputs(uri, tcl_lsp_core::profile_for_dialect(&dialect))
+            .await;
         let config = inputs.closed_file_config(uri).await;
         let job = DiagJob {
             // A closed file's text comes from the salsa input, not from an open
@@ -7509,7 +7516,13 @@ impl Backend {
         // external call resolves the exported dispatch entry only
         // (issue #945 faults 4 + 6).
         if let Some((class_q, method, is_classmethod, access)) = self
-            .resolve_method_target(uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), &analysis, pos)
+            .resolve_method_target(
+                uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                &analysis,
+                pos,
+            )
             .await
         {
             let method_defs = self
@@ -7784,8 +7797,12 @@ impl Backend {
         pos: Position,
         analysis: &AnalysisResult,
     ) -> Vec<Location> {
-        let Some(cell) = Self::qualified_variable_cell(source, tcl_lsp_core::profile_for_dialect(&analysis.dialect), analysis, pos)
-        else {
+        let Some(cell) = Self::qualified_variable_cell(
+            source,
+            tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+            analysis,
+            pos,
+        ) else {
             return Vec::new();
         };
         // The index answers under source-site namespaces too (M9), so
@@ -8149,7 +8166,12 @@ impl Backend {
         pos: Position,
         analysis: &AnalysisResult,
     ) -> Option<CoreHover> {
-        let cell = Self::qualified_variable_cell(source, tcl_lsp_core::profile_for_dialect(&analysis.dialect), analysis, pos)?;
+        let cell = Self::qualified_variable_cell(
+            source,
+            tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+            analysis,
+            pos,
+        )?;
         let rehoming_guard = self.rehomed_index_guard().await;
         let target_uris: Vec<String> = {
             let index = self.workspace_index.read().await;
@@ -8825,8 +8847,12 @@ impl Backend {
         pos: Position,
         include_declaration: bool,
     ) -> Vec<Location> {
-        let Some(cell) = Self::qualified_variable_cell(source, tcl_lsp_core::profile_for_dialect(&analysis.dialect), analysis, pos)
-        else {
+        let Some(cell) = Self::qualified_variable_cell(
+            source,
+            tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+            analysis,
+            pos,
+        ) else {
             return Vec::new();
         };
         let rehoming_guard = self.rehomed_index_guard().await;
@@ -8942,9 +8968,15 @@ impl Backend {
         analysis: &AnalysisResult,
         pos: Position,
     ) -> Option<(String, String, bool)> {
-        self.resolve_method_target(uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), analysis, pos)
-            .await
-            .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod))
+        self.resolve_method_target(
+            uri,
+            &doc.text,
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+            analysis,
+            pos,
+        )
+        .await
+        .map(|(class_q, method, is_classmethod, _access)| (class_q, method, is_classmethod))
     }
 
     /// Whether the cursor sits on a bare `ClassName member` **class-side**
@@ -9272,7 +9304,11 @@ impl Backend {
         is_classmethod: bool,
     ) -> Vec<Range> {
         let analysis = self
-            .analyse_with_workspace_classes(&doc.uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect))
+            .analyse_with_workspace_classes(
+                &doc.uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+            )
             .await;
         let source = doc.text.clone();
         let dialect = doc.dialect.clone();
@@ -9728,7 +9764,11 @@ impl Backend {
                 continue;
             };
             let target_analysis = self
-                .analyse_with_workspace_classes(&parsed, &target_doc.text, tcl_lsp_core::profile_for_dialect(&target_doc.dialect))
+                .analyse_with_workspace_classes(
+                    &parsed,
+                    &target_doc.text,
+                    tcl_lsp_core::profile_for_dialect(&target_doc.dialect),
+                )
                 .await;
             if let Some(refusal) = core_rename_safety::method_rename_hazard(
                 &target_doc.text,
@@ -9786,8 +9826,12 @@ impl Backend {
     {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
-        let Some(cell) = Self::qualified_variable_cell(&doc.text, tcl_lsp_core::profile_for_dialect(&analysis.dialect), analysis, pos)
-        else {
+        let Some(cell) = Self::qualified_variable_cell(
+            &doc.text,
+            tcl_lsp_core::profile_for_dialect(&analysis.dialect),
+            analysis,
+            pos,
+        ) else {
             return Ok(changes);
         };
         if !core_rename::is_safe_symbol_name(new_name) {
@@ -9930,7 +9974,12 @@ impl Backend {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
         let family = self
-            .method_family_by_document(tcl_lsp_core::profile_for_dialect(dialect), seed_class, method, is_classmethod)
+            .method_family_by_document(
+                tcl_lsp_core::profile_for_dialect(dialect),
+                seed_class,
+                method,
+                is_classmethod,
+            )
             .await;
         let classmethod_cmd_names = family.classmethod_cmd_names;
         for (
@@ -10144,7 +10193,13 @@ impl Backend {
     ) -> Vec<Location> {
         let mut locations = Vec::new();
         if let Some((seed_class, method, is_classmethod, _access)) = self
-            .resolve_method_target(uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), analysis, pos)
+            .resolve_method_target(
+                uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                analysis,
+                pos,
+            )
             .await
         {
             locations.extend(
@@ -10273,7 +10328,13 @@ impl Backend {
         pos: Position,
     ) -> Option<CoreHover> {
         let (class_q, method, is_classmethod, access) = self
-            .resolve_method_target(uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), analysis, pos)
+            .resolve_method_target(
+                uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                analysis,
+                pos,
+            )
             .await?;
         let chain: Vec<(String, String)> = {
             let index = self.workspace_index.read().await;
@@ -10600,7 +10661,7 @@ impl Backend {
             crate::rt::spawn_blocking(move || {
                 core_call_hierarchy::unresolved_outgoing_calls_in_program(
                     &source,
-                    &dialect,
+                    dialect,
                     &item,
                     &analysis,
                     core_definition::CallResolution::document_only().in_program(
@@ -10723,7 +10784,12 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             if aggressive {
-                let res = core_minify::minify_tcl_aggressive(&text, tcl_lsp_core::profile_for_dialect(&dialect), isolated, &registry);
+                let res = core_minify::minify_tcl_aggressive(
+                    &text,
+                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    isolated,
+                    &registry,
+                );
                 serde_json::json!({
                     "source": res.source,
                     "originalLength": res.original_length,
@@ -10732,8 +10798,12 @@ impl Backend {
                     "optimisationsApplied": res.optimisations_applied,
                 })
             } else if compact {
-                let (minified, symbol_map) =
-                    core_minify::minify_tcl_compact(&text, tcl_lsp_core::profile_for_dialect(&dialect), isolated, &registry);
+                let (minified, symbol_map) = core_minify::minify_tcl_compact(
+                    &text,
+                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    isolated,
+                    &registry,
+                );
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10741,7 +10811,11 @@ impl Backend {
                     "symbolMap": symbol_map.format(),
                 })
             } else {
-                let minified = core_minify::minify_tcl(&text, tcl_lsp_core::profile_for_dialect(&dialect), &registry);
+                let minified = core_minify::minify_tcl(
+                    &text,
+                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    &registry,
+                );
                 serde_json::json!({
                     "source": minified,
                     "originalLength": text.len(),
@@ -10966,7 +11040,9 @@ impl Backend {
         let dialect = "f5-irules";
         let registry = self.registry_for_dialect(dialect).await;
         Some(tcl_diagram::diagram_data_for_dialect(
-            source, &registry, tcl_lsp_core::profile_for_dialect(dialect),
+            source,
+            &registry,
+            tcl_lsp_core::profile_for_dialect(dialect),
         ))
     }
 
@@ -12594,7 +12670,11 @@ impl Backend {
     /// event loop stays responsive.
     /// Gather the document-independent handles a detached diagnostics run needs
     /// (per-edit state travels in a [`DiagJob`]).
-    async fn diag_inputs(&self, uri: &Uri, dialect: &'static tcl_dialect::DialectProfile) -> DiagInputs {
+    async fn diag_inputs(
+        &self,
+        uri: &Uri,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> DiagInputs {
         let (disabled, non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
         let severity_overrides = self.resolved_severity_overrides(uri).await;
@@ -12893,7 +12973,12 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
-            .compiler_diagnostics_for(uri, &analysis_text, tcl_lsp_core::profile_for_dialect(&dialect), &registry)
+            .compiler_diagnostics_for(
+                uri,
+                &analysis_text,
+                tcl_lsp_core::profile_for_dialect(&dialect),
+                &registry,
+            )
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -12904,7 +12989,13 @@ impl Backend {
         // `textDocument/codeAction`, which lifts its quick-fixes from this
         // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .published_analyser_diagnostics(uri, &analysis, tcl_lsp_core::profile_for_dialect(&dialect), &registry, &disabled)
+            .published_analyser_diagnostics(
+                uri,
+                &analysis,
+                tcl_lsp_core::profile_for_dialect(&dialect),
+                &registry,
+                &disabled,
+            )
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
@@ -13102,7 +13193,9 @@ impl Backend {
         _revision: u64,
         _version: Option<i32>,
     ) {
-        let inputs = self.diag_inputs(&uri, tcl_lsp_core::profile_for_dialect(&dialect)).await;
+        let inputs = self
+            .diag_inputs(&uri, tcl_lsp_core::profile_for_dialect(&dialect))
+            .await;
         let Some(job) = inputs.capture_job(&uri).await else {
             return;
         };
@@ -13155,7 +13248,10 @@ impl Backend {
         // published together, atomically, so the worker never observes one
         // without the other.
         let fresh_inputs = if need_inputs {
-            Some(self.diag_inputs(&uri, tcl_lsp_core::profile_for_dialect(&dialect)).await)
+            Some(
+                self.diag_inputs(&uri, tcl_lsp_core::profile_for_dialect(&dialect))
+                    .await,
+            )
         } else {
             None
         };
@@ -15545,7 +15641,11 @@ impl LanguageServer for Backend {
             // preserved).
             let registry = self.registry_for_dialect(&doc.dialect).await;
             crate::rt::spawn_blocking(move || {
-                tcl_lsp_core::folding::folding_ranges(&doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), &registry)
+                tcl_lsp_core::folding::folding_ranges(
+                    &doc.text,
+                    tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                    &registry,
+                )
             })
             .await
             .map_err(|err| jsonrpc::Error {
@@ -16193,7 +16293,13 @@ impl LanguageServer for Backend {
             .await;
         // Cross-document edges: callees defined in sibling files.
         let cross = self
-            .cross_document_outgoing_calls(&uri, &doc.text, tcl_lsp_core::profile_for_dialect(&doc.dialect), &core_item, &analysis)
+            .cross_document_outgoing_calls(
+                &uri,
+                &doc.text,
+                tcl_lsp_core::profile_for_dialect(&doc.dialect),
+                &core_item,
+                &analysis,
+            )
             .await;
         let local_uri = uri.clone();
         let local_analysis = analysis.clone();
@@ -17388,7 +17494,11 @@ impl LanguageServer for Backend {
         // `FormattingOptions.tabSize` / `insertSpaces` override indentation by
         // LSP contract.
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        let config = formatter_config_from(&formatting, &params.options, tcl_lsp_core::profile_for_dialect(&doc.dialect));
+        let config = formatter_config_from(
+            &formatting,
+            &params.options,
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        );
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.  The formatter is one of the two consumers that
         // must see the document's *real* terminators (`lineEnding: auto`
@@ -17433,7 +17543,11 @@ impl LanguageServer for Backend {
         };
         let registry = self.registry_for_dialect(&doc.dialect).await;
         let formatting = self.resolved_formatting(&params.text_document.uri).await;
-        let config = formatter_config_from(&formatting, &params.options, tcl_lsp_core::profile_for_dialect(&doc.dialect));
+        let config = formatter_config_from(
+            &formatting,
+            &params.options,
+            tcl_lsp_core::profile_for_dialect(&doc.dialect),
+        );
         // Pure-CPU formatting on a worker so a parser panic is contained as
         // a JSON-RPC error.
         let text = doc.raw().to_owned();
@@ -19548,10 +19662,10 @@ fn apl_presentation_diagnostics(
         impl_var_refs,
         tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
     )
-        .into_iter()
-        .filter(|d| !disabled.contains(&d.code))
-        .map(|d| lift_config_diagnostic(&d))
-        .collect()
+    .into_iter()
+    .filter(|d| !disabled.contains(&d.code))
+    .map(|d| lift_config_diagnostic(&d))
+    .collect()
 }
 
 /// Whether `uri` (with its editor `language_id`) is an iApp APL
@@ -24297,20 +24411,33 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
+        let cfg = formatter_config_from(
+            &serde_json::Value::Null,
+            &opts,
+            tcl_lsp_core::profile_for_dialect("tcl"),
+        );
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
         // A degenerate zero tabSize is ignored (editors always send >= 1), so
         // the configured / default indent size stands (4 here).
         opts.tab_size = 0;
         assert_eq!(
-            formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect("tcl")).indent_size,
+            formatter_config_from(
+                &serde_json::Value::Null,
+                &opts,
+                tcl_lsp_core::profile_for_dialect("tcl")
+            )
+            .indent_size,
             4
         );
         // insertSpaces=false selects tab indentation.
         opts.tab_size = 4;
         opts.insert_spaces = false;
-        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
+        let cfg = formatter_config_from(
+            &serde_json::Value::Null,
+            &opts,
+            tcl_lsp_core::profile_for_dialect("tcl"),
+        );
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Tabs);
     }
 
@@ -24326,7 +24453,11 @@ mod tests {
             ..Default::default()
         };
         for spelling in ["f5-irules", "irules"] {
-            let cfg = formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect(spelling));
+            let cfg = formatter_config_from(
+                &serde_json::Value::Null,
+                &opts,
+                tcl_lsp_core::profile_for_dialect(spelling),
+            );
             assert!(cfg.profile.is_irules(), "{spelling}");
             // The `}{` ghost separator TMM accepts, which a Tcl 9 lexer does
             // not parse as two words.
@@ -24334,7 +24465,11 @@ mod tests {
             // A vendor dialect names no core release: no forward range.
             assert!(cfg.target_range().is_empty(), "{spelling}");
         }
-        let cfg = formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect("tcl8.6"));
+        let cfg = formatter_config_from(
+            &serde_json::Value::Null,
+            &opts,
+            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+        );
         assert!(!cfg.lexer_config().irules_brace_separator);
         assert_eq!(
             cfg.target_range(),
@@ -24360,7 +24495,8 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&formatting, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
+        let cfg =
+            formatter_config_from(&formatting, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
         assert_eq!(cfg.max_line_length, 100);
         assert_eq!(cfg.goal_line_length, 90);
         assert!(!cfg.space_between_braces);
@@ -24370,7 +24506,11 @@ mod tests {
         assert_eq!(cfg.indent_size, 2);
         assert_eq!(cfg.indent_style, core_formatting::IndentStyle::Spaces);
         // A null formatting object falls back to defaults + LSP options.
-        let dflt = formatter_config_from(&serde_json::Value::Null, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
+        let dflt = formatter_config_from(
+            &serde_json::Value::Null,
+            &opts,
+            tcl_lsp_core::profile_for_dialect("tcl"),
+        );
         assert_eq!(dflt.max_line_length, 120);
     }
 
@@ -24454,7 +24594,8 @@ mod tests {
             insert_spaces: true,
             ..Default::default()
         };
-        let cfg = formatter_config_from(&formatting, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
+        let cfg =
+            formatter_config_from(&formatting, &opts, tcl_lsp_core::profile_for_dialect("tcl"));
         assert_eq!(cfg.max_line_length, 70);
         // tab_size 0 → unwrap_or(cfg.indent_size=8).max(1) = 8.
         assert_eq!(cfg.indent_size, 8);
@@ -27674,7 +27815,13 @@ mod tests {
                 .add_document("file:///ws.tcl", &result);
         }
 
-        let first = widen_recovery_extra_commands(&ctx, &base, "proc foo {", tcl_lsp_core::profile_for_dialect("tcl8.6")).await;
+        let first = widen_recovery_extra_commands(
+            &ctx,
+            &base,
+            "proc foo {",
+            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+        )
+        .await;
         assert!(
             first.contains("ws::helper") && first.contains("helper") && first.contains("mycmd"),
             "the widened set must carry the workspace proc (qualified + tail) and the base",
@@ -27683,7 +27830,13 @@ mod tests {
         // A keystroke inside the same unterminated block: different text, same
         // index / package database / config — the identical allocation is
         // handed back.
-        let second = widen_recovery_extra_commands(&ctx, &base, "proc foo {x", tcl_lsp_core::profile_for_dialect("tcl8.6")).await;
+        let second = widen_recovery_extra_commands(
+            &ctx,
+            &base,
+            "proc foo {x",
+            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+        )
+        .await;
         assert!(
             Arc::ptr_eq(&first, &second),
             "an edit that does not change the index must reuse the cached set",
@@ -27700,7 +27853,13 @@ mod tests {
                 .await
                 .add_document("file:///ws2.tcl", &result);
         }
-        let third = widen_recovery_extra_commands(&ctx, &base, "proc foo {x", tcl_lsp_core::profile_for_dialect("tcl8.6")).await;
+        let third = widen_recovery_extra_commands(
+            &ctx,
+            &base,
+            "proc foo {x",
+            tcl_lsp_core::profile_for_dialect("tcl8.6"),
+        )
+        .await;
         assert!(
             !Arc::ptr_eq(&second, &third),
             "an index change must rebuild the widened set",
@@ -33753,7 +33912,14 @@ mod tests {
         // had no cross-file reference support at all.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", true, false, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .cross_file_method_references(
+                &animal,
+                "::Animal",
+                "speak",
+                true,
+                false,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            )
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -33779,7 +33945,14 @@ mod tests {
         // (l2) is dropped but the `$d speak` call site (l5) stays.
         let (backend, animal, dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false, false, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .cross_file_method_references(
+                &animal,
+                "::Animal",
+                "speak",
+                false,
+                false,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            )
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -33811,7 +33984,14 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "speak", false, false, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .cross_file_method_references(
+                &animal,
+                "::Animal",
+                "speak",
+                false,
+                false,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            )
             .await;
         let dog_lines: Vec<u32> = refs
             .iter()
@@ -33847,7 +34027,14 @@ mod tests {
         )
         .await;
         let refs = backend
-            .cross_file_method_references(&factory, "::Factory", "make", false, true, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .cross_file_method_references(
+                &factory,
+                "::Factory",
+                "make",
+                false,
+                true,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            )
             .await;
         let sub_lines: Vec<u32> = refs
             .iter()
@@ -33866,7 +34053,14 @@ mod tests {
         // cross-file sites.
         let (backend, animal, _dog) = register_method_family_workspace().await;
         let refs = backend
-            .cross_file_method_references(&animal, "::Animal", "nonexistent", true, false, tcl_lsp_core::profile_for_dialect("tcl8.6"))
+            .cross_file_method_references(
+                &animal,
+                "::Animal",
+                "nonexistent",
+                true,
+                false,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+            )
             .await;
         assert!(refs.is_empty(), "{refs:?}");
     }
@@ -34010,7 +34204,12 @@ mod tests {
         register(&backend, &consumer, "Parent make\nGadget make\n").await;
         let refs = backend
             .cross_file_consumer_method_references(
-                &parent, parent_src, tcl_lsp_core::profile_for_dialect("tcl8.6"), "::Parent", "make", true,
+                &parent,
+                parent_src,
+                tcl_lsp_core::profile_for_dialect("tcl8.6"),
+                "::Parent",
+                "make",
+                true,
             )
             .await;
         assert!(
@@ -34478,7 +34677,8 @@ mod tests {
             .expect("worker did not panic")
             .expect("not cancelled");
         let registry = backend.registry_for_dialect("tcl9.0").await;
-        let coarse = core_semantic_tokens::full(src, tcl_lsp_core::profile_for_dialect("tcl9.0"), &registry);
+        let coarse =
+            core_semantic_tokens::full(src, tcl_lsp_core::profile_for_dialect("tcl9.0"), &registry);
 
         assert!(!served.data.is_empty(), "must never serve an empty stream");
         assert!(
@@ -35888,7 +36088,13 @@ mod tests {
             a.analyse(main_src, "tcl8.6").clone()
         };
         let cross = backend
-            .cross_document_outgoing_calls(&main, main_src, tcl_lsp_core::profile_for_dialect("tcl"), &item, &analysis)
+            .cross_document_outgoing_calls(
+                &main,
+                main_src,
+                tcl_lsp_core::profile_for_dialect("tcl"),
+                &item,
+                &analysis,
+            )
             .await;
         assert_eq!(cross.len(), 1, "{cross:?}");
         assert_eq!(cross[0].to.name, "::helper");

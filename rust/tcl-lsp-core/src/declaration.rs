@@ -374,7 +374,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the `$counter` reference in the proc body.
         let (l, c) = pos_of(src, "$counter", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert_eq!(locs.len(), 1, "{locs:?}");
         // The `global counter` declaration is on line 1.
         assert_eq!(locs[0].start_line, 1);
@@ -392,7 +399,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on `$config` inside `get`.
         let (l, c) = pos_of(src, "$config", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         // The `variable config` inside the proc body is the visible
         // declaration (the namespace-level one may also be visible).
         assert!(!locs.is_empty(), "{locs:?}");
@@ -409,7 +423,14 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$local", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `upvar 1 other local` declares `local` on line 1.
         assert_eq!(locs[0].start_line, 1);
@@ -425,7 +446,14 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$x", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `global x` is on line 1 (the `if` line).
         assert_eq!(locs[0].start_line, 1);
@@ -444,7 +472,14 @@ mod tests {
                    }} /tmp\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$x", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert_eq!(locs.len(), 1, "{locs:?}");
         // `global x` is on line 1 (inside the lambda body).
         assert_eq!(locs[0].start_line, 1);
@@ -462,7 +497,14 @@ mod tests {
                    }\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$x", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert!(
             !locs.iter().any(|loc| loc.start_line == 1),
             "the lambda's `global x` (line 1) must not resolve as `p`'s own \
@@ -481,7 +523,14 @@ mod tests {
                    puts $cfg\n";
         let analysis = analyse(src);
         let (l, c) = pos_of(src, "$cfg", 1);
-        let locs = declaration(src, l, c + 1, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            l,
+            c + 1,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert!(
             locs.iter().any(|r| r.start_line == 1),
             "expected the `variable cfg` decl on line 1; got {locs:?}"
@@ -494,7 +543,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the `greet` call — not a variable, so this defers
         // to go-to-definition (the proc name span on line 0).
-        let locs = declaration(src, 1, 2, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            1,
+            2,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert_eq!(locs.len(), 1, "{locs:?}");
         assert_eq!(locs[0].start_line, 0);
     }
@@ -513,7 +569,14 @@ mod tests {
     fn declaration_does_not_resolve_an_unclosed_braced_reference() {
         let src = "proc p {} {\n    global x\n    puts ${x\n}\n";
         let analysis = analyse(src);
-        let locs = declaration(src, 2, 9, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
+        let locs = declaration(
+            src,
+            2,
+            9,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            &reg(),
+        );
         assert!(
             locs.is_empty(),
             "malformed `${{x` must not resolve to the real `x`: {locs:?}"
@@ -537,8 +600,11 @@ mod tests {
     /// abstention this test exists to pin.
     fn scanned_declaration_lines(src: &str, target: &str) -> Vec<u32> {
         let registry = reg();
-        let identities =
-            tcl_compiler::head_identity::command_head_identities(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let identities = tcl_compiler::head_identity::command_head_identities(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         let end = u32::try_from(src.len()).unwrap_or(0);
         let scan = DeclScan {
             source: src,

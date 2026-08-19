@@ -88,15 +88,29 @@ fn min(src: &str) -> String {
 }
 
 fn min_dialect(src: &str, dialect: &str) -> String {
-    minify_tcl(src, tcl_dialect::DialectProfile::by_name(dialect), registry_for_dialect(dialect))
+    minify_tcl(
+        src,
+        tcl_dialect::DialectProfile::by_name(dialect),
+        registry_for_dialect(dialect),
+    )
 }
 
 fn compact(src: &str, isolated: bool) -> (String, SymbolMap) {
-    minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), isolated, reg())
+    minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        isolated,
+        reg(),
+    )
 }
 
 fn agg(src: &str, isolated: bool) -> MinifyResult {
-    minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), isolated, reg())
+    minify_tcl_aggressive(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        isolated,
+        reg(),
+    )
 }
 
 // ===========================================================================

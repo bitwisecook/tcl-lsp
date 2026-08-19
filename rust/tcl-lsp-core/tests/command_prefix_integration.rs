@@ -58,7 +58,14 @@ fn find_references_includes_callback_site() {
     let mut a = tcl_compiler::analyser::Analyser::new();
     let r = a.analyse(SRC, "tcl9.0");
     // Cursor on `myCompare` in its definition (line 0, char 6).
-    let refs = tcl_lsp_core::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), 0, 6, &r, true);
+    let refs = tcl_lsp_core::references::references(
+        SRC,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        0,
+        6,
+        &r,
+        true,
+    );
     assert!(
         refs.iter().any(|rg| rg.start_line == 2),
         "find-references must include the lsort -command callback on line 2; got {refs:?}"
@@ -694,7 +701,14 @@ fn trace_add_variable_write_list_prefix_is_a_reference() {
     // The reference surfaces every command_invocations-fed consumer reads:
     // find-references anchored at the declaration must reach the trace site.
     let decl_line = 2;
-    let refs = tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), decl_line, 9, &r, true);
+    let refs = tcl_lsp_core::references::references(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        decl_line,
+        9,
+        &r,
+        true,
+    );
     assert!(
         refs.iter().any(|rg| rg.start_line == 3),
         "find-references from the proc declaration must include the \

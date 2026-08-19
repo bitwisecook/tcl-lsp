@@ -337,9 +337,11 @@ pub fn definition_with(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if is_next_chain_keyword_in(tcl_dialect::DialectProfile::by_name(&analysis.dialect), &word)
-        && let Some(span) =
-            next_dispatch_target(analysis, source, &line_index, line, character, &word)
+    if is_next_chain_keyword_in(
+        tcl_dialect::DialectProfile::by_name(&analysis.dialect),
+        &word,
+    ) && let Some(span) =
+        next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
         return vec![span_to_range(source, &line_index, span)];
     }
@@ -545,7 +547,13 @@ fn position_definition(
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
     // reference, and must fall through to the declaration-span search below
     // so it answers the *literal* cell (PR #1106 review, P2).
-    if let Some(var_name) = substituting_var_at_position(source, tcl_dialect::DialectProfile::by_name(""), line, character, cursor_off) {
+    if let Some(var_name) = substituting_var_at_position(
+        source,
+        tcl_dialect::DialectProfile::by_name(""),
+        line,
+        character,
+        cursor_off,
+    ) {
         if let Some(var_def) = lookup_var_read_at(
             &analysis.global_scope,
             source,
@@ -1078,7 +1086,8 @@ pub(crate) fn method_dispatch_keyword_in(
 /// after it names a method on the *enclosing* class, reaching non-exported
 /// methods a `$obj` dispatch cannot.
 pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in(tcl_dialect::DialectProfile::by_name(""), word) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+    method_dispatch_keyword_in(tcl_dialect::DialectProfile::by_name(""), word)
+        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
 }
 
 /// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
@@ -1110,7 +1119,10 @@ fn is_next_chain_keyword_in(dialect: &'static tcl_dialect::DialectProfile, word:
 /// [`tcl_registry::ArgRole::Name`] at index 0 on the spec, which `next` does
 /// not declare. Distinguishing the two structurally rather than by name is
 /// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
-pub(crate) fn next_chain_names_a_target_in(dialect: &'static tcl_dialect::DialectProfile, word: &str) -> bool {
+pub(crate) fn next_chain_names_a_target_in(
+    dialect: &'static tcl_dialect::DialectProfile,
+    word: &str,
+) -> bool {
     method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
         && crate::registry_for_dialect_profile(dialect)
             .get(word)
@@ -2318,7 +2330,11 @@ pub(crate) fn lookup_var_read_at<'a>(
 /// comment or a braced *data* word.  The two [`crate::inert_text`] proofs
 /// under one name, so every caller asks the same question the same way.
 #[must_use]
-pub(crate) fn offset_is_inert(source: &str, dialect: &'static tcl_dialect::DialectProfile, cursor_off: u32) -> bool {
+pub(crate) fn offset_is_inert(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    cursor_off: u32,
+) -> bool {
     crate::inert_text::offset_in_comment(source, cursor_off)
         || crate::inert_text::offset_in_data_brace(
             source,
@@ -2757,7 +2773,10 @@ pub(crate) fn resolved_command_name(
 /// compared.  A metaclass the registry does not recognise as a definer
 /// (which should not happen for a real `ClassDef`) is conservatively treated
 /// as *not* itcl.
-pub(crate) fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &'static tcl_dialect::DialectProfile) -> bool {
+pub(crate) fn is_itcl_class(
+    cd: &tcl_compiler::analyser::types::ClassDef,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> bool {
     crate::registry_for_dialect_profile(dialect)
         .get(&cd.metaclass)
         .and_then(|spec| spec.definition_body)
@@ -2916,7 +2935,12 @@ fn itcl_class_proc_declaration(
     namespace: &str,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let (class_q, member) = itcl_class_proc_target(analysis, tcl_dialect::DialectProfile::by_name(""), namespace, word)?;
+    let (class_q, member) = itcl_class_proc_target(
+        analysis,
+        tcl_dialect::DialectProfile::by_name(""),
+        namespace,
+        word,
+    )?;
     analysis
         .all_classes
         .get(class_q)

@@ -360,7 +360,8 @@ impl Lowerer<'_> {
             init_span: arg_tokens[0].span,
             condition: parse_expr_for_profile(
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
-                self.dialect),
+                self.dialect,
+            ),
             condition_span: arg_tokens[1].span,
             condition_base: word_content_base(
                 arg_tokens[1].span,
@@ -410,7 +411,8 @@ impl Lowerer<'_> {
             span: seg.span,
             condition: parse_expr_for_profile(
                 &condition_source_text(arg_tokens.first(), arg_single[0], &args[0]),
-                self.dialect),
+                self.dialect,
+            ),
             condition_span: arg_tokens[0].span,
             condition_base: word_content_base(
                 arg_tokens[0].span,

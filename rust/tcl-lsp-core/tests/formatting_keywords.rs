@@ -300,7 +300,7 @@ fn an_irules_document_gets_the_same_rewrite() {
     // the vendor dialect exactly as under a core one, with no core version
     // range to widen over.
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("f5-irules"));
+    let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::irules());
     let out = format_tcl("clock format $t -gmt yes\n", &config, registry);
     assert!(out.contains("-gmt true"), "{out}");
 }

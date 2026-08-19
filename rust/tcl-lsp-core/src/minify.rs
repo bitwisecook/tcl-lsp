@@ -513,7 +513,11 @@ impl MinifyResult {
 
 /// Minify a Tcl source string for the given dialect (default tier).
 #[must_use]
-pub fn minify_tcl(source: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> String {
+pub fn minify_tcl(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> String {
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     minify_body(
@@ -1536,7 +1540,11 @@ fn collect_symbol_shorts(sm: &SymbolMap) -> HashSet<String> {
 /// *read* through name-taking commands, e.g. `[set a]`), and every
 /// textual `$name` / `${name}` reference.  Conservative superset —
 /// an alias name is rejected on any hit.
-fn collect_live_names(source: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> HashSet<String> {
+fn collect_live_names(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> HashSet<String> {
     let mut out: HashSet<String> = HashSet::new();
 
     // Analyser scope tables.
@@ -1682,7 +1690,11 @@ fn alias_repeated_commands(
 ///
 /// Abstains on strict tables, dynamic and `{*}`-expanded words, and anything
 /// the registry does not resolve `Unique`.
-fn abbreviate_keywords(source: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> (String, usize) {
+fn abbreviate_keywords(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> (String, usize) {
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let mut edits: Vec<Edit> = Vec::new();
@@ -1790,7 +1802,9 @@ fn command_word_runs(sm: &SourceMap, tokens: &[Token]) -> Vec<Vec<CommandWord>> 
 /// analyser share — rather than a release list kept here (issue #1257). The
 /// target's own pack is dropped because the caller already holds it and
 /// [`keyword_tables`] puts it first.
-fn later_core_registries(dialect: &'static tcl_dialect::DialectProfile) -> Vec<&'static CommandRegistry> {
+fn later_core_registries(
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<&'static CommandRegistry> {
     use tcl_registry::version_range::{forward_range, registries_over_range};
     let mut packs = registries_over_range(forward_range(dialect.name));
     if !packs.is_empty() {
@@ -2633,7 +2647,11 @@ fn build_replacement(folded: &str) -> String {
 }
 
 /// Return the abbreviated subcommand text when safe for `dialect`.
-fn abbreviated_subcommand(command_name: &str, subcommand_name: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
+fn abbreviated_subcommand(
+    command_name: &str,
+    subcommand_name: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> String {
     if !tcl_registry::prelude::DialectSet::has_fixed_ensembles(Some(dialect.name)) {
         return subcommand_name.to_owned();
     }
@@ -3565,7 +3583,11 @@ mod tests {
 
     fn min(src: &str) -> String {
         let registry = CommandRegistry::build_default();
-        minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry)
+        minify_tcl(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        )
     }
 
     /// Regression coverage for issue #996: `minify_body`'s recursive
@@ -3674,12 +3696,24 @@ mod tests {
 
     fn min_compact(src: &str) -> String {
         let registry = CommandRegistry::build_default();
-        minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, &registry).0
+        minify_tcl_compact(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            false,
+            &registry,
+        )
+        .0
     }
 
     fn min_compact_isolated(src: &str) -> String {
         let registry = CommandRegistry::build_default();
-        minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, &registry).0
+        minify_tcl_compact(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            true,
+            &registry,
+        )
+        .0
     }
 
     #[test]
@@ -3903,15 +3937,24 @@ mod tests {
 
     fn agg(src: &str) -> String {
         let registry = CommandRegistry::build_default();
-        minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, &registry).source
+        minify_tcl_aggressive(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            false,
+            &registry,
+        )
+        .source
     }
 
     #[test]
     fn static_fold_folds_sccp_constant_interpolation() {
         let registry = CommandRegistry::build_default();
         // `$x` is a proven integer constant; fold `"n=$x"` -> `n=5`.
-        let (out, count, map) =
-            fold_static_substrings("set x 5\nputs \"n=$x\"\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let (out, count, map) = fold_static_substrings(
+            "set x 5\nputs \"n=$x\"\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         assert_eq!(out, "set x 5\nputs n=5\n");
         assert_eq!(count, 1);
         assert!(map.values().any(|v| v == "n=5"), "{map:?}");
@@ -3926,7 +3969,11 @@ mod tests {
     fn static_fold_keeps_a_quoted_command_substitution_well_formed() {
         let registry = CommandRegistry::build_default();
         let src = "set x 5\nputs \"a[string toupper \"b\"] $x\"\n";
-        let (out, count, _) = fold_static_substrings(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let (out, count, _) = fold_static_substrings(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
         assert_eq!(out, src, "source must come back untouched, not truncated");
     }
@@ -3941,7 +3988,11 @@ mod tests {
     fn static_fold_keeps_a_commented_command_substitution_well_formed() {
         let registry = CommandRegistry::build_default();
         let src = "set x 5\nputs \"a[\n# ] comment\nset y \"b\"\n]c $x\"\n";
-        let (out, count, _) = fold_static_substrings(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let (out, count, _) = fold_static_substrings(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
         assert_eq!(out, src, "source must come back untouched, not truncated");
     }
@@ -3950,8 +4001,11 @@ mod tests {
     fn static_fold_skips_non_constant() {
         let registry = CommandRegistry::build_default();
         // `[HTTP::uri]` is dynamic — nothing folds.
-        let (out, count, _) =
-            fold_static_substrings("set u [HTTP::uri]\nputs \"got $u\"\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let (out, count, _) = fold_static_substrings(
+            "set u [HTTP::uri]\nputs \"got $u\"\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         assert_eq!(count, 0);
         assert!(out.contains("$u"));
     }
@@ -4013,7 +4067,12 @@ mod tests {
     fn aggressive_runs_optimise_compact_minify() {
         let registry = CommandRegistry::build_default();
         let src = "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n";
-        let res = minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, &registry);
+        let res = minify_tcl_aggressive(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            false,
+            &registry,
+        );
         // With no applicable optimisations this equals the compact tier
         // (proc name preserved — public identity, issue #1193).
         assert_eq!(res.source, "proc greet {b} {set a \"hi $b\";return $a}");
@@ -4040,7 +4099,12 @@ mod tests {
         // dup {x} { return $x } }` then `a::dup 7` -> 7.
         let expected = "namespace ev a {proc dup {a} {set b [expr {$a+1}];return $b}};namespace ev b {proc dup {a} {return $a}}";
         for _ in 0..32 {
-            let res = minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, &registry);
+            let res = minify_tcl_aggressive(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                false,
+                &registry,
+            );
             assert_eq!(res.source, expected, "collision corrupted the output");
         }
     }
@@ -4101,16 +4165,22 @@ mod tests {
     #[test]
     fn abbreviates_ensemble_subcommand_in_irules() {
         assert_eq!(
-            min_dialect("string length $x\n", tcl_dialect::DialectProfile::by_name("f5-irules")),
+            min_dialect("string length $x\n", tcl_dialect::DialectProfile::irules()),
             "string le $x"
         );
-        assert_eq!(min_dialect("info exists $x\n", tcl_dialect::DialectProfile::by_name("f5-irules")), "info e $x");
+        assert_eq!(
+            min_dialect("info exists $x\n", tcl_dialect::DialectProfile::irules()),
+            "info e $x"
+        );
     }
 
     #[test]
     fn no_subcommand_abbreviation_in_plain_tcl() {
         assert_eq!(
-            min_dialect("string length $x\n", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            min_dialect(
+                "string length $x\n",
+                tcl_dialect::DialectProfile::by_name("tcl8.6")
+            ),
             "string length $x"
         );
     }
@@ -4387,12 +4457,25 @@ mod tests {
 
         fn aggressive(src: &str) -> String {
             let registry = tcl_registry::registry_for_dialect("tcl8.6");
-            minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, registry).source
+            minify_tcl_aggressive(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                false,
+                registry,
+            )
+            .source
         }
 
         fn aggressive_no_abbrev(src: &str) -> String {
             let registry = tcl_registry::registry_for_dialect("tcl8.6");
-            minify_tcl_aggressive_with(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, registry, false).source
+            minify_tcl_aggressive_with(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                false,
+                registry,
+                false,
+            )
+            .source
         }
 
         #[test]
@@ -4456,9 +4539,13 @@ mod tests {
             // at `c`; the emitter checks every later core-Tcl table, so whatever
             // it emits must still resolve to `compare` under 9.0.
             let registry = tcl_registry::registry_for_dialect("tcl8.5");
-            let out =
-                minify_tcl_aggressive("puts [string compare $a $b]\n", tcl_dialect::DialectProfile::by_name("tcl8.5"), false, registry)
-                    .source;
+            let out = minify_tcl_aggressive(
+                "puts [string compare $a $b]\n",
+                tcl_dialect::DialectProfile::by_name("tcl8.5"),
+                false,
+                registry,
+            )
+            .source;
             let emitted = out.split_whitespace().find(|w| "compare".starts_with(*w));
             if let Some(word) = emitted {
                 let t90 = tcl_registry::registry_for_dialect("tcl9.0")
@@ -4582,7 +4669,15 @@ mod tests {
         const PEEK_BODY: &str =
             "proc p {v} {\n    set local 1\n    peek 1 $v alias\n    return $local\n}\n";
         let registry = CommandRegistry::build_default();
-        let minify = |src: &str| minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, &registry).source;
+        let minify = |src: &str| {
+            minify_tcl_aggressive(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                true,
+                &registry,
+            )
+            .source
+        };
         let barred = |src: &str| minify(src).contains("set local 1");
 
         // Baseline: the built-in bars compaction.

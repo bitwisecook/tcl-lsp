@@ -373,8 +373,14 @@ fn write_highlighted(
     } else {
         OutputTarget::File(PathBuf::from(output))
     };
-    tcl_cli_support::write_highlighted_output(&target, text, use_colour, tab_width, tcl_dialect::DialectProfile::by_name("f5-irules"))
-        .map_err(|e| e.to_string())
+    tcl_cli_support::write_highlighted_output(
+        &target,
+        text,
+        use_colour,
+        tab_width,
+        tcl_dialect::DialectProfile::irules(),
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// Write plain text to `output`.

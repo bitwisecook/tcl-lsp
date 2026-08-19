@@ -690,7 +690,10 @@ mod tests {
         ctx.optimisations
     }
 
-    fn run_pass_with_dialect(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<Optimisation> {
+    fn run_pass_with_dialect(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<Optimisation> {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::with_dialect(

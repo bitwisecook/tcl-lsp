@@ -1065,7 +1065,9 @@ fn resolve_unit_scope(
         &ir_module.procedures,
         &ir_module.namespace_imports,
         registry,
-        options.dialect.unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+        options
+            .dialect
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
     );
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
@@ -2563,7 +2565,12 @@ mod tests {
 
     #[test]
     fn semantic_bundle_keeps_dialect_and_defers_unneeded_world_state() {
-        let linear = CompilationUnit::build_for_profile("puts hello", &registry(), false, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let linear = CompilationUnit::build_for_profile(
+            "puts hello",
+            &registry(),
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let facts = &linear.top_level.semantic_facts;
         assert_eq!(facts.dialect(), DialectSet::TCL86);
         let executable = facts.executable();
@@ -3578,7 +3585,13 @@ mod tests {
             /// against the procedures `LIB` declares.
             fn evidence_from(other: &str, reg: &CommandRegistry) -> CallSiteEvidence {
                 let known: HashSet<String> = ["::helper".to_owned()].into_iter().collect();
-                crate::unit_scope::scan_source_call_sites(other, reg, tcl_dialect::DialectProfile::by_name(""), &known, &[])
+                crate::unit_scope::scan_source_call_sites(
+                    other,
+                    reg,
+                    tcl_dialect::DialectProfile::by_name(""),
+                    &known,
+                    &[],
+                )
             }
 
             fn build_with_evidence(

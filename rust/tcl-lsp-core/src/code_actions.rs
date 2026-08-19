@@ -1018,7 +1018,11 @@ fn already_required(source: &str, pkg: &str) -> bool {
 
 // W115 — convert a backslash-continued comment to per-line comments.
 
-fn continuation_comment_actions(source: &str, range: LspRange, dialect: &'static tcl_dialect::DialectProfile) -> Vec<CodeAction> {
+fn continuation_comment_actions(
+    source: &str,
+    range: LspRange,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Vec<CodeAction> {
     // The shared W115 detector is also enough for clients that request source
     // actions without forwarding server diagnostics.
     let lines: Vec<&str> = source.split('\n').collect();
@@ -1723,7 +1727,8 @@ fn compute_required_profiles(
     use std::collections::BTreeSet;
     let mut profiles: BTreeSet<String> = BTreeSet::new();
     let events = tcl_registry::events::EventRegistry::build();
-    for ev in crate::irules_context::scan_file_events(source, tcl_dialect::DialectProfile::by_name("f5-irules")) {
+    for ev in crate::irules_context::scan_file_events(source, tcl_dialect::DialectProfile::irules())
+    {
         if let Some(props) = events.get_props(&ev) {
             for p in props.implied_profiles {
                 profiles.insert((*p).to_string());
@@ -1951,9 +1956,12 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
         return Vec::new();
     }
     let anchor = enclosing_when_line(source, d.range.start_line);
-    let event =
-        crate::irules_context::find_enclosing_when_event(source, d.range.start_line, tcl_dialect::DialectProfile::by_name("f5-irules"))
-            .unwrap_or_default();
+    let event = crate::irules_context::find_enclosing_when_event(
+        source,
+        d.range.start_line,
+        tcl_dialect::DialectProfile::irules(),
+    )
+    .unwrap_or_default();
 
     let registry = registry_for_dialect("f5-irules");
     let events = EventRegistry::build();
@@ -2930,7 +2938,7 @@ mod tests {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.load_irules();
         let src = "when CLIENT_ACCEPTED { drop }\n";
-        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
         let cu = CompilationUnit::build_for_with_config(
             src,
             &registry,
@@ -2988,7 +2996,7 @@ mod tests {
         let mut registry = tcl_registry::CommandRegistry::build_default();
         registry.load_irules();
         let src = "when CLIENT_ACCEPTED { drop }\n";
-        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
         let cu = CompilationUnit::build_for_with_config(
             src,
             &registry,

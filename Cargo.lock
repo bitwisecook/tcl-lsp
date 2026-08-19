@@ -320,6 +320,7 @@ dependencies = [
  "tcl-bigip-query",
  "tcl-compiler",
  "tcl-diagram",
+ "tcl-dialect",
  "tcl-f5mku",
  "tcl-lexer",
  "tcl-registry",

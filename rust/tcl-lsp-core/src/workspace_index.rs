@@ -2608,7 +2608,9 @@ impl WorkspaceIndex {
     fn registry_for(&self, uri: &str) -> Option<&'static tcl_registry::CommandRegistry> {
         let slot = *self.slots.get(uri)?;
         let dialect = self.docs[slot].dialect.as_str();
-        (!dialect.is_empty()).then(|| tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)))
+        (!dialect.is_empty()).then(|| {
+            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+        })
     }
 
     /// Deliberately *not* [`Self::workspace_command_exists`], which also
@@ -10364,7 +10366,10 @@ mod tests {
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
             tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
-        let b = analyse_as("namespace import ::Foo::*\nset x 1\n", tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let b = analyse_as(
+            "namespace import ::Foo::*\nset x 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert!(
             index.linked_invocations_of("::Foo::set", "").is_empty(),
@@ -10381,7 +10386,10 @@ mod tests {
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
             tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
-        let b = analyse_as("namespace import -force ::Foo::*\nset x 1\n", tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let b = analyse_as(
+            "namespace import -force ::Foo::*\nset x 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
             index.linked_invocations_of("::Foo::set", "").len(),
@@ -10421,7 +10429,10 @@ mod tests {
             "namespace eval ::Foo {\n    proc mything {} {}\n    namespace export mything\n}\n",
             tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
-        let b = analyse_as("namespace import ::Foo::*\nmything\n", tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let b = analyse_as(
+            "namespace import ::Foo::*\nmything\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(index.linked_invocations_of("::Foo::mything", "").len(), 1);
     }
@@ -10437,7 +10448,10 @@ mod tests {
             "namespace eval ::Ops {\n    proc + {a b} { return OPS }\n    namespace export +\n}\n",
             tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
-        let b = analyse_as("namespace import ::Ops::*\n+ 1 2\n", tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let b = analyse_as(
+            "namespace import ::Ops::*\n+ 1 2\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert_eq!(
             index.linked_invocations_of("::Ops::+", "").len(),
@@ -10455,7 +10469,10 @@ mod tests {
             "namespace eval ::Foo {\n    proc set {a b} { return SHADOW }\n    namespace export set\n}\n",
             tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
-        let b = analyse_as("namespace import ::Foo::set\nset x 1\n", tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let b = analyse_as(
+            "namespace import ::Foo::set\nset x 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let index = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert!(
             index.linked_invocations_of("::Foo::set", "").is_empty(),
@@ -10482,8 +10499,8 @@ mod tests {
             "plain Tcl has no ::HTTP::uri to conflict with",
         );
         // The iRules registry does, so the same source conflicts.
-        let a = analyse_as(lib, tcl_dialect::DialectProfile::by_name("f5-irules"));
-        let b = analyse_as(importer, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let a = analyse_as(lib, tcl_dialect::DialectProfile::irules());
+        let b = analyse_as(importer, tcl_dialect::DialectProfile::irules());
         let irules = WorkspaceIndex::from_documents([("file:///a.tcl", &a), ("file:///b.tcl", &b)]);
         assert!(
             irules.linked_invocations_of("::Mine::uri", "").is_empty(),

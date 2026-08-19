@@ -243,10 +243,6 @@ enum TokenKind {
     Class = 56,
 }
 
-/// The iRules dialect key — the dialect a BIG-IP config's `ltm rule { … }`
-/// bodies are written in.
-const IRULES_DIALECT: &str = "f5-irules";
-
 /// The iApps dialect key — the dialect an APL presentation's embedded `[ … ]`
 /// Tcl is written in.
 const IAPPS_DIALECT: &str = "f5-iapps";
@@ -731,7 +727,11 @@ fn add_stub_var_roles(
 
 /// Compute semantic tokens for the entire document.
 #[must_use]
-pub fn full(source: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> SemanticTokens {
+pub fn full(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    registry: &CommandRegistry,
+) -> SemanticTokens {
     full_with_cu(source, dialect, registry, None)
 }
 
@@ -824,9 +824,15 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         // shift them onto the document: a token on the body's first line also
         // needs the column the body started at.
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
-        for (line, col, len, kind, mods) in
-            collect_entries(body, tcl_dialect::DialectProfile::by_name(IRULES_DIALECT), registry, None, None, None, None)
-        {
+        for (line, col, len, kind, mods) in collect_entries(
+            body,
+            tcl_dialect::DialectProfile::irules(),
+            registry,
+            None,
+            None,
+            None,
+            None,
+        ) {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
             } else {
@@ -906,9 +912,15 @@ fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
             continue;
         };
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
-        for (line, col, len, kind, mods) in
-            collect_entries(body, tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT), registry, None, None, None, None)
-        {
+        for (line, col, len, kind, mods) in collect_entries(
+            body,
+            tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+            registry,
+            None,
+            None,
+            None,
+            None,
+        ) {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
             } else {
@@ -6591,6 +6603,13 @@ pub fn diff(old: &[u32], new: &[u32]) -> Option<TokenEdit> {
 mod tests {
     use super::*;
 
+    /// The plain-Tcl profile these tests tokenise under. A named helper keeps
+    /// the 140-odd call sites readable — spelling the resolution out at each
+    /// one buries the assertion it belongs to.
+    fn tcl() -> &'static tcl_dialect::DialectProfile {
+        tcl_dialect::DialectProfile::by_name("tcl")
+    }
+
     fn reg() -> CommandRegistry {
         CommandRegistry::build_default()
     }
@@ -6601,7 +6620,11 @@ mod tests {
         registry
     }
 
-    fn kinds(src: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> Vec<u32> {
+    fn kinds(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+        registry: &CommandRegistry,
+    ) -> Vec<u32> {
         full(src, dialect, registry)
             .data
             .chunks(5)
@@ -6610,7 +6633,11 @@ mod tests {
     }
 
     /// Decode the packed stream into absolute `(line, col, len)` triples.
-    fn decode(src: &str, dialect: &'static tcl_dialect::DialectProfile, registry: &CommandRegistry) -> Vec<(u32, u32, u32)> {
+    fn decode(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+        registry: &CommandRegistry,
+    ) -> Vec<(u32, u32, u32)> {
         let st = full(src, dialect, registry);
         let mut line = 0u32;
         let mut col = 0u32;
@@ -6656,7 +6683,7 @@ mod tests {
     /// after the previous token's end) — the client "Overlapping semantic
     /// tokens detected" invariant.
     fn assert_non_overlapping(src: &str, registry: &CommandRegistry) {
-        let toks = decode(src, tcl_dialect::DialectProfile::by_name("tcl"), registry);
+        let toks = decode(src, tcl(), registry);
         for w in toks.windows(2) {
             let (l0, c0, len0) = w[0];
             let (l1, c1, _) = w[1];
@@ -6693,7 +6720,7 @@ mod tests {
     fn quoted_string_opening_fragment_is_single_quote() {
         // `puts "$x y"` — the opening string fragment is exactly the `"`
         // (col 5, len 1), not `"$` (len 2).
-        let toks = decode("puts \"$x y\"\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode("puts \"$x y\"\n", tcl(), &reg());
         // The opening `"` lands at byte/col 5 on line 0 with length 1.
         assert!(
             toks.contains(&(0, 5, 1)),
@@ -6725,7 +6752,11 @@ mod tests {
                 "-re",
             ),
         ] {
-            let tokens = decode_full(source, tcl_dialect::DialectProfile::by_name("expect"), &expect_reg());
+            let tokens = decode_full(
+                source,
+                tcl_dialect::DialectProfile::by_name("expect"),
+                &expect_reg(),
+            );
             let flag_len = u32::try_from(flag.len()).unwrap();
             assert!(
                 tokens.iter().any(|&(_, _, len, kind, _)| {
@@ -6746,7 +6777,11 @@ mod tests {
     fn expect_literal_comment_and_separator_patterns_recurse_into_actions() {
         for pattern in ["#", ";"] {
             let source = format!("expect {{{pattern} {{puts matched}} default {{puts other}}}}\n");
-            let tokens = decode_full(&source, tcl_dialect::DialectProfile::by_name("expect"), &expect_reg());
+            let tokens = decode_full(
+                &source,
+                tcl_dialect::DialectProfile::by_name("expect"),
+                &expect_reg(),
+            );
             let puts_col = u32::try_from(source.find("puts matched").unwrap()).unwrap();
             assert!(
                 tokens.iter().any(|&(line, col, len, kind, _)| {
@@ -6760,7 +6795,11 @@ mod tests {
     #[test]
     fn malformed_case_lists_do_not_tokenise_action_words_as_commands() {
         let source = "switch subject {a {puts hidden} orphan}\n";
-        let tokens = decode_full(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let tokens = decode_full(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         let puts_col = u32::try_from(source.find("puts hidden").unwrap()).unwrap();
         assert!(
             !tokens.iter().any(|&(line, col, len, kind, _)| {
@@ -6773,7 +6812,11 @@ mod tests {
     #[test]
     fn renamed_away_expect_spelling_gets_no_case_list_overrides() {
         let source = "rename expect other\nexpect -re {a+} { puts matched }\n";
-        let kinds = kinds(source, tcl_dialect::DialectProfile::by_name("expect"), &expect_reg());
+        let kinds = kinds(
+            source,
+            tcl_dialect::DialectProfile::by_name("expect"),
+            &expect_reg(),
+        );
         assert!(
             !kinds.contains(&(TokenKind::RegexpQuantifier as u32)),
             "a proven rebound head must not inherit Expect overrides: {kinds:?}"
@@ -6783,10 +6826,10 @@ mod tests {
     #[test]
     fn known_option_classified_as_decorator() {
         // `regexp -nocase {pat} $s` — `-nocase` is a real option → decorator.
-        let ks = kinds("regexp -nocase {pat} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp -nocase {pat} $s\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
         // `puts -foo` — `-foo` is not an option of `puts` → not a decorator.
-        let ks = kinds("puts -foo\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("puts -foo\n", tcl(), &reg());
         assert!(!ks.contains(&(TokenKind::Decorator as u32)), "{ks:?}");
     }
 
@@ -6795,7 +6838,7 @@ mod tests {
         // Tcl option parsing accepts unique prefixes: `lsort -inc` ⇒
         // `-increasing`, `lsearch -ex` ⇒ `-exact`.
         for src in ["lsort -inc {3 1 2}\n", "lsearch -ex {a b} b\n"] {
-            let ks = kinds(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+            let ks = kinds(src, tcl(), &reg());
             assert!(
                 ks.contains(&(TokenKind::Decorator as u32)),
                 "expected decorator for {src:?}; got {ks:?}"
@@ -6803,7 +6846,7 @@ mod tests {
         }
         // An ambiguous prefix (`lsort -i` → -index/-indices/-integer/…) is not
         // a recognised option and stays a string.
-        let ks = kinds("lsort -i {3 1 2}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("lsort -i {3 1 2}\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "ambiguous prefix must not be a decorator; got {ks:?}"
@@ -6812,11 +6855,11 @@ mod tests {
 
     #[test]
     fn lsearch_regexp_pattern_uses_the_registry_selected_language() {
-        let ks = kinds("lsearch -regexp {a b} {a+}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("lsearch -regexp {a b} {a+}\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::Regexp as u32)), "{ks:?}");
         // The default glob form must not acquire regex subtokens merely
         // because lsearch also supports -regexp.
-        let glob = kinds("lsearch {a b} {a+}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let glob = kinds("lsearch {a b} {a+}\n", tcl(), &reg());
         assert!(!glob.contains(&(TokenKind::Regexp as u32)), "{glob:?}");
     }
 
@@ -6830,7 +6873,11 @@ mod tests {
         let kinds_at_claimed_pattern = |source: &str, dialect: &str| {
             let claimed_pattern =
                 u32::try_from(source.find("a+").expect("claimed pattern")).unwrap();
-            let tokens = full(source, tcl_dialect::DialectProfile::by_name(dialect), &registry);
+            let tokens = full(
+                source,
+                tcl_dialect::DialectProfile::by_name(dialect),
+                &registry,
+            );
             let mut line = 0u32;
             let mut column = 0u32;
             tokens
@@ -6895,26 +6942,26 @@ mod tests {
         // Issue #748's own example: `file delete -force filename`.  `-force`
         // is declared on the `delete` *subcommand* (not on `file` itself), so
         // it is only recognised once subcommand options are consulted.
-        let ks = kinds("file delete -force filename\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("file delete -force filename\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -force decorator; got {ks:?}"
         );
         // A subcommand option on a different subcommand: `file link -symbolic`.
-        let ks = kinds("file link -symbolic a b\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("file link -symbolic a b\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -symbolic decorator; got {ks:?}"
         );
         // A `-`-word that is not a declared option stays a plain string, even
         // on a command that has subcommand options elsewhere.
-        let ks = kinds("file delete -bogus filename\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("file delete -bogus filename\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-bogus is not a real option; got {ks:?}"
         );
         // A `-$var` substitution word must never be treated as an option.
-        let ks = kinds("file delete -$flag filename\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("file delete -$flag filename\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-$flag is a substitution, not an option; got {ks:?}"
@@ -6929,7 +6976,7 @@ mod tests {
         // highlighted by the generic heuristic.
         let ks = kinds(
             "$chart Xaxis -name {v} -type value -min 0.4\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl(),
             &reg(),
         );
         assert!(
@@ -6941,20 +6988,20 @@ mod tests {
             "expected option values on an unknown head; got {ks:?}"
         );
         // A negative number is not an option: `$obj move -5 10`.
-        let ks = kinds("$obj move -5 10\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("$obj move -5 10\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-5 is a negative number, not an option; got {ks:?}"
         );
         // A `-$var` substitution word is not an option.
-        let ks = kinds("$obj configure -$flag v\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("$obj configure -$flag v\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-$flag is a substitution, not an option; got {ks:?}"
         );
         // A known command keeps the strict declared-option behaviour: `puts
         // -foo` stays a string even though the generic pass exists.
-        let ks = kinds("puts -foo\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("puts -foo\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "a known command's undeclared -foo must stay a string; got {ks:?}"
@@ -6962,19 +7009,19 @@ mod tests {
         // A plain bareword unknown head is a (possibly user-defined) command
         // name, not a computed dispatch: `mycmd -foo bar` stays a string so a
         // user proc's argument is not mistaken for an option.
-        let ks = kinds("mycmd -foo bar\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("mycmd -foo bar\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "a bareword user command's -foo must stay a string; got {ks:?}"
         );
         // Negative special-float literals are numbers, not options: `-inf`,
         // `-Inf`, `-nan` all start with a letter but Tcl parses them as values.
-        let ks = kinds("$obj set -inf\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("$obj set -inf\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-inf is a negative float literal, not an option; got {ks:?}"
         );
-        let ks = kinds("$obj set -NaN\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("$obj set -NaN\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-NaN is a float literal, not an option; got {ks:?}"
@@ -6987,7 +7034,7 @@ mod tests {
         // the `--` is the marker, and `-literal` after it is a positional
         // operand (a plain string), not an option.
         // Columns: `-real` at 9, `1` at 15, `--` at 17, `-literal` at 20.
-        let mut deco: Vec<u32> = decode_full("$obj cfg -real 1 -- -literal\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg())
+        let mut deco: Vec<u32> = decode_full("$obj cfg -real 1 -- -literal\n", tcl(), &reg())
             .iter()
             .filter(|(_, _, _, k, _)| *k == TokenKind::Decorator as u32)
             .map(|&(_, c, _, _, _)| c)
@@ -7005,7 +7052,7 @@ mod tests {
     fn value_taking_option_value_classified_as_option_value() {
         // `lsort -index 2 $l` — `-index` takes a value, so the literal `2` is
         // an option value (distinct from the `-index` decorator).
-        let ks = kinds("lsort -index 2 $l\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("lsort -index 2 $l\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -index decorator; got {ks:?}"
@@ -7016,13 +7063,13 @@ mod tests {
         );
         // A boolean option takes no value — the following word is not recoloured.
         // `lsort -unique $l`: `$l` stays a variable, not an OptionValue.
-        let ks = kinds("lsort -unique $l\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("lsort -unique $l\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::OptionValue as u32)),
             "boolean -unique must not mark a following value; got {ks:?}"
         );
         // A `$var` value keeps its variable highlight, not OptionValue.
-        let ks = kinds("lsort -index $i $l\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("lsort -index $i $l\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::OptionValue as u32)),
             "a $var option value keeps its variable highlight; got {ks:?}"
@@ -7037,7 +7084,7 @@ mod tests {
         // registered (package-gated), so the classifier resolves its spec.
         let ks = kinds(
             "argparse -template foo -level 2 -inline {d}\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl(),
             &reg(),
         );
         let n_val = ks
@@ -7049,7 +7096,7 @@ mod tests {
             "expected `foo` and `2` as OptionValues (not boolean -inline's `{{d}}`); got {ks:?}"
         );
         // A boolean global switch does not recolour the following word.
-        let ks = kinds("argparse -inline {d}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("argparse -inline {d}\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::OptionValue as u32)),
             "boolean -inline must not mark a following value; got {ks:?}"
@@ -7060,13 +7107,13 @@ mod tests {
     fn subcommand_enum_value_classified_as_enum_member() {
         // `string is alnum $s` — `alnum` is a closed-set value declared on
         // the `is` subcommand → enumMember, not a plain string.
-        let ks = kinds("string is alnum $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("string is alnum $s\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::EnumMember as u32)),
             "expected an enumMember token; got {ks:?}"
         );
         // A value not in the set stays a string.
-        let ks = kinds("string is bogusclass $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("string is bogusclass $s\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::EnumMember as u32)),
             "bogusclass is not a class; got {ks:?}"
@@ -7079,7 +7126,7 @@ mod tests {
         // plain string instead of an option. `-code` is a declared OptionSpec
         // on `return` (a decorator) and `error` is one of its closed-set
         // values (an enumMember); `"bad"` stays a plain string.
-        let ks = kinds("return -code error \"bad\"\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("return -code error \"bad\"\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -code to be a decorator; got {ks:?}"
@@ -7091,7 +7138,7 @@ mod tests {
 
         // `-level` is likewise a declared option (Tcl 8.5+) and its value
         // (`0`) is an OptionValue, not a plain number/string.
-        let ks = kinds("return -level 0 \"bad\"\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("return -level 0 \"bad\"\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -level to be a decorator; got {ks:?}"
@@ -7103,7 +7150,7 @@ mod tests {
 
         // `-options $opts` — `-options` is a decorator and its dict value
         // stays highlighted as the variable it is (not recoloured away).
-        let ks = kinds("return -options $opts\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("return -options $opts\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Decorator as u32)),
             "expected -options to be a decorator; got {ks:?}"
@@ -7116,7 +7163,7 @@ mod tests {
         // TN: a plain word `-code` passed to a command with no declared
         // OptionSpec (`concat` takes no options at all) must not be painted
         // as an option — it is just a string argument.
-        let ks = kinds("concat -code error\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("concat -code error\n", tcl(), &reg());
         assert!(
             !ks.contains(&(TokenKind::Decorator as u32)),
             "-code is not a declared option of concat; got {ks:?}"
@@ -7130,7 +7177,7 @@ mod tests {
         // first-level `object` and the second-level `class` must read as
         // keywords (the `info` head itself is a Function).
         let kind_at = |src: &str, col: u32| -> u32 {
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg())
+            decode_full(src, tcl(), &reg())
                 .into_iter()
                 .find(|&(_, c, _, _, _)| c == col)
                 .map_or_else(
@@ -7210,7 +7257,10 @@ mod tests {
         // unknown word in 8.4 where `reverse` does not exist (verified: tclsh8.4
         // rejects `string rev`).  Column 7 is `rev`.
         let src = "string rev abc\n";
-        assert_eq!(kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 7), TokenKind::Keyword as u32);
+        assert_eq!(
+            kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 7),
+            TokenKind::Keyword as u32
+        );
         assert_eq!(
             kind_at(src, tcl_dialect::DialectProfile::by_name("tcl8.4"), 7),
             TokenKind::String as u32,
@@ -7238,7 +7288,7 @@ mod tests {
         // `string le $s` — `le` is Tcl's unique-prefix abbreviation of
         // `length`; it must highlight as a subcommand keyword (column 7).
         let src = "string le $s\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         let kind = toks
             .into_iter()
             .find(|&(_, c, _, _, _)| c == 7)
@@ -7251,7 +7301,7 @@ mod tests {
         );
         // An ambiguous prefix (`string t`) stays a string.
         let src = "string t $s\n";
-        let kind = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg())
+        let kind = decode_full(src, tcl(), &reg())
             .into_iter()
             .find(|&(_, c, _, _, _)| c == 7)
             .map(|(_, _, _, k, _)| k)
@@ -7267,7 +7317,7 @@ mod tests {
     fn oo_define_inline_keyword_classified_as_keyword() {
         // `oo::define Cls method foo {} {}` — the inline `method` keyword sits
         // at an argument position and must read as a keyword, not a string.
-        let ks = kinds("oo::define Cls method foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("oo::define Cls method foo {} {}\n", tcl(), &reg());
         let n_kw = ks
             .iter()
             .filter(|&&k| k == TokenKind::Keyword as u32)
@@ -7276,7 +7326,7 @@ mod tests {
         assert!(n_kw >= 2, "expected >=2 keyword tokens; got {ks:?}");
         // `oo::define Cls self method foo {} {}` — the inner keyword after
         // `self` is highlighted too.
-        let ks = kinds("oo::define Cls self method foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("oo::define Cls self method foo {} {}\n", tcl(), &reg());
         let n_kw = ks
             .iter()
             .filter(|&&k| k == TokenKind::Keyword as u32)
@@ -7290,7 +7340,7 @@ mod tests {
     #[test]
     fn var_write_target_carries_declaration_modifier() {
         // `set x 1` — `x` is a write target → variable + declaration.
-        let toks = decode_full("set x 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("set x 1\n", tcl(), &reg());
         let x = toks.iter().find(|(_, col, len, kind, _)| {
             *col == 4 && *len == 1 && *kind == TokenKind::Variable as u32
         });
@@ -7305,10 +7355,10 @@ mod tests {
     #[test]
     fn bare_set_read_is_not_a_declaration() {
         // `set x` (no value) reads the variable — not a declaration.
-        let ks = kinds("set x\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("set x\n", tcl(), &reg());
         // No token should carry the declaration modifier here; `x` stays a
         // plain string.  (Modifier is checked in the full decode.)
-        let toks = decode_full("set x\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("set x\n", tcl(), &reg());
         assert!(
             !toks.iter().any(|(_, _, _, _, m)| *m == MOD_DECLARATION),
             "bare `set x` must not declare; got {toks:?} kinds {ks:?}"
@@ -7319,7 +7369,7 @@ mod tests {
     fn unset_marks_every_name_as_variable() {
         // `unset x y z` — every name is a variable, not just the first
         // (issue #774: only the first argument was highlighted).
-        let toks = decode_full("unset x y z\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("unset x y z\n", tcl(), &reg());
         let vars = toks
             .iter()
             .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
@@ -7329,7 +7379,7 @@ mod tests {
             "all three unset names must highlight as variables; got {toks:?}"
         );
         // Leading `-nocomplain` / `--` options are not variables.
-        let toks = decode_full("unset -nocomplain -- a b\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("unset -nocomplain -- a b\n", tcl(), &reg());
         let vars = toks
             .iter()
             .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
@@ -7343,7 +7393,7 @@ mod tests {
     #[test]
     fn global_marks_every_name_as_variable() {
         // `global a b c` — every name is a variable, not just the first.
-        let toks = decode_full("proc p {} { global a b c }\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("proc p {} { global a b c }\n", tcl(), &reg());
         let vars = toks
             .iter()
             .filter(|(_, _, _, k, _)| *k == TokenKind::Variable as u32)
@@ -7358,7 +7408,7 @@ mod tests {
     fn array_element_write_not_retagged() {
         // `set arr($i) 1` — the target has a `$` substitution; leave it to the
         // default classifier so the inner `$i` variable still tokenises.
-        let toks = decode_full("set arr($i) 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("set arr($i) 1\n", tcl(), &reg());
         // The `$i` inside must still surface as a variable token.
         assert!(
             toks.iter()
@@ -7376,7 +7426,7 @@ mod tests {
             "incr count(hits)\n",
             "append log(err) x\n",
         ] {
-            let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+            let toks = decode_full(src, tcl(), &reg());
             let decl = toks
                 .iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION);
@@ -7386,7 +7436,7 @@ mod tests {
             );
         }
         // The target `arr(key)` is a single token spanning the whole element.
-        let toks = decode_full("set arr(key) 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("set arr(key) 1\n", tcl(), &reg());
         let whole = toks.iter().any(|(_, col, len, k, m)| {
             *col == 4 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
         });
@@ -7400,7 +7450,7 @@ mod tests {
     #[test]
     fn namespaced_array_element_write_is_variable_declaration() {
         // A namespaced array (`::ns::arr(key)`) is still a plain element.
-        let toks = decode_full("set ::ns::arr(key) 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("set ::ns::arr(key) 1\n", tcl(), &reg());
         let decl = toks
             .iter()
             .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION);
@@ -7415,7 +7465,7 @@ mod tests {
         // `unset arr(key)` — `unset` is a VarWrite command, so the literal
         // element retags as one whole-word `Variable` declaration spanning
         // `arr(key)` (col 6, len 8).
-        let toks = decode_full("unset arr(key)\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("unset arr(key)\n", tcl(), &reg());
         let whole = toks.iter().any(|(_, col, len, k, m)| {
             *col == 6 && *len == 8 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
         });
@@ -7429,7 +7479,7 @@ mod tests {
         // `unset arr($i)` — the computed subscript keeps the word multi-token.
         // The inner `$i` must survive as its own variable, so the word must NOT
         // be painted whole (that would swallow the substitution)…
-        let toks = decode_full("unset arr($i)\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("unset arr($i)\n", tcl(), &reg());
         let inner_i = toks
             .iter()
             .any(|(_, col, _, k, _)| *col == 10 && *k == TokenKind::Variable as u32);
@@ -7474,7 +7524,7 @@ mod tests {
             "array names arr\n",
             "array get arr\n",
         ] {
-            let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+            let toks = decode_full(src, tcl(), &reg());
             let var_ref = toks
                 .iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == 0);
@@ -7495,7 +7545,7 @@ mod tests {
         // `dict get $d k` — `$d` is a value (a dict), not a var-name spot, so
         // the read-role retag must not fire on it; only the `$d` substitution
         // itself is a variable, and `k` (the key) is a plain string.
-        let toks = decode_full("dict get $d k\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("dict get $d k\n", tcl(), &reg());
         // Exactly one variable: the `$d` substitution.
         let vars = toks
             .iter()
@@ -7515,7 +7565,7 @@ mod tests {
                    # tcl-lsp: stub mywrite {varName:var value}\n\
                    # tcl-lsp: stubs-end\n\
                    mywrite arr(key) 1\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         let decl = toks.iter().any(|(line, _, _, k, m)| {
             *line == 3 && *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION
         });
@@ -7534,7 +7584,7 @@ mod tests {
                    # tcl-lsp: stub myexists {varName:var_read}\n\
                    # tcl-lsp: stubs-end\n\
                    myexists arr(key)\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         let var_ref = toks
             .iter()
             .any(|(line, _, _, k, m)| *line == 3 && *k == TokenKind::Variable as u32 && *m == 0);
@@ -7572,7 +7622,12 @@ mod tests {
         };
         // Without analysis, `myset` is an unknown command → `arr(key)` at the
         // call stays a plain string.
-        let plain = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let plain = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         assert!(
             !decl_on_call(&plain),
             "no proc-role highlight without analysis; got {plain:?}"
@@ -7706,7 +7761,12 @@ mod tests {
         let cu = CompilationUnit::build_for(src, &registry, false);
         let analysis = Analyser::new().analyse(src, "tcl9.0");
         // Without analysis, `greet` is an unknown command's plain string arg.
-        let plain = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let plain = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         let greet_fn = |toks: &[(u32, u32, u32, u32, u32)]| {
             toks.iter().any(|&(line, col, _, k, _)| {
                 line == 3 && col == 9 && k == TokenKind::Function as u32
@@ -7746,11 +7806,15 @@ mod tests {
                 .to_owned()
         };
         let highlights_fn = |src: &str, name: &str| {
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry)
-                .iter()
-                .any(|&(line, col, len, k, _)| {
-                    k == TokenKind::Function as u32 && slice(src, line, col, len) == name
-                })
+            decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+            )
+            .iter()
+            .any(|&(line, col, len, k, _)| {
+                k == TokenKind::Function as u32 && slice(src, line, col, len) == name
+            })
         };
         assert!(
             highlights_fn(
@@ -7775,7 +7839,7 @@ mod tests {
         // as a function and `z` as a variable declaration, not one opaque
         // string.
         let src = "oo::class create C {\n  method m {} {\n    set z 3\n  }\n}\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
@@ -7783,7 +7847,7 @@ mod tests {
         );
         // constructor body too.
         let src = "oo::class create C {\n  constructor {} {\n    set q 9\n  }\n}\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
@@ -7796,7 +7860,11 @@ mod tests {
         // `button .b -command {puts $x}` — the `-command` value is a script
         // body (Phase 3: ArgRole::Body), so it recurses: `$x` inside the braces
         // resolves as a Variable rather than one opaque string.
-        let toks = decode_full("button .b -command {puts $x}\n", crate::profile_for_dialect("tk"), &reg());
+        let toks = decode_full(
+            "button .b -command {puts $x}\n",
+            crate::profile_for_dialect("tk"),
+            &reg(),
+        );
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7810,7 +7878,11 @@ mod tests {
         // argument is a body (ArgRole::Body via the `console` SubCommand
         // table), so it recurses: `$x` inside the braces resolves as a
         // Variable rather than the whole `{...}` staying one opaque string.
-        let toks = decode_full("console eval {puts $x}\n", crate::profile_for_dialect("tk"), &reg());
+        let toks = decode_full(
+            "console eval {puts $x}\n",
+            crate::profile_for_dialect("tk"),
+            &reg(),
+        );
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7838,7 +7910,11 @@ mod tests {
     fn option_enum_value_is_enum_member() {
         // `button .b -relief raised` — the closed-set option value is coloured
         // as an EnumMember (Phase 5), not a generic OptionValue.
-        let toks = decode_full("button .b -relief raised\n", crate::profile_for_dialect("tk"), &reg());
+        let toks = decode_full(
+            "button .b -relief raised\n",
+            crate::profile_for_dialect("tk"),
+            &reg(),
+        );
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::EnumMember as u32),
@@ -7851,7 +7927,11 @@ mod tests {
         // `entry .e -textvariable myvar` — the value names a variable the widget
         // reads/writes (Phase 3: ArgRole::VarWrite), so it is a Variable
         // declaration, not a plain `OptionValue` string.
-        let toks = decode_full("entry .e -textvariable myvar\n", crate::profile_for_dialect("tk"), &reg());
+        let toks = decode_full(
+            "entry .e -textvariable myvar\n",
+            crate::profile_for_dialect("tk"),
+            &reg(),
+        );
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),
@@ -7864,7 +7944,7 @@ mod tests {
         // `regexp "abc$var.*" $s` — literal `abc` / `.*` sub-tokenise as
         // regex, but `$var` stays a Tcl variable (Tcl resolves it before
         // regexp runs), with no overlap.
-        let toks = decode_full("regexp \"abc$var.*\" $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("regexp \"abc$var.*\" $s\n", tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7876,7 +7956,7 @@ mod tests {
             "expected the `*` quantifier from the literal part; got {toks:?}"
         );
         // No overlaps.
-        let simple = decode("regexp \"abc$var.*\" $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let simple = decode("regexp \"abc$var.*\" $s\n", tcl(), &reg());
         for w in simple.windows(2) {
             let (l0, c0, len0) = w[0];
             let (l1, c1, _) = w[1];
@@ -7886,7 +7966,7 @@ mod tests {
         }
         // `regexp "$only" $s` — a bare-substitution pattern is just a
         // variable, not a regex anchor.
-        let toks = decode_full("regexp \"$only\" $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("regexp \"$only\" $s\n", tcl(), &reg());
         assert!(
             !toks
                 .iter()
@@ -7901,7 +7981,11 @@ mod tests {
         let registry = reg();
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
         // Without a CompilationUnit the `set` value is a plain string.
-        let plain = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry);
+        let plain = decode_full(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+        );
         assert!(
             !plain
                 .iter()
@@ -7910,7 +7994,12 @@ mod tests {
         );
         // With a CU, the `.*abc` literal at the `set` reads as a regex.
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let st = full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu));
+        let st = full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        );
         let toks = decode_semantic(&st);
         assert!(
             toks.iter()
@@ -7936,7 +8025,12 @@ mod tests {
         let registry = reg();
         let src = "oo::class create C {\n  method m {s} {\n    set re \".*x\"\n    regexp $re $s\n  }\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let toks = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         assert!(
             toks.iter()
                 .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
@@ -7962,7 +8056,12 @@ mod tests {
         let registry = reg();
         let src = "set chart [ticklecharts::chart new]\n$chart Xaxis -name {v(anode), V} -type value -min 0.4 -splitLine {show True}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let toks = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         let ks: Vec<u32> = toks.iter().map(|&(_, _, _, k, _)| k).collect();
         // `Xaxis` resolved as a callable method.
         assert!(
@@ -7996,7 +8095,12 @@ mod tests {
         let registry = reg();
         let src = "[ticklecharts::chart new] Yaxis -name Y -max 10\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let toks = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         let ks: Vec<u32> = toks.iter().map(|&(_, _, _, k, _)| k).collect();
         assert!(
             ks.contains(&(TokenKind::Decorator as u32))
@@ -8034,7 +8138,12 @@ mod tests {
         };
         // Without analysis: `configure` stays an unresolved string — only
         // `dict` (defaultLibrary) is a Function on the line.
-        let plain = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let plain = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         assert!(
             !user_method_on_dispatch_line(&plain),
             "without analysis, no user method resolves; got {plain:?}"
@@ -8880,7 +8989,12 @@ mod tests {
         let registry = reg();
         let src = "namespace eval ::ns {\n  set re \".*x\"\n  regexp $re $s\n}\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let toks = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         assert!(
             toks.iter()
                 .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
@@ -8903,7 +9017,12 @@ mod tests {
         let registry = reg();
         let src = "apply {{s} {\n  set re \".*x\"\n  regexp $re $s\n}} foo\n";
         let cu = CompilationUnit::build_for(src, &registry, false);
-        let toks = decode_semantic(&full_with_cu(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, Some(&cu)));
+        let toks = decode_semantic(&full_with_cu(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+            Some(&cu),
+        ));
         assert!(
             toks.iter()
                 .any(|&(_, _, _, k, _)| k == TokenKind::RegexpQuantifier as u32),
@@ -8943,7 +9062,7 @@ mod tests {
         // not a command comment — it must not emit a Comment token (which
         // would overlap the `$x` variable substitution).
         let src = "append s \"line1\n# not a comment $x\nline3\"\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             !toks
                 .iter()
@@ -8951,7 +9070,7 @@ mod tests {
             "a `#` inside a string must not be a comment; got {toks:?}"
         );
         // A real comment still is one.
-        let toks = decode_full("# real\nset x 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("# real\nset x 1\n", tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Comment as u32),
@@ -8966,7 +9085,7 @@ mod tests {
         // painted as a single command token.  Its fragments tokenise
         // individually (`$node` as a variable) and must not overlap each other
         // (LSP clients reject overlapping semantic tokens) — issue #797.
-        let toks = decode_full("chartV$node SetOptions -x {}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full("chartV$node SetOptions -x {}\n", tcl(), &reg());
         for w in toks.windows(2) {
             let (l0, c0, len0, ..) = w[0];
             let (l1, c1, ..) = w[1];
@@ -9003,7 +9122,7 @@ mod tests {
         // as a builtin, `get` as its subcommand, `$Pins` / `$pin` as variables)
         // rather than paint the whole `[…]` word as one function command token.
         let src = "[dict get $Pins $pin] configure -node $node\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         // `dict` inside the substitution head is a builtin function token.
         assert!(
             toks.iter().any(|&(l, c, _, k, m)| l == 0
@@ -9034,7 +9153,7 @@ mod tests {
         // command name, so it reads as a variable rather than a function token
         // (issue #797 / the #748 `$chart` object-dispatch shape).
         let src = "$obj configure -node $node\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|&(l, c, _, k, _)| l == 0 && c == 0 && k == TokenKind::Variable as u32),
@@ -9053,7 +9172,7 @@ mod tests {
         // `apply {{} { set z 3 }}` — the lambda body (list element 1) is a
         // script; `set`/`z` must tokenise rather than sit inside one string.
         let src = "apply {{} { set z 3 }}\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Function as u32),
@@ -9065,7 +9184,7 @@ mod tests {
             "expected `z` declared inside the lambda body; got {toks:?}"
         );
         // `apply $lambda` (a variable, not a literal) must not be recursed.
-        let ks = kinds("apply $lambda a b\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("apply $lambda a b\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Variable as u32)),
             "expected the $lambda variable token; got {ks:?}"
@@ -9081,28 +9200,28 @@ mod tests {
         let registry = reg();
         let src = "apply {dir {\n    puts $dir\n}} /tmp\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "dir", TokenKind::Parameter),
+            has_token_kind(src, tcl(), &registry, "dir", TokenKind::Parameter),
             "bare arg-list param `dir` must be a Parameter declaration; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(src, tcl(), &registry)
         );
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "puts", TokenKind::Function),
+            has_token_kind(src, tcl(), &registry, "puts", TokenKind::Function),
             "apply body command `puts` must tokenise as a Function; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(src, tcl(), &registry)
         );
         // A braced arg list still emits its names as parameters.
         let braced = "apply {{a b} { expr {$a + $b} }} 1 2\n";
         assert!(
-            has_token_kind(braced, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "a", TokenKind::Parameter)
-                && has_token_kind(braced, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "b", TokenKind::Parameter),
+            has_token_kind(braced, tcl(), &registry, "a", TokenKind::Parameter)
+                && has_token_kind(braced, tcl(), &registry, "b", TokenKind::Parameter),
             "braced arg-list params must stay parameters; got {:?}",
-            decode_full(braced, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(braced, tcl(), &registry)
         );
         // A computed (`$dynamic`) arg list is not painted as a parameter.
         assert!(
             !has_token_kind(
                 "apply [list $al $body]\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl(),
                 &registry,
                 "al",
                 TokenKind::Parameter
@@ -9126,44 +9245,44 @@ mod tests {
         // The exact reported repro: a pkgIndex.tcl-style entry.
         let pkgindex = "package ifneeded myPackage 1.0.0 [list apply {dir {\n    source [file join $dir x.tcl]\n}} $dir]\n";
         assert!(
-            has_token_kind(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "source", TokenKind::Keyword),
+            has_token_kind(pkgindex, tcl(), &registry, "source", TokenKind::Keyword),
             "pkgIndex-style list-quoted apply body: `source` must tokenise; got {:?}",
-            decode_full(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(pkgindex, tcl(), &registry)
         );
         assert!(
-            has_token_kind(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "dir", TokenKind::Parameter),
+            has_token_kind(pkgindex, tcl(), &registry, "dir", TokenKind::Parameter),
             "pkgIndex-style list-quoted apply: `dir` param must be a Parameter; got {:?}",
-            decode_full(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(pkgindex, tcl(), &registry)
         );
         // The reconstructed command-name word itself reads as a call-site
         // reference, same as a literal head — not a plain string.
         assert!(
-            has_token_kind(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "apply", TokenKind::Function),
+            has_token_kind(pkgindex, tcl(), &registry, "apply", TokenKind::Function),
             "the list-quoted `apply` word must read as a Function reference; got {:?}",
-            decode_full(pkgindex, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(pkgindex, tcl(), &registry)
         );
 
         // A `::`-qualified spelling resolves the same way (registry `get`
         // strips a leading `::`, exactly like a direct `::apply {…}` call).
         let qualified = "package ifneeded p 1.0 [list ::apply {dir {puts $dir}} $dir]\n";
         assert!(
-            has_token_kind(qualified, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "puts", TokenKind::Function),
+            has_token_kind(qualified, tcl(), &registry, "puts", TokenKind::Function),
             "qualified `::apply` list-quoted body: `puts` must tokenise; got {:?}",
-            decode_full(qualified, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(qualified, tcl(), &registry)
         );
 
         // A *different* Body-role enclosing command (`after idle`) proves
         // the fix isn't specific to `package ifneeded`.
         let after_idle = "after idle [list apply {{x} {puts $x}} 5]\n";
         assert!(
-            has_token_kind(after_idle, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "puts", TokenKind::Function),
+            has_token_kind(after_idle, tcl(), &registry, "puts", TokenKind::Function),
             "after-idle list-quoted apply body: `puts` must tokenise; got {:?}",
-            decode_full(after_idle, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(after_idle, tcl(), &registry)
         );
         assert!(
-            has_token_kind(after_idle, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "x", TokenKind::Parameter),
+            has_token_kind(after_idle, tcl(), &registry, "x", TokenKind::Parameter),
             "after-idle list-quoted apply: `x` param must be a Parameter; got {:?}",
-            decode_full(after_idle, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(after_idle, tcl(), &registry)
         );
     }
 
@@ -9179,7 +9298,7 @@ mod tests {
         // declaration (which only a recognised lambda-literal split emits).
         let data_list = "set data [list puts hello world]\n";
         assert!(
-            !has_token_kind(data_list, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "hello", TokenKind::Parameter),
+            !has_token_kind(data_list, tcl(), &registry, "hello", TokenKind::Parameter),
             "a plain data list must not be split as a lambda literal"
         );
 
@@ -9189,7 +9308,7 @@ mod tests {
         assert!(
             !has_token_kind(
                 "set cb [list puts hello]\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl(),
                 &registry,
                 "hello",
                 TokenKind::Parameter
@@ -9200,14 +9319,14 @@ mod tests {
         // An unregistered head: no crash, no spurious split.
         let unknown = "set cb [list notARealCommand {dir {source x.tcl}} $dir]\n";
         assert!(
-            !has_token_kind(unknown, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "dir", TokenKind::Parameter),
+            !has_token_kind(unknown, tcl(), &registry, "dir", TokenKind::Parameter),
             "an unresolvable list-quoted head must not be split as a lambda literal"
         );
 
         // A dynamic `list` head (`$cmd`) can't be resolved statically.
         let dynamic_head = "set cb [list $cmd {dir {source x.tcl}} $dir]\n";
         assert!(
-            !has_token_kind(dynamic_head, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "dir", TokenKind::Parameter),
+            !has_token_kind(dynamic_head, tcl(), &registry, "dir", TokenKind::Parameter),
             "a dynamic list head must not be split as a lambda literal"
         );
 
@@ -9216,7 +9335,7 @@ mod tests {
         assert!(
             !has_token_kind(
                 "set n [llength $items]\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl(),
                 &registry,
                 "items",
                 TokenKind::Parameter
@@ -9231,22 +9350,22 @@ mod tests {
         // returns a value here; nothing ever invokes `apply`.
         let inert_data = "set data [list apply {x {puts $x}} value]\n";
         assert!(
-            !has_token_kind(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "x", TokenKind::Parameter),
+            !has_token_kind(inert_data, tcl(), &registry, "x", TokenKind::Parameter),
             "an inert `[list apply …]` value must not paint its param as a \
              Parameter; got {:?}",
-            decode_full(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(inert_data, tcl(), &registry)
         );
         assert!(
-            !has_token_kind(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "puts", TokenKind::Function),
+            !has_token_kind(inert_data, tcl(), &registry, "puts", TokenKind::Function),
             "an inert `[list apply …]` value must not recurse into its body \
              as executable code; got {:?}",
-            decode_full(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(inert_data, tcl(), &registry)
         );
         assert!(
-            !has_token_kind(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "apply", TokenKind::Function),
+            !has_token_kind(inert_data, tcl(), &registry, "apply", TokenKind::Function),
             "an inert `[list apply …]` value's `apply` word must not read as \
              a call-site reference; got {:?}",
-            decode_full(inert_data, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(inert_data, tcl(), &registry)
         );
     }
 
@@ -9259,9 +9378,9 @@ mod tests {
         let registry = reg();
         let src = "package ifneeded myPackage 1.0.0 {\n    source [file join $dir x.tcl]\n}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry, "source", TokenKind::Keyword),
+            has_token_kind(src, tcl(), &registry, "source", TokenKind::Keyword),
             "package ifneeded literal script: `source` must tokenise; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &registry)
+            decode_full(src, tcl(), &registry)
         );
     }
 
@@ -9302,33 +9421,67 @@ mod tests {
         // `uplevel 1 {body}` — literal relative level, body at arg 1.
         let src = "uplevel 1 {foreach x $l { puts $x }}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "foreach", TokenKind::Keyword),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "foreach",
+                TokenKind::Keyword
+            ),
             "uplevel 1 body: `foreach` must tokenise as a keyword; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry)
+            decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry
+            )
         );
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "puts", TokenKind::Function),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "puts",
+                TokenKind::Function
+            ),
             "uplevel 1 body: `puts` must tokenise as a function"
         );
 
         // `uplevel {body}` — no level, body at arg 0.
         let src = "uplevel {foreach x $l { puts $x }}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "foreach", TokenKind::Keyword),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "foreach",
+                TokenKind::Keyword
+            ),
             "uplevel (no level) body: `foreach` must tokenise as a keyword"
         );
 
         // `uplevel #0 {body}` — absolute global level.
         let src = "uplevel #0 {foreach x $l { puts $x }}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "foreach", TokenKind::Keyword),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "foreach",
+                TokenKind::Keyword
+            ),
             "uplevel #0 body: `foreach` must tokenise as a keyword"
         );
 
         // `uplevel $lvl {body}` — dynamic level word, body still recurses.
         let src = "uplevel $lvl {foreach x $l { puts $x }}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "foreach", TokenKind::Keyword),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "foreach",
+                TokenKind::Keyword
+            ),
             "uplevel $lvl body: `foreach` must tokenise as a keyword"
         );
     }
@@ -9341,9 +9494,19 @@ mod tests {
         let registry = reg();
         let src = "uplevel 1 $body\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "$body", TokenKind::Variable),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "$body",
+                TokenKind::Variable
+            ),
             "uplevel 1 $body: the body variable must stay a variable token; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry)
+            decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry
+            )
         );
     }
 
@@ -9355,21 +9518,46 @@ mod tests {
         let registry = reg();
         let src = "proc forgetXyce {} {\n    uplevel 1 {foreach nameSpc [namespace children ::SpiceGenTcl::Xyce] {\n        namespace forget ${nameSpc}::*\n    }}\n}\n";
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "foreach", TokenKind::Keyword),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "foreach",
+                TokenKind::Keyword
+            ),
             "issue #837: `foreach` inside the uplevel body must be a keyword; got {:?}",
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry)
+            decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry
+            )
         );
         assert!(
-            has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "namespace", TokenKind::Keyword)
-                || has_token_kind(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry, "namespace", TokenKind::Function),
+            has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "namespace",
+                TokenKind::Keyword
+            ) || has_token_kind(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+                "namespace",
+                TokenKind::Function
+            ),
             "issue #837: `namespace` inside the uplevel body must be highlighted"
         );
         // The `${nameSpc}` reference deep inside the body highlights as a
         // variable — proof the whole body was re-lexed, not stringified.
         assert!(
-            decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry)
-                .iter()
-                .any(|&(_, _, _, k, _)| k == TokenKind::Variable as u32),
+            decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry
+            )
+            .iter()
+            .any(|&(_, _, _, k, _)| k == TokenKind::Variable as u32),
             "issue #837: a variable token is expected from the recursed body"
         );
     }
@@ -9377,7 +9565,7 @@ mod tests {
     #[test]
     fn operator_command_head_classified_as_operator() {
         // `+ 3 4` — the operator head is `operator`, not `function`.
-        let ks = kinds("+ 3 4\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("+ 3 4\n", tcl(), &reg());
         assert_eq!(ks.first(), Some(&(TokenKind::Operator as u32)), "{ks:?}");
     }
 
@@ -9404,7 +9592,7 @@ mod tests {
     fn bareword_argument_classified_as_string() {
         // `puts hello` → function head + a `string` token for the bareword
         // arg, not a dropped arg.
-        let ks = kinds("puts hello\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("puts hello\n", tcl(), &reg());
         assert_eq!(ks.len(), 2, "expected head + arg token; got {ks:?}");
         assert!(
             ks.contains(&(TokenKind::String as u32)),
@@ -9423,13 +9611,13 @@ mod tests {
     fn regexp_pattern_classified_as_regexp() {
         // `regexp {abc} $s` — the `{abc}` pattern argument is `regexp`,
         // not `string`.
-        let ks = kinds("regexp {abc} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp {abc} $s\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Regexp as u32)),
             "expected a regexp token; got {ks:?}"
         );
         // `regsub -all {x+} $s y out` — option-skip finds the pattern.
-        let ks = kinds("regsub -all {x+} $s y out\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regsub -all {x+} $s y out\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::Regexp as u32)),
             "expected a regexp token after -all; got {ks:?}"
@@ -9447,7 +9635,11 @@ mod tests {
             "regexp $mode {a+} $value\n",
             "regsub $mode {a+} $value {\\1}\n",
         ] {
-            let tokens = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry);
+            let tokens = decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+            );
             assert!(
                 !tokens.iter().any(|&(_, _, _, kind, _)| {
                     matches!(
@@ -9461,7 +9653,11 @@ mod tests {
             );
         }
 
-        let tokens = decode_full("regsub $mode {a} $value {\\1}\n", tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry);
+        let tokens = decode_full(
+            "regsub $mode {a} $value {\\1}\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &registry,
+        );
         assert!(
             !tokens.iter().any(|&(_, _, _, kind, _)| {
                 kind == TokenKind::Number as u32 || kind == TokenKind::Operator as u32
@@ -9473,7 +9669,11 @@ mod tests {
             "regsub -c {a} $value {\\1}\n",
             "regsub -command {a} $value callback\n",
         ] {
-            let tokens = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &registry);
+            let tokens = decode_full(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &registry,
+            );
             assert!(
                 !tokens.iter().any(|&(_, _, _, kind, _)| {
                     kind == TokenKind::Number as u32 || kind == TokenKind::Operator as u32
@@ -9501,7 +9701,7 @@ mod tests {
         registry.load_dialect(tcl_dialect::DialectSet::IRULES);
         let ks = kinds(
             "when HTTP_REQUEST {\n  set x 1\n}\n",
-            tcl_dialect::DialectProfile::by_name("f5-irules"),
+            tcl_dialect::DialectProfile::irules(),
             &registry,
         );
         assert!(
@@ -9519,7 +9719,7 @@ mod tests {
             "when HTTP_REQUEST \"quoted body\"\n",
             "when HTTP_REQUEST { unterminated",
         ] {
-            let ks = kinds(source, tcl_dialect::DialectProfile::by_name("f5-irules"), &registry);
+            let ks = kinds(source, tcl_dialect::DialectProfile::irules(), &registry);
             assert!(
                 !ks.contains(&(TokenKind::Event as u32)),
                 "malformed declaration colored HTTP_REQUEST as an event: {source:?}; {ks:?}"
@@ -9548,7 +9748,7 @@ mod tests {
     #[test]
     fn bigip_object_ref_not_emitted_in_plain_tcl() {
         // The object overlay is iRules-only.
-        let ks = kinds("when HTTP_REQUEST {\n  pool web_pool\n}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("when HTTP_REQUEST {\n  pool web_pool\n}\n", tcl(), &reg());
         assert!(!ks.contains(&(TokenKind::Object as u32)), "{ks:?}");
     }
 
@@ -9556,7 +9756,7 @@ mod tests {
     fn regex_pattern_subtokenised_into_components() {
         // `(a+)+` → group `(`, literal `a`, quantifier `+`, group `)`,
         // quantifier `+`.
-        let ks = kinds("regexp {(a+)+} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp {(a+)+} $s\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::RegexpGroup as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::RegexpQuantifier as u32)), "{ks:?}");
         // The whole-pattern `regexp` kind is replaced by sub-tokens, but
@@ -9566,7 +9766,7 @@ mod tests {
 
     #[test]
     fn regex_char_class_and_anchor_subtokens() {
-        let ks = kinds("regexp {^[0-9]+$} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp {^[0-9]+$} $s\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::RegexpCharClass as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::RegexpAnchor as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::RegexpQuantifier as u32)), "{ks:?}");
@@ -9574,7 +9774,7 @@ mod tests {
 
     #[test]
     fn regex_alternation_and_escape_subtokens() {
-        let ks = kinds("regexp {a\\d|b} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp {a\\d|b} $s\n", tcl(), &reg());
         assert!(
             ks.contains(&(TokenKind::RegexpAlternation as u32)),
             "{ks:?}"
@@ -9595,7 +9795,7 @@ mod tests {
             "puts \"\\€\"\n",
             "puts \"x\\é\\你\"\n",
         ] {
-            let ks = kinds(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+            let ks = kinds(src, tcl(), &reg());
             assert!(
                 ks.contains(&(TokenKind::Escape as u32)),
                 "expected an Escape sub-token for {src:?}, got {ks:?}",
@@ -9626,7 +9826,7 @@ mod tests {
         // `[[:alpha:]]` is one char class and `+` its quantifier — and, per the
         // token-overlap invariant, no token may start inside another.
         let src = "regexp {[[:alpha:]]+} $s\n";
-        let toks = decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let toks = decode_full(src, tcl(), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::RegexpCharClass as u32),
@@ -9652,7 +9852,7 @@ mod tests {
     #[test]
     fn regex_without_metachars_stays_single_regexp() {
         // `abc` has no metacharacters → one `regexp` token, no sub-tokens.
-        let ks = kinds("regexp {abc} $s\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regexp {abc} $s\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::Regexp as u32)), "{ks:?}");
         assert!(!ks.contains(&(TokenKind::RegexpGroup as u32)), "{ks:?}");
         assert!(
@@ -9686,21 +9886,33 @@ mod tests {
     #[test]
     fn sprintf_format_spec_subtokens() {
         // `format {%d}` → `%` percent, `d` spec.
-        let ks = kinds("format {%d} $n\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("format {%d} $n\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
     }
 
     #[test]
     fn format_binary_specifier_is_release_gated() {
-        let old = kinds("format {%b} 1\n", tcl_dialect::DialectProfile::by_name("tcl8.5"), &reg());
+        let old = kinds(
+            "format {%b} 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.5"),
+            &reg(),
+        );
         assert!(!old.contains(&(TokenKind::FormatSpec as u32)), "{old:?}");
-        let modern = kinds("format {%b} 1\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let modern = kinds(
+            "format {%b} 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         assert!(
             modern.contains(&(TokenKind::FormatSpec as u32)),
             "{modern:?}"
         );
-        let tcl9 = kinds("format {%b} 1\n", tcl_dialect::DialectProfile::by_name("tcl9.0"), &reg());
+        let tcl9 = kinds(
+            "format {%b} 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &reg(),
+        );
         assert!(tcl9.contains(&(TokenKind::FormatSpec as u32)), "{tcl9:?}");
     }
 
@@ -9708,7 +9920,7 @@ mod tests {
     fn sprintf_flags_and_width_subtokens() {
         // `%-5.2f` → percent, `-` flag, `5` width, `.` flag, `2` width,
         // `f` spec.
-        let ks = kinds("format {%-5.2f} $x\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("format {%-5.2f} $x\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::FormatFlag as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::FormatWidth as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
@@ -9717,21 +9929,25 @@ mod tests {
     #[test]
     fn scan_format_arg_subtokenised() {
         // `scan`'s format string is arg 2.
-        let ks = kinds("scan $s {%d} a\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("scan $s {%d} a\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
     }
 
     #[test]
     fn format_without_specifiers_stays_string() {
-        let ks = kinds("format {plain} $x\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("format {plain} $x\n", tcl(), &reg());
         assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
 
     #[test]
     fn format_literal_percent_stays_string() {
-        let ks = kinds("format {100%%} 1\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let ks = kinds(
+            "format {100%%} 1\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         assert!(!ks.contains(&(TokenKind::FormatPercent as u32)), "{ks:?}");
         assert!(!ks.contains(&(TokenKind::FormatSpec as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
@@ -9740,7 +9956,7 @@ mod tests {
     #[test]
     fn clock_format_subtokens() {
         // `clock format $t -format {%Y-%m-%d}` → %/letter pairs.
-        let ks = kinds("clock format $t -format {%Y-%m-%d}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("clock format $t -format {%Y-%m-%d}\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
     }
@@ -9749,7 +9965,7 @@ mod tests {
     fn clock_locale_modifier_uses_shared_grammar() {
         // Tcl accepts `%Ey`; the shared clock grammar owns both the modifier
         // and the conversion instead of leaving an editor-only table here.
-        let ks = kinds("clock scan $s -format {%Ey}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("clock scan $s -format {%Ey}\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::ClockModifier as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::ClockSpec as u32)), "{ks:?}");
@@ -9757,14 +9973,18 @@ mod tests {
 
     #[test]
     fn unsupported_clock_g_specifier_stays_string() {
-        let ks = kinds("clock scan $s -format {%g}\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let ks = kinds(
+            "clock scan $s -format {%g}\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
 
     #[test]
     fn clock_format_without_specifiers_stays_string() {
-        let ks = kinds("clock format $t -format {plain}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("clock format $t -format {plain}\n", tcl(), &reg());
         assert!(!ks.contains(&(TokenKind::ClockPercent as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::String as u32)), "{ks:?}");
     }
@@ -9772,7 +9992,7 @@ mod tests {
     #[test]
     fn binary_format_spec_and_count_subtokens() {
         // `binary format a3 $d` (arg 2) → spec `a`, count `3`.
-        let ks = kinds("binary format a3 $d\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("binary format a3 $d\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::BinaryCount as u32)), "{ks:?}");
     }
@@ -9780,11 +10000,19 @@ mod tests {
     #[test]
     fn binary_scan_signed_modifier_and_star() {
         // `binary scan $d su r` (arg 3) → spec `s`, modifier `u`.
-        let ks = kinds("binary scan $d su r\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let ks = kinds(
+            "binary scan $d su r\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
         // `c*` → spec `c`, `*` flag.
-        let ks = kinds("binary format c* $l\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &reg());
+        let ks = kinds(
+            "binary format c* $l\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &reg(),
+        );
         assert!(ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
     }
 
@@ -9792,7 +10020,11 @@ mod tests {
     fn binary_signed_modifier_suppressed_in_tcl84() {
         // The `u`/`s` modifier is 8.5+, so under tcl8.4 the `u` is not a
         // binaryFlag (no signed/unsigned modifier).
-        let ks = kinds("binary scan $d su r\n", tcl_dialect::DialectProfile::by_name("tcl8.4"), &reg());
+        let ks = kinds(
+            "binary scan $d su r\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            &reg(),
+        );
         assert!(ks.contains(&(TokenKind::BinarySpec as u32)), "{ks:?}");
         assert!(!ks.contains(&(TokenKind::BinaryFlag as u32)), "{ks:?}");
     }
@@ -9800,14 +10032,14 @@ mod tests {
     #[test]
     fn regsub_replacement_backref_subtokens() {
         // `regsub {a} $s {\1-\&} out` → `\1` number, `\&` operator.
-        let ks = kinds("regsub {a} $s {\\1-\\&} out\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regsub {a} $s {\\1-\\&} out\n", tcl(), &reg());
         assert!(ks.contains(&(TokenKind::Number as u32)), "{ks:?}");
         assert!(ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
     }
 
     #[test]
     fn regsub_replacement_without_backrefs_stays_string() {
-        let ks = kinds("regsub {a} $s {plain} out\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let ks = kinds("regsub {a} $s {plain} out\n", tcl(), &reg());
         assert!(!ks.contains(&(TokenKind::Operator as u32)), "{ks:?}");
     }
 
@@ -9841,7 +10073,7 @@ mod tests {
 
     #[test]
     fn full_returns_non_empty_data_for_simple_proc() {
-        let s = full("proc foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("proc foo {} {}\n", tcl(), &reg());
         // Should have at least: `proc` (keyword), `foo`
         // (function), `{}` (string), `{}` (string).
         assert!(!s.data.is_empty(), "{:?}", s.data);
@@ -9920,7 +10152,7 @@ mod tests {
     fn builtin_command_head_gets_default_library_modifier() {
         // `puts` is a registry built-in classified as `function`, so its
         // head token carries the `defaultLibrary` modifier (bit 3 = 8).
-        let s = full("puts hi\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("puts hi\n", tcl(), &reg());
         assert_eq!(s.data[3], TokenKind::Function as u32, "{:?}", s.data);
         assert_eq!(s.data[4], MOD_DEFAULT_LIBRARY, "{:?}", s.data);
     }
@@ -9929,7 +10161,7 @@ mod tests {
     fn user_proc_head_has_no_default_library_modifier() {
         // A user-defined command isn't in the registry → `function`
         // with no modifier.
-        let s = full("my_custom_cmd 1 2\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("my_custom_cmd 1 2\n", tcl(), &reg());
         assert_eq!(s.data[3], TokenKind::Function as u32, "{:?}", s.data);
         assert_eq!(s.data[4], 0, "{:?}", s.data);
     }
@@ -9937,14 +10169,14 @@ mod tests {
     #[test]
     fn keyword_head_has_no_default_library_modifier() {
         // `if` is a language keyword, not a `function` — no defaultLibrary.
-        let s = full("if {1} { puts hi }\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("if {1} { puts hi }\n", tcl(), &reg());
         assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
         assert_eq!(s.data[4], 0, "{:?}", s.data);
     }
 
     #[test]
     fn keywords_classified_as_keyword() {
-        let s = full("if {1} { puts hi }\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("if {1} { puts hi }\n", tcl(), &reg());
         // First token's type index should be 0 (Keyword) for `if`.
         // The encoded data: [deltaLine, deltaCol, length, type, modifiers].
         assert_eq!(s.data[3], TokenKind::Keyword as u32, "{:?}", s.data);
@@ -9953,7 +10185,7 @@ mod tests {
     /// Decode the packed stream into `(line, col, len, kind)` tuples plus
     /// the covered source word (ASCII sources only — byte == utf16).
     fn decode_words(src: &str, registry: &CommandRegistry) -> Vec<(u32, u32, u32, u32, String)> {
-        let st = full(src, tcl_dialect::DialectProfile::by_name("tcl"), registry);
+        let st = full(src, tcl(), registry);
         let lines: Vec<&str> = src.split('\n').collect();
         let mut line = 0u32;
         let mut col = 0u32;
@@ -10029,14 +10261,14 @@ mod tests {
 
     #[test]
     fn comments_classified_as_comment() {
-        let s = full("# this is a comment\nset x 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("# this is a comment\nset x 1\n", tcl(), &reg());
         // The first token should be the comment.
         assert_eq!(s.data[3], TokenKind::Comment as u32, "{:?}", s.data);
     }
 
     #[test]
     fn variables_classified_as_variable() {
-        let s = full("set $x 1\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let s = full("set $x 1\n", tcl(), &reg());
         // The `$x` token kind should be Variable.
         let kinds: Vec<u32> = s.data.chunks(5).map(|c| c[3]).collect();
         assert!(
@@ -10119,8 +10351,16 @@ mod tests {
     #[test]
     fn number_tokens_follow_the_document_dialect() {
         let registry = reg();
-        let modern = kinds("puts 0o17\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
-        let old = kinds("puts 0o17\n", tcl_dialect::DialectProfile::by_name("tcl8.4"), &registry);
+        let modern = kinds(
+            "puts 0o17\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
+        let old = kinds(
+            "puts 0o17\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            &registry,
+        );
         assert!(
             modern.contains(&(TokenKind::Number as u32)),
             "0o17 is a number from 8.5: {modern:?}"
@@ -10133,12 +10373,12 @@ mod tests {
 
     #[test]
     fn empty_source_returns_empty_data() {
-        assert!(full("", tcl_dialect::DialectProfile::by_name("tcl"), &reg()).data.is_empty());
+        assert!(full("", tcl(), &reg()).data.is_empty());
     }
 
     #[test]
     fn semantic_token_lengths_use_utf16_code_units() {
-        let data = full("# 😀x\n", tcl_dialect::DialectProfile::by_name("tcl"), &reg()).data;
+        let data = full("# 😀x\n", tcl(), &reg()).data;
         assert_eq!(
             &data[..5],
             &[0, 0, 5, TokenKind::Comment as u32, 0],
@@ -10159,7 +10399,7 @@ mod tests {
         }
         src.push_str("set x 1\n");
         src.push_str("# trailing comment after code, no final newline");
-        let st = full(&src, tcl_dialect::DialectProfile::by_name("tcl"), &reg()); // must not panic
+        let st = full(&src, tcl(), &reg()); // must not panic
         let comments = st
             .data
             .chunks(5)
@@ -10226,10 +10466,10 @@ mod tests {
         // Three commands on three lines.  Range covers only
         // line 1 — the line-0 and line-2 tokens should drop.
         let src = "set a 1\nset b 2\nset c 3\n";
-        let full_data = full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let full_data = full(src, tcl(), &reg());
         let line1_only = range(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl(),
             crate::definition::LspRange {
                 start_line: 1,
                 start_character: 0,
@@ -10249,10 +10489,10 @@ mod tests {
     #[test]
     fn range_keeps_entire_document_when_range_covers_it() {
         let src = "proc foo {} { puts hi }\n";
-        let full_data = full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let full_data = full(src, tcl(), &reg());
         let wide = range(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl(),
             crate::definition::LspRange {
                 start_line: 0,
                 start_character: 0,
@@ -10275,7 +10515,7 @@ mod tests {
         // not appear in the range result.
         let r = range(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl(),
             crate::definition::LspRange {
                 start_line: 0,
                 start_character: 0,
@@ -10288,7 +10528,7 @@ mod tests {
         // 0 (the `set` of `set b 2`).  The half-open range must
         // exclude it; the range data must therefore be strictly
         // shorter than the full data.
-        let full_data = full(src, tcl_dialect::DialectProfile::by_name("tcl"), &reg());
+        let full_data = full(src, tcl(), &reg());
         assert!(
             r.data.len() < full_data.data.len(),
             "range data {} should drop the line-1 token; full data {}",
@@ -10566,7 +10806,7 @@ mod tests {
 
     /// The decoded token *kinds* of `src`, positions discarded.
     fn kinds_only(src: &str, registry: &CommandRegistry) -> Vec<u32> {
-        decode_full(src, tcl_dialect::DialectProfile::by_name("tcl"), registry)
+        decode_full(src, tcl(), registry)
             .into_iter()
             .map(|(_, _, _, kind, _)| kind)
             .collect()
@@ -10739,8 +10979,8 @@ mod tests {
         let r = reg();
         // `ns::format` is a different command; its argument stays a plain
         // string, so no format-specifier sub-tokens appear.
-        let user = decode_full("ns::format {%08x} 42\n", tcl_dialect::DialectProfile::by_name("tcl"), &r);
-        let builtin = decode_full("format {%08x} 42\n", tcl_dialect::DialectProfile::by_name("tcl"), &r);
+        let user = decode_full("ns::format {%08x} 42\n", tcl(), &r);
+        let builtin = decode_full("format {%08x} 42\n", tcl(), &r);
         assert!(
             builtin.len() > user.len(),
             "the built-in must produce specifier sub-tokens the user proc does not:\n\
@@ -10922,8 +11162,8 @@ mod tests {
     #[test]
     fn dynamic_head_gets_no_format_grammar() {
         let r = reg();
-        let dynamic = decode_full("{*}$cmd {%08x} 42\n", tcl_dialect::DialectProfile::by_name("tcl"), &r);
-        let builtin = decode_full("format {%08x} 42\n", tcl_dialect::DialectProfile::by_name("tcl"), &r);
+        let dynamic = decode_full("{*}$cmd {%08x} 42\n", tcl(), &r);
+        let builtin = decode_full("format {%08x} 42\n", tcl(), &r);
         assert!(
             dynamic.len() < builtin.len(),
             "a dynamic head must not get format sub-tokens: {dynamic:?}"

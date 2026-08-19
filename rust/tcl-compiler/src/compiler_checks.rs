@@ -792,14 +792,11 @@ mod tests {
             &registry(),
             false,
         )
-        .with_interprocedural(
-            &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        );
+        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let diagnostics = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             diagnostics
@@ -812,14 +809,11 @@ mod tests {
     #[test]
     fn run_all_checks_reports_irule3101_end_to_end() {
         let cu = CompilationUnit::build_for("HTTP::uri foo", &registry(), false)
-            .with_interprocedural(
-                &registry(),
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            );
+            .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let diagnostics = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             diagnostics
@@ -837,14 +831,11 @@ mod tests {
             &registry(),
             false,
         )
-        .with_interprocedural(
-            &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        );
+        .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let diagnostics = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         let hit = diagnostics
             .iter()
@@ -877,14 +868,11 @@ mod tests {
         // wider span. `run_all_checks` must therefore stay silent — the
         // analyser end-to-end assertion lives alongside.
         let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry(), false)
-            .with_interprocedural(
-                &registry(),
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            );
+            .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let diagnostics = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             diagnostics.iter().all(|d| d.code != DiagCode::Irule3102),
@@ -918,14 +906,12 @@ mod tests {
         // must not trigger a high-severity error).
         let src = "HTTP::uri foo";
 
-        let irules_cu = CompilationUnit::build_for(src, &registry(), false).with_interprocedural(
-            &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        );
+        let irules_cu = CompilationUnit::build_for(src, &registry(), false)
+            .with_interprocedural(&registry(), Some(tcl_dialect::DialectProfile::irules()));
         let irules_diags = run_all_checks(
             &irules_cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             irules_diags.iter().any(|d| d.code == DiagCode::Irule3101),

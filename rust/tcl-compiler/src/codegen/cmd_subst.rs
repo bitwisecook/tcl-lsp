@@ -1538,7 +1538,7 @@ mod tests {
     /// which returned the text itself rather than evaluating the operator.
     #[test]
     fn inline_expr_subst_parses_under_the_compile_dialect() {
-        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
         let registry = tcl_registry::registry_for_profile(profile);
         let mut ctx = CodegenCtx::new(true, &["x"], registry);
         ctx.dialect = Some(tcl_dialect::DialectProfile::by_name(profile.name));

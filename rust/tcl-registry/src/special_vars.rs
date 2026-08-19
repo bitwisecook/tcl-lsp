@@ -282,10 +282,7 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
 /// Look up a special variable that is available in `dialect` (the resolved
 /// availability mask, from [`resolve_dialect`] or [`dialect_set_for_profile`]).
 #[must_use]
-pub fn special_var_in_dialect(
-    name: &str,
-    dialect: DialectSet,
-) -> Option<&'static SpecialVarSpec> {
+pub fn special_var_in_dialect(name: &str, dialect: DialectSet) -> Option<&'static SpecialVarSpec> {
     special_var(name).filter(|v| v.available_in(dialect))
 }
 

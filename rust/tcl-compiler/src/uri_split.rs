@@ -1078,10 +1078,7 @@ mod tests {
 
     /// Run the IRULE3103 pass over `source` under the iRules dialect.
     fn warnings_for(source: &str) -> Vec<TaintWarning> {
-        warnings_for_dialect(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        )
+        warnings_for_dialect(source, Some(tcl_dialect::DialectProfile::irules()))
     }
 
     /// Regression coverage for issue #996: `walk_expr` recurses once per

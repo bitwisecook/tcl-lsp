@@ -2039,11 +2039,14 @@ mod tests {
         assert_eq!(eval_tcl_expr_with_octal(&node_irules, &env, None), None);
 
         // And explicitly asking for a plain-Tcl dialect also declines.
-        assert_eq!(eval_tcl_expr_in_dialect(
+        assert_eq!(
+            eval_tcl_expr_in_dialect(
                 &node_irules,
                 &env,
                 tcl_dialect::DialectProfile::by_name("tcl")
-            ), None);
+            ),
+            None
+        );
     }
 
     #[test]

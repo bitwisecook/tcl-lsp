@@ -554,7 +554,10 @@ mod tests {
 
     /// A context compiling *for* `dialect`, as `codegen_module` builds one from
     /// the IR module's dialect.
-    fn ctx_for<'r>(registry: &'r CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> CodegenCtx<'r> {
+    fn ctx_for<'r>(
+        registry: &'r CommandRegistry,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> CodegenCtx<'r> {
         let mut ctx = CodegenCtx::new(true, &["x", "y"], registry);
         ctx.dialect = Some(dialect);
         ctx
@@ -1361,7 +1364,7 @@ mod tests {
         };
 
         // TP: available under the dialect that defines them.
-        let mut irules = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let mut irules = ctx_for(&registry, tcl_dialect::DialectProfile::irules());
         irules.emit_expr(&contains);
         assert!(opcodes(&irules).contains(&Op::IRULE_CONTAINS));
 
@@ -1372,7 +1375,7 @@ mod tests {
 
         // TN: iRules is an 8.4 runtime, so the 8.5 membership operator is
         // absent there too, dialect bit notwithstanding.
-        let mut membership = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let mut membership = ctx_for(&registry, tcl_dialect::DialectProfile::irules());
         membership.emit_expr(&binary(BinOp::In));
         assert_refused(&membership, "$x in $y");
 

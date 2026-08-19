@@ -253,7 +253,11 @@ fn is_literal_assignment(stmt: &Statement) -> bool {
 /// itself stop before it), so the word's **end** is recomputed by matching the
 /// opening delimiter in the source.  `None` when the statement is not a `set`
 /// with a value word.
-fn value_word_span(source: &str, dialect: &'static tcl_dialect::DialectProfile, stmt_span: Span) -> Option<Span> {
+fn value_word_span(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    stmt_span: Span,
+) -> Option<Span> {
     let start = stmt_span.start() as usize;
     let end = (stmt_span.end() as usize).min(source.len());
     let text = source.get(start..end.max(start))?;
@@ -398,10 +402,15 @@ mod tests {
     fn spans_text(source: &str) -> Vec<String> {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
-        regex_source_literal_spans(source, &cu, &registry, tcl_dialect::DialectProfile::by_name("tcl9.0"))
-            .into_iter()
-            .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-            .collect()
+        regex_source_literal_spans(
+            source,
+            &cu,
+            &registry,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        )
+        .into_iter()
+        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
+        .collect()
     }
 
     #[test]
@@ -631,7 +640,10 @@ mod tests {
         assert!(cu.procedures.is_empty(), "no procedures materialised");
     }
 
-    fn spans_text_dialect(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<String> {
+    fn spans_text_dialect(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<String> {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
         regex_source_literal_spans(source, &cu, &registry, dialect)
@@ -662,7 +674,13 @@ mod tests {
         // variable is located and its source literal tracked (option-dialect
         // validity is a diagnostics concern, not a highlighting one).
         let src = "set re {x+}\nregsub -command $re $s Y out\n";
-        assert_eq!(spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6")), vec!["{x+}".to_owned()]);
-        assert_eq!(spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0")), vec!["{x+}".to_owned()]);
+        assert_eq!(
+            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            vec!["{x+}".to_owned()]
+        );
+        assert_eq!(
+            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            vec!["{x+}".to_owned()]
+        );
     }
 }

@@ -273,7 +273,11 @@ fn minify_strips_comments_and_collapses_whitespace_factorial() {
                return [expr {$n * [fact [expr {$n - 1}]]}]\n\
                }\n\
                puts [fact 5]\n";
-    let out = minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry());
+    let out = minify_tcl(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        registry(),
+    );
     // Exact minified form (the # comment line is gone; spaces collapsed;
     // inter-command newlines became `;`).
     assert_eq!(
@@ -295,7 +299,11 @@ fn minify_preserves_foreach_accumulator_result() {
                incr total $x\n\
                }\n\
                puts $total\n";
-    let out = minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry());
+    let out = minify_tcl(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        registry(),
+    );
     assert_eq!(
         out,
         "set total 0;foreach x {1 2 3 4 5} {incr total $x};puts $total"
@@ -308,7 +316,11 @@ fn minify_preserves_string_and_expr_results() {
     let src = "set s \"hello world\"\n\
                puts [string toupper $s]\n\
                puts [expr {3 + 4 * 2}]\n";
-    let out = minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry());
+    let out = minify_tcl(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        registry(),
+    );
     assert_eq!(
         out,
         "set s \"hello world\";puts [string toupper $s];puts [expr {3+4*2}]"
@@ -321,9 +333,20 @@ fn minify_preserves_string_and_expr_results() {
 fn minify_comment_only_and_empty_collapse_to_empty() {
     // A file of only comments / whitespace minifies to nothing — there is no
     // command to run, so the (empty) program is trivially equivalent.
-    assert_eq!(minify_tcl("", tcl_dialect::DialectProfile::by_name("tcl8.6"), registry()), "");
     assert_eq!(
-        minify_tcl("# just a comment\n# another\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), registry()),
+        minify_tcl(
+            "",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            registry()
+        ),
+        ""
+    );
+    assert_eq!(
+        minify_tcl(
+            "# just a comment\n# another\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            registry()
+        ),
         "",
     );
 }
@@ -333,8 +356,16 @@ fn minify_is_idempotent_on_already_minified_source() {
     // Minifying twice changes nothing further — the result is a fixpoint, so
     // re-running the minifier cannot drift the program's meaning.
     let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
-    let once = minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry());
-    let twice = minify_tcl(&once, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry());
+    let once = minify_tcl(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        registry(),
+    );
+    let twice = minify_tcl(
+        &once,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        registry(),
+    );
     assert_eq!(once, twice, "minify must be idempotent");
 }
 
@@ -357,7 +388,12 @@ fn minify_compact_isolated_renames_proc_everywhere_and_preserves_result() {
     // puts [a 5]` -> 120 (verified identical) — all three sites bind to the
     // one renamed proc, so the value is unchanged.
     let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
-    let (out, map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let (out, map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     assert_eq!(
         out,
         "proc a {n} {if {$n<=1} {return 1};return [expr {$n*[a [expr {$n-1}]]}]};puts [a 5]",
@@ -375,7 +411,12 @@ fn minify_compact_non_isolated_keeps_proc_names() {
     // identity — external callers, `info procs`, `rename`, and `unknown`
     // can observe or invoke it — so it must survive verbatim.
     let src = "proc fact {n} {\n    if {$n <= 1} { return 1 }\n    return [expr {$n * [fact [expr {$n - 1}]]}]\n}\nputs [fact 5]\n";
-    let (out, map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, registry());
+    let (out, map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        false,
+        registry(),
+    );
     assert!(out.contains("proc fact"), "{out:?}");
     assert!(out.contains("[fact 5]"), "{out:?}");
     assert!(map.procs.is_empty(), "{:?}", map.procs);
@@ -391,7 +432,12 @@ fn minify_compact_renames_local_var_at_def_and_read() {
     // params `a`/`b` are already 1 char, so they are left alone.)
     let src =
         "proc add {a b} {\n    set sum [expr {$a + $b}]\n    return $sum\n}\nputs [add 2 3]\n";
-    let (out, map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let (out, map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     assert_eq!(
         out,
         "proc a {a b} {set c [expr {$a+$b}];return $c};puts [a 2 3]",
@@ -415,7 +461,12 @@ fn minify_compact_short_names_are_left_alone() {
     // so a script with only short locals minifies but renames nothing — the
     // symbol map's variable section is empty.
     let src = "proc f {} {\n    set x 1\n    return $x\n}\n";
-    let (_out, map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), false, registry());
+    let (_out, map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        false,
+        registry(),
+    );
     assert!(
         map.variables.values().all(|m| !m.contains_key("x")),
         "single-char `x` must not be renamed: {map:?}",
@@ -434,7 +485,12 @@ fn minify_compact_short_names_are_left_alone() {
 #[test]
 fn minify_aggressive_reports_consistent_length_bookkeeping() {
     let src = "set total 0\nputs $total\nputs $total\nputs $total\n";
-    let res = minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let res = minify_tcl_aggressive(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     // original_length is the input byte length; minified_length matches the
     // produced source; savings is the derived percentage. These are pure and
     // independent of the rename bug.
@@ -453,7 +509,12 @@ fn minify_aggressive_reports_consistent_length_bookkeeping() {
 
 #[test]
 fn minify_aggressive_empty_source_has_zero_savings() {
-    let res = minify_tcl_aggressive("", tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let res = minify_tcl_aggressive(
+        "",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     assert_eq!(res.original_length, 0);
     // The 0/0 guard returns an exact 0.0 (not NaN); compare bit patterns.
     assert_eq!(
@@ -493,7 +554,12 @@ fn minify_aggressive_empty_source_has_zero_savings() {
 #[test]
 fn minify_compact_preserves_incr_accumulator() {
     let src = "set total 0\nincr total 5\nputs $total\n";
-    let (out, _map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let (out, _map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     // The `incr` target and the `set`/`$` sites must agree: either all renamed
     // to the same short name, or all left as `total`. With the exclude fix
     // `total` is kept, so the minified script still prints 5 in tclsh.
@@ -508,7 +574,12 @@ fn minify_compact_preserves_append_accumulator() {
     // append cross-check: `acc` is an append target, so it stays `acc`
     // everywhere; the minified proc still returns "xy" in tclsh.
     let src = "proc build {} { set acc \"\"\nappend acc x\nappend acc y\nreturn $acc }\n";
-    let (out, _map) = minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), true, registry());
+    let (out, _map) = minify_tcl_compact(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        true,
+        registry(),
+    );
     assert!(
         !out.contains("append acc ") || out.contains("set acc "),
         "append write-target left un-renamed: {out:?}",

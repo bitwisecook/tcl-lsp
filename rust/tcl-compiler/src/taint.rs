@@ -4219,7 +4219,7 @@ mod tests {
             &taints,
             &sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             &HashSet::new(),
         );
         let t106 = warnings
@@ -4705,10 +4705,7 @@ mod tests {
         // analyser taints `u` here; only the separate W002
         // "disabled command" check is dialect-gated.) The getter form
         // carries the path-prefixed, option-injection-safe colours.
-        for dialect in [
-            None,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        ] {
+        for dialect in [None, Some(tcl_dialect::DialectProfile::irules())] {
             let cu = CompilationUnit::build_for("set u [HTTP::uri]", &registry, false)
                 .with_interprocedural(&registry, dialect);
             let fu = cu.function("::top").unwrap();
@@ -4814,10 +4811,8 @@ mod tests {
         // prefix-aware sink classification.
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(DialectSet::IRULES);
-        let cu = CompilationUnit::build_for(source, &registry, false).with_interprocedural(
-            &registry,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        );
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::irules()));
         let mut out: Vec<TaintWarning> = Vec::new();
         for fu in cu.analysable_functions() {
             out.extend(find_taint_warnings(
@@ -4826,7 +4821,7 @@ mod tests {
                 &fu.taints,
                 &fu.sccp.executable_blocks,
                 &registry,
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+                Some(tcl_dialect::DialectProfile::irules()),
                 &HashSet::new(),
             ));
         }
@@ -4922,7 +4917,7 @@ mod tests {
             reg,
             "HTTP::respond",
             &[],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3001));
     }
@@ -4934,7 +4929,7 @@ mod tests {
             reg,
             "HTTP::header",
             &["insert".to_owned(), "X-Foo".to_owned(), "bar".to_owned()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::header insert");
@@ -4947,7 +4942,7 @@ mod tests {
             reg,
             "HTTP::cookie",
             &["replace".to_owned(), "sid".to_owned(), "val".to_owned()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         assert_eq!(hit.as_ref().unwrap().1, "HTTP::cookie replace");
@@ -4962,7 +4957,7 @@ mod tests {
             reg,
             "HTTP::cookie",
             &["ins".to_owned(), "sid".to_owned(), "val".to_owned()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::Irule3002));
         // The label reports the canonical subcommand name.
@@ -4976,7 +4971,7 @@ mod tests {
             reg,
             "HTTP::header",
             &["remove".to_owned(), "X-Foo".to_owned()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(hit.is_none(), "remove subcommand must not emit IRULE3002");
     }
@@ -4989,7 +4984,7 @@ mod tests {
                 reg,
                 "log",
                 &["local0.info".to_owned(), "x".to_owned()],
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules"))
+                Some(tcl_dialect::DialectProfile::irules())
             )
             .as_ref()
             .map(|(c, _)| *c),
@@ -5000,7 +4995,7 @@ mod tests {
                 reg,
                 "HTTP::redirect",
                 &["https://evil".to_owned()],
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules"))
+                Some(tcl_dialect::DialectProfile::irules())
             )
             .as_ref()
             .map(|(c, _)| *c),
@@ -5049,7 +5044,7 @@ mod tests {
             &registry,
             "exec",
             &["$cmd".to_owned()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(hit.as_ref().map(|(c, _)| *c), Some(DiagCode::T100));
     }
@@ -5428,7 +5423,7 @@ mod tests {
     fn irule_sinks_do_not_fire_without_dialect() {
         use crate::compilation_unit::CompilationUnit;
         let registry = CommandRegistry::build_default();
-        // Without `with_interprocedural(Some(tcl_dialect::DialectProfile::by_name("f5-irules")))`, no dialect
+        // Without `with_interprocedural(Some(tcl_dialect::DialectProfile::irules()))`, no dialect
         // is active, and HTTP commands aren't sinks.
         let cu = CompilationUnit::build_for(
             "set u [HTTP::uri]\nHTTP::respond 200 content $u",
@@ -5526,10 +5521,7 @@ mod tests {
     /// Default helper: run the setter check under the `f5-irules` dialect
     /// (which is the only dialect that can surface IRULE3101 post-internal-gate).
     fn setter_warnings_for(source: &str) -> Vec<TaintWarning> {
-        setter_warnings_for_dialect(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-        )
+        setter_warnings_for_dialect(source, Some(tcl_dialect::DialectProfile::irules()))
     }
 
     fn setter_warnings_for_dialect(
@@ -5629,7 +5621,7 @@ mod tests {
         // `HTTP::path`.
         let under_irules = setter_warnings_for_dialect(
             "HTTP::uri foo",
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert_eq!(under_irules.len(), 1);
         assert_eq!(under_irules[0].code, DiagCode::Irule3101);
@@ -5732,7 +5724,7 @@ mod tests {
         // an IRULE3101 setter-constraint violation.
         let irules = setter_warnings_for_dialect(
             "HTTP::uri foo",
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             irules.iter().any(|w| w.code == DiagCode::Irule3101),

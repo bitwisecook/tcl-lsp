@@ -157,7 +157,10 @@ mod tests {
 
     /// The statement `src` lowers to under `dialect` — the configuration a
     /// real host builds, so the `{*}` grammar matches the document's.
-    fn first_stmt_for_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> Statement {
+    fn first_stmt_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Statement {
         let registry = tcl_registry::cache::registry_for_profile(dialect);
         let m = crate::lowering::lower_to_ir_with_config(
             src,
@@ -179,7 +182,8 @@ mod tests {
     fn try_lower_incr_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
             for src in ["incr {*}$n", "incr x$n", "incr pre[f]"] {
-                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt =
+                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(&stmt, Statement::Call { command, .. } if command == "incr"),
                     "{dialect}: {src:?} must stay a Call, got {stmt:?}",
@@ -196,7 +200,8 @@ mod tests {
     fn try_lower_incr_keeps_the_specialisation_for_a_spelled_out_name() {
         for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
             for src in ["incr x", "incr {$n}", "incr \\$x", "incr a($i)"] {
-                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt =
+                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(&stmt, Statement::Incr { .. }),
                     "{dialect}: {src:?} must keep its typed Incr, got {stmt:?}",
@@ -210,7 +215,8 @@ mod tests {
     #[test]
     fn try_lower_incr_leaves_the_expanded_name_word_on_its_existing_path() {
         for dialect in ["tcl9.0", "tcl8.6"] {
-            let stmt = first_stmt_for_dialect("incr {*}$n", tcl_dialect::DialectProfile::by_name(dialect));
+            let stmt =
+                first_stmt_for_dialect("incr {*}$n", tcl_dialect::DialectProfile::by_name(dialect));
             let Statement::Call {
                 command, tokens, ..
             } = &stmt

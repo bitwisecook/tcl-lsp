@@ -2363,7 +2363,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Line 1, cursor just after `k`: `set v $arr(k` → char col 12.
-        let items = completions(src, 1, 12, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let key = items
             .iter()
             .find(|i| i.label == "$arr(key)")
@@ -2382,7 +2390,15 @@ mod tests {
         let src = "set arr(key) 1\nset v $arr(k)\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 12, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let key = items
             .iter()
             .find(|i| i.label == "$arr(key)")
@@ -2397,7 +2413,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$d ` on line 8.
-        let items = completions(src, 8, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"bark"), "own method missing: {labels:?}");
         assert!(
@@ -2422,7 +2446,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x ba\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 4, 6, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            4,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(
             !items.iter().any(|item| item.label == "bark"),
             "malformed `${{x` must not dispatch through real `x`: {items:?}"
@@ -2450,7 +2482,15 @@ mod tests {
         let analysis = analyse9(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$p ` on line 5.
-        let items = completions(src, 5, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            5,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"shift"), "declared method: {labels:?}");
         assert!(
@@ -2481,7 +2521,15 @@ mod tests {
         let analysis = analyse9(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$p ` on line 8.
-        let items = completions(src, 8, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"configure"),
@@ -2498,7 +2546,15 @@ mod tests {
         let analysis = analyse9(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$p ` on line 4.
-        let items = completions(src, 4, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            4,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"configure"),
@@ -2524,7 +2580,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$d ` on line 7.
-        let items = completions(src, 7, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            7,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for name in ["alpha", "beta", "gamma", "fetch"] {
             assert!(labels.contains(&name), "{name} missing: {labels:?}");
@@ -2540,7 +2604,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$d ` on line 5.
-        let items = completions(src, 5, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            5,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"bark"),
@@ -2568,7 +2640,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$d ` on line 8.
-        let items = completions(src, 8, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            8,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"bark"),
@@ -2588,7 +2668,15 @@ mod tests {
         let registry = CommandRegistry::build_default();
         for (src, line, want) in [(hidden, 6, false), (shown, 5, true)] {
             let analysis = analyse(src);
-            let items = completions(src, line, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+            let items = completions(
+                src,
+                line,
+                8,
+                &analysis,
+                Some(&registry),
+                None,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            );
             let offered = items
                 .iter()
                 .any(|i| i.label == "m" && i.detail.as_deref().unwrap_or("").contains("::Counter"));
@@ -2607,7 +2695,15 @@ mod tests {
         let src = "oo::class create Counter {\n    self {\n        method onlyclass {} {}\n    }\n}\noo::define Counter {\n    unexport onlyclass\n}\nCounter \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 8, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            8,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         assert!(
             items.iter().any(|i| i.label == "onlyclass"),
             "an instance-side unexport must not hide a class-side method: {:?}",
@@ -2629,7 +2725,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `$d ` on line 10.
-        let items = completions(src, 10, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            10,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"roll"),
@@ -2662,7 +2766,15 @@ mod tests {
                    $e \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 9, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            9,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"bark"),
@@ -2682,7 +2794,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n    method sit {} {}\n    deletemethod bark\n}\nset d [Dog new]\n$d \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 6, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            6,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"sit"), "sibling missing: {labels:?}");
         assert!(
@@ -2696,7 +2816,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n    method sit {} {}\n}\nset d [Dog new]\n$d b\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 6, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            6,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"bark") && labels.contains(&"beg"),
@@ -2717,7 +2845,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
         // Cursor after `.t i` on line 1.
-        let items = completions(src, 1, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"instate")
@@ -2737,7 +2873,15 @@ mod tests {
         let src = "set lb [listbox .l]\n$lb cu\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 6, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"curselection"), "{labels:?}");
     }
@@ -2752,7 +2896,15 @@ mod tests {
         let src = "oo::class create Bar {\n    method get {} {}\n}\nset b [Bar new]\nb \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 4, 2, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            4,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"get"),
@@ -2793,7 +2945,15 @@ mod tests {
         let src = "set apple 1\nset banana 2\nset $\n";
         let analysis = analyse(src);
         // Cursor after `$` on the third line.
-        let items = completions(src, 2, 5, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            5,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(!items.is_empty(), "expected variable completions");
         assert_eq!(items[0].kind, CompletionKind::Variable);
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -2809,7 +2969,15 @@ mod tests {
     fn variable_completion_filters_by_partial() {
         let src = "set apple 1\nset banana 2\nset $b\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 6, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            6,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$banana"]);
     }
@@ -2819,7 +2987,15 @@ mod tests {
         let src = "proc greet {} {}\nproc shout {} {}\ng\n";
         let analysis = analyse(src);
         // Cursor right after `g` on third line.
-        let items = completions(src, 2, 1, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            1,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert_eq!(items.len(), 1, "{items:?}");
         assert_eq!(items[0].kind, CompletionKind::Function);
         assert_eq!(items[0].label, "greet");
@@ -2852,7 +3028,15 @@ mod tests {
         // calls).
         let src = "proc greet {} {}\nproc shout {} {}\ngreet\ngreet\ngreet\n\n";
         let analysis = analyse(src);
-        let items = completions(src, 5, 0, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            5,
+            0,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let greet = items
             .iter()
             .find(|i| i.label == "greet")
@@ -2879,7 +3063,15 @@ mod tests {
     fn empty_partial_lists_all_procs() {
         let src = "proc alpha {} {}\nproc beta {} {}\n\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 0, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            0,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alpha"));
         assert!(labels.contains(&"beta"));
@@ -2900,7 +3092,15 @@ mod tests {
         let src = "pu\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 2, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"puts"),
@@ -2915,14 +3115,30 @@ mod tests {
         let src = "pu\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 2, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            2,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let puts = items.iter().find(|i| i.label == "puts").expect("puts");
         assert_eq!(puts.detail.as_deref(), Some("built-in"), "{puts:?}");
 
         // `http::geturl` is a stdlib command requiring the `http` package.
         let src = "http::ge\n";
         let analysis = analyse(src);
-        let items = completions(src, 0, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         if let Some(geturl) = items.iter().find(|i| i.label == "http::geturl") {
             assert_eq!(
                 geturl.detail.as_deref(),
@@ -2984,7 +3200,15 @@ mod tests {
         let src = "whi\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"while"),
@@ -3004,7 +3228,15 @@ mod tests {
         let src = "+\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 1, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            1,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for op in &["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "!="] {
             assert!(
@@ -3023,7 +3255,15 @@ mod tests {
         let src = "\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 0, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items = completions(
+            src,
+            0,
+            0,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         for op in &["eq", "ne", "in", "ni", "lt", "le", "gt", "ge"] {
             assert!(
@@ -3039,7 +3279,15 @@ mod tests {
         // minimal port's behaviour — proc-name completion alone.
         let src = "proc helper {} {}\nhe\n";
         let analysis = analyse(src);
-        let items_no_registry = completions(src, 1, 2, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items_no_registry = completions(
+            src,
+            1,
+            2,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels_no_registry: Vec<&str> =
             items_no_registry.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3057,7 +3305,15 @@ mod tests {
         let src = "proc parade {} {}\npar\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 3, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            3,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"parade"),
@@ -3079,7 +3335,15 @@ mod tests {
         let src = "set apple 1\nset $par\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         // Only variable completions allowed here.
         for it in &items {
             assert_eq!(
@@ -3105,7 +3369,15 @@ mod tests {
         let src = "string l\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"length"),
@@ -3125,7 +3397,15 @@ mod tests {
         let src = "info object \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 12, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            12,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"class"),
@@ -3147,7 +3427,15 @@ mod tests {
         // Partial filters: `info class super` → `superclasses`.
         let src = "info class super\n";
         let analysis = analyse(src);
-        let items = completions(src, 0, 16, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            16,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(
             labels,
@@ -3164,7 +3452,15 @@ mod tests {
         let src = "string \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // `string` has at minimum `length`, `match`, `range`,
         // `tolower`, `toupper` across all dialects.
@@ -3186,7 +3482,15 @@ mod tests {
         let src = "string length f\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Some f-prefixed command should surface (foreach,
         // format, file…), confirming we fell through.
@@ -3210,7 +3514,15 @@ mod tests {
         let src = "proc helper {} {}\nputs hel\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 8, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            8,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // The user proc `helper` should surface (fallback path).
         assert!(
@@ -3233,7 +3545,15 @@ mod tests {
         let src = "lsearch -n\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 10, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            10,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.iter().any(|l| l.starts_with("-n")),
@@ -3253,7 +3573,15 @@ mod tests {
         let src = "lsearch -\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 9, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         // Every result must start with `-`.
         for l in &labels {
@@ -3272,10 +3600,18 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let older = "package require Tk 8.6\nentry .e -p\n";
         let a1 = analyse(older);
-        let l1: Vec<String> = completions(older, 1, 11, &a1, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let l1: Vec<String> = completions(
+            older,
+            1,
+            11,
+            &a1,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             !l1.iter().any(|l| l == "-placeholder"),
             "Tk 8.6 must not offer -placeholder: {l1:?}",
@@ -3283,10 +3619,18 @@ mod tests {
 
         let newer = "package require Tk 8.7\nentry .e -p\n";
         let a2 = analyse(newer);
-        let l2: Vec<String> = completions(newer, 1, 11, &a2, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let l2: Vec<String> = completions(
+            newer,
+            1,
+            11,
+            &a2,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             l2.iter().any(|l| l == "-placeholder"),
             "Tk 8.7 must offer -placeholder: {l2:?}",
@@ -3301,18 +3645,34 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "lsearch -s {a b} x\n";
         let a = analyse(src);
-        let old: Vec<String> = completions(src, 0, 10, &a, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let old: Vec<String> = completions(
+            src,
+            0,
+            10,
+            &a,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             !old.iter().any(|l| l == "-stride"),
             "tcl8.6 must not offer -stride: {old:?}",
         );
-        let new: Vec<String> = completions(src, 0, 10, &a, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let new: Vec<String> = completions(
+            src,
+            0,
+            10,
+            &a,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             new.iter().any(|l| l == "-stride"),
             "tcl9.0 must offer -stride: {new:?}",
@@ -3329,18 +3689,34 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "chan configure $chan -i\n";
         let a = analyse(src);
-        let old: Vec<String> = completions(src, 0, 23, &a, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let old: Vec<String> = completions(
+            src,
+            0,
+            23,
+            &a,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             !old.iter().any(|l| l == "-inputmode"),
             "tcl8.6 must not offer -inputmode: {old:?}",
         );
-        let new: Vec<String> = completions(src, 0, 23, &a, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl9.0"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let new: Vec<String> = completions(
+            src,
+            0,
+            23,
+            &a,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             new.iter().any(|l| l == "-inputmode"),
             "tcl9.0 must offer -inputmode: {new:?}",
@@ -3357,19 +3733,35 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let older = "package require Tk 8.4\nttk::b\n";
         let a1 = analyse(older);
-        let l1: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.4"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let l1: Vec<String> = completions(
+            older,
+            1,
+            6,
+            &a1,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             !l1.iter().any(|l| l == "ttk::button"),
             "a tcl8.4 host (Tk 8.4) must not offer ttk::button: {l1:?}",
         );
 
-        let l1_86: Vec<String> = completions(older, 1, 6, &a1, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let l1_86: Vec<String> = completions(
+            older,
+            1,
+            6,
+            &a1,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             l1_86.iter().any(|l| l == "ttk::button"),
             "a tcl8.6 host ships Tk 8.6; `require Tk 8.4` does not downgrade it: {l1_86:?}",
@@ -3377,10 +3769,18 @@ mod tests {
 
         let newer = "package require Tk 8.5\nttk::b\n";
         let a2 = analyse(newer);
-        let l2: Vec<String> = completions(newer, 1, 6, &a2, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .into_iter()
-            .map(|i| i.label)
-            .collect();
+        let l2: Vec<String> = completions(
+            newer,
+            1,
+            6,
+            &a2,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        )
+        .into_iter()
+        .map(|i| i.label)
+        .collect();
         assert!(
             l2.iter().any(|l| l == "ttk::button"),
             "Tk 8.5 must offer ttk::button: {l2:?}",
@@ -3407,7 +3807,15 @@ mod tests {
         let src = "when HT\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"HTTP_REQUEST"),
@@ -3424,7 +3832,15 @@ mod tests {
         let src = "when CL\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(
             items
                 .iter()
@@ -3441,7 +3857,15 @@ mod tests {
         let src = "when HT\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"HTTP_REQUEST"),
@@ -3456,7 +3880,15 @@ mod tests {
         let src = "when HTTP_REQUEST f\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 0, 19, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            19,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.iter().any(|l| l.contains("HTTP_REQUEST")),
@@ -3480,7 +3912,15 @@ mod tests {
         let src = "proc helper {} {}\nproc help_inner {} {}\nproc unrelated {} {}\ncall he\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 3, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            3,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"helper") && labels.contains(&"help_inner"),
@@ -3508,7 +3948,15 @@ mod tests {
         let src = "proc helper {} {}\ncall help\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 1, 9, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         // The user proc still appears via the fallback path.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
@@ -3525,7 +3973,15 @@ mod tests {
         let src = "proc parade {} {}\ncall p\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 1, 6, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"parade"), "{labels:?}");
         assert!(
@@ -3542,7 +3998,15 @@ mod tests {
         // commands must NOT be offered, even though the registry knows them.
         let src = "butt\n";
         let analysis = analyse(src);
-        let items = completions(src, 0, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"button"),
@@ -3552,7 +4016,15 @@ mod tests {
         // Once `package require Tk` is declared, `button` becomes available.
         let src = "package require Tk\nbutt\n";
         let analysis = analyse(src);
-        let items = completions(src, 1, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"button"),
@@ -3566,7 +4038,15 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "butt\n";
         let analysis = analyse(src);
-        let items = completions(src, 0, 4, &analysis, Some(&registry), None, crate::profile_for_dialect("tk"));
+        let items = completions(
+            src,
+            0,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            crate::profile_for_dialect("tk"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"button"),
@@ -3581,7 +4061,15 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "package require Tk\nbutt\n";
         let analysis = analyse(src);
-        let items = completions(src, 1, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let items = completions(
+            src,
+            1,
+            4,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::irules(),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels.contains(&"button"),
@@ -3597,7 +4085,15 @@ mod tests {
         let src = "proc helper {} {}\ncall helper e\n";
         let analysis = analyse(src);
         let registry = irules_registry();
-        let items = completions(src, 1, 14, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            14,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         // Plain fallback fires — any e-prefixed builtin
         // (`eval`, `exec`, `expr`, `error`…) should surface.
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
@@ -3616,7 +4112,15 @@ mod tests {
         let src = "string is a\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 11, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            11,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"alnum"), "{labels:?}");
         assert!(labels.contains(&"alpha"), "{labels:?}");
@@ -3636,7 +4140,15 @@ mod tests {
         let src = "string is \n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 10, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            10,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"boolean"), "{labels:?}");
         assert!(labels.contains(&"wordchar"), "{labels:?}");
@@ -3655,7 +4167,15 @@ mod tests {
         let src = "string is alnum\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let alnum = items.iter().find(|i| i.label == "alnum").expect("alnum");
         assert!(
             alnum
@@ -3675,7 +4195,15 @@ mod tests {
         let src = "string length x\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 15, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            15,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(
             items.iter().all(|i| i.kind != CompletionKind::EnumValue),
             "no enum-value completions expected; got {items:?}",
@@ -3697,7 +4225,15 @@ mod tests {
             ("file:///cur.tcl", &cur),
             ("file:///other.tcl", &other),
         ]);
-        let items = completions(cur_src, 1, 1, &cur, None, Some(&index), tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            cur_src,
+            1,
+            1,
+            &cur,
+            None,
+            Some(&index),
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"shared_helper"),
@@ -3720,7 +4256,15 @@ mod tests {
         let cur_src = "proc greet {} {}\ngr\n";
         let cur = analyse(cur_src);
         let index = WorkspaceIndex::from_documents([("file:///cur.tcl", &cur)]);
-        let items = completions(cur_src, 1, 2, &cur, None, Some(&index), tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            cur_src,
+            1,
+            2,
+            &cur,
+            None,
+            Some(&index),
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let count = items.iter().filter(|i| i.label == "greet").count();
         assert_eq!(count, 1, "{items:?}");
     }
@@ -3733,7 +4277,15 @@ mod tests {
         let cur = analyse(src);
         let registry = CommandRegistry::build_default();
         let col = u32::try_from(src.len()).unwrap();
-        let items = completions(src, 0, col, &cur, Some(&registry), None, crate::profile_for_dialect("tk"));
+        let items = completions(
+            src,
+            0,
+            col,
+            &cur,
+            Some(&registry),
+            None,
+            crate::profile_for_dialect("tk"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"raised"),
@@ -3745,13 +4297,26 @@ mod tests {
     fn workspace_none_keeps_single_doc_behaviour() {
         let cur_src = "proc greet {} {}\ngr\n";
         let cur = analyse(cur_src);
-        let items = completions(cur_src, 1, 2, &cur, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            cur_src,
+            1,
+            2,
+            &cur,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["greet"], "{labels:?}");
     }
 
     /// iRule event snippet labels surfaced at a cursor.
-    fn irule_snippet_labels(src: &str, line: u32, character: u32, dialect: &'static tcl_dialect::DialectProfile) -> Vec<String> {
+    fn irule_snippet_labels(
+        src: &str,
+        line: u32,
+        character: u32,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<String> {
         let analysis = analyse(src);
         let registry = irules_registry();
         completions(
@@ -3775,7 +4340,8 @@ mod tests {
         // dialect, including canonicalised legacy aliases, offers every
         // event template.
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
-            let labels = irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::by_name(dialect));
+            let labels =
+                irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::by_name(dialect));
             assert!(
                 labels.iter().any(|l| l == "iRule RULE_INIT"),
                 "{dialect}: expected RULE_INIT; got {labels:?}",
@@ -3790,7 +4356,7 @@ mod tests {
     #[test]
     fn completion_builds_resolved_event_facts_once_per_request() {
         let before = crate::irules_context::expensive_build_count();
-        let labels = irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let labels = irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::irules());
         assert!(labels.iter().any(|label| label == "iRule RULE_INIT"));
         assert_eq!(
             crate::irules_context::expensive_build_count(),
@@ -3804,7 +4370,7 @@ mod tests {
         // `when RULE_INIT { }` already declared → the RULE_INIT template
         // drops out, but other event templates remain.
         let src = "when RULE_INIT {\n}\nirule";
-        let labels = irule_snippet_labels(src, 2, 5, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let labels = irule_snippet_labels(src, 2, 5, tcl_dialect::DialectProfile::irules());
         assert!(
             !labels.iter().any(|l| l == "iRule RULE_INIT"),
             "RULE_INIT already declared, should decline; got {labels:?}",
@@ -3820,7 +4386,7 @@ mod tests {
         // Cursor inside a `when HTTP_REQUEST { }` body → the top-level
         // guard suppresses every event template.
         let src = "when HTTP_REQUEST {\n    irule\n}\n";
-        let labels = irule_snippet_labels(src, 1, 9, tcl_dialect::DialectProfile::by_name("f5-irules"));
+        let labels = irule_snippet_labels(src, 1, 9, tcl_dialect::DialectProfile::irules());
         assert!(
             labels.is_empty(),
             "event templates must not offer inside a when block; got {labels:?}",
@@ -3831,7 +4397,12 @@ mod tests {
     fn irules_snippets_hidden_in_plain_tcl_dialect() {
         // Same source, but the `tcl8.6` dialect carries no iRule
         // templates at all.
-        let labels = irule_snippet_labels("irule", 0, 5, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let labels = irule_snippet_labels(
+            "irule",
+            0,
+            5,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(labels.is_empty(), "got {labels:?}");
     }
 
@@ -3899,7 +4470,15 @@ mod tests {
     fn prefix_proc_list_pinned() {
         let src = "proc alpha {} {}\nproc beta {} {}\nal\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 2, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            2,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["alpha"]);
         assert_eq!(items[0].insert_text, "::alpha");
@@ -3914,7 +4493,15 @@ mod tests {
         let src = "string to\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 9, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            9,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["tolower", "totitle", "toupper"]);
         assert!(items.iter().all(|i| i.filter_text.is_none()));
@@ -3927,7 +4514,15 @@ mod tests {
         let src = "lsaerch\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 7, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            7,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let lsearch = items
             .iter()
             .find(|i| i.label == "lsearch")
@@ -3944,7 +4539,15 @@ mod tests {
         let src = "q\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 1, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            1,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         assert!(items.is_empty(), "got {items:?}");
     }
 
@@ -3953,7 +4556,15 @@ mod tests {
         let src = "string lenght\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 13, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            13,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["length"], "typo'd subcommand fragment");
         assert_eq!(items[0].filter_text.as_deref(), Some("lenght"));
@@ -3964,7 +4575,15 @@ mod tests {
         let src = "lsort -ncoase\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 0, 13, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            13,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let nocase = items
             .iter()
             .find(|i| i.label == "-nocase")
@@ -3979,7 +4598,15 @@ mod tests {
     fn fuzzy_variable_offers_banana_for_bnaana() {
         let src = "set apple 1\nset banana 2\nputs $bnaana\n";
         let analysis = analyse(src);
-        let items = completions(src, 2, 12, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            2,
+            12,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$banana"], "typo'd variable fragment");
         // Sigil included, matching the replaced `$…` range.
@@ -3992,7 +4619,15 @@ mod tests {
     fn fuzzy_array_element_offers_key_for_kye() {
         let src = "set arr(key) 1\nset v $arr(kye\n";
         let analysis = analyse(src);
-        let items = completions(src, 1, 14, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            1,
+            14,
+            &analysis,
+            None,
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, vec!["$arr(key)"], "typo'd array index");
         assert_eq!(items[0].filter_text.as_deref(), Some("$arr(kye"));
@@ -4006,7 +4641,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n    method beg {} {}\n}\nset d [Dog new]\n$d brk\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 5, 6, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            5,
+            6,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let bark = items
             .iter()
             .find(|i| i.label == "bark")
@@ -4026,7 +4669,15 @@ mod tests {
         let src = "oo::class create Dog {\n    method xx {} {}\n}\nproc xyz {} {}\nset d [Dog new]\n$d xy\n";
         let analysis = analyse(src);
         let registry = CommandRegistry::build_default();
-        let items = completions(src, 5, 5, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            5,
+            5,
+            &analysis,
+            Some(&registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"xyz"), "prefix proc expected: {labels:?}");
         assert!(
@@ -4062,7 +4713,15 @@ mod tests {
         let analysis = analyse(src);
         let registry = tcl_registry::registry_for_dialect("tcl8.6");
         // 8.6 buffer: 9.0-only subcommands are not offered.
-        let items = completions(src, 0, 5, &analysis, Some(registry), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let items = completions(
+            src,
+            0,
+            5,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(labels.contains(&"get"), "{labels:?}");
         assert!(
@@ -4071,7 +4730,15 @@ mod tests {
         );
         // 9.0 buffer: it is offered.
         let registry90 = tcl_registry::registry_for_dialect("tcl9.0");
-        let items90 = completions(src, 0, 5, &analysis, Some(registry90), None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let items90 = completions(
+            src,
+            0,
+            5,
+            &analysis,
+            Some(registry90),
+            None,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        );
         let labels90: Vec<&str> = items90.iter().map(|i| i.label.as_str()).collect();
         assert!(labels90.contains(&"getwithdefault"), "{labels90:?}");
     }
@@ -4082,7 +4749,15 @@ mod tests {
         let analysis = analyse(src);
         // iApps embed Tcl 8.5: dict IS offered (the composed-mask fix)…
         let registry = tcl_registry::registry_for_dialect("f5-iapps");
-        let items = completions(src, 0, 3, &analysis, Some(registry), None, tcl_dialect::DialectProfile::by_name("f5-iapps"));
+        let items = completions(
+            src,
+            0,
+            3,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+        );
         assert!(
             items.iter().any(|i| i.label == "dict"),
             "dict must be offered under f5-iapps (Tcl 8.5.13 host)"
@@ -4098,7 +4773,7 @@ mod tests {
             &exec_analysis,
             Some(irules_reg),
             None,
-            tcl_dialect::DialectProfile::by_name("f5-irules"),
+            tcl_dialect::DialectProfile::irules(),
         );
         assert!(
             !irules_items.iter().any(|i| i.label == "exec"),
@@ -4114,7 +4789,15 @@ mod tests {
         let src = "switch -\n";
         let analysis = analyse(src);
         let registry = tcl_registry::registry_for_dialect("f5-iapps");
-        let items = completions(src, 0, 8, &analysis, Some(registry), None, tcl_dialect::DialectProfile::by_name("f5-iapps"));
+        let items = completions(
+            src,
+            0,
+            8,
+            &analysis,
+            Some(registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+        );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"-nocase"),
@@ -4123,7 +4806,15 @@ mod tests {
 
         let src9 = "regsub -\n";
         let analysis9 = analyse(src9);
-        let items9 = completions(src9, 0, 8, &analysis9, Some(registry), None, tcl_dialect::DialectProfile::by_name("f5-iapps"));
+        let items9 = completions(
+            src9,
+            0,
+            8,
+            &analysis9,
+            Some(registry),
+            None,
+            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+        );
         let labels9: Vec<&str> = items9.iter().map(|i| i.label.as_str()).collect();
         assert!(
             !labels9.contains(&"-command"),

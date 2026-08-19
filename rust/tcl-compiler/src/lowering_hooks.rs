@@ -735,7 +735,10 @@ mod tests {
 
     /// The statement `src` lowers to under `dialect` — the configuration a
     /// real host builds, so the `{*}` grammar matches the document's.
-    fn first_stmt_for_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> Statement {
+    fn first_stmt_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Statement {
         let registry = tcl_registry::cache::registry_for_profile(dialect);
         let m = crate::lowering::lower_to_ir_with_config(
             src,
@@ -756,7 +759,8 @@ mod tests {
     fn lower_set_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
             for src in ["set {*}$n 1", "set x$n 1", "set pre[f] 1"] {
-                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt =
+                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(&stmt, Statement::Call { command, .. } if command == "set"),
                     "{dialect}: {src:?} must stay a Call, got {stmt:?}",
@@ -772,7 +776,8 @@ mod tests {
     fn lower_set_keeps_the_static_assign_for_a_spelled_out_name() {
         for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
             for src in ["set x 1", "set {$n} 1", "set \\$x 1", "set a($i) 1"] {
-                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt =
+                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(
                         &stmt,
@@ -791,7 +796,10 @@ mod tests {
     #[test]
     fn lower_set_leaves_the_expanded_name_word_on_its_existing_path() {
         for dialect in ["tcl9.0", "tcl8.6"] {
-            let stmt = first_stmt_for_dialect("set {*}$n 1", tcl_dialect::DialectProfile::by_name(dialect));
+            let stmt = first_stmt_for_dialect(
+                "set {*}$n 1",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             let Statement::Call {
                 command, tokens, ..
             } = &stmt

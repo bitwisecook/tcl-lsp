@@ -1319,7 +1319,12 @@ mod tests {
         // line 1, inside `helper` (after the `proc ::b::` prefix, 10 chars).
         let items = prepare(src, 1, 12, &analysis);
         assert_eq!(items.len(), 1, "{items:?}");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &items[0],
+            &analysis,
+        );
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert!(
             callees.contains(&"bCallee"),
@@ -1341,7 +1346,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), target, &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            target,
+            &analysis,
+        );
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "caller");
         assert_eq!(incoming[0].from_ranges.len(), 1);
@@ -1355,7 +1365,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), target, &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            target,
+            &analysis,
+        );
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from_ranges.len(), 2);
     }
@@ -1366,7 +1381,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         let target = &items[0];
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), target, &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            target,
+            &analysis,
+        );
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "<top-level>");
     }
@@ -1379,7 +1399,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 2, 6, &analysis);
         assert_eq!(items[0].name, "caller");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let target_names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert!(target_names.contains(&"target"), "{outgoing:?}");
         assert!(target_names.contains(&"other"), "{outgoing:?}");
@@ -1394,7 +1419,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
         assert_eq!(items[0].name, "caller");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["target"], "{outgoing:?}");
     }
@@ -1419,7 +1449,15 @@ mod tests {
                 end_character: 0,
             },
         };
-        assert!(outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &bogus, &analysis).is_empty());
+        assert!(
+            outgoing_calls(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                &bogus,
+                &analysis
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -1432,7 +1470,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 1, 6, &analysis);
         assert_eq!(items[0].name, "caller");
-        let unresolved = unresolved_outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let unresolved = unresolved_outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let names: Vec<&str> = unresolved.iter().map(|u| u.name.as_str()).collect();
         assert!(names.contains(&"sibling"), "{unresolved:?}");
         assert!(names.contains(&"puts"), "{unresolved:?}");
@@ -1448,7 +1491,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 0, 6, &analysis);
         assert_eq!(items[0].name, "caller");
-        let unresolved = unresolved_outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let unresolved = unresolved_outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let sibling = unresolved
             .iter()
             .find(|u| u.name == "sibling")
@@ -1479,7 +1527,12 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         // One caller method (`twice`) with two call ranges.
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::twice");
@@ -1497,7 +1550,12 @@ mod tests {
             "oo::class create C {\n    method greet {} {}\n    method twice {} { greet }\n}\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         assert!(incoming.is_empty(), "{incoming:?}");
     }
 
@@ -1534,7 +1592,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 3, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         assert_eq!(outgoing.len(), 1, "{outgoing:?}");
         assert_eq!(
             outgoing[0].from_ranges.len(),
@@ -1553,7 +1616,12 @@ mod tests {
         // Resolve the `twice` method (line 2, col 11).
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
         // Two call sites collapse into one target entry.
@@ -1571,7 +1639,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["::C::greet"], "{outgoing:?}");
     }
@@ -1587,7 +1660,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
         assert_eq!(items[0].name, "::C::greet");
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::twice", "{incoming:?}");
     }
@@ -1599,7 +1677,12 @@ mod tests {
         // Resolve the `use` method (line 2, col 11).
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::use");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         let names: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(names, vec!["helper"], "{outgoing:?}");
     }
@@ -1614,7 +1697,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 2, 11, &analysis);
         assert_eq!(items[0].name, "::C::twice");
-        let unresolved = unresolved_outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let unresolved = unresolved_outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         assert!(unresolved.iter().all(|u| u.name != "my"), "{unresolved:?}");
     }
 
@@ -1665,7 +1753,12 @@ mod tests {
         // Cursor on `target`'s declaration (line 2).
         let items = prepare(src, 2, 14, &analysis);
         assert_eq!(items.len(), 1, "{items:?}");
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items[0],
+            &analysis,
+        );
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "caller");
     }
@@ -1690,13 +1783,24 @@ mod tests {
         let items_ab = prepare(src, 2, 14, &analysis);
         assert_eq!(items_ab.len(), 1, "{items_ab:?}");
         assert!(
-            incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items_ab[0], &analysis).is_empty(),
+            incoming_calls(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                &items_ab[0],
+                &analysis
+            )
+            .is_empty(),
             "::a::b::helper must not pick up ::c::d's caller"
         );
         // `::c::d::helper` has exactly one (its own).
         let items_cd = prepare(src, 7, 14, &analysis);
         assert_eq!(items_cd.len(), 1, "{items_cd:?}");
-        let incoming_cd = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl"), &items_cd[0], &analysis);
+        let incoming_cd = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &items_cd[0],
+            &analysis,
+        );
         assert_eq!(incoming_cd.len(), 1, "{incoming_cd:?}");
         assert_eq!(incoming_cd[0].from.name, "caller");
     }
@@ -1722,7 +1826,12 @@ mod tests {
         // Cursor on `make`'s declaration name (line 1, col 16).
         let items = prepare(src, 1, 16, &analysis);
         assert_eq!(items[0].name, "::Factory::make", "{items:?}");
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(
             callers,
@@ -1744,7 +1853,12 @@ mod tests {
         // Cursor on `build`'s declaration name (line 2, col 16).
         let items = prepare(src, 2, 16, &analysis);
         assert_eq!(items[0].name, "::Factory::build", "{items:?}");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
@@ -1763,7 +1877,12 @@ mod tests {
         // Cursor on `make`'s declaration name (line 1, col 10).
         let items = prepare(src, 1, 10, &analysis);
         assert_eq!(items[0].name, "::Factory::make", "{items:?}");
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &items[0],
+            &analysis,
+        );
         let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(
             callers,
@@ -1780,7 +1899,12 @@ mod tests {
         let analysis = analyse(src);
         let items = prepare(src, 2, 10, &analysis);
         assert_eq!(items[0].name, "::Factory::build", "{items:?}");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &items[0],
+            &analysis,
+        );
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
     }
@@ -1793,7 +1917,12 @@ mod tests {
         let src = "itcl::class Factory {\n    proc make {} { return 1 }\n}\nFactory make\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 10, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &items[0],
+            &analysis,
+        );
         assert!(incoming.is_empty(), "{incoming:?}");
     }
 
@@ -1806,7 +1935,12 @@ mod tests {
         let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    method viaInstance {} { Factory make }\n}\n";
         let analysis = analyse_tcl9(src);
         let items = prepare(src, 1, 16, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(callers, vec!["::Factory::viaInstance"], "{incoming:?}");
     }
@@ -1822,13 +1956,23 @@ mod tests {
         // Cursor on `build`'s declaration name (line 3, col 6).
         let items = prepare(src, 3, 6, &analysis);
         assert_eq!(items[0].name, "build", "{items:?}");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callees: Vec<&str> = outgoing.iter().map(|c| c.to.name.as_str()).collect();
         assert_eq!(callees, vec!["::Factory::make"], "{outgoing:?}");
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
         // Symmetric with the incoming direction from the same fixture.
         let make = prepare(src, 1, 16, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &make[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &make[0],
+            &analysis,
+        );
         let calling_procs: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(calling_procs, vec!["::build"], "{incoming:?}");
     }
@@ -1850,7 +1994,12 @@ mod tests {
         // Cursor on `caller`'s declaration name (line 3, col 11).
         let items = prepare(src, 3, 11, &analysis);
         assert_eq!(items[0].name, "::C::caller", "{items:?}");
-        let outgoing = outgoing_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let outgoing = outgoing_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         assert_eq!(outgoing.len(), 2, "{outgoing:?}");
         for call in &outgoing {
             assert_eq!(call.to.name, "::C::make", "{outgoing:?}");
@@ -1874,7 +2023,12 @@ mod tests {
         let src = "oo::class create Factory {\n    classmethod make {} { return 1 }\n    method viaInstance {} { Factory make }\n}\nnamespace eval ::util {\n    proc helper {} { Factory make }\n}\n";
         let analysis = analyse_tcl9(src);
         let items = prepare(src, 1, 16, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(
             callers,
@@ -1897,7 +2051,12 @@ mod tests {
                    namespace eval ::top2 { Factory make }\n";
         let analysis = analyse_tcl9(src);
         let items = prepare(src, 1, 16, &analysis);
-        let incoming = incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis);
+        let incoming = incoming_calls(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            &items[0],
+            &analysis,
+        );
         let callers: Vec<&str> = incoming.iter().map(|c| c.from.name.as_str()).collect();
         assert_eq!(
             callers,
@@ -1917,7 +2076,13 @@ mod tests {
         let items = prepare(src, 1, 16, &analysis);
         assert_eq!(items[0].name, "::Widget::make", "{items:?}");
         assert!(
-            incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis).is_empty(),
+            incoming_calls(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &items[0],
+                &analysis
+            )
+            .is_empty(),
             "a proc call spelled `Factory make` is not a dispatch of Widget's classmethod"
         );
     }
@@ -1932,7 +2097,13 @@ mod tests {
         let items = prepare(src, 1, 11, &analysis);
         assert_eq!(items[0].name, "::Factory::make", "{items:?}");
         assert!(
-            incoming_calls(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), &items[0], &analysis).is_empty(),
+            incoming_calls(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                &items[0],
+                &analysis
+            )
+            .is_empty(),
             "an instance method has no bare class-command dispatch"
         );
     }

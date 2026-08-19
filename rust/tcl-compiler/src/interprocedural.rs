@@ -2509,7 +2509,11 @@ mod tests {
     }
 
     /// The call-graph edges recorded for `caller` in `src`, sorted.
-    fn calls_of(src: &str, caller: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<String> {
+    fn calls_of(
+        src: &str,
+        caller: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<String> {
         let registry = tcl_registry::cache::registry_for_profile(dialect);
         let ir = crate::lowering::lower_to_ir(src, registry);
         let ia = build_interprocedural_analysis(
@@ -2554,7 +2558,10 @@ mod tests {
     fn a_trace_callback_is_a_call_graph_edge() {
         let src = "proc cb {args} { return 0 }\n\
                    proc go {} { trace add variable v write [list cb] }\n";
-        assert_eq!(calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")), vec!["::cb".to_owned()]);
+        assert_eq!(
+            calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            vec!["::cb".to_owned()]
+        );
     }
 
     /// TN control: a prefix computed by some *other* substitution names no
@@ -2568,7 +2575,8 @@ mod tests {
                    proc pick {} { return cb }\n\
                    proc go {} { lsort -command [pick] {x y} }\n";
         assert!(
-            !calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")).contains(&"::cb".to_owned()),
+            !calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                .contains(&"::cb".to_owned()),
             "the computed prefix's result is unknown, so cb is not a proven callee",
         );
     }
@@ -2583,7 +2591,7 @@ mod tests {
             calls_of(
                 "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
                 "::when::RULE_INIT",
-                tcl_dialect::DialectProfile::by_name("irules"),
+                tcl_dialect::DialectProfile::irules(),
             ),
             vec!["::helper".to_owned()],
         );
@@ -2821,7 +2829,11 @@ mod tests {
         let cu = CompilationUnit::build_for(source, &registry, false);
         // The document's own binding facts, exactly as
         // `CompilationUnit::with_interprocedural` supplies them.
-        let identities = crate::head_identity::command_head_identities(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
+        let identities = crate::head_identity::command_head_identities(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &registry,
+        );
         build_interprocedural_analysis(
             &cu.ir_module,
             &registry,
@@ -3614,7 +3626,7 @@ mod effect_propagation_tests {
             let ia = build_interprocedural_analysis(
                 &module,
                 &reg,
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+                Some(tcl_dialect::DialectProfile::irules()),
                 ObjectTypeMap::none(),
                 crate::head_identity::HeadIdentityMap::none(),
             );
@@ -3631,7 +3643,7 @@ mod effect_propagation_tests {
         let ia = build_interprocedural_analysis(
             &module,
             &reg,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             ObjectTypeMap::none(),
             crate::head_identity::HeadIdentityMap::none(),
         );

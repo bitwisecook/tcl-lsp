@@ -1208,7 +1208,15 @@ mod tests {
             end_line: 2,
             end_character: u32::MAX,
         };
-        let hints = inlay_hints(src, tcl_dialect::DialectProfile::by_name("tcl"), range, Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            range,
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
     }
@@ -1240,9 +1248,24 @@ mod tests {
             end_line: 4,
             end_character: u32::MAX,
         };
-        let full_hints = inlay_hints(src, tcl_dialect::DialectProfile::by_name("tcl"), full, Some(&analysis), Some(&reg), false, true);
-        let narrow_hints =
-            inlay_hints(src, tcl_dialect::DialectProfile::by_name("tcl"), narrow, Some(&analysis), Some(&reg), false, true);
+        let full_hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            full,
+            Some(&analysis),
+            Some(&reg),
+            false,
+            true,
+        );
+        let narrow_hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            narrow,
+            Some(&analysis),
+            Some(&reg),
+            false,
+            true,
+        );
         let expected: Vec<_> = full_hints
             .into_iter()
             .filter(|h| h.position_line == 4)
@@ -1710,7 +1733,10 @@ mod tests {
         type_labels_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl"))
     }
 
-    fn type_labels_for_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<(u32, String)> {
+    fn type_labels_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<(u32, String)> {
         let analysis = analyse(src);
         let reg = registry();
         inlay_hints(
@@ -1762,7 +1788,10 @@ mod tests {
 
     #[test]
     fn binary_q_and_q_hints_are_owned_by_shared_spec_table() {
-        let labels = type_labels_for_dialect("binary format \"q Q\" 1 2\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let labels = type_labels_for_dialect(
+            "binary format \"q Q\" 1 2\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"f64le"), "{labels:?}");
         assert!(names.contains(&"f64be"), "{labels:?}");
