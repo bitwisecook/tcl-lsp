@@ -423,7 +423,7 @@ fn variable_hover(
     // so it hovers the *literal* cell (PR #1106 review, P2).
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        profile.name,
+        profile,
         line,
         character,
         var_byte_offset,
@@ -435,7 +435,7 @@ fn variable_hover(
         if let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
-            profile.name,
+            profile,
             var_byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -468,7 +468,7 @@ fn variable_hover(
         let bindings = crate::caller_frame::caller_frame_bindings(
             analysis,
             source,
-            profile.name,
+            profile,
             ctx,
             var_byte_offset,
             &var_name,
@@ -525,7 +525,7 @@ fn variable_position_hover(
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
     if crate::caller_frame::substituted_var_read_at(
         source,
-        profile.name,
+        profile,
         line,
         character,
         cursor_offset,
@@ -3331,7 +3331,7 @@ fn infer_var_type_and_taint(
             registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::for_file_dialect(profile.name),
-            dialect: profile.name,
+            dialect: Some(profile),
             external_call_sites: None,
         },
     );

@@ -123,7 +123,7 @@ use tcl_lexer::Span;
 #[must_use]
 pub(crate) fn substituted_var_read_at(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     cursor_off: u32,
@@ -133,7 +133,7 @@ pub(crate) fn substituted_var_read_at(
         || crate::inert_text::offset_in_data_brace(
             source,
             cursor_off,
-            tcl_registry::registry_for_dialect(dialect),
+            tcl_registry::cache::registry_for_profile(dialect),
             dialect,
         );
     (!inert).then_some(name)
@@ -253,7 +253,7 @@ fn document_has_call_by_name_proc(analysis: &AnalysisResult) -> bool {
 pub(crate) fn caller_frame_bindings(
     analysis: &AnalysisResult,
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     name: &str,
@@ -314,7 +314,7 @@ pub(crate) fn caller_frame_bindings(
 struct BindingScan<'a> {
     analysis: &'a AnalysisResult,
     source: &'a str,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     /// The whole-program context every [`crate::definition::resolve_called_proc`]
     /// in this scan is answered in — the builtin gate and, when the host has a
     /// workspace index, the export oracle (issue #1116 item 1).
@@ -364,14 +364,14 @@ fn collect_bindings_in_region(
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
     );
     for cmd in &commands {
         bindings_from_call(ctx, cmd, out);
         for (inner_start, inner_end) in crate::references::nested_dispatch_regions_with_identities(
             ctx.source,
             ctx.dialect,
-            tcl_registry::registry_for_dialect(ctx.dialect),
+            tcl_registry::cache::registry_for_profile(ctx.dialect),
             ctx.identities,
             cmd,
         ) {
@@ -533,7 +533,7 @@ fn bindings_from_self_dispatch(
     let env = TraitScanEnv {
         registry,
         stub_overlay: None,
-        config: tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        config: tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
         identities: ctx.identities,
     };
     let callee = format!("{provider_q}::{method}");
@@ -612,7 +612,7 @@ fn method_body_text(source: &str, body_span: Span) -> Option<&str> {
 pub(crate) fn caller_frame_reference_spans(
     analysis: &AnalysisResult,
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     name: &str,
@@ -668,7 +668,7 @@ fn dollar_is_escaped(bytes: &[u8], at: usize) -> bool {
 /// ([`dollar_is_escaped`]) is no substitution at all.
 fn substituted_read_spans(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     start: usize,
     end: usize,
     name: &str,
@@ -701,7 +701,7 @@ fn substituted_read_spans(
                 || crate::inert_text::offset_in_data_brace(
                     source,
                     name_start,
-                    tcl_registry::registry_for_dialect(dialect),
+                    tcl_registry::cache::registry_for_profile(dialect),
                     dialect,
                 );
             if inert {
@@ -731,7 +731,7 @@ fn substituted_read_spans(
 pub(crate) fn binding_at_offset(
     analysis: &AnalysisResult,
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     resolution: crate::definition::CallResolution<'_>,
     cursor_off: u32,
     word: &str,
@@ -800,7 +800,7 @@ oo::class create chart {
         let bindings = caller_frame_bindings(
             &analysis,
             IDX58,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "dataset",
@@ -826,7 +826,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
@@ -847,7 +847,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
@@ -869,7 +869,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
@@ -887,7 +887,7 @@ oo::class create chart {
         let spans = caller_frame_reference_spans(
             &analysis,
             IDX58,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "dataset",
@@ -927,7 +927,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -950,7 +950,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -977,7 +977,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
@@ -1012,7 +1012,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -1047,7 +1047,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -1086,7 +1086,7 @@ oo::class create chart {
             let spans = caller_frame_reference_spans(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 call,
                 "shared",
@@ -1124,7 +1124,7 @@ proc build {} {
         let bindings = caller_frame_bindings(
             &analysis,
             IDX22,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "name",
@@ -1153,7 +1153,7 @@ proc build {} {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name",
@@ -1197,7 +1197,7 @@ oo::class create Widget {
         let bindings = caller_frame_bindings(
             &analysis,
             MIXIN_SRC,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "name",
@@ -1226,7 +1226,7 @@ oo::class create Widget {
             caller_frame_bindings(
                 &analysis,
                 MIXIN_SRC,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "other"
@@ -1256,7 +1256,7 @@ oo::class create Widget {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
@@ -1292,7 +1292,7 @@ oo::class create Derived {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
@@ -1314,7 +1314,7 @@ oo::class create Derived {
             caller_frame_bindings(
                 &analysis,
                 src,
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "FocusGrab"
@@ -1335,7 +1335,7 @@ oo::class create Derived {
         let bindings = caller_frame_bindings(
             &analysis,
             src,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             call,
             "name",
@@ -1370,7 +1370,7 @@ oo::class create Derived {
         let spans = caller_frame_reference_spans(
             &analysis,
             src,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             call,
             "shared",
@@ -1445,7 +1445,7 @@ proc RestoreFocusGrab {grab focus} {
             );
             let defs = crate::definition::definition(src, line, col, &analysis);
             assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
-            let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+            let refs = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
             let spans: Vec<(u32, u32)> = refs
                 .iter()
                 .map(|r| (r.start_line, r.start_character))
@@ -1555,11 +1555,11 @@ oo::class create chart {
     fn references_link_the_call_site_word_and_the_read() {
         let analysis = analysis();
         let (line, character) = read_position();
-        let refs = crate::references::references(SRC, "tcl9.0", line, character, &analysis, true);
+        let refs = crate::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, character, &analysis, true);
         assert_eq!(refs.len(), 2, "call-site word + read: {refs:?}");
         // …and from the bare call-site word too.
         let (cl, cc) = call_site_position();
-        let from_call = crate::references::references(SRC, "tcl9.0", cl, cc, &analysis, true);
+        let from_call = crate::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), cl, cc, &analysis, true);
         assert_eq!(from_call, refs, "both anchors give one reference set");
     }
 
@@ -1604,7 +1604,7 @@ oo::class create chart {
                 "`upvar {level}` must draw no caller-frame hover"
             );
             assert!(
-                crate::references::references(&src, "tcl9.0", line, col, &analysis, true)
+                crate::references::references(&src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true)
                     .is_empty(),
                 "`upvar {level}` must report no references"
             );
@@ -1647,13 +1647,13 @@ proc caller {} {
                 + 2,
         )
         .unwrap();
-        let with_decls = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+        let with_decls = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
         assert_eq!(
             with_decls.len(),
             3,
             "make + peek + the read: {with_decls:?}"
         );
-        let without = crate::references::references(src, "tcl9.0", line, col, &analysis, false);
+        let without = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, false);
         assert_eq!(
             without.len(),
             2,
@@ -1737,7 +1737,7 @@ proc build {} {
             locs[0].start_line, call_line,
             "definition must reach the creating call: {locs:?}"
         );
-        let refs = crate::references::references(src, "tcl9.0", line, col, &analysis, true);
+        let refs = crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true);
         assert!(
             refs.iter().any(|r| r.start_line == call_line),
             "the creating call is part of the reference set: {refs:?}"
@@ -1826,7 +1826,7 @@ oo::class create widget {
             "an unbound `$`-led read must draw no hover at all"
         );
         assert!(
-            crate::references::references(src, "tcl9.0", line, col, &analysis, true).is_empty(),
+            crate::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, col, &analysis, true).is_empty(),
             "an unbound `$`-led read must report no references"
         );
         assert!(

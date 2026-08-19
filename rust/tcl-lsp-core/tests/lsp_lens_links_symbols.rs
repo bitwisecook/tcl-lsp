@@ -119,7 +119,7 @@ fn selection(line: u32, start: u32, end: u32) -> LspRange {
 #[test]
 fn symbols_empty_file_yields_nothing() {
     // An empty document has no outline.
-    assert!(document_symbols("", "tcl8.6").is_empty());
+    assert!(document_symbols("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
 }
 
 #[test]
@@ -131,7 +131,7 @@ fn symbols_single_proc_is_a_function_with_param_detail() {
     // (verified tclsh8.6 + tclsh9.0). The outline must mirror that fact: one
     // Function symbol named `greet` whose detail lists both params.
     let src = "proc greet {name greeting} {\n    return \"$greeting $name\"\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     assert_eq!(symbols[0].name, "greet");
     assert_eq!(symbols[0].kind, SymbolKind::Function);
@@ -152,7 +152,7 @@ fn symbols_multiple_procs_one_function_each() {
     // tclsh: `info procs` over `proc foo .. ; proc bar ..` -> {bar foo}; the
     // two are independent procs, so the outline has exactly two Function nodes.
     let src = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let mut names: Vec<&str> = symbols.iter().map(|s| s.name.as_str()).collect();
     names.sort_unstable();
     assert_eq!(names, vec!["bar", "foo"]);
@@ -164,7 +164,7 @@ fn symbols_proc_range_contains_its_selection_range() {
     // The outer `range` (name + body) must contain the `selection_range` (the
     // name token) — an LSP contract the editor relies on for click-to-fold.
     let src = "proc greet {name} {\n    return $name\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1);
     let p = &symbols[0];
     assert!(
@@ -181,7 +181,7 @@ fn symbols_proc_range_covers_the_definition_text() {
     // line 0 (the `proc` keyword's line) and its end reaches past the body's
     // last line (line 2 holds the closing brace).
     let src = "proc greet {name} {\n    return $name\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let p = &symbols[0];
     assert_eq!(p.range.start_line, 0, "range should start at the proc line");
     assert!(
@@ -205,7 +205,7 @@ fn symbols_namespace_eval_nests_inner_proc_as_hierarchy() {
     // The outline mirrors the lexical nesting: a Namespace node `myns` with the
     // Function `helper` as its child.
     let src = "namespace eval myns {\n    proc helper {} {\n        return 1\n    }\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let ns = &symbols[0];
     assert_eq!(ns.name, "myns");
@@ -235,7 +235,7 @@ fn symbols_nested_namespaces_recurse_two_levels() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1);
     let outer = &symbols[0];
     assert_eq!(outer.name, "outer");
@@ -258,7 +258,7 @@ fn symbols_global_set_emits_variable() {
     // tclsh: `set myvar 42` creates a real variable:
     //   set myvar 42; info exists myvar -> 1; set myvar -> 42  (8.6 + 9.0)
     // A top-level `set` therefore surfaces as a Variable symbol.
-    let symbols = document_symbols("set myvar 42\n", "tcl8.6");
+    let symbols = document_symbols("set myvar 42\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let vars: Vec<&DocumentSymbol> = symbols
         .iter()
         .filter(|s| s.kind == SymbolKind::Variable)
@@ -283,7 +283,7 @@ fn symbols_oo_class_with_method_children() {
         "    method fetch {item} { return $item }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let cls = &symbols[0];
     assert_eq!(cls.name, "Dog");
@@ -309,7 +309,7 @@ fn symbols_oo_class_constructor_lists_its_param() {
         "    constructor {name} { variable n; set n $name }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let cls = &symbols[0];
     let ctor = cls
         .children
@@ -334,7 +334,7 @@ fn symbols_oo_configurable_emits_property() {
         "    property x y\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let cls = &symbols[0];
     let props: Vec<&str> = cls
         .children
@@ -372,7 +372,7 @@ fn symbols_mixed_document_collects_all_top_level_definitions() {
         "namespace eval ns { proc g {} { return } }\n",
         "oo::class create K { method m {} {} }\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let pairs = all_pairs(&symbols);
     assert!(
         pairs.contains(&("f".to_string(), SymbolKind::Function)),
@@ -419,7 +419,7 @@ fn lens_on_line(lenses: &[CodeLens], line: u32) -> &CodeLens {
 #[test]
 fn lens_none_without_analysis() {
     // With `analysis = None` the provider emits nothing (the stub-call shape).
-    assert!(code_lenses("proc foo {} {}\n", "tcl8.6", None, None, "").is_empty());
+    assert!(code_lenses("proc foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None, None, "").is_empty());
 }
 
 #[test]
@@ -427,7 +427,7 @@ fn lens_none_for_file_with_no_eligible_symbols() {
     // A file with no procs / classes has no symbols to annotate, so no lenses.
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     assert!(lenses.is_empty(), "expected no lenses; got {lenses:?}");
 }
 
@@ -437,7 +437,7 @@ fn lens_one_per_user_proc() {
     // own reference-count lens anchored at its name span.
     let src = "proc foo {} {}\nproc bar {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     assert_eq!(lenses.len(), 2, "{lenses:?}");
     // Both anchor on the proc-name token, not the `proc` keyword (col 5).
     assert!(
@@ -454,7 +454,7 @@ fn lens_reports_zero_for_unused_proc() {
     // the one-line script.)
     let src = "proc lonely {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     assert_eq!(lenses.len(), 1);
     assert_eq!(lenses[0].command_title, "0 references");
 }
@@ -466,7 +466,7 @@ fn lens_counts_call_sites() {
     // tool; tool; tool` runs to completion). The lens counts exactly 3.
     let src = "proc tool {} {}\ntool\ntool\ntool\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     let tool = lens_on_line(&lenses, 0);
     assert_eq!(tool.command_title, "3 references", "{lenses:?}");
     assert_eq!(lens_count(tool), 3);
@@ -478,7 +478,7 @@ fn lens_singular_grammar_for_one_reference() {
     // `1 references` (presentation grammar).
     let src = "proc helper {} {}\nhelper\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -488,7 +488,7 @@ fn lens_carries_qualified_name_in_data() {
     // editor's references-jump command.
     let src = "proc greet {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     assert_eq!(lenses.len(), 1);
     assert_eq!(lenses[0].qname, "::greet", "{lenses:?}");
 }
@@ -510,7 +510,7 @@ fn lens_counts_method_calls_inside_class_body() {
     if analysis.all_classes.is_empty() {
         return;
     }
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, "");
+    let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     // The `greet` declaration's name span is on line 1.
     assert_eq!(
         lens_on_line(&lenses, 1).command_title,
@@ -532,8 +532,8 @@ fn link_start(link: &DocumentLink) -> (u32, u32) {
 fn links_none_for_non_source_commands() {
     // tclsh: `set` and `puts` are not path-bearing — `source` is the command
     // the provider keys on, so neither yields a link.
-    assert!(document_links("set x 1\n", "tcl8.6", None).is_empty());
-    assert!(document_links("puts hello\n", "tcl8.6", None).is_empty());
+    assert!(document_links("set x 1\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
+    assert!(document_links("puts hello\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
 }
 
 #[test]
@@ -544,7 +544,7 @@ fn links_absolute_source_path_surfaces_file_uri() {
     // shape is editor presentation; that `source <path>` is the Tcl construct
     // being linked is the semantic anchor.)
     let src = "source /usr/lib/tcl/init.tcl\n";
-    let links = document_links(src, "tcl8.6", None);
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     // Anchored on the path argument (`source ` is 7 chars).
@@ -555,7 +555,7 @@ fn links_absolute_source_path_surfaces_file_uri() {
 fn links_relative_source_resolves_against_workspace_root() {
     // A relative `source` path resolves against the supplied workspace root.
     let src = "source helper.tcl\n";
-    let links = document_links(src, "tcl8.6", Some("/home/user/project"));
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some("/home/user/project"));
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///home/user/project/helper.tcl");
 }
@@ -565,7 +565,7 @@ fn links_relative_source_without_root_yields_none() {
     // No workspace root -> a relative path has nothing to anchor against, so no
     // link is produced (the path with no resolvable target is dropped).
     let src = "source helper.tcl\n";
-    assert!(document_links(src, "tcl8.6", None).is_empty());
+    assert!(document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
 }
 
 #[test]
@@ -574,7 +574,7 @@ fn links_dynamic_source_path_yields_none() {
     // path is variable-substituted, not a literal — the provider can't resolve
     // it statically, so no link.
     let src = "source $somevar\n";
-    assert!(document_links(src, "tcl8.6", None).is_empty());
+    assert!(document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None).is_empty());
 }
 
 #[test]
@@ -582,7 +582,7 @@ fn links_encoding_flag_skipped_before_path() {
     // `source -encoding utf-8 <path>` — the provider skips the `-encoding`
     // flag and its value, linking the real path argument.
     let src = "source -encoding utf-8 /tmp/foo.tcl\n";
-    let links = document_links(src, "tcl8.6", None);
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///tmp/foo.tcl");
 }
@@ -591,7 +591,7 @@ fn links_encoding_flag_skipped_before_path() {
 fn links_tilde_expands_against_supplied_home() {
     // `source ~/lib/init.tcl` expands `~` against the injected home dir.
     let src = "source ~/lib/init.tcl\n";
-    let links = document_links_with_home(src, "tcl8.6", None, Some("/test-home"));
+    let links = document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None, Some("/test-home"));
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
 }
@@ -603,7 +603,7 @@ fn links_literal_file_join_source_resolves() {
     // for literal segments; variable segments are declined — covered by the
     // provider's own unit tests.)
     let src = "source [file join lib helper.tcl]\n";
-    let links = document_links(src, "tcl8.6", Some("/home/user/project"));
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some("/home/user/project"));
     assert_eq!(links.len(), 1, "{links:?}");
     assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl");
 }
@@ -616,7 +616,7 @@ fn links_package_require_surfaces_targetless_link_with_tooltip() {
     // (package resolution needs a pkgIndex scan, which isn't done) but a
     // tooltip carrying the package name.
     let src = "package require http 2.9\n";
-    let links = document_links(src, "tcl8.6", None);
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
     let pkg = links
         .iter()
         .find(|l| l.tooltip.as_deref().is_some_and(|t| t.contains("http")))
@@ -633,7 +633,7 @@ fn links_source_uri_is_percent_encoded() {
     // A literal `source` path with spaces must surface as a percent-encoded
     // `file://` URI (never a raw concatenation with a literal space).
     let src = "source /path/with spaces.tcl\n";
-    let links = document_links(src, "tcl8.6", None);
+    let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), None);
     if let Some(link) = links.first() {
         assert!(
             !link.target.contains(' '),
@@ -653,7 +653,7 @@ fn links_in(src: &str, script_path: &str) -> Vec<DocumentLink> {
     let root = script_path.rsplit_once('/').map_or("/", |(dir, _)| dir);
     tcl_lsp_core::document_links::document_links_in_context(
         src,
-        "tcl8.6",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
         &tcl_lsp_core::document_links::LinkContext {
             imported_constants: None,
             workspace_root: Some(root),

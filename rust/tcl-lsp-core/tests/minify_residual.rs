@@ -84,19 +84,19 @@ fn reg() -> &'static CommandRegistry {
 }
 
 fn min(src: &str) -> String {
-    minify_tcl(src, "tcl8.6", reg())
+    minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
 }
 
 fn min_dialect(src: &str, dialect: &str) -> String {
-    minify_tcl(src, dialect, registry_for_dialect(dialect))
+    minify_tcl(src, tcl_dialect::DialectProfile::by_name(dialect), registry_for_dialect(dialect))
 }
 
 fn compact(src: &str, isolated: bool) -> (String, SymbolMap) {
-    minify_tcl_compact(src, "tcl8.6", isolated, reg())
+    minify_tcl_compact(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), isolated, reg())
 }
 
 fn agg(src: &str, isolated: bool) -> MinifyResult {
-    minify_tcl_aggressive(src, "tcl8.6", isolated, reg())
+    minify_tcl_aggressive(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), isolated, reg())
 }
 
 // ===========================================================================
@@ -484,7 +484,7 @@ fn switch_double_dash_uses_document_dialect_without_a_registry_profile() {
     let registry = CommandRegistry::build_default();
     let out = minify_tcl(
         "switch -- -x {\n  -x {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n",
-        "tcl8.6",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
         &registry,
     );
     assert_eq!(out, "switch -- -x {-x {puts hit} default {puts miss}}");

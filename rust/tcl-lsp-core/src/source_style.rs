@@ -296,18 +296,18 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
 /// comments.
 #[must_use]
 pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
-    check_comment_continuation_for_dialect(source, "tcl9.0")
+    check_comment_continuation_for_dialect(source, tcl_dialect::DialectProfile::by_name("tcl9.0"))
 }
 
 /// Dialect-aware W115 detector. Comment position is a lexer/registry fact,
 /// not a textual `#` prefix, so quoted and braced data never become comments.
 #[must_use]
-pub fn check_comment_continuation_for_dialect(source: &str, dialect: &str) -> Vec<StyleDiagnostic> {
+pub fn check_comment_continuation_for_dialect(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<StyleDiagnostic> {
     let lines: Vec<&str> = source.split('\n').collect();
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = dialect;
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         tcl_registry::cache::registry_for_profile(profile),
     );
     let mut out = Vec::new();
@@ -448,7 +448,7 @@ pub fn style_diagnostics<SD: BuildHasher, H: BuildHasher, I: BuildHasher>(
     disabled: &HashSet<String, SD>,
     suppressed: &HashMap<i32, HashSet<String, I>, H>,
     decode: Option<&crate::source_decode::DecodeReport>,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<StyleDiagnostic> {
     let mut out = Vec::new();
 
@@ -624,7 +624,7 @@ mod tests {
             &no_disable(),
             &no_suppress(),
             None,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
         assert_eq!(w112.len(), 1, "{diags:?}");
@@ -661,15 +661,15 @@ mod tests {
         let braced = "set payload {# hidden \\\nputs live}\n";
         let quoted = "set payload \"# hidden \\\nputs live\"\n";
         let tail = "set marker \"noqa\"; # ordinary comment \\\nputs live\n";
-        assert!(check_comment_continuation_for_dialect(braced, "tcl9.0").is_empty());
-        assert!(check_comment_continuation_for_dialect(quoted, "tcl9.0").is_empty());
-        assert!(check_comment_continuation_for_dialect(tail, "tcl9.0").is_empty());
+        assert!(check_comment_continuation_for_dialect(braced, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
+        assert!(check_comment_continuation_for_dialect(quoted, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
+        assert!(check_comment_continuation_for_dialect(tail, tcl_dialect::DialectProfile::by_name("tcl9.0")).is_empty());
     }
 
     #[test]
     fn w115_reaches_a_proven_alias_proc_body() {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # swallowed \\\n    puts hidden\n}\n";
-        let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
+        let diags = check_comment_continuation_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].range.start_line, 2);
         assert!(
@@ -683,7 +683,7 @@ mod tests {
     #[test]
     fn w115_reaches_a_switch_case_list_arm_in_a_command_substitution() {
         let src = "set result [switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}]\n";
-        let diags = check_comment_continuation_for_dialect(src, "tcl9.0");
+        let diags = check_comment_continuation_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].code, "W115");
         assert_eq!(diags[0].range.start_line, 2);
@@ -724,7 +724,7 @@ mod tests {
             &disabled,
             &no_suppress(),
             None,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -743,7 +743,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(diags.is_empty());
     }
@@ -763,7 +763,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -781,7 +781,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(diags.iter().any(|d| d.code == "W118"));
     }

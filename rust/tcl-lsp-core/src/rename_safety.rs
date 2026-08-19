@@ -190,7 +190,7 @@ pub struct MethodRenameTarget<'a> {
 #[must_use]
 pub fn method_rename_hazard(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
@@ -340,7 +340,7 @@ fn abort_refusal_reason(
 /// must be destroy` on tclsh 9.0.4 and 8.6.16 alike).
 fn unlocatable_member_reference(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
@@ -453,7 +453,7 @@ fn tail_of(qualified: &str) -> &str {
 /// reference scan's decision to skip it is sound.
 fn dispatch_hazard(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     target: MethodRenameTarget<'_>,
     line_index: &LineIndex,
@@ -560,7 +560,7 @@ fn dispatch_hazard(
 /// a hollow guarantee (issue #1092).
 pub(crate) fn walk_document(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     visit: &mut impl FnMut(&SegmentedCommand),
 ) {
@@ -587,7 +587,7 @@ pub(crate) fn walk_document(
 /// `my` comparison.
 fn walk_self_dispatch(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     target: MethodRenameTarget<'_>,
     hit: &mut impl FnMut(Span),
@@ -626,7 +626,7 @@ fn walk_self_dispatch(
 
 fn walk_body(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     body_span: Span,
     visit: &mut impl FnMut(&SegmentedCommand),
 ) {
@@ -642,7 +642,7 @@ fn walk_body(
 
 fn walk_region(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     start: usize,
     end: usize,
     depth: u32,
@@ -655,7 +655,7 @@ fn walk_region(
     let commands = segment_commands_with_offset_and_config(
         &source[start..end],
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
     );
     for cmd in &commands {
         visit(cmd);
@@ -722,12 +722,12 @@ fn slice(source: &str, span: Span) -> Option<&str> {
 #[must_use]
 pub fn namespace_variable_rename_hazard(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     cell: &str,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = tcl_registry::cache::registry_for_profile(dialect);
     let mut hazard: Option<Span> = None;
     let mut visit = |cmd: &SegmentedCommand| {
         if hazard.is_some() {
@@ -863,16 +863,16 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
-        analyse_as(source, "tcl8.6")
+        analyse_as(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
     }
 
-    fn analyse_as(source: &str, dialect: &str) -> AnalysisResult {
+    fn analyse_as(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
         let mut a = Analyser::new();
-        a.analyse(source, dialect).clone()
+        a.analyse(source, dialect.name).clone()
     }
 
     fn hazard(source: &str, family: &[&str], method: &str, is_classmethod: bool) -> Option<String> {
-        hazard_to(source, family, method, is_classmethod, "Renamed", "tcl8.6")
+        hazard_to(source, family, method, is_classmethod, "Renamed", tcl_dialect::DialectProfile::by_name("tcl8.6"))
     }
 
     /// [`hazard`] with the requested new name (and dialect) spelled out — the
@@ -884,7 +884,7 @@ mod tests {
         method: &str,
         is_classmethod: bool,
         new_name: &str,
-        dialect: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
     ) -> Option<String> {
         let analysis = analyse_as(source, dialect);
         let owned: Vec<String> = family.iter().map(|s| (*s).to_string()).collect();
@@ -1069,7 +1069,7 @@ mod tests {
 
     fn var_hazard(source: &str, cell: &str) -> Option<String> {
         let analysis = analyse(source);
-        namespace_variable_rename_hazard(source, "tcl8.6", &analysis, cell, &LineIndex::new(source))
+        namespace_variable_rename_hazard(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, cell, &LineIndex::new(source))
             .map(|r| r.reason)
     }
 
@@ -1272,7 +1272,7 @@ mod tests {
                    \x20   method old {} { return 1 }\n\
                    \x20   renamemethod old new\n\
                    }\n";
-        let reason = hazard_to(src, &["::C"], "new", false, "old", "tcl9.0")
+        let reason = hazard_to(src, &["::C"], "new", false, "old", tcl_dialect::DialectProfile::by_name("tcl9.0"))
             .expect("renaming the moved member to its source must refuse");
         assert!(
             reason.contains("cannot rename method to itself"),
@@ -1289,7 +1289,7 @@ mod tests {
                    \x20   method sib {} { return 2 }\n\
                    \x20   renamemethod old new\n\
                    }\n";
-        let reason = hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0")
+        let reason = hazard_to(src, &["::C"], "new", false, "sib", tcl_dialect::DialectProfile::by_name("tcl9.0"))
             .expect("renaming the moved member onto a live sibling must refuse");
         assert!(
             reason.contains("method called sib already exists"),
@@ -1306,7 +1306,7 @@ mod tests {
                    \x20   method sib {} { return 2 }\n\
                    \x20   renamemethod old new\n\
                    }\n";
-        let reason = hazard_to(src, &["::C"], "sib", false, "new", "tcl9.0")
+        let reason = hazard_to(src, &["::C"], "sib", false, "new", tcl_dialect::DialectProfile::by_name("tcl9.0"))
             .expect("renaming a sibling onto a later rename destination must refuse");
         assert!(
             reason.contains("method called new already exists"),
@@ -1323,7 +1323,7 @@ mod tests {
                    \x20   renamemethod old new\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "new", false, "fresh", "tcl9.0"),
+            hazard_to(src, &["::C"], "new", false, "fresh", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None
         );
     }
@@ -1339,7 +1339,7 @@ mod tests {
                    \x20   renamemethod old new\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0"),
+            hazard_to(src, &["::C"], "new", false, "sib", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None
         );
     }
@@ -1355,7 +1355,7 @@ mod tests {
                    \x20   renamemethod old new\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "new", false, "sib", "tcl9.0"),
+            hazard_to(src, &["::C"], "new", false, "sib", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None
         );
     }
@@ -1381,7 +1381,7 @@ mod tests {
                    \x20   self { method same {} { return 2 } }\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "same", true, "old", "tcl9.0"),
+            hazard_to(src, &["::C"], "same", true, "old", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None,
             "an instance-side move must not refuse a class-side rename",
         );
@@ -1397,7 +1397,7 @@ mod tests {
                    \x20   method same {} { return 2 }\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "same", false, "old", "tcl9.0"),
+            hazard_to(src, &["::C"], "same", false, "old", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None,
             "a class-side move must not refuse an instance-side rename",
         );
@@ -1411,7 +1411,7 @@ mod tests {
                    \x20   self { method old {} { return 1 }\n\
                    \x20          renamemethod old same }\n\
                    }\n";
-        let reason = hazard_to(src, &["::C"], "same", true, "old", "tcl9.0")
+        let reason = hazard_to(src, &["::C"], "same", true, "old", tcl_dialect::DialectProfile::by_name("tcl9.0"))
             .expect("a class-side move must still gate a class-side rename");
         assert!(
             reason.contains("cannot rename method to itself"),
@@ -1430,7 +1430,7 @@ mod tests {
                    \x20   method sib {} { return 3 }\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "sib", false, "new", "tcl9.0"),
+            hazard_to(src, &["::C"], "sib", false, "new", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None,
             "an instance-side `sib` is not the class-side move's blocker",
         );
@@ -1444,7 +1444,7 @@ mod tests {
                    \x20   method sib {} { return 2 }\n\
                    }\n";
         assert_eq!(
-            hazard_to(src, &["::C"], "old", false, "sib", "tcl9.0"),
+            hazard_to(src, &["::C"], "old", false, "sib", tcl_dialect::DialectProfile::by_name("tcl9.0")),
             None
         );
     }

@@ -1087,6 +1087,18 @@ fn resolve_unit_scope(
 }
 
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
+/// The semantic-dialect bit a unit is filtered by: the *exact* bit the
+/// profile's own name parses to, deliberately not its `availability_mask`.
+/// The registry rows keyed by this describe the one dialect a document is,
+/// not the wider set of releases whose commands that dialect can reach
+/// (`f5-iapps` parses to `IAPPS` while its mask composes `TCL85|IAPPS`).
+/// `None` — the build named no dialect — selects nothing.
+fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
+    dialect
+        .and_then(|profile| DialectSet::parse(profile.name))
+        .unwrap_or_else(DialectSet::empty)
+}
+
 /// every procedure in the loop.  Grouped into one struct so the extracted
 /// helper takes two parameters instead of a dozen.
 struct ProcedureBuildContext<'a> {
@@ -1218,9 +1230,7 @@ fn build_procedure_units(
         // world until a workspace-aware entry contract exists.
         fu = fu.with_semantic_analysis(
             ctx.registry,
-            ctx.dialect
-                .and_then(|profile| DialectSet::parse(profile.name))
-                .unwrap_or_else(DialectSet::empty),
+            semantic_dialect_set(ctx.dialect),
             proc.map(|procedure| &procedure.body),
             crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         );
@@ -1463,9 +1473,7 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
-        let semantic_dialect = dialect
-            .and_then(|profile| DialectSet::parse(profile.name))
-            .unwrap_or_else(DialectSet::empty);
+        let semantic_dialect = semantic_dialect_set(dialect);
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             registry,

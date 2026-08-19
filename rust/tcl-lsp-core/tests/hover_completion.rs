@@ -453,7 +453,7 @@ fn completion_of_command_prefix_lists_matching_builtins() {
     let src = "whi\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 3, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 3, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"while"), "expected `while`: {labels:?}");
     assert!(
@@ -469,7 +469,7 @@ fn completion_of_var_prefix_lists_in_scope_variables() {
     // structural contract.
     let src = "set apple 1\nset banana 2\nset z $ap\n";
     let analysis = analyse(src);
-    let items = completions(src, 2, 8, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 2, 8, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert_eq!(labels, vec!["$apple"], "{items:?}");
     assert_eq!(items[0].kind, CompletionKind::Variable);
@@ -481,7 +481,7 @@ fn completion_of_bare_dollar_lists_all_globals_sorted() {
     // provider's presentation choice).
     let src = "set apple 1\nset banana 2\nset cherry 3\nset z $\n";
     let analysis = analyse(src);
-    let items = completions(src, 3, 7, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 3, 7, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"$apple"), "{labels:?}");
     assert!(labels.contains(&"$banana"), "{labels:?}");
@@ -505,7 +505,7 @@ fn completion_inside_proc_includes_its_params_and_locals() {
     );
     let analysis = analyse(src);
     // Line 2, cursor right after the `$` (col 12).
-    let items = completions(src, 2, 12, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 2, 12, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
         labels.contains(&"$count"),
@@ -523,7 +523,7 @@ fn completion_lists_user_defined_procs() {
     // position surfaces it as a Function-kind item.
     let src = "proc greet {} {}\nproc shout {} {}\ng\n";
     let analysis = analyse(src);
-    let items = completions(src, 2, 1, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 2, 1, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"greet"), "{labels:?}");
     assert!(
@@ -543,7 +543,7 @@ fn completion_of_namespace_qualified_command() {
     let src = "par\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 3, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 3, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"parray"), "expected `parray`: {labels:?}");
 }
@@ -556,7 +556,7 @@ fn completion_merges_user_procs_and_builtins() {
     let src = "proc parade {} {}\npar\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 1, 3, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 1, 3, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"parade"), "user proc: {labels:?}");
     assert!(labels.contains(&"parray"), "built-in: {labels:?}");
@@ -570,7 +570,7 @@ fn completion_subcommand_at_word_index_1() {
     let src = "string l\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 8, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 8, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"length"), "expected `length`: {labels:?}");
     assert!(
@@ -587,7 +587,7 @@ fn completion_string_is_lists_real_character_classes() {
     let src = "string is a\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 11, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 11, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"alnum"), "{labels:?}");
     assert!(labels.contains(&"alpha"), "{labels:?}");
@@ -608,7 +608,7 @@ fn completion_switch_completes_command_options() {
     let src = "lsearch -n\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 10, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 10, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(!labels.is_empty(), "expected `-n*` switches: {labels:?}");
     assert!(
@@ -622,7 +622,7 @@ fn completion_without_registry_yields_procs_only() {
     // No registry → no built-in commands, only the user proc surfaces.
     let src = "proc helper {} {}\nhe\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 2, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 2, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert_eq!(labels, vec!["helper"], "{items:?}");
 }
@@ -634,7 +634,7 @@ fn completion_variable_trigger_suppresses_commands() {
     let src = "set apple 1\nset z $ap\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 1, 8, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 1, 8, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(
         !items.is_empty(),
         "expected variable completions: {items:?}"
@@ -648,7 +648,7 @@ fn completion_variable_trigger_suppresses_commands() {
 fn completion_on_empty_source_does_not_panic() {
     // Degenerate inputs must return cleanly (empty / no panic).
     let analysis = analyse("");
-    let items = completions("", 0, 0, &analysis, None, None, "tcl8.6");
+    let items = completions("", 0, 0, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     // No procs, no registry → nothing to suggest at an empty command pos.
     assert!(
         items.iter().all(|i| i.kind == CompletionKind::Snippet),
@@ -730,7 +730,7 @@ fn completion_offers_scoped_command_heads() {
     let src = "::report::defstyle st {} {\n    to\n}\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 1, 6, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 1, 6, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"top"), "offers `top`: {labels:?}");
     assert!(labels.contains(&"topdata"), "offers `topdata`: {labels:?}");
@@ -745,7 +745,7 @@ fn completion_offers_scoped_operations() {
     let src = "::report::defstyle st {} {\n    top \n}\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 1, 8, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 1, 8, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     for op in ["set", "get", "enable", "disable", "enabled"] {
         assert!(labels.contains(&op), "offers op `{op}`: {labels:?}");
@@ -758,7 +758,7 @@ fn completion_scoped_heads_not_offered_outside_body() {
     let src = "to\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 2, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 2, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
         !labels.contains(&"topdatasep"),
@@ -784,7 +784,7 @@ fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
 
     let mut a = Analyser::new();
     let a86 = a.analyse(src, "tcl8.6").clone();
-    let labels: Vec<String> = completions(src, 2, col, &a86, None, None, "tcl8.6")
+    let labels: Vec<String> = completions(src, 2, col, &a86, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"))
         .into_iter()
         .map(|i| i.label)
         .collect();
@@ -799,7 +799,7 @@ fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
 
     let mut a = Analyser::new();
     let a90 = a.analyse(src, "tcl9.0").clone();
-    let labels: Vec<String> = completions(src, 2, col, &a90, None, None, "tcl9.0")
+    let labels: Vec<String> = completions(src, 2, col, &a90, None, None, tcl_dialect::DialectProfile::by_name("tcl9.0"))
         .into_iter()
         .map(|i| i.label)
         .collect();
@@ -824,7 +824,7 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
     for dialect in ["tcl8.6", "tcl9.0"] {
         let mut a = Analyser::new();
         let an = a.analyse(src, dialect).clone();
-        let labels: Vec<String> = completions(src, 2, col, &an, None, None, dialect)
+        let labels: Vec<String> = completions(src, 2, col, &an, None, None, tcl_dialect::DialectProfile::by_name(dialect))
             .into_iter()
             .map(|i| i.label)
             .collect();
@@ -851,7 +851,7 @@ fn completion_offers_the_boolean_vocabulary_at_a_boolean_option_value() {
     let src = "fconfigure $c -blocking \n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 24, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 24, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     for want in ["true", "false", "yes", "no", "on", "off", "0", "1"] {
         assert!(labels.contains(&want), "expected `{want}` in {labels:?}");
@@ -866,7 +866,7 @@ fn completion_filters_the_boolean_vocabulary_by_partial() {
     let src = "fconfigure $c -blocking t\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 25, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 25, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"true"), "{labels:?}");
     assert!(!labels.contains(&"false"), "filtered by `t`: {labels:?}");

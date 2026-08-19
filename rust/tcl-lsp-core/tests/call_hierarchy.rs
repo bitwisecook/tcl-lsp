@@ -38,7 +38,7 @@ fn items(source: &str, line: u32, character: u32) -> Vec<CallHierarchyItem> {
 fn incoming_names(source: &str, item: &CallHierarchyItem) -> Vec<String> {
     let mut a = Analyser::new();
     let analysis = a.analyse(source, "tcl8.6");
-    incoming_calls(source, "tcl8.6", item, &analysis)
+    incoming_calls(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), item, &analysis)
         .into_iter()
         .map(|c| c.from.name)
         .collect()
@@ -47,7 +47,7 @@ fn incoming_names(source: &str, item: &CallHierarchyItem) -> Vec<String> {
 fn outgoing_names(source: &str, item: &CallHierarchyItem) -> Vec<String> {
     let mut a = Analyser::new();
     let analysis = a.analyse(source, "tcl8.6");
-    outgoing_calls(source, "tcl8.6", item, &analysis)
+    outgoing_calls(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), item, &analysis)
         .into_iter()
         .map(|c| c.to.name)
         .collect()

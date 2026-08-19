@@ -81,7 +81,7 @@ fn completion_items(
         &analysis,
         Some(registry_for_dialect(dialect)),
         None,
-        dialect,
+        tcl_dialect::DialectProfile::by_name(dialect),
     )
 }
 
@@ -369,10 +369,10 @@ fn tp_references_are_symmetric_at_a_mathfunc_call_site() {
     let analysis = analyse(SWEEP);
     let (decl_line, decl_col) = pos_of(SWEEP, "f {x} { return [expr {$x * 100}] }");
     let from_decl =
-        tcl_lsp_core::references::references(SWEEP, "tcl8.6", decl_line, decl_col, &analysis, true);
+        tcl_lsp_core::references::references(SWEEP, tcl_dialect::DialectProfile::by_name("tcl8.6"), decl_line, decl_col, &analysis, true);
     let (call_line, call_col) = pos_of(SWEEP, "f(2)");
     let from_call =
-        tcl_lsp_core::references::references(SWEEP, "tcl8.6", call_line, call_col, &analysis, true);
+        tcl_lsp_core::references::references(SWEEP, tcl_dialect::DialectProfile::by_name("tcl8.6"), call_line, call_col, &analysis, true);
     assert!(
         !from_decl.is_empty(),
         "declaration-anchored set is non-empty"
@@ -398,7 +398,7 @@ fn tp_references_are_symmetric_at_a_mathfunc_call_site() {
 #[test]
 fn tp_reference_lens_counts_the_mathfunc_override_and_the_global_proc_apart() {
     let analysis = analyse(SWEEP);
-    let lenses = tcl_lsp_core::code_lens::code_lenses(SWEEP, "tcl8.6", Some(&analysis), None, "");
+    let lenses = tcl_lsp_core::code_lens::code_lenses(SWEEP, tcl_dialect::DialectProfile::by_name("tcl8.6"), Some(&analysis), None, "");
     let title_for = |qname: &str| {
         let Some(lens) = lenses.iter().find(|lens| lens.qname == qname) else {
             panic!(
@@ -467,12 +467,12 @@ fn tp_hover_and_completion_agree_with_the_sweep() {
 #[test]
 fn tp_minify_and_call_graph_handle_the_override() {
     let registry = registry_for_dialect("tcl8.6");
-    let minified = tcl_lsp_core::minify::minify_tcl(SWEEP, "tcl8.6", registry);
+    let minified = tcl_lsp_core::minify::minify_tcl(SWEEP, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry);
     assert!(
         minified.contains("f(2)"),
         "the expr function-call production must survive minification: {minified}"
     );
-    let graph = tcl_lsp_core::graphs::call_graph(SWEEP, registry, "tcl8.6");
+    let graph = tcl_lsp_core::graphs::call_graph(SWEEP, registry, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let text = graph.to_string();
     assert!(
         text.contains("tcl::mathfunc::f") || text.contains("::ns::use"),
@@ -503,7 +503,7 @@ puts [li {10 20 30} 1]
         "bare `li` is not a command"
     );
     assert!(
-        tcl_lsp_core::references::references(src, "tcl8.6", line, col, &analysis, true).is_empty(),
+        tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col, &analysis, true).is_empty(),
         "bare `li` is not a command"
     );
 }
@@ -679,7 +679,7 @@ proc mypkg::folded {} {
 ";
     let analysis = analyse(src);
     let (line, col) = pos_of(src, "setdef {opts key args}");
-    let refs = tcl_lsp_core::references::references(src, "tcl8.6", line, col, &analysis, true);
+    let refs = tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col, &analysis, true);
     let mut lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
     lines.sort_unstable();
     assert_eq!(
@@ -706,7 +706,7 @@ proc mypkg::folded {} {
 ";
     let analysis = analyse(src);
     let (line, col) = pos_of(src, "setdef {a}");
-    let refs = tcl_lsp_core::references::references(src, "tcl8.6", line, col, &analysis, true);
+    let refs = tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col, &analysis, true);
     let mut lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
     lines.sort_unstable();
     assert_eq!(lines, vec![1], "declaration only: {refs:?}");
@@ -760,7 +760,7 @@ proc holder {} {
             "{needle:?} is inert"
         );
         assert!(
-            tcl_lsp_core::references::references(src, "tcl8.6", line, col + 1, &analysis, true)
+            tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col + 1, &analysis, true)
                 .is_empty(),
             "{needle:?} is inert"
         );
@@ -854,7 +854,7 @@ fn tp_mid_word_brace_does_not_suppress_a_real_variable_read() {
         "go-to-definition must still resolve"
     );
     assert!(
-        !tcl_lsp_core::references::references(src, "tcl8.6", line, col + 1, &analysis, true)
+        !tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, col + 1, &analysis, true)
             .is_empty(),
         "find-references must still resolve"
     );

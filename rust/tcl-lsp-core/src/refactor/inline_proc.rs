@@ -639,21 +639,21 @@ mod tests {
 
     /// Run the transform at the first occurrence of `needle` in `src`, with the
     /// document analysed under `dialect`.
-    fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
+    fn at_dialect(src: &str, needle: &str, dialect: &'static tcl_dialect::DialectProfile) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
-        let analysis = analyser.analyse(src, dialect).clone();
+        let analysis = analyser.analyse(src, dialect.name).clone();
         let cursor = u32::try_from(src.find(needle).expect("needle in source")).unwrap() + 1;
         inline_proc(src, cursor, &analysis, &registry)
     }
 
     /// Run the transform at the first occurrence of `needle` in `src`.
     fn at(src: &str, needle: &str) -> Option<Refactoring> {
-        at_dialect(src, needle, "tcl9.0")
+        at_dialect(src, needle, tcl_dialect::DialectProfile::by_name("tcl9.0"))
     }
 
     /// The rewritten document, or the refusal reason, under `dialect`.
-    fn outcome_for(src: &str, needle: &str, dialect: &str) -> Result<String, String> {
+    fn outcome_for(src: &str, needle: &str, dialect: &'static tcl_dialect::DialectProfile) -> Result<String, String> {
         let refactoring = at_dialect(src, needle, dialect).expect("a call to inline");
         match &refactoring.disabled {
             Some(reason) => Err(reason.clone()),
@@ -663,7 +663,7 @@ mod tests {
 
     /// The rewritten document, or the refusal reason.
     fn outcome(src: &str, needle: &str) -> Result<String, String> {
-        outcome_for(src, needle, "tcl9.0")
+        outcome_for(src, needle, tcl_dialect::DialectProfile::by_name("tcl9.0"))
     }
 
     // -- TP: binding is performed and the result is correct ---------------
@@ -905,10 +905,10 @@ mod tests {
     fn fp_refuses_a_radix_prefix_the_target_release_lacks() {
         let src = "proc double {x} {\n    expr {$x * 2}\n}\ndouble 0o17\n";
         assert_eq!(
-            outcome_for(src, "double 0o17", "tcl8.5").unwrap(),
+            outcome_for(src, "double 0o17", tcl_dialect::DialectProfile::by_name("tcl8.5")).unwrap(),
             "proc double {x} {\n    expr {$x * 2}\n}\nexpr {0o17 * 2}\n"
         );
-        let reason = outcome_for(src, "double 0o17", "tcl8.4").unwrap_err();
+        let reason = outcome_for(src, "double 0o17", tcl_dialect::DialectProfile::by_name("tcl8.4")).unwrap_err();
         assert!(reason.contains("not a number"), "{reason}");
     }
 

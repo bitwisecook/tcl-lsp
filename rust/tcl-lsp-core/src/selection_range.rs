@@ -90,7 +90,7 @@ pub fn selection_range(
     character: u32,
     analysis: Option<&AnalysisResult>,
 ) -> Vec<SelectionRange> {
-    selection_range_for_dialect(source, line, character, analysis, "tcl9.0")
+    selection_range_for_dialect(source, line, character, analysis, tcl_dialect::DialectProfile::by_name("tcl9.0"))
 }
 
 /// Compute the selection-range chain using the document's resolved dialect.
@@ -103,7 +103,7 @@ pub fn selection_range_for_dialect(
     line: u32,
     character: u32,
     analysis: Option<&AnalysisResult>,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<SelectionRange> {
     let mut ranges: Vec<LspRange> = Vec::new();
 
@@ -138,7 +138,7 @@ pub fn selection_range_for_dialect(
     if let Some(span) = command_span_at(
         source,
         cursor_offset,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         dialect,
     ) {
         let seg_range = span_to_range(source, &line_index, span);
@@ -289,7 +289,7 @@ fn command_span_at(
     source: &str,
     cursor_offset: u32,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<Span> {
     #[allow(clippy::too_many_arguments)] // immutable traversal context plus changing slice/base/depth/result
     fn visit(
@@ -512,7 +512,7 @@ fn command_span_at(
             }
         }
     }
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = dialect;
     let registry = tcl_registry::cache::registry_for_profile(profile);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
@@ -839,7 +839,7 @@ mod tests {
                 src,
                 cursor,
                 tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-                "tcl9.0",
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
             )
             .expect("inner command");
             assert!(span.start() > 0 && span.end() - span.start() < source_len);
@@ -864,7 +864,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         )
         .expect("nested command substitution");
         assert_eq!(
@@ -889,7 +889,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         )
         .expect("inner command through aliased Body role");
         assert_eq!(

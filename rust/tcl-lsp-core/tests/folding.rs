@@ -31,7 +31,7 @@ use tcl_registry::registry_for_dialect;
 
 fn folds(source: &str) -> Vec<FoldingRange> {
     let registry = registry_for_dialect("tcl8.6");
-    folding_ranges(source, "tcl8.6", registry)
+    folding_ranges(source, tcl_dialect::DialectProfile::by_name("tcl8.6"), registry)
 }
 
 fn regions(source: &str) -> Vec<FoldingRange> {
@@ -239,11 +239,11 @@ fn alias_to_user_proc_named_method_does_not_fold_data_as_a_member_body() {
 fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
     let registry = registry_for_dialect("tcl9.0");
     let src = "\u{FEFF}proc greet {} {\n    return hi\n}\n";
-    let with_bom: Vec<FoldingRange> = folding_ranges(src, "tcl9.0", registry)
+    let with_bom: Vec<FoldingRange> = folding_ranges(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), registry)
         .into_iter()
         .filter(|r| r.kind == FoldKind::Region)
         .collect();
-    let plain: Vec<FoldingRange> = folding_ranges(&src["\u{FEFF}".len()..], "tcl9.0", registry)
+    let plain: Vec<FoldingRange> = folding_ranges(&src["\u{FEFF}".len()..], tcl_dialect::DialectProfile::by_name("tcl9.0"), registry)
         .into_iter()
         .filter(|r| r.kind == FoldKind::Region)
         .collect();
@@ -261,7 +261,7 @@ fn tcl9_leading_bom_does_not_suppress_the_first_body_fold() {
 fn a_bom_inside_a_nested_body_is_data() {
     let registry = registry_for_dialect("tcl9.0");
     let src = "proc outer {} {\n    \u{FEFF}proc inner {} {\n        return 1\n    }\n}\n";
-    let regions: Vec<FoldingRange> = folding_ranges(src, "tcl9.0", registry)
+    let regions: Vec<FoldingRange> = folding_ranges(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), registry)
         .into_iter()
         .filter(|r| r.kind == FoldKind::Region)
         .collect();

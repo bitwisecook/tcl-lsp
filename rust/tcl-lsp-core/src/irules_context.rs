@@ -71,8 +71,8 @@ impl EventHandlerFacts {
     /// This name-based convenience entry point canonicalises once, then
     /// delegates all policy to [`DialectProfile::is_irules`].
     #[must_use]
-    pub fn new(source: &str, dialect: &str) -> Self {
-        Self::for_profile(source, tcl_dialect::DialectProfile::by_name(dialect))
+    pub fn new(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Self {
+        Self::for_profile(source, dialect)
     }
 
     /// The top-level event handler enclosing `line` (0-based), if any.
@@ -143,14 +143,14 @@ pub(crate) fn expensive_build_count() -> usize {
 /// Find the enclosing `when EVENT { … }` event at `line` (0-based), or
 /// `None` at the top level.
 #[must_use]
-pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &str) -> Option<String> {
+pub fn find_enclosing_when_event(source: &str, line: u32, dialect: &'static tcl_dialect::DialectProfile) -> Option<String> {
     EventHandlerFacts::new(source, dialect).enclosing_event(line)
 }
 
 /// Every distinct `when EVENT` name declared in `source` (uppercased,
 /// sorted), at top level only.
 #[must_use]
-pub fn scan_file_events(source: &str, dialect: &str) -> Vec<String> {
+pub fn scan_file_events(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<String> {
     EventHandlerFacts::new(source, dialect).file_events()
 }
 
@@ -163,16 +163,16 @@ mod tests {
     #[test]
     fn inert_when_text_is_neither_context_nor_file_event() {
         let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
-        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
-        assert_eq!(find_enclosing_when_event(src, 0, D), None);
-        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), ["HTTP_REQUEST"]);
+        assert_eq!(find_enclosing_when_event(src, 0, tcl_dialect::DialectProfile::by_name(D)), None);
+        assert_eq!(find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)), None);
     }
 
     #[test]
     fn unknown_event_is_not_an_editor_execution_context() {
         let src = "when BOGUS_EVENT {\n  pool /Common/inert\n}\nwhen HTTP_REQUEST {}";
-        assert_eq!(scan_file_events(src, D), ["HTTP_REQUEST"]);
-        assert_eq!(find_enclosing_when_event(src, 1, D), None);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), ["HTTP_REQUEST"]);
+        assert_eq!(find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)), None);
     }
 
     #[test]
@@ -184,13 +184,13 @@ mod tests {
             "when SERVER_DATA priority 20 timing disable {}\n",
             "when HTTP_RESPONSE timing on priority 20 {}\n",
         );
-        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA", "SERVER_DATA"]);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), ["CLIENT_DATA", "SERVER_DATA"]);
     }
 
     #[test]
     fn case_and_unavailable_apply_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
-        assert!(scan_file_events(src, D).is_empty());
+        assert!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)).is_empty());
     }
 
     #[test]
@@ -199,10 +199,10 @@ mod tests {
                    rename when event\n\
                    event HTTP_REQUEST { set x 1 }\n\
                    ::when CLIENT_DATA { set y 1 }\n";
-        assert_eq!(scan_file_events(src, D), ["CLIENT_DATA"]);
-        assert_eq!(find_enclosing_when_event(src, 2, D), None);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), ["CLIENT_DATA"]);
+        assert_eq!(find_enclosing_when_event(src, 2, tcl_dialect::DialectProfile::by_name(D)), None);
         assert_eq!(
-            find_enclosing_when_event(src, 3, D),
+            find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)),
             Some("CLIENT_DATA".to_owned())
         );
     }
@@ -211,7 +211,7 @@ mod tests {
     fn top_level_after_close_has_no_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nset top 1\n";
         // Line 3 sits past the closing brace — back at the top level.
-        assert_eq!(find_enclosing_when_event(src, 3, D), None);
+        assert_eq!(find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)), None);
     }
 
     #[test]
@@ -220,7 +220,7 @@ mod tests {
         // the `when … {` line is already "inside".
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 0, D),
+            find_enclosing_when_event(src, 0, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -229,7 +229,7 @@ mod tests {
     fn cursor_inside_body_reports_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 1, D),
+            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -238,7 +238,7 @@ mod tests {
     fn event_name_is_uppercased() {
         let src = "when http_request {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 1, D),
+            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -251,12 +251,12 @@ mod tests {
             "when HTTP_REQUEST {\n    when CLIENT_DATA {\n        set y 2\n    }\n    set x 1\n}\n";
         // Line 2 sits inside the nested CLIENT_DATA body.
         assert_eq!(
-            find_enclosing_when_event(src, 2, D),
+            find_enclosing_when_event(src, 2, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
         // Line 4 is in the outer body, past the nested block's close.
         assert_eq!(
-            find_enclosing_when_event(src, 4, D),
+            find_enclosing_when_event(src, 4, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -265,7 +265,7 @@ mod tests {
     fn scan_collects_all_events_sorted_deduped() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nwhen RULE_INIT {\n    set y 2\n}\nwhen HTTP_REQUEST {\n    set z 3\n}\n";
         assert_eq!(
-            scan_file_events(src, D),
+            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
             vec!["HTTP_REQUEST".to_string(), "RULE_INIT".to_string()]
         );
     }
@@ -273,23 +273,23 @@ mod tests {
     #[test]
     fn scan_ignores_nested_when_words() {
         let src = "when HTTP_REQUEST {\n    if {1} {\n        when CLIENT_DATA { log local0. x }\n    }\n}\n";
-        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), vec!["HTTP_REQUEST".to_string()]);
     }
 
     #[test]
     fn rooted_nested_when_stays_in_outer_event_context() {
         let src = "::when http_request {\n  if {1} {\n    :::when client_data {\n      log local0. x\n    }\n  }\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 3, D),
+            find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)),
             Some("HTTP_REQUEST".to_string())
         );
-        assert_eq!(scan_file_events(src, D), vec!["HTTP_REQUEST".to_string()]);
+        assert_eq!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)), vec!["HTTP_REQUEST".to_string()]);
     }
 
     #[test]
     fn empty_source_is_top_level() {
-        assert_eq!(find_enclosing_when_event("", 0, D), None);
-        assert!(scan_file_events("", D).is_empty());
+        assert_eq!(find_enclosing_when_event("", 0, tcl_dialect::DialectProfile::by_name(D)), None);
+        assert!(scan_file_events("", tcl_dialect::DialectProfile::by_name(D)).is_empty());
     }
 
     /// Regression coverage for issue #996: top-level boundary discovery must
@@ -309,8 +309,8 @@ mod tests {
         }
         src.push_str("}\n");
 
-        let _ = find_enclosing_when_event(&src, 1, D);
-        let _ = scan_file_events(&src, D);
+        let _ = find_enclosing_when_event(&src, 1, tcl_dialect::DialectProfile::by_name(D));
+        let _ = scan_file_events(&src, tcl_dialect::DialectProfile::by_name(D));
     }
 
     #[test]
@@ -332,10 +332,10 @@ mod tests {
     #[test]
     fn canonical_irules_profile_and_aliases_build_event_facts() {
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
-            let facts = EventHandlerFacts::new("when HTTP_REQUEST {}", dialect);
+            let facts = EventHandlerFacts::new("when HTTP_REQUEST {}", tcl_dialect::DialectProfile::by_name(dialect));
             assert_eq!(facts.file_events(), ["HTTP_REQUEST"], "{dialect}");
         }
-        let tcl = EventHandlerFacts::new("when HTTP_REQUEST {}", "tcl9.0");
+        let tcl = EventHandlerFacts::new("when HTTP_REQUEST {}", tcl_dialect::DialectProfile::by_name("tcl9.0"));
         assert!(tcl.file_events().is_empty());
     }
 }

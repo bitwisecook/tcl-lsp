@@ -30,7 +30,7 @@ const SRC: &str = "proc myCompare {a b} { expr {$a - $b} }\nproc doSort {items} 
 #[test]
 fn call_graph_has_callback_edge() {
     let reg = CommandRegistry::build_default();
-    let g = graphs::call_graph(SRC, &reg, "tcl9.0");
+    let g = graphs::call_graph(SRC, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -58,7 +58,7 @@ fn find_references_includes_callback_site() {
     let mut a = tcl_compiler::analyser::Analyser::new();
     let r = a.analyse(SRC, "tcl9.0");
     // Cursor on `myCompare` in its definition (line 0, char 6).
-    let refs = tcl_lsp_core::references::references(SRC, "tcl9.0", 0, 6, &r, true);
+    let refs = tcl_lsp_core::references::references(SRC, tcl_dialect::DialectProfile::by_name("tcl9.0"), 0, 6, &r, true);
     assert!(
         refs.iter().any(|rg| rg.start_line == 2),
         "find-references must include the lsort -command callback on line 2; got {refs:?}"
@@ -229,7 +229,7 @@ fn cmd_substitution_with_non_list_head_is_not_recorded_as_prefix() {
 fn namespace_unknown_handler_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
     let src = "proc onUnknown {args} { puts $args }\nproc install {} {\n    namespace unknown onUnknown\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -288,7 +288,7 @@ fn coroprobe_records_reference_but_never_arity_checks() {
     // `coroinject.rs` — so it no longer demonstrates this FP guard.)
     let reg = CommandRegistry::build_default();
     let src = "proc worker {args} { yield }\nproc kick {c} {\n    coroprobe $c worker extra\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -319,7 +319,7 @@ fn coroprobe_records_reference_but_never_arity_checks() {
 fn tcllib_struct_list_split_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
     let src = "proc isEven {n} { expr {$n % 2 == 0} }\nproc part {items} {\n    struct::list split $items isEven evens odds\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -355,7 +355,7 @@ fn tcllib_calculus_func_records_reference_with_fixed_arity() {
 fn tk_scale_command_bareword_head_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
     let src = "proc onScale {v} { puts $v }\nproc build {} {\n    scale .s -command onScale\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -424,7 +424,7 @@ fn tk_scroll_callback_bareword_undefined_head_fires_w123() {
 fn mime_getbody_command_option_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
     let src = "proc onChunk {reason args} { puts $reason }\nproc fetchBody {tok} {\n    mime::getbody $tok -command onChunk\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -462,7 +462,7 @@ fn smtp_tlspolicy_option_fires_w123_only_when_unknown() {
 fn bibtex_recordcommand_option_is_a_callback_edge() {
     let reg = CommandRegistry::build_default();
     let src = "proc saveRecord {token type key data} { }\nproc parseBib {text} {\n    bibtex::parse -recordcommand saveRecord $text\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -477,7 +477,7 @@ fn bibtex_recordcommand_option_is_a_callback_edge() {
 fn halfpipe_write_command_option_records_callback() {
     let reg = CommandRegistry::build_default();
     let src = "proc onWrite {chan bytes} { }\nproc mk {} {\n    tcl::chan::halfpipe -write-command onWrite\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -499,7 +499,7 @@ fn hook_bind_binding_is_a_callback_edge() {
     // word is a command prefix (resolver-driven, Unknown arity).
     let reg = CommandRegistry::build_default();
     let src = "proc onEvent {args} { }\nproc wire {} {\n    hook bind subj myHook obs onEvent\n}\n";
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     let edges = g["edges"].as_array().expect("edges array");
     assert!(
         edges.iter().any(|e| {
@@ -581,7 +581,7 @@ fn struct_graph_walk_command_records_callback_with_arity() {
     // The interprocedural pass now tracks the receiver's object type, so the
     // callback is also a real call-graph edge (build → onNode).
     let reg = CommandRegistry::build_default();
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     assert!(
         g["edges"].as_array().expect("edges").iter().any(|e| {
             e["caller"].as_str().unwrap_or("").contains("build")
@@ -630,7 +630,7 @@ fn struct_tree_walkproc_trailing_prefix_is_recorded() {
     );
     // …and a build→onN call-graph edge via the interprocedural object typing.
     let reg = CommandRegistry::build_default();
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     assert!(
         g["edges"].as_array().expect("edges").iter().any(|e| {
             e["caller"].as_str().unwrap_or("").contains("build")
@@ -694,7 +694,7 @@ fn trace_add_variable_write_list_prefix_is_a_reference() {
     // The reference surfaces every command_invocations-fed consumer reads:
     // find-references anchored at the declaration must reach the trace site.
     let decl_line = 2;
-    let refs = tcl_lsp_core::references::references(src, "tcl9.0", decl_line, 9, &r, true);
+    let refs = tcl_lsp_core::references::references(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), decl_line, 9, &r, true);
     assert!(
         refs.iter().any(|rg| rg.start_line == 3),
         "find-references from the proc declaration must include the \
@@ -703,7 +703,7 @@ fn trace_add_variable_write_list_prefix_is_a_reference() {
 
     // …and the call graph carries the edge, attributed to the enclosing scope.
     let reg = CommandRegistry::build_default();
-    let g = graphs::call_graph(src, &reg, "tcl9.0");
+    let g = graphs::call_graph(src, &reg, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     assert!(
         g["edges"]
             .as_array()

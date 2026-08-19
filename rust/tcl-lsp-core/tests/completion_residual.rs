@@ -79,7 +79,7 @@ fn smoke_completion_binary_exists() {
     let src = "pu\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 2, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 2, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(items.iter().any(|i| i.label == "puts"), "{items:?}");
 }
 
@@ -98,7 +98,7 @@ fn var_brace_trigger_emits_braced_text_edit() {
     // braced form is forced because the user opened a brace).
     let src = "set value 1\nset x ${va\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 9, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 9, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items
         .iter()
         .find(|i| i.label == "$value")
@@ -122,7 +122,7 @@ fn var_completion_replace_range_swallows_existing_braced_reference() {
     let src = "set value 9\nputs ${va}\n";
     let analysis = analyse(src);
     // Cursor between `va` and `}` (col 9, just after `a`).
-    let items = completions(src, 1, 9, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 9, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items
         .iter()
         .find(|i| i.label == "$value")
@@ -145,7 +145,7 @@ fn var_completion_bare_form_forward_scan_over_namespace_segments() {
     let src = "set myvar 3\nputs $myvar\n";
     let analysis = analyse(src);
     // Cursor right after the `$` + `my` (col 8), with `var` still to the right.
-    let items = completions(src, 1, 8, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 8, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items
         .iter()
         .find(|i| i.label == "$myvar")
@@ -169,7 +169,7 @@ fn var_completion_hyphenated_name_forces_brace_form() {
     let src = "set a-b 7\nputs $a\n";
     let analysis = analyse(src);
     // Cursor after `$a` (col 7). Partial `a` matches `a-b`.
-    let items = completions(src, 1, 7, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 7, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items.iter().find(|i| i.label == "$a-b");
     if let Some(v) = v {
         assert_eq!(
@@ -190,7 +190,7 @@ fn var_completion_cross_namespace_offers_qualified_name() {
     let src = "namespace eval ::ns {\n    variable counter 5\n}\nputs $::ns\n";
     let analysis = analyse(src);
     // Cursor after `$::ns` on the last line (col 10).
-    let items = completions(src, 3, 10, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 3, 10, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let q = items
         .iter()
         .find(|i| i.label == "$::ns::counter")
@@ -220,7 +220,7 @@ fn var_brace_forward_scan_handles_nested_braces_and_backslash() {
     let src = "set na 1\nputs ${na{x}\\y}\n";
     let analysis = analyse(src);
     // Cursor right after `${na` (col 9), with `{x}\y}` still to the right.
-    let items = completions(src, 1, 9, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 9, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items.iter().find(|i| i.label == "$na");
     if let Some(v) = v {
         let edit = v.text_edit.as_ref().expect("edit");
@@ -248,7 +248,7 @@ fn var_bare_forward_scan_crosses_namespace_separator() {
     let src = "namespace eval a {\n    variable b 2\n}\nputs $a::b\n";
     let analysis = analyse(src);
     // Cursor right after `$a` (col 7), with `::b` to the right.
-    let items = completions(src, 3, 7, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 3, 7, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     // Whether or not a candidate matches, the call must not panic and the bare
     // scan ran. If `$a::b` is offered, its edit covers through `b`.
     if let Some(v) = items.iter().find(|i| i.label == "$a::b") {
@@ -270,7 +270,7 @@ fn array_element_completion_lists_recorded_indices() {
     let src = "set arr(one) 11\nset arr(two) 22\nputs $arr(\n";
     let analysis = analyse(src);
     // Cursor right after the `(` on line 2 (col 10).
-    let items = completions(src, 2, 10, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 2, 10, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
     assert!(ls.contains(&"$arr(two)"), "{ls:?}");
@@ -293,7 +293,7 @@ fn array_element_completion_filters_by_index_prefix() {
     let src = "set arr(one) 1\nset arr(only) 2\nset arr(two) 3\nputs $arr(o\n";
     let analysis = analyse(src);
     // Cursor after `$arr(o` (col 11).
-    let items = completions(src, 3, 11, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 3, 11, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
     assert!(ls.contains(&"$arr(only)"), "{ls:?}");
@@ -314,7 +314,7 @@ fn array_element_completion_replace_range_swallows_existing_paren() {
     let src = "set arr(one) 11\nputs $arr(on)\n";
     let analysis = analyse(src);
     // Cursor between `on` and `)` (col 11).
-    let items = completions(src, 1, 11, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 11, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     if let Some(one) = items.iter().find(|i| i.label == "$arr(one)") {
         let edit = one.text_edit.as_ref().expect("array edit");
         // `$arr(on)` spans cols 5..13; the edit covers through the `)` (col 13).
@@ -330,7 +330,7 @@ fn array_element_completion_unknown_array_yields_nothing() {
     // an empty vector (no fallthrough to plain var completion).
     let src = "set arr(one) 1\nputs $nope(\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 11, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 11, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(
         items.is_empty(),
         "unknown array completes to nothing: {items:?}",
@@ -352,7 +352,7 @@ fn switch_completion_attaches_replacement_edit_over_dash_partial() {
     let src = "lsearch -n\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 10, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 10, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let opt = items
         .iter()
         .find(|i| i.label == "-nocase")
@@ -378,7 +378,7 @@ fn switch_partial_at_col_zero_is_not_a_switch() {
     let src = "-\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 1, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 1, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     // `-` is in SKIP_BUILTIN_NAMES, so it never surfaces as a command either.
     assert!(
         !labels(&items).contains(&"-"),
@@ -404,7 +404,7 @@ fn http_respond_status_offers_bareword_option_values() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `c` (col 19).
-    let items = completions(src, 0, 19, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 19, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(ls.contains(&"content"), "expected `content`: {ls:?}");
     assert!(
@@ -427,7 +427,7 @@ fn http_respond_status_lists_all_options_with_empty_partial() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor just past the space after the status (col 18).
-    let items = completions(src, 0, 18, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 18, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(ls.contains(&"content"), "{ls:?}");
     assert!(ls.contains(&"noserver"), "{ls:?}");
@@ -447,7 +447,7 @@ fn when_keyword_tail_offers_priority_and_timing() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `t` (col 19).
-    let items = completions(src, 0, 19, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 19, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(ls.contains(&"timing"), "expected `timing` keyword: {ls:?}");
     assert!(
@@ -469,7 +469,7 @@ fn when_timing_value_slot_gated_on_preceding_timing_keyword() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `e` (col 26).
-    let items = completions(src, 0, 26, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 26, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(ls.contains(&"enable"), "expected `enable`: {ls:?}");
     assert!(
@@ -488,7 +488,7 @@ fn when_value_slot_suppressed_after_priority_keyword() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `e` (col 28), arg-index 3 with preceding word `priority`.
-    let items = completions(src, 0, 28, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 28, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(
         !ls.contains(&"enable") && !ls.contains(&"disable"),
@@ -513,7 +513,7 @@ fn string_is_class_completion_uses_subcommand_arg_values() {
     let analysis = analyse(src);
     let reg = registry();
     // Cursor after `al` (col 12).
-    let items = completions(src, 0, 12, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 12, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let ls = labels(&items);
     assert!(ls.contains(&"alnum"), "{ls:?}");
     assert!(ls.contains(&"alpha"), "{ls:?}");
@@ -540,7 +540,7 @@ fn event_name_completion_documents_event_from_registry_props() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `HTTP_R` (col 11).
-    let items = completions(src, 0, 11, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 11, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ev = items
         .iter()
         .find(|i| i.label == "HTTP_REQUEST")
@@ -562,7 +562,7 @@ fn event_name_completion_empty_partial_lists_many_events() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor just past `when ` (col 5).
-    let items = completions(src, 0, 5, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 0, 5, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(
         ls.contains(&"CLIENT_ACCEPTED"),
@@ -589,7 +589,7 @@ fn call_completion_lists_user_procs_under_irules() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Cursor after `call h` (line 2 col 6).
-    let items = completions(src, 2, 6, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 2, 6, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let ls = labels(&items);
     assert!(ls.contains(&"handler"), "{ls:?}");
     assert!(ls.contains(&"helper"), "{ls:?}");
@@ -621,7 +621,7 @@ fn workspace_proc_detail_uses_singular_for_one_param() {
     let index =
         WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
     // Partial `x` on line 1 → both cross-doc procs surface.
-    let items = completions(cur_src, 1, 1, &cur, None, Some(&index), "tcl8.6");
+    let items = completions(cur_src, 1, 1, &cur, None, Some(&index), tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let one = items
         .iter()
         .find(|i| i.label == "xone")
@@ -658,7 +658,7 @@ fn workspace_proc_zero_params_is_plural() {
     let other = analyse("proc znoop {} {}\n");
     let index =
         WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
-    let items = completions(cur_src, 1, 1, &cur, None, Some(&index), "tcl8.6");
+    let items = completions(cur_src, 1, 1, &cur, None, Some(&index), tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let noop = items.iter().find(|i| i.label == "znoop");
     if let Some(noop) = noop {
         assert_eq!(
@@ -678,7 +678,7 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
     let other = analyse("proc shared {} {}\nproc shore {} {}\n");
     let index =
         WorkspaceIndex::from_documents([("file:///cur.tcl", &cur), ("file:///other.tcl", &other)]);
-    let items = completions(cur_src, 1, 2, &cur, None, Some(&index), "tcl8.6");
+    let items = completions(cur_src, 1, 2, &cur, None, Some(&index), tcl_dialect::DialectProfile::by_name("tcl8.6"));
     // `shared` appears exactly once (the local copy).
     assert_eq!(
         items.iter().filter(|i| i.label == "shared").count(),
@@ -710,7 +710,7 @@ fn qualified_global_var_completes_in_bare_form() {
     let src = "set ::gvar 4\nputs $::g\n";
     let analysis = analyse(src);
     // Cursor after `$::g` (col 8).
-    let items = completions(src, 1, 8, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 8, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let v = items
         .iter()
         .find(|i| i.label == "$gvar" || i.label == "$::gvar");
@@ -737,7 +737,7 @@ fn irules_dialect_runs_event_segmentation_for_snippets() {
     let analysis = analyse(src);
     let reg = irules_registry();
     // Partial `irule` at top level on line 2 (col 5).
-    let items = completions(src, 2, 5, &analysis, Some(&reg), None, "f5-irules");
+    let items = completions(src, 2, 5, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("f5-irules"));
     let snippet_labels: Vec<&str> = items
         .iter()
         .filter(|i| i.label.starts_with("iRule"))
@@ -760,7 +760,7 @@ fn plain_tcl_dialect_skips_irules_event_segmentation() {
     let src = "irule";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 5, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 5, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(
         !items.iter().any(|i| i.label.starts_with("iRule")),
         "no iRule snippets outside f5-irules: {:?}",
@@ -783,7 +783,7 @@ fn proc_completion_renders_param_signature_detail() {
     // so `name` is required and `greeting` defaults to `hi` — both real.
     let src = "proc greet {name {greeting hi}} {}\ngr\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 2, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 2, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let greet = items
         .iter()
         .find(|i| i.label == "greet")
@@ -807,7 +807,7 @@ fn proc_completion_paramless_detail_is_no_args() {
     //   tclsh8.6/9.0: `proc noop {} {};llength [info args noop]` → 0
     let src = "proc noop {} {}\nno\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 2, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 2, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let noop = items.iter().find(|i| i.label == "noop").expect("noop");
     assert_eq!(noop.detail.as_deref(), Some("(no args)"), "{noop:?}");
 }
@@ -819,7 +819,7 @@ fn proc_completion_variadic_detail_includes_args() {
     //   tclsh8.6/9.0: `proc va {first args} {};info args va` → first args
     let src = "proc va {first args} {}\nv\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 1, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 1, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let va = items.iter().find(|i| i.label == "va").expect("va");
     let detail = va.detail.as_deref().unwrap_or("");
     assert!(detail.contains("first"), "{detail:?}");
@@ -839,7 +839,7 @@ fn no_matching_command_or_proc_yields_no_symbols() {
     let src = "zzqxnope\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 8, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 8, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(
         items.iter().all(|i| i.kind == CompletionKind::Snippet),
         "only snippets may match an unknown prefix: {:?}",
@@ -857,7 +857,7 @@ fn command_context_in_leading_indent_falls_through_cleanly() {
     let analysis = analyse(src);
     let reg = registry();
     // Cursor at col 1 — inside the 3-space indent, before `he`.
-    let items = completions(src, 1, 1, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 1, 1, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     // Empty partial at this point → the fallback lists symbols (the user proc
     // among them). No crash, and `helper` is reachable.
     assert!(
@@ -874,7 +874,7 @@ fn empty_array_name_yields_no_array_completion() {
     // vector without panicking (exercises the empty-name guard).
     let src = "set arr(one) 1\nputs $(\n";
     let analysis = analyse(src);
-    let items = completions(src, 1, 7, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 1, 7, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(items.is_empty(), "empty array name → nothing: {items:?}");
 }
 
@@ -883,7 +883,7 @@ fn variable_trigger_out_of_bounds_line_does_not_panic() {
     // A `$` completion request on a line index past EOF must return cleanly.
     let src = "set x 1\n";
     let analysis = analyse(src);
-    let items = completions(src, 99, 0, &analysis, None, None, "tcl8.6");
+    let items = completions(src, 99, 0, &analysis, None, None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert!(items.is_empty() || items.iter().all(|i| i.kind == CompletionKind::Snippet));
 }
 
@@ -896,7 +896,7 @@ fn builtin_documentation_carries_registry_summary() {
     let src = "put\n";
     let analysis = analyse(src);
     let reg = registry();
-    let items = completions(src, 0, 3, &analysis, Some(&reg), None, "tcl8.6");
+    let items = completions(src, 0, 3, &analysis, Some(&reg), None, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let puts = items
         .iter()
         .find(|i| i.label == "puts")

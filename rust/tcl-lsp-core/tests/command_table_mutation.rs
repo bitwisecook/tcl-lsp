@@ -90,7 +90,7 @@ fn start_lines(ranges: &[LspRange]) -> Vec<u32> {
 /// review, P2).
 fn lens_count(source: &str, qname: &str) -> usize {
     let analysis = analyse(source);
-    let title = tcl_lsp_core::code_lens::code_lenses(source, "tcl9.0", Some(&analysis), None, "")
+    let title = tcl_lsp_core::code_lens::code_lenses(source, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "")
         .into_iter()
         .find(|lens| lens.qname == qname)
         .map_or_else(|| panic!("no lens for {qname}"), |lens| lens.command_title);
@@ -106,7 +106,7 @@ fn refs(source: &str) -> impl Fn(u32, u32) -> Vec<u32> + '_ {
     let analysis = analyse(source);
     move |line, character| {
         let mut lines = start_lines(&references(
-            source, "tcl9.0", line, character, &analysis, true,
+            source, tcl_dialect::DialectProfile::by_name("tcl9.0"), line, character, &analysis, true,
         ));
         lines.sort_unstable();
         lines
@@ -332,7 +332,7 @@ fn tn_lens_count_on_the_shadowed_original_is_zero() {
 fn tn_rename_of_the_shadowed_original_does_not_touch_the_call_site() {
     let src = ALIAS_SHADOW_SRC;
     let analysis = analyse(src);
-    let edits = tcl_lsp_core::rename::rename(src, "tcl9.0", 2, 12, "newname", &analysis, None);
+    let edits = tcl_lsp_core::rename::rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 2, 12, "newname", &analysis, None);
     assert_eq!(
         edits.iter().map(|e| e.range.start_line).collect::<Vec<_>>(),
         vec![2],
@@ -347,7 +347,7 @@ fn tn_rename_of_the_shadowed_original_does_not_touch_the_call_site() {
 fn tp_rename_of_the_alias_target_rewrites_the_declaration_and_alias_word() {
     let src = ALIAS_SHADOW_SRC;
     let analysis = analyse(src);
-    let edits = tcl_lsp_core::rename::rename(src, "tcl9.0", 3, 12, "classicbox", &analysis, None);
+    let edits = tcl_lsp_core::rename::rename(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), 3, 12, "classicbox", &analysis, None);
     assert_eq!(
         edits.iter().map(|e| e.range.start_line).collect::<Vec<_>>(),
         vec![3, 4],

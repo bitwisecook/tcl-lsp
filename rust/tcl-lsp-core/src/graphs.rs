@@ -38,7 +38,6 @@ use tcl_compiler::taint::{
     is_irules_dialect,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
-use tcl_dialect::DialectProfile;
 use tcl_lexer::{LineIndex, Span};
 use tcl_registry::CommandRegistry;
 
@@ -244,8 +243,8 @@ fn count_namespaces(scope: &Scope, depth: u32) -> usize {
 /// Build the full symbol-graph payload: scope hierarchy with proc/variable
 /// references, proc call-site index, package requirements, and a summary.
 #[must_use]
-pub fn symbol_graph(source: &str, dialect: &str) -> Value {
-    let result = Analyser::new().analyse(source, dialect);
+pub fn symbol_graph(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+    let result = Analyser::new().analyse(source, dialect.name);
     let line_index = LineIndex::new(source);
 
     let scopes = vec![scope_to_value(
@@ -445,11 +444,11 @@ fn build_nodes(
 
 /// Build the full call-graph payload.
 #[must_use]
-pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
+pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
     // Build the full compilation unit (via `ensure_compilation_unit`) so the
     // interprocedural pass sees the same lowered IR — raw `lower_to_ir` alone
     // does not surface nested `[cmd …]` call sites to the call scanner.
-    let profile = DialectProfile::by_name(dialect);
+    let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
     let ir_module = &cu.ir_module;
@@ -457,7 +456,7 @@ pub fn call_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Va
         .interproc
         .as_ref()
         .expect("with_interprocedural populates the summary");
-    let analysis = Analyser::new().analyse(source, dialect);
+    let analysis = Analyser::new().analyse(source, dialect.name);
     let line_index = LineIndex::new(source);
 
     // Proc qnames in sorted order (iterates the summary dict, which is
@@ -559,7 +558,7 @@ struct TaintWarnCtx<'a> {
     /// The analysis dialect's command registry.
     registry: &'a CommandRegistry,
     /// The dialect string (drives iRules-only warning families + octal reads).
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     /// Namespace-scoped proc names that shadow builtins for their namespace.
     shadow_proc_qnames: &'a std::collections::HashSet<&'a str>,
     /// Whole-module variable-trace facts.
@@ -593,7 +592,7 @@ fn collect_taint_warnings(
         module_traces,
         line_index,
     } = ctx;
-    let profile = DialectProfile::by_name(dialect);
+    let profile = dialect;
     let mut push = |code: &str, span: Span, message: &str, variable: &str, sink: &str| {
         out.push(json!({
             "code": code,
@@ -763,8 +762,8 @@ fn tainted_var_names(fu: &FunctionUnit) -> Vec<&str> {
 
 /// Build the dataflow / taint graph payload.
 #[must_use]
-pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let profile = DialectProfile::by_name(dialect);
+pub fn dataflow_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+    let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
     let line_index = LineIndex::new(source);
@@ -928,7 +927,7 @@ fn function_dataflow_json(f: &tcl_compiler::dataflow_graph::FunctionDataFlowGrap
 /// counts, lattice values, types), def→use edges, and memory-SSA alias info.
 /// The top-level scope is included first, then each procedure.
 #[must_use]
-pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
+pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
     fn build_inputs(fu: &FunctionUnit) -> FunctionInputs<'_> {
         FunctionInputs {
             name: fu.name.as_str(),
@@ -940,7 +939,7 @@ pub fn def_use_graph(source: &str, registry: &CommandRegistry, dialect: &str) ->
         }
     }
 
-    let profile = DialectProfile::by_name(dialect);
+    let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile));
 
@@ -1009,8 +1008,8 @@ fn memory_function_json(
 /// analysis proved may refer to the same storage, via `upvar` / `global` /
 /// `variable`) with the reason and locations, plus memory-op counts.
 #[must_use]
-pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let profile = DialectProfile::by_name(dialect);
+pub fn memory_alias_graph(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+    let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))
         .with_memory_ssa(registry, profile.availability_mask);
@@ -1072,7 +1071,7 @@ mod tests {
         for _ in 0..DEPTH {
             source.push_str("}\n");
         }
-        let graph = symbol_graph(&source, "tcl8.6");
+        let graph = symbol_graph(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert!(graph.get("scopes").is_some());
     }
 }

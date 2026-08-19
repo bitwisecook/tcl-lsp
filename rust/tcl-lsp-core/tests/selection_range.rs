@@ -197,7 +197,7 @@ fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
         ),
     ];
     for (source, line, character, start, end, dialect) in cases {
-        let links = selection_range_for_dialect(source, line, character, None, dialect);
+        let links = selection_range_for_dialect(source, line, character, None, tcl_dialect::DialectProfile::by_name(dialect));
         assert!(
             links.iter().any(|link| {
                 link.range.start_line == line
@@ -221,7 +221,7 @@ fn alias_to_user_proc_named_method_does_not_recurse_into_data() {
     // member declaration. A registry member spelling alone cannot prove the
     // target owns the surrounding definition body.
     let source = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
-    let links = selection_range_for_dialect(source, 7, 15, None, "tcl9.0");
+    let links = selection_range_for_dialect(source, 7, 15, None, tcl_dialect::DialectProfile::by_name("tcl9.0"));
     assert!(
         !links.iter().any(|link| {
             link.range.start_line == 7

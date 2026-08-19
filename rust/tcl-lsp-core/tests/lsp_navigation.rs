@@ -506,7 +506,7 @@ fn declaration_var_jumps_to_global_statement_not_the_set() {
     let src = "set counter 0\nproc bump {} {\n    global counter\n    incr counter\n    puts $counter\n}\n";
     let analysis = analyse(src);
     // Cursor on `$counter` (line 4).
-    let locs = declaration(src, 4, 11, "tcl8.6", &analysis, &reg());
+    let locs = declaration(src, 4, 11, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
     assert!(
         start_lines(&locs).contains(&2),
         "go-to-declaration must reach `global counter` on line 2; got {locs:?}",
@@ -522,7 +522,7 @@ fn declaration_var_jumps_to_variable_statement_in_namespace() {
     let src = "namespace eval ns {\n    variable config 1\n    proc get {} {\n        variable config\n        return $config\n    }\n}\n";
     let analysis = analyse(src);
     // Cursor on `$config` (line 4).
-    let locs = declaration(src, 4, 16, "tcl8.6", &analysis, &reg());
+    let locs = declaration(src, 4, 16, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
     assert!(
         !locs.is_empty(),
         "a `variable config` declaration should be reachable; got {locs:?}",
@@ -543,7 +543,7 @@ fn declaration_var_jumps_to_upvar_alias_site() {
     let src = "proc wrap {} {\n    upvar 1 other local\n    return $local\n}\n";
     let analysis = analyse(src);
     // Cursor on `$local` (line 2).
-    let locs = declaration(src, 2, 12, "tcl8.6", &analysis, &reg());
+    let locs = declaration(src, 2, 12, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
     assert_eq!(locs.len(), 1, "{locs:?}");
     assert_eq!(
         locs[0].start_line, 1,
@@ -560,7 +560,7 @@ fn declaration_non_variable_falls_back_to_definition() {
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
     // Cursor on the `greet` call (line 1).
-    let decl = declaration(src, 1, 2, "tcl8.6", &analysis, &reg());
+    let decl = declaration(src, 1, 2, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg());
     let def = definition(src, 1, 2, &analysis);
     assert_eq!(decl.len(), 1, "{decl:?}");
     assert_eq!(
@@ -578,10 +578,10 @@ fn declaration_non_variable_falls_back_to_definition() {
 fn declaration_out_of_range_and_empty_file_do_not_panic() {
     let src = "set x 1\nputs $x\n";
     let analysis = analyse(src);
-    assert!(declaration(src, 99, 0, "tcl8.6", &analysis, &reg()).is_empty());
-    assert!(declaration(src, 0, 999, "tcl8.6", &analysis, &reg()).is_empty());
+    assert!(declaration(src, 99, 0, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg()).is_empty());
+    assert!(declaration(src, 0, 999, tcl_dialect::DialectProfile::by_name("tcl8.6"), &analysis, &reg()).is_empty());
     let empty = analyse("");
-    assert!(declaration("", 0, 0, "tcl8.6", &empty, &reg()).is_empty());
+    assert!(declaration("", 0, 0, tcl_dialect::DialectProfile::by_name("tcl8.6"), &empty, &reg()).is_empty());
 }
 
 // ===========================================================================

@@ -169,13 +169,13 @@ pub struct DocumentSymbol {
 ///
 /// Runs the Rust analyser internally and walks its scope tree.
 #[must_use]
-pub fn document_symbols(source: &str, dialect: &str) -> Vec<DocumentSymbol> {
+pub fn document_symbols(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<DocumentSymbol> {
     if source.is_empty() {
         return Vec::new();
     }
 
     let mut analyser = Analyser::new();
-    let analysis = analyser.analyse(source, dialect);
+    let analysis = analyser.analyse(source, dialect.name);
     document_symbols_from_analysis(source, &analysis)
 }
 
@@ -816,7 +816,7 @@ mod tests {
             "    destructor { cleanup }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let ctor = find(&symbols, "constructor").expect("constructor symbol");
         // The keyword sits at line 1, columns 4..15.
         assert_eq!(ctor.selection_range.start_line, 1);
@@ -840,7 +840,7 @@ mod tests {
         // scope is keyed by its qualified name while `proc_def.name` is the
         // bare tail (issue 185).
         let source = "proc ns::outer {} { proc inner {} {} }\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let inner = find(&symbols, "inner").expect("nested inner proc must be listed");
         assert_eq!(inner.kind, SymbolKind::Function);
         // It is a *child* of the outer proc, not a top-level symbol.
@@ -863,7 +863,7 @@ mod tests {
             "proc ::a:::b {} {}\n",
             "proc foo::: {} {}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = flat(&symbols);
         assert!(names.iter().any(|(name, _)| name == "q"), "{names:?}");
         assert!(names.iter().any(|(name, _)| name == ":"), "{names:?}");
@@ -883,7 +883,7 @@ mod tests {
             "namespace import ::tcltest::*\n",
             "test my-case-1 {verifies the widget} -body { set x 1 } -result 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let sym = find(&symbols, "my-case-1").expect("test name should be a symbol");
         assert_eq!(sym.kind, SymbolKind::Test);
         assert_eq!(sym.detail.as_deref(), Some("verifies the widget"));
@@ -897,7 +897,7 @@ mod tests {
             "package require tcltest\n",
             "tcltest::test qualified-1 {desc} -body { expr 1 } -result 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(names.contains(&"qualified-1"), "got {names:?}");
     }
@@ -910,7 +910,7 @@ mod tests {
             "package require tcltest\n",
             "tcltest::test legacy-1 {desc} { set x 1 } 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(names.contains(&"legacy-1"), "got {names:?}");
     }
@@ -924,7 +924,7 @@ mod tests {
             "set name resolved-1.1\n",
             "tcltest::test $name {desc} -body { set x 1 } -result 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(
             names.contains(&"resolved-1.1"),
@@ -944,7 +944,7 @@ mod tests {
             "package require tcltest\n",
             "tcltest::test $undefined {desc} -body { set x 1 } -result 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(
             !names
@@ -959,7 +959,7 @@ mod tests {
         // FP-guard: a bare `test` with no tcltest import is an ordinary unknown
         // user command, not a tcltest case — it must NOT list as a symbol.
         let source = "test not-a-tcltest-case {desc} { set x 1 } 1\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(
             !names.contains(&"not-a-tcltest-case"),
@@ -972,7 +972,7 @@ mod tests {
         // TN: `set test 5` defines a *variable* named `test`; it must list as a
         // Variable, never as a Test case.
         let source = "set test 5\n";
-        let kinds = flat(&document_symbols(source, "tcl8.6"));
+        let kinds = flat(&document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6")));
         assert!(
             kinds
                 .iter()
@@ -988,7 +988,7 @@ mod tests {
     #[test]
     fn tn_plain_proc_file_has_no_test_symbols() {
         // TN: a file with only a proc yields no Test symbols at all.
-        let kinds = flat(&document_symbols("proc greet {} { return 1 }\n", "tcl8.6"));
+        let kinds = flat(&document_symbols("proc greet {} { return 1 }\n", tcl_dialect::DialectProfile::by_name("tcl8.6")));
         assert!(
             !kinds.iter().any(|(_, k)| *k == SymbolKind::Test),
             "plain proc file must have no Test symbols, got {kinds:?}"
@@ -1005,7 +1005,7 @@ mod tests {
             "    tcltest::test suite-1 {desc} -body { set x 1 } -result 1\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let ns = find(&symbols, "suite").expect("namespace symbol");
         assert_eq!(ns.kind, SymbolKind::Namespace);
         assert!(
@@ -1029,7 +1029,7 @@ mod tests {
             "proc test {args} {}\n",
             "test not-a-case\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let kinds = flat(&symbols);
         assert!(
             kinds.contains(&("test".to_string(), SymbolKind::Function)),
@@ -1055,7 +1055,7 @@ mod tests {
             "proc test {args} {}\n",
             "tcltest::test real-1 {desc} -body { set x 1 } -result 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(
             names.contains(&"real-1"),
@@ -1072,7 +1072,7 @@ mod tests {
             "namespace import ::tcltest::*\n",
             "testConstraint needsRoot 1\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let sym = find(&symbols, "needsRoot").expect("constraint should be a symbol");
         assert_eq!(sym.kind, SymbolKind::Constant);
         assert_eq!(sym.detail.as_deref(), Some("1"));
@@ -1087,7 +1087,7 @@ mod tests {
             "namespace import ::tcltest::*\n",
             "testConstraint needsRoot\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(
             !names.contains(&"needsRoot"),
@@ -1103,7 +1103,7 @@ mod tests {
             "package require tcltest\n",
             "tcltest::customMatch dictMatch ::my::dictComparer\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let sym = find(&symbols, "dictMatch").expect("match mode should be a symbol");
         assert_eq!(sym.kind, SymbolKind::Operator);
         assert_eq!(sym.detail.as_deref(), Some("::my::dictComparer"));
@@ -1120,7 +1120,7 @@ mod tests {
             "customMatch approx ::approxEq\n",
             "test t-1 {desc} -body { set x 1 } -result 1\n",
         );
-        let kinds = flat(&document_symbols(source, "tcl8.6"));
+        let kinds = flat(&document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6")));
         assert!(
             kinds.contains(&("slow".to_string(), SymbolKind::Constant)),
             "{kinds:?}"
@@ -1144,7 +1144,7 @@ mod tests {
             "test alpha-1 {a} -body { set x 1 } -result 1\n",
             "test beta-2 {b} -body { set y 2 } -result 2\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let names = names(&symbols);
         assert!(names.contains(&"alpha-1"), "got {names:?}");
         assert!(names.contains(&"beta-2"), "got {names:?}");
@@ -1152,13 +1152,13 @@ mod tests {
 
     #[test]
     fn empty_source_yields_no_symbols() {
-        assert!(document_symbols("", "tcl8.6").is_empty());
+        assert!(document_symbols("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
     }
 
     #[test]
     fn single_proc_emits_function_symbol() {
         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].name, "greet");
         assert_eq!(symbols[0].kind, SymbolKind::Function);
@@ -1168,7 +1168,7 @@ mod tests {
     #[test]
     fn proc_with_default_param_renders_brace_form() {
         let source = "proc greet {name {greeting Hello}} {\n    puts \"$greeting $name\"\n}\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         assert_eq!(
             symbols[0].detail.as_deref(),
@@ -1184,7 +1184,7 @@ mod tests {
         // the E201 recovery ghost `]` only closes the bracket because a
         // recovery ghost is an unconditional closer.
         let source = "set x [foo abc\"\nproc recovered_after_midword {} {}\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert!(
             names(&symbols).contains(&"recovered_after_midword"),
             "tail proc not recovered: {:?}",
@@ -1195,7 +1195,7 @@ mod tests {
     #[test]
     fn multiple_procs_emit_one_symbol_each() {
         let source = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let mut got = names(&symbols);
         got.sort_unstable();
         assert_eq!(got, vec!["bar", "foo"]);
@@ -1203,7 +1203,7 @@ mod tests {
 
     #[test]
     fn proc_with_no_params_renders_empty_parens() {
-        let symbols = document_symbols("proc nop {} { return }\n", "tcl8.6");
+        let symbols = document_symbols("proc nop {} { return }\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         assert_eq!(symbols[0].detail.as_deref(), Some("()"));
     }
@@ -1240,7 +1240,7 @@ mod tests {
         std::thread::Builder::new()
             .stack_size(STACK_SIZE)
             .spawn(move || {
-                let symbols = document_symbols(&source, "tcl8.6");
+                let symbols = document_symbols(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
                 assert!(!symbols.is_empty());
             })
             .unwrap()
@@ -1251,7 +1251,7 @@ mod tests {
     #[test]
     fn proc_symbol_range_contains_selection_range() {
         let source = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         let proc = &symbols[0];
         assert!(
@@ -1271,7 +1271,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         let ns = &symbols[0];
         assert_eq!(ns.name, "myns");
@@ -1290,7 +1290,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         let outer = &symbols[0];
         assert_eq!(outer.name, "outer");
@@ -1310,7 +1310,7 @@ mod tests {
 
     #[test]
     fn global_set_emits_variable_symbol() {
-        let symbols = document_symbols("set myvar 42\n", "tcl8.6");
+        let symbols = document_symbols("set myvar 42\n", tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let vars: Vec<&DocumentSymbol> = symbols
             .iter()
             .filter(|s| s.kind == SymbolKind::Variable)
@@ -1327,7 +1327,7 @@ mod tests {
             "    method fetch {item} { return $item }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(symbols.len(), 1);
         let cls = &symbols[0];
         assert_eq!(cls.name, "Dog");
@@ -1355,7 +1355,7 @@ mod tests {
             "    method fetch {item} { return $item }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl9.0");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         let cls = &symbols[0];
         let method_names: Vec<&str> = cls
             .children
@@ -1375,7 +1375,7 @@ mod tests {
             "    constructor {name} { set n $name }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let cls = &symbols[0];
         let ctor: Vec<&DocumentSymbol> = cls
             .children
@@ -1398,7 +1398,7 @@ mod tests {
             "    property x y\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let cls = &symbols[0];
         let prop_names: Vec<&str> = cls
             .children
@@ -1413,7 +1413,7 @@ mod tests {
     #[test]
     fn oo_class_detail_lists_superclass() {
         let source = concat!("oo::class create Dog {\n", "    superclass Animal\n", "}\n",);
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let detail = symbols[0].detail.as_deref().unwrap_or("");
         assert!(
             detail.contains(": Animal"),
@@ -1428,7 +1428,7 @@ mod tests {
             "    method area {} {}\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let detail = symbols[0].detail.as_deref().unwrap_or("");
         assert!(
             detail.contains("oo::abstract"),
@@ -1443,7 +1443,7 @@ mod tests {
             "    classmethod count {} { return 0 }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let cls = &symbols[0];
         let method = cls
             .children
@@ -1489,7 +1489,7 @@ mod tests {
             ),
         ] {
             for dialect in ["tcl8.6", "tcl9.0"] {
-                let symbols = document_symbols(source, dialect);
+                let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
                 let cls = &symbols[0];
                 let make = cls
                     .children
@@ -1530,7 +1530,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl9.0");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         let make = symbols[0]
             .children
             .iter()
@@ -1556,7 +1556,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl9.0");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         let names: Vec<&str> = symbols[0]
             .children
             .iter()
@@ -1589,7 +1589,7 @@ mod tests {
             "}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let symbols = document_symbols(source, dialect);
+            let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
             let names: Vec<&str> = symbols[0]
                 .children
                 .iter()
@@ -1614,7 +1614,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl9.0");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         assert!(
             symbols[0].children.iter().any(|c| c.name == "a"),
             "export/unexport must not drop the outline entry",
@@ -1652,7 +1652,7 @@ mod tests {
             ),
         ] {
             for dialect in ["tcl8.6", "tcl9.0"] {
-                let symbols = document_symbols(source, dialect);
+                let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
                 let names: Vec<&str> = symbols[0]
                     .children
                     .iter()
@@ -1680,7 +1680,7 @@ mod tests {
             "}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let members = &document_symbols(source, dialect)[0].children;
+            let members = &document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect))[0].children;
             let mut names: Vec<&str> = members.iter().map(|c| c.name.as_str()).collect();
             names.sort_unstable();
             assert_eq!(names, ["kept", "new"], "{dialect}");
@@ -1718,7 +1718,7 @@ mod tests {
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
             assert!(
-                document_symbols(source, dialect)[0]
+                document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect))[0]
                     .children
                     .iter()
                     .any(|c| c.name == "cm"),
@@ -1742,7 +1742,7 @@ mod tests {
             "}\n",
         );
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let symbols = document_symbols(source, dialect);
+            let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name(dialect));
             let details: Vec<Option<&str>> = symbols[0]
                 .children
                 .iter()
@@ -1774,7 +1774,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl9.0");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
         let secret = symbols[0]
             .children
             .iter()
@@ -1823,7 +1823,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let ns = find(&symbols, "::myns").expect("namespace symbol");
         assert_eq!(
             (
@@ -1876,7 +1876,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         check(&symbols);
         let outer = find(&symbols, "outer").expect("outer namespace");
         assert_eq!(
@@ -1929,7 +1929,7 @@ mod tests {
                    proc ::$wtype {args} {return wrapped}\n    \
                    }\n\
                    }\n";
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let all = flat(&symbols);
         assert!(
             !all.iter().any(|(name, _)| name.contains('$')),
@@ -1946,7 +1946,7 @@ mod tests {
         // showed an empty (or missing) signature instead of the real
         // `(args)` one.
         let src = "::tcl::OptProc greet {child -use -display} { return $child }\n";
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let greet = find(&symbols, "greet").expect("greet symbol");
         assert_eq!(greet.detail.as_deref(), Some("(args)"), "{greet:?}");
     }
@@ -1966,7 +1966,7 @@ mod tests {
             "    HTTP::header insert X-Served-By $host\n",
             "}\n",
         );
-        let symbols = document_symbols(src, IRULES);
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES));
         assert_eq!(names(&symbols), vec!["HTTP_REQUEST", "HTTP_RESPONSE"]);
         assert!(
             symbols.iter().all(|s| s.kind == SymbolKind::Event),
@@ -1983,7 +1983,7 @@ mod tests {
             "rename when old_when\n",
             "::when CLIENT_DATA {}\n",
         );
-        let symbols = document_symbols(src, IRULES);
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES));
         assert_eq!(
             symbols
                 .iter()
@@ -1997,7 +1997,7 @@ mod tests {
     #[test]
     fn event_handler_range_spans_the_body_and_selects_the_event_name() {
         let src = "when HTTP_REQUEST {\n    set host [HTTP::host]\n}\n";
-        let symbols = document_symbols(src, IRULES);
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES));
         let handler = &symbols[0];
         // Selection is the event name on line 0; the range reaches the
         // closing brace so the outline can fold (and stick) the handler.
@@ -2017,7 +2017,7 @@ mod tests {
             "    set inner 2\n",
             "}\n",
         );
-        let symbols = document_symbols(src, IRULES);
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES));
         assert_eq!(names(&symbols), vec!["global_one", "HTTP_REQUEST"]);
         let handler = find(&symbols, "HTTP_REQUEST").expect("handler");
         assert_eq!(names(&handler.children), vec!["inner"]);
@@ -2034,7 +2034,7 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let symbols = document_symbols(src, IRULES);
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES));
         assert_eq!(names(&symbols), vec!["CLIENT_ACCEPTED"]);
         let outer = &symbols[0];
         assert!(
@@ -2059,7 +2059,7 @@ mod tests {
              when CLIENT_DATA bare_body\n\
              when SERVER_DATA \"quoted body\"\n\
              when HTTP_REQUEST {}",
-            IRULES,
+            tcl_dialect::DialectProfile::by_name(IRULES),
         );
         let all = flat(&symbols);
         assert!(
@@ -2097,7 +2097,7 @@ mod tests {
             "    variable v 1\n",
             "}\n",
         );
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(names(&symbols), vec!["greet", "top", "ns"]);
         // `msg` is proc-local, so it is not an outline symbol at all — and
         // `greet` must not swallow `top` or `ns`, which sit outside it.
@@ -2110,7 +2110,7 @@ mod tests {
         // `when $evt { … }` has no statically-known event; the definer walk
         // skips a non-constant name rather than listing `$evt`.
         let src = "set evt HTTP_REQUEST\nwhen $evt {\n    set x 1\n}\n";
-        let all = flat(&document_symbols(src, IRULES));
+        let all = flat(&document_symbols(src, tcl_dialect::DialectProfile::by_name(IRULES)));
         assert!(
             !all.iter().any(|(name, _)| name.contains('$')),
             "dynamic event name leaked into the outline: {all:?}"
@@ -2147,7 +2147,7 @@ mod tests {
         let last_line = u32::try_from(tcl_lexer::LineIndex::new_lsp(source).line_count())
             .expect("line count fits u32")
             - 1;
-        let symbols = document_symbols(source, "tcl8.6");
+        let symbols = document_symbols(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert!(!symbols.is_empty(), "{label}: expected outline symbols");
         for symbol in &symbols {
             walk(symbol, last_line, label);
@@ -2219,7 +2219,7 @@ mod tests {
             "    return $a\n",
             "}\n",
         );
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(names(&symbols), vec!["::pix"], "{symbols:#?}");
         let svg = find(&symbols, "svg").expect("svg namespace node");
         assert_eq!(
@@ -2234,7 +2234,7 @@ mod tests {
         // TN — the ordinary case must be untouched: lexical and semantic
         // home agree, so nothing moves.
         let src = "namespace eval ::a {\n    proc caller {} {\n        return 1\n    }\n}\n";
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let a = find(&symbols, "::a").expect("namespace node");
         assert_eq!(names(&a.children), vec!["caller"], "{symbols:#?}");
     }
@@ -2244,7 +2244,7 @@ mod tests {
         // TN — a plain `proc greet` homes to `::`, which is the scope it was
         // written in, so it is not re-homed anywhere.
         let src = "proc greet {} { return 1 }\n";
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(names(&symbols), vec!["greet"], "{symbols:#?}");
     }
 
@@ -2254,7 +2254,7 @@ mod tests {
         // `namespace eval ::nowhere` in the document there is nothing to
         // nest under, so the symbol keeps its written position.
         let src = "proc nowhere::helper {} { return 1 }\n";
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         assert_eq!(names(&symbols), vec!["helper"], "{symbols:#?}");
     }
 
@@ -2269,7 +2269,7 @@ mod tests {
             "    proc ns::inner {} { return 1 }\n",
             "}\n",
         );
-        let symbols = document_symbols(src, "tcl8.6");
+        let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let outer = find(&symbols, "outer").expect("outer proc node");
         assert_eq!(names(&outer.children), vec!["inner"], "{symbols:#?}");
     }

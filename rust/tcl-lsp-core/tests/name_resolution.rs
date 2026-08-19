@@ -54,12 +54,12 @@ fn ref_lines(ranges: &[LspRange]) -> Vec<u32> {
 /// Reference lines for the cursor at (`line`, `col`), declaration included.
 fn refs_at(src: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = analyse(src);
-    ref_lines(&references(src, "tcl", line, col, &analysis, true))
+    ref_lines(&references(src, tcl_dialect::DialectProfile::by_name("tcl"), line, col, &analysis, true))
 }
 
 fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = Analyser::new().analyse(src, dialect).clone();
-    ref_lines(&references(src, dialect, line, col, &analysis, true))
+    ref_lines(&references(src, tcl_dialect::DialectProfile::by_name(dialect), line, col, &analysis, true))
 }
 
 /// W210 (read-before-set) diagnostic codes for `src` analysed as `path`.
@@ -87,7 +87,7 @@ fn kind_of(src: &str, dialect: &str, needle: &str) -> Option<String> {
     let line = before.matches('\n').count() as u32;
     let col = (byte - before.rfind('\n').map_or(0, |n| n + 1)) as u32;
     let registry = registry_for_dialect(dialect);
-    let st = full(src, dialect, registry);
+    let st = full(src, tcl_dialect::DialectProfile::by_name(dialect), registry);
     let legend = legend_token_types();
     let (mut l, mut c) = (0u32, 0u32);
     for chunk in st.data.chunks(5) {
@@ -488,7 +488,7 @@ mod itcl_class_proc_dispatch {
         for (line, character) in [(4, 37), (5, 39)] {
             assert_eq!(
                 tcl_lsp_core::definition::itcl_class_proc_target_at(
-                    src, "tcl8.6", line, character, &analysis
+                    src, tcl_dialect::DialectProfile::by_name("tcl8.6"), line, character, &analysis
                 ),
                 Some(("::app::Factory".to_owned(), "make".to_owned())),
                 "line {line}: itcl's class resolver must pre-empt the global proc",
@@ -505,7 +505,7 @@ mod itcl_class_proc_dispatch {
         }
         // From the global namespace the ordinary proc wins (oracle rows D/E).
         assert_eq!(
-            tcl_lsp_core::definition::itcl_class_proc_target_at(src, "tcl8.6", 8, 2, &analysis),
+            tcl_lsp_core::definition::itcl_class_proc_target_at(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), 8, 2, &analysis),
             None,
             "from global, `Factory::make` is the plain ::Factory::make proc",
         );

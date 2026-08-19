@@ -412,7 +412,7 @@ pub fn code_actions_in_program(
     actions.extend(continuation_comment_actions(
         source,
         range,
-        &analysis.dialect,
+        tcl_dialect::DialectProfile::by_name(&analysis.dialect),
     ));
     actions.extend(ip_conversion_actions(source, range, &line_index));
     actions.extend(expr_rewrite_actions(source, range, &line_index));
@@ -1018,7 +1018,7 @@ fn already_required(source: &str, pkg: &str) -> bool {
 
 // W115 — convert a backslash-continued comment to per-line comments.
 
-fn continuation_comment_actions(source: &str, range: LspRange, dialect: &str) -> Vec<CodeAction> {
+fn continuation_comment_actions(source: &str, range: LspRange, dialect: &'static tcl_dialect::DialectProfile) -> Vec<CodeAction> {
     // The shared W115 detector is also enough for clients that request source
     // actions without forwarding server diagnostics.
     let lines: Vec<&str> = source.split('\n').collect();
@@ -1026,10 +1026,10 @@ fn continuation_comment_actions(source: &str, range: LspRange, dialect: &str) ->
     if start_line >= lines.len() {
         return Vec::new();
     }
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = dialect;
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         tcl_registry::cache::registry_for_profile(profile),
     );
     let Some(block_end) =
@@ -1723,7 +1723,7 @@ fn compute_required_profiles(
     use std::collections::BTreeSet;
     let mut profiles: BTreeSet<String> = BTreeSet::new();
     let events = tcl_registry::events::EventRegistry::build();
-    for ev in crate::irules_context::scan_file_events(source, "f5-irules") {
+    for ev in crate::irules_context::scan_file_events(source, tcl_dialect::DialectProfile::by_name("f5-irules")) {
         if let Some(props) = events.get_props(&ev) {
             for p in props.implied_profiles {
                 profiles.insert((*p).to_string());
@@ -1952,7 +1952,7 @@ fn collect_bootstrap_actions(source: &str, d: &ContextDiagnostic) -> Vec<CodeAct
     }
     let anchor = enclosing_when_line(source, d.range.start_line);
     let event =
-        crate::irules_context::find_enclosing_when_event(source, d.range.start_line, "f5-irules")
+        crate::irules_context::find_enclosing_when_event(source, d.range.start_line, tcl_dialect::DialectProfile::by_name("f5-irules"))
             .unwrap_or_default();
 
     let registry = registry_for_dialect("f5-irules");

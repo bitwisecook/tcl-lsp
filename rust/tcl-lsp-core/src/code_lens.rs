@@ -123,7 +123,7 @@ pub struct CodeLens {
 #[must_use]
 pub fn code_lenses(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: Option<&AnalysisResult>,
     workspace: Option<&crate::workspace_index::WorkspaceIndex>,
     current_uri: &str,
@@ -260,7 +260,7 @@ pub fn code_lenses(
 /// #992 extends the same treatment to properties).
 fn emit_class_member_lenses(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     class_def: &tcl_compiler::analyser::ClassDef,
     analysis: &AnalysisResult,
@@ -491,14 +491,14 @@ mod tests {
 
     #[test]
     fn empty_lenses_when_analysis_is_none() {
-        assert!(code_lenses("proc foo {} {}\n", "tcl", None, None, "").is_empty());
+        assert!(code_lenses("proc foo {} {}\n", tcl_dialect::DialectProfile::by_name("tcl"), None, None, "").is_empty());
     }
 
     #[test]
     fn lens_per_user_proc() {
         let src = "proc foo {} {}\nproc bar {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         assert_eq!(lenses.len(), 2, "{lenses:?}");
     }
 
@@ -506,7 +506,7 @@ mod tests {
     fn lens_shows_zero_references_for_unused_proc() {
         let src = "proc lonely {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         assert_eq!(lenses[0].command_title, "0 references");
     }
@@ -515,7 +515,7 @@ mod tests {
     fn lens_shows_singular_for_one_reference() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -527,7 +527,7 @@ mod tests {
     fn lens_counts_multiple_references() {
         let src = "proc tool {} {}\ntool\ntool\ntool\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let tool = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -539,7 +539,7 @@ mod tests {
     fn lens_anchors_at_proc_name_span() {
         let src = "proc greet {} {}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         assert_eq!(lenses.len(), 1);
         // `greet` starts at column 5 (after `proc `).
         assert_eq!(lenses[0].range.start_character, 5);
@@ -556,7 +556,7 @@ mod tests {
                    set b [$a make]\n\
                    $b greet\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let greet = lenses
             .iter()
             .find(|l| l.qname.contains("::method::greet"))
@@ -579,7 +579,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let class_lenses: Vec<_> = lenses
             .iter()
             .filter(|l| l.command_title.contains("reference"))
@@ -601,7 +601,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let myclass_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -626,7 +626,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         // Find the lens anchored on line 1 (the `greet`
         // declaration's name span).
         let greet_lens = lenses
@@ -647,7 +647,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let greet_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -662,7 +662,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let orphan_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -687,7 +687,7 @@ mod tests {
         // `constructor` declared before the `method` in the class body.
         let src = "oo::class create Bar {\n   variable _options\n    constructor {args} {\n         set _options $args\n    }\n\n    method get {key} {\n        return [dict get $_options $key]\n    }\n\n}\nset b [Bar new]\nputs [$b get foo]\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let get_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 6)
@@ -705,7 +705,7 @@ mod tests {
         let src =
             "oo::class create Factory {\n    classmethod make {} { return [Factory new] }\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let make_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -725,7 +725,7 @@ mod tests {
         // attach one member's locations to the other's lens.
         let src = "oo::class create C {\n    method foo {} {}\n    classmethod foo {} {}\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let qnames: std::collections::HashSet<&str> = lenses
             .iter()
             .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
@@ -757,7 +757,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         let size_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -772,7 +772,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         let size_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -784,7 +784,7 @@ mod tests {
     fn property_lens_carries_class_property_key_qname() {
         let src = "oo::class create Widget {\n    property size\n}\n";
         let analysis = analyse90(src);
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         let size_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -805,7 +805,7 @@ mod tests {
         // distinct, disambiguated lenses.
         let src = "oo::class create C {\n    property color\n    method color {} {}\n}\n";
         let analysis = analyse90(src);
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         let qnames: std::collections::HashSet<&str> = lenses
             .iter()
             .filter(|l| l.range.start_line == 1 || l.range.start_line == 2)
@@ -825,7 +825,7 @@ mod tests {
         // dispatch sites, not a shared or merged count.
         let src = "oo::class create Widget {\n    property x y\n    method bump {} { my x ; my y ; my y }\n}\n";
         let analysis = analyse90(src);
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         let x_lens = lenses
             .iter()
             .find(|l| l.qname == "::Widget::property::x")
@@ -844,7 +844,7 @@ mod tests {
     fn constructor_lens_counts_subclass_next_chain() {
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let base_ctor_lens = lenses
             .iter()
             .find(|l| l.qname == "::Base::constructor")
@@ -863,7 +863,7 @@ mod tests {
     fn destructor_lens_counts_subclass_next_chain() {
         let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let base_dtor_lens = lenses
             .iter()
             .find(|l| l.qname == "::Base::destructor")
@@ -875,7 +875,7 @@ mod tests {
     fn constructor_lens_reports_zero_when_no_subclass_chains() {
         let src = "oo::class create Base {\n    constructor {} { }\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let ctor_lens = lenses
             .iter()
             .find(|l| l.qname == "::Base::constructor")
@@ -887,7 +887,7 @@ mod tests {
     fn class_with_no_explicit_constructor_or_destructor_gets_neither_lens() {
         let src = "oo::class create Plain {\n    method use {} {}\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         assert!(
             lenses
                 .iter()
@@ -900,7 +900,7 @@ mod tests {
     fn constructor_lens_carries_class_constructor_key_qname() {
         let src = "oo::class create Bar {\n    constructor {} { }\n}\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let ctor_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -928,7 +928,7 @@ mod tests {
         ]);
         // The lens on lib.tcl's `helper` counts the two
         // cross-document calls.
-        let lenses = code_lenses(lib_src, "tcl", Some(&lib), Some(&index), "file:///lib.tcl");
+        let lenses = code_lenses(lib_src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&lib), Some(&index), "file:///lib.tcl");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -940,7 +940,7 @@ mod tests {
     fn proc_lens_without_workspace_counts_local_only() {
         let src = "proc helper {} {}\nhelper\n";
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let helper = lenses
             .iter()
             .find(|l| l.range.start_line == 0)
@@ -963,14 +963,14 @@ mod tests {
     /// with `include_declaration = false`.
     fn assert_lens_matches_references(src: &str, name_line: u32) {
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let lens = lenses
             .iter()
             .find(|l| l.range.start_line == name_line)
             .unwrap_or_else(|| panic!("no lens on line {name_line}: {lenses:?}"));
         let refs = crate::references::references(
             src,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
             lens.range.start_line,
             lens.range.start_character,
             &analysis,
@@ -993,7 +993,7 @@ mod tests {
         let src = "foo\nproc foo {} {}\n";
         assert_lens_matches_references(src, 1);
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let foo = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1057,7 +1057,7 @@ mod tests {
             "namespace eval b { proc foo {} {} }\n",
         );
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let by_qname = |q: &str| {
             lenses
                 .iter()
@@ -1109,7 +1109,7 @@ mod tests {
         // `0 references` the head-scan heuristic produced.
         let analysis = analyse(ISSUE_864_SRC);
         assert!(!analysis.all_classes.is_empty(), "class not analysed");
-        let lenses = code_lenses(ISSUE_864_SRC, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(ISSUE_864_SRC, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let get_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 6)
@@ -1131,7 +1131,7 @@ mod tests {
         // inflate the count.  With only the external `$b get foo`, the count
         // is exactly 1.
         let analysis = analyse(ISSUE_864_SRC);
-        let lenses = code_lenses(ISSUE_864_SRC, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(ISSUE_864_SRC, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let get_lens = lenses
             .iter()
             .find(|l| l.range.start_line == 6)
@@ -1155,7 +1155,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let bark = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1178,7 +1178,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let bark = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1205,7 +1205,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let speak = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1235,7 +1235,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let speak = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1262,7 +1262,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         // `method render` sits on line 2.
         let render = lenses
             .iter()
@@ -1290,7 +1290,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let bark = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1312,7 +1312,7 @@ mod tests {
         if analysis.all_classes.is_empty() {
             return;
         }
-        let lenses = code_lenses(src, "tcl", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl"), Some(&analysis), None, "");
         let bark = lenses
             .iter()
             .find(|l| l.range.start_line == 1)
@@ -1453,7 +1453,7 @@ mod tests {
             "$b get\n",
         );
         let analysis = analyse90(src);
-        let lenses = code_lenses(src, "tcl9.0", Some(&analysis), None, "");
+        let lenses = code_lenses(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), Some(&analysis), None, "");
         assert!(!lenses.is_empty(), "sanity: some lenses expected");
         for lens in &lenses {
             assert!(

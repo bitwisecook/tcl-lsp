@@ -117,7 +117,7 @@ fn tokeniser_covers_valid_are_without_gaps_or_overlaps() {
         // [prefix, prefix+len) on line 0.
         let prefix = "regexp {";
         let src = format!("{prefix}{pat}}} $s\n");
-        let toks = decode(&full(&src, "tcl", &registry).data);
+        let toks = decode(&full(&src, tcl_dialect::DialectProfile::by_name("tcl"), &registry).data);
         let start = u32::try_from(prefix.len()).unwrap();
         let end = start + u32::try_from(pat.len()).unwrap();
 

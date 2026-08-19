@@ -40,7 +40,7 @@ struct Tok {
 /// length, type-name, modifier-bitmask) tuples.
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
     let registry = registry_for_dialect(dialect);
-    let st = full(source, dialect, registry);
+    let st = full(source, tcl_dialect::DialectProfile::by_name(dialect), registry);
     let legend = legend_token_types();
     let mut out = Vec::new();
     let (mut line, mut character) = (0u32, 0u32);

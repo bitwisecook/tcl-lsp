@@ -410,7 +410,7 @@ struct Tok {
 /// the provider's relative encoding).
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
     let registry = registry_for_dialect(dialect);
-    let st = full(source, dialect, registry);
+    let st = full(source, tcl_dialect::DialectProfile::by_name(dialect), registry);
     assert_eq!(st.data.len() % 5, 0, "stream must be 5-int aligned");
     let legend = legend_token_types();
     let mut out = Vec::new();
@@ -501,7 +501,7 @@ fn st_namespaced_bareword_argument_is_namespace() {
 fn st_proc_name_carries_definition_modifier() {
     // The name argument of `proc` is `function` + the `definition` modifier
     // (legend modifier index 1 → bit 2). Assert via the raw packed stream.
-    let st = full("proc myproc {} {}\n", "tcl8.6", reg());
+    let st = full("proc myproc {} {}\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), reg());
     // Tokens: [proc(keyword), myproc(function+definition), {} , {}].
     // The second token (offset 5..10) is the proc name.
     let name = &st.data[5..10];
@@ -529,7 +529,7 @@ fn st_proc_name_carries_definition_modifier() {
 fn st_subcommand_word_is_keyword_with_default_library() {
     // A recognised subcommand word at arg index 1 (`string length`) is
     // `keyword` + `defaultLibrary` (bit 3). Find the `length` token.
-    let toks_packed = full("string length $s\n", "tcl8.6", reg());
+    let toks_packed = full("string length $s\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), reg());
     // Decode positions to find the subcommand word (col 7, len 6).
     let toks = decode("string length $s\n", "tcl8.6");
     let sub = toks
@@ -576,7 +576,7 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
     let src = "set a 1\nset b 2\nset c 3\n";
     let r = range(
         src,
-        "tcl8.6",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
         LspRange {
             start_line: 1,
             start_character: 0,
@@ -595,7 +595,7 @@ fn st_range_variant_restarts_delta_from_first_surviving_token() {
         r.data
     );
     // Strictly fewer tokens than the full document.
-    assert!(r.data.len() < full(src, "tcl8.6", reg()).data.len());
+    assert!(r.data.len() < full(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg()).data.len());
 }
 
 #[test]
@@ -607,8 +607,8 @@ fn st_diff_appends_a_single_token_via_provider() {
     // Note: a same-length value edit (`1`→`2`) leaves the stream byte-identical
     // — the encoding carries position/length/type, not the literal — so `diff`
     // returns `None`; we change the token *count* instead.
-    let before = full("set x 1\n", "tcl8.6", reg()).data;
-    let after = full("set x 1 2\n", "tcl8.6", reg()).data;
+    let before = full("set x 1\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), reg()).data;
+    let after = full("set x 1 2\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), reg()).data;
     let edit = diff(&before, &after).expect("a single append edit");
     // Token-aligned: every field is a multiple of 5.
     assert_eq!(edit.start % 5, 0, "{edit:?}");
@@ -617,7 +617,7 @@ fn st_diff_appends_a_single_token_via_provider() {
     // The common prefix is the three unchanged tokens (`set`, `x`, `1`).
     assert_eq!(edit.start, 15, "{edit:?}");
     // A same-length literal edit produces an identical stream → no diff.
-    let same_len = full("set x 2\n", "tcl8.6", reg()).data;
+    let same_len = full("set x 2\n", tcl_dialect::DialectProfile::by_name("tcl8.6"), reg()).data;
     assert_eq!(
         diff(&before, &same_len),
         None,
@@ -633,7 +633,7 @@ fn st_diff_appends_a_single_token_via_provider() {
 // ===========================================================================
 
 fn minc(src: &str) -> String {
-    minify_tcl(src, "tcl8.6", reg())
+    minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
 }
 
 #[test]
