@@ -352,7 +352,8 @@ history](../../kcs/kcs-howto-derive-version-ranges-from-releases.md)).
 | `deprecated_version` | Never derived structurally. The first snapshot whose doc comment says "deprecated" becomes a *suggested* version recorded only in the notes. |
 | Option rows | Diffed by name across the snapshots in which the command exists; an option that later disappears keeps its row, carrying its `retired_version`, rather than being dropped. |
 | Closed value sets | Diffed by membership. On a subcommand-shaped draft the result lands in `versioned_arg_values`, the draft vocabulary's existing per-value gate; a command-level value has no field yet, so it becomes a structured `version-gate:` note instead (below). |
-| Arity / role changes | Reported as a note naming both releases and both shapes, never invented — the registry cannot express a versioned arity. |
+| Arity changes | **Derived** into `arity_windows` (issue #1627): runs of equal shape across the snapshots become windows, each closed where the next shape arrives — the spelling the loader requires, since an unclosed window never ends and two would overlap. A signature that never changed derives none; the plain `arity` already says it. The note naming both releases and both shapes is kept beside the derived field as its evidence. |
+| Role changes | Reported as a note naming both releases and both shapes, never invented — which argument moved is not recoverable from a count. |
 | A present → absent → present pattern | Leaves the lifecycle unbounded and raises a warning naming the gap; a range cannot describe a hole. |
 
 `VersionedImportOptions::complete_history` is the one caller-supplied fact

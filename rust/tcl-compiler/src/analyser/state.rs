@@ -478,6 +478,19 @@ pub struct Analyser {
     /// [`Self::pending_arity`]. A constraint with no lifecycle bypasses this
     /// buffer entirely and is queued inline at the dispatch site.
     pub(super) pending_option_conflicts: Vec<super::diagnostics::version_gate::GatedOptionConflict>,
+    /// Calls to commands whose signature changed across their owning
+    /// package's releases — decided post-walk by
+    /// [`Self::flush_gated_arity_calls`], which selects the window the
+    /// resolved floor covers and only then forms a verdict. A command with no
+    /// `arity_windows` (almost every one) never reaches this buffer and keeps
+    /// the inline path exactly as it was.
+    pub(super) pending_gated_arity: Vec<super::diagnostics::version_gate::GatedArityCall>,
+    /// Bare calls to *ensembles* whose parent arity is versioned — whether a
+    /// subcommand is required at all can flip across releases, so the E001
+    /// verdict is deferred to [`Self::flush_gated_bare_ensembles`] for the
+    /// same reason the count verdict is.
+    pub(super) pending_gated_bare_ensemble:
+        Vec<super::diagnostics::version_gate::GatedBareEnsemble>,
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
@@ -1366,6 +1379,10 @@ impl Analyser {
 
     /// Construct an analyser with a fixed set of diagnostic codes
     /// disabled (e.g. `"W210"`, `"W211"`).
+    // One line per field of a struct with more than a hundred of them, which
+    // rustfmt will not pack and splitting would only scatter across helpers
+    // that each initialise a fifth of one value.
+    #[allow(clippy::too_many_lines)]
     #[must_use]
     pub fn with_disabled_diagnostics(disabled: HashSet<String>) -> Self {
         Self {
@@ -1389,6 +1406,8 @@ impl Analyser {
             version_gate_sites: Vec::new(),
             dsl_gate_sites: Vec::new(),
             pending_option_conflicts: Vec::new(),
+            pending_gated_arity: Vec::new(),
+            pending_gated_bare_ensemble: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
@@ -2528,6 +2547,11 @@ impl Analyser {
         // `pending_arity`, so it goes through the same shadowing suppression
         // an ungated one does.
         self.flush_gated_option_conflicts();
+        // Same reason, one axis over: a call whose command changed shape
+        // across releases could not be judged during the walk, and whatever
+        // verdict the floor produces still has to face the shadowing check.
+        self.flush_gated_arity_calls();
+        self.flush_gated_bare_ensembles();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();

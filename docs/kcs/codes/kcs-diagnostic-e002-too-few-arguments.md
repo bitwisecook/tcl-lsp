@@ -122,6 +122,21 @@ puts "hello"
 
 Supply the required arguments so the command can execute successfully.
 
+## A signature that changed across releases
+
+Some commands take a different number of arguments in different releases of
+the package that owns them. When a spec records those shapes, the count is
+checked against the shape the document's resolved version floor selects —
+not against a single fixed signature — and a call that fits **another** of
+the command's shapes draws
+[W149](kcs-diagnostic-w149-arity-matches-other-version.md) instead of this
+code. The call is not miscounted there; it is written for a different
+release, and the fix is different.
+
+This code still fires for a count that fits no declared shape at all, and
+for every command whose signature never changed — which is almost all of
+them.
+
 ## How to suppress
 
 Add `# noqa: E002` on the line **above** the offending command.

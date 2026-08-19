@@ -1561,17 +1561,19 @@ impl Analyser {
     ///
     /// Data-driven, not a hardcoded package-name list: the answer comes
     /// straight from the resolved spec's package attribution and the
-    /// profile's own `is_ambient_package` query (the same query
+    /// registry's own `is_ambient_package` query (the same query
     /// `emit_missing_package_require_diagnostics` / W120 already uses for the
     /// converse fact), so a new package-gated spec is covered automatically —
-    /// no per-package entry to remember to add here.
+    /// no per-package entry to remember to add here. The registry is asked
+    /// rather than the profile so a pack's `ambient_package` row counts too.
     fn is_package_gated_non_ambient(&self, name: &str) -> bool {
         use tcl_registry::ProfileQueries;
         let registry = tcl_registry::cache::registry_for_profile(self.profile);
+        let overlaid = self.profile_registry();
         self.profile
             .resolve_command(registry, name)
             .and_then(tcl_registry::CommandSpec::owning_package)
-            .is_some_and(|pkg| !self.profile.is_ambient_package(pkg))
+            .is_some_and(|pkg| !overlaid.is_ambient_package(pkg))
     }
 
     /// **W314.** The definition's name has no absolute (fully-qualified)

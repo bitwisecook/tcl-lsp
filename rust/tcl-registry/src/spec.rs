@@ -24,7 +24,7 @@
 
 use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
-use crate::arity::Arity;
+use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
@@ -982,6 +982,124 @@ impl OptionConstraint {
     }
 }
 
+/// One `arg` row as authored, with the lifecycle that gates the whole row.
+///
+/// The registry's per-argument facts are six parallel index-keyed slices
+/// (`arg_roles`, `arg_types`, `arg_values`, `closed_value_args`,
+/// `arg_presentation`, `command_prefixes`). That shape is why arity was the one
+/// axis nobody could version: there is no per-argument record to hang a
+/// [`Lifecycle`] on, so a seventh parallel slice would have needed every one of
+/// those six consumers to remember a filter (issue #1627).
+///
+/// This is that record. The loader reads one of these per `arg` row and
+/// *projects* it into the six parallel slices, so the parallel form the rest of
+/// the registry reads is derived rather than authored twice. A row whose
+/// lifecycle excludes the resolved floor contributes nothing to the projection
+/// — which is the whole point, and is why the projection is one function
+/// instead of six call sites.
+///
+/// Empty for every command whose arguments never changed across releases,
+/// which is almost all of them.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct VersionedArgRow {
+    /// 0-based argument index this row describes.
+    pub index: u8,
+    /// The owning package's releases this row applies to.
+    pub lifecycle: Lifecycle,
+    /// Fills `arg_roles`.
+    pub role: Option<ArgRole>,
+    /// Fills `arg_types`.
+    pub type_hint: Option<ArgTypeHint>,
+    /// Fills `arg_values`.
+    pub values: &'static [ArgValue],
+    /// Contributes this index to `closed_value_args`.
+    pub closed: bool,
+    /// Fills `arg_presentation`.
+    pub presentation: Option<ArgPresentation>,
+    /// Fills `command_prefixes`.
+    pub appends: Option<crate::arg_role::AppendedArity>,
+}
+
+impl VersionedArgRow {
+    /// A row with no facts declared, for struct-update syntax.
+    pub const DEFAULT: Self = Self {
+        index: 0,
+        lifecycle: Lifecycle::UNSPECIFIED,
+        role: None,
+        type_hint: None,
+        values: &[],
+        closed: false,
+        presentation: None,
+        appends: None,
+    };
+
+    /// Whether this row applies at `target`.
+    ///
+    /// An unresolved target is permissive, matching every other lifecycle
+    /// query: with no floor there is nothing to gate against, so a versioned
+    /// pack behaves exactly as an unversioned one until a floor is known.
+    #[must_use]
+    pub fn applies_at(&self, target: Option<&str>) -> bool {
+        self.lifecycle.available_at(target)
+    }
+}
+
+/// The six parallel per-argument slices, projected from a [`VersionedArgRow`]
+/// list at one resolved package floor.
+///
+/// Owned rather than `&'static` because the floor is a per-document fact: the
+/// registry's own slices are the projection at "no floor", built once at load,
+/// while this is built on demand by a consumer that has resolved one.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct ProjectedArgs {
+    /// `(index, role)`, as `CommandSpec::arg_roles`.
+    pub roles: Vec<(u8, ArgRole)>,
+    /// `(index, hint)`, as `CommandSpec::arg_types`.
+    pub types: Vec<(u8, ArgTypeHint)>,
+    /// `(index, values)`, as `CommandSpec::arg_values`.
+    pub values: Vec<(u8, &'static [ArgValue])>,
+    /// Indices, as `CommandSpec::closed_value_args`.
+    pub closed: Vec<u8>,
+    /// `(index, presentation)`, as `CommandSpec::arg_presentation`.
+    pub presentation: Vec<(u8, ArgPresentation)>,
+    /// `(index, appended)`, as `CommandSpec::command_prefixes`.
+    pub prefixes: Vec<(u8, crate::arg_role::AppendedArity)>,
+}
+
+/// Project `rows` into the six parallel slices, keeping only rows that apply
+/// at `target`.
+///
+/// This is the **one** place a per-argument row becomes the parallel form the
+/// rest of the registry reads. A column added to [`VersionedArgRow`] and not
+/// added here silently vanishes — which is exactly the failure the record shape
+/// exists to prevent — so `projection_carries_every_row_column` pins that every
+/// column survives a round trip.
+#[must_use]
+pub fn project_arg_rows(rows: &[VersionedArgRow], target: Option<&str>) -> ProjectedArgs {
+    let mut out = ProjectedArgs::default();
+    for row in rows.iter().filter(|row| row.applies_at(target)) {
+        if let Some(role) = row.role {
+            out.roles.push((row.index, role));
+        }
+        if let Some(hint) = row.type_hint {
+            out.types.push((row.index, hint));
+        }
+        if !row.values.is_empty() {
+            out.values.push((row.index, row.values));
+        }
+        if row.closed {
+            out.closed.push(row.index);
+        }
+        if let Some(presentation) = row.presentation {
+            out.presentation.push((row.index, presentation));
+        }
+        if let Some(appends) = row.appends {
+            out.prefixes.push((row.index, appends));
+        }
+    }
+    out
+}
+
 /// Unified command metadata — the single source of truth.
 ///
 /// Every consumer (compiler, analyser, codegen, LSP, formatter, diagram
@@ -1008,7 +1126,32 @@ pub struct CommandSpec {
     pub dialects: Option<DialectSet>,
 
     /// Argument count constraint.
+    ///
+    /// The shape when the signature never changed, and the fallback whenever
+    /// [`Self::arity_windows`] selects nothing (no floor resolved, or no window
+    /// covers it).
     pub arity: Arity,
+
+    /// Per-release signature shapes, for a command whose arity changed across
+    /// its owning package's releases (issue #1627).
+    ///
+    /// Empty for almost every command — a signature that never changed needs no
+    /// windows, and [`Self::arity`] alone describes it. When non-empty, the
+    /// window covering the resolved package floor wins and `arity` is the
+    /// fallback; see [`ArityWindow::select`]. Windows must not overlap, which
+    /// the loader notices for packs and `registry_sweep` rejects outright for
+    /// shipped specs.
+    pub arity_windows: &'static [ArityWindow],
+
+    /// The authored per-argument rows this command's parallel `arg_*` slices
+    /// were projected from, retained so a consumer holding a resolved package
+    /// floor can re-project at that floor (issue #1627).
+    ///
+    /// Empty unless some argument carries a lifecycle. When empty the parallel
+    /// slices are the whole truth, which is the case for almost every command.
+    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
+    /// than replacing them.
+    pub arg_rows: &'static [VersionedArgRow],
 
     /// Static argument roles (for fixed-layout commands like `for`).
     /// Each tuple is `(arg_index, role)`.
@@ -1856,6 +1999,8 @@ impl CommandSpec {
         traits: Traits::empty(),
         dialects: None,
         arity: Arity::any(),
+        arity_windows: &[],
+        arg_rows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
         arg_presentation: &[],
@@ -2591,7 +2736,24 @@ pub struct SubCommand {
     pub traits: Traits,
 
     /// Argument count constraint (after the subcommand word).
+    ///
+    /// As on [`CommandSpec::arity`], the fallback whenever
+    /// [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
+
+    /// Per-release signature shapes for this subcommand (issue #1627), with
+    /// the same contract as [`CommandSpec::arity_windows`].
+    pub arity_windows: &'static [ArityWindow],
+
+    /// The authored per-argument rows this command's parallel `arg_*` slices
+    /// were projected from, retained so a consumer holding a resolved package
+    /// floor can re-project at that floor (issue #1627).
+    ///
+    /// Empty unless some argument carries a lifecycle. When empty the parallel
+    /// slices are the whole truth, which is the case for almost every command.
+    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
+    /// than replacing them.
+    pub arg_rows: &'static [VersionedArgRow],
 
     /// Short description for completion list.
     pub detail: &'static str,
@@ -2975,6 +3137,8 @@ impl SubCommand {
         name: "",
         traits: Traits::empty(),
         arity: Arity::any(),
+        arity_windows: &[],
+        arg_rows: &[],
         detail: "",
         synopsis: "",
         hover: None,
@@ -3627,5 +3791,99 @@ mod tests {
         };
         assert_eq!(names(Some("1.0")), vec!["classic"]);
         assert_eq!(names(Some("2.0")), vec!["classic", "modern"]);
+    }
+}
+
+#[cfg(test)]
+mod versioned_arg_row_tests {
+    use super::*;
+
+    /// A row carrying every column at once, so a projection that drops one is
+    /// visible.
+    fn full_row(index: u8, lifecycle: Lifecycle) -> VersionedArgRow {
+        const VALUES: &[ArgValue] = &[ArgValue {
+            value: "one",
+            ..ArgValue::DEFAULT
+        }];
+        VersionedArgRow {
+            index,
+            lifecycle,
+            role: Some(ArgRole::VarWrite),
+            type_hint: Some(ArgTypeHint {
+                expected: None,
+                shimmers: true,
+                transparent_from: &[],
+            }),
+            values: VALUES,
+            closed: true,
+            presentation: Some(ArgPresentation::BlockScript),
+            appends: Some(crate::arg_role::AppendedArity::Exactly(2)),
+        }
+    }
+
+    /// THE DRIFT GUARD.
+    ///
+    /// `VersionedArgRow` exists so a per-argument lifecycle cannot be forgotten
+    /// by one of six parallel slices. That only holds while the projection
+    /// carries every column: a field added to the record and not to
+    /// `project_arg_rows` vanishes silently, and the record shape would then be
+    /// giving false assurance.
+    ///
+    /// Asserting every column of one fully-populated row survives is the
+    /// cheapest thing that fails when that happens.
+    #[test]
+    fn projection_carries_every_row_column() {
+        let rows = [full_row(3, Lifecycle::UNSPECIFIED)];
+        let out = project_arg_rows(&rows, None);
+
+        assert_eq!(out.roles, vec![(3, ArgRole::VarWrite)], "role column lost");
+        assert_eq!(out.types.len(), 1, "type column lost");
+        assert_eq!(out.types[0].0, 3);
+        assert_eq!(out.values.len(), 1, "values column lost");
+        assert_eq!(out.values[0].0, 3);
+        assert_eq!(out.closed, vec![3], "closed column lost");
+        assert_eq!(
+            out.presentation,
+            vec![(3, ArgPresentation::BlockScript)],
+            "presentation column lost"
+        );
+        assert_eq!(
+            out.prefixes,
+            vec![(3, crate::arg_role::AppendedArity::Exactly(2))],
+            "prefixes column lost"
+        );
+    }
+
+    /// The filter the record shape was introduced for: a row outside the
+    /// resolved floor contributes to *no* slice, in one place rather than six.
+    #[test]
+    fn a_row_outside_the_floor_is_filtered_from_every_slice() {
+        let rows = [
+            full_row(0, Lifecycle::UNSPECIFIED),
+            full_row(1, Lifecycle::introduced_in("3.0")),
+        ];
+
+        // Floor below the second row's introduction: it contributes nothing.
+        let old = project_arg_rows(&rows, Some("2.0"));
+        assert_eq!(old.roles.len(), 1, "the 3.0 row must not appear at 2.0");
+        assert_eq!(old.roles[0].0, 0);
+        assert_eq!(old.closed, vec![0]);
+        assert_eq!(old.values.len(), 1);
+        assert_eq!(old.presentation.len(), 1);
+        assert_eq!(old.prefixes.len(), 1);
+        assert_eq!(old.types.len(), 1);
+
+        // At and above it, both rows apply.
+        let new = project_arg_rows(&rows, Some("3.0"));
+        assert_eq!(new.roles.len(), 2, "both rows apply from 3.0");
+
+        // FN guard: with no floor resolved the gate is permissive, so a
+        // versioned pack behaves exactly as an unversioned one.
+        let unpinned = project_arg_rows(&rows, None);
+        assert_eq!(
+            unpinned.roles.len(),
+            2,
+            "an unresolved floor must not silently drop rows"
+        );
     }
 }

@@ -95,7 +95,7 @@ const ROWS: &[Row] = &[
         "arity",
         Arity::at_least(1),
         "Declare how many argument words the call takes.",
-        "One range word plus modifiers: `3`, `1..2`, `1..`, `..2`, `..`, then optional `-step S` and `-also N`. Counted after the command name, or after the subcommand word inside a `subcommand` block.",
+        "One range word plus modifiers: `3`, `1..2`, `1..`, `..2`, `..`, then optional `-step S` and `-also N`. Counted after the command name, or after the subcommand word inside a `subcommand` block. SpecTcl 1.2 adds the three lifecycle flags (`-introduced` / `-deprecated` / `-retired`), which turn the row into a per-release signature *window*; a bare row with no lifecycle stays the unbounded default, and the window the resolved package floor covers is the one the arity check uses.",
     ),
     one(
         "required_package",

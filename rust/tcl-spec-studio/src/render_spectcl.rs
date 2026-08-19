@@ -78,7 +78,13 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
-pub const DSL_VERSION: &str = "1.1";
+///
+/// Tracks the loader's newest vocabulary rather than being written out
+/// separately, because the renderer emits every word the loader reads: a
+/// header naming an older vocabulary than the body uses is exactly the
+/// inconsistency the loader's per-site notice reports, and pinning this to a
+/// literal made the renderer produce it (#1627).
+pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -1507,6 +1513,58 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.line(&row);
 }
 
+/// The shape words of one arity value, shared by the plain row and every
+/// window so a window's shape is spelled exactly as the plain row spells it.
+fn arity_shape(value: &Value) -> String {
+    let min = value["min"].as_u64().unwrap_or(0);
+    let max = value["max"].as_u64();
+    let step = value["step"].as_u64().unwrap_or(0);
+    let also = value["also_exact"].as_u64();
+    let range = match (min, max) {
+        (m, Some(x)) if m == x && step == 0 => m.to_string(),
+        (0, None) => "..".to_owned(),
+        (m, None) => format!("{m}.."),
+        (0, Some(x)) => format!("..{x}"),
+        (m, Some(x)) => format!("{m}..{x}"),
+    };
+    let mut row = range;
+    if step != 0 {
+        let _ = write!(row, " -step {step}");
+    }
+    if let Some(also) = also {
+        let _ = write!(row, " -also {also}");
+    }
+    row
+}
+
+/// `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` — one row per
+/// version window (`SpecTcl` 1.2, issue #1627).
+///
+/// Emitted after the plain `arity` row, matching the order the loader reads
+/// them and the order `CommandSpec::DEFAULT` declares them. A spec with no
+/// windows renders nothing, which is every spec whose signature never
+/// changed.
+fn arity_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "arity_windows") {
+        return;
+    }
+    let windows = as_array(&draft["arity_windows"]).to_vec();
+    for window in &windows {
+        let mut row = format!("arity {}", arity_shape(&window["arity"]));
+        let lifecycle = &window["lifecycle"];
+        for (flag, key) in [
+            ("-introduced", "introduced"),
+            ("-deprecated", "deprecated"),
+            ("-retired", "retired"),
+        ] {
+            if let Some(at) = lifecycle.get(key).and_then(Value::as_str) {
+                let _ = write!(row, " {flag} {at}");
+            }
+        }
+        out.line(&row);
+    }
+}
+
 /// The per-argument rows: six schema keys, one statement per index.
 ///
 /// Indices are visited in the order the tables themselves list them — roles
@@ -1848,6 +1906,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     set_word(out, ctx, draft, "dialects");
     set_word(out, ctx, draft, "traits");
     arity_row(out, ctx, draft);
+    arity_window_rows(out, ctx, draft);
     text(out, ctx, draft, "required_package");
     text(out, ctx, draft, "tcllib_package");
     text(out, ctx, draft, "implementation_namespace");
@@ -2266,6 +2325,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     let out_body = &mut body;
 
     arity_row(out_body, ctx, sub);
+    arity_window_rows(out_body, ctx, sub);
     if ctx.set(sub, "detail") {
         match braced(str_of(&sub["detail"])) {
             Some(spelling) => out_body.line(&format!("detail {spelling}")),
@@ -2457,7 +2517,8 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 ///
 /// The pack takes its name from the dialect the draft was seeded from
 /// ([`SOURCE_DIALECT_KEY`]) when it has one, which is what the ports do —
-/// `speclib tcl 1.1`, `speclib f5-irules 1.1`.
+/// `speclib tcl 1.2`, `speclib f5-irules 1.2` — the newest vocabulary the
+/// loader reads, per [`DSL_VERSION`].
 #[must_use]
 pub fn render(draft: &Draft) -> String {
     let pack = draft

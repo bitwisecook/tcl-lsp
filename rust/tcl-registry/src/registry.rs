@@ -422,6 +422,22 @@ pub struct CommandRegistry {
     /// hand-assembled registries (tests, ad-hoc tools), which fall back to
     /// the `loaded_dialects`-derived behaviour answers.
     profile: Option<&'static tcl_dialect::DialectProfile>,
+    /// Packages a `SpecTcl` pack declared **ambient** in this registry's
+    /// dialect, with the version the runtime provides — `(package, version)`,
+    /// in installation order.
+    ///
+    /// Empty for every compiled-in registry. A pack fills it through
+    /// [`Self::insert_ambient_package`], which is how a package that comes
+    /// *with* a dialect rather than being `package require`d gets a version
+    /// floor at all (issue #1627).
+    ///
+    /// This is the pack-authored twin of [`tcl_dialect::LibraryPin`] with
+    /// `ambient: true`. The profile axis is compiled in and describes the
+    /// dialects this repository models; this one is authored outside it, which
+    /// is the axis that has to exist before `tk` / `tcllib` / `iapps` can move
+    /// to packs (issue #1631) — a package's own version floor must not depend
+    /// on whether this crate happens to know the package's name.
+    ambient_packages: Vec<(&'static str, &'static str)>,
 }
 
 /// The set of command names registered by *every* dialect, built once and
@@ -668,6 +684,7 @@ impl CommandRegistry {
             by_name: FxHashMap::default(),
             loaded_dialects: DialectSet::empty(),
             profile: None,
+            ambient_packages: Vec::new(),
         };
         for spec in tcl_specs() {
             registry.insert_static(spec);
@@ -863,6 +880,49 @@ impl CommandRegistry {
     /// the names, and one pointer each.
     pub fn insert_static(&mut self, spec: &'static CommandSpec) {
         self.by_name.entry(spec.name).or_default().push(spec);
+    }
+
+    /// Record that `package` is ambient in this registry's dialect at
+    /// `version` — the `ambient_package` statement of a `SpecTcl` pack.
+    pub fn insert_ambient_package(&mut self, package: &'static str, version: &'static str) {
+        self.ambient_packages.push((package, version));
+    }
+
+    /// Whether `package` is **ambient** — provided by the runtime, with no
+    /// `package require` needed to reach it.
+    ///
+    /// The union of the two things that can make that true: the dialect
+    /// profile shipping it (an F5 surface is part of the runtime, §7.1 axis
+    /// C), and a loaded `SpecTcl` pack declaring it with `ambient_package`.
+    /// This is the one place that union is taken — every consumer that used
+    /// to ask the profile alone must ask here instead, or a pack's ambient
+    /// declaration registers a floor while the same package still draws a
+    /// "needs a `package require`" diagnostic.
+    #[must_use]
+    pub fn is_ambient_package(&self, package: &str) -> bool {
+        self.profile
+            .is_some_and(|profile| profile.is_ambient_package(package))
+            || self
+                .ambient_packages
+                .iter()
+                .any(|(name, _)| *name == package)
+    }
+
+    /// The version floor a pack declared for `package` as ambient, if any.
+    ///
+    /// The **highest** declared version wins when several packs name the same
+    /// package: each is a claim that the runtime provides at least that
+    /// version, and the strongest such claim is the one that holds. This is
+    /// the same max-composition an explicit `package require` goes through,
+    /// and for the same reason — a floor is a lower bound, so combining two
+    /// lower bounds takes the greater.
+    #[must_use]
+    pub fn ambient_package_floor(&self, package: &str) -> Option<&'static str> {
+        self.ambient_packages
+            .iter()
+            .filter(|(name, _)| *name == package)
+            .map(|(_, version)| *version)
+            .max_by(|a, b| crate::version::compare(a, b))
     }
 
     /// Whether `name` exists as a command in *any* dialect, independent of
@@ -4089,6 +4149,7 @@ impl std::fmt::Debug for CommandRegistry {
             .field("commands", &self.by_name.len())
             .field("loaded_dialects", &self.loaded_dialects)
             .field("profile", &self.profile.map(|p| p.name))
+            .field("ambient_packages", &self.ambient_packages)
             .finish()
     }
 }
@@ -4096,6 +4157,35 @@ impl std::fmt::Debug for CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::CommandRegistry;
+
+    // -- ambient packages (issue #1627) -----------------------------------
+
+    /// Two packs naming the same package are two claims that the runtime
+    /// provides at least that version. The strongest claim is the one that
+    /// holds, so the floor is the greatest — never the last declared, which
+    /// would make the answer depend on pack load order.
+    #[test]
+    fn the_highest_declared_ambient_version_is_the_floor() {
+        let mut registry = CommandRegistry::build_default();
+        assert_eq!(
+            registry.ambient_package_floor("Tk"),
+            None,
+            "a compiled-in registry declares none"
+        );
+
+        registry.insert_ambient_package("Tk", "8.6");
+        registry.insert_ambient_package("Tk", "8.5");
+        registry.insert_ambient_package("Itcl", "4.0");
+        assert_eq!(registry.ambient_package_floor("Tk"), Some("8.6"));
+        assert_eq!(registry.ambient_package_floor("Itcl"), Some("4.0"));
+        assert_eq!(registry.ambient_package_floor("Expect"), None);
+
+        // Order-independent: declaring the higher one last changes nothing.
+        let mut reversed = CommandRegistry::build_default();
+        reversed.insert_ambient_package("Tk", "8.5");
+        reversed.insert_ambient_package("Tk", "8.6");
+        assert_eq!(reversed.ambient_package_floor("Tk"), Some("8.6"));
+    }
 
     // -- unfilled_trailing_roles (issue #1190) ----------------------------
     //

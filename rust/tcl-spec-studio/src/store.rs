@@ -328,6 +328,7 @@ impl PackStore {
                 files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
                 display_name: self.pack.display_name.clone(),
                 file_extensions: self.pack.file_extensions.clone(),
+                ambient_packages: self.pack.ambient_packages.clone(),
                 commands: self.pack.commands.clone(),
             }],
             notices: Vec::new(),
