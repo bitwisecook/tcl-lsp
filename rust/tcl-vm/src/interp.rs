@@ -152,21 +152,18 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
 }
 
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`,
-/// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
-/// `bad option "X": must be …` error.
+/// matching C's `Tcl_GetIndexFromObj` — through the one shared owner.
+///
+/// The hand-rolled `starts_with` filter this replaced had #1443's bug verbatim:
+/// it could only ever say `bad option`, so the empty word — which is a prefix of
+/// *every* option — reported `bad option ""` where C reports
+/// `ambiguous option ""`. `OptionTable::abbreviating` owns both verdicts and the
+/// `", or"` enumeration.
 fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
-    let matches: Vec<&str> = opts
-        .iter()
-        .copied()
-        .filter(|o| o.starts_with(arg))
-        .collect();
-    match matches.as_slice() {
-        [exact] => Ok(exact),
-        _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
-        _ => Err(format!(
-            "bad option \"{arg}\": must be {}",
-            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
-        )),
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
+    match table.index_of(arg.as_bytes()) {
+        Ok(i) => Ok(opts[i]),
+        Err(m) => Err(String::from_utf8_lossy(&m).into_owned()),
     }
 }
 

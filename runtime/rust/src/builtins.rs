@@ -1108,6 +1108,40 @@ mod tests {
         });
     }
 
+    /// Issue #1443's bug repeated in `interp limit`'s option matcher (found by
+    /// the centralisation audit). The hand-rolled `starts_with` filter could
+    /// only say `bad option`, and hand-built its own `", or"` enumeration
+    /// beside the one `prefix::choice_list_bytes` owns. Both now come from
+    /// `OptionTable::abbreviating`.
+    ///
+    /// Byte-checked against tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be -command, -granularity, -milliseconds, or -seconds";
+        leak_free(|i| {
+            ok(i, b"interp create i");
+            // The empty word prefixes every entry ⇒ ambiguous, not bad.
+            assert_eq!(i.eval_str(b"interp limit i time {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"interp limit i time -"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"-\": {MUST}").as_bytes()
+            );
+            // A word prefixing nothing is bad.
+            assert_eq!(i.eval_str(b"interp limit i time -zz"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad option \"-zz\": {MUST}").as_bytes()
+            );
+            // A unique prefix still resolves.
+            assert_eq!(i.eval_str(b"interp limit i time -sec 5"), Code::Ok);
+        });
+    }
+
     #[test]
     fn unset_nocomplain_and_dashdash() {
         leak_free(|i| {

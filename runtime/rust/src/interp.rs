@@ -951,32 +951,20 @@ fn opt_int(v: Option<i64>) -> Vec<u8> {
 }
 
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`
-/// (mirroring C's `Tcl_GetIndexFromObj`). Returns the canonical spelling or a
-/// `bad option "X": must be …` error.
+/// (C's `Tcl_GetIndexFromObj`) — through the one shared owner.
+///
+/// This carried #1443's bug verbatim, in both halves: the hand-rolled
+/// `starts_with` filter could only ever say `bad option`, so the empty word —
+/// a prefix of *every* option — reported `bad option ""` where C reports
+/// `ambiguous option ""`; and the `", or"` enumeration was hand-built beside
+/// `prefix::choice_list_bytes`, which owns it. `OptionTable::abbreviating`
+/// now supplies both.
 fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
-    let matches: Vec<&[u8]> = opts
-        .iter()
-        .copied()
-        .filter(|o| o.starts_with(arg))
-        .collect();
-    if matches.len() == 1 {
-        return Ok(matches[0].to_vec());
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
+    match table.index_of(arg) {
+        Ok(i) => Ok(opts[i].to_vec()),
+        Err(m) => Err(m),
     }
-    if opts.contains(&arg) {
-        return Ok(arg.to_vec());
-    }
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(arg);
-    m.extend_from_slice(b"\": must be ");
-    for (i, o) in opts.iter().enumerate() {
-        if i == opts.len() - 1 && i > 0 {
-            m.extend_from_slice(b", or ");
-        } else if i > 0 {
-            m.extend_from_slice(b", ");
-        }
-        m.extend_from_slice(o);
-    }
-    Err(m)
 }
 
 /// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
