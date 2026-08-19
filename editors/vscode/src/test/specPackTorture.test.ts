@@ -630,4 +630,73 @@ suite("SpecTcl pack torture through the extension host", () => {
       { timeout: 40_000, label: "the load notice to clear once the pack is fixed" },
     );
   });
+
+  test("a pack saved with a UTF-8 BOM still loads its commands (#1635)", async function () {
+    // The user-visible half of #1635. A Windows editor defaulting to "UTF-8
+    // with BOM" used to cost the author their entire pack, with a Problems
+    // entry blaming a missing `speclib` that was plainly there on line 1.
+    //
+    // Asserting the *hover generation* rather than merely "a pack loaded" is
+    // what makes this specific: the BOM'd bytes must produce this exact
+    // generation, so a stale pre-BOM registry cannot satisfy it.
+    this.timeout(180_000);
+
+    await writePack(`﻿${goodPack("bom")}`, "a pack prefixed with a UTF-8 BOM");
+    await awaitPackLoaded("the BOM'd pack to load");
+    await awaitHoverGeneration("bom", "the BOM'd pack's hover to reach the consumer");
+    await assertServerAlive("a pack prefixed with a UTF-8 BOM");
+
+    const packUri = vscode.Uri.file(PACK);
+    assert.deepStrictEqual(
+      vscode.languages.getDiagnostics(packUri).map((d) => d.message),
+      [],
+      "a byte-order mark is not a defect, so the Problems panel must stay clean",
+    );
+
+    await writePack(GOOD_PACK, "the un-BOM'd pack, restored");
+    await awaitHoverGeneration("base", "the baseline hover to return");
+  });
+
+  test("a command whose brace is on the next line is named in the Problems panel (#1634)", async function () {
+    // #1634's headline, at the surface where it bit: the author's command
+    // silently vanished and nothing in the Problems panel mentioned its name,
+    // so there was no thread to pull.
+    this.timeout(180_000);
+
+    await writePack(
+      `speclib ${PACK_NAME} 1.1 {\n  command ::torturepack::apply\n  {\n    arity 2\n  }\n}\n`,
+      "a command with its opening brace on the next line",
+    );
+
+    const packUri = vscode.Uri.file(PACK);
+    const diagnostics = await pollUntil(
+      () => vscode.languages.getDiagnostics(packUri),
+      (diags) => diags.some((d) => d.message.includes("::torturepack::apply")),
+      { timeout: 40_000, label: "a Problems entry naming the dropped command" },
+    );
+
+    const naming = diagnostics.find((d) => d.message.includes("::torturepack::apply"));
+    assert.ok(naming, "the dropped command must be named");
+    assert.ok(
+      naming.message.includes("body block"),
+      `and the notice must say what is missing, got: ${naming.message}`,
+    );
+    assert.strictEqual(
+      naming.range.start.line,
+      1,
+      "the squiggle belongs on the `command` line the author wrote",
+    );
+    // One readable line — the orphaned block must not have its whole body
+    // quoted back into a message (the third defect in #1634).
+    for (const diagnostic of diagnostics) {
+      assert.ok(
+        !diagnostic.message.includes("\n"),
+        `a Problems message must stay one line, got: ${JSON.stringify(diagnostic.message)}`,
+      );
+    }
+
+    await assertServerAlive("a command with its brace on the next line");
+    await writePack(GOOD_PACK, "the repaired pack");
+    await awaitHoverGeneration("base", "the baseline hover to return");
+  });
 });
