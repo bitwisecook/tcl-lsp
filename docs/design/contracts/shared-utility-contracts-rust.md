@@ -134,9 +134,17 @@ entry point, or gate moves without this contract being updated.
   half-typed source). The 9.x rule also *widens* what is unterminated —
   `${a\}` and `${a{b}` close under 8.x but not under 9.x.
 
-  Scope: this owns the `subst`/tokenizer surface. The compiled-word path
-  (`segmenter` / `values` / `helpers`) still carries its own disagreeing
-  pair of `${...}` decoders; consolidating them is #1568.
+  Scope — this owns the `subst`/tokenizer surface **only**, and the
+  uncovered remainder is much larger than one path. A centralisation audit
+  found, besides the compiled-word decoders (`segmenter` / `values` /
+  `helpers`, #1568) and the runtime's script-word surface
+  (`runtime/rust/src/parse.rs::build_word`), roughly **20 free-text
+  "first `}` wins" scanners and 15 "strip the trailing `}`" helpers** spread
+  across the compiler optimiser and analyser and `tcl-lsp-core`. Every one
+  of them hard-codes a release rule this owner exists to decide. They are
+  tracked as follow-ups rather than fixed here; do not read this entry as
+  claiming the codebase has one `${...}` decoder — it has one *for the
+  surfaces named above*.
 
 ### `tcl-cmd-core` — portable command logic
 
