@@ -1198,6 +1198,27 @@ const COMPILED_COMPOSITE_KEY_WRITE_SCRIPT: &str = concat!(
     "else { puts [array names arr] }\n",
 );
 
+// The decoder is not reached only through array keys. These three are the other
+// live routes a compiled `${…}` word takes, and each one has to agree with the
+// release rule the same way the key does.
+/// Through a nested command substitution.
+const COMPILED_COMPOSITE_KEY_NESTED_CMD_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {puts [expr [string length ${a{b}c}]]} m]} { puts \"error:$m\" }\n",
+);
+
+/// Through a list-building argument.
+const COMPILED_COMPOSITE_KEY_LIST_ARG_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {puts [string map [list ${a{b}c} Z] WORLD]} m]} { puts \"error:$m\" }\n",
+);
+
+/// Through an unbraced expr word, where expr re-parses the substituted text.
+const COMPILED_COMPOSITE_KEY_EXPR_WORD_SCRIPT: &str = concat!(
+    "set {a{b}c} 41\n",
+    "if {[catch {puts [expr ${a{b}c}+1]} m]} { puts \"error:$m\" }\n",
+);
+
 #[test]
 fn compiled_composite_array_key_follows_the_emulated_release() {
     for (label, script, err8, ok9) in [
@@ -1231,6 +1252,24 @@ fn compiled_composite_array_key_follows_the_emulated_release() {
             "error:can't read \"a{b\": no such variable",
             "xWORLD",
         ),
+        (
+            "nested command",
+            COMPILED_COMPOSITE_KEY_NESTED_CMD_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "5",
+        ),
+        (
+            "list argument",
+            COMPILED_COMPOSITE_KEY_LIST_ARG_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "Z",
+        ),
+        (
+            "expr word",
+            COMPILED_COMPOSITE_KEY_EXPR_WORD_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "42",
+        ),
     ] {
         for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
             assert_eq!(
@@ -1258,6 +1297,9 @@ fn compiled_composite_array_key_matches_real_tclsh() {
         COMPILED_COMPOSITE_KEY_TWICE_SCRIPT,
         COMPILED_COMPOSITE_KEY_ESCAPE_SCRIPT,
         COMPILED_COMPOSITE_KEY_WRITE_SCRIPT,
+        COMPILED_COMPOSITE_KEY_NESTED_CMD_SCRIPT,
+        COMPILED_COMPOSITE_KEY_LIST_ARG_SCRIPT,
+        COMPILED_COMPOSITE_KEY_EXPR_WORD_SCRIPT,
     ] {
         if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
             assert_eq!(got, vm_output(script, TclVersion::V8_6));
