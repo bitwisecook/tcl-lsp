@@ -123,3 +123,4 @@ editors/vscode/testFixture/.vscode/
 # the source tree.
 /editors/zed/extension.wasm
 /editors/zed/grammars/
+editors/vscode/testFixture/specPackTortureScratch/
