@@ -358,12 +358,66 @@ pub fn is_absolutely_addressable(ns_segments: &[&str], simple_name: &str) -> boo
 /// ```
 #[must_use]
 pub fn var_reference(name: &str) -> &str {
-    if let Some(inner) = name.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        inner
-    } else if let Some(rest) = name.strip_prefix('$') {
-        rest
-    } else {
-        name
+    var_reference_for_style(name, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`var_reference`] under an explicitly resolved `${…}` close rule.
+#[must_use]
+pub fn var_reference_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
+    match split_braced_var_ref(name, style) {
+        Some((inner, _)) => inner,
+        None => name.strip_prefix('$').unwrap_or(name),
+    }
+}
+
+/// Split a word that **begins** with a `${…}` reference into its inner name
+/// and the text following the closing brace.
+///
+/// This is the one place `tcl-syntax` decodes the brace form. The closer is
+/// located by the shared owner [`tcl_lexer::braced_var_name_end`] under
+/// `style`, never by a local scan — this module used to carry three private
+/// scans that disagreed with each other on the same bytes:
+/// `normalise_var_name` stripped the **last** `}` (the 9.x answer, at every
+/// release), while `split_array_name` and `element_var_name_braced` took the
+/// **first** (the 8.x answer, at every release), so one crate answered
+/// `${a{b}c}` two ways (issue #1604).
+///
+/// `None` when the word does not open with `${`, or when the reference never
+/// closes — an unterminated name is `Tcl_ParseVarName`'s
+/// [`tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR`] error, not a name running to
+/// end-of-input, so callers fall back to their non-braced reading rather than
+/// inventing a name.
+///
+/// ```
+/// use tcl_dialect::BracedVarStyle;
+/// use tcl_syntax::naming::split_braced_var_ref;
+/// // 9.x tracks nesting and `\X` pairs …
+/// assert_eq!(
+///     split_braced_var_ref("${a{b}c}", BracedVarStyle::Tcl9Nesting),
+///     Some(("a{b}c", "")),
+/// );
+/// // … while the 8.x family ends the name at the first literal `}`.
+/// assert_eq!(
+///     split_braced_var_ref("${a{b}c}", BracedVarStyle::FirstClose),
+///     Some(("a{b", "c}")),
+/// );
+/// assert_eq!(split_braced_var_ref("$a", BracedVarStyle::Tcl9Nesting), None);
+/// assert_eq!(split_braced_var_ref("${a", BracedVarStyle::Tcl9Nesting), None);
+/// ```
+#[must_use]
+pub fn split_braced_var_ref(
+    word: &str,
+    style: tcl_dialect::BracedVarStyle,
+) -> Option<(&str, &str)> {
+    if !word.starts_with("${") {
+        return None;
+    }
+    // `2` is the byte just past the `${`, i.e. where the name starts. The
+    // returned offset always lands on an ASCII `}`, so both slices cut on a
+    // UTF-8 character boundary.
+    match tcl_lexer::braced_var_name_end(word.as_bytes(), 2, style) {
+        tcl_lexer::BracedVarEnd::Closed(end) => Some((&word[2..end], &word[end + 1..])),
+        tcl_lexer::BracedVarEnd::Unterminated => None,
     }
 }
 
@@ -379,14 +433,46 @@ pub fn var_reference(name: &str) -> &str {
 /// assert_eq!(normalise_var_name("$arr(idx)"), "arr");
 /// assert_eq!(normalise_var_name("plain"), "plain");
 /// ```
+///
+/// Uses the **default** `${…}` close rule
+/// ([`tcl_dialect::BracedVarStyle::default`] — 9.x nesting), which is the rule
+/// a document with no explicit dialect is lexed under, so the name recovered
+/// here agrees with the span the lexer produced. A caller that has already
+/// resolved the document's dialect must pass it through
+/// [`normalise_var_name_for_style`] instead: under an 8.x dialect the closer
+/// moves, and reading it with the 9.x rule names a variable the source never
+/// mentions (issue #1604).
 #[must_use]
 pub fn normalise_var_name(name: &str) -> &str {
-    let base = if let Some(inner) = name.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        inner
-    } else if let Some(rest) = name.strip_prefix('$') {
-        rest
-    } else {
-        name
+    normalise_var_name_for_style(name, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`normalise_var_name`] under an explicitly resolved `${…}` close rule.
+///
+/// ```
+/// use tcl_dialect::BracedVarStyle;
+/// use tcl_syntax::naming::normalise_var_name_for_style;
+/// assert_eq!(
+///     normalise_var_name_for_style("${a{b}c}", BracedVarStyle::Tcl9Nesting),
+///     "a{b}c",
+/// );
+/// assert_eq!(
+///     normalise_var_name_for_style("${a{b}c}", BracedVarStyle::FirstClose),
+///     "a{b",
+/// );
+/// ```
+#[must_use]
+pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
+    // A remainder after the closer is *not* a reason to decline: under 8.x
+    // `${a{b}c}` **is** the reference `${a{b}` followed by the literal `c}`,
+    // and the variable it names is `a{b`. The historical `strip_suffix('}')`
+    // could only see a whole-word reference, so it read that same word as the
+    // name `a{b}c` — the 9.x answer, at every release (issue #1604). It also
+    // mis-read `${arr}(foo)` as `{arr}`, where [`split_array_name`] has always
+    // documented the scalar `arr`.
+    let base = match split_braced_var_ref(name, style) {
+        Some((inner, _)) => inner,
+        None => name.strip_prefix('$').unwrap_or(name),
     };
 
     // Strip array index: keep everything before the first `(`.
@@ -440,6 +526,12 @@ pub fn element_var_name(name: &str) -> &str {
     element_var_name_braced(name, false)
 }
 
+/// [`element_var_name`] under an explicitly resolved `${…}` close rule.
+#[must_use]
+pub fn element_var_name_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
+    element_var_name_braced_for_style(name, false, style)
+}
+
 /// [`element_var_name`] for a word whose **delimiters make its content a
 /// literal name** — a brace-quoted write target (`set {a($x)} v`) or the
 /// `${…}` reference form, both of which suppress every substitution inside.
@@ -475,6 +567,34 @@ pub fn element_var_name(name: &str) -> &str {
 /// ```
 #[must_use]
 pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
+    element_var_name_braced_for_style(name, braced_literal, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`element_var_name_braced`] under an explicitly resolved `${…}` close rule.
+///
+/// The brace form is delimited by [`split_braced_var_ref`], i.e. by the shared
+/// owner, rather than by a first-`}` scan that answered for 8.x at every
+/// release — a harvest keyed on `a{b` where the lexer spanned `a{b}c` drops the
+/// use and lets a live write be reported dead (issue #1604).
+///
+/// ```
+/// use tcl_dialect::BracedVarStyle;
+/// use tcl_syntax::naming::element_var_name_braced_for_style;
+/// assert_eq!(
+///     element_var_name_braced_for_style("${a{b}c}", false, BracedVarStyle::Tcl9Nesting),
+///     "a{b}c",
+/// );
+/// assert_eq!(
+///     element_var_name_braced_for_style("${a{b}c}", false, BracedVarStyle::FirstClose),
+///     "a{b",
+/// );
+/// ```
+#[must_use]
+pub fn element_var_name_braced_for_style(
+    name: &str,
+    braced_literal: bool,
+    style: tcl_dialect::BracedVarStyle,
+) -> &str {
     if braced_literal {
         // The delimiters suppressed every substitution, so the content is the
         // whole name — including a leading `$` and any `(key)`, which is
@@ -482,15 +602,13 @@ pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
         return name;
     }
     // `${…}` brace form: the inner text is the whole (literal) name.
-    if let Some(after) = name.strip_prefix("${")
-        && let Some(rel) = after.find('}')
-    {
-        return &after[..rel];
+    if let Some((inner, _)) = split_braced_var_ref(name, style) {
+        return inner;
     }
     let base = name.strip_prefix('$').unwrap_or(name);
-    match split_array_name(name) {
+    match split_array_name_for_style(name, style) {
         (_, Some(key)) if array_key_is_literal(key) => base,
-        _ => normalise_var_name(name),
+        _ => normalise_var_name_for_style(name, style),
     }
 }
 
@@ -513,10 +631,21 @@ pub fn element_var_name_braced(name: &str, braced_literal: bool) -> &str {
 /// ```
 #[must_use]
 pub fn normalise_var_name_braced(name: &str, braced_literal: bool) -> &str {
+    normalise_var_name_braced_for_style(name, braced_literal, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`normalise_var_name_braced`] under an explicitly resolved `${…}` close
+/// rule.
+#[must_use]
+pub fn normalise_var_name_braced_for_style(
+    name: &str,
+    braced_literal: bool,
+    style: tcl_dialect::BracedVarStyle,
+) -> &str {
     if !braced_literal {
-        return normalise_var_name(name);
+        return normalise_var_name_for_style(name, style);
     }
-    split_array_name_braced(name, true).0
+    split_array_name_braced_for_style(name, true, style).0
 }
 
 /// [`split_array_name`] for a word whose delimiters make its content a
@@ -531,8 +660,18 @@ pub fn normalise_var_name_braced(name: &str, braced_literal: bool) -> &str {
 /// ```
 #[must_use]
 pub fn split_array_name_braced(name: &str, braced_literal: bool) -> (&str, Option<&str>) {
+    split_array_name_braced_for_style(name, braced_literal, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`split_array_name_braced`] under an explicitly resolved `${…}` close rule.
+#[must_use]
+pub fn split_array_name_braced_for_style(
+    name: &str,
+    braced_literal: bool,
+    style: tcl_dialect::BracedVarStyle,
+) -> (&str, Option<&str>) {
     if !braced_literal {
-        return split_array_name(name);
+        return split_array_name_for_style(name, style);
     }
     if name.ends_with(')')
         && let Some(idx) = name.find('(')
@@ -1038,12 +1177,33 @@ pub fn split_element_ref_bytes(name: &[u8]) -> Option<(&[u8], &[u8])> {
 /// ```
 #[must_use]
 pub fn split_array_name(name: &str) -> (&str, Option<&str>) {
+    split_array_name_for_style(name, tcl_dialect::BracedVarStyle::default())
+}
+
+/// [`split_array_name`] under an explicitly resolved `${…}` close rule.
+///
+/// ```
+/// use tcl_dialect::BracedVarStyle;
+/// use tcl_syntax::naming::split_array_name_for_style;
+/// // 9.x: the nested pair is inside the name, so this is the scalar `a{b}c`.
+/// assert_eq!(
+///     split_array_name_for_style("${a{b}c}", BracedVarStyle::Tcl9Nesting),
+///     ("a{b}c", None),
+/// );
+/// // 8.x: the name ends at the first `}` and `c}` is ordinary word text.
+/// assert_eq!(
+///     split_array_name_for_style("${a{b}c}", BracedVarStyle::FirstClose),
+///     ("a{b", None),
+/// );
+/// ```
+#[must_use]
+pub fn split_array_name_for_style(
+    name: &str,
+    style: tcl_dialect::BracedVarStyle,
+) -> (&str, Option<&str>) {
     // `${…}` brace form: only the chars inside the braces are the reference;
     // an `(idx)` *inside* the braces is an element, one *after* `}` is not.
-    if let Some(after) = name.strip_prefix("${")
-        && let Some(rel) = after.find('}')
-    {
-        let inner = &after[..rel];
+    if let Some((inner, _)) = split_braced_var_ref(name, style) {
         return match split_element_ref(inner) {
             Some((array, elem)) => (array, Some(elem)),
             None => (inner, None),
@@ -1357,6 +1517,78 @@ pub mod conformance {
 
 #[cfg(test)]
 mod tests {
+    /// Issue #1604 — every `${…}` reader in this module resolves the closer
+    /// through the one owner, so they agree with each other *and* move
+    /// together with the release.
+    ///
+    /// Before the fix this module answered `${a{b}c}` two ways at once:
+    /// `normalise_var_name` stripped the **last** `}` (`a{b}c`, the 9.x
+    /// answer) while `split_array_name` / `element_var_name_braced` took the
+    /// **first** (`a{b`, the 8.x answer) — neither of them consulting the
+    /// dialect. Oracles: `set {a{b}c} HIT; subst {${a{b}c}}` is `HIT` on
+    /// 9.0.4 and `can't read "a{b"` on 8.6.16
+    /// (`Tcl_ParseVarName`, `tclParse.c:1315` vs `:1398`).
+    #[test]
+    fn braced_var_readers_agree_and_follow_the_release_rule() {
+        use super::{
+            element_var_name_braced_for_style, normalise_var_name_for_style,
+            split_array_name_for_style, split_braced_var_ref, var_reference_for_style,
+        };
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+
+        // 9.x: nesting and `\X` pairs are inside the name.
+        for (word, name) in [
+            ("${a{b}c}", "a{b}c"),
+            (r"${a\}b}", r"a\}b"),
+            ("${a{b}}", "a{b}"),
+            ("${plain}", "plain"),
+        ] {
+            assert_eq!(split_braced_var_ref(word, Tcl9Nesting), Some((name, "")));
+            assert_eq!(normalise_var_name_for_style(word, Tcl9Nesting), name);
+            assert_eq!(var_reference_for_style(word, Tcl9Nesting), name);
+            assert_eq!(
+                element_var_name_braced_for_style(word, false, Tcl9Nesting),
+                name
+            );
+            assert_eq!(split_array_name_for_style(word, Tcl9Nesting), (name, None));
+        }
+
+        // 8.x: the name stops at the first literal `}`; the rest is word text.
+        for (word, name, rest) in [
+            ("${a{b}c}", "a{b", "c}"),
+            (r"${a\}b}", r"a\", "b}"),
+            ("${a{b}}", "a{b", "}"),
+        ] {
+            assert_eq!(split_braced_var_ref(word, FirstClose), Some((name, rest)));
+            assert_eq!(normalise_var_name_for_style(word, FirstClose), name);
+            assert_eq!(
+                element_var_name_braced_for_style(word, false, FirstClose),
+                name
+            );
+            assert_eq!(split_array_name_for_style(word, FirstClose), (name, None));
+        }
+
+        // The nesting rule *widens* what is unterminated: `${a{b}` closes at
+        // 8.x but runs off the end at 9.x, and an unterminated reference is an
+        // error C names — never a name running to end-of-input.
+        assert_eq!(split_braced_var_ref("${a{b}", FirstClose), Some(("a{b", "")));
+        assert_eq!(split_braced_var_ref("${a{b}", Tcl9Nesting), None);
+        assert_eq!(split_braced_var_ref(r"${a\}", Tcl9Nesting), None);
+        assert_eq!(split_braced_var_ref("${a", Tcl9Nesting), None);
+        assert_eq!(split_braced_var_ref("$a", Tcl9Nesting), None);
+
+        // An `(idx)` inside the braces is an element; one after the closer is
+        // not — and that holds under both rules.
+        for style in [Tcl9Nesting, FirstClose] {
+            assert_eq!(
+                split_array_name_for_style("${arr(foo)}", style),
+                ("arr", Some("foo"))
+            );
+            assert_eq!(split_array_name_for_style("${arr}(foo)", style), ("arr", None));
+            assert_eq!(normalise_var_name_for_style("${arr}(foo)", style), "arr");
+        }
+    }
+
     #[test]
     fn written_command_tail_follows_the_trailing_separator_rule() {
         use super::written_command_tail as tail;
