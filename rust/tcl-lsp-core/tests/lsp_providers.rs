@@ -130,7 +130,13 @@ fn code_lens_lens_per_proc() {
     // one lens per proc.
     let src = "proc greet {} { return hi }\nproc shout {} { return HI }\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     let proc_lenses: Vec<&CodeLens> = lenses
         .iter()
         .filter(|l| l.range.start_line == 0 || l.range.start_line == 1)
@@ -148,7 +154,13 @@ fn code_lens_lens_per_proc() {
 fn code_lens_empty_when_no_procs() {
     let src = "set x 1\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert!(lenses.is_empty(), "{lenses:?}");
 }
 
@@ -159,7 +171,7 @@ fn code_lens_none_analysis_returns_empty() {
     // `code_lens.rs::empty_lenses_when_analysis_is_none`).
     let lenses = code_lenses(
         "proc f {} {}\nproc g {} {}\n",
-        "tcl8.6",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
         None,
         None,
         TEST_URI,
@@ -172,7 +184,13 @@ fn code_lens_zero_references_for_unused_proc() {
     // tclsh: `greet` is never invoked → 0 call sites.
     let src = "proc greet {} { return hi }\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "0 references");
 }
 
@@ -181,7 +199,13 @@ fn code_lens_singular_title_for_one_reference() {
     // singular noun.
     let src = "proc greet {} { return hi }\ngreet\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -190,7 +214,13 @@ fn code_lens_plural_title_for_multiple_references() {
     // multiple references (count=3).
     let src = "proc greet {} { return hi }\ngreet\ngreet\ngreet\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "3 references");
 }
 
@@ -200,7 +230,13 @@ fn code_lens_anchor_is_proc_name_span() {
     // `greet` begins at column 5.
     let src = "proc greet {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     let lens = lens_on_line(&lenses, 0);
     assert_eq!(lens.range.start_character, 5);
     assert_eq!(lens.qname, "::greet");
@@ -213,7 +249,13 @@ fn code_lens_count_matches_forward_reference() {
     // source order, so the forward call counts.
     let src = "foo\nproc foo {} {}\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 1).command_title, "1 reference");
 }
 
@@ -223,7 +265,13 @@ fn code_lens_count_matches_qualified_call() {
     // tclsh: `proc foo {} {}; ::foo` invokes `::foo`.
     let src = "proc foo {} {}\n::foo\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -232,7 +280,13 @@ fn code_lens_count_matches_ns_qualified_call() {
     // tclsh: `namespace eval ns { proc foo {} {} }; ns::foo` runs `::ns::foo`.
     let src = "namespace eval ns { proc foo {} {} }\nns::foo\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     let foo = lenses
         .iter()
         .find(|l| l.qname.contains("foo"))
@@ -244,7 +298,13 @@ fn code_lens_count_matches_ns_qualified_call() {
 fn code_lens_count_matches_call_inside_body() {
     let src = "proc foo {} {}\nproc bar {} { foo }\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -255,7 +315,13 @@ fn code_lens_count_matches_cmd_substitution() {
     // command substitution.
     let src = "proc foo {} {}\nset x [foo]\n";
     let analysis = analyse(src);
-    let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+    let lenses = code_lenses(
+        src,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        Some(&analysis),
+        None,
+        TEST_URI,
+    );
     assert_eq!(lens_on_line(&lenses, 0).command_title, "1 reference");
 }
 
@@ -265,7 +331,13 @@ fn code_lens_degenerate_inputs_do_not_panic() {
     // proc lenses.
     for src in ["", "   ", "\n\n", "# just a comment\n"] {
         let analysis = analyse(src);
-        let lenses = code_lenses(src, "tcl8.6", Some(&analysis), None, TEST_URI);
+        let lenses = code_lenses(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            Some(&analysis),
+            None,
+            TEST_URI,
+        );
         assert!(lenses.is_empty(), "src {src:?} produced {lenses:?}");
     }
 }
@@ -283,8 +355,10 @@ fn code_lens_degenerate_inputs_do_not_panic() {
 
 #[test]
 fn doc_symbols_empty_file_is_empty() {
-    assert!(document_symbols("", "tcl8.6").is_empty());
-    assert!(document_symbols("   \n\t\n", "tcl8.6").is_empty());
+    assert!(document_symbols("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty());
+    assert!(
+        document_symbols("   \n\t\n", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty()
+    );
 }
 
 #[test]
@@ -293,7 +367,7 @@ fn doc_symbols_proc_is_a_function_with_param_detail() {
     // so the proc's single parameter is `name`. The detail string `(name)`
     // is editor-presentation; the parameter fact comes from `info args`.
     let src = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     assert_eq!(symbols[0].name, "greet");
     assert_eq!(symbols[0].kind, SymbolKind::Function);
@@ -305,7 +379,7 @@ fn doc_symbols_proc_range_contains_selection_range() {
     // The outer (fold) range must contain the name selection range —
     // structural invariant for the breadcrumb/outline.
     let src = "proc greet {name} {\n    puts \"Hello $name\"\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let proc = &symbols[0];
     assert!(
         line_range_contains(proc.range, proc.selection_range),
@@ -331,7 +405,7 @@ fn doc_symbols_namespace_nests_inner_proc() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let ns = &symbols[0];
     assert_eq!(ns.name, "myns");
@@ -360,7 +434,7 @@ fn doc_symbols_nested_namespaces_recurse() {
         "    }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1);
     let outer = &symbols[0];
     assert_eq!(outer.name, "outer");
@@ -376,7 +450,7 @@ fn doc_symbols_nested_namespaces_recurse() {
 #[test]
 fn doc_symbols_global_set_emits_variable() {
     let src = "set myvar 42\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let vars: Vec<&DocumentSymbol> = symbols
         .iter()
         .filter(|s| s.kind == SymbolKind::Variable)
@@ -395,7 +469,7 @@ fn doc_symbols_oo_class_lists_its_methods() {
         "    method fetch {item} { return $item }\n",
         "}\n",
     );
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     assert_eq!(symbols.len(), 1, "{symbols:?}");
     let cls = &symbols[0];
     assert_eq!(cls.name, "Dog");
@@ -415,7 +489,7 @@ fn doc_symbols_oo_class_detail_lists_superclass() {
     // tclsh: `oo::class create Dog { superclass Animal }; info class superclass Dog`
     // → `::Animal`. The Class symbol's detail surfaces the superclass.
     let src = "oo::class create Dog {\n    superclass Animal\n}\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let detail = symbols[0].detail.as_deref().unwrap_or("");
     assert!(
         detail.contains("Animal"),
@@ -427,14 +501,14 @@ fn doc_symbols_oo_class_detail_lists_superclass() {
 fn doc_symbols_no_panic_on_unbalanced_braces() {
     // A genuinely malformed script (unclosed proc body) must not panic.
     for src in ["proc broken {} {", "namespace eval ns {", "}}}}\n", "{{{{"] {
-        let _ = document_symbols(src, "tcl8.6");
+        let _ = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     }
 }
 
 #[test]
 fn doc_symbols_multiple_top_level_procs() {
     let src = "proc foo {} { return 1 }\nproc bar {} { return 2 }\n";
-    let symbols = document_symbols(src, "tcl8.6");
+    let symbols = document_symbols(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
     let mut names = Vec::new();
     collect_names(&symbols, &mut names);
     assert!(names.contains(&"foo"));
@@ -603,7 +677,14 @@ fn declaration_global_decl_in_proc_body() {
                }\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "$counter", 1);
-    let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &registry());
+    let locs = declaration(
+        src,
+        l,
+        c + 1,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analysis,
+        &registry(),
+    );
     assert_eq!(locs.len(), 1, "{locs:?}");
     assert_eq!(locs[0].start_line, 1);
 }
@@ -622,7 +703,14 @@ fn declaration_variable_decl_in_namespace_proc() {
                }\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "$config", 1);
-    let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &registry());
+    let locs = declaration(
+        src,
+        l,
+        c + 1,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analysis,
+        &registry(),
+    );
     assert!(!locs.is_empty(), "{locs:?}");
 }
 
@@ -636,7 +724,14 @@ fn declaration_upvar_alias_is_a_declaration() {
                }\n";
     let analysis = analyse(src);
     let (l, c) = pos_of(src, "$local", 1);
-    let locs = declaration(src, l, c + 1, "tcl8.6", &analysis, &registry());
+    let locs = declaration(
+        src,
+        l,
+        c + 1,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analysis,
+        &registry(),
+    );
     assert_eq!(locs.len(), 1, "{locs:?}");
     assert_eq!(locs[0].start_line, 1);
 }
@@ -648,7 +743,14 @@ fn declaration_non_variable_falls_back_to_definition() {
     // declaration falls back to go-to-definition: the proc name span on line 0.
     let src = "proc greet {} {}\ngreet\n";
     let analysis = analyse(src);
-    let locs = declaration(src, 1, 2, "tcl8.6", &analysis, &registry());
+    let locs = declaration(
+        src,
+        1,
+        2,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analysis,
+        &registry(),
+    );
     assert_eq!(locs.len(), 1, "{locs:?}");
     assert_eq!(locs[0].start_line, 0);
 }
@@ -657,9 +759,30 @@ fn declaration_non_variable_falls_back_to_definition() {
 fn declaration_on_blank_position_does_not_panic() {
     // Cursor on whitespace / past EOL → no declaration, no panic.
     let src = "set x 1\n";
-    let _ = declaration(src, 0, 0, "tcl8.6", &analyse(src), &registry());
-    let _ = declaration(src, 5, 99, "tcl8.6", &analyse(src), &registry());
-    let _ = declaration("", 0, 0, "tcl8.6", &analyse(""), &registry());
+    let _ = declaration(
+        src,
+        0,
+        0,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analyse(src),
+        &registry(),
+    );
+    let _ = declaration(
+        src,
+        5,
+        99,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analyse(src),
+        &registry(),
+    );
+    let _ = declaration(
+        "",
+        0,
+        0,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        &analyse(""),
+        &registry(),
+    );
 }
 
 // =========================================================================

@@ -607,7 +607,7 @@ pub(crate) fn invocation_references_class(
 #[must_use]
 pub fn references(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -635,7 +635,7 @@ pub fn references(
 #[must_use]
 pub fn references_in_program(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -848,7 +848,7 @@ fn constructor_or_destructor_references(ctx: &RefCtx<'_>, word: &str) -> Option<
 #[derive(Clone, Copy)]
 struct RefCtx<'a> {
     source: &'a str,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line_index: &'a LineIndex,
     line: u32,
     character: u32,
@@ -889,7 +889,7 @@ fn caller_frame_references(
     // proc a binding's call-site word reaches is itself a call resolution, so
     // dropping the oracle here would let find-references disagree with
     // go-to-definition on a `-force`-shadowed callee (issue #1116 item 1).
-    let resolution = resolution.with_registry(tcl_registry::registry_for_dialect(dialect));
+    let resolution = resolution.with_registry(crate::registry_for_dialect_profile(dialect));
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
@@ -971,7 +971,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         source,
         dialect,
-        resolution.with_registry(tcl_registry::registry_for_dialect(dialect)),
+        resolution.with_registry(crate::registry_for_dialect_profile(dialect)),
         byte_offset,
         &find_word_span_at_position(source, line, character)
             .map(|(w, _, _)| w)
@@ -1479,7 +1479,7 @@ pub(crate) fn resolve_member_span(
 /// named `method`.
 pub(crate) fn method_references_for_class(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -1575,7 +1575,7 @@ pub(crate) fn method_references_for_class(
 /// `None` when `class_q` has no property named `property`.
 pub(crate) fn property_references_for_class(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     property: &str,
@@ -1602,7 +1602,7 @@ pub(crate) fn property_references_for_class(
 pub fn method_next_dispatch_spans(
     analysis: &AnalysisResult,
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     method: &str,
     is_classmethod: bool,
@@ -1674,7 +1674,7 @@ fn canonicalise_class_name(analysis: &AnalysisResult, owner: &str, name: &str) -
 /// reference system by family, out of scope for this change.
 pub(crate) fn constructor_next_chain_references(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
@@ -1706,7 +1706,7 @@ pub(crate) fn constructor_next_chain_references(
 /// Returns `None` when `class_q` declares no explicit destructor.
 pub(crate) fn destructor_next_chain_references(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
 ) -> Option<(tcl_lexer::Span, Vec<tcl_lexer::Span>)> {
@@ -1756,7 +1756,7 @@ pub(crate) fn destructor_next_chain_references(
 #[must_use]
 pub fn obj_method_call_sites(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -1785,7 +1785,7 @@ pub fn obj_method_call_sites(
 #[must_use]
 pub fn method_reference_spans_in_document(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -1828,12 +1828,12 @@ pub fn method_reference_spans_in_document(
 /// of a bare-head comparison that never matches real (`my`-dispatched) Tcl.
 pub(crate) fn scan_my_method_sites(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
 ) -> Vec<tcl_lexer::Span> {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = MyMethodScan {
@@ -1863,7 +1863,7 @@ pub(crate) fn scan_my_method_sites(
 #[derive(Clone, Copy)]
 struct MyMethodScan<'a> {
     source: &'a str,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     method: &'a str,
@@ -1914,7 +1914,7 @@ fn scan_my_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
     );
     for cmd in &commands {
         if let (Some(head), Some(name_tok)) = (cmd.argv.first(), cmd.argv.get(1)) {
@@ -1986,7 +1986,7 @@ fn scan_my_method_region(
 /// which need it to disambiguate `nextto`).
 fn scan_next_dispatch_sites(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     body: tcl_lexer::Span,
 ) -> Vec<tcl_lexer::Span> {
     scan_next_dispatch_sites_with_target(source, dialect, body)
@@ -2004,10 +2004,10 @@ fn scan_next_dispatch_sites(
 /// chains to the class under a given lens.
 fn scan_next_dispatch_sites_with_target(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = NextDispatchScan {
@@ -2034,7 +2034,7 @@ fn scan_next_dispatch_sites_with_target(
 #[derive(Clone, Copy)]
 struct NextDispatchScan<'a> {
     source: &'a str,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
 }
@@ -2060,7 +2060,7 @@ fn scan_next_dispatch_region_with_target(
     let commands = segment_commands_with_offset_and_config(
         body_text,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
     );
     for cmd in &commands {
         if let Some(head) = cmd.argv.first() {
@@ -2124,7 +2124,7 @@ fn scan_next_dispatch_region_with_target(
 #[must_use]
 pub(crate) fn inherited_method_call_sites(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -2159,7 +2159,7 @@ pub(crate) fn inherited_method_call_sites(
 /// class's members.
 fn find_class_member_references(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     word: &str,
     analysis: &AnalysisResult,
     cursor_offset: u32,
@@ -2239,7 +2239,7 @@ fn find_class_member_references(
 /// (`"prefix[$d bark]"`) are not descended — a rare form.
 pub(crate) fn find_obj_method_call_sites(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -2279,7 +2279,7 @@ use crate::definition::is_itcl_class;
 /// `::app::Factory` exists) reaches nothing at all.
 fn itcl_class_proc_call_sites(
     analysis: &AnalysisResult,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     class_q: &str,
     member: &str,
 ) -> Vec<tcl_lexer::Span> {
@@ -2316,7 +2316,7 @@ fn itcl_class_proc_call_sites(
 /// `method` / `classmethod` pair is meant, never re-derived here.
 fn dispatch_receivers<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     target: (&str, &str, bool),
     extra_cmd_names: &[String],
 ) -> (FxHashSet<&'a str>, CommandReceivers) {
@@ -2519,7 +2519,7 @@ fn lattice_dispatch_family(
 /// its caller supplies the workspace-wide answer here instead.
 fn find_obj_method_call_sites_with_extra_cmd_names(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     class_q: &str,
     method: &str,
@@ -2554,7 +2554,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = ObjMethodScan {
@@ -2827,7 +2827,7 @@ impl CommandReceivers {
 #[derive(Clone, Copy)]
 struct ObjMethodScan<'a> {
     source: &'a str,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
     identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
     analysis: &'a AnalysisResult,
@@ -2939,7 +2939,7 @@ fn scan_obj_method_region(
     let commands = segment_commands_with_offset_and_config(
         region,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
     );
     for cmd in &commands {
         // Head + method at argv[1].  Two dispatch shapes resolve to the same
@@ -3048,10 +3048,10 @@ pub(crate) const MAX_DISPATCH_SCAN_DEPTH: tcl_core_types::RecursionLimit =
 /// just the control-flow keywords a hand-written list would enumerate.
 pub(crate) fn nested_dispatch_regions(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
@@ -3062,7 +3062,7 @@ pub(crate) fn nested_dispatch_regions(
 /// map instead of rebuilding it for every nested command.
 pub(crate) fn nested_dispatch_regions_with_identities(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     registry: &tcl_registry::CommandRegistry,
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
@@ -3143,7 +3143,7 @@ pub(crate) fn nested_dispatch_regions_with_identities(
 /// are same-frame, comes from the command's spec, never from its name.
 pub(crate) fn frame_shifted_dispatch_regions(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     use tcl_lexer::TokenType;
@@ -3151,7 +3151,7 @@ pub(crate) fn frame_shifted_dispatch_regions(
     let Some(cmd_name) = cmd.texts.first() else {
         return regions;
     };
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
     // `plain_body_arg_indices` is `arg_indices_for_role(Body)` gated on the
     // call's resolved `BodyKind`, so an empty plain list against a non-empty
@@ -3205,7 +3205,7 @@ pub(crate) fn frame_shifted_dispatch_regions(
 /// is every bit as unrewritable as one written beside it.
 pub(crate) fn dispatch_scan_regions(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     let mut regions = nested_dispatch_regions(source, dialect, cmd);
@@ -3236,12 +3236,12 @@ pub(crate) fn dispatch_scan_regions(
 /// `create`).
 pub(crate) fn member_reference_spans(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     class_def: &tcl_compiler::analyser::types::ClassDef,
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let Some(grammar) = registry
         .get(&class_def.metaclass)
         .and_then(|spec| spec.definition_body)
@@ -3265,7 +3265,7 @@ pub(crate) fn member_reference_spans(
         let commands = segment_commands_with_offset_and_config(
             &source[start..end],
             u32::try_from(start).unwrap_or(0),
-            tcl_lexer::LexerConfig::for_dialect(dialect),
+            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
         );
         for cmd in &commands {
             let Some(keyword) = cmd.texts.first() else {
@@ -3304,15 +3304,15 @@ pub(crate) fn member_reference_spans(
 /// name text, which is a class name, not a command-name special case.
 fn definition_body_regions_naming(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     class_def: &tcl_compiler::analyser::types::ClassDef,
 ) -> Vec<(usize, usize)> {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let commands = segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     );
     let qualified = tcl_syntax::naming::normalise_qualified_name(&class_def.qualified_name);
     let mut regions: Vec<(usize, usize)> = Vec::new();
@@ -3417,7 +3417,7 @@ fn case_list_clause_body_regions(
 /// text, not a substitution, so re-lexing it would invent phantom calls.
 fn cmd_substitution_regions(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     arg: tcl_lexer::Token,
 ) -> Vec<(usize, usize)> {
     use tcl_lexer::TokenType;
@@ -3450,7 +3450,7 @@ fn cmd_substitution_regions(
             if !slice.as_bytes().contains(&b'[') {
                 return Vec::new();
             }
-            let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+            let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
             let Ok(tokens) =
                 tcl_lexer::Lexer::with_source_map(tcl_lexer::SourceMap::new(slice), config)
                     .tokenise_all()
@@ -3543,7 +3543,7 @@ fn class_highlights(
 #[must_use]
 pub fn document_highlights(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -3569,7 +3569,7 @@ pub fn document_highlights(
 #[must_use]
 pub fn document_highlights_in_program(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,
@@ -3778,7 +3778,14 @@ mod tests {
                    set r2 [entry .e1]\n";
         let analysis = analyse(src);
         // Cursor on the STALE original `proc button` declaration (line 0).
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&5), "winning wrapper decl missing: {refs:?}");
         assert!(lines.contains(&8), "call site missing: {refs:?}");
@@ -3804,14 +3811,28 @@ mod tests {
             analysis.instance_classes
         );
         // Cursor on the `greet` declaration (line 1, col 29).
-        let refs = references(src, "tcl", 1, 29, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            29,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&4),
             "the lattice-typed `$b greet` call site is missing: {refs:?}"
         );
         // …and from the call site itself, the declaration answers back.
-        let refs = references(src, "tcl", 4, 4, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            4,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&1),
@@ -3831,7 +3852,14 @@ mod tests {
                    proc other {} { set b 7\n  $b greet }\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 29).
-        let refs = references(src, "tcl", 1, 29, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            29,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&4),
@@ -3849,7 +3877,14 @@ mod tests {
         let src = "proc greet {} {}\ngreet\ngreet\n";
         let analysis = analyse(src);
         // Cursor on the first `greet` reference (line 1).
-        let refs = references(src, "tcl", 1, 2, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            2,
+            &analysis,
+            true,
+        );
         assert!(refs.len() >= 2, "expected decl + call sites: {refs:?}");
         // First entry is the declaration on line 0.
         assert_eq!(refs[0].start_line, 0);
@@ -3867,7 +3902,14 @@ mod tests {
         let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nbar\n";
         let analysis = analyse(src);
         // Cursor on the `bar` declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -3888,7 +3930,14 @@ mod tests {
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export -clear\n}\n";
         let analysis = analyse(src);
         // Cursor on the `p` declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -3907,7 +3956,14 @@ mod tests {
         let src = "namespace eval src {\n    proc p {} { return P }\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n}\nnamespace eval src {\n    namespace export p\n}\n";
         let analysis = analyse(src);
         // Cursor on the `p` declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -3926,7 +3982,14 @@ mod tests {
         let src = "namespace eval src {\n    proc p {} { return P }\n    namespace export p\n}\nnamespace eval dst {\n    namespace import ::src::*\n    p\n    namespace forget ::src::p\n    p\n}\n";
         let analysis = analyse(src);
         // Cursor on the `p` declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -3949,7 +4012,14 @@ mod tests {
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import ::src::*\n    p\n}\n";
         let analysis = analyse(src);
         // Cursor on `::src::p`'s declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -3965,7 +4035,14 @@ mod tests {
         // `::src::p` (oracle: `namespace origin ::dst::p` → `::src::p`).
         let src = "namespace eval src {\n    proc p {} { return SRC }\n    namespace export p\n}\nnamespace eval dst {\n    proc p {} { return LOCAL }\n    namespace import -force ::src::*\n    p\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&7),
@@ -3983,7 +4060,14 @@ mod tests {
         let src = "namespace eval C {\n    proc p {} { return CP }\n    namespace export p\n}\nnamespace eval B {\n    namespace import ::C::*\n    namespace export p\n}\nnamespace eval A {\n    namespace import ::B::*\n    p\n}\n";
         let analysis = analyse(src);
         // Cursor on `::C::p`'s declaration (line 1, col 9).
-        let refs = references(src, "tcl", 1, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -4005,7 +4089,14 @@ mod tests {
         let src = "proc ::oo::Helpers::classvar {name} {\n    set ns [uplevel 1 {my getONSClass}]\n    tailcall namespace upvar $ns $name $name\n}\noo::class create Counter {\n    variable _label\n    constructor {label} { set _label $label }\n    method getONSClass {} { return [self class] }\n    method bump {} {\n        classvar hits\n        incr hits\n        return \"$_label:$hits\"\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `classvar` declaration (line 0, col 20).
-        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            20,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -4025,7 +4116,14 @@ mod tests {
         let src = "proc ::oo::Helpers::classvar {name} {}\nclassvar hits\n";
         let analysis = analyse(src);
         // Cursor on the `::oo::Helpers::classvar` declaration (line 0, col 20).
-        let refs = references(src, "tcl", 0, 20, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            20,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert_eq!(
             lines,
@@ -4050,7 +4148,14 @@ mod tests {
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset ::tolComp 0.05\nuse\n";
         let analysis = analyse(src);
         // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
-        let refs = references(src, "tcl", 2, 14, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            14,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&1),
@@ -4078,7 +4183,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the `set ::tolComp` declaration (line 4, col 8, inside
         // "tolComp" — `set ::tolComp 0.05` has "tolComp" starting at col 6).
-        let refs = references(src, "tcl", 4, 8, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            8,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&4),
@@ -4105,7 +4217,14 @@ mod tests {
             "proc use {} {\n    global tolComp\n    return $tolComp\n}\nset tolComp 0.05\nuse\n";
         let analysis = analyse(src);
         // Cursor on the unqualified `set tolComp` declaration (line 4, col 6).
-        let refs = references(src, "tcl", 4, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&4), "the caller's own decl: {refs:?}");
         assert!(
@@ -4128,7 +4247,14 @@ mod tests {
         let src = "namespace eval A {\n    variable tolComp 1\n}\nnamespace eval B {\n    variable tolComp 2\n}\n";
         let analysis = analyse(src);
         // Cursor on `A::tolComp`'s declaration (line 1, col 13).
-        let refs = references(src, "tcl", 1, 13, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            13,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert_eq!(
             lines,
@@ -4159,7 +4285,14 @@ mod tests {
         let analysis = analyse(src);
         // Cursor on the first loop's own `$name` read (line 1, col 21) —
         // the exact query shape the finding's own repro used.
-        let refs = references(src, "tcl", 1, 21, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            21,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(
             lines.contains(&0),
@@ -4186,7 +4319,14 @@ mod tests {
         let src = "namespace eval Foo {\n    proc bar {} { return 1 }\n    proc other {} { return 2 }\n    namespace export bar\n}\nnamespace import ::Foo::*\nother\n";
         let analysis = analyse(src);
         // Cursor on the `other` declaration (line 2, col 9).
-        let refs = references(src, "tcl", 2, 9, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            9,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert_eq!(lines, vec![2], "only the declaration itself: {refs:?}");
     }
@@ -4204,7 +4344,14 @@ mod tests {
         let src = "proc List2array {lst} { return ONE }\nproc List2array {lst} { return TWO }\nList2array x\n";
         let analysis = analyse(src);
         // Cursor on the SHADOWED (first) declaration (line 0, col 6).
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "winning decl missing: {refs:?}");
         assert!(lines.contains(&2), "call site missing: {refs:?}");
@@ -4226,7 +4373,14 @@ mod tests {
         // exist" purely from applying the LSP's own rename edit.
         let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nhelperFunc 21\nrename helperFunc \"\"\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(lines.contains(&1), "call site missing: {refs:?}");
@@ -4246,7 +4400,14 @@ mod tests {
         // through this same-document text-reference scan.
         let src = "proc helperFunc {x} { return [expr {$x * 2}] }\nrename helperFunc renamedFunc\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert_eq!(lines, vec![0, 1], "{refs:?}");
     }
@@ -4265,7 +4426,14 @@ mod tests {
         // this same list would silently miss rewriting the call site.
         let src = "proc foo {} { return 1 }\nif {1} foo\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -4282,7 +4450,14 @@ mod tests {
         // to the same generic `ArgRole::Body` dispatch this fix covers.
         let src = "proc qux {} { return 1 }\nproc caller {} { uplevel 1 qux }\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -4309,7 +4484,14 @@ mod tests {
         // command in `all_procs` to resolve to).
         let src = "proc foo {} { return 1 }\nset cb foo\nif {1} $cb\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -4323,8 +4505,22 @@ mod tests {
     fn references_exclude_decl_when_flag_false() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let with_decl = references(src, "tcl", 1, 2, &analysis, true);
-        let without_decl = references(src, "tcl", 1, 2, &analysis, false);
+        let with_decl = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            2,
+            &analysis,
+            true,
+        );
+        let without_decl = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            2,
+            &analysis,
+            false,
+        );
         assert!(with_decl.len() > without_decl.len());
     }
 
@@ -4332,7 +4528,17 @@ mod tests {
     fn references_to_unknown_word_empty() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(references(src, "tcl", 0, 6, &analysis, true).is_empty());
+        assert!(
+            references(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                &analysis,
+                true
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -4346,7 +4552,14 @@ mod tests {
         let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e foo bar]\nputs [e foo baz]\n";
         let analysis = analyse(src);
         // Cursor on "foo" in the first call site (0-based line 7, col 8).
-        let refs = references(src, "tcl", 7, 8, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            7,
+            8,
+            &analysis,
+            true,
+        );
         // decl + the `-map`'s own target-text reference (line 2, pre-existing
         // — needed so renaming the proc also updates the map entry) + both
         // nested-`[...]` call sites.
@@ -4392,9 +4605,23 @@ mod tests {
                    puts [::app::widget show]\n";
         let analysis = analyse(src);
         // Line 8 is `proc ::app::widget::Show …`; `Show` starts at column 20.
-        let from_decl = references(src, "tcl", 8, 21, &analysis, true);
+        let from_decl = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            8,
+            21,
+            &analysis,
+            true,
+        );
         // Line 10 is `puts [::app::widget show]`; `show` starts at column 20.
-        let from_call = references(src, "tcl", 10, 21, &analysis, true);
+        let from_call = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            10,
+            21,
+            &analysis,
+            true,
+        );
         let lines = |refs: &[LspRange]| -> Vec<u32> {
             let mut l: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
             l.sort_unstable();
@@ -4428,7 +4655,14 @@ mod tests {
                    ::app::widget show\n";
         let analysis = analyse(src);
         // Cursor on `Show` in its declaration (line 3, column 20).
-        let refs = references(src, "tcl", 3, 21, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            3,
+            21,
+            &analysis,
+            true,
+        );
         assert!(
             !refs.iter().any(|r| r.start_line == 5),
             "a dynamic -map must not manufacture a navigation edge: {refs:?}",
@@ -4443,7 +4677,14 @@ mod tests {
         let src = "oo::class create Base {\n    method greet {} {}\n}\noo::class create Sub {\n    superclass Base\n    method greet {} { next }\n}\n";
         let analysis = analyse(src);
         // Cursor on `greet` in Sub's declaration (line 5).
-        let refs = references(src, "tcl", 5, 13, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            13,
+            &analysis,
+            true,
+        );
         // The `next` token sits on line 5, past the method's own `greet` name
         // (col 11) — inside the `{ next }` body.
         assert!(
@@ -4463,7 +4704,14 @@ mod tests {
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n}\n";
         let analysis = analyse(src);
         // `constructor` keyword on line 1, col 4.
-        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            true,
+        );
         // decl (line 1) + the `next` call site (line 5).
         assert_eq!(refs.len(), 2, "{refs:?}");
         assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
@@ -4475,7 +4723,14 @@ mod tests {
         // own) — nothing to chain, so `Base`'s constructor stays unreferenced.
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert!(refs.is_empty(), "{refs:?}");
     }
 
@@ -4485,7 +4740,14 @@ mod tests {
         // legitimate full override, not a chain.
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { set x 1 }\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert!(refs.is_empty(), "{refs:?}");
     }
 
@@ -4496,7 +4758,14 @@ mod tests {
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Mid {\n    superclass Base\n}\noo::class create Sub {\n    superclass Mid\n    constructor {} { next }\n}\n";
         let analysis = analyse(src);
         // `Base`'s constructor (line 1) picks up the chain.
-        let base_refs = references(src, "tcl", 1, 6, &analysis, false);
+        let base_refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert_eq!(base_refs.len(), 1, "{base_refs:?}");
         assert_eq!(base_refs[0].start_line, 8, "{base_refs:?}");
     }
@@ -4507,9 +4776,23 @@ mod tests {
         // an effective constructor — only `Grandparent` picks up a reference.
         let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto Grandparent }\n}\n";
         let analysis = analyse(src);
-        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        let grandparent_refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
-        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        let base_refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            6,
+            &analysis,
+            false,
+        );
         assert!(base_refs.is_empty(), "{base_refs:?}");
     }
 
@@ -4522,9 +4805,23 @@ mod tests {
         // delimited span, is what gets resolved against the class map.
         let src = "oo::class create Grandparent {\n    constructor {} { }\n}\noo::class create Base {\n    superclass Grandparent\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { nextto {Grandparent} }\n}\n";
         let analysis = analyse(src);
-        let grandparent_refs = references(src, "tcl", 1, 6, &analysis, false);
+        let grandparent_refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert_eq!(grandparent_refs.len(), 1, "{grandparent_refs:?}");
-        let base_refs = references(src, "tcl", 4, 6, &analysis, false);
+        let base_refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            6,
+            &analysis,
+            false,
+        );
         assert!(base_refs.is_empty(), "{base_refs:?}");
     }
 
@@ -4533,7 +4830,14 @@ mod tests {
         let src = "oo::class create Base {\n    destructor { }\n}\noo::class create Sub {\n    superclass Base\n    destructor { next }\n}\n";
         let analysis = analyse(src);
         // `destructor` keyword on line 1, col 4.
-        let refs = references(src, "tcl", 1, 5, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            5,
+            &analysis,
+            true,
+        );
         assert_eq!(refs.len(), 2, "{refs:?}");
         assert!(refs.iter().any(|r| r.start_line == 5), "{refs:?}");
     }
@@ -4545,7 +4849,14 @@ mod tests {
         // nothing (it has no reference story worth surfacing).
         let src = "oo::class create C {\n    constructor {} { }\n    constructor {} { }\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            true,
+        );
         assert!(refs.is_empty(), "{refs:?}");
     }
 
@@ -4560,7 +4871,14 @@ mod tests {
         let src = "oo::class create Base {\n    constructor {} { }\n}\noo::class create Sub {\n    superclass Base\n    constructor {} { next }\n    method constructor {} { }\n}\n";
         let analysis = analyse(src);
         // `Base`'s `constructor` keyword, line 1.
-        let refs = references(src, "tcl", 1, 6, &analysis, false);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+            false,
+        );
         assert_eq!(
             refs.len(),
             1,
@@ -4574,7 +4892,14 @@ mod tests {
         let src = "set x 1\nputs $x\nputs $x\n";
         let analysis = analyse(src);
         // Cursor on `$x` first reference.
-        let refs = references(src, "tcl", 1, 7, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            &analysis,
+            true,
+        );
         // The analyser may or may not record the literal `$x`
         // as a reference depending on lowering; at minimum the
         // declaration should land in the result list.
@@ -4591,7 +4916,14 @@ mod tests {
         let src = "proc greet {name} { return $name }\ngreet hi\n";
         let analysis = analyse(src);
         // Cursor on `name` inside the parameter list (col 12-16).
-        let refs = references(src, "tcl", 0, 13, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            13,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -4609,7 +4941,14 @@ mod tests {
         let src = "proc resolveSwitch {name def} {\n    catch {foo} name\n    return $name\n}\n";
         let analysis = analyse(src);
         // Cursor on the catch result-var `name` (line 1, col 16-20).
-        let refs = references(src, "tcl", 1, 17, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            17,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "original decl missing: {refs:?}");
         assert!(
@@ -4625,7 +4964,13 @@ mod tests {
         let src = "set x 1\nputs $x\n";
         let analysis = analyse(src);
         // Cursor inside `$x`.
-        let highlights = document_highlights(src, "tcl", 1, 7, &analysis);
+        let highlights = document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            7,
+            &analysis,
+        );
         // The defining `set x` span should be tagged Write.
         let writes: Vec<_> = highlights
             .iter()
@@ -4676,7 +5021,8 @@ mod tests {
         // Source matches the spans we injected so
         // line/character translation works.
         let src = "set x 1\nputs $x\n";
-        let highlights = document_highlights(src, "tcl", 1, 6, &a);
+        let highlights =
+            document_highlights(src, tcl_dialect::DialectProfile::by_name("tcl"), 1, 6, &a);
         // Write at definition.
         assert!(
             highlights
@@ -4697,7 +5043,13 @@ mod tests {
     fn document_highlights_proc_decl_is_text() {
         let src = "proc greet {} {}\ngreet\n";
         let analysis = analyse(src);
-        let highlights = document_highlights(src, "tcl", 0, 6, &analysis);
+        let highlights = document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+        );
         // Declaration on line 0 should be Text — procs carry no Write/Read
         // distinction (only variables do).
         let line0 = highlights
@@ -4721,7 +5073,16 @@ mod tests {
     fn document_highlights_empty_for_unknown_symbol() {
         let src = "puts hello\n";
         let analysis = analyse(src);
-        assert!(document_highlights(src, "tcl", 0, 6, &analysis).is_empty());
+        assert!(
+            document_highlights(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                0,
+                6,
+                &analysis
+            )
+            .is_empty()
+        );
     }
 
     // resolved-qualified-name matching
@@ -4736,7 +5097,14 @@ mod tests {
         let src = "proc ::greet {} {}\nnamespace eval ::myns {\n    greet\n}\n";
         let analysis = analyse(src);
         // Cursor on the proc declaration.
-        let refs = references(src, "tcl", 0, 8, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            8,
+            &analysis,
+            true,
+        );
         // Should include the declaration and the call site.
         assert!(
             refs.len() >= 2,
@@ -4752,7 +5120,13 @@ mod tests {
         // the document-highlight provider.
         let src = "set x 1\nputs $x\nputs $x\n";
         let analysis = analyse(src);
-        let highlights = document_highlights(src, "tcl", 1, 6, &analysis);
+        let highlights = document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            6,
+            &analysis,
+        );
         let reads: Vec<_> = highlights
             .iter()
             .filter(|(_, k)| *k == HighlightKind::Read)
@@ -4816,7 +5190,14 @@ mod tests {
             "must resolve to method bar's declaration"
         );
         // `references` from `bar`'s declaration (line 5, col 11).
-        let refs = references(src, "tcl", 5, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&5), "decl missing: {refs:?}");
         assert!(
@@ -4833,7 +5214,14 @@ mod tests {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `greet` declaration (line 1, col 11).
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
     }
 
@@ -4841,7 +5229,14 @@ mod tests {
     fn references_do_not_resolve_an_unclosed_braced_instance_head() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset x [Dog new]\n${x bark\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         assert_eq!(
             refs.len(),
             1,
@@ -4872,7 +5267,14 @@ mod tests {
         let src = "oo::class create widget {\n    method bar {} { return \"bar-value\" }\n    method dispatch {args} {\n        switch -exact -- [lindex $args 0] {\n            bar { my bar {*}[lrange $args 1 end] }\n        }\n    }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `bar` declaration (line 1, col 11).
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -4885,7 +5287,14 @@ mod tests {
     fn references_for_method_excludes_decl_when_requested() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 11, &analysis, false);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            false,
+        );
         // Only the two call sites — the declaration is
         // excluded when include_declaration=false.
         assert_eq!(refs.len(), 2, "{refs:?}");
@@ -4895,7 +5304,13 @@ mod tests {
     fn document_highlights_for_method_marks_decl_and_calls_text() {
         let src = "oo::class create C {\n    method greet {} {}\n    method twice {} { my greet ; my greet }\n}\n";
         let analysis = analyse(src);
-        let h = document_highlights(src, "tcl", 1, 11, &analysis);
+        let h = document_highlights(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+        );
         // Methods carry no Write/Read distinction — declaration + both call
         // sites are all Text (only variables are Write/Read).
         let writes = h.iter().filter(|(_, k)| *k == HighlightKind::Write).count();
@@ -4916,7 +5331,14 @@ mod tests {
         let src = "oo::class create Gadget {\n    variable _x\n}\noo::define Gadget {\n    method Helper {} { return hi }\n    method Caller {} { my Helper }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `Helper` declaration (line 4, col 11).
-        let refs = references(src, "tcl", 4, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&4), "decl missing: {refs:?}");
         assert!(
@@ -4935,7 +5357,14 @@ mod tests {
         let src = "oo::class create C {\n    method animTick {} { return 1 }\n    method anim {} { [self] animTick }\n}\n";
         let analysis = analyse(src);
         // Cursor on the `animTick` declaration (line 1, col 11).
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(
@@ -4953,7 +5382,14 @@ mod tests {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
         // Cursor on `bark` in `$d bark` (line 4, col 3).
-        let refs = references(src, "tcl", 4, 3, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            3,
+            &analysis,
+            true,
+        );
         // Declaration (line 1) + two external sites (lines 4, 5).
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
@@ -4967,7 +5403,14 @@ mod tests {
         // `$d bark` site as well as the declaration.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(lines.contains(&4), "external call missing: {refs:?}");
@@ -4977,7 +5420,14 @@ mod tests {
     fn find_obj_method_call_sites_covers_top_level_and_subst() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\n$d bark\nputs [$d bark]\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Dog",
+            "bark",
+            false,
+        );
         // Two external sites: `$d bark` and `[$d bark]`.
         assert_eq!(sites.len(), 2, "{sites:?}");
     }
@@ -4986,7 +5436,14 @@ mod tests {
     fn find_obj_method_call_sites_finds_calls_in_proc_body() {
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nproc f {} { $d bark }\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Dog",
+            "bark",
+            false,
+        );
         assert_eq!(sites.len(), 1, "{sites:?}");
     }
 
@@ -4997,7 +5454,14 @@ mod tests {
         // through `created_instance_commands`.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Dog",
+            "bark",
+            false,
+        );
         assert_eq!(sites.len(), 1, "{sites:?}");
         // The matched span is the `bark` method-name token of `rex bark`.
         let s = sites[0];
@@ -5019,8 +5483,14 @@ mod tests {
         // `classmethod` propagates to a subclass's own bound command).
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
         let analysis = analyse(src);
-        let sites =
-            find_obj_method_call_sites(src, "tcl", &analysis, "::ActiveRecord", "find", true);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::ActiveRecord",
+            "find",
+            true,
+        );
         assert_eq!(sites.len(), 2, "{sites:?}");
         for s in &sites {
             assert_eq!(
@@ -5045,7 +5515,14 @@ mod tests {
                    }\n\
                    namespace eval ::top2 { Factory make }\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Factory", "make", true);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Factory",
+            "make",
+            true,
+        );
         assert_eq!(sites.len(), 3, "{sites:?}");
         for s in &sites {
             assert_eq!(
@@ -5071,7 +5548,14 @@ mod tests {
                    apply {{} { $f bark }}\n\
                    $f bark\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Dog",
+            "bark",
+            false,
+        );
         assert_eq!(sites.len(), 1, "{sites:?}");
         let s = sites[0];
         let line = src[..s.start() as usize].lines().count();
@@ -5089,7 +5573,14 @@ mod tests {
                    }\n\
                    apply {{} Factory\\ make}\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Factory", "make", true);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Factory",
+            "make",
+            true,
+        );
         assert!(sites.is_empty(), "{sites:?}");
     }
 
@@ -5102,7 +5593,14 @@ mod tests {
         // as a call site of `Widget`'s `make`.
         let src = "oo::class create Widget {\n    self method make {n} { return \"made $n\" }\n}\noo::class create Gadget {\n    superclass Widget\n}\nWidget make foo\nGadget make foo\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Widget", "make", true);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Widget",
+            "make",
+            true,
+        );
         assert_eq!(sites.len(), 1, "{sites:?}");
         assert_eq!(
             &src[sites[0].start() as usize..sites[0].end() as usize],
@@ -5121,7 +5619,14 @@ mod tests {
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\noo::class create Table {\n    superclass ActiveRecord\n}\nTable find foo bar\nActiveRecord find foo bar\n";
         let analysis = analyse(src);
         // Cursor on the declaration (line 1, `find` at col 16).
-        let refs = references(src, "tcl", 1, 16, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            16,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert_eq!(refs.len(), 3, "{refs:?}");
         assert!(lines.contains(&1), "decl missing: {refs:?}");
@@ -5140,7 +5645,14 @@ mod tests {
         let src = "oo::class create ActiveRecord {\n    classmethod find {args} { return \"found $args\" }\n}\nActiveRecord find foo bar\n";
         let analysis = analyse(src);
         // Cursor on `find` in `ActiveRecord find foo bar` (line 3, col 13).
-        let refs = references(src, "tcl", 3, 13, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            3,
+            13,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(lines.contains(&3), "call site missing: {refs:?}");
@@ -5152,7 +5664,14 @@ mod tests {
         // `rex bark` dispatch as a reference.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 1, 11, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(lines.contains(&4), "bare `rex bark` site missing: {refs:?}");
@@ -5165,7 +5684,14 @@ mod tests {
         // only the declaration-based peek.  `rex` is at col 0, `bark` at col 4.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nDog create rex\nrex bark\n";
         let analysis = analyse(src);
-        let refs = references(src, "tcl", 4, 4, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            4,
+            4,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&1), "decl missing: {refs:?}");
         assert!(lines.contains(&4), "call site missing: {refs:?}");
@@ -5178,7 +5704,14 @@ mod tests {
         // so it must not be matched — only `$d bark` counts.
         let src = "oo::class create Dog {\n    method bark {} {}\n}\nset d [Dog new]\nd bark\n";
         let analysis = analyse(src);
-        let sites = find_obj_method_call_sites(src, "tcl", &analysis, "::Dog", "bark", false);
+        let sites = find_obj_method_call_sites(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &analysis,
+            "::Dog",
+            "bark",
+            false,
+        );
         assert!(
             sites.is_empty(),
             "bare var receiver wrongly matched: {sites:?}"
@@ -5194,7 +5727,14 @@ mod tests {
         let src = "::tcl::OptProc greet {child -use -display} { return $child }\ngreet foo\n";
         let analysis = analyse(src);
         // Line 0 — cursor on "greet" right after `::tcl::OptProc` (col 15).
-        let refs = references(src, "tcl", 0, 15, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            15,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(lines.contains(&1), "call site missing: {refs:?}");
@@ -5209,7 +5749,14 @@ mod tests {
         let src = "proc greetD {n} {puts \"D $n\"}\nset cmdD [list greetD World]\neval $cmdD\n";
         let analysis = analyse(src);
         // Line 0 — cursor on `greetD`'s declaration name (col 6).
-        let refs = references(src, "tcl", 0, 6, &analysis, true);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            6,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
         assert!(lines.contains(&0), "decl missing: {refs:?}");
         assert!(
@@ -5225,7 +5772,11 @@ mod tests {
             .into_iter()
             .next()
             .expect("expect command");
-        let regions = nested_dispatch_regions(source, "expect", &command);
+        let regions = nested_dispatch_regions(
+            source,
+            tcl_dialect::DialectProfile::by_name("expect"),
+            &command,
+        );
         assert_eq!(
             regions.len(),
             2,
@@ -5250,7 +5801,11 @@ mod tests {
             .into_iter()
             .next()
             .expect("expect command");
-        let regions = nested_dispatch_regions(source, "expect", &command);
+        let regions = nested_dispatch_regions(
+            source,
+            tcl_dialect::DialectProfile::by_name("expect"),
+            &command,
+        );
         assert_eq!(
             regions.len(),
             2,
@@ -5279,7 +5834,12 @@ mod tests {
                 .next()
                 .expect("case-list command");
             assert!(
-                nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
+                nested_dispatch_regions(
+                    source,
+                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    &command
+                )
+                .is_empty(),
                 "semantic references must abstain for malformed case list: {source:?}"
             );
         }
@@ -5294,10 +5854,19 @@ mod tests {
         );
         let commands = tcl_compiler::segmenter::segment_commands(source);
         assert!(
-            nested_dispatch_regions(source, "tcl8.6", &commands[0]).is_empty(),
+            nested_dispatch_regions(
+                source,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                &commands[0]
+            )
+            .is_empty(),
             "a later alias must not apply before its declaration"
         );
-        let regions = nested_dispatch_regions(source, "tcl8.6", &commands[2]);
+        let regions = nested_dispatch_regions(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &commands[2],
+        );
         assert!(
             regions
                 .iter()
@@ -5325,7 +5894,12 @@ mod tests {
                 .last()
                 .expect("alias call");
             assert!(
-                nested_dispatch_regions(source, "tcl8.6", &command).is_empty(),
+                nested_dispatch_regions(
+                    source,
+                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    &command
+                )
+                .is_empty(),
                 "a deleted or rebound alias must not use switch grammar: {source:?}"
             );
         }
@@ -5345,7 +5919,11 @@ mod tests {
             (&commands[3], "rooted_alias"),
             (&commands[4], "namespaced_alias"),
         ] {
-            let regions = nested_dispatch_regions(source, "tcl8.6", command);
+            let regions = nested_dispatch_regions(
+                source,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                command,
+            );
             assert!(
                 regions
                     .iter()
@@ -5368,7 +5946,14 @@ mod tests {
         );
         let analysis = analyse(source);
         // `target` begins after the four-space indent plus `method `.
-        let refs = references(source, "tcl", 2, 11, &analysis, true);
+        let refs = references(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            11,
+            &analysis,
+            true,
+        );
         let lines: Vec<u32> = refs.iter().map(|range| range.start_line).collect();
         assert!(lines.contains(&2), "declaration missing: {refs:?}");
         assert!(
@@ -5381,7 +5966,14 @@ mod tests {
     fn switch_braced_body_references_reach_nested_command() {
         let source = "proc ready {} {}\nswitch $state { ready {ready} default {set x 1}}\n";
         let analysis = analyse(source);
-        let refs = references(source, "tcl", 0, 5, &analysis, true);
+        let refs = references(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            0,
+            5,
+            &analysis,
+            true,
+        );
         assert!(
             refs.iter().any(|r| r.start_line == 0) && refs.iter().any(|r| r.start_line == 1),
             "switch braced body reference missing: {refs:?}"

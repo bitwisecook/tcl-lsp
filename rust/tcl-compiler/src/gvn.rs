@@ -595,7 +595,7 @@ pub fn is_worth_reporting_with_procs(
 /// purposes — i.e. has no observable side effects.
 ///
 /// Bridges to [`classify_side_effects`]. An optional
-/// dialect (`Some(tcl_dialect::DialectProfile::by_name("irules"))` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
+/// dialect (`Some(tcl_dialect::DialectProfile::irules())` / `Some(tcl_dialect::DialectProfile::by_name("tcl"))`) threads through to
 /// the classifier.
 #[must_use]
 pub fn is_pure_command(
@@ -2105,11 +2105,11 @@ mod tests {
     #[test]
     fn function_level_gvn_proves_llength_dispatch_and_reports_o105() {
         let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "llength {a b}\nllength {a b}",
             &registry,
             false,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let function = &cu.top_level;
 
@@ -2157,11 +2157,11 @@ mod tests {
     #[test]
     fn function_level_gvn_declines_unmapped_calls_inside_structured_source() {
         let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "if {$flag} {\nllength {a b}\nllength {a b}\n}",
             &registry,
             false,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let function = &cu.top_level;
         assert!(
@@ -2193,11 +2193,11 @@ mod tests {
             traits: Traits::PURE | Traits::CSE_CANDIDATE,
             ..tcl_registry::CommandSpec::CLOSED_REFERENTIALLY_TRANSPARENT
         });
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "test::pure_cse value\ntest::pure_cse value",
             &registry,
             false,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert!(matches!(
             cu.top_level.semantic_facts.executable(),
@@ -2223,8 +2223,11 @@ mod tests {
             "lindex {a b} 0\nlindex {a b} 0",
             "lreverse {a b}\nlreverse {a b}",
         ] {
-            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
-                source, &registry, false, "tcl9.0",
+            let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source,
+                &registry,
+                false,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
             );
             assert_eq!(
                 find_redundancies_for_function(
@@ -2306,8 +2309,11 @@ mod tests {
         let source = "trace add execution llength enter observe\n\
                       llength {a b}\n\
                       llength {a b}";
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
-            source, &registry, false, "tcl9.0",
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source,
+            &registry,
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
 
         assert!(matches!(
@@ -2325,11 +2331,11 @@ mod tests {
         );
 
         // Control: with the registration removed, the same two calls report.
-        let untraced = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let untraced = crate::compilation_unit::CompilationUnit::build_for_profile(
             "llength {a b}\nllength {a b}",
             &registry,
             false,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert_eq!(
             find_redundancies_for_function(
@@ -2354,11 +2360,11 @@ mod tests {
             state_transitions: Some(tcl_registry::StateTransitionDescriptor::EMPTY),
             ..tcl_registry::CommandSpec::DEFAULT
         });
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "test::volatile_cse\ntest::volatile_cse",
             &registry,
             false,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
 
         assert!(
@@ -2379,8 +2385,11 @@ mod tests {
             "clock seconds\nclock seconds",
             "clock add 0 1 day\nclock add 0 1 day",
         ] {
-            let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
-                source, &registry, false, "tcl9.0",
+            let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+                source,
+                &registry,
+                false,
+                tcl_dialect::DialectProfile::by_name("tcl9.0"),
             );
             assert!(
                 find_redundancies_for_function(
@@ -3884,8 +3893,11 @@ mod tests {
     /// executable semantic sidecar must exist; a decline there would make an
     /// empty result meaningless.
     fn stable_call_findings(registry: &CommandRegistry, source: &str) -> Vec<RedundantComputation> {
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
-            source, registry, false, "tcl9.0",
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
+            source,
+            registry,
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(
             matches!(
@@ -4321,11 +4333,11 @@ mod tests {
     #[test]
     fn procedure_units_abstain_under_the_unknown_world_entry_assumption() {
         let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "proc p {items} {\nllength $items\nllength $items\n}",
             &registry,
             false,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         let procedure = cu.procedures.get("::p").expect("the proc unit is built");
         assert!(
@@ -4352,11 +4364,11 @@ mod tests {
     #[test]
     fn repeated_stable_calls_in_a_while_body_abstain() {
         let registry = CommandRegistry::build_default();
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             "while {$go} {\nllength {a b}\nllength {a b}\n}",
             &registry,
             false,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert!(
             !find_redundancies(

@@ -102,7 +102,7 @@ pub fn write_highlighted_output(
     text: &str,
     use_colour: bool,
     tab_width: usize,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Result<(), CliError> {
     let mut rendered = text.to_owned();
     if target.is_stdout() && tab_width > 0 {

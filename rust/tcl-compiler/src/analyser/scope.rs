@@ -1107,12 +1107,12 @@ impl Analyser {
         let Some(builtins) = self.builtin_names.as_ref() else {
             return;
         };
-        // `&'static str`, not a borrow of `self` — safe to read after the
-        // field-splitting `result` borrow below, unlike an `&self` method
-        // call (which is why the math-function existence check the
-        // mathfunc branch uses is a free function, not `Analyser::dialect`
+        // `&'static DialectProfile`, not a borrow of `self` — safe to read
+        // after the field-splitting `result` borrow below, unlike an `&self`
+        // method call (which is why the math-function existence check the
+        // mathfunc branch uses is a free function, not `Analyser::profile`
         // plus an instance method).
-        let dialect = self.dialect();
+        let dialect = self.profile;
         // Recorded `namespace path` declarations, cloned before borrowing
         // `result` mutably. Entries are passed as written — the shared
         // candidate builder roots a relative entry against the declaring

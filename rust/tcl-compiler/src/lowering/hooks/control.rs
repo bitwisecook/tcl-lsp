@@ -35,7 +35,7 @@
 //! can emit the value directly.
 
 use crate::alias::{CommandAliasMap, expr_alias_names};
-use crate::expr_parser::parse_expr;
+use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::Statement;
 use crate::lowering_hooks::{
     ArgTokenKind, LoweringCommand, extract_single_expr_arg, has_expansion,
@@ -67,7 +67,7 @@ pub fn try_lower_expr(cmd: &LoweringCommand<'_>) -> Option<Statement> {
     ) {
         return None;
     }
-    let expr = parse_expr(&cmd.args[0], cmd.dialect);
+    let expr = parse_expr_for_profile(&cmd.args[0], cmd.dialect);
     // Anchor the expression text absolutely when the arg word's content is
     // a verbatim source slice (see `word_content_base`) so consumers can map
     // expression-AST leaf offsets to source operand spans.
@@ -129,7 +129,7 @@ pub fn try_lower_return(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) ->
                     .unwrap_or(&cmd.args[0]);
                 let alias_names = expr_alias_names(aliases);
                 if let Some((expr_arg, _)) = extract_single_expr_arg(inner, &alias_names) {
-                    expr = Some(parse_expr(&expr_arg, cmd.dialect));
+                    expr = Some(parse_expr_for_profile(&expr_arg, cmd.dialect));
                 }
             }
             _ => {}

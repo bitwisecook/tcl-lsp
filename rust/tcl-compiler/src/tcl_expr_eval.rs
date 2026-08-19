@@ -156,13 +156,17 @@ pub fn eval_tcl_expr(node: &ExprNode, env: &Env) -> Option<TclValue> {
 /// an `is*` classification (9.0) used in an older core folds nothing, since
 /// the `::tcl::mathfunc::*` command it would call does not exist there.
 #[must_use]
-pub fn eval_tcl_expr_in_dialect(node: &ExprNode, env: &Env, dialect: &str) -> Option<TclValue> {
+pub fn eval_tcl_expr_in_dialect(
+    node: &ExprNode,
+    env: &Env,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> Option<TclValue> {
     eval_with_config(
         node,
         env,
-        leading_zero_is_octal(tcl_dialect::DialectProfile::by_name(dialect)),
+        leading_zero_is_octal(dialect),
         math_func_ceiling_for_dialect(dialect),
-        tcl_dialect::DialectProfile::by_name(dialect).is_irules(),
+        dialect.is_irules(),
     )
 }
 
@@ -339,9 +343,9 @@ pub fn leading_zero_is_octal(profile: &tcl_dialect::DialectProfile) -> Option<bo
 /// table.
 #[must_use]
 pub fn math_func_ceiling_for_dialect(
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Option<tcl_syntax::expr::mathfunc::MathFuncSince> {
-    tcl_registry::mathfunc::expr_grammar_ceiling(tcl_dialect::DialectProfile::by_name(dialect))
+    tcl_registry::mathfunc::expr_grammar_ceiling(dialect)
 }
 
 /// Whether `name` is a genuine built-in `expr` math function (`sin`, `max`,
@@ -355,8 +359,11 @@ pub fn math_func_ceiling_for_dialect(
 /// answer without either duplicating the other's logic.  Delegates to
 /// [`tcl_registry::mathfunc::available_in_expr`].
 #[must_use]
-pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
-    tcl_registry::mathfunc::available_in_expr(name, tcl_dialect::DialectProfile::by_name(dialect))
+pub fn is_known_mathfunc_in_dialect(
+    name: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> bool {
+    tcl_registry::mathfunc::available_in_expr(name, dialect)
 }
 
 /// Whether `dialect` exposes math functions as literal `::tcl::mathfunc::*`
@@ -375,10 +382,10 @@ pub fn is_known_mathfunc_in_dialect(name: &str, dialect: &str) -> bool {
 /// function-call shortcut, which only reflects the first, narrower fact.
 /// Delegates to [`tcl_registry::mathfunc::command_wrappers_available`].
 #[must_use]
-pub fn mathfunc_command_wrappers_available_in_dialect(dialect: &str) -> bool {
-    tcl_registry::mathfunc::command_wrappers_available(tcl_dialect::DialectProfile::by_name(
-        dialect,
-    ))
+pub fn mathfunc_command_wrappers_available_in_dialect(
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> bool {
+    tcl_registry::mathfunc::command_wrappers_available(dialect)
 }
 
 fn eval_with_config(
@@ -1392,18 +1399,30 @@ mod tests {
     /// defence-in-depth fix), which only [`eval_tcl_expr_in_dialect`] does.
     fn eval_irules(expr: &str) -> Option<TclValue> {
         let env = Env::new();
-        eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), &env, "f5-irules")
+        eval_tcl_expr_in_dialect(
+            &parse_expr(expr, Some("f5-irules")),
+            &env,
+            tcl_dialect::DialectProfile::irules(),
+        )
     }
 
     fn eval_irules_env(expr: &str, env: &Env) -> Option<TclValue> {
-        eval_tcl_expr_in_dialect(&parse_expr(expr, Some("f5-irules")), env, "f5-irules")
+        eval_tcl_expr_in_dialect(
+            &parse_expr(expr, Some("f5-irules")),
+            env,
+            tcl_dialect::DialectProfile::irules(),
+        )
     }
 
     #[test]
     fn math_functions_fold_only_from_their_introducing_release() {
         let env = Env::new();
         let fold = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, Some(dialect)), &env, dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, Some(dialect)),
+                &env,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         // `min`/`max` are 8.5+: fold from 8.5, decline under 8.4.
         assert_eq!(fold("min(3, 1, 2)", "tcl8.6"), Some(TclValue::Int(1)));
@@ -1529,7 +1548,11 @@ mod tests {
     #[test]
     fn dialect_aware_leading_zero_folds_per_dialect() {
         let eval_d = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, None),
+                &Env::new(),
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         // tcl8.x octal: `08`/`09` are *invalid* octal → treated as strings, so
         // `"08" == "8"` is a string compare → 0. `010` is valid octal (8), so
@@ -1552,7 +1575,11 @@ mod tests {
         // verified against real tclsh8.6: `010 + 1` = 9 (octal 8+1),
         // `010 * 2` = 16, `-010` = -8, `abs(-010)` = 8.
         let eval_d = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, None),
+                &Env::new(),
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         for d in ["tcl8.4", "tcl8.5", "tcl8.6", "f5-irules", "f5-iapps"] {
             assert_eq!(eval_d("010 + 1", d), Some(TclValue::Int(9)), "{d}");
@@ -1590,7 +1617,11 @@ mod tests {
         // to the runtime, which will raise the real error) rather than
         // guess a decimal reading.
         let eval_d = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, None),
+                &Env::new(),
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         assert_eq!(eval_d("08 + 1", "tcl8.6"), None);
         // Decimal dialect reads `08` as 8, so this is fine there.
@@ -1600,7 +1631,11 @@ mod tests {
     #[test]
     fn bpf_folds_leading_zero_as_decimal_like_its_tcl_9_runtime() {
         let eval_d = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, None),
+                &Env::new(),
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         // bpf embeds Tcl 9.0 (dialect-profile-model.md D7): `010` is decimal
         // 10 — tclsh9.0-verified (`expr {010 + 1}` → 11, `expr {08 + 1}` →
@@ -1617,7 +1652,11 @@ mod tests {
     #[test]
     fn no_runtime_profiles_abstain_from_octal_sensitive_folds() {
         let eval_d = |expr: &str, dialect: &str| {
-            eval_tcl_expr_in_dialect(&parse_expr(expr, None), &Env::new(), dialect)
+            eval_tcl_expr_in_dialect(
+                &parse_expr(expr, None),
+                &Env::new(),
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
         };
         // f5-bigip has no Tcl runtime and an unknown dialect resolves to the
         // permissive fallback: leading-zero-sensitive folds abstain (§11.1)
@@ -1990,7 +2029,7 @@ mod tests {
 
         // Folds to true under the iRules dialect.
         assert_eq!(
-            eval_tcl_expr_in_dialect(&node_irules, &env, "f5-irules"),
+            eval_tcl_expr_in_dialect(&node_irules, &env, tcl_dialect::DialectProfile::irules()),
             Some(TclValue::Int(1))
         );
 
@@ -2000,7 +2039,14 @@ mod tests {
         assert_eq!(eval_tcl_expr_with_octal(&node_irules, &env, None), None);
 
         // And explicitly asking for a plain-Tcl dialect also declines.
-        assert_eq!(eval_tcl_expr_in_dialect(&node_irules, &env, "tcl"), None);
+        assert_eq!(
+            eval_tcl_expr_in_dialect(
+                &node_irules,
+                &env,
+                tcl_dialect::DialectProfile::by_name("tcl")
+            ),
+            None
+        );
     }
 
     #[test]

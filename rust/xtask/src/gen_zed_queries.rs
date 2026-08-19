@@ -138,7 +138,7 @@ fn targets() -> Vec<Target> {
             // `lassign`, `zipfs`), so they are excluded by the mask
             // itself — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
-            profile: DialectProfile::by_name("f5-irules"),
+            profile: DialectProfile::irules(),
         },
         Target {
             dir: "iapps",
@@ -474,11 +474,7 @@ mod tests {
         let tcl_dialects = DialectSet::TK_AND_TCL;
         let irules_dialects = DialectSet::ALL_TCL.union(DialectSet::IRULES);
         let tcl = classify(registry_for(DialectProfile::plain_tcl()), tcl_dialects).total();
-        let irules = classify(
-            registry_for(DialectProfile::by_name("f5-irules")),
-            irules_dialects,
-        )
-        .total();
+        let irules = classify(registry_for(DialectProfile::irules()), irules_dialects).total();
         assert!(
             irules > tcl,
             "iRules ({irules}) should exceed plain Tcl ({tcl}) once F5 commands load"

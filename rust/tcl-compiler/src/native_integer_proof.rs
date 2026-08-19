@@ -950,16 +950,16 @@ mod tests {
 
     fn prove(
         source: &str,
-        dialect: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
         optimisations: SemanticOptimisationConfig,
         policy: NativeIntegerPolicy,
     ) -> NativeIntegerProof {
-        let registry = tcl_registry::registry_for_dialect(dialect);
-        let unit = CompilationUnit::build_for_dialect(source, registry, false, dialect);
+        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let unit = CompilationUnit::build_for_profile(source, registry, false, dialect);
         let plan = CommonAotProofPlan::build(
             &unit,
             registry,
-            DialectSet::parse(dialect).expect("test dialect"),
+            DialectSet::parse(dialect.name).expect("test dialect"),
             optimisations,
             CommonAotEnvironment::Hosted,
         );
@@ -993,7 +993,7 @@ mod tests {
     fn proof_is_default_off() {
         let proof = prove(
             &format!("{ADD_BODY}set d 20\nset e 22\nadd $d $e\n"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             SemanticOptimisationConfig::new().with_enabled(SemanticOptimisationPassId::DirectProc),
             NativeIntegerPolicy::default(),
         );
@@ -1004,7 +1004,7 @@ mod tests {
     fn closed_world_add_proves_ssa_ranges_and_no_overflow() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set d 2\nset e 4\nputs [add $d $e]\n"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             enabled(),
             checked_i64(),
         ));
@@ -1038,7 +1038,7 @@ mod tests {
             .with_enabled(SemanticOptimisationPassId::NativeInteger);
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set d 2\nset e 4\nputs [add $d $e]\n"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             optimisations,
             checked_i64(),
         ));
@@ -1055,7 +1055,12 @@ mod tests {
     fn multiple_direct_callers_join_ranges_conservatively() {
         let source =
             format!("{ADD_BODY}set d 1\nset e 2\nadd $d $e\nset d 3\nset e 4\nadd $d $e\n");
-        let decision = one_decision(prove(&source, "tcl9.0", enabled(), checked_i64()));
+        let decision = one_decision(prove(
+            &source,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            enabled(),
+            checked_i64(),
+        ));
         let NativeAddDecision::Proven(evidence) = decision else {
             panic!("expected joined proof, got {decision:?}");
         };
@@ -1093,7 +1098,12 @@ mod tests {
             "{ADD_BODY}proc risky {{}} {{ try {{ add 100 200 }} on error {{}} {{}} }}\n\
              set d 2\nset e 4\nputs [add $d $e]\n"
         );
-        let decision = one_decision(prove(&source, "tcl9.0", enabled(), checked_i64()));
+        let decision = one_decision(prove(
+            &source,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            enabled(),
+            checked_i64(),
+        ));
         assert!(
             matches!(
                 decision,
@@ -1111,7 +1121,7 @@ mod tests {
         let source = format!("{ADD_BODY}add 9223372036854775807 1\n");
         let strict = one_decision(prove(
             &source,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             enabled(),
             NativeIntegerPolicy::new(
                 NativeIntegerWidth::I64,
@@ -1126,7 +1136,12 @@ mod tests {
             }
         ));
 
-        let checked = one_decision(prove(&source, "tcl9.0", enabled(), checked_i64()));
+        let checked = one_decision(prove(
+            &source,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            enabled(),
+            checked_i64(),
+        ));
         let NativeAddDecision::Proven(evidence) = checked else {
             panic!("expected checked proof, got {checked:?}");
         };
@@ -1141,7 +1156,7 @@ mod tests {
     fn bignum_operand_never_enters_native_path() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}add 9223372036854775808 1\n"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             enabled(),
             checked_i64(),
         ));
@@ -1158,7 +1173,7 @@ mod tests {
     fn dynamic_caller_declines_parameter_range() {
         let decision = one_decision(prove(
             &format!("{ADD_BODY}set target add\n$target 20 22\n"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
             enabled(),
             checked_i64(),
         ));
@@ -1177,7 +1192,12 @@ mod tests {
                       proc add {a b} { trace add variable a read cb; \
                       set result [expr {$a + $b}]; return $result }\n\
                       add 20 22\n";
-        let decision = one_decision(prove(source, "tcl9.0", enabled(), checked_i64()));
+        let decision = one_decision(prove(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            enabled(),
+            checked_i64(),
+        ));
         assert!(matches!(
             decision,
             NativeAddDecision::Declined {
@@ -1190,8 +1210,18 @@ mod tests {
     #[test]
     fn caller_literals_follow_the_registry_dialect() {
         let source = format!("{ADD_BODY}add 010 1\n");
-        let tcl8 = one_decision(prove(&source, "tcl8.6", enabled(), checked_i64()));
-        let tcl9 = one_decision(prove(&source, "tcl9.0", enabled(), checked_i64()));
+        let tcl8 = one_decision(prove(
+            &source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            enabled(),
+            checked_i64(),
+        ));
+        let tcl9 = one_decision(prove(
+            &source,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            enabled(),
+            checked_i64(),
+        ));
         let NativeAddDecision::Proven(tcl8) = tcl8 else {
             panic!("expected Tcl 8 proof, got {tcl8:?}");
         };

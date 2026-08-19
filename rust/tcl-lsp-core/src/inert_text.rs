@@ -178,9 +178,9 @@ pub fn offset_in_data_brace(
     source: &str,
     off: u32,
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> bool {
-    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
     classify(source, source, 0, off, registry, config, 0)
 }
 
@@ -369,7 +369,7 @@ mod tests {
             src,
             offset_of(src, "$level"),
             reg(),
-            "tcl8.6"
+            tcl_dialect::DialectProfile::by_name("tcl8.6")
         ));
         // Nested inside a proc body, which is descended into.
         let nested = "proc p {} {\n    set t {plain $level here}\n}\n";
@@ -377,7 +377,7 @@ mod tests {
             nested,
             offset_of(nested, "$level"),
             reg(),
-            "tcl8.6"
+            tcl_dialect::DialectProfile::by_name("tcl8.6")
         ));
     }
 
@@ -394,7 +394,12 @@ mod tests {
             "eval {puts $level}\n",
         ] {
             assert!(
-                !offset_in_data_brace(src, offset_of(src, "$level"), reg(), "tcl8.6"),
+                !offset_in_data_brace(
+                    src,
+                    offset_of(src, "$level"),
+                    reg(),
+                    tcl_dialect::DialectProfile::by_name("tcl8.6")
+                ),
                 "should be live: {src:?}"
             );
         }
@@ -409,7 +414,7 @@ mod tests {
             src,
             offset_of(src, "$level"),
             reg(),
-            "tcl8.6"
+            tcl_dialect::DialectProfile::by_name("tcl8.6")
         ));
     }
 
@@ -422,14 +427,14 @@ mod tests {
             quoted,
             offset_of(quoted, "$level"),
             reg(),
-            "tcl8.6"
+            tcl_dialect::DialectProfile::by_name("tcl8.6")
         ));
         let unknown = "zzznotacommand {plain $level here}\n";
         assert!(!offset_in_data_brace(
             unknown,
             offset_of(unknown, "$level"),
             reg(),
-            "tcl8.6"
+            tcl_dialect::DialectProfile::by_name("tcl8.6")
         ));
     }
 }

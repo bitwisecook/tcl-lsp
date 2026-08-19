@@ -27,7 +27,7 @@
 //!
 //! The pass reports `O124` with a replacement that prefixes every
 //! non-empty body line with `# ` and prepends an explanatory
-//! banner. The code is gated on `ctx.dialect == Some(tcl_dialect::DialectProfile::by_name("f5-irules"))`.
+//! banner. The code is gated on `ctx.dialect == Some(tcl_dialect::DialectProfile::irules())`.
 //! If any reachable proc has a `has_barrier` flag (dynamic
 //! dispatch — `eval`, `uplevel`, etc.), the pass bails out to
 //! avoid false positives.
@@ -44,9 +44,11 @@ use super::{Optimisation, PassContext};
 
 /// Run the unused-procs pass.
 ///
-/// No-op unless [`PassContext::dialect`] is `Some(tcl_dialect::DialectProfile::by_name("f5-irules"))`
-/// or `Some(tcl_dialect::DialectProfile::by_name("irules"))` (the two names `active_dialect()`
-/// accepts interchangeably for iRules).
+/// No-op unless [`PassContext::dialect`] resolves to the iRules profile.  Both
+/// spellings reach it: the canonical `f5-irules` (which
+/// [`tcl_dialect::DialectProfile::irules`] returns directly) and the `irules`
+/// alias, which `DialectProfile::by_name` canonicalises to the same profile —
+/// the two names `active_dialect()` accepts interchangeably for iRules.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if !is_irules_dialect(ctx.dialect) {
         return;
@@ -256,12 +258,21 @@ mod tests {
 
     #[test]
     fn dialect_gate_rejects_non_irules() {
+        // The canonical spelling, straight from the profile accessor.
         assert!(is_irules_dialect(Some(
-            tcl_dialect::DialectProfile::by_name("f5-irules")
+            tcl_dialect::DialectProfile::irules()
         )));
+        // And the `irules` *alias*, which only reaches the same profile by
+        // going through `by_name`. Asserting `irules()` twice here would pin
+        // nothing: the alias leg is the half that can actually regress.
         assert!(is_irules_dialect(Some(
             tcl_dialect::DialectProfile::by_name("irules")
         )));
+        assert_eq!(
+            tcl_dialect::DialectProfile::by_name("irules").name,
+            tcl_dialect::DialectProfile::irules().name,
+            "the `irules` alias must still canonicalise onto the iRules profile"
+        );
         assert!(!is_irules_dialect(Some(
             tcl_dialect::DialectProfile::by_name("tcl")
         )));
@@ -315,11 +326,7 @@ mod tests {
         // Only procs + RULE_INIT → library → skip.
         let source = "proc ::helper {} { set x 1 }\nwhen RULE_INIT { set static::y 0 }\n";
         let ip = ip_with(&[("::helper", &[], false), ("::when::RULE_INIT", &[], false)]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert!(
             opts.is_empty(),
             "library iRule should not emit O124: {opts:?}"
@@ -333,11 +340,7 @@ mod tests {
             ("::helper", &[], false),
             ("::when::HTTP_REQUEST", &["::helper"], false),
         ]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert!(
             opts.is_empty(),
             "reachable proc should not be flagged: {opts:?}"
@@ -354,11 +357,7 @@ mod tests {
             ("::b", &[], false),
             ("::when::HTTP_REQUEST", &["::a"], false),
         ]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert!(
             opts.is_empty(),
             "barrier in reachable proc should suppress all O124: {opts:?}",
@@ -375,11 +374,7 @@ mod tests {
             ("::dead", &[], false),
             ("::when::HTTP_REQUEST", &["::used"], false),
         ]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert_eq!(opts.len(), 1);
         let opt = &opts[0];
         assert_eq!(opt.code, DiagCode::O124);
@@ -398,11 +393,7 @@ mod tests {
             ("::dead", &[], false),
             ("::when::HTTP_REQUEST", &["::used"], false),
         ]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert_eq!(opts.len(), 1);
     }
 
@@ -418,11 +409,7 @@ mod tests {
             ("::gamma", &[], false),
             ("::when::HTTP_REQUEST", &[], false),
         ]);
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert_eq!(opts.len(), 3);
         // Results are sorted by qualified name.
         let names: Vec<&str> = opts.iter().map(|o| o.message.as_str()).collect();
@@ -453,11 +440,7 @@ mod tests {
             "::when::HTTP_REQUEST".into(),
             summary_with_calls("::when::HTTP_REQUEST", &[], false),
         );
-        let opts = run_pass(
-            source,
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ip,
-        );
+        let opts = run_pass(source, Some(tcl_dialect::DialectProfile::irules()), ip);
         assert_eq!(opts.len(), 1);
     }
 }

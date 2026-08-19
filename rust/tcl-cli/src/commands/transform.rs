@@ -58,7 +58,7 @@ fn format_config(
     indent_style: Option<&str>,
     max_line_length: Option<usize>,
 ) -> FormatterConfig {
-    let mut config = FormatterConfig::for_dialect(dialect);
+    let mut config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect));
     if let Some(size) = indent_size {
         config.indent_size = size;
     }
@@ -100,13 +100,7 @@ pub fn run_format(
 
     let target = OutputTarget::from_arg(input.output.as_deref());
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &formatted,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect.name,
-    )?;
+    write_highlighted_output(&target, &formatted, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
     Ok(0)
 }
 
@@ -178,13 +172,7 @@ pub fn run_opt(
     }
 
     let use_colour = tcl_cli_support::resolve_use_colour(colour.colour, colour.no_colour, &target);
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect.name,
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if !target.is_stdout() {
         eprintln!(
@@ -260,29 +248,18 @@ pub fn run_minify(
 
     let (rendered, map) = match tier {
         MinifyTier::Aggressive => {
-            let result = minify_tcl_aggressive_with(
-                &source,
-                dialect.name,
-                isolated,
-                &registry,
-                abbreviations,
-            );
+            let result =
+                minify_tcl_aggressive_with(&source, dialect, isolated, &registry, abbreviations);
             (result.source, Some(result.symbol_map))
         }
         MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, dialect.name, isolated, &registry);
+            let (minified, sm) = minify_tcl_compact(&source, dialect, isolated, &registry);
             (minified, Some(sm))
         }
-        MinifyTier::Default => (minify_tcl(&source, dialect.name, &registry), None),
+        MinifyTier::Default => (minify_tcl(&source, dialect, &registry), None),
     };
 
-    write_highlighted_output(
-        &target,
-        &rendered,
-        use_colour,
-        DEFAULT_TAB_WIDTH,
-        dialect.name,
-    )?;
+    write_highlighted_output(&target, &rendered, use_colour, DEFAULT_TAB_WIDTH, dialect)?;
 
     if let Some(path) = symbol_map {
         // Always honour `--symbol-map FILE`, even for plain minify (which does

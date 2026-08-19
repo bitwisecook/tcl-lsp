@@ -90,7 +90,8 @@ pub struct LatticeRequest<'a> {
     pub global_write_procs:
         &'a HashMap<String, crate::cfg_builder::global_write_info::GlobalWriteInfo>,
     /// Analysis dialect — selects the registry the lattice pipeline runs under.
-    pub dialect: &'a str,
+    /// `None` when the build named no dialect (plain Tcl).
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Interprocedural caller-uniform-literal SCCP seeds for this procedure
     /// (from [`params_constants_from_call_sites`]), encoded in the
     /// deterministic, hashable `(param, version, string)` form the memo key
@@ -156,8 +157,8 @@ pub struct UnitBuildOptions<'a> {
     pub defer_top_level: bool,
     /// Lexer configuration (dialect `{*}` / `}{` tokenisation).
     pub config: tcl_lexer::LexerConfig,
-    /// Analysis dialect key; `""` for plain Tcl.
-    pub dialect: &'a str,
+    /// Analysis dialect; `None` for plain Tcl.
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Call sites in **other** files that reach this unit's procedures, from
     /// a host with a workspace view (see
     /// [`crate::unit_scope::scan_source_call_sites`]).
@@ -1064,7 +1065,9 @@ fn resolve_unit_scope(
         &ir_module.procedures,
         &ir_module.namespace_imports,
         registry,
-        options.dialect,
+        options
+            .dialect
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
     );
     // Fold in the call sites a host with a cross-file view supplied — callers
     // in *other* files, which this single-source unit can never see for itself
@@ -1085,6 +1088,18 @@ fn resolve_unit_scope(
     (call_sites, command_mutations, linkage)
 }
 
+/// The semantic-dialect bit a unit is filtered by: the *exact* bit the
+/// profile's own name parses to, deliberately not its `availability_mask`.
+/// The registry rows keyed by this describe the one dialect a document is,
+/// not the wider set of releases whose commands that dialect can reach
+/// (`f5-iapps` parses to `IAPPS` while its mask composes `TCL85|IAPPS`).
+/// `None` — the build named no dialect — selects nothing.
+fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
+    dialect
+        .and_then(|profile| DialectSet::parse(profile.name))
+        .unwrap_or_else(DialectSet::empty)
+}
+
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
 /// every procedure in the loop.  Grouped into one struct so the extracted
 /// helper takes two parameters instead of a dozen.
@@ -1093,7 +1108,7 @@ struct ProcedureBuildContext<'a> {
     cfg_module: &'a CfgModule,
     cfg_context: Option<&'a CfgContext>,
     registry: &'a CommandRegistry,
-    dialect: &'a str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Merged in-unit + cross-file call-site evidence
     /// ([`crate::unit_scope::CallSiteEvidence`]).
     call_sites: &'a crate::unit_scope::CallSiteEvidence,
@@ -1217,7 +1232,7 @@ fn build_procedure_units(
         // world until a workspace-aware entry contract exists.
         fu = fu.with_semantic_analysis(
             ctx.registry,
-            DialectSet::parse(ctx.dialect).unwrap_or_else(DialectSet::empty),
+            semantic_dialect_set(ctx.dialect),
             proc.map(|procedure| &procedure.body),
             crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         );
@@ -1286,7 +1301,7 @@ impl CompilationUnit {
                 registry,
                 defer_top_level,
                 config,
-                dialect: "",
+                dialect: None,
                 external_call_sites: None,
             },
             None,
@@ -1321,17 +1336,21 @@ impl CompilationUnit {
         // long enough for `build_with` to parse its semantic dialect bit.
         let effective_dialect =
             if profile.is_fallback() && tcl_dialect::DialectSet::parse(dialect).is_some() {
-                dialect
+                // `resolve_known`, not `by_name`: an additive set-only ingress
+                // (`tk`) has no catalogue entry, so `by_name` would canonicalise
+                // it to the plain fallback and drop both the recorded spelling
+                // and the semantic bit the unit is built for.
+                tcl_dialect::DialectProfile::resolve_known(dialect).unwrap_or(profile)
             } else {
-                profile.name
+                tcl_dialect::DialectProfile::by_name(profile.name)
             };
         Self::build_with(
             source,
             UnitBuildOptions {
                 registry,
                 defer_top_level,
-                config: tcl_lexer::LexerConfig::for_dialect(effective_dialect),
-                dialect: effective_dialect,
+                config: tcl_lexer::LexerConfig::from_grammar(effective_dialect.grammar),
+                dialect: Some(effective_dialect),
                 external_call_sites: None,
             },
             None,
@@ -1350,15 +1369,21 @@ impl CompilationUnit {
         source: &str,
         registry: &CommandRegistry,
         defer_top_level: bool,
-        profile: &tcl_dialect::DialectProfile,
+        profile: &'static tcl_dialect::DialectProfile,
     ) -> Self {
         Self::build_with(
             source,
             UnitBuildOptions {
                 registry,
                 defer_top_level,
-                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
-                dialect: profile.name,
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                // Carry the caller's profile through unchanged. Round-tripping
+                // it through `by_name` is *not* identity: `tk` is an additive
+                // command surface with no catalogue entry of its own, so
+                // `by_name("tk")` sinks to plain Tcl and the unit would lose
+                // both the `tk` spelling and the TK semantic bit. See
+                // `build_for_profile_retains_the_tk_set_only_bit`.
+                dialect: Some(profile),
                 external_call_sites: None,
             },
             None,
@@ -1456,7 +1481,7 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
-        let semantic_dialect = DialectSet::parse(dialect).unwrap_or_else(DialectSet::empty);
+        let semantic_dialect = semantic_dialect_set(dialect);
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             registry,
@@ -2546,7 +2571,12 @@ mod tests {
 
     #[test]
     fn semantic_bundle_keeps_dialect_and_defers_unneeded_world_state() {
-        let linear = CompilationUnit::build_for_dialect("puts hello", &registry(), false, "tcl8.6");
+        let linear = CompilationUnit::build_for_profile(
+            "puts hello",
+            &registry(),
+            false,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let facts = &linear.top_level.semantic_facts;
         assert_eq!(facts.dialect(), DialectSet::TCL86);
         let executable = facts.executable();
@@ -2559,11 +2589,11 @@ mod tests {
         assert_eq!(executable.completion_inputs().count(), 1);
         assert_eq!(executable.effect_inputs().count(), 1);
 
-        let structured = CompilationUnit::build_for_dialect(
+        let structured = CompilationUnit::build_for_profile(
             "if {1} { puts hello }",
             &registry(),
             false,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let structured = structured.top_level.semantic_facts.executable();
         assert!(structured.function().is_some());
@@ -2590,11 +2620,11 @@ mod tests {
 
     #[test]
     fn deep_semantic_analysis_materialises_every_retained_body_sidecar() {
-        let deep = CompilationUnit::build_for_dialect(
+        let deep = CompilationUnit::build_for_profile(
             "proc p {} { puts hello }\nnamespace eval ::n { puts body }\n",
             &registry(),
             false,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         )
         .with_deep_semantic_analysis(&registry(), DialectSet::TCL86);
         // The top-level source contains a structural `namespace eval` whose
@@ -3152,7 +3182,7 @@ mod tests {
                     registry: reg,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: "",
+                    dialect: None,
                     external_call_sites: Some(&empty),
                 },
             )
@@ -3561,7 +3591,13 @@ mod tests {
             /// against the procedures `LIB` declares.
             fn evidence_from(other: &str, reg: &CommandRegistry) -> CallSiteEvidence {
                 let known: HashSet<String> = ["::helper".to_owned()].into_iter().collect();
-                crate::unit_scope::scan_source_call_sites(other, reg, "", &known, &[])
+                crate::unit_scope::scan_source_call_sites(
+                    other,
+                    reg,
+                    tcl_dialect::DialectProfile::by_name(""),
+                    &known,
+                    &[],
+                )
             }
 
             fn build_with_evidence(
@@ -3575,7 +3611,7 @@ mod tests {
                         registry: reg,
                         defer_top_level: false,
                         config: tcl_lexer::LexerConfig::default(),
-                        dialect: "",
+                        dialect: None,
                         external_call_sites: Some(evidence),
                     },
                 )

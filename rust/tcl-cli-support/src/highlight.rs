@@ -98,8 +98,17 @@ fn token_kind(
 }
 
 /// Collect the spans of command heads and resolved subcommands.
-fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
-    let registry = registry_for_dialect(dialect);
+fn collect_command_spans(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
+    // `crate::registry_for_dialect`, **not** `tcl_registry`'s
+    // `registry_for_profile`: this crate's own by-name entry layers the
+    // discovered SpecTcl packs (`cli_packs()`) on top of the catalogue
+    // registry. Resolving straight from the profile would silently drop them,
+    // so a project-local pack's commands and subcommands would stop being
+    // highlighted — pinned by `highlight_uses_the_current_projects_spec_pack_registry`.
+    let registry = registry_for_dialect(dialect.name);
     let mut command_spans = HashSet::new();
     let mut subcommand_spans = HashSet::new();
     for command in segment_commands(source) {
@@ -133,11 +142,15 @@ fn is_body_token(text: &str) -> bool {
 /// ANSI-highlight `source` for the given dialect. Caller decides whether colour
 /// is wanted (ANSI colour variant).
 #[must_use]
-pub fn highlight_ansi(source: &str, dialect: &str) -> String {
+pub fn highlight_ansi(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
     highlight_ansi_inner(source, dialect, 0)
 }
 
-fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
+fn highlight_ansi_inner(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    depth: u32,
+) -> String {
     if source.is_empty() || depth > 8 {
         return source.to_owned();
     }
@@ -191,7 +204,7 @@ fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
 
 /// HTML-highlight `source`.
 #[must_use]
-pub fn highlight_html(source: &str, dialect: &str) -> String {
+pub fn highlight_html(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
     if source.is_empty() {
         return "<pre></pre>\n".to_owned();
     }

@@ -2434,7 +2434,7 @@ mod tests {
             "$s matches_glob \"x*\"",
             "$s matches_regex \"x.\"",
         ] {
-            let t = infer_str_dialect(src, Some(tcl_dialect::DialectProfile::by_name("f5-irules")));
+            let t = infer_str_dialect(src, Some(tcl_dialect::DialectProfile::irules()));
             assert_eq!(
                 t.tcl_type(),
                 Some(TclType::Boolean),

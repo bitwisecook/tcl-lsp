@@ -180,7 +180,7 @@ pub mod world_state_ssa;
 // Re-export key types for convenience.
 pub use completion::{CompletionCodeLattice, CompletionObligations, MAX_EXACT_COMPLETION_CODES};
 pub use expr_ast::{BinOp, ExprNode, ExprOffset, UnaryOp};
-pub use expr_parser::parse_expr;
+pub use expr_parser::{parse_expr, parse_expr_for_profile};
 pub use ir::{Module, Procedure, Script, Statement};
 pub use tcl_expr_eval::{Env, EnvValue, TclValue, eval_tcl_expr, format_tcl_value};
 

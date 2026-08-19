@@ -52,7 +52,7 @@ impl Write for Capture {
 struct CompilerSvc {
     registry: &'static tcl_registry::CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &'static str,
+    dialect: Option<&'static DialectProfile>,
 }
 
 impl CompilerSvc {
@@ -60,7 +60,11 @@ impl CompilerSvc {
         Self {
             registry: tcl_registry::registry_for_profile(profile),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: profile.name,
+            // `Some(profile)` rather than the profile's *name*: this harness is
+            // always constructed from a resolved profile, so there is no
+            // unstated-dialect case to represent (`None`) and no name to
+            // re-resolve.
+            dialect: Some(profile),
         }
     }
 }

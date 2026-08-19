@@ -26,5 +26,13 @@ use tcl_registry::registry::CommandRegistry;
 /// Lower BPF Tcl source under the BPF profile for every top-level and nested
 /// body re-segmentation.
 pub(crate) fn lower_bpf_source(source: &str, registry: &CommandRegistry) -> Module {
-    lower_to_ir_with_dialect(source, registry, LexerConfig::for_dialect("bpf"), "bpf")
+    lower_to_ir_with_dialect(
+        source,
+        registry,
+        LexerConfig::for_dialect("bpf"),
+        // The BPF profile as the registry itself resolved it — this crate
+        // deliberately has no compile-time path to `tcl-dialect`, and reaches a
+        // profile only through `CommandRegistry::profile()`.
+        registry.profile(),
+    )
 }

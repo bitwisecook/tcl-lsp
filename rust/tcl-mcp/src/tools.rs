@@ -298,24 +298,39 @@ fn split_keep_ends(s: &str) -> Vec<String> {
 fn call_graph(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::call_graph(source, &registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::call_graph(
+        source,
+        &registry(&dialect),
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
 }
 
 fn symbol_graph(args: &Value) -> Value {
     let source = arg_str(args, "source");
-    tcl_lsp_core::graphs::symbol_graph(source, &resolve_dialect(args, source))
+    tcl_lsp_core::graphs::symbol_graph(
+        source,
+        tcl_lsp_core::profile_for_dialect(&resolve_dialect(args, source)),
+    )
 }
 
 fn dataflow_graph(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::dataflow_graph(source, &registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::dataflow_graph(
+        source,
+        &registry(&dialect),
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
 }
 
 fn def_use_chains(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let mut graph = tcl_lsp_core::graphs::def_use_graph(source, &registry(&dialect), &dialect);
+    let mut graph = tcl_lsp_core::graphs::def_use_graph(
+        source,
+        &registry(&dialect),
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    );
     // Optional variable filter.
     let variable = arg_str(args, "variable");
     if !variable.is_empty()
@@ -339,13 +354,21 @@ fn def_use_chains(args: &Value) -> Value {
 fn memory_aliases(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_lsp_core::graphs::memory_alias_graph(source, &registry(&dialect), &dialect)
+    tcl_lsp_core::graphs::memory_alias_graph(
+        source,
+        &registry(&dialect),
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
 }
 
 fn diagram(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    tcl_diagram::diagram_data_for_dialect(source, &registry(&dialect), &dialect)
+    tcl_diagram::diagram_data_for_dialect(
+        source,
+        &registry(&dialect),
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
 }
 
 fn detect_dialect(args: &Value) -> Value {
@@ -539,10 +562,13 @@ fn analyze(args: &Value) -> Value {
         .iter()
         .map(|d| diag_to_json(d, &sm))
         .collect();
-    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(source, &dialect)
-        .iter()
-        .map(doc_symbol_to_json)
-        .collect();
+    let symbols: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
+        source,
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
+    .iter()
+    .map(doc_symbol_to_json)
+    .collect();
     json!({
         "diagnostics": diagnostics,
         "diagnostic_count": analysis.diagnostics.len(),
@@ -793,10 +819,13 @@ const SOURCE_URI: &str = "file:///source.tcl";
 fn symbols(args: &Value) -> Value {
     let source = arg_str(args, "source");
     let dialect = resolve_dialect(args, source);
-    let syms: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(source, &dialect)
-        .iter()
-        .map(doc_symbol_to_json)
-        .collect();
+    let syms: Vec<Value> = tcl_lsp_core::document_symbols::document_symbols(
+        source,
+        tcl_lsp_core::profile_for_dialect(&dialect),
+    )
+    .iter()
+    .map(doc_symbol_to_json)
+    .collect();
     json!({ "symbols": syms })
 }
 
@@ -827,7 +856,7 @@ fn complete(args: &Value) -> Value {
         &analysis,
         Some(&registry(&dialect)),
         None,
-        &dialect,
+        tcl_lsp_core::profile_for_dialect(&dialect),
     );
     let items_json: Vec<Value> = items
         .iter()
@@ -882,7 +911,7 @@ fn find_references(args: &Value) -> Value {
     let analysis = analyse(source, &dialect);
     let ranges = tcl_lsp_core::references::references(
         source,
-        &dialect,
+        tcl_lsp_core::profile_for_dialect(&dialect),
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         &analysis,
@@ -901,7 +930,7 @@ fn rename(args: &Value) -> Value {
     let analysis = analyse(source, &dialect);
     let edits = tcl_lsp_core::rename::rename(
         source,
-        &dialect,
+        tcl_lsp_core::profile_for_dialect(&dialect),
         arg_u32(args, "line"),
         arg_u32(args, "character"),
         arg_str(args, "new_name"),

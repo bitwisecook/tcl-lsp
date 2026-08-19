@@ -51,7 +51,7 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name` | the resolved dialect/release axis | none |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name`; `resolve_known`; `availability_for_name` | the resolved dialect/release axis | none |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 
@@ -111,6 +111,26 @@ entry point, or gate moves without this contract being updated.
   state machine: ASCII whitespace is allowed around/between one through thirteen
   hexadecimal digits; a fourteenth digit invalidates the parenthesised form.
   The scanner and value parser share it.
+
+- `tcl_dialect::DialectProfile::by_name` / `resolve_known` — the two dialect
+  *name* resolvers, and the difference between them is load-bearing. `by_name`
+  sinks every unrecognised name to the permissive plain-Tcl profile, which is
+  what a registry or lexer lookup wants. `resolve_known` additionally returns a
+  profile for an additive set-only ingress (`tk`), which is not in the catalogue
+  and would otherwise lose both its spelling and its availability bit.
+  Consumers threading a resolved profile through the LSP layer go through
+  `tcl_lsp_core::profile_for_dialect`, which composes the two (`resolve_known`
+  first, `by_name` as the sink) so a `wish` document keeps its Tk surface; that
+  is a policy over these owners, not a third resolver. See issue #1405.
+
+- `tcl_dialect::DialectProfile::availability_for_name` — the third leg of the
+  same axis, and the one the **analyser** actually travels. It answers the
+  command-availability `DialectSet` for a dialect name directly, unioning the
+  resolved profile's mask with the bit the name itself parses to. That union is
+  what keeps an additive ingress working: `tk` contributes `TK` even though the
+  profile it resolves to is the plain-Tcl fallback whose mask has no such bit.
+  A caller that resolves a profile and reads `profile.availability_mask`
+  instead will silently drop that bit.
 
 ### `tcl-lexer` — source-text decoding
 

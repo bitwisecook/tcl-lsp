@@ -91,7 +91,7 @@ impl CompileService for CompilerSvc {
             src,
             &self.registry,
             tcl_lexer::LexerConfig::default(),
-            self.dialect,
+            Some(tcl_dialect::DialectProfile::by_name(self.dialect)),
         );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
@@ -112,7 +112,7 @@ impl CompileService for CompilerSvc {
             src,
             registry,
             config,
-            profile.name,
+            Some(profile),
         );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
@@ -132,7 +132,7 @@ fn vm_output(src: &str, version: TclVersion) -> String {
         src,
         registry,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-        dialect,
+        Some(tcl_dialect::DialectProfile::by_name(dialect)),
     );
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry);

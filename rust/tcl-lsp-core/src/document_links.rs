@@ -127,7 +127,7 @@ pub struct LinkContext<'a> {
 #[must_use]
 pub fn document_links(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     workspace_root: Option<&str>,
 ) -> Vec<DocumentLink> {
     let home = std::env::var("HOME").ok();
@@ -142,7 +142,7 @@ pub fn document_links(
 #[must_use]
 pub fn document_links_with_home(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     workspace_root: Option<&str>,
     home: Option<&str>,
 ) -> Vec<DocumentLink> {
@@ -164,7 +164,7 @@ pub fn document_links_with_home(
 #[must_use]
 pub fn document_links_in_context(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     ctx: &LinkContext<'_>,
 ) -> Vec<DocumentLink> {
     let LinkContext {
@@ -191,7 +191,7 @@ pub fn document_links_in_context(
     for seg in segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     ) {
         if seg.texts.is_empty() {
             continue;
@@ -314,7 +314,11 @@ pub fn document_links_in_context(
 ///
 /// A single-word substitution (`[pwd]`) has only its command name to offer
 /// and so abstains too, hence the `1..` lower bound.
-fn link_anchor(source: &str, dialect: &str, arg: &Token) -> Option<(u32, u32)> {
+fn link_anchor(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    arg: &Token,
+) -> Option<(u32, u32)> {
     let content_start = arg.span.start() + u32::from(arg.content_offset);
     if arg.kind != TokenType::Cmd {
         return Some((content_start, arg.span.end()));
@@ -327,7 +331,7 @@ fn link_anchor(source: &str, dialect: &str, arg: &Token) -> Option<(u32, u32)> {
     let seg = segment_commands_with_offset_and_config(
         inner,
         content_start,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     )
     .pop()?;
     let last = seg.texts.len().checked_sub(1).filter(|i| *i >= 1)?;
@@ -556,14 +560,28 @@ mod tests {
 
     #[test]
     fn empty_links_for_non_source_commands() {
-        assert!(document_links("set x 1\n", "tcl", None).is_empty());
-        assert!(document_links("puts hello\n", "tcl", None).is_empty());
+        assert!(
+            document_links(
+                "set x 1\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                None
+            )
+            .is_empty()
+        );
+        assert!(
+            document_links(
+                "puts hello\n",
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                None
+            )
+            .is_empty()
+        );
     }
 
     #[test]
     fn absolute_path_surfaces_as_link() {
         let src = "source /usr/lib/tcl/init.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     }
@@ -571,7 +589,11 @@ mod tests {
     #[test]
     fn relative_path_resolves_against_workspace_root() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, "tcl", Some("/home/user/project"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/project"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/project/helper.tcl");
     }
@@ -579,14 +601,14 @@ mod tests {
     #[test]
     fn relative_path_without_root_produces_no_link() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn encoding_flag_skipped_before_path() {
         let src = "source -encoding utf-8 /tmp/foo.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///tmp/foo.tcl");
     }
@@ -595,7 +617,7 @@ mod tests {
     fn link_range_anchors_at_path_argument() {
         // `source ` is 7 chars; the path starts at col 7.
         let src = "source /tmp/foo.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].start_character, 7);
         // End col covers the path (12 chars: `/tmp/foo.tcl`).
@@ -610,7 +632,7 @@ mod tests {
             ("source {/tmp/foo.tcl}\n", 8u32), // `source ` = 7, then `{` at 7, content at 8
             ("source \"/tmp/foo.tcl\"\n", 8u32),
         ] {
-            let links = document_links(src, "tcl", None);
+            let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
             assert_eq!(links.len(), 1, "{src:?} → {links:?}");
             assert_eq!(links[0].target, "file:///tmp/foo.tcl");
             assert_eq!(
@@ -625,7 +647,7 @@ mod tests {
         // `source $somevar` — variable substitution, not a
         // literal path.  Skipped.
         let src = "source $somevar\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert!(links.is_empty(), "{links:?}");
     }
 
@@ -647,7 +669,7 @@ mod tests {
         let src = "set dir [file dirname [info script]]\nsource [file join $dir helper.tcl]\n";
         let links = document_links_in_context(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -684,7 +706,7 @@ mod tests {
         ] {
             let links = document_links_in_context(
                 src,
-                "tcl",
+                tcl_dialect::DialectProfile::by_name("tcl"),
                 &LinkContext {
                     imported_constants: None,
                     workspace_root: Some("/proj"),
@@ -724,10 +746,14 @@ mod tests {
             home: None,
             script_path: Some("/proj/test/caller.tcl"),
         };
-        let literal = document_links_in_context("source helper.tcl\n", "tcl", &ctx);
+        let literal = document_links_in_context(
+            "source helper.tcl\n",
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            &ctx,
+        );
         let computed = document_links_in_context(
             "set dir .\nsource [file join $dir helper.tcl]\n",
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &ctx,
         );
         assert_eq!(literal.len(), 1, "{literal:?}");
@@ -757,7 +783,7 @@ mod tests {
                    source [file join $currentDir esd_pulse_circuit.tcl]\n";
         let links = document_links_in_context(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj/test"),
@@ -789,7 +815,7 @@ mod tests {
                    source [file join $currentDir testUtilities.tcl]\n";
         let links = document_links_in_context(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -821,7 +847,7 @@ mod tests {
                    source [file join $sourceDir ngspice netlistParserClassNgspice.tcl]\n";
         let links = document_links_in_context(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -851,7 +877,11 @@ mod tests {
     #[test]
     fn a_literal_file_join_link_anchors_on_the_file_name_only_775() {
         let src = "source [file join lib helper.tcl]\n";
-        let links = document_links(src, "tcl", Some("/proj"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
         assert_eq!(covered, "helper.tcl", "{links:?}");
@@ -867,7 +897,7 @@ mod tests {
                    source [file join $dir $name]\n";
         let links = document_links_in_context(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -886,7 +916,11 @@ mod tests {
     #[test]
     fn a_literal_source_link_still_covers_the_whole_word_775() {
         let src = "source lib/helper.tcl\n";
-        let links = document_links(src, "tcl", Some("/proj"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/proj"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         let covered = &src[links[0].start_character as usize..links[0].end_character as usize];
         assert_eq!(covered, "lib/helper.tcl", "{links:?}");
@@ -895,7 +929,7 @@ mod tests {
     #[test]
     fn double_dash_terminator_skipped() {
         let src = "source -- /tmp/x.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///tmp/x.tcl");
     }
@@ -903,7 +937,11 @@ mod tests {
     #[test]
     fn trailing_slash_on_workspace_root_handled() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, "tcl", Some("/home/user/"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///home/user/helper.tcl");
     }
@@ -911,7 +949,12 @@ mod tests {
     #[test]
     fn tilde_expansion_uses_supplied_home() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, "tcl", None, Some("/test-home"));
+        let links = document_links_with_home(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+            Some("/test-home"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///test-home/lib/init.tcl");
     }
@@ -919,14 +962,20 @@ mod tests {
     #[test]
     fn tilde_without_home_produces_no_link() {
         let src = "source ~/lib/init.tcl\n";
-        let links = document_links_with_home(src, "tcl", None, None);
+        let links =
+            document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, None);
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn bare_tilde_expands_to_home() {
         let src = "source ~\n";
-        let links = document_links_with_home(src, "tcl", None, Some("/test-home"));
+        let links = document_links_with_home(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            None,
+            Some("/test-home"),
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///test-home");
     }
@@ -1003,7 +1052,7 @@ mod tests {
         // hashes surfaces as a properly percent-encoded
         // `file://` URI rather than a raw concatenation.
         let src = "source /path/with spaces.tcl\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         // The literal-path arg may or may not parse cleanly
         // through the segmenter; if it does, the URI must be
         // escaped.  If not, the test is informational only.
@@ -1060,7 +1109,11 @@ mod tests {
     #[test]
     fn source_with_literal_file_join_surfaces_link() {
         let src = "source [file join lib helper.tcl]\n";
-        let links = document_links(src, "tcl", Some("/home/user/project"));
+        let links = document_links(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            Some("/home/user/project"),
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///home/user/project/lib/helper.tcl",);
     }
@@ -1068,7 +1121,7 @@ mod tests {
     #[test]
     fn source_with_absolute_file_join_segment_surfaces_link() {
         let src = "source [file join /usr/local/lib tcl init.tcl]\n";
-        let links = document_links(src, "tcl", None);
+        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/local/lib/tcl/init.tcl");
     }

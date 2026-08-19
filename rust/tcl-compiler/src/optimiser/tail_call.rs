@@ -690,13 +690,16 @@ mod tests {
         ctx.optimisations
     }
 
-    fn run_pass_with_dialect(source: &str, dialect: &str) -> Vec<Optimisation> {
+    fn run_pass_with_dialect(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<Optimisation> {
         let reg = registry();
         let cu = CompilationUnit::build_for(source, &reg, false);
         let mut ctx = PassContext::with_dialect(
             &cu.source,
             InterproceduralAnalysis::default(),
-            Some(tcl_dialect::DialectProfile::by_name(dialect)),
+            Some(dialect),
         );
         ctx.registry = Some(&reg);
         run(&mut ctx, &cu);
@@ -795,7 +798,7 @@ mod tests {
             "f5-iapps",
             "cadence-eda-tcl",
         ] {
-            let opts = run_pass_with_dialect(src, dialect);
+            let opts = run_pass_with_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
             assert!(
                 opts.iter().all(|o| o.code != DiagCode::O121),
                 "O121 must not fire on {dialect}, got {opts:?}",
@@ -813,7 +816,7 @@ mod tests {
             "mentor-eda-tcl",
             "expect",
         ] {
-            let opts = run_pass_with_dialect(src, dialect);
+            let opts = run_pass_with_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
             assert!(
                 opts.iter()
                     .any(|o| o.code == DiagCode::O121 && o.replacement.contains("tailcall")),
@@ -828,7 +831,7 @@ mod tests {
         // a bare `set`, no `lassign`).  A pre-8.6 dialect should
         // still see the loop-conversion suggestion.
         let src = "proc ::f {n} {\n    if {$n <= 0} { return 1 }\n    f [expr {$n - 1}]\n}";
-        let opts = run_pass_with_dialect(src, "tcl8.4");
+        let opts = run_pass_with_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.4"));
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O122),
             "O122 expected on tcl8.4 single-param body, got {opts:?}",
@@ -841,7 +844,7 @@ mod tests {
         // body's O122 rewrite would need `lassign` so it must be
         // suppressed on tcl8.4.
         let src = "proc ::f {a b} {\n    if {$a <= 0} { return 1 }\n    f [expr {$a - 1}] $b\n}";
-        let opts = run_pass_with_dialect(src, "tcl8.4");
+        let opts = run_pass_with_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.4"));
         assert!(
             opts.iter().all(|o| o.code != DiagCode::O122),
             "O122 must not fire on tcl8.4 multi-param body, got {opts:?}",
@@ -854,7 +857,7 @@ mod tests {
         // `lassign [list …] a b`, never the braced `lassign {…} a b`
         // form (which breaks `[expr {…}]` args with a hard tclsh error).
         let src = "proc ::f {a b} {\n    if {$a <= 0} { return $b }\n    f [expr {$a - 1}] [expr {$b + $a}]\n}";
-        let opts = run_pass_with_dialect(src, "tcl8.6");
+        let opts = run_pass_with_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         let opt = opts
             .iter()
             .find(|o| o.code == DiagCode::O122)

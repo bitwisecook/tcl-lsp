@@ -423,7 +423,7 @@ fn variable_hover(
     // so it hovers the *literal* cell (PR #1106 review, P2).
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        profile.name,
+        profile,
         line,
         character,
         var_byte_offset,
@@ -435,7 +435,7 @@ fn variable_hover(
         if let Some(var_def) = crate::definition::lookup_var_read_at(
             &analysis.global_scope,
             source,
-            profile.name,
+            profile,
             var_byte_offset,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -468,7 +468,7 @@ fn variable_hover(
         let bindings = crate::caller_frame::caller_frame_bindings(
             analysis,
             source,
-            profile.name,
+            profile,
             ctx,
             var_byte_offset,
             &var_name,
@@ -523,14 +523,8 @@ fn variable_position_hover(
         return PositionHover::Answer(hover);
     }
     let cursor_offset = crate::definition::byte_offset_at(line_index, source, line, character);
-    if crate::caller_frame::substituted_var_read_at(
-        source,
-        profile.name,
-        line,
-        character,
-        cursor_offset,
-    )
-    .is_some()
+    if crate::caller_frame::substituted_var_read_at(source, profile, line, character, cursor_offset)
+        .is_some()
     {
         return PositionHover::Abstain;
     }
@@ -563,7 +557,7 @@ fn registry_pattern_format_hover(
 ) -> Option<Hover> {
     let line_index = tcl_lexer::LineIndex::new(source);
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    let config = LexerConfig::for_file_dialect(profile.name);
+    let config = LexerConfig::for_file_grammar(profile.grammar);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
     let context = PatternFormatContext {
@@ -650,7 +644,7 @@ fn pattern_format_hover_for_command(
         };
         let Some(text) = literal_at_token(
             context.source,
-            LexerConfig::for_file_dialect(context.profile.name),
+            LexerConfig::for_file_grammar(context.profile.grammar),
             token,
             context.cursor,
         ) else {
@@ -672,7 +666,7 @@ fn pattern_format_hover_for_command(
         };
         let Some(text) = literal_at_token(
             context.source,
-            LexerConfig::for_file_dialect(context.profile.name),
+            LexerConfig::for_file_grammar(context.profile.grammar),
             token,
             context.cursor,
         ) else {
@@ -844,7 +838,7 @@ fn hover_impl(
         return crate::namespace_symbol::namespace_hover_text(analysis, &cell).map(Hover::markdown);
     }
 
-    let hover_registry = registry.unwrap_or_else(|| tcl_registry::registry_for_profile(profile));
+    let hover_registry = registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
     if let Some(hover) = registry_pattern_format_hover(
         source,
         line,
@@ -3330,8 +3324,8 @@ fn infer_var_type_and_taint(
         tcl_compiler::compilation_unit::UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::for_file_dialect(profile.name),
-            dialect: profile.name,
+            config: tcl_lexer::LexerConfig::for_file_grammar(profile.grammar),
+            dialect: Some(profile),
             external_call_sites: None,
         },
     );

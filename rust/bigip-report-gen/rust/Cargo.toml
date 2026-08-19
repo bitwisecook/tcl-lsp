@@ -48,6 +48,8 @@ tcl-lexer = { path = "../../tcl-lexer", features = ["html"] }
 tcl-diagram = { path = "../../tcl-diagram" }
 tcl-compiler = { path = "../../tcl-compiler" }
 tcl-registry = { path = "../../tcl-registry" }
+# The resolved iRules profile the head-identity scan is threaded with.
+tcl-dialect = { path = "../../tcl-dialect" }
 # F5 master-key (`f5mku`) secret decryption. `default-features = false` drops
 # the `rand`/getrandom salt path (only `encrypt` needs it), keeping the wasm
 # build entropy-free — a report only ever *decrypts*.

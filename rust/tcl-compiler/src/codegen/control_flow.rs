@@ -825,7 +825,7 @@ impl CodegenCtx<'_> {
                 let expr_text = &body_args[0].0;
                 // Parsed under the compile's dialect, as lowering parses a
                 // statement-position `expr` (issue #1435).
-                let node = crate::expr_parser::parse_expr(expr_text, self.dialect);
+                let node = crate::expr_parser::parse_expr_for_profile(expr_text, self.dialect);
                 if let Some((msg, opts)) = detect_const_expr_error(&node) {
                     self.push_lit(&msg);
                     self.push_lit(&opts);
@@ -1332,14 +1332,14 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut old = CodegenCtx::new(true, &[], &registry);
-        old.dialect = Some("tcl8.4");
+        old.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.4"));
         old.emit_catch_body("expr {2 ** 3}");
         let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
         assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
 
         let mut modern = CodegenCtx::new(true, &[], &registry);
-        modern.dialect = Some("tcl8.5");
+        modern.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.5"));
         modern.emit_catch_body("expr {2 ** 3}");
         let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
         assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");

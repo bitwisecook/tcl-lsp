@@ -1685,7 +1685,10 @@ impl Analyser {
         // runs per segmented command in the dispatch loop below.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(
+                source,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            ),
         );
         // Inline ``# tcl-lsp: stub …`` block scan.  After
         // capturing the parsed records, build the per-document
@@ -2071,7 +2074,10 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(
+                source,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            ),
         );
 
         // Build + stash the dialect-aware registry so
@@ -2163,7 +2169,10 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(
+                source,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            ),
         );
 
         // Same registry + line-index prelude as
@@ -2319,9 +2328,8 @@ impl Analyser {
     /// poisoning applied at fold time, where the whole document's write
     /// counts are in view.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        let dialect = self.result.dialect.clone();
         self.result.path_constant_assignments.extend(
-            crate::auto_path_eval::constant_path_assignments_from_commands(commands, &dialect),
+            crate::auto_path_eval::constant_path_assignments_from_commands(commands, self.profile),
         );
     }
 
@@ -2617,7 +2625,13 @@ impl Analyser {
             &self.source,
             registry,
             self.lexer_config(),
-            &self.result.dialect,
+            // `None`, not `Some(plain_tcl)`, when the analysis named no
+            // dialect: an unstated dialect is not the same input as an
+            // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
+            // source selection. `self.profile` is always populated (it
+            // defaults to the plain fallback), so gate on the recorded
+            // spelling the way the pre-refactor `&str` boundary did.
+            (!self.result.dialect.is_empty()).then_some(self.profile),
         );
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,
@@ -3837,7 +3851,7 @@ mod tests {
         // ``set`` is a core built-in across all dialects.
         assert!(a.builtin_command_names().contains("set"));
         // Cache invalidation: switching dialect rebuilds.
-        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        a.profile = tcl_dialect::DialectProfile::irules();
         let irules_len = a.builtin_command_names().len();
         assert!(
             irules_len > initial_len,

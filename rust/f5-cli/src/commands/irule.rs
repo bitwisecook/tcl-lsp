@@ -373,8 +373,14 @@ fn write_highlighted(
     } else {
         OutputTarget::File(PathBuf::from(output))
     };
-    tcl_cli_support::write_highlighted_output(&target, text, use_colour, tab_width, "f5-irules")
-        .map_err(|e| e.to_string())
+    tcl_cli_support::write_highlighted_output(
+        &target,
+        text,
+        use_colour,
+        tab_width,
+        tcl_dialect::DialectProfile::irules(),
+    )
+    .map_err(|e| e.to_string())
 }
 
 /// Write plain text to `output`.
@@ -1165,25 +1171,26 @@ fn run_minify(
     colour: &IruleColourArgs,
 ) -> Result<u8, u8> {
     let loaded = resolve_irule_inputs(input)?;
+    let profile = tcl_lsp_core::profile_for_dialect(&input.dialect);
     let registry = registry_for_dialect(&input.dialect);
 
     let mut minified: Vec<String> = Vec::with_capacity(loaded.inputs.len());
     let mut symbol_maps: Vec<String> = Vec::new();
     if aggressive {
         for entry in &loaded.inputs {
-            let result = minify_tcl_aggressive(&entry.source, &input.dialect, isolated, &registry);
+            let result = minify_tcl_aggressive(&entry.source, profile, isolated, &registry);
             minified.push(result.source);
             symbol_maps.push(result.symbol_map.format());
         }
     } else if compact {
         for entry in &loaded.inputs {
-            let (text, sm) = minify_tcl_compact(&entry.source, &input.dialect, isolated, &registry);
+            let (text, sm) = minify_tcl_compact(&entry.source, profile, isolated, &registry);
             minified.push(text);
             symbol_maps.push(sm.format());
         }
     } else {
         for entry in &loaded.inputs {
-            minified.push(minify_tcl(&entry.source, &input.dialect, &registry));
+            minified.push(minify_tcl(&entry.source, profile, &registry));
         }
     }
 

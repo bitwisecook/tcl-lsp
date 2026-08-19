@@ -107,20 +107,19 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 pub fn parse_noqa_line_suppressions(
     source: &str,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
-    parse_noqa_line_suppressions_for_dialect(source, "tcl9.0")
+    parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name("tcl9.0"))
 }
 
 /// Dialect-aware [`parse_noqa_line_suppressions`].
 #[must_use]
 pub fn parse_noqa_line_suppressions_for_dialect(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
     parse_noqa_line_suppressions_with_registry(
         source,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
-        tcl_registry::cache::registry_for_profile(profile),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
+        tcl_registry::cache::registry_for_profile(dialect),
     )
 }
 
@@ -858,6 +857,10 @@ pub fn scan_source_for_stubs(
 #[must_use]
 pub fn scan_sidecar_stubs(
     file_path: Option<&str>,
+    // The dialect *name*, not a resolved profile: this is a filename on disk
+    // (`<dialect>.tcl.stubs`), so it must keep the spelling the workspace
+    // configured. Canonicalising an alias here would stop finding a sidecar a
+    // user named after it.
     dialect: &str,
 ) -> (
     Vec<super::types::StubCommandDef>,

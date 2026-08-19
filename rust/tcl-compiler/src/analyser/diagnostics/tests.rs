@@ -4290,7 +4290,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     registry: &registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: "tcl",
+                    dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
                     external_call_sites: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
@@ -4401,7 +4401,7 @@ fn memoized_compilation_unit_shift_correctness() {
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: "tcl",
+                dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
                 external_call_sites: None,
             },
             // Position-independent key: the body is normalised to offset 0
@@ -4841,7 +4841,7 @@ fn emit_cfg_ssa_diagnostics_w220_dir_var_not_suppressed_outside_pkgindex() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
     let mut a = Analyser::new();
-    a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+    a.profile = tcl_dialect::DialectProfile::irules();
     // ``HTTP_REQUEST`` writes ``v``, ``HTTP_RESPONSE``
     // reads ``v`` — ``v`` is a cross-event def.  The
     // ``set v 1\nset v 2`` shape inside ``HTTP_REQUEST``
@@ -4870,7 +4870,7 @@ fn emit_cfg_ssa_diagnostics_w220_irules_cross_event_var_suppressed() {
 #[test]
 fn emit_cfg_ssa_diagnostics_w220_irules_proc_local_still_flagged() {
     let mut a = Analyser::new();
-    a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+    a.profile = tcl_dialect::DialectProfile::irules();
     // ``local`` is only used inside HTTP_REQUEST — not a
     // cross-event var, so W220 should still fire on the
     // overwritten first assignment.
@@ -5746,22 +5746,29 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // default global gains W210 coverage automatically; the registry's own
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
-            .filter(|spec| tcl_registry::special_vars::is_readable_at_startup(spec.name, dialect))
-            .filter_map(|spec| match spec.kind {
-                tcl_registry::special_vars::SpecialVarKind::Scalar => {
-                    Some(format!("puts ${}\n", spec.name))
-                }
-                // Array elements are normalised to their registry-owned base
-                // by the SSA model.  The synthetic key need not exist at
-                // runtime; the assertion is specifically about W210's entry
-                // binding knowledge, not an array-key value claim.
-                tcl_registry::special_vars::SpecialVarKind::Array => {
-                    Some(format!("puts ${}(__tcl_lsp_startup_probe__)\n", spec.name))
-                }
-                tcl_registry::special_vars::SpecialVarKind::Namespace => None,
-            })
-            .collect();
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
+            tcl_registry::special_vars::resolve_dialect(dialect),
+        )
+        .filter(|spec| {
+            tcl_registry::special_vars::is_readable_at_startup(
+                spec.name,
+                tcl_registry::special_vars::resolve_dialect(dialect),
+            )
+        })
+        .filter_map(|spec| match spec.kind {
+            tcl_registry::special_vars::SpecialVarKind::Scalar => {
+                Some(format!("puts ${}\n", spec.name))
+            }
+            // Array elements are normalised to their registry-owned base
+            // by the SSA model.  The synthetic key need not exist at
+            // runtime; the assertion is specifically about W210's entry
+            // binding knowledge, not an array-key value claim.
+            tcl_registry::special_vars::SpecialVarKind::Array => {
+                Some(format!("puts ${}(__tcl_lsp_startup_probe__)\n", spec.name))
+            }
+            tcl_registry::special_vars::SpecialVarKind::Namespace => None,
+        })
+        .collect();
         let result = Analyser::new().analyse(&source, dialect);
         assert!(
             !result.diagnostics.iter().any(|d| d.code == DiagCode::W210),
@@ -5867,7 +5874,9 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // `if {0} …`.  Drive the probe from the table so a new global is covered
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
+            tcl_registry::special_vars::resolve_dialect(dialect),
+        )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {
                     Some(format!("if {{[info exists {}]}} {{ puts hit }}\n", spec.name))
