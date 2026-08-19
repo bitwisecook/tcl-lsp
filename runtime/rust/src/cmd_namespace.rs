@@ -882,7 +882,10 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             .wrong_args(b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?");
     }
     let cmd = obj_bytes(argv[3]);
-    let Some(mut cfg) = interp.ensemble_config(&cmd) else {
+    // Follow a `namespace import` alias to the ensemble that owns the config:
+    // reads and writes both act on the origin, so both spellings observe one
+    // configuration and the alias stays an alias.
+    let Some((mut cfg, owner_fqn)) = interp.ensemble_config_at(&cmd) else {
         // Distinguish a missing command from a non-ensemble one (C's wording).
         if interp.command_exists(&cmd) {
             let mut m = b"\"".to_vec();
@@ -940,7 +943,7 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             return interp.set_error(&e);
         }
     }
-    interp.set_ensemble_config(&cmd, cfg);
+    interp.set_ensemble_config_at(&owner_fqn, cfg);
     interp.set_result_bytes(b"");
     Code::Ok
 }
@@ -2059,6 +2062,98 @@ mod tests {
             assert_eq!(i.result_bytes(), b"::oo::configurable");
             assert_eq!(i.eval_str(b"::oo::configurable destroy"), Code::Ok);
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        });
+    }
+
+    /// Taking a gate-hidden root's name via `rename` keeps working — the root
+    /// marking is cleared on the rename path itself, not only by the OO
+    /// re-registration that follows it.
+    #[test]
+    fn renaming_onto_a_hidden_root_name_keeps_the_replacement_live() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"oo::class create ::Src {method m {} {return SRC}}"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"rename ::Src ::oo::configurable"), Code::Ok);
+            assert_eq!(i.eval_str(b"info commands ::oo::configurable"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::oo::configurable");
+            assert_eq!(i.eval_str(b"[::oo::configurable new] m"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"SRC");
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        });
+    }
+
+    /// Configuring an ensemble through a `namespace import` alias configures
+    /// the ORIGIN, so both spellings observe one config and the alias stays an
+    /// alias (tclsh 9.0.4-pinned).
+    #[test]
+    fn configuring_an_imported_ensemble_updates_the_origin() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {namespace export ens\n\
+                       proc impl {} {return ORIG}\n\
+                       proc impl2 {} {return NEW}\n\
+                       namespace ensemble create -command ::S::ens -map {go impl}}\n\
+                       namespace eval T {namespace import ::S::ens}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval S {namespace ensemble configure ::T::ens -map {go impl2}}"
+                ),
+                Code::Ok
+            );
+            for spelling in [b"::T::ens go".as_slice(), b"::S::ens go"] {
+                assert_eq!(i.eval_str(spelling), Code::Ok);
+                assert_eq!(i.result_bytes(), b"NEW");
+            }
+            for spelling in [
+                b"namespace ensemble configure ::T::ens -map".as_slice(),
+                b"namespace ensemble configure ::S::ens -map",
+            ] {
+                assert_eq!(i.eval_str(spelling), Code::Ok);
+                assert_eq!(i.result_bytes(), b"go ::S::impl2");
+            }
+            // Still an alias: configuring it did not fork a second ensemble.
+            assert_eq!(i.eval_str(b"namespace origin ::T::ens"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::S::ens");
+        });
+    }
+
+    /// `namespace which -variable` is byte-preserving: a name carrying bytes
+    /// that are not valid UTF-8 round-trips, and two such names stay distinct
+    /// (a lossy map would collapse both onto U+FFFD).
+    #[test]
+    fn which_variable_preserves_byte_valued_names() {
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"namespace eval nb {}"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace eval nb [list variable [binary format H* ff41] 7]"),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(
+                    b"binary scan [namespace eval nb [list namespace which -variable \
+                       [binary format H* ff41]]] H* h; set h"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"3a3a6e623a3aff41");
+            // Two distinct invalid-UTF-8 names must not collide.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval nb [list variable [binary format H* ff] 1]\n\
+                       namespace eval nb [list variable [binary format H* fe] 2]\n\
+                       namespace eval nb {list [set [binary format H* ff]] \
+                       [set [binary format H* fe]]}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"1 2");
         });
     }
 

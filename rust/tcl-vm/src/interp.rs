@@ -4047,6 +4047,32 @@ impl Vm {
         self.imported_commands.insert(key.to_owned(), origin);
     }
 
+    /// Re-point every `namespace import` clone of `origin_key` at `cmd`,
+    /// keeping each clone's import provenance.
+    ///
+    /// C shares the source's command token with its imports, so a change to
+    /// the source is observed through every spelling at once. The VM instead
+    /// stores an import as a cloned dispatcher, so a rebind of the source has
+    /// to be pushed to the clones explicitly — otherwise the alias keeps
+    /// dispatching the stale definition (`namespace ensemble configure` on an
+    /// imported ensemble: tclsh 9.0.4 sees the new config through both
+    /// spellings). `register_command` drops the provenance record as part of
+    /// overwriting, so it is captured first and restored after, leaving
+    /// `namespace origin` still answering the source.
+    pub(crate) fn resync_import_clones(&mut self, origin_key: &str, cmd: &Command) {
+        let origin = CommandSidecarKey::visible(origin_key);
+        let importers: Vec<(String, CommandSidecarKey)> = self
+            .imported_commands
+            .iter()
+            .filter(|(_, source)| **source == origin)
+            .map(|(key, source)| (key.clone(), source.clone()))
+            .collect();
+        for (key, source) in importers {
+            self.register_command(&key, cmd.clone());
+            self.restore_import_origin(&key, source);
+        }
+    }
+
     /// Restore a renamed builtin's stable registry identity.
     pub(crate) fn restore_builtin_identity(&mut self, key: &str, identity: String) {
         self.builtin_identities.insert(key.to_owned(), identity);
@@ -5147,7 +5173,12 @@ impl Vm {
         self.frames.first().map_or_else(Vec::new, |f| {
             f.locals
                 .iter()
-                .filter(|(_, l)| matches!(l, Local::Scalar(_) | Local::Array(_)))
+                // A namespace-scoped `Link` is a real cell in the namespace's
+                // table — see `namespace_var_exists` for why C's
+                // `CompiledLocal` exclusion does not apply to it.
+                .filter(|(_, l)| {
+                    matches!(l, Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
+                })
                 .filter_map(|(key, _)| direct_member_tail(key, canonical).map(str::to_owned))
                 .collect()
         })
@@ -6490,9 +6521,19 @@ impl Namespaces for Vm {
 
     // `Tcl_FindNamespaceVar`'s single probe. The VM keeps namespace variables
     // in the global frame keyed by their canonical (unrooted) FQN, so the
-    // namespace's own table is the set of `canonical::simple` cells — links
-    // (`upvar`/`global`/`variable` aliases) are deliberately excluded, exactly
-    // as C's `varTable` walk never sees a `CompiledLocal`.
+    // namespace's own table is the set of `canonical::simple` cells.
+    //
+    // A `Link` counts. C's exclusion is of `CompiledLocal`s — a *proc*-local
+    // `upvar`/`global` alias, which lives in the proc's compiled frame and is
+    // never in a namespace `varTable`. A namespace-scoped link is a different
+    // animal: `namespace upvar :: x y` (or an `upvar` at the global level)
+    // puts a real `VAR_LINK` cell in the namespace's own table, which
+    // `Tcl_FindNamespaceVar` and `info vars` both see (tclsh 9.0.4:
+    // `namespace which -variable y` → `::n::y`). Proc-locals cannot leak in
+    // here regardless, because this only ever probes `frames.first()` — the
+    // global frame — and a proc's locals live in its own frame.
+    //
+    // `Undefined` stays excluded: that is a materialised-but-unset cell.
     fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool {
         let canonical = self.ns_name(ns);
         let key = if canonical.is_empty() {
@@ -6503,7 +6544,7 @@ impl Namespaces for Vm {
         self.frames.first().is_some_and(|frame| {
             matches!(
                 frame.locals.get(&key),
-                Some(Local::Scalar(_) | Local::Array(_))
+                Some(Local::Scalar(_) | Local::Array(_) | Local::Link { .. })
             )
         })
     }

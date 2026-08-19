@@ -630,9 +630,16 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         Some(_) => return err(format!("\"{written}\" is not an ensemble command")),
         None => return err(format!("unknown command \"{written}\"")),
     };
-    let cmd_key = vm
+    // Configuring through a `namespace import` alias configures the ORIGIN.
+    // C's ensemble config hangs off the command token, and an import shares
+    // the source's token, so both spellings observe one config — and the alias
+    // stays an alias (`namespace origin` still answers the source). Rebinding
+    // at the written name instead would fork a second ensemble and silently
+    // drop the import provenance, leaving the source unchanged.
+    let written_key = vm
         .resolve_command_fqn(vm.current_ns(), &written)
         .unwrap_or_else(|| vm.qualify_name(&written));
+    let cmd_key = vm.command_origin_key(&written_key);
     if rest.is_empty() {
         let mut pairs: Vec<Value> = Vec::new();
         for option in ConfigOption::all() {
@@ -668,17 +675,19 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err(message);
         }
     }
-    vm.register_command(
-        &cmd_key,
-        crate::command::Command::Ensemble(std::rc::Rc::new(crate::command::EnsembleDef {
-            namespace: def.namespace.clone(),
-            map: opts.map,
-            subcommands: opts.subcommands,
-            prefixes: opts.prefixes,
-            parameters: opts.parameters,
-            unknown: opts.unknown,
-        })),
-    );
+    let updated = crate::command::Command::Ensemble(std::rc::Rc::new(crate::command::EnsembleDef {
+        namespace: def.namespace.clone(),
+        map: opts.map,
+        subcommands: opts.subcommands,
+        prefixes: opts.prefixes,
+        parameters: opts.parameters,
+        unknown: opts.unknown,
+    }));
+    vm.register_command(&cmd_key, updated.clone());
+    // The VM stores each `namespace import` as a cloned dispatcher rather than
+    // C's shared command token, so push the new definition to the clones —
+    // otherwise the alias keeps dispatching the pre-configure definition.
+    vm.resync_import_clones(&cmd_key, &updated);
     ok(Value::empty())
 }
 

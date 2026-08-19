@@ -1640,6 +1640,17 @@ impl Interp {
                 crate::cmd_coro::on_command_deleted(self, of);
             }
         }
+        // `Namespaces::rename` moves the table entry directly rather than going
+        // through `ns_register`, so clear the destination's TclOO root marking
+        // here too. Today an OO rename is also re-registered through the funnel
+        // by `oo_command_renamed`, which clears it; doing it here as well makes
+        // the invariant — "a root marking never outlives the entry it
+        // described" — hold for the rename path on its own, rather than by way
+        // of a follow-up call that a future refactor could reorder or drop.
+        if !new.is_empty() {
+            let dest = self.fqn_for(new);
+            self.forget_registry_object_root(&dest);
+        }
         let raw = self
             .namespaces
             .borrow_mut()
@@ -1884,14 +1895,38 @@ impl Interp {
     /// The configuration of the ensemble command `name` resolves to, or `None`
     /// if `name` is not an ensemble (`namespace ensemble configure`/cget).
     pub(crate) fn ensemble_config(&self, name: &[u8]) -> Option<crate::ensemble::EnsembleConfig> {
-        match self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)
-        {
-            Some(Command::Ensemble(cfg)) => Some(cfg),
-            _ => None,
+        self.ensemble_config_at(name).map(|(cfg, _)| cfg)
+    }
+
+    /// The ensemble `name` resolves to, plus the fully-qualified name of the
+    /// command that actually **owns** that config.
+    ///
+    /// `namespace import` is followed to its source: in C an imported command
+    /// shares the source's command token, and the ensemble config hangs off
+    /// that token, so configuring through an alias configures the origin and
+    /// both spellings observe one config (tclsh 9.0.4-pinned). Reading through
+    /// the alias likewise reads the origin's config, and the alias stays an
+    /// alias — `namespace origin` still answers the source.
+    pub(crate) fn ensemble_config_at(
+        &self,
+        name: &[u8],
+    ) -> Option<(crate::ensemble::EnsembleConfig, Vec<u8>)> {
+        let ns = self.namespaces.borrow();
+        let mut cur = ns.resolve(self.current_ns.get(), name)?;
+        let mut fqn = ns.resolve_fqn(self.current_ns.get(), name)?;
+        // Bounded walk: an import chain cannot outlive the table, and a
+        // malformed cycle terminates instead of spinning.
+        for _ in 0..64 {
+            match cur {
+                Command::Ensemble(cfg) => return Some((cfg, fqn)),
+                Command::Imported { source } => {
+                    cur = ns.resolve(GLOBAL, &source)?;
+                    fqn = source;
+                }
+                _ => return None,
+            }
         }
+        None
     }
 
     /// Rebind the ensemble command `name` with an updated configuration
@@ -1915,6 +1950,20 @@ impl Interp {
             // current-namespace location as a fallback.
             self.create_ensemble(name, cfg);
         }
+    }
+
+    /// Rebind the ensemble that **owns** a config, named by the absolute FQN
+    /// [`ensemble_config_at`](Self::ensemble_config_at) returned. Used by
+    /// `namespace ensemble configure` so a write reached through a
+    /// `namespace import` alias lands on the origin instead of forking a
+    /// second ensemble at the alias (which would also drop the import
+    /// provenance).
+    pub(crate) fn set_ensemble_config_at(
+        &mut self,
+        fqn: &[u8],
+        cfg: crate::ensemble::EnsembleConfig,
+    ) {
+        self.ns_register(fqn, Command::Ensemble(cfg));
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).

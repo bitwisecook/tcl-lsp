@@ -503,6 +503,69 @@ fn ensemble_create_checks_pair_arity_before_option_words() {
     );
 }
 
+/// Configuring an ensemble through a `namespace import` alias configures the
+/// ORIGIN: both spellings then observe the one config, and the alias stays an
+/// alias so `namespace origin` still answers the source (tclsh 9.0.4-pinned).
+#[test]
+fn configuring_an_imported_ensemble_updates_the_origin() {
+    let setup = "namespace eval S {namespace export ens\n\
+                 proc impl {} {return ORIG}\n\
+                 proc impl2 {} {return NEW}\n\
+                 namespace ensemble create -command ::S::ens -map {go impl}}\n\
+                 namespace eval T {namespace import ::S::ens}\n\
+                 namespace eval S {namespace ensemble configure ::T::ens -map {go impl2}}\n";
+    // Both spellings dispatch the new target.
+    assert_eq!(run(&format!("{setup}::T::ens go")), "NEW");
+    assert_eq!(run(&format!("{setup}::S::ens go")), "NEW");
+    // Both spellings read back the new config.
+    assert_eq!(
+        run(&format!("{setup}namespace ensemble configure ::T::ens -map")),
+        "go ::S::impl2"
+    );
+    assert_eq!(
+        run(&format!("{setup}namespace ensemble configure ::S::ens -map")),
+        "go ::S::impl2"
+    );
+    // The alias is still an alias — configuring it did not fork a new ensemble.
+    assert_eq!(
+        run(&format!("{setup}namespace origin ::T::ens")),
+        "::S::ens"
+    );
+}
+
+/// A namespace-scoped link (`namespace upvar`, or an `upvar` at the global
+/// level) is a real cell in the namespace's table, so `namespace which
+/// -variable` and `info vars` both see it. A *proc*-local alias is a
+/// `CompiledLocal` in C and stays invisible. Both directions tclsh-pinned.
+#[test]
+fn namespace_scoped_links_are_namespace_variables() {
+    assert_eq!(
+        run("set ::x 42\nnamespace eval n {namespace upvar :: x y}\n\
+             namespace eval n {namespace which -variable y}"),
+        "::n::y"
+    );
+    assert_eq!(
+        run("set ::x 42\nnamespace eval n {namespace upvar :: x y}\n\
+             info vars ::n::*"),
+        "::n::y"
+    );
+    // A link made at the global level is a global-namespace cell too.
+    assert_eq!(
+        run("set ::src 5\nupvar #0 ::src galias\nnamespace which -variable galias"),
+        "::galias"
+    );
+    // A proc-local alias is not: `z` names no cell in the namespace.
+    assert_eq!(
+        run("set ::x 1\nproc p {} {upvar #0 ::x z; return [namespace which -variable z]}\np"),
+        ""
+    );
+    // An ordinary namespace variable is unaffected.
+    assert_eq!(
+        run("namespace eval n2 {variable v 1}\nnamespace eval n2 {namespace which -variable v}"),
+        "::n2::v"
+    );
+}
+
 /// `-map` is a dict, so the read-back preserves the order the pairs were given
 /// (never sorted) and a repeated key keeps its first position while taking the
 /// last value. All three expectations are tclsh 9.0.4-pinned.
