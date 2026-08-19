@@ -278,11 +278,19 @@ struct CmdFrame {
 /// entry) — see [`Interp::arg_locs`].
 type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
 
-/// One trace callback collected during namespace teardown: the entity's
-/// reported name (a variable's, including any `(element)`, or a command's FQN)
-/// and the trace's command prefix. The name doubles as the grouping key in
-/// [`Interp::group_newest_first_per_entity`].
-type TeardownCallback = (Vec<u8>, Vec<u8>);
+/// One command-trace callback collected during namespace teardown: the
+/// command's FQN and the trace's command prefix. The name doubles as the
+/// grouping key in [`Interp::group_newest_first_per_entity`]. Command traces
+/// have no deprecated spelling, so their op word is always the full `delete`
+/// (C's `TCL_TRACE_OLD_STYLE` is a variable-trace flag only).
+type CmdTeardownCallback = (Vec<u8>, Vec<u8>);
+
+/// One variable-trace callback collected during namespace teardown: the
+/// variable's reported name (including any `(element)`), the trace's command
+/// prefix, and whether it was registered through the deprecated 8.x
+/// `trace variable` form — which decides the op word its callback receives,
+/// here exactly as on the explicit-unset path.
+type VarTeardownCallback = (Vec<u8>, Vec<u8>, bool);
 
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
@@ -3291,7 +3299,7 @@ impl Interp {
     /// drops its traces, as C does). Only `delete`-op traces are returned for
     /// firing; `rename`-only traces are removed silently (a deletion isn't a
     /// rename).
-    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<TeardownCallback> {
+    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<CmdTeardownCallback> {
         if self.traces.borrow().cmd_traces.is_empty() {
             return Vec::new();
         }
@@ -3339,13 +3347,13 @@ impl Interp {
         }
         // Grouped per command, newest-first inside each group — see
         // [`Self::group_newest_first_per_entity`]. Issue #1440.
-        Self::group_newest_first_per_entity(victims)
+        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
     /// delete` after the namespace has been torn down (errors ignored — a delete
     /// trace's result is discarded, matching C).
-    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<TeardownCallback>) {
+    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<CmdTeardownCallback>) {
         if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
             return;
         }
@@ -3374,7 +3382,7 @@ impl Interp {
     /// Remove and return the `(fullName, command)` of every *unset* variable
     /// trace registered on a namespace variable in `ns` or a descendant (so it
     /// can be fired as the namespace is deleted).
-    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<TeardownCallback> {
+    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<VarTeardownCallback> {
         if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
             return Vec::new();
         }
@@ -3409,7 +3417,7 @@ impl Interp {
                     fqn.extend_from_slice(e);
                     fqn.push(b')');
                 }
-                victims.push((fqn, t.command.clone()));
+                victims.push((fqn, t.command.clone(), t.old_style));
             }
             !hit
         });
@@ -3421,7 +3429,7 @@ impl Interp {
         }
         // Grouped per variable, newest-first inside each group — see
         // [`Self::group_newest_first_per_entity`]. Issue #1440.
-        Self::group_newest_first_per_entity(victims)
+        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
     /// Order a namespace's collected teardown callbacks the way C fires them.
@@ -3439,16 +3447,19 @@ impl Interp {
     /// C's hash-table walk and is deliberately not pinned — but that a group is
     /// contiguous is pinned regardless of hash order, which a flat reverse got
     /// wrong (`A1 B1 A2 B2` fired `B2 A2 B1 A1`, not C's `A2 A1 B2 B1`).
-    fn group_newest_first_per_entity(victims: Vec<TeardownCallback>) -> Vec<TeardownCallback> {
+    fn group_newest_first_per_entity<T>(victims: Vec<T>, key: impl Fn(&T) -> Vec<u8>) -> Vec<T> {
         let mut order: Vec<Vec<u8>> = Vec::new();
-        let mut groups: std::collections::HashMap<Vec<u8>, Vec<TeardownCallback>> =
+        let mut groups: std::collections::HashMap<Vec<u8>, Vec<T>> =
             std::collections::HashMap::new();
         for victim in victims {
-            let group = groups.entry(victim.0.clone()).or_insert_with(|| {
-                order.push(victim.0.clone());
-                Vec::new()
-            });
-            group.push(victim);
+            let entity = key(&victim);
+            groups
+                .entry(entity.clone())
+                .or_insert_with(|| {
+                    order.push(entity);
+                    Vec::new()
+                })
+                .push(victim);
         }
         order
             .into_iter()
@@ -3462,17 +3473,22 @@ impl Interp {
 
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
     /// are ignored (an unset trace's result is discarded, as in C).
-    fn fire_unset_callbacks(&mut self, victims: Vec<TeardownCallback>) {
+    fn fire_unset_callbacks(&mut self, victims: Vec<VarTeardownCallback>) {
         if victims.is_empty() {
             return;
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
-        for (name, cmd) in victims {
+        for (name, cmd, old_style) in victims {
+            // A trace registered the deprecated way is called with the `rwua`
+            // letter, not the operation name — the teardown path must honour
+            // that exactly as the explicit-unset path does (`TraceVarProc`,
+            // tclTrace.c 8.6.16:2002-2011).
+            let op = tcl_cmd_core::trace::callback_op_word("unset", old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(&name),
                 new_string(b""),
-                new_string(b"unset"),
+                new_string(op.as_bytes()),
             ]);
             let mut line = cmd;
             line.push(b' ');

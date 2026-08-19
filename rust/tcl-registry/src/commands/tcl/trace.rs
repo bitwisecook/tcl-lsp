@@ -1172,7 +1172,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "vinfo",
         traits: Traits::TARGETS_VARIABLE_BY_NAME,
         arity: Arity::exact(1),
-        detail: "Return trace information for the given variable, in the same {opList command} list shape as trace info variable. Equivalent to trace info variable name. Deprecated throughout 8.4-8.6; removed in Tcl 9.0.",
+        detail: "Return trace information for the given variable: one element per trace, each a two-element {ops command} list. Unlike trace info variable, whose first element is a word list, ops here is the legacy single-letter string (a/r/w/u), rendered in the fixed order r, w, u, a — so a trace on reads and writes reports rw. Covers traces added by either spelling. Deprecated throughout 8.4-8.6; removed in Tcl 9.0.",
         synopsis: "trace vinfo name",
         pure: true,
         return_type: Some(TclType::List),
