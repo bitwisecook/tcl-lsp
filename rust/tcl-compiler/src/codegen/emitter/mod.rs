@@ -81,11 +81,6 @@ pub fn codegen_function_with_procs(
     generate::generate(&mut ctx, cfg, proc_defs)
 }
 
-/// Like [`codegen_function_with_procs`] but threading the module source text so
-/// each instruction carries its command's surface text for `errorInfo`, plus
-/// the proc body's `base_line` (its `proc` definition line) so the
-/// `(procedure … line N)` frame reports a proc-relative line.
-#[must_use]
 /// The per-module facts every function emission shares: the registry, the
 /// module source (for `errorInfo` surface text) and the release being compiled
 /// for (its dialect name, and the numeral and backslash-escape grammars that
@@ -102,6 +97,11 @@ struct ModuleEmit<'a> {
     braced_var: tcl_dialect::BracedVarStyle,
 }
 
+/// Like [`codegen_function_with_procs`] but threading the module source text so
+/// each instruction carries its command's surface text for `errorInfo`, plus
+/// the proc body's `base_line` (its `proc` definition line) so the
+/// `(procedure … line N)` frame reports a proc-relative line.
+#[must_use]
 fn codegen_function_src(
     cfg: &CfgFunction,
     params: &[&str],

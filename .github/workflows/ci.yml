@@ -243,6 +243,15 @@ jobs:
           cargo clippy --workspace --all-targets -- -D warnings
           make xtask-check
 
+      # runtime/rust is a standalone crate excluded from the root workspace
+      # (it is `unsafe`; root forbids `unsafe`), so the root `cargo fmt --all
+      # --check` above never sees it. Gate it separately here so a drift like
+      # #1623 (four files unformatted, unnoticed until a manual `cargo fmt
+      # --all` run) can't recur silently.
+      - name: Run runtime/rust fmt gate
+        if: needs.channel.outputs.prerelease != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        run: cd runtime/rust && cargo fmt --all --check
+
   # Build the native tcl-lsp-server release binary ONCE and share it via
   # artifact with every job that just needs to *run* it rather than build it
   # (currently test-ext).  The `--release` profile (opt-level 3, thin LTO, one
