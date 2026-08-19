@@ -1,0 +1,28 @@
+fix(trace): group namespace-teardown callbacks per entity, not one flat reverse
+
+Adversary finding. C tears a namespace down one entity at a time — a per-`Var`
+loop for variables, a per-`Command` loop for commands — and each completes that
+entity's whole trace list before the next entity begins. So an entity's
+callbacks are contiguous, newest-first within the entity.
+
+We collect victims with `retain` over one flat, registration-ordered Vec, which
+interleaves entities, and reversing that flat list scrambles the groups.
+Interleaved registrations discriminate: `A1 B1 A2 B2` then `namespace delete`
+gives `A2 A1 B2 B1` on tclsh 8.6.16 and 9.0.4, where the flat reverse gave
+`B2 A2 B1 A1`. The previous tests only used non-interleaved shapes, so nothing
+caught it.
+
+`group_newest_first_per_entity` regroups by entity key, keeping first-seen key
+order and reversing within each group. The old comment conflated two separate
+claims; they are now stated apart. Which entity fires first is still C's hash
+walk and still deliberately unpinned — but that a group is *contiguous* is
+pinned regardless of hash order.
+
+Regression vectors for the interleaved variable case, the interleaved command
+case, and a teardown whose callback re-enters the interpreter. Both grouping
+sites are mutation-verified: flattening either one kills its named test.
+
+Also, in both engines' `trace` dispatch, a registry-declared option with no arm
+in that engine now falls through to `bad option` instead of `unreachable!()`.
+The option table is registry data, so a data-only spec edit — a new subcommand
+or alias — would otherwise become a panic in a shipped interpreter.

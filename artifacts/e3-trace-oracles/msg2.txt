@@ -1,0 +1,24 @@
+fix(runtime): C-exact variable/command trace order and the legacy trace forms
+
+runtime/rust (#1440): variable traces fire newest-first for every op — C
+prepends each registration (`TraceVarEx`) and walks the list head to tail —
+and an array-element access runs the containing array's traces as a group
+before the element's own, whichever was registered first
+(`TclCallVarTraces`' `arrayPtr` loop precedes its `varPtr` loop). Command
+`rename`/`delete` traces fire newest-first for the same reason.
+
+runtime/rust (#1444): `trace variable|vdelete|vinfo` are implemented, sharing
+the modern add/remove body exactly as C does by rewriting them. The option
+word now resolves against the option set the registry declares for the pinned
+release, so the three forms work at 8.x and report `bad option "variable":
+must be add, info, or remove` at 9.0+ — and the enumeration for any other bad
+option follows the same set. A trace installed the legacy way carries C's
+`TCL_TRACE_OLD_STYLE`: its callback receives the single `rwua` letter, though
+matching still ignores the flag so either spelling removes the other's
+registrations.
+
+Docs: the owner map gains a `tcl-cmd-core::trace` row and bullet; the trace
+contract records the array-before-element grouping as a group rule, the fixed
+per-kind `trace info` op order, the old-style callback letter, the 9.0
+boundary, and that a failed write keeps both the value and any cell it
+created; the as-built doc drops its now-wrong "registration order" paragraph.

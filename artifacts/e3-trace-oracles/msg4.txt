@@ -1,0 +1,6 @@
+test(trace): pin namespace-teardown command delete-trace order
+
+Mutation-testing survivor: the `victims.reverse()` in `take_ns_cmd_traces` was
+correct but unpinned, so nothing caught its removal. tclsh 8.6.16 and 9.0.4
+both fire a deleted command's `delete` traces newest-first when the namespace
+goes, matching every other trace list.

@@ -1,0 +1,6 @@
+refactor(runtime): name the namespace-teardown callback pair
+
+The grouping helper's `HashMap<Vec<u8>, Vec<(Vec<u8>, Vec<u8>)>>` tripped
+clippy's `type_complexity`. A `TeardownCallback` alias fixes it at the root
+rather than allowing the lint, and the four collect/fire signatures that
+already passed the same pair now read in terms of it.

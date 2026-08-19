@@ -1,0 +1,1 @@
+                .position(|t| t.ops == ops && t.command == command)

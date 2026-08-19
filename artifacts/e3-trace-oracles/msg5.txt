@@ -1,0 +1,6 @@
+test(trace): thread the dialect profile through the legacy-trace harness
+
+#1621 changed `lower_to_ir_for_bytecode_with_dialect`'s dialect argument from
+the profile name to the profile itself. This lane's cross-version harness was
+written before that and merged without conflict, so it needed the same
+mechanical update every other call site got.

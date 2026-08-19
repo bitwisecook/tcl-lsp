@@ -1,0 +1,2 @@
+        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = selected(true)
+            .chain(selected(false))

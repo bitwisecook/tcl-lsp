@@ -1,0 +1,1 @@
+            TraceKind::Variable => &["array", "read", "write", "unset"],

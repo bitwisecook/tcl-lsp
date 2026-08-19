@@ -1,0 +1,5 @@
+        self.write_scalar_raw(name, value);
+        if self.var_traces.is_empty() {
+            return Ok(());
+        }
+        self.fire_var_traces(name, "write")

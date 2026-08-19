@@ -1,0 +1,32 @@
+fix(trace): C-exact op canonicalisation, VM write-trace store, firing order, legacy forms
+
+Shared owner (`tcl_cmd_core::trace`):
+
+- `TraceKind::info_order` — the order C's three `TRACE_INFO` arms test the
+  stored flag bits, which is *not* the `opStrings[]` table order the
+  bad-operation error enumerates: `array read write unset` for variable and
+  `rename delete` for command. `parse_ops` now returns that canonical set, so
+  both engines render `trace info` byte-identically to tclsh 8.6.16 / 9.0.4.
+- `parse_legacy_variable_ops` yields the same canonical set (C expands the
+  letters and reuses the modern parser), plus `legacy_ops_letters` for the
+  `rwua` string `trace vinfo` reports and `callback_op_word` for the single
+  letter an old-style trace's callback receives.
+- `resolve_option` resolves `trace`'s first word against the release's own
+  option set with C's `Tcl_GetIndexFromObj` rule, producing the exact
+  `bad option` / `ambiguous option` enumeration for that release.
+
+tcl-vm (#1438): a write-trace error no longer un-stores the value. C swaps the
+value in before calling the traces and its error path never restores the old
+one (`TclPtrSetVarIdx`), so `set`/`append`/`incr`/`lappend`, array elements,
+and freshly-created cells all keep the written value.
+
+tcl-vm (#1440): whole-array traces fire before element traces regardless of
+registration order (`TclCallVarTraces`' `arrayPtr` loop precedes its `varPtr`
+loop), and command `rename`/`delete` traces fire newest-first
+(`Tcl_TraceCommand` prepends; `CallCommandTraces` walks head to tail).
+
+tcl-vm (#1444): `trace variable|vdelete|vinfo` route through the shared parser
+— `rwua`-only validation with C's error text, duplicate letters collapsed, and
+a set that `trace remove variable` matches — and all three are gated by the
+registry's `DialectSet::TCL8X`, so 9.0+ reports `bad option "variable": must be
+add, info, or remove`.

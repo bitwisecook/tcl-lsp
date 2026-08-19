@@ -1,0 +1,1 @@
+            .rposition(|t| t.name == name && t.ops == ops && t.command == command);

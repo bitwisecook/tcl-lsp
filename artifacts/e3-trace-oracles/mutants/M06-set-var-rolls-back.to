@@ -1,0 +1,17 @@
+        let old = self.get_var(name);
+        self.write_scalar_raw(name, value);
+        if self.var_traces.is_empty() {
+            return Ok(());
+        }
+        if let Err(e) = self.fire_var_traces(name, "write") {
+            if let Some(o) = old {
+                self.write_scalar_raw(name, o);
+            } else {
+                let (lvl, nm) = self.locate(name);
+                if let Some(f) = self.frames.get_mut(lvl) {
+                    f.locals.remove(&nm);
+                }
+            }
+            return Err(e);
+        }
+        Ok(())

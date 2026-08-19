@@ -1,0 +1,3 @@
+        // Grouped per command, newest-first inside each group — see
+        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        Self::group_newest_first_per_entity(victims)

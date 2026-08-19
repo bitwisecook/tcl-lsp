@@ -1,0 +1,1 @@
+    Ok(canonical_set(&words, TraceKind::Variable))

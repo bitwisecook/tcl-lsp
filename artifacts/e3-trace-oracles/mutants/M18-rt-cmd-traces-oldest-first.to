@@ -1,0 +1,3 @@
+            .cmd_traces
+            .iter()
+            .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)

@@ -1,0 +1,13 @@
+fix(vm-wasm): thread the dialect profile through the satellite compile service
+
+NOT THIS LANE'S SCOPE — base repair, safe to drop or move to its own PR.
+
+`rust/tcl-vm-wasm` is a separate workspace, so a `cargo check` over the main
+one never builds it. #1621 changed `lower_to_ir_for_bytecode_with_dialect` and
+`lower_to_ir_traced_with_dialect` to take the profile instead of its name and
+updated every call site the main workspace compiles, but this crate's
+`CompileService` impl was missed. `cargo test -p tcl-vm --test wasm_coro_e2e`
+builds it and is therefore red on origin/rust (9934c7ab2) as it stands.
+
+The change is the same two-line mechanical update applied everywhere else;
+`profile` is already `&'static DialectProfile` at both sites.

@@ -1,0 +1,1 @@
+    let table = OptionTable::exact_only("option", visible);

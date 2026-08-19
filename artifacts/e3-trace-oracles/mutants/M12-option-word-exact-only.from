@@ -1,0 +1,1 @@
+    let table = OptionTable::abbreviating("option", visible);

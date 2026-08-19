@@ -1,0 +1,6 @@
+const LEGACY_LETTERS: [(u8, &str); 4] = [
+    (b'r', "read"),
+    (b'w', "write"),
+    (b'u', "unset"),
+    (b'a', "array"),
+];

@@ -1,0 +1,5 @@
+        .filter(|sub| {
+            sub.dialects
+                .or(spec.dialects)
+                .is_none_or(|gate| gate.intersects(profile.availability_mask))
+        })

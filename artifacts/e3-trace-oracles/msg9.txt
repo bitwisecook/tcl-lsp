@@ -1,0 +1,28 @@
+fix(trace): keep the old-style op letter through namespace teardown
+
+Review finding. The deprecated 8.x `trace variable` form has its callback
+invoked with the single `rwua` letter rather than the operation name, and the
+explicit-unset path honoured that — but namespace teardown reduces its
+collected callbacks to a name/prefix pair, dropping the flag, then always
+appended `unset`. So `trace variable ::ns::x u cb` followed by
+`namespace delete ::ns` called back with `unset` where tclsh 8.6.16 says `u`.
+
+This is where #1444's letter convention meets the #1440 teardown work, the one
+path on which the two meet, and neither side's tests covered it.
+
+The collected-callback type splits in two: the variable one carries the
+old-style flag and the firing site runs it through `callback_op_word`; the
+command one does not, because C's `TCL_TRACE_OLD_STYLE` is a variable-trace
+flag with no command-trace equivalent (all five uses in `tclTrace.c` are in the
+variable machinery), so `delete` is always the word there. The grouping helper
+becomes generic over the payload with a key accessor, so both shapes share it.
+
+Vectors added to the runtime's legacy suite for the legacy, modern, mixed, and
+array-element cases, plus the 9.x side where the legacy form does not exist and
+teardown must still report `unset`. Oracle rows from tclsh 8.6.16: `L:u`,
+`M:unset`, `Mz:unset Lz:u`, `A:u`.
+
+Also: the `vinfo` spec's `detail` still promised the modern `{opList command}`
+shape. That text feeds hover, signature help, and completion, so it was telling
+editors the wrong result contract for 8.x. It now describes the letter string
+and its fixed r, w, u, a order.

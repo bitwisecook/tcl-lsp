@@ -1,0 +1,21 @@
+fix(trace): remove the newest duplicate, and order namespace-teardown unsets
+
+Two more instances of #1440's root cause, found by attacking the diff with
+fresh differential vectors against tclsh 8.6.16 and 9.0.4.
+
+`trace remove` (and `trace vdelete`) deleted the OLDEST of several identical
+registrations; C breaks at the first match walking its list head to tail, and
+that head is the newest. The choice is observable twice over — in the firing
+order of the survivors and in `trace info`. Our Vecs are oldest-first, so the
+four removal sites become `rposition`: the VM's `remove_var_trace` and
+`remove_cmd_trace`, and the runtime's variable and command/execution removal
+branches.
+
+Namespace teardown in the runtime fired a variable's unset traces oldest-first,
+because it collects them with `retain`. Reversed, matching every other trace
+list; the order *across* the namespace's variables is C's hash walk and stays
+unpinned. The command `delete` traces collected alongside them get the same
+treatment.
+
+Regression vectors: two in the VM's tclsh-diffed table (variable, then command
+and execution), and two runtime unit tests.

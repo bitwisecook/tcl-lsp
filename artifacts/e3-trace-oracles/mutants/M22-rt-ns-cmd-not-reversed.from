@@ -1,0 +1,3 @@
+        // Newest-first per command, as `take_ns_unset_traces` explains; the
+        // order across the namespace's commands is C's hash walk. Issue #1440.
+        victims.reverse();

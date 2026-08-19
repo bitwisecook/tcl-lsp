@@ -1,0 +1,1 @@
+            .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);

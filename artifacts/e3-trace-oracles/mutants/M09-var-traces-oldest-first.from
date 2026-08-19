@@ -1,0 +1,1 @@
+            for tr in traces.iter().rev() {

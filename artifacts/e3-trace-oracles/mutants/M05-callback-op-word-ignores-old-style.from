@@ -1,0 +1,3 @@
+    if !old_style {
+        return op;
+    }

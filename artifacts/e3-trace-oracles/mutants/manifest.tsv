@@ -1,0 +1,25 @@
+M02-info-order-command	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M03-legacy-not-canonicalised	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M04-letters-order	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M05-callback-op-word-ignores-old-style	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M12-option-word-exact-only	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M06-set-var-rolls-back	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M07-set-array-elem-rolls-back	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M08-element-before-array	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M09-var-traces-oldest-first	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M10-cmd-traces-oldest-first	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M11-vm-remove-var-oldest	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M13-vm-remove-cmd-oldest	rust/tcl-vm/src/interp.rs	-p tcl-vm
+M14-vm-option-gate-open	rust/tcl-vm/src/cmd_trace.rs	-p tcl-vm
+M15-rt-var-traces-oldest-first	runtime/rust/src/interp.rs	runtime
+M16-rt-element-before-array	runtime/rust/src/interp.rs	runtime
+M17-rt-callback-op-word-ignores-old-style	runtime/rust/src/interp.rs	runtime
+M18-rt-cmd-traces-oldest-first	runtime/rust/src/interp.rs	runtime
+M21-rt-ns-unset-not-reversed	runtime/rust/src/interp.rs	runtime
+M22-rt-ns-cmd-not-reversed	runtime/rust/src/interp.rs	runtime
+M19-rt-remove-var-oldest	runtime/rust/src/cmd_trace.rs	runtime
+M20-rt-remove-cmd-oldest	runtime/rust/src/cmd_trace.rs	runtime
+M23-rt-option-gate-open	runtime/rust/src/cmd_trace.rs	runtime
+M01-info-order-variable	rust/tcl-cmd-core/src/trace.rs	-p tcl-cmd-core -p tcl-vm
+M24-rt-ns-unset-flat-reverse	runtime/rust/src/interp.rs	runtime
+M25-rt-ns-cmd-flat-reverse	runtime/rust/src/interp.rs	runtime

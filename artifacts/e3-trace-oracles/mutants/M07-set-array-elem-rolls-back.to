@@ -1,0 +1,15 @@
+        let old = self.get_array_elem(name, key);
+        self.write_array_raw(name, key, value)?;
+        if self.var_traces.is_empty() {
+            return Ok(());
+        }
+        if let Err(e) = self.fire_var_traces(&format!("{name}({key})"), "write") {
+            match old {
+                Some(o) => {
+                    let _ = self.write_array_raw(name, key, o);
+                }
+                None => self.array_unset_elem(name, key),
+            }
+            return Err(e);
+        }
+        Ok(())
