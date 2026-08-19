@@ -1507,6 +1507,58 @@ fn arity_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     out.line(&row);
 }
 
+/// The shape words of one arity value, shared by the plain row and every
+/// window so a window's shape is spelled exactly as the plain row spells it.
+fn arity_shape(value: &Value) -> String {
+    let min = value["min"].as_u64().unwrap_or(0);
+    let max = value["max"].as_u64();
+    let step = value["step"].as_u64().unwrap_or(0);
+    let also = value["also_exact"].as_u64();
+    let range = match (min, max) {
+        (m, Some(x)) if m == x && step == 0 => m.to_string(),
+        (0, None) => "..".to_owned(),
+        (m, None) => format!("{m}.."),
+        (0, Some(x)) => format!("..{x}"),
+        (m, Some(x)) => format!("{m}..{x}"),
+    };
+    let mut row = range;
+    if step != 0 {
+        let _ = write!(row, " -step {step}");
+    }
+    if let Some(also) = also {
+        let _ = write!(row, " -also {also}");
+    }
+    row
+}
+
+/// `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` — one row per
+/// version window (`SpecTcl` 1.2, issue #1627).
+///
+/// Emitted after the plain `arity` row, matching the order the loader reads
+/// them and the order `CommandSpec::DEFAULT` declares them. A spec with no
+/// windows renders nothing, which is every spec whose signature never
+/// changed.
+fn arity_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "arity_windows") {
+        return;
+    }
+    let windows = as_array(&draft["arity_windows"]).to_vec();
+    for window in &windows {
+        let mut row = format!("arity {}", arity_shape(&window["arity"]));
+        let lifecycle = &window["lifecycle"];
+        for (flag, key) in [
+            ("-introduced", "introduced"),
+            ("-deprecated", "deprecated"),
+            ("-retired", "retired"),
+        ] {
+            if let Some(at) = lifecycle.get(key).and_then(Value::as_str) {
+                let _ = write!(row, " {flag} {at}");
+            }
+        }
+        out.line(&row);
+    }
+}
+
 /// The per-argument rows: six schema keys, one statement per index.
 ///
 /// Indices are visited in the order the tables themselves list them — roles
@@ -1848,6 +1900,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     set_word(out, ctx, draft, "dialects");
     set_word(out, ctx, draft, "traits");
     arity_row(out, ctx, draft);
+    arity_window_rows(out, ctx, draft);
     text(out, ctx, draft, "required_package");
     text(out, ctx, draft, "tcllib_package");
     text(out, ctx, draft, "implementation_namespace");
@@ -2266,6 +2319,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     let out_body = &mut body;
 
     arity_row(out_body, ctx, sub);
+    arity_window_rows(out_body, ctx, sub);
     if ctx.set(sub, "detail") {
         match braced(str_of(&sub["detail"])) {
             Some(spelling) => out_body.line(&format!("detail {spelling}")),

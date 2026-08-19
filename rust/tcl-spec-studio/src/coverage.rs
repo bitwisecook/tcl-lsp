@@ -267,24 +267,6 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     } = spec;
 }
 
-/// Versioned-arity windows are registry data with no studio editor *yet*.
-///
-/// The model landed first (issue #1627 step 1) so the loader and the analyser
-/// could be built against it; surfacing it needs a `FieldKind` of its own, a
-/// browser editor for a list of (lifecycle, arity) rows, and a renderer, which
-/// is step 5 of the same issue. This is a **temporary** exclusion — unlike the
-/// `NAMED_CONSTANT` ones, which are permanent — and flipping it to
-/// `Surface::Key("arity_windows")` is what step 5 does.
-const ARITY_WINDOWS_PENDING: &str = "versioned-arity windows: registry model only so far; studio surface is \
-     step 5 of #1627";
-
-/// The authored per-argument rows are the *source* the six parallel `arg_*`
-/// slices are projected from, so the studio surfaces the projection rather
-/// than the rows. Step 5 of #1627 gives the rows their own editor and flips
-/// this to `Surface::Key("arg_rows")`.
-const ARG_ROWS_PENDING: &str = "versioned arg rows: projected into the parallel arg_* surfaces; a row editor \
-     is step 5 of #1627";
-
 /// Where the studio surfaces each [`CommandSpec`] field, in
 /// `CommandSpec::DEFAULT` order.
 pub const COMMAND_SPEC: &[Field] = &[
@@ -292,8 +274,8 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("traits", Surface::Key("traits")),
     f("dialects", Surface::Key("dialects")),
     f("arity", Surface::Key("arity")),
-    f("arity_windows", Surface::Excluded(ARITY_WINDOWS_PENDING)),
-    f("arg_rows", Surface::Excluded(ARG_ROWS_PENDING)),
+    f("arity_windows", Surface::Key("arity_windows")),
+    f("arg_rows", Surface::Key("arg_rows")),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
     f("arg_presentation", Surface::Key("arg_presentation")),
@@ -545,8 +527,8 @@ pub const SUB_COMMAND: &[Field] = &[
     f("name", Surface::Key("name")),
     f("traits", Surface::Key("traits")),
     f("arity", Surface::Key("arity")),
-    f("arity_windows", Surface::Excluded(ARITY_WINDOWS_PENDING)),
-    f("arg_rows", Surface::Excluded(ARG_ROWS_PENDING)),
+    f("arity_windows", Surface::Key("arity_windows")),
+    f("arg_rows", Surface::Key("arg_rows")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("hover", Surface::Key("hover")),

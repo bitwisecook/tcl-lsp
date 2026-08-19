@@ -265,6 +265,69 @@ fn the_merged_draft_keeps_the_newest_shape_and_reports_the_change() {
 }
 
 #[test]
+fn an_arity_that_changed_is_derived_into_closed_windows() {
+    // `fakepkg::grew` is `1` in 1.0-1.1 and `1..2` from 1.2. That is two
+    // runs, so two windows — and the first is *closed* where the second
+    // begins, because a window with no retirement never ends and two open
+    // windows would overlap (which the loader rejects).
+    let import = imported(true);
+    let grew = find(&import, "fakepkg::grew");
+    let windows = grew.draft["arity_windows"]
+        .as_array()
+        .expect("arity_windows is an array");
+    assert_eq!(windows.len(), 2, "{windows:?}");
+
+    assert_eq!(windows[0]["arity"]["min"], json!(1));
+    assert_eq!(windows[0]["arity"]["max"], json!(1));
+    assert_eq!(windows[0]["lifecycle"]["introduced"], json!("1.0"));
+    assert_eq!(
+        windows[0]["lifecycle"]["retired"],
+        json!("1.2"),
+        "closed where the next shape arrives"
+    );
+
+    assert_eq!(windows[1]["arity"]["min"], json!(1));
+    assert_eq!(windows[1]["arity"]["max"], json!(2));
+    assert_eq!(windows[1]["lifecycle"]["introduced"], json!("1.2"));
+    assert_eq!(
+        windows[1]["lifecycle"]["retired"],
+        serde_json::Value::Null,
+        "the newest run stays open — nothing has replaced it"
+    );
+
+    // The note survives as the evidence for the derived field, not as a
+    // replacement for it.
+    assert!(
+        has_note(grew, "arity 1..2 since 1.2; was 1 in 1.0-1.1")
+            || has_note(grew, "arity 1..2 since 1.2; was 1 in 1.0\u{2013}1.1"),
+        "{:?}",
+        grew.notes
+    );
+}
+
+#[test]
+fn a_signature_that_never_changed_derives_no_windows() {
+    // The plain `arity` already describes it, and a single all-releases
+    // window would say the same thing less clearly.
+    let import = imported(true);
+    for command in &import.commands {
+        let windows = command
+            .draft
+            .get("arity_windows")
+            .and_then(|w| w.as_array());
+        let changed = command.name == "fakepkg::grew";
+        match windows {
+            Some(rows) if !rows.is_empty() => assert!(
+                changed,
+                "{} has windows but its signature never changed: {rows:?}",
+                command.name
+            ),
+            _ => assert!(!changed, "{} changed shape but derived none", command.name),
+        }
+    }
+}
+
+#[test]
 fn an_option_that_appears_later_gets_its_own_introduction() {
     let import = imported(true);
     let render = find(&import, "fakepkg::render");

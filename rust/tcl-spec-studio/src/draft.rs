@@ -170,6 +170,47 @@ pub(crate) fn arity(value: Arity) -> Value {
     })
 }
 
+/// One [`tcl_registry::arity::ArityWindow`] as a draft value — the shape the
+/// signature had over one span of the owning package's releases (#1627).
+pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Value {
+    Value::Array(
+        windows
+            .iter()
+            .map(|window| {
+                json!({
+                    "arity": arity(window.arity),
+                    "lifecycle": {
+                        "introduced": opt_str(window.lifecycle.introduced),
+                        "deprecated": opt_str(window.lifecycle.deprecated),
+                        "retired": opt_str(window.lifecycle.retired),
+                    },
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+/// The authored per-argument rows as a draft value — the source the parallel
+/// `arg_*` tables are projected from (#1627).
+pub(crate) fn arg_rows(rows: &[tcl_registry::spec::VersionedArgRow]) -> Value {
+    Value::Array(
+        rows.iter()
+            .map(|row| {
+                json!({
+                    "index": row.index,
+                    "lifecycle": {
+                        "introduced": opt_str(row.lifecycle.introduced),
+                        "deprecated": opt_str(row.lifecycle.deprecated),
+                        "retired": opt_str(row.lifecycle.retired),
+                    },
+                    "role": row.role.map_or(Value::Null, |r| json!(format!("{r:?}"))),
+                    "closed": row.closed,
+                })
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
 fn appended_arity(value: AppendedArity) -> Value {
     match value {
         AppendedArity::Exactly(n) => json!({ "kind": "Exactly", "n": n }),
@@ -847,6 +888,8 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("name".into(), json!(sub.name));
     d.insert("traits".into(), traits(sub.traits));
     d.insert("arity".into(), arity(sub.arity));
+    d.insert("arity_windows".into(), arity_windows(sub.arity_windows));
+    d.insert("arg_rows".into(), arg_rows(sub.arg_rows));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("hover".into(), hover(sub.hover));
@@ -1120,6 +1163,8 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("traits".into(), traits(spec.traits));
     d.insert("dialects".into(), dialects(spec.dialects));
     d.insert("arity".into(), arity(spec.arity));
+    d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
+    d.insert("arg_rows".into(), arg_rows(spec.arg_rows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
     d.insert(
         "arg_presentation".into(),
