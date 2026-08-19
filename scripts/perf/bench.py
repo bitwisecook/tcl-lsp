@@ -90,6 +90,19 @@ REQUEST_TIMEOUT_S = 30.0
 
 SEED = 20260807
 
+#: Outer wall-clock budget for one bench.py run (one version), in seconds.
+#: Independent of REQUEST_TIMEOUT_S: that bounds a single LSP round-trip
+#: (and, since lsp_client.py's `_send` fix, the write side of it too); this
+#: bounds the *whole process* — corpus staging, the workspace scan, every
+#: check, teardown — so a fault outside any individually-bounded wait still
+#: produces a clean, attributed failure instead of relying on an external
+#: killer (sweep.sh's `timeout --foreground`, CI's job timeout) with no idea
+#: which phase died. See issue #1399.  Generous for `--scope small` (a
+#: healthy run finishes in well under a minute per sweep.sh's own comment);
+#: override with `--deadline` or `BENCH_DEADLINE_S` for a larger scope or a
+#: slower host.
+DEFAULT_DEADLINE_S = 240.0
+
 
 # --------------------------------------------------------------------------
 # Process sampling
@@ -164,6 +177,110 @@ class Sampler(threading.Thread):
 
     def latest(self) -> dict | None:
         return self.samples[-1] if self.samples else None
+
+
+# --------------------------------------------------------------------------
+# Outer deadline (#1399)
+
+
+class Progress:
+    """Shared, best-effort state the watchdog reads to report *where* a run
+    died.
+
+    Written from the main thread only; the watchdog thread only ever reads
+    it, and only after deciding the run is already dead — a torn read here
+    produces a slightly-wrong diagnostic line at worst, never a wrong
+    benchmark result, so this deliberately carries no lock.
+    """
+
+    def __init__(self, server: Path, version: str) -> None:
+        self.server = server
+        self.version = version
+        self.phase = "startup"
+        #: Set once the LspClient exists, so the watchdog can read its
+        #: `last_request_id` / `last_request_method` directly instead of
+        #: bench.py duplicating that bookkeeping.
+        self.client: LspClient | None = None
+
+
+class DeadlineExceeded(RuntimeError):
+    """Raised (from the main thread, via the watchdog) when the outer
+    `--deadline` elapses. In practice the watchdog reports and hard-exits
+    before this would ever need to be caught — it exists mainly so the
+    failure mode has a name in a traceback if `os._exit` is ever removed."""
+
+
+class Watchdog(threading.Thread):
+    """Kills the process if the run hasn't finished within *deadline*
+    seconds of the watchdog starting.
+
+    A per-request timeout (`REQUEST_TIMEOUT_S`, and now the write side of it
+    too — see `lsp_client.LspClient._send`) bounds one LSP round-trip; this
+    bounds the *whole run*, so a fault no individual wait can see — a chain
+    of many separately-bounded waits that together outlast the sweep's
+    external timeout, a hang in corpus staging or teardown, or simply a
+    slower host than `--deadline` assumed — still ends in a clean,
+    attributed nonzero exit instead of an external `timeout(1)` SIGKILL that
+    explains nothing (see issue #1399 and sweep.sh's 8h45m wedge note).
+
+    Deliberately a hard `os._exit`, not a raised exception the main thread
+    could ignore or get stuck handling: the whole point is that this fires
+    when the main thread is *not* responsive, so anything that depends on
+    the main thread cooperating (a raised exception, a graceful shutdown)
+    is not a safe assumption to build the escape hatch on.
+    """
+
+    def __init__(self, progress: Progress, deadline: float) -> None:
+        super().__init__(daemon=True, name="bench-deadline-watchdog")
+        self.progress = progress
+        self.deadline = deadline
+        self._done = threading.Event()
+
+    def cancel(self) -> None:
+        """Call once the run has genuinely finished (including teardown)."""
+        self._done.set()
+
+    def run(self) -> None:
+        if self._done.wait(self.deadline):
+            return  # the run finished (or was cancelled) before the deadline
+        p = self.progress
+        client = p.client
+        last_id = client.last_request_id if client else None
+        last_method = client.last_request_method if client else None
+        server_pid = (
+            client.process.pid if client and client.process is not None else None
+        )
+        print(
+            "\n"
+            f"!!! bench.py: --deadline {self.deadline:.0f}s exceeded !!!\n"
+            f"    server binary: {p.server}\n"
+            f"    version:       {p.version}\n"
+            f"    phase:         {p.phase}\n"
+            f"    server pid:    {server_pid}\n"
+            f"    last request:  method={last_method} id={last_id}\n"
+            "    This is either a slow host/scope (raise --deadline or set\n"
+            "    BENCH_DEADLINE_S) or issue #1399's intermittent harness "
+            "hang.\n",
+            file=sys.stderr,
+        )
+        sys.stderr.flush()
+        sys.stdout.flush()
+        # os._exit below skips every `finally` in the main thread, including
+        # the one that would normally kill the server subprocess — so do
+        # that here first, or a killed run leaks a live server process (an
+        # orphaned `tcl-lsp-server` per hang, silently accumulating across a
+        # sweep). Best-effort: the process may already be gone, or this may
+        # itself be part of what's wedged.
+        if client is not None and client.process is not None:
+            try:
+                client.process.kill()
+            except Exception:  # noqa: BLE001
+                pass
+        # A daemon thread cannot unwind the main thread's call stack, and the
+        # main thread may be blocked in a call this fix does not (or cannot)
+        # bound — os._exit is the one escape that does not depend on it
+        # cooperating.
+        os._exit(1)
 
 
 # --------------------------------------------------------------------------
@@ -275,12 +392,21 @@ def proc_positions(text: str, limit: int = 20) -> list[tuple[int, int]]:
 
 
 class Bench:
-    def __init__(self, client: LspClient, sampler: Sampler, root: Path) -> None:
+    def __init__(
+        self,
+        client: LspClient,
+        sampler: Sampler,
+        root: Path,
+        progress: Progress | None = None,
+    ) -> None:
         self.c = client
         self.s = sampler
         self.root = root
         self.checks: list[dict] = []
         self._ord = 0
+        #: `--deadline` phase attribution (#1399). Optional so `Bench` stays
+        #: usable without a watchdog wired up.
+        self.progress = progress
 
     def request(self, method: str, params: dict) -> tuple[Any, bool]:
         """One request; `(result, ok)` where ok=False means timeout/error."""
@@ -299,6 +425,8 @@ class Bench:
         just the thread answering the request.
         """
         self._ord += 1
+        if self.progress is not None:
+            self.progress.phase = f"check {self._ord}: {cid} ({label})"
         before = self.s.latest() or {"rss_kib": 0, "cpu_s": 0.0}
         t0 = time.perf_counter()
         ok = True
@@ -780,12 +908,50 @@ def main() -> int:
         action="store_true",
         help="exit non-zero if any check timed out or errored",
     )
+    ap.add_argument(
+        "--deadline",
+        type=float,
+        default=float(os.environ.get("BENCH_DEADLINE_S", DEFAULT_DEADLINE_S)),
+        help=(
+            "outer wall-clock budget in seconds for the whole run (issue "
+            "#1399); on expiry, reports the phase, server binary and last "
+            "request, then exits nonzero. Overrides BENCH_DEADLINE_S if "
+            f"both are set (default {DEFAULT_DEADLINE_S:.0f}s). 0 disables "
+            "it — do not disable in CI or a sweep."
+        ),
+    )
     args = ap.parse_args()
     args.server = args.server.resolve()
     if not args.server.is_file():
         print(f"no server binary at {args.server}", file=sys.stderr)
         return 2
 
+    progress = Progress(args.server, args.version)
+    watchdog: Watchdog | None = None
+    if args.deadline > 0:
+        watchdog = Watchdog(progress, args.deadline)
+        watchdog.start()
+    else:
+        print(
+            "   --deadline 0: outer deadline disabled, this run can hang "
+            "forever (issue #1399)",
+            file=sys.stderr,
+        )
+
+    try:
+        return _run(args, progress)
+    finally:
+        if watchdog is not None:
+            # The run genuinely finished (including teardown) — stop the
+            # watchdog so it cannot fire after the fact.
+            watchdog.cancel()
+
+
+def _run(args: argparse.Namespace, progress: Progress) -> int:
+    """The actual benchmark run, split out from `main` so every return path
+    — including the early "no corpus" / "server failed to start" ones —
+    passes through `main`'s single `finally: watchdog.cancel()`."""
+    progress.phase = "corpus-staging"
     with args.manifest.open("rb") as fh:
         manifest = tomllib.load(fh)
     groups = manifest["scope"][args.scope]["groups"]
@@ -836,7 +1002,9 @@ def main() -> int:
     print(f"== {args.version} | scope={args.scope} | {total} .tcl files ==")
     print(f"   server {args.server}")
 
+    progress.phase = "server-start"
     client = LspClient(str(stage), launch_cmd=[str(args.server)])
+    progress.client = client
     client.start()
     if client.process is None:
         print(f"server failed to start: {args.server}", file=sys.stderr)
@@ -844,10 +1012,12 @@ def main() -> int:
     sampler = Sampler(client.process.pid)
     sampler.start()
     try:
+        progress.phase = "init"
         initialize(client, stage)
-        bench = Bench(client, sampler, stage)
+        bench = Bench(client, sampler, stage, progress)
         build_suite(bench, docs, stage)
     finally:
+        progress.phase = "teardown"
         sampler.stop()
         try:
             client.shutdown()

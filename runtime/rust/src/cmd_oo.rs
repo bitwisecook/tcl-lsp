@@ -392,6 +392,9 @@ pub fn install(interp: &mut Interp) {
             },
         );
         interp.ns_register(fqn, Command::OoObject(fqn.to_vec()));
+        // Engine-installed, not script-created: the registry dates these
+        // (TCL86_PLUS) and the availability gate must honour that (#1463).
+        interp.declare_registry_object_root(fqn);
         interp.oo_register_my(fqn);
     }
     // `oo::object` has a built-in (unexported) `unknown` method — the standard
@@ -557,6 +560,23 @@ fn install_configurable(interp: &mut Interp) {
           oo::define ::oo::configurable definitionnamespace ::oo::configuresupport::configurableclass",
     );
     install_abstract_singleton(interp);
+    // The 9.0 metaclasses are engine-installed on the registry's behalf too,
+    // so the release gate hides them below their introducing release the way
+    // it hides a builtin (#1463) — real tclsh 8.6.16 has no `oo::configurable`.
+    for root in [
+        b"::oo::configurable".as_slice(),
+        b"::oo::singleton",
+        b"::oo::abstract",
+    ] {
+        interp.declare_registry_object_root(root);
+    }
+    // NOTE: `::oo::Slot` and `::oo::SingletonInstance` are engine-installed
+    // too, but marking them roots here would be inert — the release gate dates
+    // a root through the registry, and the registry has no spec for either
+    // name, so `profile_admits_registry_builtin` admits them on every surface.
+    // They are therefore still present (and consistently callable) on an 8.4
+    // surface that should have no TclOO at all. That is a registry-content
+    // gap, not a gate gap; #1463's gate is mirrored correctly without them.
 }
 
 /// TIP-less foundation metaclasses created by `InitFoundation` in C
@@ -4240,8 +4260,12 @@ impl Interp {
 
     /// Create class `fqn` (running its optional definition script).
     fn oo_make_class(&mut self, fqn: &[u8], display: &[u8], script: Option<&[u8]>) -> Code {
-        if self.oo.borrow().classes.contains_key(fqn) || self.oo.borrow().objects.contains_key(fqn)
-        {
+        let taken = self.oo.borrow().classes.contains_key(fqn)
+            || self.oo.borrow().objects.contains_key(fqn);
+        // A root this release does not have is not a collision: the engine
+        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
+        // them, so on an 8.6 surface the name is the script's to take.
+        if taken && !self.is_gate_hidden_object_root(fqn) {
             // C reports `object` (creation funnels through object creation) and
             // the name *as written*, not the resolved FQN.
             let mut m = b"can't create object \"".to_vec();
@@ -4623,9 +4647,12 @@ impl Interp {
             self.oo.borrow_mut().counter += 1;
             n.into_bytes()
         });
-        if self.oo.borrow().objects.contains_key(&fqn)
-            || self.oo.borrow().classes.contains_key(&fqn)
-        {
+        let taken = self.oo.borrow().objects.contains_key(&fqn)
+            || self.oo.borrow().classes.contains_key(&fqn);
+        // A root this release does not have is not a collision: the engine
+        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
+        // them, so on an 8.6 surface the name is the script's to take.
+        if taken && !self.is_gate_hidden_object_root(&fqn) {
             let mut m = b"can't create object \"".to_vec();
             m.extend_from_slice(display);
             m.extend_from_slice(b"\": command already exists with that name");
@@ -5253,9 +5280,7 @@ impl Interp {
         if self.oo.borrow().objects.contains_key(&fqn) {
             return fqn;
         }
-        if let Some(o) = self
-            .namespaces()
-            .command_origin(self.current_ns(), name)
+        if let Some(o) = tcl_cmd_core::namespace::origin_bytes(self, name)
             .filter(|o| self.oo.borrow().objects.contains_key(o))
         {
             return o;

@@ -135,7 +135,7 @@ const MAGIC: &[u8; 7] = b"TCLSPKC";
 /// and the cost of forgetting is a stale parse of a file the developer is
 /// actively editing — recovered by `rm -rf` on a directory the contract
 /// already says is disposable.
-const LOADER_BUILD: u32 = 2;
+const LOADER_BUILD: u32 = 3;
 
 // ---------------------------------------------------------------------------
 // The key

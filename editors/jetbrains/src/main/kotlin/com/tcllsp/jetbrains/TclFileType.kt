@@ -32,12 +32,35 @@ class TclFileType private constructor() : LanguageFileType(TclLanguage) {
         @JvmField
         val INSTANCE = TclFileType()
 
+        // @generated:supported-extensions:begin -- cargo xtask gen-editor-extensions
         private val SUPPORTED_EXTENSIONS = setOf(
-            "tcl", "tk", "itcl", "tm", "tclspec",
-            "iapp", "iappimpl", "impl",
-            "irul", "irule",
-            "apl", "exp"
+            "tcl",
+            "tk",
+            "itcl",
+            "tm",
+            "test",
+            "globals",
+            "exp",
+            "expect",
+            "scf",
+            "iapp",
+            "iappimpl",
+            "impl",
+            "irul",
+            "irule",
+            "irules",
+            "tmsh",
+            "qsf",
+            "qpf",
+            "qip",
+            "do",
+            "tclspec",
+            "sdc",
+            "upf",
+            "xdc",
+            "apl",
         )
+        // @generated:supported-extensions:end
 
         @JvmStatic
         fun isSupported(file: VirtualFile): Boolean {

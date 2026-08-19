@@ -533,6 +533,73 @@ fn subst_command() {
     out_eq("puts [subst {x[expr 1][expr 2]y}]\n", "x12y\n");
 }
 
+/// Issue #1443 — `subst`'s option words resolve through the one shared
+/// `tcl-cmd-core::prefix` matcher, so they word every miss exactly as
+/// `Tcl_GetIndexFromObj` at flags `0` does (`TclSubstOptions`,
+/// `tclCmdMZ.c:3341`). The **empty** word is the case that used to diverge: it
+/// prefixes all three entries, so C calls it `ambiguous`, not `bad`.
+#[test]
+fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    // The empty option word abbreviates every entry ⇒ `ambiguous` (tclsh
+    // 8.6.16 and 9.0.4 agree).
+    assert_eq!(
+        msg("subst {} abc\n"),
+        format!("ambiguous option \"\": {MUST}")
+    );
+    // A word that prefixes more than one entry is likewise ambiguous.
+    assert_eq!(
+        msg("subst -no abc\n"),
+        format!("ambiguous option \"-no\": {MUST}")
+    );
+    // A word that prefixes nothing is `bad`.
+    assert_eq!(msg("subst -q abc\n"), format!("bad option \"-q\": {MUST}"));
+    // A unique prefix still resolves (subst-7.7).
+    out_eq("puts [subst -nov {$x}]\n", "$x\n");
+    out_eq("puts [subst -nob {a\\tb}]\n", "a\\tb\n");
+    out_eq("puts [subst -noc {[cmd]}]\n", "[cmd]\n");
+}
+
+/// Issue #1443's bug, found repeated verbatim in `interp limit`'s option
+/// matcher by the centralisation audit: a hand-rolled `starts_with` filter can
+/// only ever say `bad option`, so the empty word — a prefix of *every* entry —
+/// reported `bad option ""` where C reports `ambiguous option ""`. Both
+/// engines now route through `prefix::OptionTable::abbreviating`, which owns
+/// the verdict and the `", or"` enumeration alike.
+///
+/// Byte-checked against tclsh 8.6.16 and 9.0.4, which agree on every row.
+#[test]
+fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be -command, -granularity, -milliseconds, or -seconds";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("interp create i\ninterp limit i time {}\n"),
+        format!("ambiguous option \"\": {MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp limit i time -\n"),
+        format!("ambiguous option \"-\": {MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp limit i time -zz\n"),
+        format!("bad option \"-zz\": {MUST}")
+    );
+    // Unique prefixes still resolve.
+    let (ok, _r, _) = run("interp create i\ninterp limit i time -sec 5\n");
+    assert!(ok, "a unique prefix must still resolve");
+    let (ok, _r, _) = run("interp create i\ninterp limit i time -com {}\n");
+    assert!(ok);
+}
+
 #[test]
 fn regexp_regsub() {
     out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");

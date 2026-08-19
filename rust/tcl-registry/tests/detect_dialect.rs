@@ -276,3 +276,34 @@ fn spectcl_is_a_catalogued_dialect() {
         assert_eq!(DialectProfile::by_name(alias).name, "spectcl");
     }
 }
+
+/// Extension→dialect routing derives from the `DialectProfile` catalog's
+/// `file_extensions` axis — every owned extension routes to its owner, and
+/// the newly catalogued routes (`.scf`, `.tmsh`, the iApp implementation
+/// spellings) work exactly like the long-standing vendor ones.
+#[test]
+fn catalog_owned_extensions_route_to_their_dialect() {
+    use tcl_registry::dialects::dialect_from_extension;
+
+    for profile in tcl_dialect::DialectProfile::all() {
+        for row in profile.file_extensions {
+            assert_eq!(
+                dialect_from_extension(&format!("design.{}", row.extension)),
+                Some(profile.name),
+                "{} should route to {}",
+                row.extension,
+                profile.name
+            );
+        }
+    }
+    // The routes the catalog move newly opened up, spelled concretely.
+    assert_eq!(dialect_from_extension("bigip.scf"), Some("f5-bigip"));
+    assert_eq!(dialect_from_extension("deploy.tmsh"), Some("f5-tmsh"));
+    assert_eq!(dialect_from_extension("app.iappimpl"), Some("f5-iapps"));
+    assert_eq!(dialect_from_extension("app.impl"), Some("f5-iapps"));
+    assert_eq!(dialect_from_extension("lb.irules"), Some("f5-irules"));
+    assert_eq!(dialect_from_extension("login.expect"), Some("expect"));
+    // Deliberate non-mappings stay unmapped.
+    assert_eq!(dialect_from_extension("rules.svrf"), None);
+    assert_eq!(dialect_from_extension("main.tcl"), None);
+}

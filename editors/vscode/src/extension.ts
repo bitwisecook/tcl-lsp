@@ -108,6 +108,7 @@ const DIALECT_LABELS: Record<string, string> = {
   "f5-tmsh": "F5 tmsh Scripts",
   "intel-quartus-eda-tcl": "Intel Quartus EDA Tcl",
   "mentor-eda-tcl": "Mentor EDA Tcl",
+  "microchip-libero-eda-tcl": "Microchip Libero EDA Tcl",
   spectcl: "SpecTcl",
   "synopsys-eda-tcl": "Synopsys EDA Tcl",
   "tcl8.4": "Tcl 8.4",
@@ -133,25 +134,28 @@ export { TCL_LANGUAGE_IDS, isTclLanguage };
  * `tcl84` is what VS Code calls the language, `tcl8.4` is what the server
  * calls the dialect.
  */
+// @generated:language-id-dialects:begin -- cargo xtask gen-editor-extensions
 const LANGUAGE_ID_DIALECTS: Record<string, string> = {
-  "tcl-irule": "f5-irules",
-  "tcl-iapp": "f5-iapps",
-  // `.apl` (iApp APL / presentation language) is an iApp sublanguage; the
-  // server maps `tcl-apl` → `f5-iapps`, so mirror that here.
-  "tcl-apl": "f5-iapps",
+  "tcl-cadence": "cadence-eda-tcl",
+  "tcl-expect": "expect",
   "tcl-bigip": "f5-bigip",
+  "tcl-iapp": "f5-iapps",
+  "tcl-irule": "f5-irules",
+  "tcl-tmsh": "f5-tmsh",
+  "tcl-quartus": "intel-quartus-eda-tcl",
+  "tcl-mentor": "mentor-eda-tcl",
+  "tcl-microchip": "microchip-libero-eda-tcl",
+  tclspec: "spectcl",
+  "tcl-synopsys": "synopsys-eda-tcl",
   tcl84: "tcl8.4",
   tcl85: "tcl8.5",
   tcl86: "tcl8.6",
   tcl90: "tcl9.0",
   tcl91: "tcl9.1",
-  "tcl-synopsys": "synopsys-eda-tcl",
-  "tcl-cadence": "cadence-eda-tcl",
   "tcl-xilinx": "xilinx-eda-tcl",
-  "tcl-quartus": "intel-quartus-eda-tcl",
-  "tcl-mentor": "mentor-eda-tcl",
-  "tcl-expect": "expect",
+  "tcl-apl": "f5-iapps",
 };
+// @generated:language-id-dialects:end
 
 const TCL_VERSION_DIALECTS: Record<string, string> = {
   "8.4": "tcl8.4",

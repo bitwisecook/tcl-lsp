@@ -187,7 +187,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: rust-check check-all prep-pr _prep-pr-checks _prep-pr-tests _prep-pr-smoke _prep-pr-smoke-tier
 # Tests
 .PHONY: test test-ext test-emacs test-rust rust-server rust-tcl rust-f5 rust-mcp rust-clis ensure-server-cross-deps server-cross-build server-cross-build-all mcp-cross-build-all cli-cross-build-all server-cross-test server-cross-test-build print-server-targets-all print-server-targets-jetbrains
-.PHONY: xtask-check xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check
+.PHONY: xtask-check xtask-editor-extensions xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-command-backing xtask-audit-option-dialects xtask-registry-oracle xtask-sslictcl-data tcltest-sweep tcltest-sweep-check xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership check-c-api-ownership
 .PHONY: xtask-workflow-sync xtask-resolution-drift xtask-number-drift xtask-gen-tmlanguage-keywords xtask-option-registry-drift
 # Lint / format / typecheck
 .PHONY: lint format lint-ts format-ts typecheck-ts check-rust rust-deny
@@ -603,11 +603,15 @@ coverage-ext: compile $(NPM_STAMP) ensure-vscode-test-deps ## Run VS Code extens
 # --- Native (cargo xtask) check gates.  These need the Rust toolchain, so CI
 # runs them in the rust-tests job (rust-gate.yml / ci.yml).  `xtask-check` is
 # the CI aggregate.
-xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
+xtask-check: xtask-workflow-sync xtask-kcs-index-links xtask-diag-tables xtask-diag-emission-check xtask-gen-editor-catalogs xtask-gen-editor-dialects xtask-gen-irule-test-data xtask-gen-zed-queries xtask-gen-tmlanguage-keywords xtask-gen-editor-settings xtask-gen-vscode-package xtask-gen-jetbrains-catalog xtask-gen-ai-diagnostics xtask-owner-resolution xtask-resolution-drift xtask-number-drift xtask-command-backing xtask-option-registry-drift xtask-sslictcl-data xtask-editor-extensions xtask-f5query-builtins-doc xtask-bigip-data-schema xtask-c-api-ownership ## Rust-side check gates (docs index coverage + generated-table/catalog drift)
 
 xtask-gen-editor-dialects: ## Verify editor selectable dialect lists match DialectProfile::all
 	@echo "==> Checking generated editor dialect lists (cargo xtask)"
 	cd $(ROOT) && cargo xtask gen-editor-dialects --check
+
+xtask-editor-extensions: ## Verify the editors' extension/language lists match the dialect catalog + bundled packs (drift gate)
+	@echo "==> Checking editor extension/language lists against the dialect catalog (cargo xtask)"
+	cd $(ROOT) && cargo xtask gen-editor-extensions --check
 
 xtask-owner-resolution: ## Verify the shared semantic-owner contract resolves to live source and gates
 	@echo "==> Checking shared semantic-owner contract (cargo xtask)"
@@ -673,6 +677,14 @@ xtask-command-backing: ## Verify the WASM runtime backs every core-Tcl registry 
 	@echo "==> Checking WASM command backing coverage is in sync (cargo xtask)"
 	cd $(ROOT) && cargo xtask command-backing --check
 
+xtask-f5query-builtins-doc: ## Verify docs/references/f5_query/builtins.md documents exactly the registered f5-query builtins (coverage drift gate, issue #1404)
+	@echo "==> Checking f5-query builtins reference doc coverage (cargo xtask)"
+	cd $(ROOT) && cargo xtask f5-query-builtins-doc --check
+
+xtask-bigip-data-schema: ## Verify the hand-maintained BIG-IP object-spec data is internally consistent (schema/consistency gate, issue #1404)
+	@echo "==> Checking BIG-IP object-spec data consistency (cargo xtask)"
+	cd $(ROOT) && cargo xtask bigip-data-schema --check
+
 xtask-audit-option-dialects: ## Regenerate tmp/option_dialect_audit.json from built tclsh trees (on-demand; needs tmp/tcl*/unix)
 	@echo "==> Auditing OptionSpec dialect gates (cargo xtask)"
 	cd $(ROOT) && cargo xtask audit-option-dialects
@@ -690,6 +702,14 @@ update-source-data: ## Refresh embedded SslicTcl source data (explicit network-c
 check-source-data: ## Verify embedded SslicTcl data, provenance, hashes, and generated output (offline)
 	@echo "==> Checking embedded SslicTcl source data (offline)"
 	cd $(ROOT) && cargo xtask sslictcl-data check $(if $(SOURCE_DATA_MAX_AGE_DAYS),--max-age-days $(SOURCE_DATA_MAX_AGE_DAYS))
+
+xtask-c-api-ownership: check-c-api-ownership ## Verify runtime/rust/src/capi.rs exports each have a row in c-api-ownership-contract.md (drift gate, issue #1404)
+
+check-c-api-ownership: ## Verify the C-API ownership/error contract: capi.rs exports <-> docs/design/runtime/c-api-ownership-contract.md rows (offline; pass TCL_SOURCE=path for the fuller header cross-check)
+	@echo "==> Running the C-API ownership checker's own regression tests"
+	python3 $(ROOT)scripts/check_c_api_ownership.py --self-test
+	@echo "==> Checking C-API ownership contract coverage (offline)"
+	python3 $(ROOT)scripts/check_c_api_ownership.py $(if $(TCL_SOURCE),--tcl-source $(TCL_SOURCE))
 
 xtask-registry-oracle: ## Audit the iRules registry against a local BIG-IP extract (IRULES_ORACLE_ROOT=/path/to/bigip-extract)
 	@test -n "$(IRULES_ORACLE_ROOT)" || (echo "Set IRULES_ORACLE_ROOT=/path/to/bigip-extract"; exit 2)
@@ -1506,6 +1526,26 @@ $(CLAUDE_SKILLS): $(shell find $(ROOT)ai/claude/skills -type f)
 	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills
 	@cp -R $(ROOT)ai/claude/skills/. \
 		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/
+# The spec-author skill's background reading is assembled from the living
+# docs at build time — a committed snapshot drifted (the installed 2.1.21
+# skill shipped a pre-1.1 syntax memo), so the zip now copies the current
+# files and rewrites the SKILL.md paths to the bundled layout.
+	@mkdir -p $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references
+	@cp -R $(ROOT)docs/design/spec-dsl-examples \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@cp $(ROOT)docs/kcs/kcs-howto-create-command-specs-without-rust.md \
+		$(ROOT)docs/kcs/kcs-howto-annotate-commands-with-stubs.md \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@cp $(ROOT)docs/design/compiler/command-registry.md \
+		$(ROOT)docs/design/contracts/proc-arg-traits.md \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/references/
+	@sed -i.bak \
+		-e 's|docs/design/spec-dsl-examples|references/spec-dsl-examples|g' \
+		-e 's|docs/kcs/kcs-howto-|references/kcs-howto-|g' \
+		-e 's|docs/design/compiler/command-registry.md|references/command-registry.md|g' \
+		-e 's|docs/design/contracts/proc-arg-traits.md|references/proc-arg-traits.md|g' \
+		$(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/SKILL.md \
+		&& rm -f $(BUILD_DIR)/claude-skills-stage/tcl-lsp-claude-skills-$(VERSION)/skills/spec-author/SKILL.md.bak
 	@mkdir -p $(BUILD_DIR)
 	@rm -f $@
 	@cd $(BUILD_DIR)/claude-skills-stage && zip -qr $(abspath $@) tcl-lsp-claude-skills-$(VERSION)

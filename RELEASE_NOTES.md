@@ -1,3 +1,17 @@
+# v2.1.22
+
+**2.x alpha — pre-release channel.**
+
+This maintenance prerelease carries forward v2.1.21 with refreshed release
+performance measurements and the portable source-data build tooling.
+
+## Engineering and delivery
+
+- Release verification remains portable across GNU and BSD host utilities,
+  including the PEM source-data generation path.
+
+For the complete feature list, see the [v2.1.21 release notes](https://github.com/bitwisecook/tcl-lsp/releases/tag/v2.1.21).
+
 # v2.1.21
 
 **2.x alpha — pre-release channel.**
@@ -91,13 +105,13 @@ default.
 ## Performance across the 2.1 pre-releases
 
 These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
-`v2.1.21`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+`v2.1.22`, run by `scripts/perf/` against a pinned 113-file corpus (scope
 `small`, revision `1`). The corpus, scope, and revision are fixed across the
 whole series, so the lines are comparable with each other.
 
 There is no `v2.1.2` point: that version was never released.
 
-**`2.1.21` is this release**: it is the bright-blue line in the memory and CPU
+**`2.1.22` is this release**: it is the bright-blue line in the memory and CPU
 graphs and the rightmost bar in each wall-time group. Earlier releases are
 drawn in grey and fade with age.
 
@@ -110,16 +124,16 @@ far less host-sensitive.
 
 ### Resident memory
 
-![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.21/perf-memory.svg)
+![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.21/perf-cpu.svg)
+![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.21/perf-walltime.svg)
+![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-walltime.svg)
 
 [Benchmark table and method
-notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.21/perf-summary.md)
-— the raw result JSON is attached to this release as `perf-2.1.21.json`.
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.1.22.json`.

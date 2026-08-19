@@ -384,7 +384,7 @@ impl CodegenCtx<'_> {
         // `[cmd]` is a single part and falls through to the fast paths below.
         if !braced
             && (arg.contains('$') || arg.contains('['))
-            && let Some(parts) = parse_subst_template(arg, self.escapes)
+            && let Some(parts) = parse_subst_template(arg, self.escapes, self.braced_var)
             && parts.len() > 1
         {
             for part in &parts {
@@ -412,7 +412,7 @@ impl CodegenCtx<'_> {
                 return;
             }
             // ${var} form
-            if let Some(var_name) = parse_simple_var_ref(arg) {
+            if let Some(var_name) = parse_simple_var_ref(arg, self.braced_var) {
                 self.load_var(var_name);
                 return;
             }
@@ -518,7 +518,7 @@ impl CodegenCtx<'_> {
             if let Some(name) = parse_braced_scalar_ref(word) {
                 self.push_lit(name);
                 self.emit(Op::LOAD_STK, vec![]);
-            } else if let Some(var_name) = parse_simple_var_ref(word) {
+            } else if let Some(var_name) = parse_simple_var_ref(word, self.braced_var) {
                 self.load_var(var_name);
             } else {
                 // Bare `$name` / `$name(idx)` — load the variable rather than
@@ -678,7 +678,7 @@ impl CodegenCtx<'_> {
             return;
         }
         // Variable reference: ${var} → load
-        if let Some(var_name) = parse_simple_var_ref(value) {
+        if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
             self.load_var(var_name);
             return;
         }
@@ -705,8 +705,14 @@ impl CodegenCtx<'_> {
             self.push_lit_no_dedup(&folded);
             return;
         }
-        // Constant-fold [dict create k v ...]
-        if let Some(folded) = super::helpers::fold_dict_create_cmd(value) {
+        // Constant-fold [dict create k v ...], but only for a release that has
+        // `dict` at all — folding is a rewrite that bypasses the runtime's
+        // availability gate, so an ungated fold would make `dict create`
+        // *work* under `--tcl-version 8.4` instead of raising `invalid command
+        // name "dict"` (issue #1427).
+        if self.registry.has_command_in_this_dialect("dict")
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+        {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);
             self.emit(Op::VERIFY_DICT, vec![]);
@@ -719,7 +725,7 @@ impl CodegenCtx<'_> {
         if interpolate
             && value.starts_with('$')
             && value.ends_with(')')
-            && let Some(parts) = parse_subst_template(value, self.escapes)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
             && parts.len() == 1
             && let SubstPart::Var(name) = &parts[0]
             && split_array_ref(name).is_some()
@@ -730,7 +736,7 @@ impl CodegenCtx<'_> {
         // Interpolated string: decompose $var and [cmd] parts
         if interpolate
             && (value.contains('$') || value.contains('['))
-            && let Some(parts) = parse_subst_template(value, self.escapes)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
             && parts.len() > 1
         {
             for part in &parts {

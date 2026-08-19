@@ -1315,7 +1315,7 @@ mod tests {
     /// or a spec carrying that bit produces a file that will not compile.
     #[test]
     fn every_catalogued_dialect_renders_to_a_constant() {
-        for entry in crate::catalogue::DIALECTS {
+        for entry in crate::catalogue::DIALECTS.iter() {
             assert!(
                 dialect_constant(entry.key).is_some(),
                 "no DialectSet constant for the catalogued dialect {}",

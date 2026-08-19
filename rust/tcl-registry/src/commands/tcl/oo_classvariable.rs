@@ -46,15 +46,33 @@ const HOVER: HoverSnippet = HoverSnippet {
 };
 
 /// Traits shared by both the core and `ooutil` entries.
+///
+/// `CREATES_SCOPE_ALIAS` carries the fact issue #1593 turned on: like
+/// `variable`, `global`, and `namespace upvar`, `classvariable` binds a
+/// local name to a cell that lives in **another frame** — here the defining
+/// class's namespace, shared by every instance. Consumers key off that one
+/// trait (`var_scoping::scope_alias_local_indices`, which feeds the W211
+/// unused-variable exemption, the optimiser's dead-store elimination, SCCP,
+/// and shimmer thunking), so the fact belongs on the spec rather than in
+/// any one of them.
 const TRAITS: Traits = Traits::LANGUAGE_KEYWORD
     .union(Traits::TCLOO_METHOD_CONTEXT)
-    .union(Traits::TCLOO_REQUIRES_METHOD_FRAME);
+    .union(Traits::TCLOO_REQUIRES_METHOD_FRAME)
+    .union(Traits::CREATES_SCOPE_ALIAS);
 
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::Variable,
     writes: true,
     ..SideEffect::DEFAULT
 }];
+
+/// `classvariable name ?name ...?` — **every** word is a name, with no
+/// interleaved values (`variable`'s layout strides by two; this one by one).
+///
+/// Without this, only the first word carried a `VarWrite` role, so
+/// `classvariable a b` bound `a` and left `b` looking unbound — a false
+/// W210 on the second and later names (issue #1593).
+static REPEATED: &[RepeatedArgLayout] = &[RepeatedArgLayout::strided(ArgRole::VarWrite, 0, 1)];
 
 /// The core Tcl 9.0+ `oo::Helpers::classvariable` — no package needed.
 ///
@@ -74,6 +92,7 @@ pub fn spec() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
+        repeated_args: REPEATED,
         hover: Some(HOVER),
         forms: FORMS,
         ..CommandSpec::DEFAULT
@@ -92,6 +111,7 @@ pub fn spec_ooutil_86() -> CommandSpec {
         arity: Arity::at_least(1),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
+        repeated_args: REPEATED,
         hover: Some(HOVER),
         forms: FORMS,
         tcllib_package: Some("ooutil"),
@@ -124,6 +144,38 @@ mod tests {
         assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
         assert_eq!(ooutil.required_package, Some("ooutil"));
         assert_eq!(ooutil.tcllib_package, Some("ooutil"));
+    }
+
+    /// Issue #1593. `classvariable` declares a cell in another frame, so
+    /// both entries must carry the scope-alias fact every dataflow consumer
+    /// keys off — without it a `classvariable Count; set Count 1` in one
+    /// method drew W211 "set but never used" even though another method
+    /// reads it (tclsh 9.0.4 runs that shape and answers 1).
+    #[test]
+    fn both_entries_create_a_scope_alias() {
+        for s in [spec(), spec_ooutil_86()] {
+            assert!(
+                s.traits.contains(Traits::CREATES_SCOPE_ALIAS),
+                "{} must declare its names as scope aliases",
+                s.name
+            );
+        }
+    }
+
+    /// Issue #1593. Unlike `variable name ?value?`, **every** word is a
+    /// name, so the repeated layout strides by one — otherwise
+    /// `classvariable a b` bound only `a` and `$b` drew a false W210.
+    #[test]
+    fn every_word_is_a_variable_name() {
+        for s in [spec(), spec_ooutil_86()] {
+            let layout = s
+                .repeated_args
+                .first()
+                .unwrap_or_else(|| panic!("{} needs a repeated-name layout", s.name));
+            assert_eq!(layout.role, ArgRole::VarWrite, "{}", s.name);
+            assert_eq!(layout.start, 0, "{}", s.name);
+            assert_eq!(layout.stride, 1, "{}", s.name);
+        }
     }
 
     /// Scope, not dispatch: both entries resolve only where `::oo::Helpers`

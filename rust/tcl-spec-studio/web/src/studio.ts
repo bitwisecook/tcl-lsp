@@ -86,6 +86,17 @@ const MAX_PALETTE = 60;
 /** The sample the Test tab starts with, before the author writes their own. */
 const SAMPLE_HINT = "# Call your pack's commands here.\n";
 
+/** The picker's label per dialect name, filled once from `wasm.dialects()`. */
+const dialectLabels = new Map<string, string>();
+
+/**
+ * How a sentence names a dialect: the label the picker shows, falling back to
+ * the registry name for a dialect the picker does not list.
+ */
+function dialectLabel(name: string): string {
+  return dialectLabels.get(name) ?? name;
+}
+
 /**
  * The lazily-imported editor chunk, relative to the page.
  *
@@ -498,10 +509,10 @@ function refreshOpenCommand(): void {
 function packOrigin(view: PackCommandView): string {
   const where = `Editing ${view.name} in pack ${state.pack.view?.pack ?? ""} — the form and the Pack DSL tab are two views of the same document.`;
   if (view.origin === "shadowed") {
-    return `${where} ⚠ ${view.name} is also a shipped ${view.dialect} command, and this declaration does not say -override — so an editor would use the shipped spec, not this one.`;
+    return `${where} ⚠ ${view.name} is also a shipped ${dialectLabel(view.dialect)} command, and this declaration does not say -override — so an editor would use the shipped spec, not this one.`;
   }
   if (view.origin === "override") {
-    return `${where} This declaration replaces the shipped ${view.dialect} command of the same name (-override).`;
+    return `${where} This declaration replaces the shipped ${dialectLabel(view.dialect)} command of the same name (-override).`;
   }
   return where;
 }
@@ -599,12 +610,29 @@ function removeFromPack(name: string): void {
   }
 }
 
+/**
+ * The pack's own identity line: what the library is called and what its files
+ * are called — `IEEE 1801 UPF — .upf (Unified Power Format)`.
+ *
+ * Empty when the document declares neither, which is the common case for a
+ * pack that only adds commands to an existing language.
+ */
+function packMetaLine(view: PackStoreView): string {
+  const extensions = view.file_extensions.map((row) =>
+    row.display_name ? `.${row.extension} (${row.display_name})` : `.${row.extension}`,
+  );
+  return [view.display_name ?? "", extensions.join(", ")].filter((part) => part).join(" — ");
+}
+
 /** The always-visible list of the pack's own commands. */
 function renderPackList(): void {
   const view = state.pack.view;
   const list = byId("packlist");
   clear(list);
   byId("packName").textContent = view?.pack || "—";
+  const meta = byId("packMeta");
+  meta.textContent = view ? packMetaLine(view) : "";
+  meta.hidden = !meta.textContent;
 
   const rows = view?.commands ?? [];
   byId("packCount").textContent = rows.length
@@ -691,7 +719,9 @@ function renderDslReport(): void {
     out.appendChild(
       el("details", { class: "group", open: true }, [
         el("summary", {}, [
-          document.createTextNode(`Collisions with the shipped ${view.dialect} registry`),
+          document.createTextNode(
+            `Collisions with the shipped ${dialectLabel(view.dialect)} registry`,
+          ),
           el("span", { class: "n", text: `${view.collisions.length}` }),
         ]),
         body,
@@ -702,7 +732,7 @@ function renderDslReport(): void {
   if (!view.notices.length && !view.collisions.length && view.commands.length) {
     setStatus(
       "dslStatus",
-      `${view.summary.commands} command(s), nothing dropped, no collision with the shipped ${view.dialect} registry`,
+      `${view.summary.commands} command(s), nothing dropped, no collision with the shipped ${dialectLabel(view.dialect)} registry`,
       "ok",
     );
   }
@@ -871,7 +901,7 @@ function loadTypedCommand(): void {
     return;
   }
   if (partial.length === 0) {
-    setStatus("status", `no command matches “${typed}” in ${state.dialect}`, "err");
+    setStatus("status", `no command matches “${typed}” in ${dialectLabel(state.dialect)}`, "err");
     return;
   }
   setStatus(
@@ -890,7 +920,7 @@ function openCommand(name: string): void {
     }
     loadDraft(
       loaded,
-      `Loaded ${name} from the ${state.dialect} registry — reference material. ` +
+      `Loaded ${name} from the ${dialectLabel(state.dialect)} registry — reference material. ` +
         `Use “+ Add to pack” to start editing it as one of your own.`,
     );
     setStatus("status", "");
@@ -1297,8 +1327,8 @@ function renderTestReport(): void {
   setStatus(
     "testStatus",
     report.installed
-      ? `analysed against the ${report.dialect} registry with pack ${report.pack} installed`
-      : `analysed against the plain ${report.dialect} registry — the pack declares no commands yet`,
+      ? `analysed against the ${dialectLabel(report.dialect)} registry with pack ${report.pack} installed`
+      : `analysed against the plain ${dialectLabel(report.dialect)} registry — the pack declares no commands yet`,
     "ok",
   );
 
@@ -1523,7 +1553,10 @@ function renderPalette(): void {
           [
             el("span", { class: "nm", text: row.name }),
             el("span", { class: "sm", text: row.summary || "" }),
-            el("span", { class: "where", text: row.where === "pack" ? "pack" : state.dialect }),
+            el("span", {
+              class: "where",
+              text: row.where === "pack" ? "pack" : dialectLabel(state.dialect),
+            }),
           ],
         ),
       ]),
@@ -2113,7 +2146,9 @@ async function restoreSession(): Promise<void> {
     byId("liveSave").textContent = "Live save is on: every edit is kept in this browser.";
     return;
   }
-  if (session.dialect && session.dialect !== state.dialect) {
+  // A session saved before a dialect left the catalogue keeps the default
+  // rather than restoring a picker value that no longer exists.
+  if (session.dialect && session.dialect !== state.dialect && dialectLabels.has(session.dialect)) {
     state.dialect = session.dialect;
     byId<HTMLSelectElement>("dialect").value = session.dialect;
     loadIndex();
@@ -2173,6 +2208,7 @@ function boot(): void {
 
       const picker = byId<HTMLSelectElement>("dialect");
       for (const dialect of JSON.parse(wasm.dialects()) as DialectEntry[]) {
+        dialectLabels.set(dialect.name, dialect.label);
         picker.appendChild(el("option", { value: dialect.name, text: dialect.label }));
       }
       picker.value = state.dialect;

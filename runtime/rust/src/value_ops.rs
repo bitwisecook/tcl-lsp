@@ -203,8 +203,16 @@ impl ValueOps for Interp {
     }
 
     fn list_elements(&mut self, v: &*mut TclObj) -> Result<Vec<*mut TclObj>, ValueError> {
-        list::list_elements(*v)
-            .map_err(|e| ValueError::BadList(String::from_utf8_lossy(e.message()).into_owned()))
+        list::list_elements(*v).map_err(|e| {
+            // The **full** `TclFindElement` sentence, not `ListError::message`'s
+            // fragment-less prefix: the `…FollowedByJunk` cases must surface the
+            // offending text (`followed by "c" instead of space`). Every shared
+            // command core that decodes a runtime list — `dict`'s read path
+            // among them — reports through here, so dropping the fragment made
+            // all of them disagree with C (issue #1573).
+            let msg = crate::parse::list_error_message(&crate::interp::obj_bytes(*v), e);
+            ValueError::BadList(String::from_utf8_lossy(&msg).into_owned())
+        })
     }
 
     /// Byte-exact, and simpler than `as_str`'s Unicode round trip — this is why

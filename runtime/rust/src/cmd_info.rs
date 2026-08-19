@@ -239,7 +239,7 @@ fn info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(other);
             m.extend_from_slice(b"\": must be ");
             let subs: Vec<Vec<u8>> = SUBS.iter().map(|s| s.to_vec()).collect();
-            m.extend_from_slice(&crate::ensemble::must_be(&subs));
+            m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&subs));
             interp.set_error(&m)
         }
     }

@@ -149,12 +149,22 @@ pub struct EnsembleDef {
     /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
     pub namespace: String,
     /// `-map`: subcommand → target command prefix (already qualified).
-    pub map: std::collections::HashMap<String, Vec<Value>>,
+    ///
+    /// An association list, not a hash map: C stores the map as a Tcl dict and
+    /// `namespace ensemble configure -map` reads it back in **insertion
+    /// order**, so the order is observable and must round-trip. (The runtime's
+    /// `EnsembleMap` is the same shape for the same reason.) Ensembles have a
+    /// handful of subcommands, so linear lookup is not a concern.
+    pub map: Vec<(String, Vec<Value>)>,
     /// `-subcommands`: the explicit subcommand list, or `None` to use the
     /// namespace's exported commands.
     pub subcommands: Option<Vec<String>>,
     /// `-prefixes`: whether an unambiguous prefix of a subcommand resolves.
     pub prefixes: bool,
+    /// `-parameters`: formal parameter names that precede the subcommand word
+    /// (`ens p1 p2 sub arg…`); their values thread in after the resolved
+    /// target prefix (`target p1 p2 arg…`). Empty for an ordinary ensemble.
+    pub parameters: Vec<String>,
     /// `-unknown`: a handler prefix invoked when no subcommand matches.
     pub unknown: Option<Vec<Value>>,
 }
@@ -1013,6 +1023,16 @@ fn cmd_auto_load(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
+/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
+/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
+/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
+/// Shared with the WASM runtime through the one `tcl-cmd-core::prefix` matcher.
+const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &["-nobackslashes", "-nocommands", "-novariables"],
+    );
+
 /// `subst ?-nobackslashes? ?-nocommands? ?-novariables? string` — perform
 /// backslash / command / variable substitution on a string.
 fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -1027,17 +1047,11 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let (mut backslashes, mut commands, mut variables) = (true, true, true);
     for opt in opts {
-        let s = opt.to_str();
-        match match_subst_option(&s) {
+        match SUBST_OPTIONS.index_of(opt.to_str().as_bytes()) {
             Ok(0) => backslashes = false,
             Ok(1) => commands = false,
             Ok(_) => variables = false,
-            Err(ambiguous) => {
-                let kind = if ambiguous { "ambiguous" } else { "bad" };
-                return err(format!(
-                    "{kind} option \"{s}\": must be -nobackslashes, -nocommands, or -novariables"
-                ));
-            }
+            Err(m) => return err(String::from_utf8_lossy(&m).into_owned()),
         }
     }
     // Defer to the *explicit* stack so a `yield` inside a `[…]` stays yieldable:
@@ -1053,29 +1067,6 @@ fn cmd_subst(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         variables,
     });
     ok(Value::empty())
-}
-
-/// Match a `subst` option by unique abbreviation (Tcl's `Tcl_GetIndexFromObj`):
-/// `Ok(index)` into `[-nobackslashes, -nocommands, -novariables]`, or `Err(true)`
-/// when the prefix is ambiguous / `Err(false)` when it matches none.
-fn match_subst_option(s: &str) -> Result<usize, bool> {
-    const NAMES: [&str; 3] = ["-nobackslashes", "-nocommands", "-novariables"];
-    if let Some(i) = NAMES.iter().position(|n| *n == s) {
-        return Ok(i); // exact match
-    }
-    let mut found = None;
-    let mut count = 0u8;
-    for (i, n) in NAMES.iter().enumerate() {
-        if !s.is_empty() && n.starts_with(s) {
-            found = Some(i);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(i)) => Ok(i),
-        (0, _) => Err(false),
-        _ => Err(true),
-    }
 }
 
 /// `puts ?-nonewline? ?channelId? string` — write to the VM's output sink.
@@ -1472,7 +1463,10 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let name = name_v.to_str();
     let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
-    if name.ends_with(')') && name.contains('(') {
+    // Through the one element-reference owner, not a local re-spelling of its
+    // predicate (issue #1458): the two agree today, which is exactly when a
+    // copy is cheapest to remove and most likely to drift later.
+    if looks_like_element(&name) {
         return bad("name refers to an element in an array");
     }
     if vm.var_is_array(&name) {
@@ -1808,10 +1802,124 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// Whether `name` looks like an array element (`arr(k)`, `(k)`) — the test C's
+/// `TclObjLookupVarEx` applies, through the one shared owner (issue #1458).
+fn looks_like_element(name: &str) -> bool {
+    tcl_syntax::naming::split_element_ref(name).is_some()
+}
+
+/// The unqualified tail of a possibly `::`-qualified variable name, splitting
+/// at the last `::` **anywhere** in the name.
+///
+/// This is `global`'s rule, and the `::` genuinely may sit inside what looks
+/// like an array index: `global v(x::y)` splits to the tail `y)`, which is not
+/// an element, so C accepts it — while `global ::x::a(b)` splits to `a(b)` and
+/// is refused. Both verified on 8.6.16 and 9.0.4.
+fn name_tail(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+/// The tail `variable` checks — qualifier scanning stops at the **first `(`**,
+/// so a `::` inside an array index never splits the name.
+///
+/// `variable` and `global` really do differ here, which is why they cannot
+/// share [`name_tail`]: `variable v(x::y)` is `can't define ...: name refers to
+/// an element in an array` (the whole word is one element reference, index
+/// `x::y`), whereas the identical `global v(x::y)` is accepted because its
+/// scan splits at the `::` and lands on the non-element tail `y)`. Splitting
+/// `variable` the same way made all five `::`-in-index spellings silently
+/// succeed (issue #1458).
+fn variable_name_tail(name: &str) -> &str {
+    let scan_end = name.find('(').unwrap_or(name.len());
+    match name[..scan_end].rfind("::") {
+        Some(i) => &name[i + 2..],
+        None => name,
+    }
+}
+
+/// The namespace qualifier `name` names, or `None` when it is unqualified.
+///
+/// The array element is split off **first**, through the same
+/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) owner the
+/// element guard uses: `TclObjLookupVarEx` separates `part1(part2)` before any
+/// namespace lookup, so a `::` inside an index is data, not a path.
+///
+/// The split only applies when the name *ends* with `)`, and that distinction
+/// is load-bearing — it is what separates these three, all verified on 8.6.16
+/// and 9.0.4:
+///
+/// | name | part1 | qualifier | outcome |
+/// |---|---|---|---|
+/// | `v(x::y)` | `v` | none | accepted — the `::` is index data |
+/// | `v(a)::b` | `v(a)::b` | `v(a)` | parent namespace doesn't exist |
+/// | `::nosuch::v(k)` | `::nosuch::v` | `::nosuch` | parent namespace doesn't exist |
+///
+/// A qualifier of `""` is the global namespace, which always exists.
+fn parent_namespace_of(name: &str) -> Option<&str> {
+    let part1 = match tcl_syntax::naming::split_element_ref(name) {
+        Some((base, _)) => base,
+        None => name,
+    };
+    part1.rfind("::").map(|i| &part1[..i])
+}
+
+/// C's refusal when a qualified variable name's parent namespace is absent —
+/// `TclObjLookupVar`'s `TCL_LEAVE_ERR_MSG` path, which takes the operation
+/// word (`define` for `variable`, `access` for `global`) and reports the name
+/// **as written**, with `errorCode` `TCL LOOKUP VARNAME`.
+///
+/// This check runs *before* the element-name guard: `variable ::nosuch::v(k)`
+/// is a missing-namespace error, not an element error, on 8.6.16 and 9.0.4
+/// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
+/// all); the remaining `upvar` surface of that issue is untouched.
+fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
+    let qualifier = parent_namespace_of(name)?;
+    if vm.namespace_exists(&vm.qualify_name(qualifier)) {
+        return None;
+    }
+    Some(err_with_code(
+        format!("can't {op} \"{name}\": parent namespace doesn't exist"),
+        "TCL LOOKUP VARNAME",
+    ))
+}
+
+/// C's `MakeUpvar` refusal for a link *target name* that looks like an array
+/// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
+/// `global a(b)` are hard errors rather than silent mislinks (issue #1458's
+/// companion guard).
+fn bad_link_name(name: &str) -> Completion<Value> {
+    err_with_code(
+        format!(
+            "bad variable name \"{name}\": can't create a scalar variable that looks like an array element"
+        ),
+        "TCL UPVAR LOCAL_ELEMENT",
+    )
+}
+
 /// `global name ?name ...?` — link names to the global frame.
+///
+/// Outside a procedure `global` is a documented no-op: `Tcl_GlobalObjCmd`
+/// returns `TCL_OK` before touching its arguments when the current frame *is*
+/// the global frame. So the element-name guard below is reached only from a
+/// proc — at top level and inside `namespace eval`, even `global (x)` and
+/// `global a(b)` are accepted. Verified on 8.6.16 and 9.0.4, which agree.
 fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let in_proc = vm.in_proc_frame();
     for n in args {
         let nm = n.to_str();
+        if in_proc {
+            // Namespace resolution comes first: `global ::nosuch::v(k)` is a
+            // missing-namespace error, not an element one.
+            if let Some(e) = missing_parent_ns(vm, "access", &nm) {
+                return e;
+            }
+            // C links under the *tail* and reports the tail: `global ::x::a(b)`
+            // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
+            let tail = name_tail(&nm);
+            if looks_like_element(tail) {
+                return bad_link_name(tail);
+            }
+        }
         vm.add_link(&nm, 0, &nm);
     }
     ok(Value::empty())
@@ -1846,6 +1954,16 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
         let local = rest[i + 1].to_str();
+        // The *local* name may not look like an array element (C's `MakeUpvar`);
+        // the other-var side legally may (`upvar 0 arr(k) v` is fine).
+        //
+        // Scoped to unqualified locals on purpose: a *qualified* element-looking
+        // local (`upvar 0 zz ::x::l(k)`) hits C's earlier `can't create namespace
+        // variable that refers to procedure variable` check instead, which this
+        // VM does not implement — guarding it here would emit the wrong message.
+        if !local.contains("::") && looks_like_element(&local) {
+            return bad_link_name(&local);
+        }
         // Inside a `namespace eval` body, an unqualified alias names a namespace
         // variable: store the link in the global frame under the qualified name
         // (and resolve the target to its namespace-qualified location), so a
@@ -1980,7 +2098,28 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // Namespace variables live in the global frame keyed by their canonical
         // qualified name; alias the unqualified local the body uses to it.
         let qual = vm.qualify_name(&name);
-        let local = name.rsplit("::").next().unwrap_or(&name).to_owned();
+        let local = name_tail(&name).to_owned();
+        // C's `TclNRVariableObjCmd` rejects an element-looking target, checking
+        // the tail but naming the *given* spelling: `variable ::x::v(k)` says
+        // `can't define "::x::v(k)"`. Verified on 8.6.16 and 9.0.4.
+        //
+        // The check uses `variable`'s own tail rule, NOT the link tail above:
+        // qualifier scanning stops at the first `(`, so `v(x::y)` stays one
+        // element reference. Only the *check* uses it — the link name keeps its
+        // existing derivation, so a name that passes the check links exactly as
+        // before.
+        //
+        // Namespace resolution runs first, so `variable ::nosuch::v(k)` is a
+        // missing-namespace error rather than an element one.
+        if let Some(e) = missing_parent_ns(vm, "define", &name) {
+            return e;
+        }
+        if looks_like_element(variable_name_tail(&name)) {
+            return err_with_code(
+                format!("can't define \"{name}\": name refers to an element in an array"),
+                "TCL UPVAR LOCAL_ELEMENT",
+            );
+        }
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.

@@ -808,6 +808,14 @@ pub struct InterpState {
     /// consulted on every command dispatch). `None` for the permissive
     /// fallback profile, which gates nothing.
     profile_registry: Cell<Option<&'static tcl_registry::CommandRegistry>>,
+    /// The `Command::OoObject` entries the engine installs on the registry's
+    /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
+    /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
+    /// a script creating them. They carry the registry's release gate the way
+    /// a builtin does; every other object command is user-created and
+    /// release-invariant. Filled at bootstrap (`cmd_oo::install`), read by
+    /// [`Interp::resolve_dispatchable`].
+    registry_object_roots: RefCell<std::collections::HashSet<Vec<u8>>>,
 }
 
 /// An ensemble-rewrite record (C's `iPtr->ensembleRewrite`, see
@@ -951,32 +959,20 @@ fn opt_int(v: Option<i64>) -> Vec<u8> {
 }
 
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`
-/// (mirroring C's `Tcl_GetIndexFromObj`). Returns the canonical spelling or a
-/// `bad option "X": must be …` error.
+/// (C's `Tcl_GetIndexFromObj`) — through the one shared owner.
+///
+/// This carried #1443's bug verbatim, in both halves: the hand-rolled
+/// `starts_with` filter could only ever say `bad option`, so the empty word —
+/// a prefix of *every* option — reported `bad option ""` where C reports
+/// `ambiguous option ""`; and the `", or"` enumeration was hand-built beside
+/// `prefix::choice_list_bytes`, which owns it. `OptionTable::abbreviating`
+/// now supplies both.
 fn resolve_limit_opt(arg: &[u8], opts: &[&[u8]]) -> Result<Vec<u8>, Vec<u8>> {
-    let matches: Vec<&[u8]> = opts
-        .iter()
-        .copied()
-        .filter(|o| o.starts_with(arg))
-        .collect();
-    if matches.len() == 1 {
-        return Ok(matches[0].to_vec());
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
+    match table.index_of(arg) {
+        Ok(i) => Ok(opts[i].to_vec()),
+        Err(m) => Err(m),
     }
-    if opts.contains(&arg) {
-        return Ok(arg.to_vec());
-    }
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(arg);
-    m.extend_from_slice(b"\": must be ");
-    for (i, o) in opts.iter().enumerate() {
-        if i == opts.len() - 1 && i > 0 {
-            m.extend_from_slice(b", or ");
-        } else if i > 0 {
-            m.extend_from_slice(b", ");
-        }
-        m.extend_from_slice(o);
-    }
-    Err(m)
 }
 
 /// Validate an `interp debug` option: it must be a non-empty prefix of `-frame`.
@@ -1111,6 +1107,7 @@ impl Interp {
             runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
             dialect_profile: Cell::new(tcl_dialect::DialectProfile::plain_tcl()),
             profile_registry: Cell::new(None),
+            registry_object_roots: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
         // another release by an interpreter built earlier on this thread, so a
@@ -1242,6 +1239,34 @@ impl Interp {
         })
     }
 
+    /// Record `fqn` as an engine-installed TclOO root object command, so the
+    /// release-availability gate treats it like a builtin (see
+    /// [`InterpState::registry_object_roots`]).
+    pub(crate) fn declare_registry_object_root(&self, fqn: &[u8]) {
+        self.0
+            .registry_object_roots
+            .borrow_mut()
+            .insert(fqn.to_vec());
+    }
+
+    /// Drop `fqn`'s engine-installed root marking. The marking is an identity,
+    /// not a reservation on the *name*: once a script creates its own object
+    /// under that name the entry is release-invariant like any proc, so the
+    /// marking must not outlive the entry it described.
+    pub(crate) fn forget_registry_object_root(&self, fqn: &[u8]) {
+        self.0.registry_object_roots.borrow_mut().remove(fqn);
+    }
+
+    /// Whether `fqn` is an engine-installed TclOO root that this release does
+    /// **not** have (e.g. `::oo::configurable` on an 8.6 surface). Such a root
+    /// is invisible to every dispatch and enumeration path, so for anything
+    /// that asks "is this name taken?" it must read as free — real tclsh 8.6
+    /// has no `::oo::configurable`, and a script may define one.
+    pub(crate) fn is_gate_hidden_object_root(&self, fqn: &[u8]) -> bool {
+        self.0.registry_object_roots.borrow().contains(fqn)
+            && !self.builtin_command_visible_for_surface(fqn)
+    }
+
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
     /// whether the pinned profile admits registry builtin `name`. Names the
     /// registry does not know are always admitted — they may be engine
@@ -1284,9 +1309,19 @@ impl Interp {
             let ns = self.namespaces.borrow();
             let cmd = ns.resolve(origin, name)?;
             // Only a *directly* bound builtin carries a release identity. Procs,
-            // aliases, ensembles and objects are script-created, and a nested
-            // redirect (import/alias) is gated when it resolves in its turn.
-            if !matches!(cmd, Command::Builtin(_)) {
+            // aliases and ensembles are script-created, and a nested redirect
+            // (import/alias) is gated when it resolves in its turn. The one
+            // object exception is the TclOO **roots** the engine installs on
+            // the registry's behalf (`::oo::class` and friends, dated
+            // TCL86_PLUS / TCL90_PLUS): those must vanish with the release the
+            // way a builtin does, while every script-created object command
+            // stays release-invariant.
+            let gated = match &cmd {
+                Command::Builtin(_) => true,
+                Command::OoObject(fqn) => self.0.registry_object_roots.borrow().contains(fqn),
+                _ => false,
+            };
+            if !gated {
                 return Some(cmd);
             }
             let fqn = ns.resolve_fqn(origin, name)?;
@@ -1593,6 +1628,17 @@ impl Interp {
                 crate::cmd_coro::on_command_deleted(self, of);
             }
         }
+        // `Namespaces::rename` moves the table entry directly rather than going
+        // through `ns_register`, so clear the destination's TclOO root marking
+        // here too. Today an OO rename is also re-registered through the funnel
+        // by `oo_command_renamed`, which clears it; doing it here as well makes
+        // the invariant — "a root marking never outlives the entry it
+        // described" — hold for the rename path on its own, rather than by way
+        // of a follow-up call that a future refactor could reorder or drop.
+        if !new.is_empty() {
+            let dest = self.fqn_for(new);
+            self.forget_registry_object_root(&dest);
+        }
         let raw = self
             .namespaces
             .borrow_mut()
@@ -1834,40 +1880,50 @@ impl Interp {
         )
     }
 
-    /// The configuration of the ensemble command `name` resolves to, or `None`
-    /// if `name` is not an ensemble (`namespace ensemble configure`/cget).
-    pub(crate) fn ensemble_config(&self, name: &[u8]) -> Option<crate::ensemble::EnsembleConfig> {
-        match self
-            .namespaces
-            .borrow()
-            .resolve(self.current_ns.get(), name)
-        {
-            Some(Command::Ensemble(cfg)) => Some(cfg),
-            _ => None,
+    /// The configuration of the ensemble command `name` resolves to (or `None`
+    /// if `name` is not an ensemble), plus the fully-qualified name of the
+    /// command that actually **owns** that config.
+    ///
+    /// `namespace import` is followed to its source: in C an imported command
+    /// shares the source's command token, and the ensemble config hangs off
+    /// that token, so configuring through an alias configures the origin and
+    /// both spellings observe one config (tclsh 9.0.4-pinned). Reading through
+    /// the alias likewise reads the origin's config, and the alias stays an
+    /// alias — `namespace origin` still answers the source.
+    pub(crate) fn ensemble_config_at(
+        &self,
+        name: &[u8],
+    ) -> Option<(crate::ensemble::EnsembleConfig, Vec<u8>)> {
+        let ns = self.namespaces.borrow();
+        let mut cur = ns.resolve(self.current_ns.get(), name)?;
+        let mut fqn = ns.resolve_fqn(self.current_ns.get(), name)?;
+        // Bounded walk: an import chain cannot outlive the table, and a
+        // malformed cycle terminates instead of spinning.
+        for _ in 0..64 {
+            match cur {
+                Command::Ensemble(cfg) => return Some((cfg, fqn)),
+                Command::Imported { source } => {
+                    cur = ns.resolve(GLOBAL, &source)?;
+                    fqn = source;
+                }
+                _ => return None,
+            }
         }
+        None
     }
 
-    /// Rebind the ensemble command `name` with an updated configuration
-    /// (`namespace ensemble configure` set form). `name` already resolves to an
-    /// ensemble (the caller read it via [`ensemble_config`](Self::ensemble_config)),
-    /// so the update lands at the namespace where it *resolves* — which may be
-    /// reached via `namespace path`, not the current namespace — rather than
-    /// creating a shadowing copy in the current namespace.
-    pub(crate) fn set_ensemble_config(
+    /// Rebind the ensemble that **owns** a config, named by the absolute FQN
+    /// [`ensemble_config_at`](Self::ensemble_config_at) returned. Used by
+    /// `namespace ensemble configure` so a write reached through a
+    /// `namespace import` alias lands on the origin instead of forking a
+    /// second ensemble at the alias (which would also drop the import
+    /// provenance).
+    pub(crate) fn set_ensemble_config_at(
         &mut self,
-        name: &[u8],
+        fqn: &[u8],
         cfg: crate::ensemble::EnsembleConfig,
     ) {
-        self.invalidate_command_environment();
-        if !self.namespaces.borrow_mut().rebind_resolved(
-            self.current_ns.get(),
-            name,
-            Command::Ensemble(cfg.clone()),
-        ) {
-            // Should not happen (the caller verified it resolves); create at the
-            // current-namespace location as a fallback.
-            self.create_ensemble(name, cfg);
-        }
+        self.ns_register(fqn, Command::Ensemble(cfg));
     }
 
     /// Every alias command's name across the whole tree (`interp aliases`).
@@ -3531,13 +3587,42 @@ impl Interp {
         ns.command_names(id)
             .iter()
             .filter_map(|name| {
-                let is_builtin = matches!(ns.resolve(id, name), Some(Command::Builtin(_)));
+                // Mirror `resolve_dispatchable`'s gate exactly: a command the
+                // release does not have must not be *listed* either, or
+                // `info commands ::oo::*` on an 8.4 surface advertises names
+                // that then fail to dispatch. The TclOO roots the engine
+                // installs on the registry's behalf are gated alongside
+                // builtins; every script-created object stays invariant.
+                let gated = match ns.resolve(id, name) {
+                    Some(Command::Builtin(_)) => true,
+                    Some(Command::OoObject(fqn)) => {
+                        self.0.registry_object_roots.borrow().contains(&fqn)
+                    }
+                    _ => false,
+                };
                 let mut full_name = prefix.clone();
                 full_name.extend_from_slice(name);
-                (!is_builtin || self.builtin_command_visible_for_surface(&full_name))
+                (!gated || self.builtin_command_visible_for_surface(&full_name))
                     .then(|| name.to_vec())
             })
             .collect()
+    }
+
+    /// The unqualified names of `id`'s commands that `namespace import`
+    /// created — C's `NamespaceImportCmd` introspection form (`objc == 1`),
+    /// which walks the namespace's `cmdTable` for entries whose `deleteProc`
+    /// is `DeleteImportedCmd`. Sorted: C yields hash order, which is not
+    /// reproducible, and the VM sorts for the same reason.
+    pub(crate) fn imported_command_tails(&self, id: NsId) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let mut names: Vec<Vec<u8>> = ns
+            .command_names(id)
+            .iter()
+            .filter(|name| matches!(ns.resolve(id, name), Some(Command::Imported { .. })))
+            .map(|name| name.to_vec())
+            .collect();
+        names.sort();
+        names
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).
@@ -3670,6 +3755,28 @@ impl Interp {
     /// fabricated/out-of-range id. Backs `Commands::dispatch_id`'s reverse step.
     pub(crate) fn command_fqn(&self, id: u32) -> Option<Vec<u8>> {
         self.cmd_arena.borrow().fqns.get(id as usize).cloned()
+    }
+
+    /// The command an interned command was ultimately imported from — C's
+    /// `TclGetOriginalCommand` (`Command::Imported { source }` followed to a
+    /// fixed point), interned in its turn. `None` when it is not an imported
+    /// command. Backs `Namespaces::command_origin`. Bounded against a cycle a
+    /// retargeting bug could leave behind; a well-formed chain is acyclic.
+    pub(crate) fn imported_source_id(&self, id: u32) -> Option<u32> {
+        let mut fqn = self.command_fqn(id)?;
+        let mut hops = 0;
+        loop {
+            let next = match self.namespaces.borrow().resolve(GLOBAL, &fqn) {
+                Some(Command::Imported { source }) => source,
+                _ => break,
+            };
+            fqn = next;
+            hops += 1;
+            if hops >= 64 {
+                break;
+            }
+        }
+        (hops > 0).then(|| self.intern_cmd(&fqn))
     }
 
     /// The fully-qualified name of namespace `ns` (`"::"` for the root). Backs
@@ -5284,6 +5391,21 @@ impl Interp {
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
+        // The TclOO root marking is an identity, not a reservation on the
+        // *name*: it says "the engine installed this entry on the registry's
+        // behalf, so date it by the registry". Registering over that name
+        // replaces the identity with a script-created one, which is
+        // release-invariant like any proc, so the marking must not outlive the
+        // entry it described — otherwise the availability gate hides the new
+        // command forever.
+        //
+        // This lives in the single registration funnel rather than at the
+        // individual creation verbs so that every path is covered: `create`,
+        // `new`, `oo::copy`, `rename` onto the name, and any funnel added
+        // later. (The VM is immune for the same structural reason — its clear
+        // lives in `register_command`.) Safe against the engine's own installs
+        // because each declares its root *after* registering it.
+        self.forget_registry_object_root(name);
         self.namespaces.borrow_mut().register(name, cmd);
         self.invalidate_command_environment();
     }
@@ -6455,7 +6577,8 @@ impl Interp {
         let mut reparsed = false;
         loop {
             let subs = self.ensemble_subcommands(cfg);
-            if let Some(idx) = crate::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes) {
+            if let Some(idx) = tcl_cmd_core::ensemble::resolve_subcommand(&subs, &sub, cfg.prefixes)
+            {
                 let resolved = &subs[idx];
                 // The target command prefix: a `-map` entry, else `<ns>::<sub>`.
                 let prefix: Vec<Vec<u8>> = cfg
@@ -6502,22 +6625,13 @@ impl Interp {
                 c.extend_from_slice(&sub);
                 c
             };
-            if subs.is_empty() {
-                let mut m = b"unknown subcommand \"".to_vec();
-                m.extend_from_slice(&sub);
-                m.extend_from_slice(b"\": namespace ");
-                m.extend_from_slice(&self.namespaces.borrow().qualified_name(cfg.ns));
-                m.extend_from_slice(b" does not export any commands");
-                return self.error_with_code(&m, &ecode);
-            }
-            let mut m = if cfg.prefixes {
-                b"unknown or ambiguous subcommand \"".to_vec()
-            } else {
-                b"unknown subcommand \"".to_vec()
-            };
-            m.extend_from_slice(&sub);
-            m.extend_from_slice(b"\": must be ");
-            m.extend_from_slice(&crate::ensemble::must_be(&subs));
+            let ns_fqn = self.namespaces.borrow().qualified_name(cfg.ns);
+            let m = tcl_cmd_core::ensemble::unknown_subcommand_message(
+                &subs,
+                &sub,
+                cfg.prefixes,
+                &ns_fqn,
+            );
             return self.error_with_code(&m, &ecode);
         }
     }
@@ -6816,6 +6930,7 @@ impl Interp {
                             }
                             buf.extend_from_slice(&self.result_bytes());
                         }
+                        WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
                     }
                 }
                 let obj = new_string(&buf);
@@ -6848,7 +6963,7 @@ impl Interp {
         flags: crate::subst::SubstFlags,
         loc: Option<(Option<Rc<[u8]>>, u32)>,
     ) -> Result<Vec<u8>, Code> {
-        let body = crate::subst::scan(src, flags, self.lexer_config().escapes);
+        let body = crate::subst::scan(src, flags, self.lexer_config());
         match &body {
             WordBody::Literal(b) => Ok(b.to_vec()),
             WordBody::Parts(parts) => {
@@ -6932,6 +7047,9 @@ impl Interp {
                         Code::Error => return Err(Code::Error),
                     }
                 }
+                // Reached in evaluation order, so `[...]` parts before it have
+                // already run and kept their side effects — C's behaviour.
+                WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
             }
         }
         Ok(out)
@@ -6981,6 +7099,7 @@ impl Interp {
                     }
                     other => return Ok((buf, other)),
                 },
+                WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
             }
         }
         Ok((buf, Code::Ok))

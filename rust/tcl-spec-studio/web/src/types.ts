@@ -172,9 +172,22 @@ export interface PackCommandRow {
   unrenderable: number;
 }
 
+/** One extension the pack's language is written under. */
+export interface PackFileExtension {
+  /** Lower-case, without the leading dot (`upf`). */
+  extension: string;
+  /** What the file type is called (`Unified Power Format`). */
+  display_name: string | null;
+  /** The dialect profile files of this extension are read as. */
+  dialect: string | null;
+}
+
 /** The whole store, from `store::Resolution::store_view`. */
 export interface PackStoreView {
   pack: string;
+  /** The pack's human-readable name (`display_name {IEEE 1801 UPF}`). */
+  display_name: string | null;
+  file_extensions: PackFileExtension[];
   dsl_version: string;
   dialect: string;
   commands: PackCommandRow[];
@@ -197,6 +210,10 @@ export interface PackCommandView {
   origin: PackOrigin;
   editable: boolean;
   dialect: string;
+  /** The declaring pack's own metadata, prefixed: every unprefixed key here
+   *  is the command's. */
+  pack_display_name: string | null;
+  pack_file_extensions: PackFileExtension[];
   override: boolean;
   effective: Draft | null;
   pack: Draft | null;

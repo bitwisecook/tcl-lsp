@@ -4162,6 +4162,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sandbox",
  "tcl-spec-studio",
+ "tcl-spectcl",
  "tcl-version",
  "zip",
 ]
@@ -5875,6 +5876,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.0",
+ "tcl-bigip-query",
  "tcl-cli-support",
  "tcl-compiler",
  "tcl-core-types",
@@ -5882,6 +5884,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 

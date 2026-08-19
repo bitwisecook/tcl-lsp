@@ -64,12 +64,13 @@ all off — an empty set is always safe, it just tells the tools less.",
     ),
     (
         "dialects",
-        "Which Tcl worlds the command exists in — Tcl 8.4 through 9.1, F5 \
-iRules, iApps, Tk, Expect, and so on. A command only present from 8.5 \
-onwards ticks 8.5, 8.6, 9.0, and 9.1; one that is iRules-only ticks just \
-F5 iRules. Leave the whole field unset for \"every dialect\".\n\nThis is \
-what makes the same file lint differently as Tcl 8.4 versus 9.0: a command \
-outside the active dialect is reported as unknown there.",
+        "Which Tcl worlds the command exists in — every dialect the picker \
+lists, from the core releases through the F5, Tk, Expect, BPF and SpecTcl \
+surfaces. A command only present from 8.5 onwards ticks 8.5 and every later \
+release; one that is iRules-only ticks just F5 iRules. Leave the whole field \
+unset for \"every dialect\".\n\nThis is what makes the same file lint \
+differently as Tcl 8.4 versus 9.0: a command outside the active dialect is \
+reported as unknown there.",
     ),
     (
         "arity",
@@ -1225,10 +1226,14 @@ is how double-encoding is caught.",
     (
         "dialects",
         "Dialects",
-        "The Tcl worlds a spec can be scoped to: the core versions 8.4 \
-through 9.1, and the tool dialects (F5 iRules, iApps, tmsh, BIG-IP \
-config, Tk, Expect, BPF). A command's dialect set decides where it \
-resolves; unset means everywhere.",
+        "The Tcl worlds a spec can be scoped to: every core release the \
+catalogue carries, alongside the tool dialects — the F5 surfaces, Tk, \
+Expect, BPF, and the SpecTcl DSL itself. The list below is the whole \
+vocabulary, labelled as the dialect catalogue labels it. A command's \
+dialect set decides where it resolves; unset means everywhere.\n\nThe EDA \
+shells are not on it: a vendor shell is a base Tcl release plus \
+package-gated command libraries, so an EDA command is scoped by its \
+`required_package`, not by a dialect of its own.",
     ),
     (
         "defaultFormFirstWord",

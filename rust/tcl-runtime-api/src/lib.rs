@@ -271,6 +271,66 @@ pub trait Namespaces {
     /// global namespace's variables). The variable analogue of
     /// [`commands_in`](Self::commands_in).
     fn vars_in(&self, ns: NsId) -> Vec<String>;
+
+    // -- resolution accessors the shared `namespace which -variable` / `origin`
+    // cores need beyond navigation (`tcl_cmd_core::namespace`).
+
+    /// Does namespace `ns`'s **own** variable table hold an entry named
+    /// `simple` (an unqualified name)? This is `Tcl_FindNamespaceVar`'s single
+    /// probe: the namespace's `varTable` only — never the call frame, so a
+    /// proc local of the same name is invisible here. Backs
+    /// [`which_variable`](../tcl_cmd_core/namespace/fn.which_variable.html).
+    fn namespace_var_exists(&self, ns: NsId, simple: &str) -> bool;
+
+    /// The command `cmd` was ultimately imported from — C's
+    /// `TclGetOriginalCommand`, which is itself the whole walk (`while
+    /// (cmdPtr->deleteProc == DeleteImportedCmd) cmdPtr = realCmdPtr`), not a
+    /// single hop. `None` when `cmd` is not an imported command.
+    ///
+    /// The walk stays with the runtime because an import link is a command
+    /// *token*, and a runtime whose tokens are name-keyed needs its own
+    /// disambiguation (the VM's hidden/visible domains: `interp hide {} a b`
+    /// leaves a hidden token `b` whose provenance must not be confused with an
+    /// unrelated visible command also called `b`). Backs
+    /// [`origin`](../tcl_cmd_core/namespace/fn.origin.html).
+    fn command_origin(&self, cmd: CommandId) -> Option<CommandId>;
+
+    // -- byte-valued spellings ------------------------------------------------
+    //
+    // A Tcl name is a byte string, not text: `set [binary format c 255] 1`
+    // names a variable no `&str` can hold without a lossy round trip. The
+    // `&str` methods above stay the ergonomic form for the UTF-8-keyed VM,
+    // whose own tables cannot hold anything else, while a byte-native runtime
+    // overrides these so a name reaches its table verbatim. The defaults
+    // preserve today's behaviour exactly (`from_utf8_lossy`), so an
+    // implementation that is already UTF-8-keyed need not do anything.
+
+    /// [`find_command`](Self::find_command) over a byte-valued name.
+    fn find_command_bytes(&self, cxt: NsId, name: &[u8]) -> Option<CommandId> {
+        self.find_command(cxt, &String::from_utf8_lossy(name))
+    }
+
+    /// [`find_namespace`](Self::find_namespace) over a byte-valued name.
+    fn find_namespace_bytes(&self, cxt: NsId, name: &[u8]) -> Option<NsId> {
+        self.find_namespace(cxt, &String::from_utf8_lossy(name))
+    }
+
+    /// [`namespace_var_exists`](Self::namespace_var_exists) over a
+    /// byte-valued simple name.
+    fn namespace_var_exists_bytes(&self, ns: NsId, simple: &[u8]) -> bool {
+        self.namespace_var_exists(ns, &String::from_utf8_lossy(simple))
+    }
+
+    /// [`name`](Self::name) as the bytes the namespace is actually keyed by.
+    fn name_bytes(&self, ns: NsId) -> Vec<u8> {
+        self.name(ns).into_bytes()
+    }
+
+    /// [`command_name`](Self::command_name) as the bytes the command is
+    /// actually keyed by.
+    fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
+        self.command_name(cmd).map(String::into_bytes)
+    }
 }
 
 /// Variable traces (read/write/unset). (Contract surface; not yet
