@@ -1795,9 +1795,33 @@ fn looks_like_element(name: &str) -> bool {
     tcl_syntax::naming::split_element_ref(name).is_some()
 }
 
-/// The unqualified tail of a possibly `::`-qualified variable name.
+/// The unqualified tail of a possibly `::`-qualified variable name, splitting
+/// at the last `::` **anywhere** in the name.
+///
+/// This is `global`'s rule, and the `::` genuinely may sit inside what looks
+/// like an array index: `global v(x::y)` splits to the tail `y)`, which is not
+/// an element, so C accepts it — while `global ::x::a(b)` splits to `a(b)` and
+/// is refused. Both verified on 8.6.16 and 9.0.4.
 fn name_tail(name: &str) -> &str {
     name.rsplit("::").next().unwrap_or(name)
+}
+
+/// The tail `variable` checks — qualifier scanning stops at the **first `(`**,
+/// so a `::` inside an array index never splits the name.
+///
+/// `variable` and `global` really do differ here, which is why they cannot
+/// share [`name_tail`]: `variable v(x::y)` is `can't define ...: name refers to
+/// an element in an array` (the whole word is one element reference, index
+/// `x::y`), whereas the identical `global v(x::y)` is accepted because its
+/// scan splits at the `::` and lands on the non-element tail `y)`. Splitting
+/// `variable` the same way made all five `::`-in-index spellings silently
+/// succeed (issue #1458).
+fn variable_name_tail(name: &str) -> &str {
+    let scan_end = name.find('(').unwrap_or(name.len());
+    match name[..scan_end].rfind("::") {
+        Some(i) => &name[i + 2..],
+        None => name,
+    }
 }
 
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
@@ -2002,7 +2026,13 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // C's `TclNRVariableObjCmd` rejects an element-looking target, checking
         // the tail but naming the *given* spelling: `variable ::x::v(k)` says
         // `can't define "::x::v(k)"`. Verified on 8.6.16 and 9.0.4.
-        if looks_like_element(&local) {
+        //
+        // The check uses `variable`'s own tail rule, NOT the link tail above:
+        // qualifier scanning stops at the first `(`, so `v(x::y)` stays one
+        // element reference. Only the *check* uses it — the link name keeps its
+        // existing derivation, so a name that passes the check links exactly as
+        // before.
+        if looks_like_element(variable_name_tail(&name)) {
             return err(format!(
                 "can't define \"{name}\": name refers to an element in an array"
             ));

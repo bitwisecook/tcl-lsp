@@ -499,3 +499,55 @@ fn link_commands_reject_element_looking_names() {
     assert!(ok, "a name with no `(` is not an element");
     assert_eq!(out, "ok\n");
 }
+
+/// `variable` and `global` split a qualified name **differently**, and a `::`
+/// inside an array index is what separates them.
+///
+/// C's `variable` stops qualifier scanning at the first `(`, so the whole word
+/// stays one element reference: `variable v(x::y)` is refused. `global` splits
+/// at the last `::` anywhere, landing on the non-element tail `y)`, so the
+/// identical spelling is accepted. Sharing one tail rule between them made all
+/// five `::`-in-index spellings silently succeed under `variable`.
+///
+/// Every row byte-checked against `tclsh8.6.16` and `tclsh9.0.4`, which agree.
+#[test]
+fn variable_stops_qualifier_scanning_at_the_first_paren() {
+    const DEFINE: &str = "name refers to an element in an array";
+
+    // `variable` — a `::` inside the index does not split the name.
+    for name in ["v(x::y)", "v(::)", "v(a::b::c)", "(a::b)"] {
+        let (ok, r, _) = run(&format!("namespace eval y {{variable {name} 1}}\n"));
+        assert!(!ok, "variable {name} must be refused");
+        assert_eq!(r, format!("can't define \"{name}\": {DEFINE}"));
+    }
+    // Qualified, with a `::` in the index too: the scan splits only on the
+    // `::` *before* the `(`, leaving the element tail `v(a::b)`.
+    let (ok, r, _) = run("namespace eval x {}\nvariable ::x::v(a::b) 1\n");
+    assert!(!ok);
+    assert_eq!(r, format!("can't define \"::x::v(a::b)\": {DEFINE}"));
+
+    // `global` — the same spellings are ACCEPTED, because its scan splits at
+    // the last `::` and the resulting tail is not an element.
+    for name in ["v(x::y)", "v(::)", "v(a::b::c)", "(a::b)"] {
+        let (ok, _r, out) = run(&format!("proc p {{}} {{ global {name}; puts ok }}\np\n"));
+        assert!(ok, "global {name} must still be accepted");
+        assert_eq!(out, "ok\n");
+    }
+    let (ok, _r, out) = run(concat!(
+        "namespace eval x {}\n",
+        "proc p {} { global ::x::v(a::b); puts ok }\np\n",
+    ));
+    assert!(ok, "global keeps the last-`::` split even inside an index");
+    assert_eq!(out, "ok\n");
+
+    // The plain (no-`::`-in-index) forms stay refused under both commands.
+    let (ok, r, _) = run("namespace eval y {variable v(k) 1}\n");
+    assert!(!ok);
+    assert_eq!(r, format!("can't define \"v(k)\": {DEFINE}"));
+    let (ok, r, _) = run("namespace eval x {}\nproc p {} { global ::x::a(b) }\np\n");
+    assert!(!ok);
+    assert_eq!(
+        r,
+        "bad variable name \"a(b)\": can't create a scalar variable that looks like an array element"
+    );
+}
