@@ -364,10 +364,41 @@ pub fn var_reference(name: &str) -> &str {
 /// [`var_reference`] under an explicitly resolved `${…}` close rule.
 #[must_use]
 pub fn var_reference_for_style(name: &str, style: tcl_dialect::BracedVarStyle) -> &str {
-    match split_braced_var_ref(name, style) {
-        Some((inner, _)) => inner,
+    match braced_var_name(name, style) {
+        Some(inner) => inner,
         None => name.strip_prefix('$').unwrap_or(name),
     }
+}
+
+/// The name inside a word whose **whole text** is one `${…}` reference.
+///
+/// Two readings, in this order, and the order is the point:
+///
+/// 1. The closer located by the shared owner
+///    [`tcl_lexer::braced_var_name_end`] under `style` — the free-text
+///    reading, which is what a scanner walking raw source needs.
+/// 2. Failing that, a word that nonetheless *is* a whole `${…}` span:
+///    it opens `${` and ends `}`, so some lexer already delimited it, and a
+///    span is **correct by construction** under whatever release produced it.
+///
+/// Step 2 exists because a token span and a free-text scan can disagree about
+/// the same bytes when the caller's `style` is not the one that produced the
+/// span. Under an 8.x dialect the lexer emits `${a{b}` as one `Var` (the name
+/// `a{b`, with `c}` following as ordinary word text); reading that span with
+/// the 9.x rule finds no closer at all, and answering "not a reference" would
+/// name `{a{b}` — a variable the source never spells. Trusting the delimiters
+/// the lexer already chose is strictly better than inventing that name, and it
+/// can never override step 1: the owner returning `Unterminated` is exactly
+/// the case where no closer exists under `style`.
+///
+/// A word with text *after* the closer is not one reference; step 1 still
+/// yields its name (the caller decides what the remainder means), which is why
+/// this returns only the name.
+fn braced_var_name(word: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
+    if let Some((inner, _)) = split_braced_var_ref(word, style) {
+        return Some(inner);
+    }
+    word.strip_prefix("${").and_then(|w| w.strip_suffix('}'))
 }
 
 /// Split a word that **begins** with a `${…}` reference into its inner name
@@ -470,8 +501,8 @@ pub fn normalise_var_name_for_style(name: &str, style: tcl_dialect::BracedVarSty
     // name `a{b}c` — the 9.x answer, at every release (issue #1604). It also
     // mis-read `${arr}(foo)` as `{arr}`, where [`split_array_name`] has always
     // documented the scalar `arr`.
-    let base = match split_braced_var_ref(name, style) {
-        Some((inner, _)) => inner,
+    let base = match braced_var_name(name, style) {
+        Some(inner) => inner,
         None => name.strip_prefix('$').unwrap_or(name),
     };
 
@@ -602,7 +633,7 @@ pub fn element_var_name_braced_for_style(
         return name;
     }
     // `${…}` brace form: the inner text is the whole (literal) name.
-    if let Some((inner, _)) = split_braced_var_ref(name, style) {
+    if let Some(inner) = braced_var_name(name, style) {
         return inner;
     }
     let base = name.strip_prefix('$').unwrap_or(name);
@@ -1207,7 +1238,7 @@ pub fn split_array_name_for_style(
 ) -> (&str, Option<&str>) {
     // `${…}` brace form: only the chars inside the braces are the reference;
     // an `(idx)` *inside* the braces is an element, one *after* `}` is not.
-    if let Some((inner, _)) = split_braced_var_ref(name, style) {
+    if let Some(inner) = braced_var_name(name, style) {
         return match split_element_ref(inner) {
             Some((array, elem)) => (array, Some(elem)),
             None => (inner, None),
@@ -1583,6 +1614,25 @@ mod tests {
         assert_eq!(split_braced_var_ref(r"${a\}", Tcl9Nesting), None);
         assert_eq!(split_braced_var_ref("${a", Tcl9Nesting), None);
         assert_eq!(split_braced_var_ref("$a", Tcl9Nesting), None);
+
+        // A whole `${…}` word the caller's rule cannot close was delimited by
+        // a lexer running the *other* release's rule, and that span is correct
+        // by construction: the readers trust it rather than naming `{a{b}`,
+        // which the source never spells. `split_braced_var_ref` itself stays
+        // owner-pure — the span reading belongs to the whole-word readers only.
+        assert_eq!(normalise_var_name_for_style("${a{b}", Tcl9Nesting), "a{b");
+        assert_eq!(var_reference_for_style("${a{b}", Tcl9Nesting), "a{b");
+        assert_eq!(
+            element_var_name_braced_for_style("${a{b}", false, Tcl9Nesting),
+            "a{b"
+        );
+        assert_eq!(
+            split_array_name_for_style("${a{b}", Tcl9Nesting),
+            ("a{b", None)
+        );
+        // With no closing `}` at all there is no span to trust either, and the
+        // reader falls back to its non-braced reading.
+        assert_eq!(normalise_var_name_for_style("${a{b", Tcl9Nesting), "{a{b");
 
         // An `(idx)` inside the braces is an element; one after the closer is
         // not — and that holds under both rules.

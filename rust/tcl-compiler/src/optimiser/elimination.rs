@@ -1775,9 +1775,15 @@ mod tests {
             v
         };
 
-        assert_eq!(names("puts ${a{b}c}", Tcl9Nesting), vec!["a{b}c".to_owned()]);
+        assert_eq!(
+            names("puts ${a{b}c}", Tcl9Nesting),
+            vec!["a{b}c".to_owned()]
+        );
         assert_eq!(names("puts ${a{b}c}", FirstClose), vec!["a{b".to_owned()]);
-        assert_eq!(names(r"puts ${a\}b}", Tcl9Nesting), vec![r"a\}b".to_owned()]);
+        assert_eq!(
+            names(r"puts ${a\}b}", Tcl9Nesting),
+            vec![r"a\}b".to_owned()]
+        );
         assert_eq!(names(r"puts ${a\}b}", FirstClose), vec![r"a\".to_owned()]);
 
         // A `${…}` that never closes yields no name, and must not swallow the
