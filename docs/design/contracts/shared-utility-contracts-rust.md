@@ -247,7 +247,24 @@ helper without reading the rationale:
   reference consumes (alphanumerics, `_`, **any** `:`), used to decide
   substitution shape — not the stricter `::`-segmented
   `tcl_syntax::naming::is_bare_var_name` that quick fixes use to keep
-  `${x}` ↔ `$x` rewrites meaning-preserving.
+  `${x}` ↔ `$x` rewrites meaning-preserving. It is `pub(crate)`, and
+  `codegen::values::whole_var_reference` is the **single owner** of the
+  `$name` / `${name}` whole-word extractor built on it: given a word, the
+  exact variable name it refers to, or `None` when the word is not one
+  simple reference. `codegen::wasm::backend` (`emit_word_value`, the
+  `ChannelWrite` argument guard) and `codegen::wasm::leaf_invoke`
+  (`plan_variable`) consume it; each carried a byte-identical private copy
+  until issue #1459.
+  The braced and bare spellings are validated **differently** and must
+  stay that way: `${…}` accepts any non-empty name verbatim (braces are
+  Tcl's own escape for a name the bare charset cannot express), while a
+  bare `$name` must be a whole `is_bare_var_name` run. Routing the braced
+  arm through the charset check as well changes behaviour, not just
+  duplication — pinned by
+  `whole_var_reference_accepts_any_non_empty_braced_name`.
+  The release-aware `${…}` *close* rule is a separate question, owned by
+  `tcl_lexer::ranges::braced_var_name_end` and consumed by the decoders
+  (`parse_simple_var_ref`, `parse_subst_template`), not here.
 - `runtime/rust/src/cmd_oo.rs::wrong_args` — wraps the shared
   `Interp::wrong_args` but prepends the active `oo::define`
   ensemble-rewrite prefix, so single-command definition forms report
