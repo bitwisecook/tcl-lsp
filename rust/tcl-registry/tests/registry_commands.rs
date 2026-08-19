@@ -3204,3 +3204,55 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
     );
     assert!(reg.get("DIAMETER::collect").is_none());
 }
+
+/// The registry's `namespace ensemble` option tables carry exactly the names
+/// their owning utility does (issue #1610).
+///
+/// `tcl_cmd_core::ensemble::{CREATE_OPTIONS, CONFIG_OPTIONS}` is the port of
+/// `tclEnsemble.c`'s two tables and the owner of that fact; the registry rows
+/// exist to add what an editor needs on top (detail, dialect gate, value
+/// shape). Membership is the half both must agree on, and a single merged
+/// registry table disagreeing with it is precisely the bug this pins: it
+/// offered `configure` a `-command` that always errors and hid the
+/// `-namespace` it accepts.
+#[test]
+fn the_ensemble_option_tables_match_their_owning_utility() {
+    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let spec = registry
+        .get("namespace")
+        .expect("`namespace` is a core command");
+    let ensemble = spec
+        .resolve_subcommand("ensemble")
+        .expect("`namespace ensemble` is a subcommand");
+
+    let declared = |op: &str| -> Vec<&'static str> {
+        ensemble
+            .resolve_sub_subcommand(op)
+            .unwrap_or_else(|| panic!("`namespace ensemble {op}` is a second-level subcommand"))
+            .options
+            .iter()
+            .map(|o| o.name)
+            .collect()
+    };
+
+    assert_eq!(
+        declared("create"),
+        tcl_cmd_core::ensemble::CREATE_OPTIONS.names().to_vec(),
+        "`create`'s registry table must match `ensembleCreateOptions`"
+    );
+    assert_eq!(
+        declared("configure"),
+        tcl_cmd_core::ensemble::CONFIG_OPTIONS.names().to_vec(),
+        "`configure`'s registry table must match `ensembleConfigOptions`"
+    );
+
+    // The union the subcommand keeps for the abstain path is the two tables
+    // merged and nothing else — it must not gain an option neither has.
+    let mut union: Vec<&str> = declared("create");
+    union.extend(declared("configure"));
+    union.sort_unstable();
+    union.dedup();
+    let mut carried: Vec<&str> = ensemble.options.iter().map(|o| o.name).collect();
+    carried.sort_unstable();
+    assert_eq!(carried, union);
+}

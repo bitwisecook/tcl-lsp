@@ -3144,31 +3144,6 @@ impl SubSubCommand {
         options: &[],
     };
 
-    /// This second-level subcommand's own option keyword table, filtered to
-    /// what exists for `dialect` and `package_version`.
-    ///
-    /// `parent_dialects` is the owning subcommand's resolved gate, inherited
-    /// by an option that declares none of its own — the same inheritance
-    /// [`SubCommand::option_table`] applies. Empty when [`Self::options`] is,
-    /// which is the caller's signal to fall back to the owning subcommand's
-    /// table.
-    #[must_use]
-    pub fn option_table(
-        &self,
-        dialect: Option<DialectSet>,
-        parent_dialects: Option<DialectSet>,
-        package_version: Option<&str>,
-        prefix_matching: PrefixMatching,
-    ) -> KeywordTable<'static> {
-        option_table_from(
-            self.options.iter(),
-            dialect,
-            self.dialects.or(parent_dialects),
-            package_version,
-            prefix_matching,
-        )
-    }
-
     /// Whether this second-level subcommand exists given the resolved
     /// *`package_version`*.
     ///

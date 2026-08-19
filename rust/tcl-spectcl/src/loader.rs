@@ -4644,8 +4644,7 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
             }
             other if !other.starts_with('-') && words[i].braced => {
                 log.v12(stmt.line, "an option block on `sub_subcommand`");
-                row.options =
-                    leak_slice(sub_subcommand_options(&words[i], row.name, tables, log));
+                row.options = leak_slice(sub_subcommand_options(&words[i], row.name, tables, log));
             }
             other => {
                 if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {

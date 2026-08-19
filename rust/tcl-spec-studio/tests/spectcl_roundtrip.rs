@@ -668,10 +668,13 @@ fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
         "`configure`'s own table must be written out:\n{}",
         trip.text
     );
-    // `exists` declares none, so it stays a flag row (wrapped, but no block).
+    // `exists` declares none, so it stays a flag row: its statement never
+    // opens a block, however the row happens to wrap.
     assert!(
-        trip.text.contains("sub_subcommand exists \\\n")
-            && !trip.text.contains("sub_subcommand exists -detail {Return whether command is an ensemble command.} -synopsis {namespace ensemble exists command} {"),
+        !trip
+            .text
+            .lines()
+            .any(|l| l.trim_start().starts_with("sub_subcommand exists") && l.ends_with('{')),
         "an operation with no table of its own keeps the flag row:\n{}",
         trip.text
     );

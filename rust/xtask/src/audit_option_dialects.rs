@@ -681,6 +681,14 @@ static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
 /// (`-bd` for `-borderwidth`) count as declarations. `None` means the command
 /// itself is not in the registry.
 ///
+/// A **second-level** subcommand's own table (`SubSubCommand::options` —
+/// `namespace ensemble create` vs `configure`, issue #1610) is deliberately
+/// *not* folded in as a third source. Every option there also belongs to the
+/// owning subcommand's abstain table, because that table is what a consumer
+/// falls back to when the dispatch word is dynamic; walking the second level
+/// too would let a registry that declared an option *only* down there — where
+/// no abstaining consumer could ever offer it — still pass this gate.
+///
 /// The subcommand surface is folded in whether or not the probe names a
 /// subcommand, because [`PROBES`]' subcommand column records *where the probe
 /// script exercises the option*, not where the registry has to declare it: an
@@ -709,18 +717,6 @@ fn registry_option_names(command: &str) -> Option<Vec<&'static str>> {
     for sub in spec.subcommands {
         for opt in sub.options {
             push(opt, &mut names);
-        }
-        // A two-level ensemble may hang its real tables off the *second*
-        // level, where the two operations disagree about what exists
-        // (`namespace ensemble create` has `-command`, `configure` has
-        // `-namespace`; issue #1610). Fold those in for the same reason the
-        // subcommand surface is folded in: this guard is about an option
-        // surface the audit knows and the registry has never heard of, not
-        // about which level declares it.
-        for op in sub.sub_subcommands {
-            for opt in op.options {
-                push(opt, &mut names);
-            }
         }
     }
     names.sort_unstable();

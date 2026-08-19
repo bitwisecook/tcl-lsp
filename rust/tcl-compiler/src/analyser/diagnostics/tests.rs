@@ -1414,6 +1414,129 @@ fn w004_fires_on_regsub_command_in_tcl86() {
     assert!(w004[0].message.contains("regsub"));
 }
 
+/// The option scan takes a two-level ensemble's *operation* table, so the
+/// message names the operation and the gate inherits through it (issue #1610).
+///
+/// `namespace ensemble` is 8.5+, and `-parameters` narrows further to 8.6+
+/// (absent from the 8.5 `namespace.n` ENSEMBLE OPTIONS list), so the scan has
+/// to reach an option declared two levels down and still resolve both gates.
+#[test]
+fn w004_names_the_ensemble_operation_whose_option_table_answered() {
+    let message_of = |src: &str, dialect: &str| -> String {
+        let result = Analyser::new().analyse(src, dialect);
+        result
+            .diagnostics
+            .iter()
+            .find(|d| d.code == DiagCode::W004)
+            .map_or_else(
+                || panic!("expected W004 on {src:?} @ {dialect}: {result:?}"),
+                |d| d.message.clone(),
+            )
+    };
+
+    let created = message_of("namespace ensemble create -parameters arg", "tcl8.5");
+    assert!(
+        created.contains("'namespace' ensemble create") && created.contains("-parameters"),
+        "{created}"
+    );
+    let configured = message_of("namespace ensemble configure ::E -parameters arg", "tcl8.5");
+    assert!(
+        configured.contains("'namespace' ensemble configure") && configured.contains("-parameters"),
+        "{configured}"
+    );
+
+    // The operation table must not turn every option into a warning either:
+    // `-parameters` is fine from 8.6, and `-map` from 8.5 (when `namespace
+    // ensemble` itself arrived), under both operations.
+    for src in [
+        "namespace ensemble create -parameters arg",
+        "namespace ensemble configure ::E -parameters arg",
+        "namespace ensemble create -map {}",
+        "namespace ensemble configure ::E -map {}",
+    ] {
+        assert_eq!(
+            count_code_in(src, "W004", "tcl8.6"),
+            0,
+            "no option here is gated out of 8.6: {src}"
+        );
+    }
+
+    // A dispatch word the scan cannot read abstains to the subcommand's own
+    // union table, which still carries the gate — so the diagnostic survives
+    // and simply names one level less.
+    let dynamic = message_of("namespace ensemble $op -parameters arg", "tcl8.5");
+    assert!(
+        dynamic.contains("'namespace' ensemble") && !dynamic.contains("ensemble create"),
+        "{dynamic}"
+    );
+}
+
+/// The tables really are different: `-command` is create-only and
+/// `-namespace` configure-only, so neither is silently accepted on the other.
+#[test]
+fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
+    let reg = tcl_registry::registry_handle_for_dialect("tcl");
+    let spec = reg.get("namespace").expect("`namespace` is a core command");
+    let ensemble = spec
+        .resolve_subcommand("ensemble")
+        .expect("`namespace ensemble`");
+    let names = |op: &str| -> Vec<&'static str> {
+        ensemble
+            .option_scope(Some(op), None, None, spec.dialects)
+            .options
+            .iter()
+            .map(|o| o.name)
+            .collect()
+    };
+    // tclsh 8.6.16 / 9.0.4, byte identical: `configure ::E -command x` and
+    // `create -namespace ::M` are each `bad option`, and the "must be" list
+    // in each message is exactly the other five plus that table's own.
+    assert!(names("create").contains(&"-command") && !names("create").contains(&"-namespace"));
+    assert!(
+        names("configure").contains(&"-namespace") && !names("configure").contains(&"-command")
+    );
+    // Tcl's unique-prefix rule reaches the operation word too — `conf`
+    // resolves to `configure` (tclsh-confirmed) and so must select its table.
+    assert_eq!(names("conf"), names("configure"));
+    // `exists` declares none and falls back to the subcommand's union, which
+    // is deliberately wider than either.
+    let union = names("exists");
+    assert!(union.contains(&"-command") && union.contains(&"-namespace"));
+}
+
+/// The option scan consumes a value word only for options the *operation*
+/// really has (issue #1610).
+///
+/// tclsh 8.6.16 / 9.0.4: `namespace ensemble configure ::E -command x` is
+/// `bad option "-command"` — `-command` is not a `configure` option, so it
+/// takes no value there either. While the merged table claimed it did, the
+/// scan swallowed the following word as its value and never looked at it; the
+/// 8.5-only `-parameters` hiding behind it went unreported.
+#[test]
+fn the_ensemble_option_scan_consumes_values_only_for_the_operations_own_options() {
+    assert_eq!(
+        count_code_in(
+            "namespace ensemble configure ::E -command -parameters arg",
+            "W004",
+            "tcl8.5",
+        ),
+        1,
+        "`-command` is no `configure` option, so it swallows nothing and the \
+         8.6-only `-parameters` behind it is still seen"
+    );
+    // `create` does have `-command`, so there the value word really is
+    // consumed and there is nothing left to report.
+    assert_eq!(
+        count_code_in(
+            "namespace ensemble create -command -parameters",
+            "W004",
+            "tcl8.5",
+        ),
+        0,
+        "`create`'s `-command` consumes its value word"
+    );
+}
+
 #[test]
 fn w004_skips_option_value_that_looks_like_a_flag() {
     // `-stride` is Tcl 9.0+ and takes a value.  On tcl8.6 the switch itself is
@@ -10976,8 +11099,14 @@ fn w304_does_not_cross_proc_param_shadow() {
 // still flagged.
 
 fn count_code(src: &str, code: &str) -> usize {
+    count_code_in(src, code, "tcl8.6")
+}
+
+/// [`count_code`] under an explicit dialect, for a check whose whole point is
+/// which release the option belongs to.
+fn count_code_in(src: &str, code: &str, dialect: &str) -> usize {
     let mut a = crate::analyser::Analyser::new();
-    a.analyse(src, "tcl8.6")
+    a.analyse(src, dialect)
         .diagnostics
         .iter()
         .filter(|d| d.code.as_str() == code)

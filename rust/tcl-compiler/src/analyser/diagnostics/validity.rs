@@ -3971,12 +3971,12 @@ in the active dialect ({}).",
                         candidates.iter().map(|s| (*s).to_string()).collect();
                     let span = arg_tokens[i].span;
                     self.emit_w145_ambiguous_option(
-                    cmd_name,
-                    sub_name.as_deref(),
-                    arg,
-                    &candidates,
-                    span,
-                );
+                        cmd_name,
+                        sub_name.as_deref(),
+                        arg,
+                        &candidates,
+                        span,
+                    );
                 }
                 tcl_registry::abbrev::KeywordMatch::Unique(canonical) => {
                     // A unique abbreviation consumes exactly what the

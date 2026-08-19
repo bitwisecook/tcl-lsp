@@ -339,7 +339,7 @@ fn switch_completion_items(
             let scope = sub.option_scope(
                 next.as_deref(),
                 Some(profile.availability_mask),
-                floor.as_deref(),
+                floor,
                 spec.dialects,
             );
             (scope.options, scope.dialects)

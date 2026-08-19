@@ -44,50 +44,54 @@ const NAMESPACE_UPVAR_FORMS: &[SubCommandForm] = &[
     },
 ];
 
-/// `namespace ensemble create` and `namespace ensemble configure` are two
-/// **different** option tables, not one shared table (issue #1610).
-///
-/// C Tcl declares them side by side in `tclEnsemble.c` and dispatches each
-/// through its own `Tcl_GetIndexFromObj` — `ensembleCreateOptions` is
-/// `-command -map -parameters -prefixes -subcommands -unknown`,
-/// `ensembleConfigOptions` is `-map -namespace -parameters -prefixes
-/// -subcommands -unknown`. They differ at exactly two entries, in opposite
-/// directions, so each table's distinctive option is the *other* one's error.
-/// Pinned on tclsh 8.6.16 and 9.0.4 (byte identical):
-///
-/// ```text
-/// namespace ensemble configure ::E -namespace  → ::M
-/// namespace ensemble configure ::E -command x  → bad option "-command": must be
-///     -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown
-/// namespace ensemble create -namespace ::M     → bad option "-namespace": must be
-///     -command, -map, -parameters, -prefixes, -subcommands, or -unknown
-/// ```
-///
-/// `-namespace` is *readable* but not settable: the setter path's
-/// `CONF_NAMESPACE` arm answers `option -namespace is read-only`
-/// (`TCL ENSEMBLE READ_ONLY`) rather than `bad option`, which is why it
-/// belongs in `configure`'s table — a query (`configure ::E -namespace`) is
-/// a perfectly ordinary use of it, and a Tk-library idiom. The earlier merged
-/// table reasoned from this project's own older runtime code instead of from
-/// C Tcl, and so simultaneously offered `configure` a `-command` that always
-/// errors and hid the `-namespace` it accepts.
-///
-/// Every option in both tables takes a single value word: `create` and
-/// `configure`'s update form both parse strict `-option value` pairs, no bare
-/// flags.
-///
-/// Dialect gating below is checked directly against the Tcl 8.5, 8.6,
-/// 9.0, and 9.1 `namespace.n` manpages (this project's own
-/// implementations don't themselves version-gate any option, so they
-/// can't be the source of truth here): `-command`, `-map`, `-namespace`,
-/// `-prefixes`, `-subcommands`, and `-unknown` are present from 8.5 (when
-/// `namespace ensemble` itself was introduced) onward and so inherit the
-/// subcommand's own `TCL85_PLUS` gate. `-parameters` is the one
-/// exception — it is absent from the Tcl 8.5 ENSEMBLE OPTIONS list
-/// (missing from both the option table and the `-map`/`-prefixes`/
-/// `-subcommands`/`-unknown`/`-command`/`-namespace` enumeration) and
-/// first appears in the Tcl 8.6 manpage, so it carries its own,
-/// narrower `TCL86_PLUS` gate.
+// ---------------------------------------------------------------------------
+// `namespace ensemble`'s two option tables
+// ---------------------------------------------------------------------------
+// `namespace ensemble create` and `namespace ensemble configure` are two
+// **different** option tables, not one shared table (issue #1610).
+//
+// C Tcl declares them side by side in `tclEnsemble.c` and dispatches each
+// through its own `Tcl_GetIndexFromObj` — `ensembleCreateOptions` is
+// `-command -map -parameters -prefixes -subcommands -unknown`,
+// `ensembleConfigOptions` is `-map -namespace -parameters -prefixes
+// -subcommands -unknown`. They differ at exactly two entries, in opposite
+// directions, so each table's distinctive option is the *other* one's error.
+// Pinned on tclsh 8.6.16 and 9.0.4 (byte identical):
+//
+// ```text
+// namespace ensemble configure ::E -namespace  → ::M
+// namespace ensemble configure ::E -command x  → bad option "-command": must be
+//     -map, -namespace, -parameters, -prefixes, -subcommands, or -unknown
+// namespace ensemble create -namespace ::M     → bad option "-namespace": must be
+//     -command, -map, -parameters, -prefixes, -subcommands, or -unknown
+// ```
+//
+// `-namespace` is *readable* but not settable: the setter path's
+// `CONF_NAMESPACE` arm answers `option -namespace is read-only`
+// (`TCL ENSEMBLE READ_ONLY`) rather than `bad option`, which is why it
+// belongs in `configure`'s table — a query (`configure ::E -namespace`) is
+// a perfectly ordinary use of it, and a Tk-library idiom. The earlier merged
+// table reasoned from this project's own older runtime code instead of from
+// C Tcl, and so simultaneously offered `configure` a `-command` that always
+// errors and hid the `-namespace` it accepts.
+//
+// Every option in both tables except `-namespace` takes a single value word:
+// `create` and `configure`'s update form both parse strict `-option value`
+// pairs, no bare flags. `-namespace` is the exception because it has no
+// update form at all — see [`ENSEMBLE_OPT_NAMESPACE`].
+//
+// Dialect gating below is checked directly against the Tcl 8.5, 8.6,
+// 9.0, and 9.1 `namespace.n` manpages (this project's own
+// implementations don't themselves version-gate any option, so they
+// can't be the source of truth here): `-command`, `-map`, `-namespace`,
+// `-prefixes`, `-subcommands`, and `-unknown` are present from 8.5 (when
+// `namespace ensemble` itself was introduced) onward and so inherit the
+// subcommand's own `TCL85_PLUS` gate. `-parameters` is the one
+// exception — it is absent from the Tcl 8.5 ENSEMBLE OPTIONS list
+// (missing from both the option table and the `-map`/`-prefixes`/
+// `-subcommands`/`-unknown`/`-command`/`-namespace` enumeration) and
+// first appears in the Tcl 8.6 manpage, so it carries its own,
+// narrower `TCL86_PLUS` gate.
 /// `-command`: in `ensembleCreateOptions` only.
 const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
     name: "-command",
@@ -105,8 +109,13 @@ const ENSEMBLE_OPT_COMMAND: OptionSpec = OptionSpec {
 /// (`CONF_NAMESPACE`, `tclEnsemble.c`).
 const ENSEMBLE_OPT_NAMESPACE: OptionSpec = OptionSpec {
     name: "-namespace",
-    value: OptionValue::value("namespace"),
-    detail: "The namespace the ensemble dispatches into, fixed when it was created. Readable through configure; supplying a value raises \"option -namespace is read-only\", and create rejects it as a bad option.",
+    // Value-less: `-namespace`'s only legal use is `namespace ensemble
+    // configure CMD -namespace`, the query form, which takes no value word.
+    // The setter form that would take one is the form that always raises
+    // `option -namespace is read-only`, so declaring an arity for it would
+    // describe the error rather than the option.
+    value: OptionValue::flag(),
+    detail: "The namespace the ensemble dispatches into, fixed when it was created. Read it back with configure; supplying a value raises \"option -namespace is read-only\", and create rejects it as a bad option.",
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
@@ -195,7 +204,7 @@ static ENSEMBLE_CONFIG_OPTIONS: &[OptionSpec] = &[
 /// a consumer facing an unknown dispatch word needs; but it also offers both
 /// `-command` and `-namespace`, exactly one of which is always an error, so
 /// every consumer that *can* see the dispatch word must take the narrower
-/// table through [`SubCommand::option_scope`](tcl_registry::SubCommand::option_scope)
+/// table through [`SubCommand::option_scope`](crate::SubCommand::option_scope)
 /// instead (issue #1610).
 static ENSEMBLE_ANY_OPTIONS: &[OptionSpec] = &[
     ENSEMBLE_OPT_COMMAND,

@@ -974,9 +974,15 @@ packages.",
         "sub_subcommands",
         "A third level of keywords — operations selected by the word *after* \
 this subcommand, as in `info object isa`. Deliberately lighter than a full \
-subcommand: each carries only its name, a one-line detail, a synopsis, and \
-an optional dialect gate — enough for highlighting, hover, and completion. \
-Arity stays on the owning subcommand.",
+subcommand: each carries its name, a one-line detail, a synopsis, and an \
+optional dialect gate — enough for highlighting, hover, and completion. \
+Arity stays on the owning subcommand. An operation may also carry its own \
+**option table**, and should whenever the operations disagree about which \
+options exist: `namespace ensemble create` takes `-command`, `configure` \
+takes `-namespace`, and each rejects the other's. A table here replaces the \
+subcommand's for that operation rather than adding to it, so declare it on \
+every operation that takes options, or leave it empty and let the \
+subcommand's table answer.",
     ),
     (
         "max_leading_option_words",
