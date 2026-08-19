@@ -887,6 +887,22 @@ only for the rare subcommand whose *documented* minimum abbreviation is \
 longer than uniqueness requires. Leave unset almost always.",
     ),
     (
+        "arity_windows",
+        "Per-release signature shapes, for the rare command whose argument \
+count changed between releases of the package that owns it. Leave empty \
+unless it did — the plain arity above already describes a signature that \
+never changed, and it stays the fallback whenever no window covers the \
+document's resolved floor. Windows must not overlap, so consecutive ones are \
+written closed: retire each where the next is introduced.",
+    ),
+    (
+        "arg_rows",
+        "The authored per-argument rows the argument tables above are \
+projected from, kept so a document with a resolved package floor can \
+re-project at it. Empty unless some argument carries a release window; when \
+it is empty the tables above are the whole truth.",
+    ),
+    (
         "versioned_arg_values",
         "Version gates for individual literal argument values — when one mode \
 word appeared in (or left) a specific package release, like a persistence \

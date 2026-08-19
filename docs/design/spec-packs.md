@@ -529,6 +529,79 @@ authoritative spelling table for every level lives in
 [`spec-dsl-examples/README.md`](spec-dsl-examples/README.md); this
 document does not duplicate it.
 
+### `speclib` 1.2: versioned arity, versioned arguments, ambient packages
+
+1.2 is additive in the same sense 1.1 was — no word's meaning changed, so
+a 1.0 or 1.1 pack loads unaltered, and a 1.2 pack loads on this server
+whatever it declares. It adds three things, all of them consequences of
+one gap: the *signature* was the last axis nothing could version.
+
+- **The three lifecycle flags on an `arity` row.** An `arity` row without
+  them is the command's plain arity, exactly as before. One with them is
+  a **window**: the shape the command had over one span of its owning
+  package's releases. Several may be declared, and the plain row stays
+  the fallback for a resolved floor no window covers.
+
+  Windows must **not overlap** — two covering the same release would make
+  the selected signature depend on declaration order, which no pack can
+  have meant. Consecutive windows are therefore written *closed*: a
+  window with no `-retired` never ends, so "two arguments from 3.0, three
+  from 5.0" is spelled with the first retiring where the second begins.
+  A pack that overlaps keeps the first window and gets a notice; a spec
+  this repository ships is rejected outright by `registry_sweep`. That
+  split is the standing one — a pack is authored elsewhere and must
+  still load.
+
+- **The three lifecycle flags on an `arg` row.** A per-argument fact
+  (role, type, values, layout, `-closed`, `-appends`) can now be gated to
+  the releases that have it. The loader reads each `arg` row as one
+  record and *projects* it into the six parallel per-argument tables the
+  registry stores, so a row outside the floor drops out of all six at
+  once rather than being filtered in five places and forgotten in the
+  sixth.
+
+  The registry's stored tables are the projection at **no floor**, which
+  is what every consumer already reads; the authored rows are retained
+  beside them so a consumer holding a resolved floor re-projects at it.
+  A pack with no gated row retains no rows and is bit-for-bit what it was
+  before 1.2.
+
+- **`ambient_package NAME VERSION`.** A package the pack's dialect
+  provides without a `package require` — the pack-authored twin of an
+  ambient `LibraryPin`. A package that comes *with* the dialect is never
+  required in the documents that use it, so before this nothing could
+  give its commands a version floor and every per-release gate on them
+  went unchecked.
+
+  It composes with the other two sources of a floor by taking the
+  greatest, exactly as two `package require` lines already do. When two
+  are equal, the diagnostic names the one closest to the author's own
+  control: the require in this file, then the pack in this workspace,
+  then the profile compiled into the server.
+
+`ambient_package` is also the prerequisite for modelling a package as a
+pack at all (issue #1631): a package's version floor must not depend on
+this repository happening to know the package's name.
+
+**Deriving windows rather than writing them.** The version importer
+(`tcl-spec-studio`'s `import_package_versions`) reads several releases of
+a package's sources and now *derives* the windows: runs of equal shape
+across the snapshots become windows, each closed where the next shape
+arrives. It used to report an arity change as a note and stop, because
+the registry had nowhere to put the answer. The note survives beside the
+derived field as its evidence — this is a derivation from observed
+snapshots rather than a transcription, so the trail that produced it has
+to be inspectable.
+
+**What the analyser does with them.** The window covering the document's
+resolved floor is the shape a call is checked against, and the plain
+`arity` is the fallback when no window covers it. A call whose count
+fails the selected shape but fits *another* declared window draws
+[W149](../kcs/codes/kcs-diagnostic-w149-arity-matches-other-version.md)
+rather than a bare "too many arguments": the call is not malformed, it is
+written for a different release, and the two have different fixes. A
+count fitting no window at all stays an ordinary E002/E003.
+
 ## Loading and tooling
 
 - **A pack is a logical unit, not a file.** Authors group however they

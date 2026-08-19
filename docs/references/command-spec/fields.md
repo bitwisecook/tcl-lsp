@@ -113,6 +113,18 @@ How many arguments the command accepts, counted **after** the command name — t
 
 On a subcommand, count after the subcommand word instead: `string length string` is exactly 1. The step and extra-exact-count fields cover commands whose argument tail comes in pairs (`array set` style `name value` lists).
 
+### `arity_windows` — Arity windows
+
+*command and subcommand* — Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.
+
+Per-release signature shapes, for the rare command whose argument count changed between releases of the package that owns it. Leave empty unless it did — the plain arity above already describes a signature that never changed, and it stays the fallback whenever no window covers the document's resolved floor. Windows must not overlap, so consecutive ones are written closed: retire each where the next is introduced.
+
+### `arg_rows` — Versioned argument rows
+
+*command and subcommand* — The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.
+
+The authored per-argument rows the argument tables above are projected from, kept so a document with a resolved package floor can re-project at it. Empty unless some argument carries a release window; when it is empty the tables above are the whole truth.
+
 ### `arg_roles` — Argument roles
 
 *command and subcommand* — Static role per 0-based argument index, for fixed-layout commands.

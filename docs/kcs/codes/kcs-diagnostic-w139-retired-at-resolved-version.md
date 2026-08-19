@@ -47,8 +47,12 @@ present.
 ## Example that triggers it
 
 The version floor comes from the profile's library pin, raised by any
-versioned `package require`. Pin a project above the release that removed
-an item and every use of that item draws W139:
+versioned `package require` — and, for a package a loaded spec pack
+declares with `ambient_package`, by that declaration. All three are lower
+bounds and the **highest** one is the floor, so a package the dialect
+provides ambiently is floored even in a file that requires nothing. Pin a
+project above the release that removed an item and every use of that item
+draws W139:
 
 ```tcl
 package require SomePackage 3.0

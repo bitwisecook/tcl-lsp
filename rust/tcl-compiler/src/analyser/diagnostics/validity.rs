@@ -65,8 +65,8 @@ struct ArityWords<'a> {
 /// up to the last argument), plus where a "remove surplus arguments" fix
 /// should start deleting — the end of the last *kept* word, so the fix
 /// also removes the separating whitespace.
-#[derive(Clone, Copy)]
-pub(super) struct ExcessArgs {
+#[derive(Debug, Clone, Copy)]
+pub(in crate::analyser) struct ExcessArgs {
     /// Span of the surplus argument run (diagnostic anchor).
     pub span: tcl_lexer::Span,
     /// Deletion start for the removal fix (end of the preceding word).
@@ -104,6 +104,68 @@ fn excess_positional_span(
         span: tcl_lexer::Span::new(first.span.start(), widen_token_end_in(source_map, *last)),
         delete_from,
     })
+}
+
+/// Everything [`excess_positional_span`] needs except the `max`, kept so a
+/// deferred verdict can recompute the surplus once the resolved floor has
+/// chosen a window.
+///
+/// A gated call's `max` is not known during the walk, and the surplus run
+/// depends on it: anchoring to the fallback's `max` and then reporting
+/// against a window with a *smaller* `max` deletes only the tail of the
+/// surplus and leaves a call that is still wrong. The word spans are already
+/// widened here, so recomputation needs no second source-map pass.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct ExcessInputs {
+    /// `(start, widened end)` per argument word, in order.
+    words: Vec<(u32, u32)>,
+    /// Index of the first positional word, after any leading option flags.
+    positional_start: usize,
+    /// Deletion start for the `max == 0` case.
+    fallback_delete_from: u32,
+    /// A `{*}` expansion in the positional region makes "the first surplus
+    /// word" ambiguous, so every `max` abstains.
+    blocked_by_expansion: bool,
+}
+
+impl ExcessInputs {
+    /// Capture the inputs, widening each word end once.
+    fn capture(
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        positional_start: usize,
+        source_map: &tcl_lexer::SourceMap<'_>,
+        fallback_delete_from: u32,
+    ) -> Self {
+        Self {
+            words: arg_tokens
+                .iter()
+                .map(|tok| (tok.span.start(), widen_token_end_in(source_map, *tok)))
+                .collect(),
+            positional_start,
+            fallback_delete_from,
+            blocked_by_expansion: (positional_start..arg_tokens.len())
+                .any(|i| arg_expand.get(i).copied().unwrap_or(false)),
+        }
+    }
+
+    /// The surplus run for `max`, mirroring [`excess_positional_span`].
+    pub(in crate::analyser) fn at(&self, max: usize) -> Option<ExcessArgs> {
+        if self.blocked_by_expansion {
+            return None;
+        }
+        let first_excess = self.positional_start.checked_add(max)?;
+        let (first_start, _) = *self.words.get(first_excess)?;
+        let (_, last_end) = *self.words.last()?;
+        let delete_from = match first_excess.checked_sub(1).and_then(|i| self.words.get(i)) {
+            Some((_, prev_end)) => *prev_end,
+            None => self.fallback_delete_from,
+        };
+        Some(ExcessArgs {
+            span: tcl_lexer::Span::new(first_start, last_end),
+            delete_from,
+        })
+    }
 }
 
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
@@ -1376,6 +1438,11 @@ impl Analyser {
     /// Subcommand-dispatch commands are handled by
     /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
     /// per-subcommand arity is not checked.
+    // The bare-ensemble deferral adds a few lines over the threshold; the
+    // block shares `ns` / `enforce_order` / `cmd_tok` with the inline path,
+    // so lifting it out would need an argument list longer than the lint it
+    // would silence.
+    #[allow(clippy::too_many_lines)]
     pub(in crate::analyser) fn emit_arity_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1461,11 +1528,32 @@ impl Analyser {
                     // earlier shadowing user proc / class / alias / ensemble
                     // / stub suppresses it, exactly like the E002 / E003
                     // paths.
+                    let ns = self.command_resolution_namespace(scope_path);
+                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
+                    // A versioned parent cannot answer "was a subcommand
+                    // required?" here: the shape depends on the resolved
+                    // floor, which a later `package require` still raises.
+                    // Buffer and let the post-walk pass decide.
+                    if !sig.arity_windows.is_empty() {
+                        let axis = self.gated_arity_axis(cmd_name);
+                        self.pending_gated_bare_ensemble.push(
+                            super::version_gate::GatedBareEnsemble {
+                                axis,
+                                windows: sig.arity_windows,
+                                fallback: tcl_registry::Arity::at_least(u16::from(
+                                    sig.subcommand_required,
+                                )),
+                                cmd_name: cmd_name.to_string(),
+                                namespace: ns,
+                                enforce_order,
+                                span: cmd_tok.span,
+                            },
+                        );
+                        return;
+                    }
                     if !sig.subcommand_required {
                         return;
                     }
-                    let ns = self.command_resolution_namespace(scope_path);
-                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity.push((
                         cmd_name.to_string(),
                         ns,
@@ -1538,6 +1626,10 @@ impl Analyser {
     /// floor only, and its dedicated structural diagnostic (E004) already
     /// covers every too-few-/malformed-shape case this generic check
     /// would otherwise duplicate.
+    // Capturing the surplus-run inputs for a gated call adds a few lines over
+    // the threshold, and they are the same `arg_tokens` / `arg_expand` /
+    // `positional_start` / source map the inline path already holds.
+    #[allow(clippy::too_many_lines)]
     fn check_simple_arity(
         &mut self,
         resolution_name: &str,
@@ -1653,6 +1745,47 @@ impl Analyser {
                 widen_token_end_in(&source_map, cmd_tok),
             )
         };
+        // A command whose signature changed across its owning package's
+        // releases cannot be judged here at all: the shape that applies
+        // depends on the resolved floor, and a `package require` further down
+        // the file still raises it. Buffer the inputs and let
+        // `flush_gated_arity_calls` form the verdict once the floor is known
+        // — including whether the count is simply wrong (E002/E003) or is
+        // right for a *different* release (W149).
+        if !sig.arity_windows.is_empty() {
+            let axis = self.gated_arity_axis(resolution_name);
+            // The surplus run depends on the `max` the floor selects, so it is
+            // captured rather than computed: `excess` above is anchored to the
+            // fallback and would delete the wrong run for any window narrower
+            // than it.
+            let excess_inputs = {
+                let source_map = self.cached_source_map();
+                ExcessInputs::capture(
+                    arg_tokens,
+                    arg_expand,
+                    positional_start,
+                    &source_map,
+                    widen_token_end_in(&source_map, cmd_tok),
+                )
+            };
+            self.pending_gated_arity
+                .push(super::version_gate::GatedArityCall {
+                    axis,
+                    windows: sig.arity_windows,
+                    fallback: sig.arity,
+                    display_name: display_name.to_string(),
+                    resolution_name: resolution_name.to_string(),
+                    namespace: ns,
+                    enforce_order,
+                    nargs_min,
+                    positional_any_expand,
+                    span: full_span,
+                    excess_inputs,
+                    synopsis: sig.synopsis,
+                });
+            return;
+        }
+
         if let Some(diag) = arity_verdict(
             display_name,
             sig.arity,
@@ -1665,6 +1798,22 @@ impl Analyser {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
         }
+    }
+
+    /// The version axis governing `resolution_name`'s arity windows.
+    ///
+    /// Resolves the spec back out of the registry rather than threading the
+    /// axis through [`super::dispatch::CommandSig`]: only a command that
+    /// actually declares windows ever asks, which is almost none of them, and
+    /// [`Analyser::lifecycle_axis`] is already the single place that decides
+    /// which axis a spec sits on.
+    fn gated_arity_axis(
+        &self,
+        resolution_name: &str,
+    ) -> Option<super::version_gate::VersionGateAxis> {
+        let registry = self.profile_registry();
+        let spec = registry.get(resolution_name)?;
+        self.lifecycle_axis(spec)
     }
 
     /// **W147** for the first proven conflict among the literal leading
@@ -1887,7 +2036,7 @@ impl Analyser {
         else {
             return false;
         };
-        if self.profile.is_ambient_package(pkg) {
+        if self.profile_registry().is_ambient_package(pkg) {
             return false;
         }
         !self

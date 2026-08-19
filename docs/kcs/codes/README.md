@@ -91,6 +91,7 @@ This index lists every per-code KCS page.
 - [W144 — deprecated at the resolved version](kcs-diagnostic-w144-deprecated-at-resolved-version.md)
 - [W145 — ambiguous keyword abbreviation](kcs-diagnostic-w145-ambiguous-abbreviation.md)
 - [W148 — numeral spelling is not accepted by the target Tcl release](kcs-diagnostic-w148-numeral-release.md)
+- [W149 — this call matches a different release of the command](kcs-diagnostic-w149-arity-matches-other-version.md)
 - [W146 — invalid literal argument members](kcs-diagnostic-w146-invalid-literal-argument-members.md)
 - [W147 — mutually exclusive options](kcs-diagnostic-w147-mutually-exclusive-options.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)

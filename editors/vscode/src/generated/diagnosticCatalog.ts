@@ -340,6 +340,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W149",
+    section: "warning",
+    description:
+      "Argument count matches a different release of the command's signature — the call fits a version window other than the one the resolved package floor selects.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

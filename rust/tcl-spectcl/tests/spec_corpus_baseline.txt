@@ -56,7 +56,8 @@
 #   vocabulary-word notices (4, the SpiceGenTcl, apave, ticklecharts and
 #       tclinterp drafts) — not a loader gap but a mis-authored word, and
 #       exactly what the check exists to find. `speclib`'s second word is the
-#       **DSL vocabulary** version (`1`, `1.0`, `1.1` today), not the library's;
+#       **DSL vocabulary** version (`1`, `1.0`, `1.1`, `1.2` today), not the
+#       library's;
 #       those four drafts wrote the library's release there (`0.71`, `4.9`,
 #       `3.2`, `0.15`). A number above the newest vocabulary is noticed as a
 #       possibly-newer vocabulary; anything else gets the not-a-vocabulary
@@ -68,20 +69,20 @@
 # Adding a line here is therefore an admission with a reason attached. Adding
 # one for a file under `specs/` would be a regression in the only tier that
 # ships.
-docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	pack	`0.71` is not a SpecTcl vocabulary version (this loader knows 1.1); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
+docs/design/spec-dsl-examples/external/SpiceGenTcl.tclspec	Warning	pack	`0.71` is not a SpecTcl vocabulary version (this loader knows 1.2); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-body-kind` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `-repeats` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `Plain` on `arg` dropped
 docs/design/spec-dsl-examples/external/apave.tclspec	Warning	command ::apave::APaveBase / object_class ::apave::APaveBase / method Window	unknown flag `row {…` on `arg` dropped
-docs/design/spec-dsl-examples/external/apave.tclspec	Warning	pack	pack declares SpecTcl vocabulary 4.9; this loader knows 1.1 — newer words may be dropped
+docs/design/spec-dsl-examples/external/apave.tclspec	Warning	pack	pack declares SpecTcl vocabulary 4.9; this loader knows 1.2 — newer words may be dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse	unknown flag `-readonly` on `option` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `-body-kind` on `arg` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command fileutil::traverse / object_class ::fileutil::traverse / method foreach	unknown flag `Plain` on `arg` dropped
 docs/design/spec-dsl-examples/external/tcllib.tclspec	Warning	command struct::tree / object_class ::struct::tree	`arg_role_resolver` hook body on `method walk` is not yet bindable; the field abstains
-docs/design/spec-dsl-examples/external/tclinterp.tclspec	Warning	pack	`0.15` is not a SpecTcl vocabulary version (this loader knows 1.1); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
-docs/design/spec-dsl-examples/external/ticklecharts.tclspec	Warning	pack	pack declares SpecTcl vocabulary 3.2; this loader knows 1.1 — newer words may be dropped
+docs/design/spec-dsl-examples/external/tclinterp.tclspec	Warning	pack	`0.15` is not a SpecTcl vocabulary version (this loader knows 1.2); if it is the library's own version, it belongs in `introduced_version`, not the `speclib` slot
+docs/design/spec-dsl-examples/external/ticklecharts.tclspec	Warning	pack	pack declares SpecTcl vocabulary 3.2; this loader knows 1.2 — newer words may be dropped
 docs/design/spec-dsl-examples/foreach.tclspec	Warning	command foreach	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/if.tclspec	Warning	command if	names a lowering hook: this changes how the compiler translates the command, not just what the editor knows about it
 docs/design/spec-dsl-examples/oo-class.tclspec	Warning	command oo::class / subcommand create	`state_transitions` row `argument_shape` is not yet loadable; dropped

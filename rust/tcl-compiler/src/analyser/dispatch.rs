@@ -43,8 +43,19 @@ use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
 /// no meaningful equality); nothing compares two `CommandSig`s anyway.
 #[derive(Debug, Clone)]
 pub struct CommandSig {
-    /// Argument-count bounds.
+    /// Argument-count bounds — the shape when the signature never changed,
+    /// and the fallback whenever [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
+    /// Per-release signature shapes, when the owning package changed this
+    /// command's argument count across its releases (issue #1627).
+    ///
+    /// Empty for almost every command, which is why the arity check's
+    /// behaviour is unchanged for them: with no windows there is nothing to
+    /// select and [`Self::arity`] is the whole answer. When non-empty, the
+    /// verdict is **deferred** to the post-walk pass, because the window that
+    /// applies depends on the resolved package floor and a `package require`
+    /// later in the file still counts.
+    pub arity_windows: &'static [tcl_registry::arity::ArityWindow],
     /// Static arg-index → role map (0-based, after the command
     /// name). Args not listed default to ``ArgRole::Value``.
     pub arg_roles: HashMap<u8, ArgRole>,
@@ -113,6 +124,16 @@ pub struct SubcommandSig {
     /// spec that sets `arity.min == 0` on a `WithSubcommands` command
     /// gets the same treatment automatically.
     pub subcommand_required: bool,
+    /// The parent's declared arity windows, in declaration order, when its
+    /// signature changed across its owning package's releases.
+    ///
+    /// [`Self::subcommand_required`] is derived from the *fallback* arity,
+    /// which is the wrong answer for an ensemble whose bare call is valid in
+    /// one release and an error in another — so the windows travel with the
+    /// signature and the bare-call verdict is taken again at the resolved
+    /// floor. Empty for the overwhelming majority of ensembles, which is the
+    /// "decide during the walk, exactly as before" path.
+    pub arity_windows: &'static [tcl_registry::arity::ArityWindow],
     /// The value shape a non-subcommand first word may take to select the
     /// command's *default* form (`after 200 …`), copied from
     /// [`tcl_registry::CommandSpec::default_form_first_word`]. `None` =
@@ -239,6 +260,7 @@ pub fn signature_for_command(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     leading_options,
@@ -267,6 +289,7 @@ pub fn signature_for_command(
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
+            arity_windows: spec.arity_windows,
             default_form_first_word: spec.default_form_first_word,
             prefix_matching: spec.prefix_matching,
         }));
@@ -285,6 +308,7 @@ pub fn signature_for_command(
     let leading_option_specs = profile.available_option_specs(spec);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
+        arity_windows: spec.arity_windows,
         arg_roles,
         traits: spec.traits,
         leading_options,
@@ -341,6 +365,7 @@ pub fn signature_for_command_any_dialect(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     leading_options,
@@ -363,6 +388,7 @@ pub fn signature_for_command_any_dialect(
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
+            arity_windows: spec.arity_windows,
             default_form_first_word: spec.default_form_first_word,
             prefix_matching: spec.prefix_matching,
         }));
@@ -380,6 +406,7 @@ pub fn signature_for_command_any_dialect(
     let leading_option_specs = spec.option_specs(None);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
+        arity_windows: spec.arity_windows,
         arg_roles,
         traits: spec.traits,
         leading_options,
@@ -426,6 +453,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     // Scoped ensemble operations declare no option flags.
@@ -441,6 +469,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
             subcommands: subs,
             allow_unknown: scoped.allow_unknown_subcommands,
             subcommand_required: scoped.arity.min > 0,
+            // A scoped ensemble is declared inline by a definition body and
+            // has no owning package to version it against.
+            arity_windows: &[],
             // Scoped ensembles declare no non-subcommand default form.
             default_form_first_word: None,
             // Scoped ensembles dispatch like any other Tcl ensemble.
@@ -449,6 +480,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
     }
     CommandSignature::Simple(CommandSig {
         arity: scoped.arity,
+        // A ScopedCommand names a reused SubCommand shape, not a versioned
+        // one; there is no window set to carry.
+        arity_windows: &[],
         arg_roles: HashMap::new(),
         // `ScopedCommand` itself carries no `traits` — only its
         // (reused-`SubCommand`) ensemble operations do.

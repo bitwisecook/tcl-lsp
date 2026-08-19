@@ -75,9 +75,9 @@ pub mod pack;
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use install::registry_with_packs;
 pub use loader::{
-    ClauseGrammar, HookDecl, HookFamily, HookOwner, HookSource, KNOWN_VOCABULARY_VERSIONS,
-    NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, load_pack, roles_from_manufacturers,
-    speclib_version_span,
+    AmbientPackage, ClauseGrammar, HookDecl, HookFamily, HookOwner, HookSource,
+    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, load_pack,
+    roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
 
