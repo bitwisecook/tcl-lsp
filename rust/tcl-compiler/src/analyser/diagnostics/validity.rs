@@ -1438,6 +1438,11 @@ impl Analyser {
     /// Subcommand-dispatch commands are handled by
     /// [`Self::emit_w001_unknown_subcommand`] and skipped here;
     /// per-subcommand arity is not checked.
+    // The bare-ensemble deferral adds a few lines over the threshold; the
+    // block shares `ns` / `enforce_order` / `cmd_tok` with the inline path,
+    // so lifting it out would need an argument list longer than the lint it
+    // would silence.
+    #[allow(clippy::too_many_lines)]
     pub(in crate::analyser) fn emit_arity_diagnostics(
         &mut self,
         cmd_name: &str,
@@ -1621,6 +1626,10 @@ impl Analyser {
     /// floor only, and its dedicated structural diagnostic (E004) already
     /// covers every too-few-/malformed-shape case this generic check
     /// would otherwise duplicate.
+    // Capturing the surplus-run inputs for a gated call adds a few lines over
+    // the threshold, and they are the same `arg_tokens` / `arg_expand` /
+    // `positional_start` / source map the inline path already holds.
+    #[allow(clippy::too_many_lines)]
     fn check_simple_arity(
         &mut self,
         resolution_name: &str,

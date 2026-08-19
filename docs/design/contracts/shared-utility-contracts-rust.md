@@ -348,14 +348,28 @@ entry point, or gate moves without this contract being updated.
    projection fails there rather than silently vanishing.
 
    The division of labour is fixed, because the floor is a **per-document**
-   fact and not a load-time one: **the loader projects unfiltered, consumers
-   re-project at their floor.** The stored tables are therefore the
-   projection at *no floor* — byte-identical to what the pack loader built
-   before rows existed, which is what makes an unversioned pack unaffected
-   — and `arg_rows` is retained only when some row is actually gated, since
-   there is nothing to re-project when no row can be filtered out. A loader
-   that tried to filter would have to pick one document's floor for every
-   document that ever reads the registry.
+   fact and not a load-time one: **the loader projects unfiltered, and a
+   consumer that wants the tables at a floor re-projects.** The stored
+   tables are therefore the projection at *no floor* — byte-identical to
+   what the pack loader built before rows existed, which is what makes an
+   unversioned pack unaffected — and `arg_rows` is retained only when some
+   row is actually gated, since there is nothing to re-project when no row
+   can be filtered out. A loader that tried to filter would have to pick
+   one document's floor for every document that ever reads the registry.
+
+   **Not yet wired (issue #1644).** The re-projecting half of that division
+   currently has *no production implementation*: `project_arg_rows` is
+   called by the loader (at no floor) and by tests, and every analyser,
+   LSP and formatter consumer reads the parallel tables directly. A row
+   gated `-introduced 3.0` is therefore honoured at a 2.0 floor, and
+   per-argument lifecycle has no user-visible effect. The obstacle is not
+   volume but layering: the ~24 consuming sites take a `&CommandSpec` and
+   `tcl-registry` is deliberately document-agnostic, so there is no floor
+   at the call site to re-project with. Wiring it needs either a
+   floor-parameterised accessor surface or a per-document projected-spec
+   cache in the analyser — a design decision, tracked separately. The
+   *arity-window* axis of the same feature (invariant 7) is fully wired
+   and does resolve the floor.
 7. A version floor is a lower bound and composes by taking the greatest.
    Three things can state one — a `package require` in the document, a
    `SpecTcl` pack's `ambient_package` row, and the profile's
