@@ -377,14 +377,16 @@ fn cmd_trace_add_remove(
         });
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
-        // Remove the first trace matching exact ops + command string (C's
-        // `FOREACH_COMMAND_TRACE` first-match).
+        // Remove the first trace matching exact ops + command string, where
+        // "first" is C's `FOREACH_COMMAND_TRACE` head→tail order and its head
+        // is the newest registration — so among duplicates the newest goes.
+        // Our Vec is oldest-first, hence `rposition`. Issue #1440.
         let pos = interp
             .traces
             .borrow()
             .cmd_traces
             .iter()
-            .position(|t| t.name == fqn && t.ops == flags && t.command == command);
+            .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().cmd_traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
@@ -530,7 +532,12 @@ fn var_trace_apply(
             .borrow()
             .traces
             .iter()
-            .position(|t| t.name == name && t.ops == ops && t.command == command);
+            // Newest-first first match: C breaks at the first hit walking its
+            // list head→tail, and the head is the newest registration. Our Vec
+            // is oldest-first, hence `rposition`. `old_style` is deliberately
+            // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
+            // here. Issue #1440.
+            .rposition(|t| t.name == name && t.ops == ops && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
@@ -1147,6 +1154,59 @@ mod tests {
                 ok(i, b"set ::log"),
                 b"two-rename one-rename two-delete one-delete"
             );
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// `trace remove` breaks at the first match walking C's list head→tail, and
+    /// that head is the newest registration — so among identical duplicates the
+    /// **newest** goes. Observable in the surviving firing order and in
+    /// `trace info`. Issue #1440; pinned against tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn trace_remove_drops_the_newest_duplicate() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"trace add variable v write {rec one}");
+            ok(i, b"trace add variable v write {rec two}");
+            ok(i, b"trace add variable v write {rec one}");
+            ok(i, b"trace remove variable v write {rec one}");
+            assert_eq!(
+                ok(i, b"trace info variable v"),
+                b"{write {rec two}} {write {rec one}}"
+            );
+            ok(i, b"set v 1");
+            assert_eq!(ok(i, b"set ::log"), b"two one");
+            i.eval_str(b"unset -nocomplain v ::log");
+        });
+        leak_free(|i| {
+            ok(i, b"proc cb1 args {}");
+            ok(i, b"proc cb2 args {}");
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command p delete cb1");
+            ok(i, b"trace add command p delete cb2");
+            ok(i, b"trace add command p delete cb1");
+            ok(i, b"trace remove command p delete cb1");
+            assert_eq!(ok(i, b"trace info command p"), b"{delete cb2} {delete cb1}");
+        });
+    }
+
+    /// Namespace teardown fires each variable's unset traces newest-first, like
+    /// every other trace list (the order *across* the namespace's variables is
+    /// C's hash walk and is not pinned). Issue #1440.
+    #[test]
+    fn namespace_teardown_fires_unset_traces_newest_first() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(
+                i,
+                b"namespace eval ::gone {variable v 1\n\
+                  trace add variable v unset {rec first}\n\
+                  trace add variable v unset {rec second}}",
+            );
+            ok(i, b"namespace delete ::gone");
+            assert_eq!(ok(i, b"set ::log"), b"second first");
             i.eval_str(b"unset -nocomplain ::log");
         });
     }

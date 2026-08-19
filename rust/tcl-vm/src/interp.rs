@@ -4222,13 +4222,19 @@ impl Vm {
     }
 
     /// Remove one `trace remove variable` callback matching `ops` + `command`.
+    /// C walks the trace list head→tail and breaks at the first match, and its
+    /// head is the newest registration — so among duplicates the **newest**
+    /// goes, which is observable in both the surviving firing order and
+    /// `trace info`. Our Vec is oldest-first, hence `rposition`. Issue #1440.
+    /// The old-style flag is deliberately not part of the match (C masks
+    /// `TCL_TRACE_OLD_STYLE` out here), so either spelling removes the other's.
     pub(crate) fn remove_var_trace(&mut self, name: &str, ops: &[String], command: &str) {
         let key = self.trace_key(name);
         let mut removed = false;
         if let Some(list) = self.var_traces.get_mut(&key) {
             if let Some(index) = list
                 .iter()
-                .position(|t| t.ops == ops && t.command == command)
+                .rposition(|t| t.ops == ops && t.command == command)
             {
                 list.remove(index);
                 removed = true;
@@ -4297,9 +4303,10 @@ impl Vm {
         let key = CommandSidecarKey::visible(key);
         let mut removed = false;
         if let Some(list) = table.get_mut(&key) {
+            // Newest-first first match, as `remove_var_trace` explains.
             if let Some(index) = list
                 .iter()
-                .position(|t| t.ops == ops && t.callback == callback)
+                .rposition(|t| t.ops == ops && t.callback == callback)
             {
                 list.remove(index);
                 removed = true;

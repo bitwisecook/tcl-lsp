@@ -296,6 +296,39 @@ const VECTORS: &[Vector] = &[
                  set b(k) 2\n",
         want: "W:a|k|write\nE:a|k|write\nW:b|k|write\nE:b|k|write",
     },
+    // `trace remove` breaks at the first match walking C's list head→tail, and
+    // that head is the newest registration — so among identical duplicates the
+    // NEWEST goes, which the surviving firing order and `trace info` both show.
+    Vector {
+        name: "trace remove drops the newest of several identical registrations",
+        script: "proc cb1 args { puts c1 }\n\
+                 proc cb2 args { puts c2 }\n\
+                 trace add variable v write cb1\n\
+                 trace add variable v write cb2\n\
+                 trace add variable v write cb1\n\
+                 trace remove variable v write cb1\n\
+                 puts [trace info variable v]\n\
+                 set v 1\n",
+        want: "{write cb2} {write cb1}\nc2\nc1",
+    },
+    Vector {
+        name: "the same newest-first removal rule for command and execution traces",
+        script: "proc d1 args { puts d1 }\n\
+                 proc d2 args { puts d2 }\n\
+                 proc p {} {}\n\
+                 trace add command p delete d1\n\
+                 trace add command p delete d2\n\
+                 trace add command p delete d1\n\
+                 trace remove command p delete d1\n\
+                 puts [trace info command p]\n\
+                 proc q {} {}\n\
+                 trace add execution q enter d1\n\
+                 trace add execution q enter d2\n\
+                 trace add execution q enter d1\n\
+                 trace remove execution q enter d1\n\
+                 puts [trace info execution q]\n",
+        want: "{delete d2} {delete d1}\n{enter d2} {enter d1}",
+    },
     // `trace info` renders the stored op set in the order each C `TRACE_INFO`
     // arm tests the flag bits — `array read write unset` and `rename delete`,
     // neither of which is the `opStrings[]` table order.

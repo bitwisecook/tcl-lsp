@@ -3275,6 +3275,9 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
+        // Newest-first per command, as `take_ns_unset_traces` explains; the
+        // order across the namespace's commands is C's hash walk. Issue #1440.
+        victims.reverse();
         victims
     }
 
@@ -3355,6 +3358,11 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
+        // C fires each variable's unset traces newest-first, like every other
+        // trace list; `retain` visits our Vec oldest-first. The order *across*
+        // the namespace's variables is its hash-table walk in C, so it is not
+        // pinned either way — only the within-variable order is. Issue #1440.
+        victims.reverse();
         victims
     }
 
