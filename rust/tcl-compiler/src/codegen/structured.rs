@@ -373,9 +373,17 @@ fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
         // Quoted word: locate the closing `"` with the lexer's own escape- and
         // command-substitution-aware scan rather than inferring it from the
         // span, precisely because the span may or may not include it.
+        //
+        // The scan runs over the whole source, so it is clamped back into the
+        // span: on real input the closer is always at or before `span_end`
+        // (the span either stops at it or covers it), making this a no-op, but
+        // a degenerate synthetic span must not be able to slice past its own
+        // word. `max(start + 1)` keeps the end from crossing the content start.
         b'"' => (
             start + 1,
-            tcl_lexer::close_quote_offset(source, start).unwrap_or(span_end),
+            tcl_lexer::close_quote_offset(source, start)
+                .unwrap_or(span_end)
+                .min(span_end.max(start + 1)),
         ),
         // Braced word: the span excludes the closer except for an empty `{}`,
         // which is the one case `word_closer_offset_at` exists to get right
