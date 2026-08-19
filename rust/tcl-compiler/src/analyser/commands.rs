@@ -2330,11 +2330,9 @@ impl Analyser {
             self.cached_line_index_source_len,
         );
         let raw = sm.token_text(body_tok);
-        let var_name = raw
-            .split_once('}')
-            .map_or(raw, |(name, _)| name)
-            .to_string();
-        if var_name != raw {
+        let (name, suffix) = self.split_braced_head(raw);
+        let var_name = name.to_string();
+        if !suffix.is_empty() {
             return;
         }
         let ns = self.command_resolution_namespace(scope_path);
@@ -3729,16 +3727,15 @@ impl Analyser {
                 // A composite head whose first token is a *braced* variable
                 // (`${ns}::define::[…]`) merges into one Var word token, so the
                 // raw text spans the whole word.  The dispatched variable is
-                // only the braced name (`${ns}` → `ns`); the `}` closes it and
-                // the rest is a literal / substituted suffix.  Read the
-                // first VAR sub-token's clean name by truncating
-                // at the first `}` (a simple `$obj` or namespaced `$ns::v` head
-                // contains no `}` and is unchanged).
+                // only the braced name (`${ns}` → `ns`); the closer ends it and
+                // the rest is a literal / substituted suffix.  Where that
+                // closer sits is the release's `Tcl_ParseVarName` rule, so
+                // [`Analyser::split_braced_head`] asks the shared owner rather
+                // than truncating at the first `}` (a simple `$obj` or
+                // namespaced `$ns::v` head has no closer at all and is
+                // unchanged).
                 let raw = sm.token_text(cmd_tok);
-                let var_name = raw
-                    .split_once('}')
-                    .map_or(raw, |(name, _)| name)
-                    .to_string();
+                let var_name = self.split_braced_head(raw).0.to_string();
                 let method_name = args.first().cloned();
                 // M7: a simple-`$cmd` head may be a statically-known
                 // dispatch.  Record the *site* for settlement in the

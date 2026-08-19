@@ -5162,8 +5162,7 @@ impl Analyser {
             // the two agree on which bytes name the variable.
             let raw = sm.token_text(tok);
             let (var_name, suffix) = if tok.content_offset >= 2 {
-                raw.split_once('}')
-                    .map_or((raw, ""), |(name, rest)| (name, rest))
+                self.split_braced_head(raw)
             } else {
                 (raw, "")
             };

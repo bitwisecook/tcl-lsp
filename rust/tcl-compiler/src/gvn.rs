@@ -312,18 +312,6 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     out
 }
 
-/// This dialect's `${…}` close rule, for the shared owner
-/// [`tcl_lexer::braced_var_name_end`].
-///
-/// With no explicit dialect the document was lexed under
-/// [`tcl_dialect::BracedVarStyle::default`], so that is the fallback; reading
-/// the same bytes under any other rule contradicts the spans GVN is keying on.
-fn braced_var_of(dialect: Option<&tcl_dialect::DialectProfile>) -> tcl_dialect::BracedVarStyle {
-    dialect.map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-        profile.grammar.braced_var
-    })
-}
-
 /// Build the canonical [`ExprKey`] for a pure-command invocation:
 /// `["call", command, canonicalised_arg1, canonicalised_arg2, …]`.
 #[must_use]
@@ -1070,7 +1058,7 @@ fn statement_occurrences_for_gvn(
                 args,
                 &stmt_ssa.uses,
                 ssa,
-                braced_var_of(dialect),
+                tcl_dialect::BracedVarStyle::of_profile(dialect),
             );
             // Two occurrences may only match when the world state their
             // dispatch and result depend on carries the same versions.
@@ -1106,7 +1094,13 @@ fn statement_occurrences_for_gvn(
                 continue;
             }
             out.push(ExprOccurrence {
-                key: build_call_key(&cmd, &args, &stmt_ssa.uses, ssa, braced_var_of(dialect)),
+                key: build_call_key(
+                    &cmd,
+                    &args,
+                    &stmt_ssa.uses,
+                    ssa,
+                    tcl_dialect::BracedVarStyle::of_profile(dialect),
+                ),
                 span,
                 expression_text: format_expression_text(&cmd, &args),
                 block: block_name.to_owned(),

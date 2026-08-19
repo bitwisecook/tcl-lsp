@@ -540,10 +540,7 @@ impl TaintCtx<'_> {
     /// sink they should flag. With no explicit dialect the document was lexed
     /// under [`tcl_dialect::BracedVarStyle::default`] (issue #1604).
     pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
-        self.dialect
-            .map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-                profile.grammar.braced_var
-            })
+        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
     }
 }
 
@@ -1629,9 +1626,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
     }
     // The document's `${…}` close rule, threaded into the path-variable scan
     // so the name W313 anchors on is the one the lexer spanned (issue #1604).
-    let braced_var = dialect.map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-        profile.grammar.braced_var
-    });
+    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let guard_map = compute_branch_guard_map(cfg, registry);
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
@@ -2485,9 +2480,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
 
     // The document's `${…}` close rule, carried into every name scan below so
     // they read the same closer the lexer did (issue #1604).
-    let braced_var = dialect.map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-        profile.grammar.braced_var
-    });
+    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let env = TaintScan {
         uses: &ssa_stmt.uses,
         taints,
@@ -2908,11 +2901,7 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
         else {
             continue;
         };
-        let braced_var = ctx
-            .dialect
-            .map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-                profile.grammar.braced_var
-            });
+        let braced_var = tcl_dialect::BracedVarStyle::of_profile(ctx.dialect);
         let mut uses: HashMap<Symbol, u32> = HashMap::new();
         for name in arg_var_names(&text, braced_var) {
             if let Some(sym) = ctx.ssa.var_symbol(&name) {

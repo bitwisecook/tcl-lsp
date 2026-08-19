@@ -321,10 +321,7 @@ impl<'a> PassContext<'a> {
     /// returns; anything else would contradict the spans the pass is reading.
     #[must_use]
     pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
-        self.dialect
-            .map_or_else(tcl_dialect::BracedVarStyle::default, |profile| {
-                profile.grammar.braced_var
-            })
+        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
     }
 
     /// Record an optimisation diagnostic.
