@@ -582,11 +582,11 @@ fn subst_braced_var_close_rule_follows_the_emulated_release() {
 /// brace matching cannot reshape the bytes before `subst` sees them.
 const UNTERMINATED_SCRIPT: &str = concat!(
     "foreach {label hex} {\n",
-    "  plain_unterm    247B616263\n",       // `${abc`
-    "  open_brace      247B617B62\n",       // `${a{b`
-    "  esc_close       247B615C7D\n",       // `${a\}`
-    "  trailing_bslash 247B615C\n",         // `${a\`
-    "  closes_in_8x    247B617B627D\n",     // `${a{b}`
+    "  plain_unterm    247B616263\n",   // `${abc`
+    "  open_brace      247B617B62\n",   // `${a{b`
+    "  esc_close       247B615C7D\n",   // `${a\}`
+    "  trailing_bslash 247B615C\n",     // `${a\`
+    "  closes_in_8x    247B617B627D\n", // `${a{b}`
     "} {\n",
     "  set t [binary format H* $hex]\n",
     "  if {[catch {subst $t} m]} { puts \"$label:$m\" } else { puts \"$label:ok:$m\" }\n",

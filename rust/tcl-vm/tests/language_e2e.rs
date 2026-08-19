@@ -446,8 +446,7 @@ fn zero_length_array_name_is_an_array_element() {
 /// byte-checked against `tclsh8.6.16` and `tclsh9.0.4` — they agree.
 #[test]
 fn link_commands_reject_element_looking_names() {
-    const SCALAR: &str =
-        "can't create a scalar variable that looks like an array element";
+    const SCALAR: &str = "can't create a scalar variable that looks like an array element";
 
     // `upvar` guards the *local* name; the other-var side may legally be an
     // element.
@@ -489,8 +488,7 @@ fn link_commands_reject_element_looking_names() {
     let (ok, r, _out) = run("namespace eval x {}\nnamespace eval q {variable ::x::v(k) 7}\n");
     assert!(!ok);
     assert_eq!(
-        r,
-        "can't define \"::x::v(k)\": name refers to an element in an array",
+        r, "can't define \"::x::v(k)\": name refers to an element in an array",
         "C reports the qualified spelling here, unlike `global`"
     );
 
