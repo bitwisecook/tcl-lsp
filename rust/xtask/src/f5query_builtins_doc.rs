@@ -43,11 +43,12 @@
 //! # What is (and isn't) checked
 //!
 //! Checked: the *set* of builtin names the registry dispatches equals the set
-//! of names given a `` `name` `` heading in the doc. Most entries are one
-//! `### \`name\`` heading each; a handful of tightly-related builtins share
-//! one heading (`### \`files\` / \`file\` / \`glob\` / \`grep\``), so every
-//! backtick-quoted token on a `###` heading line counts as documenting that
-//! name — not just the first.
+//! of names given a heading in the doc. Most entries get their own level-3
+//! heading naming just that one builtin; a handful of tightly-related
+//! builtins share one heading naming several at once (`files` / `file` /
+//! `glob` / `grep` is one real example), so every backtick-quoted token on a
+//! level-3 heading line counts as documenting that name — not just the
+//! first.
 //!
 //! Not checked: prose accuracy, per-argument signatures, example correctness,
 //! or which `##` category section a heading lives under. Those need a human
@@ -219,8 +220,8 @@ mod tests {
     fn committed_reference_doc_matches_the_registry() {
         let root = repo_root();
         let path = root.join(DOC_PATH);
-        let doc = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        let doc =
+            fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
         let (undocumented, stale) = diff(&doc);
         assert!(
             undocumented.is_empty(),

@@ -370,10 +370,8 @@ mod tests {
 
     #[test]
     fn scan_bucket_extracts_kind_names() {
-        let dir = std::env::temp_dir().join(format!(
-            "bigip-data-schema-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("bigip-data-schema-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("create temp dir");
         let path = dir.join("x.rs");
         std::fs::write(
