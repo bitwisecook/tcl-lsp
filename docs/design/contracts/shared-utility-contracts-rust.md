@@ -182,9 +182,13 @@ entry point, or gate moves without this contract being updated.
   change an answer:
 
   - a scan whose own gate rejects every name the two rules can disagree
-    about — `analyser::param_traits::extract_var_name` accepts only
-    `[A-Za-z_][A-Za-z0-9_:]*`, and the rules differ only on names
-    containing `{`, `}` or `\`;
+    about. The rules differ only on names containing `{`, `}` or `\`, and
+    `analyser::param_traits::extract_var_name` accepts only
+    `[A-Za-z_][A-Za-z0-9_:]*` while `subst_nocommands`'
+    `is_complex_var_name` accepts only alphanumerics and `_`. Threading a
+    style into either could not change an answer — a mutant pinning them to
+    `FirstClose` survives, which is the proof — so both carry the reasoning
+    in place instead of the parameter;
   - an entry point with no document profile in scope at all
     (`auto_path_eval`, `specialise_factories`), which passes
     `BracedVarStyle::default()` explicitly rather than silently.

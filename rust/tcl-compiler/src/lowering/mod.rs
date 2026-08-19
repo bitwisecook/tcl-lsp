@@ -2252,7 +2252,7 @@ impl<'r> Lowerer<'r> {
             return None;
         }
         let scope = self.const_map_stack.last()?;
-        crate::subst_nocommands::subst_nocommands(template, scope, self.config.braced_var)
+        crate::subst_nocommands::subst_nocommands(template, scope)
     }
 
     /// Try to lower `eval ?body?` to a static-body
