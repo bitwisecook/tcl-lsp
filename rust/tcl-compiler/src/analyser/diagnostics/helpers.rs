@@ -322,7 +322,7 @@ pub(super) struct PhiUndefCtx<'a> {
     /// Locals that registry metadata says alias the interpreter's global
     /// namespace in this function (`global name`).
     pub global_aliases: &'a HashSet<String>,
-    pub dialect: &'a str,
+    pub dialect: tcl_registry::prelude::DialectSet,
     pub ssa: &'a crate::ssa::SsaFunction,
 }
 
@@ -387,7 +387,7 @@ pub(super) fn phi_can_undef(
     let startup_name = startup_var_name(name);
     let global_binding = has_global_startup_binding(name, *initial_global, global_aliases);
     let rematerialises_after_unset =
-        global_binding && tcl_registry::special_vars::is_lazily_readable(startup_name, dialect);
+        global_binding && tcl_registry::special_vars::is_lazily_readable(startup_name, *dialect);
     let key = (name.to_string(), version);
     if killed.contains(&key) {
         // A Tcl read trace is not an eager startup fact: `unset` removes the
@@ -404,7 +404,7 @@ pub(super) fn phi_can_undef(
         // look undefined.  `unset` still wins below for real killed versions,
         // and procedure-local frames never set `initial_global`.
         return !(global_binding
-            && tcl_registry::special_vars::is_readable_at_startup(startup_name, dialect));
+            && tcl_registry::special_vars::is_readable_at_startup(startup_name, *dialect));
     }
     if seen.contains(&key) {
         // Cycle (loop-header phi): the DFS seed already accounted for the
@@ -885,7 +885,7 @@ pub(super) fn build_undef_suppression(
     considered: &HashSet<BlockId>,
     initial_global: bool,
     global_aliases: &HashSet<String>,
-    dialect: &str,
+    dialect: tcl_registry::prelude::DialectSet,
 ) -> UndefSuppression {
     let (phi_def, phi_block, killed) = build_phi_undef_index(&fu.ssa, considered);
     // Phi versions that can reach an undef origin on some executable path —

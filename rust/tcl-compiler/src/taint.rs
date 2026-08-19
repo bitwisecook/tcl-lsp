@@ -1335,7 +1335,7 @@ fn seed_entry_taints(
     // to the local (version > 0) is unaffected; shadowing falls out of the SSA
     // versioning, not a check here.
     for spec in tcl_registry::special_vars::special_vars_for_dialect(
-        dialect.map_or("", |profile| profile.name),
+        tcl_registry::special_vars::dialect_set_for_profile(dialect),
     ) {
         let Some(colour) = spec.read_taint else {
             continue;

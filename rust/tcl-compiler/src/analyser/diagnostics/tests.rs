@@ -5746,8 +5746,13 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // default global gains W210 coverage automatically; the registry's own
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
-            .filter(|spec| tcl_registry::special_vars::is_readable_at_startup(spec.name, dialect))
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
+            tcl_registry::special_vars::resolve_dialect(dialect),
+        )
+            .filter(|spec| tcl_registry::special_vars::is_readable_at_startup(
+                    spec.name,
+                    tcl_registry::special_vars::resolve_dialect(dialect),
+                ))
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {
                     Some(format!("puts ${}\n", spec.name))
@@ -5867,7 +5872,9 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // `if {0} …`.  Drive the probe from the table so a new global is covered
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-        let source: String = tcl_registry::special_vars::special_vars_for_dialect(dialect)
+        let source: String = tcl_registry::special_vars::special_vars_for_dialect(
+            tcl_registry::special_vars::resolve_dialect(dialect),
+        )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {
                     Some(format!("if {{[info exists {}]}} {{ puts hit }}\n", spec.name))

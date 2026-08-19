@@ -928,7 +928,7 @@ fn classify_variable_assignment(
         let base = crate::naming::normalise_var_name(varname);
         if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
             base,
-            dialect.map_or("", |profile| profile.name),
+            tcl_registry::special_vars::dialect_set_for_profile(dialect),
         ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());

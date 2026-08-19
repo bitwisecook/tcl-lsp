@@ -256,6 +256,19 @@ pub fn resolve_dialect(dialect: &str) -> DialectSet {
     DialectSet::parse(dialect).map_or(DialectSet::ALL_TCL, |bit| bit | DialectSet::ALL_TCL)
 }
 
+/// [`resolve_dialect`]'s typed twin for callers that already hold a resolved
+/// profile — the LSP/CLI ingress resolves the dialect name once and threads
+/// the profile, so re-spelling `profile.name` back into a string only to
+/// re-resolve it here is exactly the round trip #1405 removes.
+///
+/// `None` (no dialect resolved) keeps [`resolve_dialect`]'s unknown-name
+/// answer, [`DialectSet::ALL_TCL`]: the permissive `PLAIN_TCL` sink, whose
+/// own [`tcl_dialect::DialectProfile::availability_mask`] is that same set.
+#[must_use]
+pub fn dialect_set_for_profile(profile: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
+    profile.map_or(DialectSet::ALL_TCL, |p| p.availability_mask)
+}
+
 /// Look up a special variable by bare name, ignoring dialect.
 ///
 /// Returns the single spec regardless of which dialects provide it; callers
@@ -266,12 +279,14 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
     SPECIAL_VARS.iter().find(|v| v.name == name)
 }
 
-/// Look up a special variable that is available in `dialect` (a dialect name
-/// such as `"tcl8.6"`, `"f5-irules"`, or `""` for generic Tcl).
+/// Look up a special variable that is available in `dialect` (the resolved
+/// availability mask, from [`resolve_dialect`] or [`dialect_set_for_profile`]).
 #[must_use]
-pub fn special_var_in_dialect(name: &str, dialect: &str) -> Option<&'static SpecialVarSpec> {
-    let d = resolve_dialect(dialect);
-    special_var(name).filter(|v| v.available_in(d))
+pub fn special_var_in_dialect(
+    name: &str,
+    dialect: DialectSet,
+) -> Option<&'static SpecialVarSpec> {
+    special_var(name).filter(|v| v.available_in(dialect))
 }
 
 /// Whether `name` is an interpreter-provided special variable in `dialect`.
@@ -280,7 +295,7 @@ pub fn special_var_in_dialect(name: &str, dialect: &str) -> Option<&'static Spec
 /// W210 predicate: a number of special variables are created only after a
 /// runtime event or library call.
 #[must_use]
-pub fn is_special_var(name: &str, dialect: &str) -> bool {
+pub fn is_special_var(name: &str, dialect: DialectSet) -> bool {
     special_var_in_dialect(name, dialect).is_some()
 }
 
@@ -291,9 +306,8 @@ pub fn is_special_var(name: &str, dialect: &str) -> bool {
 /// procedure-local variable of the same name, or a version killed by `unset`,
 /// remains a genuine read-before-set.
 #[must_use]
-pub fn is_readable_at_startup(name: &str, dialect: &str) -> bool {
-    let resolved = resolve_dialect(dialect);
-    special_var(name).is_some_and(|v| v.readable_at_startup_in(resolved))
+pub fn is_readable_at_startup(name: &str, dialect: DialectSet) -> bool {
+    special_var(name).is_some_and(|v| v.readable_at_startup_in(dialect))
 }
 
 /// Whether `name` is eagerly bound before user code in the default startup
@@ -303,9 +317,8 @@ pub fn is_readable_at_startup(name: &str, dialect: &str) -> bool {
 /// 8.x `tcl_precision`: an initial read is valid there, but a first `unset`
 /// still fails until that trace has materialised a value.
 #[must_use]
-pub fn is_initially_bound(name: &str, dialect: &str) -> bool {
-    let resolved = resolve_dialect(dialect);
-    special_var(name).is_some_and(|v| v.initially_bound.intersects(resolved))
+pub fn is_initially_bound(name: &str, dialect: DialectSet) -> bool {
+    special_var(name).is_some_and(|v| v.initially_bound.intersects(dialect))
 }
 
 /// Whether reading `name` in `dialect` invokes a registry-declared Tcl read
@@ -314,9 +327,8 @@ pub fn is_initially_bound(name: &str, dialect: &str) -> bool {
 /// bindings such as `argv`: deleting those leaves an ordinary undefined Tcl
 /// variable.
 #[must_use]
-pub fn is_lazily_readable(name: &str, dialect: &str) -> bool {
-    let resolved = resolve_dialect(dialect);
-    special_var(name).is_some_and(|v| v.lazily_readable.intersects(resolved))
+pub fn is_lazily_readable(name: &str, dialect: DialectSet) -> bool {
+    special_var(name).is_some_and(|v| v.lazily_readable.intersects(dialect))
 }
 
 /// Whether a *write* to `name` in `dialect` is observed by the runtime — so
@@ -324,7 +336,7 @@ pub fn is_lazily_readable(name: &str, dialect: &str) -> bool {
 /// (W211) even when the script never reads `$NAME`. This is the fix for the
 /// `set auto_path …` false positive (issue #831).
 #[must_use]
-pub fn is_externally_read(name: &str, dialect: &str) -> bool {
+pub fn is_externally_read(name: &str, dialect: DialectSet) -> bool {
     special_var_in_dialect(name, dialect).is_some_and(|v| v.externally_read)
 }
 
@@ -333,7 +345,7 @@ pub fn is_externally_read(name: &str, dialect: &str) -> bool {
 /// special variable there. Lets the side-effect analysis treat
 /// `set auto_path …` as an [`SideEffectTarget::InterpState`] mutation.
 #[must_use]
-pub fn special_var_write_effect(name: &str, dialect: &str) -> Option<SideEffectTarget> {
+pub fn special_var_write_effect(name: &str, dialect: DialectSet) -> Option<SideEffectTarget> {
     special_var_in_dialect(name, dialect).and_then(|v| v.write_effect)
 }
 
@@ -341,14 +353,15 @@ pub fn special_var_write_effect(name: &str, dialect: &str) -> Option<SideEffectT
 /// or `None` if reading it is not a taint source there. `env` / `argv` /
 /// `argv0` are attacker-influenced external input.
 #[must_use]
-pub fn special_var_read_taint(name: &str, dialect: &str) -> Option<TaintColour> {
+pub fn special_var_read_taint(name: &str, dialect: DialectSet) -> Option<TaintColour> {
     special_var_in_dialect(name, dialect).and_then(|v| v.read_taint)
 }
 
 /// Iterate the special variables available in `dialect`, in table order.
-pub fn special_vars_for_dialect(dialect: &str) -> impl Iterator<Item = &'static SpecialVarSpec> {
-    let d = resolve_dialect(dialect);
-    SPECIAL_VARS.iter().filter(move |v| v.available_in(d))
+pub fn special_vars_for_dialect(
+    dialect: DialectSet,
+) -> impl Iterator<Item = &'static SpecialVarSpec> {
+    SPECIAL_VARS.iter().filter(move |v| v.available_in(dialect))
 }
 
 /// `tcl_platform` array keys. Standard Tcl and F5 iRules diverge here: iRules
@@ -887,19 +900,25 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
 mod tests {
     use super::*;
 
+    /// The string ingress the tests exercise these queries through — the
+    /// production callers resolve once and thread the mask instead.
+    fn d(dialect: &str) -> DialectSet {
+        resolve_dialect(dialect)
+    }
+
     #[test]
     fn auto_path_is_externally_read_in_tcl() {
         // The issue-#831 case: `set auto_path …` writes a runtime-observed
         // variable, so it must not be a dead store.
-        assert!(is_externally_read("auto_path", "tcl8.6"));
-        assert!(is_externally_read("auto_path", "")); // generic Tcl
-        assert!(is_special_var("auto_path", "tcl8.6"));
+        assert!(is_externally_read("auto_path", d("tcl8.6")));
+        assert!(is_externally_read("auto_path", d(""))); // generic Tcl
+        assert!(is_special_var("auto_path", d("tcl8.6")));
     }
 
     #[test]
     fn plain_user_var_is_not_special() {
-        assert!(!is_special_var("myVar", "tcl8.6"));
-        assert!(!is_externally_read("myVar", "tcl8.6"));
+        assert!(!is_special_var("myVar", d("tcl8.6")));
+        assert!(!is_externally_read("myVar", d("tcl8.6")));
         assert!(special_var("myVar").is_none());
     }
 
@@ -967,23 +986,23 @@ mod tests {
             special_var("tcl_precision").unwrap().startup_binding,
             StartupBinding::ReadTrace
         );
-        assert!(is_readable_at_startup("tcl_precision", "tcl8.6"));
-        assert!(!is_readable_at_startup("tcl_precision", "tcl9.0"));
-        assert!(!is_initially_bound("tcl_precision", "tcl8.6"));
-        assert!(is_initially_bound("argv", "tcl8.6"));
-        assert!(is_lazily_readable("tcl_precision", "tcl8.6"));
-        assert!(!is_lazily_readable("tcl_precision", "tcl9.0"));
-        assert!(!is_lazily_readable("argv", "tcl8.6"));
+        assert!(is_readable_at_startup("tcl_precision", d("tcl8.6")));
+        assert!(!is_readable_at_startup("tcl_precision", d("tcl9.0")));
+        assert!(!is_initially_bound("tcl_precision", d("tcl8.6")));
+        assert!(is_initially_bound("argv", d("tcl8.6")));
+        assert!(is_lazily_readable("tcl_precision", d("tcl8.6")));
+        assert!(!is_lazily_readable("tcl_precision", d("tcl9.0")));
+        assert!(!is_lazily_readable("argv", d("tcl8.6")));
         // `tcl_libPath` exists only in 8.4 — availability, not just the
         // startup fact, ends there.
-        assert!(is_special_var("tcl_libPath", "tcl8.4"));
+        assert!(is_special_var("tcl_libPath", d("tcl8.4")));
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            assert!(!is_special_var("tcl_libPath", dialect), "{dialect}");
+            assert!(!is_special_var("tcl_libPath", d(dialect)), "{dialect}");
         }
         // iApps uses its host Tcl interpreter profile, whereas the embedded
         // iRules runtime has only the explicitly evidenced metadata globals.
-        assert!(is_readable_at_startup("argv", "f5-iapps"));
-        assert!(!is_readable_at_startup("argv", "f5-irules"));
+        assert!(is_readable_at_startup("argv", d("f5-iapps")));
+        assert!(!is_readable_at_startup("argv", d("f5-irules")));
         // `auto_index` can materialise after interactive activity or an
         // auto-loader operation, but an ordinary default-host script begins
         // with no array and a direct `$auto_index` / `$auto_index(key)` read
@@ -996,28 +1015,28 @@ mod tests {
             "auto_noload",
             "static",
         ] {
-            assert!(!is_readable_at_startup(name, "tcl8.6"), "{name}");
+            assert!(!is_readable_at_startup(name, d("tcl8.6")), "{name}");
         }
     }
 
     #[test]
     fn irules_has_static_but_not_argv_or_env() {
-        assert!(is_special_var("static", "f5-irules"));
-        assert!(!is_special_var("static", "tcl8.6"));
+        assert!(is_special_var("static", d("f5-irules")));
+        assert!(!is_special_var("static", d("tcl8.6")));
         // Command-line / environment globals do not exist in the embedded
         // iRules interpreter.
-        assert!(!is_special_var("argv", "f5-irules"));
-        assert!(!is_special_var("env", "f5-irules"));
-        assert!(!is_special_var("auto_path", "f5-irules"));
+        assert!(!is_special_var("argv", d("f5-irules")));
+        assert!(!is_special_var("env", d("f5-irules")));
+        assert!(!is_special_var("auto_path", d("f5-irules")));
     }
 
     #[test]
     fn tcl_platform_available_in_both_tcl_and_irules() {
-        assert!(is_special_var("tcl_platform", "tcl9.0"));
-        assert!(is_special_var("tcl_platform", "f5-irules"));
+        assert!(is_special_var("tcl_platform", d("tcl9.0")));
+        assert!(is_special_var("tcl_platform", d("f5-irules")));
         // Read-only platform info: a bare read is fine, but it is not the
         // "write is runtime-observed" class, so writes may still be flagged.
-        assert!(!is_externally_read("tcl_platform", "tcl9.0"));
+        assert!(!is_externally_read("tcl_platform", d("tcl9.0")));
         // CMP demotion flag is iRules-relevant.
         assert!(special_var("tcl_platform").unwrap().cmp_unsafe);
     }
@@ -1064,8 +1083,8 @@ mod tests {
         // These are readable interpreter values; writing then never reading
         // them is genuinely suspicious, so `externally_read` is false.
         for name in ["tcl_version", "tcl_patchLevel"] {
-            assert!(is_special_var(name, "tcl8.6"));
-            assert!(!is_externally_read(name, "tcl8.6"));
+            assert!(is_special_var(name, d("tcl8.6")));
+            assert!(!is_externally_read(name, d("tcl8.6")));
         }
     }
 
@@ -1080,7 +1099,7 @@ mod tests {
 
     #[test]
     fn dialect_iteration_excludes_out_of_dialect_vars() {
-        let irules: Vec<&str> = special_vars_for_dialect("f5-irules")
+        let irules: Vec<&str> = special_vars_for_dialect(d("f5-irules"))
             .map(|v| v.name)
             .collect();
         assert!(irules.contains(&"static"));
@@ -1093,14 +1112,14 @@ mod tests {
         // Writing these mutates interpreter/runtime state, not just a variable.
         for name in ["auto_path", "tcl_precision", "env", "tcl_library"] {
             assert_eq!(
-                special_var_write_effect(name, "tcl8.6"),
+                special_var_write_effect(name, d("tcl8.6")),
                 Some(SideEffectTarget::InterpState),
                 "{name} should carry an InterpState write effect",
             );
         }
         // Read-only info globals and pure-data globals carry no write effect.
         for name in ["tcl_version", "tcl_platform", "argv", "argc"] {
-            assert_eq!(special_var_write_effect(name, "tcl8.6"), None, "{name}");
+            assert_eq!(special_var_write_effect(name, d("tcl8.6")), None, "{name}");
         }
     }
 
@@ -1108,14 +1127,14 @@ mod tests {
     fn read_taint_marks_external_input_variables() {
         for name in ["env", "argv", "argv0"] {
             assert_eq!(
-                special_var_read_taint(name, "tcl8.6"),
+                special_var_read_taint(name, d("tcl8.6")),
                 Some(TaintColour::TAINTED),
                 "{name} is attacker-influenced external input",
             );
         }
         // Interpreter-provided info is not attacker-controlled.
         for name in ["tcl_version", "tcl_platform", "auto_path"] {
-            assert_eq!(special_var_read_taint(name, "tcl8.6"), None, "{name}");
+            assert_eq!(special_var_read_taint(name, d("tcl8.6")), None, "{name}");
         }
     }
 
@@ -1126,28 +1145,28 @@ mod tests {
         // globals (they did before the registry existed).
         for dialect in ["tk", "expect", "synopsys-eda-tcl", "cadence-eda-tcl"] {
             assert!(
-                is_special_var("env", dialect),
+                is_special_var("env", d(dialect)),
                 "env must be a special var in {dialect}",
             );
-            assert!(is_special_var("auto_path", dialect), "{dialect}");
-            assert!(is_special_var("argv", dialect), "{dialect}");
+            assert!(is_special_var("auto_path", d(dialect)), "{dialect}");
+            assert!(is_special_var("argv", d(dialect)), "{dialect}");
             // The write-effect / taint queries resolve there too.
             assert_eq!(
-                special_var_read_taint("env", dialect),
+                special_var_read_taint("env", d(dialect)),
                 Some(TaintColour::TAINTED),
                 "{dialect}",
             );
         }
         // The restricted TMM sandbox (iRules) still does NOT get them.
-        assert!(!is_special_var("env", "f5-irules"));
-        assert!(!is_special_var("argv", "f5-irules"));
-        assert!(!is_special_var("auto_path", "f5-irules"));
+        assert!(!is_special_var("env", d("f5-irules")));
+        assert!(!is_special_var("argv", d("f5-irules")));
+        assert!(!is_special_var("auto_path", d("f5-irules")));
         // iApps are NOT the TMM sandbox: they run a real Tcl 8.5.13 *host*
         // interpreter (dialect-profile-model.md §7, D3-adjacent ratification),
         // so the standard interpreter globals resolve there like any other
         // Tcl superset. The old bare-`IAPPS` view wrongly hid them.
-        assert!(is_special_var("env", "f5-iapps"));
-        assert!(is_special_var("auto_path", "f5-iapps"));
+        assert!(is_special_var("env", d("f5-iapps")));
+        assert!(is_special_var("auto_path", d("f5-iapps")));
     }
 
     #[test]

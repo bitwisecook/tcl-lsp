@@ -923,7 +923,7 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            self.dialect(),
+            self.profile.availability_mask,
         );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
@@ -946,7 +946,7 @@ impl Analyser {
             &dataflow::ReturnUndefCtx {
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: self.dialect(),
+                dialect: self.profile.availability_mask,
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,
