@@ -24,7 +24,7 @@
 
 use crate::abbrev::{Keyword, KeywordMatch, KeywordTable, PrefixMatching};
 use crate::arg_role::ArgRole;
-use crate::arity::Arity;
+use crate::arity::{Arity, ArityWindow};
 use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
@@ -1008,7 +1008,22 @@ pub struct CommandSpec {
     pub dialects: Option<DialectSet>,
 
     /// Argument count constraint.
+    ///
+    /// The shape when the signature never changed, and the fallback whenever
+    /// [`Self::arity_windows`] selects nothing (no floor resolved, or no window
+    /// covers it).
     pub arity: Arity,
+
+    /// Per-release signature shapes, for a command whose arity changed across
+    /// its owning package's releases (issue #1627).
+    ///
+    /// Empty for almost every command — a signature that never changed needs no
+    /// windows, and [`Self::arity`] alone describes it. When non-empty, the
+    /// window covering the resolved package floor wins and `arity` is the
+    /// fallback; see [`ArityWindow::select`]. Windows must not overlap, which
+    /// the loader notices for packs and `registry_sweep` rejects outright for
+    /// shipped specs.
+    pub arity_windows: &'static [ArityWindow],
 
     /// Static argument roles (for fixed-layout commands like `for`).
     /// Each tuple is `(arg_index, role)`.
@@ -1856,6 +1871,7 @@ impl CommandSpec {
         traits: Traits::empty(),
         dialects: None,
         arity: Arity::any(),
+        arity_windows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
         arg_presentation: &[],
@@ -2591,7 +2607,14 @@ pub struct SubCommand {
     pub traits: Traits,
 
     /// Argument count constraint (after the subcommand word).
+    ///
+    /// As on [`CommandSpec::arity`], the fallback whenever
+    /// [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
+
+    /// Per-release signature shapes for this subcommand (issue #1627), with
+    /// the same contract as [`CommandSpec::arity_windows`].
+    pub arity_windows: &'static [ArityWindow],
 
     /// Short description for completion list.
     pub detail: &'static str,
@@ -2975,6 +2998,7 @@ impl SubCommand {
         name: "",
         traits: Traits::empty(),
         arity: Arity::any(),
+        arity_windows: &[],
         detail: "",
         synopsis: "",
         hover: None,

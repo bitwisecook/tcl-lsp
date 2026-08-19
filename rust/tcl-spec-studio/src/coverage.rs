@@ -169,6 +169,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         name: _, traits: _,
         dialects: _,
         arity: _,
+        arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
         arg_presentation: _,
@@ -269,11 +270,23 @@ pub fn witness_command_spec(spec: &CommandSpec) {
 
 /// Where the studio surfaces each [`CommandSpec`] field, in
 /// `CommandSpec::DEFAULT` order.
+/// Versioned-arity windows are registry data with no studio editor *yet*.
+///
+/// The model landed first (issue #1627 step 1) so the loader and the analyser
+/// could be built against it; surfacing it needs a `FieldKind` of its own, a
+/// browser editor for a list of (lifecycle, arity) rows, and a renderer, which
+/// is step 5 of the same issue. This is a **temporary** exclusion — unlike the
+/// `NAMED_CONSTANT` ones, which are permanent — and flipping it to
+/// `Surface::Key("arity_windows")` is what step 5 does.
+const ARITY_WINDOWS_PENDING: &str = "versioned-arity windows: registry model only so far; studio surface is \
+     step 5 of #1627";
+
 pub const COMMAND_SPEC: &[Field] = &[
     f("name", Surface::Key("name")),
     f("traits", Surface::Key("traits")),
     f("dialects", Surface::Key("dialects")),
     f("arity", Surface::Key("arity")),
+    f("arity_windows", Surface::Excluded(ARITY_WINDOWS_PENDING)),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
     f("arg_presentation", Surface::Key("arg_presentation")),
@@ -449,6 +462,7 @@ pub fn witness_sub_command(sub: &SubCommand) {
         name: _,
         traits: _,
         arity: _,
+        arity_windows: _,
         detail: _,
         synopsis: _,
         hover: _,
@@ -523,6 +537,7 @@ pub const SUB_COMMAND: &[Field] = &[
     f("name", Surface::Key("name")),
     f("traits", Surface::Key("traits")),
     f("arity", Surface::Key("arity")),
+    f("arity_windows", Surface::Excluded(ARITY_WINDOWS_PENDING)),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("hover", Surface::Key("hover")),
