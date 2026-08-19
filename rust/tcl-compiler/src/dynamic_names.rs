@@ -253,27 +253,27 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 /// namespace eval ::ns { variable total 5 } ; set j 1 ; set v$j 2
 ///   -> info vars ::v* is {::v1}, ::ns::total still 5
 /// ```
-#[must_use]
-pub fn dynamic_variable_word_can_spell(word: &str, qualified_cell: &str) -> bool {
-    dynamic_variable_word_can_spell_for_style(
-        word,
-        qualified_cell,
-        tcl_dialect::BracedVarStyle::default(),
-    )
-}
-
-/// [`dynamic_variable_word_can_spell`] under an explicitly resolved `${…}`
-/// close rule.
+/// `braced_var` is the **document's** `${…}` close rule, and it is a required
+/// parameter rather than a defaulted one on purpose. Where the closer lands
+/// decides how much of the word is *literal*, and the literal characters are
+/// the whole bound this gate rests on, so the two release rules move the
+/// answer in opposite directions:
 ///
-/// The wildcard extents come from the shared owner
-/// [`tcl_lexer::braced_var_name_end`]. Where the closer lands decides how much
-/// of the word is *literal*, and the literal characters are the whole bound
-/// this gate rests on: under the default (9.x) rule `${a{b}c}` is one wildcard,
-/// while the old first-`}` scan made it a wildcard followed by the literal
-/// `c}` — a narrower pattern, so a cell the word really can spell is judged
-/// out of reach and rename proceeds unsafely (issue #1604).
+/// - Reading an **8.x** document with the 9.x rule makes `${a{b}c}` one
+///   wildcard, which matches every cell — so a rename that is provably safe is
+///   refused (the LSP declines an otherwise-fine namespace/variable rename).
+/// - Reading a **9.x** document with the 8.x rule makes it a wildcard followed
+///   by the literal `c}` — a narrower pattern, so a cell the word really can
+///   spell is judged out of reach and the rename proceeds *unsafely*.
+///
+/// A convenience overload defaulting to [`tcl_dialect::BracedVarStyle::default`]
+/// used to exist here; every production caller
+/// (`tcl_lsp_core::rename_safety`, `tcl_lsp_core::namespace_rename`) already
+/// holds a resolved `DialectProfile`, and one of them silently taking the
+/// default is exactly the defect issue #1604 is about. It was removed so the
+/// style cannot be omitted by accident (PR #1645 review).
 #[must_use]
-pub fn dynamic_variable_word_can_spell_for_style(
+pub fn dynamic_variable_word_can_spell(
     word: &str,
     qualified_cell: &str,
     braced_var: tcl_dialect::BracedVarStyle,
@@ -823,7 +823,7 @@ fn scan_command(
 
 #[cfg(test)]
 mod braced_var_close_rule_tests {
-    use super::dynamic_variable_word_can_spell_for_style as can_spell;
+    use super::dynamic_variable_word_can_spell as can_spell;
     use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
 
     /// Issue #1604 — the wildcard extents come from the shared owner, so the
@@ -848,6 +848,12 @@ mod braced_var_close_rule_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// These cases carry no `{`/`}`/`\\` in a `${…}` name, so both release
+    /// rules answer alike; pin them to the default document's rule.
+    fn dynamic_variable_word_can_spell(word: &str, cell: &str) -> bool {
+        super::dynamic_variable_word_can_spell(word, cell, tcl_dialect::BracedVarStyle::default())
+    }
 
     fn barrier_for(src: &str) -> DynamicNameBarrier {
         barrier_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6"))
