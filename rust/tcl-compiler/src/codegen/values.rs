@@ -185,12 +185,28 @@ impl CodegenCtx<'_> {
     /// the index never expanded and the element lookup failed. A pure literal
     /// key is pushed verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
-        if let Some(inner) = elem
-            .strip_prefix("${")
-            .and_then(|s| s.strip_suffix('}'))
-            .filter(|inner| !inner.contains(['{', '}']))
-        {
+        if let Some(inner) = parse_simple_var_ref(elem, self.braced_var) {
             // Whole braced variable reference: `${var}`.
+            //
+            // Resolved through the same release-aware decoder as every other
+            // `${…}` consumer (issue #1568). This arm used to hand-roll the
+            // scan — `strip_suffix('}')` plus a
+            // `.filter(|inner| !inner.contains(['{', '}']))` guard — which was
+            // a *fourth* copy of the close rule and the only one left
+            // unthreaded. It got two shapes wrong:
+            //
+            //   set {a\}b} K; set arr(K) V; puts $arr(${a\}b})
+            //   set {a\{b} K; set arr(K) V; puts $arr(${a\{b})
+            //
+            // A whole `${…}` key containing a backslash fell past this arm
+            // (the guard rejects any brace in the name), past the bare-`$`
+            // arm, and past the composite arm (one part, not >1), landing in
+            // the trailing `elem.contains('\\')` literal arm — which ran
+            // `backslash_subst_in` over the *whole* `${…}` spelling. Inside
+            // `${}` the name is literal in C, so that decoded escapes that
+            // must stay verbatim: the first vector failed at 9.x and the
+            // second at **every** release. Composite keys (`x${a\}b}`) were
+            // always correct, which is why only this arm needed the fix.
             self.load_var(inner);
         } else if let Some(var) = elem.strip_prefix('$').filter(|v| is_bare_var_name(v)) {
             // Whole bare variable reference: `$var` (the name runs to the end).
@@ -472,14 +488,30 @@ impl CodegenCtx<'_> {
 /// [`tcl_lexer::BracedVarEnd::Unterminated`] precisely so each consumer stops
 /// inventing its own recovery).
 ///
-/// The two wrong values of `style` are **not** symmetric here, which is worth
-/// knowing before anyone "simplifies" this parameter away. Pinning it to
-/// `Tcl9Nesting` is a real defect — an 8.x compile then accepts `${a{b}c}` as
-/// one reference to `a{b}c`, and five tests fail. Pinning it to `FirstClose`
-/// is merely *pessimal*: a 9.x compile declines a reference it could have
-/// loaded directly, the word falls back to runtime substitution, and
-/// `subst_word` resolves it correctly under the same release rule — so no test
-/// can see it. Declining is always safe; accepting wrongly is not.
+/// Both wrong values of `style` are real defects — do not "simplify" this
+/// parameter away in either direction.
+///
+/// Pinning it to `Tcl9Nesting` lets an 8.x compile accept `${a{b}c}` as one
+/// reference to `a{b}c`; five tests fail.
+///
+/// Pinning it to `FirstClose` is **not** merely pessimal, which an earlier
+/// revision of this comment claimed. Declining here forfeits the direct load
+/// and hands the word to the runtime fallback, and that fallback is only
+/// equivalent when the *name* survives ordinary word substitution unchanged.
+/// It does not always:
+///
+/// ```tcl
+/// set {{}} V
+/// puts ${{}}          ;# 9.0: V   — with FirstClose: can't read "{}"
+/// set {a\}b} K
+/// set arr(K) V
+/// puts $arr(${a\}b})  ;# 9.0: V   — with FirstClose: can't read "a"
+/// ```
+///
+/// A leading `{` and an embedded `\}` both fail to round-trip through the
+/// fallback, so declining loses the name rather than merely costing a fast
+/// path. Declining is safe *only* where the fallback is equivalent, and these
+/// are the counterexamples.
 #[must_use]
 pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
     let rest = value.strip_prefix("${")?;

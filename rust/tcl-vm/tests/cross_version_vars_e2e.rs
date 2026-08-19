@@ -966,3 +966,191 @@ fn compiled_array_index_braced_var_matches_real_tclsh() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Backslash-carrying `${…}` names (adversarial review of the #1568 fix)
+//
+// Every vector above uses a name whose only awkward character is a brace. A
+// name carrying a **backslash** is a distinct shape, and it caught three
+// separate mistakes the brace vectors could not see:
+//
+//   * `push_array_key` hand-rolled a fourth copy of the close rule, so a whole
+//     `${…}` key containing a backslash fell through to the literal arm and had
+//     its escapes decoded — wrong at 9.x for `${a\}b}` and at *every* release
+//     for `${a\{b}`;
+//   * the CFG switch-subject gate is wrong under `FirstClose` and wrong when
+//     it requires both rules to agree — at both releases;
+//   * declining a reference in `parse_simple_var_ref` is not free, because the
+//     runtime fallback does not round-trip such a name.
+// ---------------------------------------------------------------------------
+
+/// A whole `${…}` **array key** whose name carries an escaped close-brace.
+const COMPILED_KEY_ESCAPED_CLOSE_SCRIPT: &str = concat!(
+    "set {a\\}b} K\n",
+    "set arr(K) V\n",
+    "if {[catch {puts $arr(${a\\}b})} m]} { puts \"error:$m\" }\n",
+);
+
+/// The same key in the **store** direction.
+const COMPILED_KEY_ESCAPED_WRITE_SCRIPT: &str = concat!(
+    "set {a\\}b} K\n",
+    "if {[catch {set arr(${a\\}b}) V} m]} { puts \"error:$m\" } ",
+    "else { puts [array names arr] }\n",
+);
+
+/// An escaped **open**-brace name. Both releases agree here — the `\{` is
+/// inert under 9.x nesting and an ordinary name character under the 8.x
+/// first-close rule — so a single wrong answer is wrong everywhere. This is
+/// the vector that was broken at all five releases.
+const COMPILED_KEY_ESCAPED_OPEN_SCRIPT: &str = concat!(
+    "set {a\\{b} K\n",
+    "set arr(K) V\n",
+    "if {[catch {puts $arr(${a\\{b})} m]} { puts \"error:$m\" }\n",
+);
+
+/// A `switch` subject whose name carries an escaped close-brace — the program
+/// that disproved "the close rule is immaterial in the CFG gate".
+const COMPILED_SWITCH_ESCAPED_SCRIPT: &str = concat!(
+    "set {a\\}b} K\n",
+    "if {[catch {switch -- ${a\\}b} { K {puts hit} default {puts miss} }} m]} ",
+    "{ puts \"error:$m\" }\n",
+);
+
+/// A **leading-brace** name: the counterexample to "declining a reference is
+/// always safe", since the runtime fallback cannot round-trip this name.
+const COMPILED_LEADING_BRACE_SCRIPT: &str = concat!(
+    "set {{}} V\n",
+    "if {[catch {puts ${{}}} m]} { puts \"error:$m\" }\n",
+);
+
+#[test]
+fn compiled_backslash_braced_var_names_follow_the_emulated_release() {
+    for (label, script, err8, ok9) in [
+        (
+            "array key, escaped close",
+            COMPILED_KEY_ESCAPED_CLOSE_SCRIPT,
+            "error:can't read \"a\\\": no such variable",
+            "V",
+        ),
+        (
+            "array key store, escaped close",
+            COMPILED_KEY_ESCAPED_WRITE_SCRIPT,
+            "error:can't read \"a\\\": no such variable",
+            "K",
+        ),
+        (
+            "switch subject, escaped close",
+            COMPILED_SWITCH_ESCAPED_SCRIPT,
+            "error:can't read \"a\\\": no such variable",
+            "hit",
+        ),
+        (
+            "leading brace name",
+            COMPILED_LEADING_BRACE_SCRIPT,
+            "error:can't read \"{\": no such variable",
+            "V",
+        ),
+    ] {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                vm_output(script, version),
+                err8,
+                "{label} at {version:?} must use the 8.x first-close rule"
+            );
+        }
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                vm_output(script, version),
+                ok9,
+                "{label} at {version:?} must use the 9.x nesting rule"
+            );
+        }
+    }
+}
+
+/// The escaped-**open**-brace key resolves identically at every release, so it
+/// gets its own assertion rather than an 8-vs-9 split.
+#[test]
+fn compiled_escaped_open_brace_key_resolves_at_every_release() {
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(COMPILED_KEY_ESCAPED_OPEN_SCRIPT, version),
+            "V",
+            "{version:?}: `\\{{` is a name character under both close rules"
+        );
+    }
+}
+
+/// An unterminated `${` in a compiled word is a **parse** error: C parses every
+/// word of a command before evaluating any, so an earlier `[…]` in the same
+/// word never runs. Verified against 8.6.16 and 9.0.4, neither of which prints
+/// `SIDE`.
+const UNTERMINATED_IN_COMPILED_WORD_SCRIPT: &str = concat!(
+    "proc side {} { puts SIDE; return x }\n",
+    "if {[catch {puts \"[side]pre${abc\"} m]} { puts \"error:$m\" }\n",
+);
+
+#[test]
+fn unterminated_braced_var_in_a_compiled_word_is_a_parse_error() {
+    // The whole script is REJECTED, at every release: an unterminated `${` is
+    // a parse error, and C parses every word of a command before evaluating
+    // any of them. Nothing runs — real tclsh 8.6.16 and 9.0.4 both report
+    // `missing close-brace for variable name` and neither prints `SIDE`.
+    //
+    // This is why `subst_word`'s `Unterminated` arm cannot be reached from
+    // compiled source: the compiler refuses the source first. The arm is kept
+    // defensive and consistent with C, not because a vector reaches it.
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        let profile = DialectProfile::by_name(version.dialect_name());
+        let err = service
+            .compile_for_profile(UNTERMINATED_IN_COMPILED_WORD_SCRIPT, profile)
+            .expect_err("an unterminated ${ must not compile");
+        let text = format!("{err:?}");
+        assert!(
+            text.contains("close-brace"),
+            "{version:?}: must be rejected for the close-brace, got {text}"
+        );
+    }
+}
+
+#[test]
+fn compiled_backslash_braced_var_names_match_real_tclsh() {
+    let mut ran = 0;
+    for script in [
+        COMPILED_KEY_ESCAPED_CLOSE_SCRIPT,
+        COMPILED_KEY_ESCAPED_WRITE_SCRIPT,
+        COMPILED_KEY_ESCAPED_OPEN_SCRIPT,
+        COMPILED_SWITCH_ESCAPED_SCRIPT,
+        COMPILED_LEADING_BRACE_SCRIPT,
+    ] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}

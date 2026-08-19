@@ -533,7 +533,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     //
     // Do not go hunting for a test that pins the *style* here: there is none,
     // and that was measured, not assumed. Pinning this call to `FirstClose`
-    // leaves every vector in a 14-program search unchanged, because the arm is
+    // leaves every vector in a ~130-program search unchanged, because the arm is
     // only ever *reached* when both rules agree. A whole-word `${name}` whose
     // rules agree is resolved at compile time (`parse_simple_var_ref` →
     // `load_var`) and never reaches `subst_word` at all; one whose rules
@@ -582,10 +582,20 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
                         i = close + 1;
                     }
                     // C raises `missing close-brace for variable name` here,
-                    // and both `subst` engines now do (issue #1457). Raising
-                    // it after the literal run above has been flushed — and
-                    // after any earlier `[…]` in this word has already run —
-                    // reproduces C's left-to-right evaluation order.
+                    // and both `subst` engines now do (issue #1457).
+                    //
+                    // Note this is a *parse* error, not an evaluation one, and
+                    // C reports it before the command runs at all: it parses
+                    // every word of a command before evaluating any of them.
+                    // So no earlier `[…]` in the same word has run when this
+                    // fires — `puts "[side]pre${abc"` never calls `side` on
+                    // 8.6.16 or 9.0.4, and does not here either. (An earlier
+                    // revision of this comment claimed the opposite, reasoning
+                    // from left-to-right *evaluation*; the behaviour was right
+                    // and the justification wrong. Pinned by
+                    // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
+                    // which also records why no vector reaches *this* arm: the
+                    // compiler rejects such source before the VM sees it.)
                     tcl_lexer::BracedVarEnd::Unterminated => {
                         return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
                     }

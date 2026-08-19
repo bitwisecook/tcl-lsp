@@ -132,32 +132,39 @@ fn switch_subject_operand(subject: &str) -> ExprNode {
 
 /// Whether `subject` is one whole `${…}` / `$name` variable reference.
 ///
-/// # The `${…}` close rule here is immaterial, and that is a measured claim
+/// # This gate must accept under the permissive rule — do not "simplify" it
 ///
-/// The rule is release-dependent (issue #1568) and CFG lowering has no dialect
-/// in hand — it runs before the target release reaches codegen. That looks
-/// like it needs a release-aware decision, and an earlier revision of this fix
-/// made one (accepting a subject only when *both* rules agreed it was one
-/// whole reference).
+/// The `${…}` close rule is release-dependent (issue #1568) and CFG lowering
+/// has no dialect in hand: it runs before the target release reaches codegen.
+/// Two plausible-looking alternatives to the permissive default are both
+/// **wrong**, and one distinguishing program proves it:
 ///
-/// It is not needed, and the two-rule version was deleted rather than shipped:
-/// mutation testing could not distinguish it from either single rule. Switching
-/// this gate between `FirstClose`, `Tcl9Nesting`, and unanimity leaves the
-/// observable output identical across `switch --`, `switch -glob --`, the
-/// no-`--` form, and the inline-arms form, at 8.4/8.5/8.6/9.0/9.1, against both
-/// tclsh oracles.
+/// ```tcl
+/// set {a\}b} K
+/// switch -- ${a\}b} { K {puts hit} default {puts miss} }
+/// ```
 ///
-/// The reason both branches converge: this only chooses which *operand shape*
-/// codegen receives, and codegen then re-decides under the real target rule.
-/// A subject the gate accepts as `Raw` is re-read by `parse_simple_var_ref`
-/// with the actual release's style; one it declines becomes `String`, the
-/// ordinary word-substitution path, which the VM resolves under that same
-/// style at run time. Either way the release rule is applied exactly once, by
-/// a consumer that knows it.
+/// Real tclsh: `can't read "a\"` at 8.6, `hit` at 9.0. As written this matches
+/// both. Pinning this gate to [`BracedVarStyle::FirstClose`], *or* requiring
+/// both rules to agree (an earlier revision of this fix did the latter,
+/// believing abstention was the safe direction), yields
+/// `can't read "a"` at **both** releases — wrong twice over, and wrong in a way
+/// no other vector in the suite catches.
 ///
-/// So this uses the codebase's standing convention for a dialect-less context
-/// — [`tcl_dialect::BracedVarStyle::default()`], the permissive 9.x rule, the
-/// same default `CodegenCtx` and the lexer take when no dialect is named.
+/// The reason abstention is not safe here: declining sends the subject down
+/// the `String` path, where the whole word is re-substituted as ordinary text.
+/// For a name carrying a backslash that is not the same operation as loading
+/// the variable — the escape is processed instead of staying literal — so the
+/// `Raw` arm is not merely an optimisation over `String`, it is the only arm
+/// that preserves the name. Accepting under the permissive rule and letting
+/// codegen re-decide under the real target style is what keeps both releases
+/// right.
+///
+/// [`tcl_dialect::BracedVarStyle::default()`] is the codebase's standing
+/// convention for a dialect-less context — the same default `CodegenCtx` and
+/// the lexer take when no dialect is named — and here it is also the only
+/// choice that is correct. Pinned by
+/// `compiled_interpolated_and_switch_paths_follow_the_emulated_release`.
 fn is_whole_var_ref(subject: &str) -> bool {
     crate::codegen::values::parse_simple_var_ref(subject, tcl_dialect::BracedVarStyle::default())
         .is_some()
