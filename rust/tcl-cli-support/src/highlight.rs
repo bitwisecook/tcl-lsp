@@ -25,9 +25,9 @@
 
 use std::collections::HashSet;
 
+use crate::registry_for_dialect;
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{Lexer, TokenType};
-use tcl_registry::cache::registry_for_profile;
 
 const ANSI_RESET: &str = "\x1b[0m";
 
@@ -102,7 +102,13 @@ fn collect_command_spans(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
-    let registry = registry_for_profile(dialect);
+    // `crate::registry_for_dialect`, **not** `tcl_registry`'s
+    // `registry_for_profile`: this crate's own by-name entry layers the
+    // discovered SpecTcl packs (`cli_packs()`) on top of the catalogue
+    // registry. Resolving straight from the profile would silently drop them,
+    // so a project-local pack's commands and subcommands would stop being
+    // highlighted — pinned by `highlight_uses_the_current_projects_spec_pack_registry`.
+    let registry = registry_for_dialect(dialect.name);
     let mut command_spans = HashSet::new();
     let mut subcommand_spans = HashSet::new();
     for command in segment_commands(source) {
