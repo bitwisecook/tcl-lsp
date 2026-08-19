@@ -143,10 +143,19 @@ pub struct PackSet {
 }
 
 impl PackSet {
-    /// `true` when no pack contributed a single command.
+    /// `true` when no pack contributed anything the registry would carry.
+    ///
+    /// Commands are not the only payload: a pack whose whole content is
+    /// `ambient_package` rows still floors those packages for every document
+    /// the pack is active in, so it is *not* empty. Counting only commands
+    /// made [`crate::install::registry_with_packs`] short-circuit on such a
+    /// pack and drop the floor with no notice — the silent-drop class this
+    /// loader exists to make impossible.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.packs.iter().all(|p| p.commands.is_empty())
+        self.packs
+            .iter()
+            .all(|p| p.commands.is_empty() && p.ambient_packages.is_empty())
     }
 
     /// Every file that contributed to, or produced a notice about, this set —

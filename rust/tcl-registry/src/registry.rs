@@ -888,6 +888,26 @@ impl CommandRegistry {
         self.ambient_packages.push((package, version));
     }
 
+    /// Whether `package` is **ambient** — provided by the runtime, with no
+    /// `package require` needed to reach it.
+    ///
+    /// The union of the two things that can make that true: the dialect
+    /// profile shipping it (an F5 surface is part of the runtime, §7.1 axis
+    /// C), and a loaded `SpecTcl` pack declaring it with `ambient_package`.
+    /// This is the one place that union is taken — every consumer that used
+    /// to ask the profile alone must ask here instead, or a pack's ambient
+    /// declaration registers a floor while the same package still draws a
+    /// "needs a `package require`" diagnostic.
+    #[must_use]
+    pub fn is_ambient_package(&self, package: &str) -> bool {
+        self.profile
+            .is_some_and(|profile| profile.is_ambient_package(package))
+            || self
+                .ambient_packages
+                .iter()
+                .any(|(name, _)| *name == package)
+    }
+
     /// The version floor a pack declared for `package` as ambient, if any.
     ///
     /// The **highest** declared version wins when several packs name the same

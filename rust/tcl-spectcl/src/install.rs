@@ -300,6 +300,36 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
     }
 
+    /// A pack whose entire content is `ambient_package` rows still installs.
+    ///
+    /// `PackSet::is_empty` decides whether `registry_with_packs` short-
+    /// circuits, and it used to ask only whether any pack declared a
+    /// *command*. A metadata-only pack answered "empty", the overlay was
+    /// never built, and the floor it declared vanished with no notice —
+    /// the silent-drop class, arriving by the one route the loader's own
+    /// notices cannot cover because the loader read the row perfectly well.
+    #[test]
+    fn a_pack_of_nothing_but_ambient_rows_still_reaches_the_registry() {
+        let _cache = cache_guard();
+        let dir = tmpdir("ambient-only");
+        let packs = pack_set(
+            &dir,
+            "meta.tclspec",
+            "speclib meta 1.2 {\n  ambient_package Tk 8.6\n}\n",
+        );
+        assert!(
+            !packs.is_empty(),
+            "a pack declaring an ambient floor is not an empty pack"
+        );
+        let registry = registry_for_dialect_with_packs("tcl8.6", &packs);
+        assert_eq!(
+            registry.ambient_package_floor("Tk"),
+            Some("8.6"),
+            "the floor survives a pack that declares no commands"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn installing_packs_does_not_disturb_the_plain_registry() {
         let _cache = cache_guard();

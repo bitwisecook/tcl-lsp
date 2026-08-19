@@ -485,6 +485,12 @@ pub struct Analyser {
     /// `arity_windows` (almost every one) never reaches this buffer and keeps
     /// the inline path exactly as it was.
     pub(super) pending_gated_arity: Vec<super::diagnostics::version_gate::GatedArityCall>,
+    /// Bare calls to *ensembles* whose parent arity is versioned — whether a
+    /// subcommand is required at all can flip across releases, so the E001
+    /// verdict is deferred to [`Self::flush_gated_bare_ensembles`] for the
+    /// same reason the count verdict is.
+    pub(super) pending_gated_bare_ensemble:
+        Vec<super::diagnostics::version_gate::GatedBareEnsemble>,
     /// Session/file pins for the keyed library-version axes
     /// (`--bigip-version`-style overrides, dialect-profile-model.md §7.1).
     /// Defaults to empty, in which case each keyed axis falls back to its
@@ -1360,6 +1366,7 @@ impl Analyser {
             dsl_gate_sites: Vec::new(),
             pending_option_conflicts: Vec::new(),
             pending_gated_arity: Vec::new(),
+            pending_gated_bare_ensemble: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
             builtin_names: None,
             builtin_dialect: None,
@@ -2503,6 +2510,7 @@ impl Analyser {
         // across releases could not be judged during the walk, and whatever
         // verdict the floor produces still has to face the shadowing check.
         self.flush_gated_arity_calls();
+        self.flush_gated_bare_ensembles();
         self.flush_arity_diagnostics();
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();

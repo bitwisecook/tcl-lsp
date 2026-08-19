@@ -124,6 +124,16 @@ pub struct SubcommandSig {
     /// spec that sets `arity.min == 0` on a `WithSubcommands` command
     /// gets the same treatment automatically.
     pub subcommand_required: bool,
+    /// The parent's declared arity windows, in declaration order, when its
+    /// signature changed across its owning package's releases.
+    ///
+    /// [`Self::subcommand_required`] is derived from the *fallback* arity,
+    /// which is the wrong answer for an ensemble whose bare call is valid in
+    /// one release and an error in another — so the windows travel with the
+    /// signature and the bare-call verdict is taken again at the resolved
+    /// floor. Empty for the overwhelming majority of ensembles, which is the
+    /// "decide during the walk, exactly as before" path.
+    pub arity_windows: &'static [tcl_registry::arity::ArityWindow],
     /// The value shape a non-subcommand first word may take to select the
     /// command's *default* form (`after 200 …`), copied from
     /// [`tcl_registry::CommandSpec::default_form_first_word`]. `None` =
@@ -279,6 +289,7 @@ pub fn signature_for_command(
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
+            arity_windows: spec.arity_windows,
             default_form_first_word: spec.default_form_first_word,
             prefix_matching: spec.prefix_matching,
         }));
@@ -377,6 +388,7 @@ pub fn signature_for_command_any_dialect(
             subcommands: subs,
             allow_unknown: spec.allow_unknown_subcommands,
             subcommand_required: spec.arity.min > 0,
+            arity_windows: spec.arity_windows,
             default_form_first_word: spec.default_form_first_word,
             prefix_matching: spec.prefix_matching,
         }));
@@ -457,6 +469,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
             subcommands: subs,
             allow_unknown: scoped.allow_unknown_subcommands,
             subcommand_required: scoped.arity.min > 0,
+            // A scoped ensemble is declared inline by a definition body and
+            // has no owning package to version it against.
+            arity_windows: &[],
             // Scoped ensembles declare no non-subcommand default form.
             default_form_first_word: None,
             // Scoped ensembles dispatch like any other Tcl ensemble.

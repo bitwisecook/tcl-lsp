@@ -106,6 +106,68 @@ fn excess_positional_span(
     })
 }
 
+/// Everything [`excess_positional_span`] needs except the `max`, kept so a
+/// deferred verdict can recompute the surplus once the resolved floor has
+/// chosen a window.
+///
+/// A gated call's `max` is not known during the walk, and the surplus run
+/// depends on it: anchoring to the fallback's `max` and then reporting
+/// against a window with a *smaller* `max` deletes only the tail of the
+/// surplus and leaves a call that is still wrong. The word spans are already
+/// widened here, so recomputation needs no second source-map pass.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct ExcessInputs {
+    /// `(start, widened end)` per argument word, in order.
+    words: Vec<(u32, u32)>,
+    /// Index of the first positional word, after any leading option flags.
+    positional_start: usize,
+    /// Deletion start for the `max == 0` case.
+    fallback_delete_from: u32,
+    /// A `{*}` expansion in the positional region makes "the first surplus
+    /// word" ambiguous, so every `max` abstains.
+    blocked_by_expansion: bool,
+}
+
+impl ExcessInputs {
+    /// Capture the inputs, widening each word end once.
+    fn capture(
+        arg_tokens: &[tcl_lexer::Token],
+        arg_expand: &[bool],
+        positional_start: usize,
+        source_map: &tcl_lexer::SourceMap<'_>,
+        fallback_delete_from: u32,
+    ) -> Self {
+        Self {
+            words: arg_tokens
+                .iter()
+                .map(|tok| (tok.span.start(), widen_token_end_in(source_map, *tok)))
+                .collect(),
+            positional_start,
+            fallback_delete_from,
+            blocked_by_expansion: (positional_start..arg_tokens.len())
+                .any(|i| arg_expand.get(i).copied().unwrap_or(false)),
+        }
+    }
+
+    /// The surplus run for `max`, mirroring [`excess_positional_span`].
+    pub(in crate::analyser) fn at(&self, max: usize) -> Option<ExcessArgs> {
+        if self.blocked_by_expansion {
+            return None;
+        }
+        let first_excess = self.positional_start.checked_add(max)?;
+        let (first_start, _) = *self.words.get(first_excess)?;
+        let (_, last_end) = *self.words.last()?;
+        let delete_from = match first_excess.checked_sub(1).and_then(|i| self.words.get(i)) {
+            Some((_, prev_end)) => *prev_end,
+            None => self.fallback_delete_from,
+        };
+        Some(ExcessArgs {
+            span: tcl_lexer::Span::new(first_start, last_end),
+            delete_from,
+        })
+    }
+}
+
 fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usize, bool) {
     let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
     let start = start.min(args.len());
@@ -1461,11 +1523,32 @@ impl Analyser {
                     // earlier shadowing user proc / class / alias / ensemble
                     // / stub suppresses it, exactly like the E002 / E003
                     // paths.
+                    let ns = self.command_resolution_namespace(scope_path);
+                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
+                    // A versioned parent cannot answer "was a subcommand
+                    // required?" here: the shape depends on the resolved
+                    // floor, which a later `package require` still raises.
+                    // Buffer and let the post-walk pass decide.
+                    if !sig.arity_windows.is_empty() {
+                        let axis = self.gated_arity_axis(cmd_name);
+                        self.pending_gated_bare_ensemble.push(
+                            super::version_gate::GatedBareEnsemble {
+                                axis,
+                                windows: sig.arity_windows,
+                                fallback: tcl_registry::Arity::at_least(u16::from(
+                                    sig.subcommand_required,
+                                )),
+                                cmd_name: cmd_name.to_string(),
+                                namespace: ns,
+                                enforce_order,
+                                span: cmd_tok.span,
+                            },
+                        );
+                        return;
+                    }
                     if !sig.subcommand_required {
                         return;
                     }
-                    let ns = self.command_resolution_namespace(scope_path);
-                    let enforce_order = !self.scope_path_in_proc_body(scope_path);
                     self.pending_arity.push((
                         cmd_name.to_string(),
                         ns,
@@ -1662,6 +1745,20 @@ impl Analyser {
         // right for a *different* release (W149).
         if !sig.arity_windows.is_empty() {
             let axis = self.gated_arity_axis(resolution_name);
+            // The surplus run depends on the `max` the floor selects, so it is
+            // captured rather than computed: `excess` above is anchored to the
+            // fallback and would delete the wrong run for any window narrower
+            // than it.
+            let excess_inputs = {
+                let source_map = self.cached_source_map();
+                ExcessInputs::capture(
+                    arg_tokens,
+                    arg_expand,
+                    positional_start,
+                    &source_map,
+                    widen_token_end_in(&source_map, cmd_tok),
+                )
+            };
             self.pending_gated_arity
                 .push(super::version_gate::GatedArityCall {
                     axis,
@@ -1674,7 +1771,7 @@ impl Analyser {
                     nargs_min,
                     positional_any_expand,
                     span: full_span,
-                    excess,
+                    excess_inputs,
                     synopsis: sig.synopsis,
                 });
             return;
@@ -1930,7 +2027,7 @@ impl Analyser {
         else {
             return false;
         };
-        if self.profile.is_ambient_package(pkg) {
+        if self.profile_registry().is_ambient_package(pkg) {
             return false;
         }
         !self

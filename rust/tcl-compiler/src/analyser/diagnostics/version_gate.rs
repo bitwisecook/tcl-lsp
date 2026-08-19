@@ -158,10 +158,36 @@ pub(in crate::analyser) struct GatedArityCall {
     pub(in crate::analyser) positional_any_expand: bool,
     /// Span the count diagnostic anchors to.
     pub(in crate::analyser) span: Span,
-    /// The surplus-argument span and its delete fix, when isolable.
-    pub(in crate::analyser) excess: Option<super::validity::ExcessArgs>,
+    /// The inputs the surplus-argument span and its delete fix are recomputed
+    /// from, once the floor has selected a window and fixed the `max`.
+    pub(in crate::analyser) excess_inputs: super::validity::ExcessInputs,
     /// The resolved spec's primary synopsis, for the "usage: …" suffix.
     pub(in crate::analyser) synopsis: Option<&'static str>,
+}
+
+/// A bare call to an ensemble whose *parent* arity is versioned.
+///
+/// `SubcommandSig::subcommand_required` is derived from the fallback arity,
+/// so an ensemble that gained (or lost) a mandatory subcommand word across
+/// releases would be judged against the wrong shape. The inputs are buffered
+/// and the question re-asked once the floor is known, exactly as
+/// [`GatedArityCall`] does for the count.
+#[derive(Debug)]
+pub(in crate::analyser) struct GatedBareEnsemble {
+    /// The axis governing the windows, or `None` for a spec on no axis.
+    pub(in crate::analyser) axis: Option<VersionGateAxis>,
+    /// The parent's declared windows, in declaration order.
+    pub(in crate::analyser) windows: &'static [tcl_registry::arity::ArityWindow],
+    /// The parent shape to use when no window covers the resolved floor.
+    pub(in crate::analyser) fallback: tcl_registry::arity::Arity,
+    /// Command name, as the message spells it and as shadowing resolves it.
+    pub(in crate::analyser) cmd_name: String,
+    /// Call-site command-resolution namespace.
+    pub(in crate::analyser) namespace: String,
+    /// Whether a shadowing definition must lexically precede the call.
+    pub(in crate::analyser) enforce_order: bool,
+    /// Span the diagnostic anchors to (the command word).
+    pub(in crate::analyser) span: Span,
 }
 
 /// Version axes supported by the generic lifecycle consumer.
@@ -938,6 +964,10 @@ impl Analyser {
                 .map(|(floor, _guarantee)| floor);
             let selected = tcl_registry::arity::ArityWindow::select(call.windows, floor.as_deref());
             let arity = selected.map_or(call.fallback, |window| window.arity);
+            // Anchored to the shape actually being reported against, not the
+            // fallback: a narrower window has a longer surplus run, and the
+            // deletion fix has to remove all of it.
+            let excess = call.excess_inputs.at(usize::from(arity.max));
 
             let Some(diagnostic) = super::validity::arity_verdict(
                 &call.display_name,
@@ -945,7 +975,7 @@ impl Analyser {
                 call.nargs_min,
                 call.positional_any_expand,
                 call.span,
-                call.excess,
+                excess,
                 call.synopsis,
             ) else {
                 continue;
@@ -983,6 +1013,38 @@ impl Analyser {
                 call.namespace,
                 call.enforce_order,
                 diagnostic,
+            ));
+        }
+    }
+
+    /// Decide the buffered bare-ensemble calls now that floors are known.
+    ///
+    /// The parent's window at the resolved floor decides whether a subcommand
+    /// word was required; the verdict then joins `pending_arity` so an earlier
+    /// shadowing definition suppresses it exactly as an ungated E001 is.
+    pub(in crate::analyser) fn flush_gated_bare_ensembles(&mut self) {
+        if self.pending_gated_bare_ensemble.is_empty() {
+            return;
+        }
+        for call in std::mem::take(&mut self.pending_gated_bare_ensemble) {
+            let floor = call
+                .axis
+                .and_then(|axis| self.axis_floor(axis))
+                .map(|(floor, _guarantee)| floor);
+            let arity = tcl_registry::arity::ArityWindow::select(call.windows, floor.as_deref())
+                .map_or(call.fallback, |window| window.arity);
+            // A zero minimum at this floor means a bare call has a defined
+            // default in this release — not an error at all, exactly as the
+            // inline path treats a zero-minimum spec.
+            if arity.min == 0 {
+                continue;
+            }
+            let message = format!("'{}' requires a subcommand", call.cmd_name);
+            self.pending_arity.push((
+                call.cmd_name,
+                call.namespace,
+                call.enforce_order,
+                Diagnostic::new(DiagCode::E001, call.span, message, Severity::Error),
             ));
         }
     }
@@ -1537,6 +1599,41 @@ mod tests {
         );
     }
 
+    /// A pack's `ambient_package` row must silence **W120** too, not just
+    /// feed the version floor.
+    ///
+    /// Registering the floor while the same package still draws "needs a
+    /// `package require`" is the worst of both worlds: the analyser tells the
+    /// author to add a require for something the pack has just declared the
+    /// runtime already provides, and offers an insert fix that would be
+    /// wrong. Codex found this on #1642 — the floor was wired, the three
+    /// consumers that ask "is this ambient?" were not.
+    #[test]
+    fn a_pack_ambient_package_is_not_reported_as_a_missing_require() {
+        // `entry` belongs to Tk, which is *hosted* on tcl8.6 — so with no
+        // pack the missing require is real and W120 fires. That is the
+        // baseline the pack has to change.
+        let src = "entry .e\n";
+        let bare = Analyser::new()
+            .analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .any(|d| d.code.as_str() == "W120");
+        assert!(bare, "baseline: Tk is hosted on tcl8.6, so W120 is right");
+
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1642_0001, &[("Tk", "8.6")]);
+        let diags = analyser.analyse(src, "tcl8.6").diagnostics;
+        let w120: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code.as_str() == "W120")
+            .map(|d| d.message.clone())
+            .collect();
+        assert!(
+            w120.is_empty(),
+            "a pack declaring Tk ambient means there is nothing to require: {w120:?}"
+        );
+    }
+
     /// The three floors compose by taking the greatest, exactly as two
     /// `package require` lines already do — a floor is a lower bound.
     #[test]
@@ -1665,6 +1762,150 @@ mod tests {
                 }
             });
         Analyser::new().with_pack_overlay(key)
+    }
+
+    /// A spec whose window is **narrower** than its fallback — the shape the
+    /// surplus-run bug needs, since it only shows when the selected `max` is
+    /// below the `max` the walk anchored to.
+    fn analyser_with_narrowing_window(key: u64) -> Analyser {
+        use tcl_registry::arity::{Arity, ArityWindow};
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const WINDOWS: &[ArityWindow] = &[ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("3.0"),
+                deprecated: None,
+                retired: None,
+                deprecation_fix: None,
+            },
+            arity: Arity::exact(2),
+        }];
+
+        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let _registry =
+            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
+                registry.insert(tcl_registry::CommandSpec {
+                    name: "probe::shrank",
+                    // Fallback takes three; from 3.0 it takes two.
+                    arity: Arity::exact(3),
+                    arity_windows: WINDOWS,
+                    required_package: Some("Probe"),
+                    ..tcl_registry::CommandSpec::DEFAULT
+                });
+            });
+        Analyser::new().with_pack_overlay(key)
+    }
+
+    /// The surplus run is anchored to the shape actually reported against.
+    ///
+    /// The walk computes the excess from the *fallback* `max`, because the
+    /// window is not chosen until the floor is known. Reporting a narrower
+    /// window's verdict with that stale anchor makes the "remove surplus
+    /// arguments" fix delete only the tail of the surplus and leave a call
+    /// that is still wrong. Codex found this on #1642.
+    #[test]
+    fn the_surplus_run_follows_the_window_not_the_fallback() {
+        let mut analyser = analyser_with_narrowing_window(0x1642_0002);
+        let src = "package require Probe 3.0\nprobe::shrank a b c d\n";
+        let result = analyser.analyse(src, "tcl8.6");
+        let e003: Vec<_> = result
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.as_str() == "E003")
+            .collect();
+        assert_eq!(e003.len(), 1, "{:?}", result.diagnostics);
+
+        // Floor 3.0 selects the two-argument shape, so `c` and `d` are both
+        // surplus and the anchor starts at `c`. Anchoring to the fallback's
+        // three would have started at `d`.
+        let expected = u32::try_from(src.find("c d").expect("the surplus run")).expect("offset");
+        assert_eq!(
+            e003[0].span.start(),
+            expected,
+            "the anchor must cover every surplus word, not just the last: {:?}",
+            e003[0]
+        );
+    }
+
+    /// An ensemble that *gained* a mandatory subcommand word at 3.0: bare
+    /// calls are legal below that floor and an E001 at or above it.
+    fn analyser_with_versioned_ensemble(key: u64) -> Analyser {
+        use tcl_registry::arity::{Arity, ArityWindow};
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const WINDOWS: &[ArityWindow] = &[ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("3.0"),
+                deprecated: None,
+                retired: None,
+                deprecation_fix: None,
+            },
+            arity: Arity::at_least(1),
+        }];
+        const SUBS: &[tcl_registry::SubCommand] = &[tcl_registry::SubCommand {
+            name: "go",
+            arity: Arity::exact(0),
+            ..tcl_registry::SubCommand::DEFAULT
+        }];
+
+        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let _registry =
+            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
+                registry.insert(tcl_registry::CommandSpec {
+                    name: "probe::ens",
+                    // Below 3.0 a bare call has a defined default.
+                    arity: Arity::at_least(0),
+                    arity_windows: WINDOWS,
+                    subcommands: SUBS,
+                    required_package: Some("Probe"),
+                    ..tcl_registry::CommandSpec::DEFAULT
+                });
+            });
+        Analyser::new().with_pack_overlay(key)
+    }
+
+    /// Whether an ensemble requires a subcommand at all can change across
+    /// releases, so the bare-call verdict has to be taken at the resolved
+    /// floor like every other arity fact.
+    ///
+    /// `SubcommandSig::subcommand_required` is derived from the *fallback*
+    /// arity, so before this the parent's windows were simply never consulted
+    /// and a versioned ensemble's E001 ignored the floor entirely. Codex
+    /// found this on #1642.
+    #[test]
+    fn a_versioned_ensembles_bare_call_verdict_follows_the_floor() {
+        let e001 = |analyser: &mut Analyser, src: &str| {
+            analyser
+                .analyse(src, "tcl8.6")
+                .diagnostics
+                .iter()
+                .filter(|d| d.code.as_str() == "E001")
+                .map(|d| d.message.clone())
+                .collect::<Vec<_>>()
+        };
+
+        // Below the window: the fallback's zero minimum stands, so a bare
+        // call is a defined default and not an error.
+        let mut low = analyser_with_versioned_ensemble(0x1642_0003);
+        assert!(
+            e001(&mut low, "package require Probe 1.0\nprobe::ens\n").is_empty(),
+            "below 3.0 a bare call is legal"
+        );
+
+        // At the window: the subcommand word became mandatory.
+        let mut high = analyser_with_versioned_ensemble(0x1642_0004);
+        assert_eq!(
+            e001(&mut high, "package require Probe 3.0\nprobe::ens\n").len(),
+            1,
+            "from 3.0 a bare call is an E001"
+        );
+
+        // ...and naming the subcommand is fine at that floor.
+        let mut named = analyser_with_versioned_ensemble(0x1642_0005);
+        assert!(
+            e001(&mut named, "package require Probe 3.0\nprobe::ens go\n").is_empty(),
+            "a named subcommand satisfies the requirement"
+        );
     }
 
     fn arity_diags(analyser: &mut Analyser, source: &str) -> Vec<(String, String)> {
