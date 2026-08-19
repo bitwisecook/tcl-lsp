@@ -883,3 +883,86 @@ fn compiled_interpolated_and_switch_paths_match_real_tclsh() {
         );
     }
 }
+
+/// An **array index** carrying a `${…}` substitution is the route that reaches
+/// `codegen::helpers::parse_subst_template` — the compiler's *other* `${…}`
+/// decoder, the one that hard-coded the 8.x first-close rule while
+/// `parse_simple_var_ref` hard-coded the 9.x nesting rule (issue #1568).
+///
+/// These vectors exist because a mutation pass proved the rest of the suite
+/// could not see that decoder at all: reverting it to `find('}')` left every
+/// other test green. The array-index path is where it is observable, and each
+/// of the three shapes below fails when it is reverted.
+const COMPILED_ARRAY_INDEX_READ_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "set arr(WORLD) V\n",
+    "if {[catch {puts $arr(${a{b}c})} m]} { puts \"error:$m\" }\n",
+);
+
+/// The store direction: the index is decoded when writing, too.
+const COMPILED_ARRAY_INDEX_WRITE_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {set arr(${a{b}c}) V} m]} { puts \"error:$m\" } ",
+    "else { puts [array names arr] }\n",
+);
+
+/// The same index nested inside an interpolated word, so both decoders are on
+/// the path at once.
+const COMPILED_ARRAY_INDEX_INTERP_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "set arr(WORLD) V\n",
+    "if {[catch {puts \"v=$arr(${a{b}c})\"} m]} { puts \"error:$m\" }\n",
+);
+
+#[test]
+fn compiled_array_index_braced_var_follows_the_emulated_release() {
+    for (label, script, ok) in [
+        ("array read", COMPILED_ARRAY_INDEX_READ_SCRIPT, "V"),
+        ("array write", COMPILED_ARRAY_INDEX_WRITE_SCRIPT, "WORLD"),
+        (
+            "array read in a word",
+            COMPILED_ARRAY_INDEX_INTERP_SCRIPT,
+            "v=V",
+        ),
+    ] {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                vm_output(script, version),
+                "error:can't read \"a{b\": no such variable",
+                "{label} at {version:?} must use the 8.x first-close rule"
+            );
+        }
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                vm_output(script, version),
+                ok,
+                "{label} at {version:?} must use the 9.x nesting rule"
+            );
+        }
+    }
+}
+
+#[test]
+fn compiled_array_index_braced_var_matches_real_tclsh() {
+    let mut ran = 0;
+    for script in [
+        COMPILED_ARRAY_INDEX_READ_SCRIPT,
+        COMPILED_ARRAY_INDEX_WRITE_SCRIPT,
+        COMPILED_ARRAY_INDEX_INTERP_SCRIPT,
+    ] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}

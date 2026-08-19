@@ -115,30 +115,10 @@ fn literal_true_expr() -> ExprNode {
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
 /// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
 /// can never be compared as if it were its own literal text.
-/// The `${…}` close rule is release-dependent (issue #1568), and CFG lowering
-/// has no dialect in hand — it runs before the target release reaches codegen.
-///
-/// This gate picks an *optimisation* (`Raw`, which has dedicated scalar-load
-/// arms) over the general path (`String`, ordinary word substitution, correct
-/// at every release), so the sound direction when the releases disagree is to
-/// abstain. Requiring unanimity also keeps this decision consistent with
-/// whichever rule codegen's `parse_simple_var_ref` later applies: a subject
-/// only takes the `Raw` arm when *both* rules agree it is one whole reference,
-/// so the two can never disagree about the same word. Every ordinary spelling
-/// (`${x}`, `$x`) is unanimous; only a name containing a `}` divides them.
-fn is_whole_var_ref_at_every_release(subject: &str) -> bool {
-    [
-        tcl_dialect::BracedVarStyle::FirstClose,
-        tcl_dialect::BracedVarStyle::Tcl9Nesting,
-    ]
-    .into_iter()
-    .all(|style| crate::codegen::values::parse_simple_var_ref(subject, style).is_some())
-}
-
 fn switch_subject_operand(subject: &str) -> ExprNode {
     use crate::codegen::values::parse_braced_scalar_ref;
 
-    if parse_braced_scalar_ref(subject).is_some() || is_whole_var_ref_at_every_release(subject) {
+    if parse_braced_scalar_ref(subject).is_some() || is_whole_var_ref(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
         };
@@ -148,6 +128,39 @@ fn switch_subject_operand(subject: &str) -> ExprNode {
         start: 0,
         end: 0,
     }
+}
+
+/// Whether `subject` is one whole `${…}` / `$name` variable reference.
+///
+/// # The `${…}` close rule here is immaterial, and that is a measured claim
+///
+/// The rule is release-dependent (issue #1568) and CFG lowering has no dialect
+/// in hand — it runs before the target release reaches codegen. That looks
+/// like it needs a release-aware decision, and an earlier revision of this fix
+/// made one (accepting a subject only when *both* rules agreed it was one
+/// whole reference).
+///
+/// It is not needed, and the two-rule version was deleted rather than shipped:
+/// mutation testing could not distinguish it from either single rule. Switching
+/// this gate between `FirstClose`, `Tcl9Nesting`, and unanimity leaves the
+/// observable output identical across `switch --`, `switch -glob --`, the
+/// no-`--` form, and the inline-arms form, at 8.4/8.5/8.6/9.0/9.1, against both
+/// tclsh oracles.
+///
+/// The reason both branches converge: this only chooses which *operand shape*
+/// codegen receives, and codegen then re-decides under the real target rule.
+/// A subject the gate accepts as `Raw` is re-read by `parse_simple_var_ref`
+/// with the actual release's style; one it declines becomes `String`, the
+/// ordinary word-substitution path, which the VM resolves under that same
+/// style at run time. Either way the release rule is applied exactly once, by
+/// a consumer that knows it.
+///
+/// So this uses the codebase's standing convention for a dialect-less context
+/// — [`tcl_dialect::BracedVarStyle::default()`], the permissive 9.x rule, the
+/// same default `CodegenCtx` and the lexer take when no dialect is named.
+fn is_whole_var_ref(subject: &str) -> bool {
+    crate::codegen::values::parse_simple_var_ref(subject, tcl_dialect::BracedVarStyle::default())
+        .is_some()
 }
 
 impl CfgBuilder {

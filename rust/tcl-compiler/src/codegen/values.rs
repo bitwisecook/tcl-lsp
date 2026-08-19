@@ -471,6 +471,15 @@ impl CodegenCtx<'_> {
 /// caller's fallback path re-reads the word (issue #1457 gave the shared owner
 /// [`tcl_lexer::BracedVarEnd::Unterminated`] precisely so each consumer stops
 /// inventing its own recovery).
+///
+/// The two wrong values of `style` are **not** symmetric here, which is worth
+/// knowing before anyone "simplifies" this parameter away. Pinning it to
+/// `Tcl9Nesting` is a real defect — an 8.x compile then accepts `${a{b}c}` as
+/// one reference to `a{b}c`, and five tests fail. Pinning it to `FirstClose`
+/// is merely *pessimal*: a 9.x compile declines a reference it could have
+/// loaded directly, the word falls back to runtime substitution, and
+/// `subst_word` resolves it correctly under the same release rule — so no test
+/// can see it. Declining is always safe; accepting wrongly is not.
 #[must_use]
 pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
     let rest = value.strip_prefix("${")?;

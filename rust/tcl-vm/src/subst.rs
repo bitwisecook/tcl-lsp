@@ -530,6 +530,19 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
     // variable `a{b` even when emulating 9.x. `subst`'s own engine was fixed
     // for #1457 via `parse_var_ref_parts`; this is the compiled-word path,
     // which had its own copy.
+    //
+    // Do not go hunting for a test that pins the *style* here: there is none,
+    // and that was measured, not assumed. Pinning this call to `FirstClose`
+    // leaves every vector in a 14-program search unchanged, because the arm is
+    // only ever *reached* when both rules agree. A whole-word `${name}` whose
+    // rules agree is resolved at compile time (`parse_simple_var_ref` →
+    // `load_var`) and never reaches `subst_word` at all; one whose rules
+    // disagree fails this arm's `close == n - 1` test under either style and
+    // falls through to the general scan below, which is the arm the release
+    // rule is observable through (and which is pinned by
+    // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
+    // It is written release-aware anyway so the two arms cannot drift apart —
+    // the drift between two such copies is the whole of #1568.
     let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
