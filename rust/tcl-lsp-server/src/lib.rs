@@ -12197,9 +12197,11 @@ impl Backend {
             .to_owned();
         let dialect = self.session_dialect().await;
         let registry = self.registry_for_dialect(&dialect).await;
-        // Dialect ingress — see the note on the hover path: `by_name` would
-        // drop a `tk` session onto the plain-Tcl profile and hide every Tk
-        // ensemble's subcommands.
+        // Dialect ingress — see the note on the hover path. Same reasoning and
+        // the same non-claim: subcommands resolve for a `tk` session under
+        // either resolution, since they come from the name-keyed registry
+        // above. Resolving through the ingress keeps the profile and that
+        // registry describing the same dialect.
         let profile = tcl_lsp_core::profile_for_dialect(&dialect);
         let mut subs: Vec<serde_json::Value> = {
             use tcl_registry::ProfileQueries;
@@ -17986,8 +17988,14 @@ impl LanguageServer for Backend {
             .await;
         // `profile_for_dialect`, not `by_name`: this is a dialect ingress, and
         // `by_name` sinks the additive set-only spelling `tk` to the plain
-        // fallback — so a `tk` document used to hover as plain Tcl and lose
-        // every Tk command's documentation.
+        // fallback. That is not a repair — hover answers a `tk` document
+        // correctly either way, because the registry beside this profile is
+        // keyed by the dialect *name* and the plain-Tcl fallback is permissive
+        // enough to resolve its rows. Resolving here forecloses the divergence
+        // instead: the profile and the registry now agree about what `tk` is,
+        // so a future gate that does consult the profile cannot silently
+        // disagree with the command surface. See
+        // `hover_on_a_tk_document_resolves_a_tk_command`.
         let hover_profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
         // The cross-document fallback must only fire on a command head, the
         // same gate `compute_definition` applies — otherwise an argument word

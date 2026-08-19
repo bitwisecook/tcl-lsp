@@ -251,7 +251,9 @@ mod tests {
     fn an_uncatalogued_dialect_keeps_the_target_numeral_grammar() {
         use tcl_dialect::NumberSyntax;
 
-        // Thread-local: scoped to this test's thread only.
+        // Thread-local, but `cargo test` may run this thread again for another
+        // test, so restore it the way `number.rs`'s own ambient tests do.
+        let restore = tcl_syntax::number::runtime_syntax();
         tcl_syntax::number::set_runtime_syntax(NumberSyntax::Tcl84);
         assert_eq!(
             tcl_syntax::number::runtime_syntax(),
@@ -261,8 +263,11 @@ mod tests {
         );
 
         let profile = emit_profile(Some("tk")).expect("`tk` resolves to a profile");
+        let numerals = NumberSyntax::of_profile(Some(profile));
+        tcl_syntax::number::set_runtime_syntax(restore);
+
         assert_eq!(
-            NumberSyntax::of_profile(Some(profile)),
+            numerals,
             NumberSyntax::Tcl90,
             "a `tk` compile reads numerals under its target grammar, not the \
              thread-ambient one"
