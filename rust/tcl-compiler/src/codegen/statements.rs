@@ -404,7 +404,7 @@ impl CodegenCtx<'_> {
             return;
         }
         // Variable reference: ${var} → load
-        if let Some(var_name) = parse_simple_var_ref(value) {
+        if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
             self.load_var(var_name);
             return;
         }
@@ -441,7 +441,7 @@ impl CodegenCtx<'_> {
         // subst path, which cannot resolve the bare `$idx` inside the index.
         if value.starts_with('$')
             && value.ends_with(')')
-            && let Some(parts) = parse_subst_template(value, self.escapes)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
             && parts.len() == 1
             && let SubstPart::Var(name) = &parts[0]
             && split_array_ref(name).is_some()
@@ -461,7 +461,7 @@ impl CodegenCtx<'_> {
         // braces. A genuine braced argument never reaches here (it is emitted by
         // the braced-word path), so decomposing is safe.
         if (value.contains('$') || value.contains('['))
-            && let Some(parts) = parse_subst_template(value, self.escapes)
+            && let Some(parts) = parse_subst_template(value, self.escapes, self.braced_var)
             && parts.len() > 1
             && (parts
                 .iter()
@@ -573,7 +573,7 @@ impl CodegenCtx<'_> {
             return false;
         }
         if !matches!(
-            parse_subst_template(value, self.escapes).as_deref(),
+            parse_subst_template(value, self.escapes, self.braced_var).as_deref(),
             Some([SubstPart::Cmd(_)])
         ) {
             return false;

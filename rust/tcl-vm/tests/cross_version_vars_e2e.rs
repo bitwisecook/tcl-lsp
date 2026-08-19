@@ -665,3 +665,147 @@ fn braced_var_close_rule_matches_real_tclsh() {
         eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }
+
+// ---------------------------------------------------------------------------
+// The COMPILED-WORD `${…}` path (issue #1568)
+//
+// The scripts above drive `subst`, an *interpreted* engine. These drive the
+// compiler's normalised-word round-trip instead: the segmenter re-spells a
+// `Var` token as source-like text and codegen decodes that spelling back. The
+// two paths were fixed separately because they failed differently — #1457's
+// engines hard-coded the 8.x rule at every release, while here the *encoder*
+// discarded the braced form and the *two decoders* applied opposite rules, so
+// the compiled path was wrong in both directions at once: 8.x produced the 9.x
+// answer and 9.x substituted nothing at all.
+//
+// Keeping both sets in one file makes the two paths' agreement visible.
+// ---------------------------------------------------------------------------
+
+/// Assignment position — `set r ${a{b}c}`, the form #1568 was filed with.
+const COMPILED_BRACED_VAR_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {set r ${a{b}c}} m]} { puts \"error:$m\" } else { puts \"ok:$r\" }\n",
+);
+
+/// Argument position — `puts ${a{b}c}` lowers differently from an assignment.
+const COMPILED_BRACED_VAR_ARG_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {puts ${a{b}c}} m]} { puts \"error:$m\" }\n",
+);
+
+/// Inside a proc body — the local-variable-table path, a third lowering.
+const COMPILED_BRACED_VAR_PROC_SCRIPT: &str = concat!(
+    "proc f {} {\n",
+    "    set {a{b}c} WORLD\n",
+    "    if {[catch {set r ${a{b}c}} m]} { puts \"error:$m\" } else { puts \"ok:$r\" }\n",
+    "}\n",
+    "f\n",
+);
+
+/// The escape half: `\}` is an inert pair under 9.x only.
+const COMPILED_BRACED_VAR_ESCAPE_SCRIPT: &str = concat!(
+    "set {a\\}b} ESC\n",
+    "if {[catch {set r ${a\\}b}} m]} { puts \"error:$m\" } else { puts \"ok:$r\" }\n",
+);
+
+/// Ordinary braced references that every release spells identically — the
+/// regression guard. A fix that made the release rule reachable must not have
+/// disturbed the overwhelming majority of `${…}` words, including the array
+/// element form, whose parentheses are name characters in the brace form.
+const COMPILED_PLAIN_BRACED_SCRIPT: &str =
+    concat!("set a X\n", "set arr(k) v\n", "puts ${a}-${arr(k)}\n",);
+
+#[test]
+fn compiled_braced_var_close_rule_follows_the_emulated_release() {
+    // The argument-position script prints the value straight from `puts`, so
+    // it has no `ok:` prefix to echo; the other two report through a result
+    // variable. Carrying the expected success text per script keeps each one
+    // asserting its own real output rather than a shared guess.
+    for (label, script, ok) in [
+        ("assignment", COMPILED_BRACED_VAR_SCRIPT, "ok:WORLD"),
+        ("argument", COMPILED_BRACED_VAR_ARG_SCRIPT, "WORLD"),
+        ("proc body", COMPILED_BRACED_VAR_PROC_SCRIPT, "ok:WORLD"),
+    ] {
+        // 8.x family: the name ends at the first literal `}`, so it is `a{b` —
+        // which no variable is called — and `c}` is ordinary word text.
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                vm_output(script, version),
+                "error:can't read \"a{b\": no such variable",
+                "{label} at {version:?} must use the 8.x first-close rule"
+            );
+        }
+        // 9.x: nested braces balance, so the whole `a{b}c` is the name. Before
+        // the fix this emitted the literal text `$a{b}c` — no substitution at
+        // all — because the segmenter had discarded the braced spelling.
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                vm_output(script, version),
+                ok,
+                "{label} at {version:?} must use the 9.x nesting rule"
+            );
+        }
+    }
+}
+
+#[test]
+fn compiled_braced_var_escape_follows_the_emulated_release() {
+    assert_eq!(
+        vm_output(COMPILED_BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V9_0),
+        "ok:ESC",
+        "9.x consumes an escaped close-brace as an inert pair"
+    );
+    assert!(
+        vm_output(COMPILED_BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V8_6).starts_with("error:"),
+        "8.x closes the name at the first literal close-brace"
+    );
+}
+
+#[test]
+fn ordinary_braced_var_references_are_unchanged_at_every_release() {
+    for version in [
+        TclVersion::V8_4,
+        TclVersion::V8_5,
+        TclVersion::V8_6,
+        TclVersion::V9_0,
+        TclVersion::V9_1,
+    ] {
+        assert_eq!(
+            vm_output(COMPILED_PLAIN_BRACED_SCRIPT, version),
+            "X-v",
+            "{version:?} must still resolve a plain ${{name}} and ${{arr(k)}}"
+        );
+    }
+}
+
+/// The compiled path pinned against real tclsh, the sibling of
+/// [`braced_var_close_rule_matches_real_tclsh`] for the `subst` scripts.
+///
+/// Skips loudly (and says which binary was missing) rather than passing
+/// silently when no oracle is installed.
+#[test]
+fn compiled_braced_var_close_rule_matches_real_tclsh() {
+    let mut ran = 0;
+    for script in [
+        COMPILED_BRACED_VAR_SCRIPT,
+        COMPILED_BRACED_VAR_ARG_SCRIPT,
+        COMPILED_BRACED_VAR_PROC_SCRIPT,
+        COMPILED_BRACED_VAR_ESCAPE_SCRIPT,
+        COMPILED_PLAIN_BRACED_SCRIPT,
+    ] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}

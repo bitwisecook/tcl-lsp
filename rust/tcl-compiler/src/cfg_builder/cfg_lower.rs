@@ -115,10 +115,30 @@ fn literal_true_expr() -> ExprNode {
 /// `fold_const_branch` only folds a whole-condition literal, never a `Binary`.
 /// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
 /// can never be compared as if it were its own literal text.
-fn switch_subject_operand(subject: &str) -> ExprNode {
-    use crate::codegen::values::{parse_braced_scalar_ref, parse_simple_var_ref};
+/// The `${…}` close rule is release-dependent (issue #1568), and CFG lowering
+/// has no dialect in hand — it runs before the target release reaches codegen.
+///
+/// This gate picks an *optimisation* (`Raw`, which has dedicated scalar-load
+/// arms) over the general path (`String`, ordinary word substitution, correct
+/// at every release), so the sound direction when the releases disagree is to
+/// abstain. Requiring unanimity also keeps this decision consistent with
+/// whichever rule codegen's `parse_simple_var_ref` later applies: a subject
+/// only takes the `Raw` arm when *both* rules agree it is one whole reference,
+/// so the two can never disagree about the same word. Every ordinary spelling
+/// (`${x}`, `$x`) is unanimous; only a name containing a `}` divides them.
+fn is_whole_var_ref_at_every_release(subject: &str) -> bool {
+    [
+        tcl_dialect::BracedVarStyle::FirstClose,
+        tcl_dialect::BracedVarStyle::Tcl9Nesting,
+    ]
+    .into_iter()
+    .all(|style| crate::codegen::values::parse_simple_var_ref(subject, style).is_some())
+}
 
-    if parse_braced_scalar_ref(subject).is_some() || parse_simple_var_ref(subject).is_some() {
+fn switch_subject_operand(subject: &str) -> ExprNode {
+    use crate::codegen::values::parse_braced_scalar_ref;
+
+    if parse_braced_scalar_ref(subject).is_some() || is_whole_var_ref_at_every_release(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
         };
