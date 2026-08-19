@@ -1789,10 +1789,37 @@ fn cmd_unset(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     ok(Value::empty())
 }
 
+/// Whether `name` looks like an array element (`arr(k)`, `(k)`) — the test C's
+/// `TclObjLookupVarEx` applies, through the one shared owner (issue #1458).
+fn looks_like_element(name: &str) -> bool {
+    tcl_syntax::naming::split_element_ref(name).is_some()
+}
+
+/// The unqualified tail of a possibly `::`-qualified variable name.
+fn name_tail(name: &str) -> &str {
+    name.rsplit("::").next().unwrap_or(name)
+}
+
+/// C's `MakeUpvar` refusal for a link *target name* that looks like an array
+/// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
+/// `global a(b)` are hard errors rather than silent mislinks (issue #1458's
+/// companion guard).
+fn bad_link_name(name: &str) -> Completion<Value> {
+    err(format!(
+        "bad variable name \"{name}\": can't create a scalar variable that looks like an array element"
+    ))
+}
+
 /// `global name ?name ...?` — link names to the global frame.
 fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     for n in args {
         let nm = n.to_str();
+        // C links under the *tail* and reports the tail: `global ::x::a(b)`
+        // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
+        let tail = name_tail(&nm);
+        if looks_like_element(tail) {
+            return bad_link_name(tail);
+        }
         vm.add_link(&nm, 0, &nm);
     }
     ok(Value::empty())
@@ -1827,6 +1854,16 @@ fn cmd_upvar(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     while i + 1 < rest.len() {
         let other = rest[i].to_str();
         let local = rest[i + 1].to_str();
+        // The *local* name may not look like an array element (C's `MakeUpvar`);
+        // the other-var side legally may (`upvar 0 arr(k) v` is fine).
+        //
+        // Scoped to unqualified locals on purpose: a *qualified* element-looking
+        // local (`upvar 0 zz ::x::l(k)`) hits C's earlier `can't create namespace
+        // variable that refers to procedure variable` check instead, which this
+        // VM does not implement — guarding it here would emit the wrong message.
+        if !local.contains("::") && looks_like_element(&local) {
+            return bad_link_name(&local);
+        }
         // Inside a `namespace eval` body, an unqualified alias names a namespace
         // variable: store the link in the global frame under the qualified name
         // (and resolve the target to its namespace-qualified location), so a
@@ -1961,7 +1998,15 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // Namespace variables live in the global frame keyed by their canonical
         // qualified name; alias the unqualified local the body uses to it.
         let qual = vm.qualify_name(&name);
-        let local = name.rsplit("::").next().unwrap_or(&name).to_owned();
+        let local = name_tail(&name).to_owned();
+        // C's `TclNRVariableObjCmd` rejects an element-looking target, checking
+        // the tail but naming the *given* spelling: `variable ::x::v(k)` says
+        // `can't define "::x::v(k)"`. Verified on 8.6.16 and 9.0.4.
+        if looks_like_element(&local) {
+            return err(format!(
+                "can't define \"{name}\": name refers to an element in an array"
+            ));
+        }
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
             // `set_var` follows the alias just installed to the real cell.

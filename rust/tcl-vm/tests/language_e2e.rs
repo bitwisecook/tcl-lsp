@@ -431,3 +431,71 @@ fn zero_length_array_name_is_an_array_element() {
     assert!(ok);
     assert_eq!(out, "1\n0\n");
 }
+
+/// Issue #1458's companion guard: the element-reference rule also decides what
+/// the **link** commands may name.
+///
+/// A link (`upvar`, `global`, `variable`) always binds a *scalar* cell, so C
+/// refuses a target that looks like an array element — `MakeUpvar` raises
+/// `bad variable name "…": can't create a scalar variable that looks like an
+/// array element`, and `variable` raises `can't define "…": name refers to an
+/// element in an array`. This VM had neither check and silently created a
+/// mislinked variable whose name merely *contained* parentheses.
+///
+/// Both messages, and which spelling each reports for a qualified name, are
+/// byte-checked against `tclsh8.6.16` and `tclsh9.0.4` — they agree.
+#[test]
+fn link_commands_reject_element_looking_names() {
+    const SCALAR: &str =
+        "can't create a scalar variable that looks like an array element";
+
+    // `upvar` guards the *local* name; the other-var side may legally be an
+    // element.
+    let (ok, r, _out) = run("proc p {} { set zz 1; upvar 0 zz (v) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"(v)\": {SCALAR}"));
+    let (ok, r, _out) = run("proc p {} { set zz 1; upvar 0 zz arr(k) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"arr(k)\": {SCALAR}"));
+    let (ok, _r, out) = run("proc p {} { upvar 0 arr(k) v; set v 9; puts $v }\np\n");
+    assert!(ok, "an element is a legal upvar *target*");
+    assert_eq!(out, "9\n");
+
+    // `global` guards each name, reporting the unqualified tail.
+    let (ok, r, _out) = run("proc p {} { global (x) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"(x)\": {SCALAR}"));
+    let (ok, r, _out) = run("namespace eval x {}\nproc p {} { global ::x::a(b) }\np\n");
+    assert!(!ok);
+    assert_eq!(
+        r,
+        format!("bad variable name \"a(b)\": {SCALAR}"),
+        "C reports the tail, not the qualified spelling"
+    );
+
+    // `variable` has its own wording, and reports the name *as given*.
+    let (ok, r, _out) = run("namespace eval q {variable (y) 7}\n");
+    assert!(!ok);
+    assert_eq!(
+        r,
+        "can't define \"(y)\": name refers to an element in an array"
+    );
+    let (ok, r, _out) = run("namespace eval q {variable v(k) 7}\n");
+    assert!(!ok);
+    assert_eq!(
+        r,
+        "can't define \"v(k)\": name refers to an element in an array"
+    );
+    let (ok, r, _out) = run("namespace eval x {}\nnamespace eval q {variable ::x::v(k) 7}\n");
+    assert!(!ok);
+    assert_eq!(
+        r,
+        "can't define \"::x::v(k)\": name refers to an element in an array",
+        "C reports the qualified spelling here, unlike `global`"
+    );
+
+    // Names that only *look* similar are still fine.
+    let (ok, _r, out) = run("proc p {} { global {)} ; set {)} 1; puts ok }\np\n");
+    assert!(ok, "a name with no `(` is not an element");
+    assert_eq!(out, "ok\n");
+}
