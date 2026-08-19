@@ -290,12 +290,34 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
+/// A scratch path private to this test **process**.
+///
+/// Every scratch path here used to be a fixed name directly under
+/// `std::env::temp_dir()` (`/tmp/tcl_real_link_user_mixed2.wasm`, …). The `tag`
+/// callers weave into `name` keeps concurrent *cases* apart, but only within one
+/// process — the path is otherwise machine-global, so two checkouts running this
+/// suite at the same time (one worktree per agent, or a `make test` beside an
+/// editor's test run) write, read, and `remove_file` each other's modules and
+/// bootstraps mid-run. Prefixing the process id closes that second hole and
+/// leaves the per-case `tag` doing its original job.
+fn scratch(name: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("{}_{name}", std::process::id()))
+}
+
 /// Build `runtime/rust` to `wasm32-wasip1` with the reserved-region
 /// linker flag, into an isolated target dir. Returns the artifact path, or `None`
 /// if the build can't run (e.g. the wasm32 target is missing) so the test skips.
 fn build_reserved_runtime() -> Option<PathBuf> {
     let root = workspace_root();
-    let target_dir = std::env::temp_dir().join("tcl_reserved_runtime");
+    // Inside *this* checkout's `target/`, never a machine-global `/tmp` name.
+    // A shared target dir means every concurrent checkout builds its own
+    // `runtime/rust` over the same `tcl_runtime.wasm` and then runs `wasmtime`
+    // against whichever build happens to be on disk — cargo's lock serialises
+    // the builds but nothing holds it across the gap between building the
+    // runtime and linking against it. Keying on the checkout keeps the
+    // first-run build cached (the point of a fixed path) without ever handing
+    // this suite a runtime compiled from someone else's source.
+    let target_dir = root.join("target/tcl_reserved_runtime");
     let mut command = Command::new("cargo");
     let wasi_sdk = std::env::var_os("WASI_SDK_PATH")
         .map(PathBuf::from)
@@ -439,9 +461,8 @@ fn run_link_bytes(
     program: &str,
     query: &str,
 ) -> String {
-    let tmp = std::env::temp_dir();
-    let user = tmp.join(format!("tcl_real_link_user_{tag}.wasm"));
-    let boot = tmp.join(format!("tcl_real_link_boot_{tag}.wat"));
+    let user = scratch(&format!("tcl_real_link_user_{tag}.wasm"));
+    let boot = scratch(&format!("tcl_real_link_boot_{tag}.wat"));
     std::fs::write(&user, user_bytes).expect("write user module");
     std::fs::write(&boot, bootstrap_wat(query)).expect("write bootstrap");
 
@@ -510,9 +531,8 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
         "native proof did not select: {:?}",
         output.plan
     );
-    let tmp = std::env::temp_dir();
-    let user = tmp.join("tcl_real_native_i64_user.wasm");
-    let boot = tmp.join("tcl_real_native_i64_boot.wat");
+    let user = scratch("tcl_real_native_i64_user.wasm");
+    let boot = scratch("tcl_real_native_i64_boot.wat");
     std::fs::write(&user, output.to_bytes()).expect("write native i64 user module");
     std::fs::write(&boot, native_i64_add_bootstrap_wat()).expect("write native i64 bootstrap");
     let out = Command::new("wasmtime")
@@ -547,9 +567,8 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
     );
     let user_bytes = output.to_bytes();
 
-    let tmp = std::env::temp_dir();
-    let user = tmp.join("tcl_real_generic_user.wasm");
-    let boot = tmp.join("tcl_real_generic_boot.wat");
+    let user = scratch("tcl_real_generic_user.wasm");
+    let boot = scratch("tcl_real_generic_boot.wat");
     std::fs::write(&user, user_bytes).expect("write generic user module");
     std::fs::write(&boot, generic_invoke_bootstrap_wat(expected_code)).expect("write bootstrap");
     let out = Command::new("wasmtime")
@@ -595,9 +614,8 @@ fn run_real_guarded_intrinsic_invoke(
     assert!(wat.contains("tcl_intrinsic_invoke_argv"), "{wat}");
     let user_bytes = output.to_bytes();
 
-    let tmp = std::env::temp_dir();
-    let user = tmp.join("tcl_real_guarded_user.wasm");
-    let boot = tmp.join("tcl_real_guarded_boot.wat");
+    let user = scratch("tcl_real_guarded_user.wasm");
+    let boot = scratch("tcl_real_guarded_boot.wat");
     std::fs::write(&user, user_bytes).expect("write guarded user module");
     std::fs::write(&boot, semantic_invoke_bootstrap_wat(expected_code, setup))
         .expect("write guarded bootstrap");
@@ -622,8 +640,7 @@ fn run_real_guarded_intrinsic_invoke(
 }
 
 fn run_real_native_wide_int_abi(runtime: &Path, value: i64) -> String {
-    let tmp = std::env::temp_dir();
-    let boot = tmp.join("tcl_real_native_wide_int_boot.wat");
+    let boot = scratch("tcl_real_native_wide_int_boot.wat");
     std::fs::write(&boot, native_wide_int_bootstrap_wat(value))
         .expect("write native wide-int bootstrap");
     let out = Command::new("wasmtime")
@@ -792,9 +809,8 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
             "set go 1\nwhile {$go} {string index\nlappend never x}\nstring length abc\n",
         ),
     ] {
-        let tmp = std::env::temp_dir();
-        let user = tmp.join(format!("tcl_real_leak_user_{tag}.wasm"));
-        let boot = tmp.join(format!("tcl_real_leak_boot_{tag}.wat"));
+        let user = scratch(&format!("tcl_real_leak_user_{tag}.wasm"));
+        let boot = scratch(&format!("tcl_real_leak_boot_{tag}.wat"));
         // The frame-alloc requirement is what keeps this honest: under source
         // evaluation no transient frame is ever allocated, so the outstanding
         // count the bootstrap checks would balance at zero and the case would
