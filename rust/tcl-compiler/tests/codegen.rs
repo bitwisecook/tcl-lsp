@@ -2077,3 +2077,37 @@ fn the_trust_gate_is_per_name_not_whole_module() {
     assert!(lits.contains(&"a b c".to_owned()), "{lits:?}");
     assert!(lits.contains(&"k v".to_owned()), "{lits:?}");
 }
+
+/// The *simplified* value emitter (`emit_value_interpolated`) carries its own
+/// copy of the three folds, reached from the hook emitters rather than from
+/// the argument path the tests above take — `lset`'s new-value word is one.
+/// Gate it separately or the fold survives on this side (issue #1585).
+#[test]
+fn the_simplified_value_emitters_folds_answer_to_the_same_gate() {
+    let lits = |src: &str| proc_asm(src, "::p").literals.entries().to_vec();
+
+    let list_body = "proc p {} {set l {x}\nlset l 0 [list a b c]\nreturn $l}\n";
+    assert!(lits(list_body).contains(&"a b c".to_owned()));
+    let renamed = lits(&format!("{list_body}rename list mylist\np\n"));
+    assert!(
+        !renamed.contains(&"a b c".to_owned()) && renamed.contains(&"list".to_owned()),
+        "`lset`'s value word must keep the real `list` call: {renamed:?}"
+    );
+
+    let fmt_body = "proc p {} {set l {x}\nlset l 0 [format \"%s!\" hi]\nreturn $l}\n";
+    assert!(lits(fmt_body).contains(&"hi!".to_owned()));
+    let shadowed = lits(&format!("{fmt_body}proc format {{args}} {{return z}}\np\n"));
+    assert!(
+        !shadowed.contains(&"hi!".to_owned()) && shadowed.contains(&"%s!".to_owned()),
+        "`lset`'s value word must keep the real `format` call: {shadowed:?}"
+    );
+
+    let dict_body = "proc p {} {set l {x}\nlset l 0 [dict create a 1]\nreturn $l}\n";
+    let base_ops = opcodes(&proc_asm(dict_body, "::p"));
+    assert!(base_ops.contains(&Op::VERIFY_DICT), "{base_ops:?}");
+    let deleted = opcodes(&proc_asm(&format!("{dict_body}rename dict {{}}\np\n"), "::p"));
+    assert!(
+        !deleted.contains(&Op::VERIFY_DICT),
+        "`lset`'s value word must keep the real `dict create` call: {deleted:?}"
+    );
+}
