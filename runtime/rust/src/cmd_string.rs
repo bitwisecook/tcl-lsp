@@ -365,102 +365,19 @@ fn tcl_prefix(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// Reconstruct Tcl's full list-parse error message (`TclFindElement`,
-/// tclUtil.c), including the offending fragment for the "followed by" cases.
-/// Returns `None` when `s` is a well-formed list. Mirrors
-/// `tcl_syntax::list::find_element` (whose `ListError` message is fragment-less).
-fn list_error_message(s: &[u8]) -> Option<Vec<u8>> {
-    use tcl_syntax::list::is_list_space;
-    let len = s.len();
-    let mut pos = 0;
-    while pos < len {
-        while pos < len && is_list_space(s[pos]) {
-            pos += 1;
-        }
-        if pos >= len {
-            break;
-        }
-        let mut open_braces = 0usize;
-        let mut in_quotes = false;
-        let mut p = pos;
-        match s[p] {
-            b'{' => {
-                open_braces = 1;
-                p += 1;
-            }
-            b'"' => {
-                in_quotes = true;
-                p += 1;
-            }
-            _ => {}
-        }
-        loop {
-            if p >= len {
-                if open_braces != 0 {
-                    return Some(b"unmatched open brace in list".to_vec());
-                }
-                if in_quotes {
-                    return Some(b"unmatched open quote in list".to_vec());
-                }
-                break;
-            }
-            match s[p] {
-                b'{' if open_braces != 0 => open_braces += 1,
-                b'}' if open_braces > 1 => open_braces -= 1,
-                b'}' if open_braces == 1 => {
-                    p += 1;
-                    if p < len && !is_list_space(s[p]) {
-                        return Some(followed_by_message(b"braces", s, p));
-                    }
-                    break;
-                }
-                b'"' if in_quotes => {
-                    p += 1;
-                    if p < len && !is_list_space(s[p]) {
-                        return Some(followed_by_message(b"quotes", s, p));
-                    }
-                    break;
-                }
-                b'\\' => {
-                    p += if p + 1 < len { 2 } else { 1 };
-                    continue;
-                }
-                c if open_braces == 0 && !in_quotes && is_list_space(c) => break,
-                _ => {}
-            }
-            p += 1;
-        }
-        while p < len && is_list_space(s[p]) {
-            p += 1;
-        }
-        pos = p;
-    }
-    None
-}
-
-/// `list element in <kind> followed by "<fragment>" instead of space`, where the
-/// fragment runs from `p` to the next list-space (max 20 bytes, as in C).
-fn followed_by_message(kind: &[u8], s: &[u8], p: usize) -> Vec<u8> {
-    use tcl_syntax::list::is_list_space;
-    let mut q = p;
-    while q < s.len() && !is_list_space(s[q]) && q < p + 20 {
-        q += 1;
-    }
-    let mut m = b"list element in ".to_vec();
-    m.extend_from_slice(kind);
-    m.extend_from_slice(b" followed by \"");
-    m.extend_from_slice(&s[p..q]);
-    m.extend_from_slice(b"\" instead of space");
-    m
-}
 
 /// Split `s` as a Tcl list, or set the full list-parse error and return the
 /// failing `Code` (used by the `tcl::prefix` subcommands).
+///
+/// The message comes from [`crate::parse::list_error_message`], which builds it
+/// out of the shared codec. This function used to reach a local re-scan of the
+/// list — a third implementation of `TclFindElement` alongside the owner and
+/// `parse.rs`'s copy — purely to recover the junk fragment (issue #1429).
 fn split_list_or_error(interp: &mut Interp, s: &[u8]) -> Result<Vec<Vec<u8>>, Code> {
     match crate::parse::split_list(s) {
         Ok(t) => Ok(t),
         Err(e) => {
-            let msg = list_error_message(s).unwrap_or_else(|| e.message().to_vec());
+            let msg = crate::parse::list_error_message(s, e);
             Err(interp.set_error(&msg))
         }
     }

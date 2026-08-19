@@ -16,38 +16,56 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Generated BIG-IP object-spec data modules (one per kind-name
-//! initial). Aggregated by [`all_specs`].
+//! Hand-maintained BIG-IP object-spec data modules (one per tmsh module
+//! word) — see each module's doc comment for provenance and issue #1404.
+//! Aggregated by [`all_specs`]; `cargo xtask bigip-data-schema --check`
+//! guards their internal consistency.
 use super::BigipObjectSpec;
 
-mod a;
-mod c;
-mod g;
-mod i;
-mod l;
-mod m;
-mod n;
-mod p;
-mod s;
-mod u;
-mod v;
-mod w;
+mod analytics;
+mod api_protection;
+mod apm;
+mod asm;
+mod auth;
+mod cli;
+mod cm;
+mod gtm;
+mod ilx;
+mod ltm;
+mod mgmt;
+mod net;
+mod pem;
+mod saas;
+mod security;
+mod sys;
+mod util;
+mod vcmp;
+mod wam;
+mod wom;
 
 /// All generated BIG-IP object specs, in kind-name order.
 #[must_use]
 pub fn all_specs() -> Vec<&'static BigipObjectSpec> {
     let mut v: Vec<&'static BigipObjectSpec> = Vec::new();
-    v.extend(a::SPECS.iter());
-    v.extend(c::SPECS.iter());
-    v.extend(g::SPECS.iter());
-    v.extend(i::SPECS.iter());
-    v.extend(l::SPECS.iter());
-    v.extend(m::SPECS.iter());
-    v.extend(n::SPECS.iter());
-    v.extend(p::SPECS.iter());
-    v.extend(s::SPECS.iter());
-    v.extend(u::SPECS.iter());
-    v.extend(v::SPECS.iter());
-    v.extend(w::SPECS.iter());
+    v.extend(analytics::SPECS.iter());
+    v.extend(api_protection::SPECS.iter());
+    v.extend(apm::SPECS.iter());
+    v.extend(asm::SPECS.iter());
+    v.extend(auth::SPECS.iter());
+    v.extend(cli::SPECS.iter());
+    v.extend(cm::SPECS.iter());
+    v.extend(gtm::SPECS.iter());
+    v.extend(ilx::SPECS.iter());
+    v.extend(ltm::SPECS.iter());
+    v.extend(mgmt::SPECS.iter());
+    v.extend(net::SPECS.iter());
+    v.extend(pem::SPECS.iter());
+    v.extend(saas::SPECS.iter());
+    v.extend(security::SPECS.iter());
+    v.extend(sys::SPECS.iter());
+    v.extend(util::SPECS.iter());
+    v.extend(vcmp::SPECS.iter());
+    v.extend(wam::SPECS.iter());
+    v.extend(wom::SPECS.iter());
     v
 }

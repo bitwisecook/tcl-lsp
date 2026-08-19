@@ -54,14 +54,22 @@ fn dict_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                     interp.set_result(v);
                     Code::Ok
                 }
-                // The shared core reports errors by message only; re-attach C's
-                // `-errorcode` for the dict-parse failures so `catch … optsVar`
-                // sees `TCL VALUE DICTIONARY …` and not `NONE` (dict-4.x).
+                // The shared core decodes through the *list* codec and reports
+                // errors by message only. A dict value-parse failure has to be
+                // re-worded to C's dict spelling and given its `-errorcode`, so
+                // `catch … optsVar` sees `TCL VALUE DICTIONARY …` and not
+                // `NONE` (dict-4.x) — exactly what the mutating path's
+                // [`bad_dict`] already does from its own `DictError`.
+                //
+                // The read path (`size`/`get`/`keys`/`values`/`exists`/`merge`/
+                // `filter`/`replace`/`remove`/`getdef`) reaches C's parser only
+                // through here, so without the re-wording every one of them
+                // reported the list noun (issue #1573).
                 Err(e) => {
-                    let msg = e.message().as_bytes();
-                    match dict_parse_error_code(e.message()) {
-                        Some(code) => interp.error_with_code(msg, code),
-                        None => interp.set_error(msg),
+                    let msg = dict_worded(e.message());
+                    match dict_parse_error_code(&msg) {
+                        Some(code) => interp.error_with_code(msg.as_bytes(), code),
+                        None => interp.set_error(msg.as_bytes()),
                     }
                 }
             };
@@ -1035,6 +1043,29 @@ fn with(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 
 // -- helpers ---------------------------------------------------------------
 
+/// Re-word a *list*-parse failure as the **dict** failure C reports.
+///
+/// `SetDictFromAny` (tclDictObj.c) hands `FindElement` the type strings
+/// `dict`/`DICTIONARY`, so the same malformed input `llength` calls a
+/// `list element …` problem, `dict size` calls a `dict element …` one. The
+/// shared command core decodes dicts with the list codec, so its message
+/// arrives list-worded and has to be translated here.
+///
+/// Anything already dict-specific (`missing value to go with key`) or not a
+/// parse failure at all (`wrong # args`, a missing key) passes through
+/// untouched.
+fn dict_worded(msg: &str) -> String {
+    if let Some(rest) = msg.strip_prefix("list element in ") {
+        format!("dict element in {rest}")
+    } else if msg == "unmatched open brace in list" {
+        "unmatched open brace in dict".to_owned()
+    } else if msg == "unmatched open quote in list" {
+        "unmatched open quote in dict".to_owned()
+    } else {
+        msg.to_owned()
+    }
+}
+
 /// The C `-errorcode` for a dict string-parse failure, keyed off the message the
 /// shared `tcl-cmd-core` core produced (which carries no code of its own). The
 /// message set mirrors [`bad_dict`] / C's `SetDictFromAny`.
@@ -1299,6 +1330,76 @@ mod tests {
             b"b 2 c 3"
         );
     }
+    /// Issue #1573 — the **read-only** dict path reports value-parse failures
+    /// with the dict noun, the junk fragment, and the dict `errorCode`.
+    ///
+    /// `size`/`get`/`keys`/`values`/`merge`/`filter`/`replace`/`remove`/
+    /// `getdef` reach C's parser only through `dispatch_canon`, which decodes
+    /// with the shared **list** codec. Two things were lost on the way out:
+    /// the shared core's message arrived list-worded and was never translated
+    /// (so `dict size` said `list element in braces …` with `errorCode` `NONE`),
+    /// and `ValueOps::list_elements` reported `ListError::message`'s
+    /// fragment-less prefix rather than the full `TclFindElement` sentence.
+    ///
+    /// The mutating path was already correct via `bad_dict`; it is included
+    /// here as a regression net. Byte-checked against `tclsh9.0.4`.
+    #[test]
+    fn read_only_dict_path_uses_the_dict_noun_fragment_and_error_code() {
+        // `{b}c` — a brace-delimited element followed by junk.
+        const BAD: &[u8] = b"set d [binary format H* 612031207b627d632064]; ";
+        const JUNK: &[u8] = b"dict element in braces followed by \"c\" instead of space";
+        for sub in [
+            &b"dict size $d"[..],
+            &b"dict get $d a"[..],
+            &b"dict keys $d"[..],
+            &b"dict values $d"[..],
+            &b"dict merge $d"[..],
+            &b"dict filter $d key *"[..],
+            &b"dict replace $d q 1"[..],
+            &b"dict remove $d q"[..],
+            &b"dict getdef $d q Z"[..],
+        ] {
+            let (c, b) = run(&[BAD, sub].concat());
+            assert_eq!(c, Code::Error, "{}", String::from_utf8_lossy(sub));
+            assert_eq!(b, JUNK, "{}", String::from_utf8_lossy(sub));
+            let (_, ec) = run(&[BAD, b"catch {", sub, b"}; set ::errorCode"].concat());
+            assert_eq!(
+                ec,
+                b"TCL VALUE DICTIONARY JUNK",
+                "{} errorCode",
+                String::from_utf8_lossy(sub)
+            );
+        }
+        // The other three parse failures, on the read path.
+        for (hexset, msg, code) in [
+            (
+                &b"set d [binary format H* 61203120226222632064]; "[..],
+                &b"dict element in quotes followed by \"c\" instead of space"[..],
+                &b"TCL VALUE DICTIONARY JUNK"[..],
+            ),
+            (
+                &b"set d [binary format H* 612031207b62]; "[..],
+                &b"unmatched open brace in dict"[..],
+                &b"TCL VALUE DICTIONARY BRACE"[..],
+            ),
+            (
+                &b"set d [binary format H* 6120312062]; "[..],
+                &b"missing value to go with key"[..],
+                &b"TCL VALUE DICTIONARY"[..],
+            ),
+        ] {
+            let (c, b) = run(&[hexset, b"dict size $d"].concat());
+            assert_eq!(c, Code::Error);
+            assert_eq!(b, msg);
+            let (_, ec) = run(&[hexset, b"catch {dict size $d}; set ::errorCode"].concat());
+            assert_eq!(ec, code);
+        }
+        // The *list* noun is untouched — the two must stay distinguishable.
+        let (c, b) = run(&[BAD, b"llength $d"].concat());
+        assert_eq!(c, Code::Error);
+        assert_eq!(b, b"list element in braces followed by \"c\" instead of space");
+    }
+
     /// Issue #1328 finding (2) — `dict lappend` onto a non-dict "silently
     /// succeeds" — **does not reproduce**, and this pins why.
     ///

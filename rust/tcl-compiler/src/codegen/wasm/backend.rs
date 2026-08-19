@@ -51,6 +51,7 @@ use tcl_syntax::expr::{BinOp, ExprNode};
 use crate::codegen::cmd_subst::{is_pure_cmd_subst, parse_cmd_parts};
 use crate::codegen::emit::Emit;
 use crate::codegen::structured;
+use crate::codegen::values::whole_var_reference;
 use crate::command_binding::{
     Binding, BindingKind, CommandBinding, ModuleCommandMutations, analyse_command_binding,
     scan_module_command_mutations,
@@ -498,7 +499,7 @@ impl WasmEmitter {
     }
 
     fn emit_word_value(&mut self, word: &str, statement: &Statement) -> bool {
-        if let Some(name) = simple_var_name(word) {
+        if let Some(name) = whole_var_reference(word) {
             return self.emit_var_get(name);
         }
         if !is_pure_cmd_subst(word) {
@@ -665,7 +666,7 @@ impl WasmEmitter {
             SemanticOperationId::Intrinsic(IntrinsicId::ChannelWrite)
                 if args.len() == 1
                     && !tokens.is_some_and(|tokens| tokens.arg_is_braced_literal(0))
-                    && (simple_var_name(&args[0]).is_some() || is_pure_cmd_subst(&args[0])) =>
+                    && (whole_var_reference(&args[0]).is_some() || is_pure_cmd_subst(&args[0])) =>
             {
                 if !self.emit_word_value(&args[0], statement) {
                     return false;
@@ -1374,18 +1375,6 @@ fn span_key(span: Span) -> (u32, u32) {
 
 fn span_command_key(span: Span, command: &str) -> (u32, u32, String) {
     (span.start(), span.end(), command.to_string())
-}
-
-fn simple_var_name(word: &str) -> Option<&str> {
-    if let Some(name) = word.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
-        return (!name.is_empty()).then_some(name);
-    }
-    let name = word.strip_prefix('$')?;
-    (!name.is_empty()
-        && name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b':')))
-    .then_some(name)
 }
 
 fn direct_expr_supported(expr: &ExprNode, params: &HashSet<&str>) -> bool {

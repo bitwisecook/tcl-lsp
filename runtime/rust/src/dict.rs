@@ -230,137 +230,36 @@ pub enum DictError {
     NotUtf8,
 }
 
-/// One located dict element (key or value): its interior byte range, whether it
-/// is `literal` (no backslash collapse needed), and the resume offset.
-struct DictElem {
-    value: core::ops::Range<usize>,
-    literal: bool,
-    next: usize,
-}
-
-/// Tcl list/dict-element whitespace (`TclIsSpaceProcM`).
-#[inline]
-fn is_dict_space(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
-}
-
-/// Locate the next dict element in `bytes` at/after `start` — the dict-typed
-/// `FindElement` (`tclUtil.c`), distinct from the list splitter only in its
-/// error wording/codes (and in surfacing the offending fragment). Returns
-/// `Ok(None)` when only trailing whitespace remains.
-fn dict_find_element(bytes: &[u8], start: usize) -> Result<Option<DictElem>, DictError> {
-    let len = bytes.len();
-    let mut pos = start;
-    while pos < len && is_dict_space(bytes[pos]) {
-        pos += 1;
-    }
-    if pos >= len {
-        return Ok(None);
-    }
-
-    let mut open_braces: usize = 0;
-    let mut in_quotes = false;
-    let mut literal = true;
-    let elem_start;
-    match bytes[pos] {
-        b'{' => {
-            open_braces = 1;
-            pos += 1;
-            elem_start = pos;
+/// The dict-worded form of a list-grammar failure. `SetDictFromAny` walks the
+/// *same* `FindElement` grammar `Tcl_SplitList` does (`tclUtil.c`) and differs
+/// only in the noun it prints and the `-errorcode` it sets, so the scan itself
+/// comes from the one `tcl_syntax::list` owner and this maps the outcome.
+fn dict_error(err: tcl_syntax::list::ListError, src: &str) -> DictError {
+    use tcl_syntax::list::ListError;
+    match err {
+        ListError::UnmatchedBrace => DictError::UnmatchedBrace,
+        ListError::UnmatchedQuote => DictError::UnmatchedQuote,
+        ListError::BraceFollowedByJunk => {
+            DictError::BraceJunk(tcl_syntax::list::junk_fragment(src).into_bytes())
         }
-        b'"' => {
-            in_quotes = true;
-            pos += 1;
-            elem_start = pos;
+        ListError::QuoteFollowedByJunk => {
+            DictError::QuoteJunk(tcl_syntax::list::junk_fragment(src).into_bytes())
         }
-        _ => elem_start = pos,
     }
-
-    // The fragment reported in a "followed by" error: up to 20 non-space bytes
-    // starting just after the closing delimiter (C's `p2` walk).
-    let frag = |from: usize| -> Vec<u8> {
-        let mut p2 = from;
-        while p2 < len && !is_dict_space(bytes[p2]) && p2 < from + 20 {
-            p2 += 1;
-        }
-        bytes[from..p2].to_vec()
-    };
-
-    let size;
-    loop {
-        if pos >= len {
-            if open_braces != 0 {
-                return Err(DictError::UnmatchedBrace);
-            }
-            if in_quotes {
-                return Err(DictError::UnmatchedQuote);
-            }
-            size = pos - elem_start;
-            break;
-        }
-        match bytes[pos] {
-            b'{' if open_braces != 0 => open_braces += 1,
-            b'}' => {
-                if open_braces == 1 {
-                    size = pos - elem_start;
-                    pos += 1;
-                    if pos < len && !is_dict_space(bytes[pos]) {
-                        return Err(DictError::BraceJunk(frag(pos)));
-                    }
-                    break;
-                } else if open_braces > 1 {
-                    open_braces -= 1;
-                }
-            }
-            b'"' if in_quotes => {
-                size = pos - elem_start;
-                pos += 1;
-                if pos < len && !is_dict_space(bytes[pos]) {
-                    return Err(DictError::QuoteJunk(frag(pos)));
-                }
-                break;
-            }
-            b'\\' => {
-                if open_braces == 0 {
-                    literal = false;
-                }
-                if pos + 1 < len {
-                    pos += 2;
-                    continue;
-                }
-                pos += 1;
-                continue;
-            }
-            ch if open_braces == 0 && !in_quotes && is_dict_space(ch) => {
-                size = pos - elem_start;
-                break;
-            }
-            _ => {}
-        }
-        pos += 1;
-    }
-
-    while pos < len && is_dict_space(bytes[pos]) {
-        pos += 1;
-    }
-    Ok(Some(DictElem {
-        value: elem_start..elem_start + size,
-        literal,
-        next: pos,
-    }))
 }
 
 /// Decoded (key, value) byte pairs from a dict's string rep.
 type BytePairs = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// Parse `bytes` into dict (key, value) byte pairs — `SetDictFromAny`'s string
-/// path. A later duplicate key is *not* deduped here (the caller handles it);
-/// an odd element count is `missing value to go with key`.
+/// path, over the shared list codec. A later duplicate key is *not* deduped
+/// here (the caller handles it); an odd element count is `missing value to go
+/// with key`.
 fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
-    if core::str::from_utf8(bytes).is_err() {
+    let Ok(src) = core::str::from_utf8(bytes) else {
         return Err(DictError::NotUtf8);
-    }
-    let decode = |el: &DictElem| -> Vec<u8> {
+    };
+    let decode = |el: &tcl_syntax::list::Element| -> Vec<u8> {
         let raw = &bytes[el.value.clone()];
         if el.literal {
             raw.to_vec()
@@ -368,10 +267,12 @@ fn scan_dict_pairs(bytes: &[u8]) -> Result<BytePairs, DictError> {
             tcl_syntax::backslash::decode_bytes(raw).into_owned()
         }
     };
+    let next =
+        |pos: usize| tcl_syntax::list::find_element(src, pos).map_err(|e| dict_error(e, src));
     let mut pairs = Vec::new();
     let mut pos = 0;
-    while let Some(key) = dict_find_element(bytes, pos)? {
-        let Some(val) = dict_find_element(bytes, key.next)? else {
+    while let Some(key) = next(pos)? {
+        let Some(val) = next(key.next)? else {
             return Err(DictError::MissingValue);
         };
         pairs.push((decode(&key), decode(&val)));
@@ -615,6 +516,68 @@ mod tests {
             unsafe { obj::incr_ref_count(v) };
             assert_eq!(dict_size(v), Err(DictError::MissingValue));
             unsafe { obj::decr_ref_count(v) };
+        });
+    }
+
+    /// Issue #1429 — `\<newline>` is the line-continuation escape:
+    /// `TclParseBackslash` (tclParse.c(9.0.4):884-890) collapses the backslash,
+    /// the newline **and the run of spaces/tabs after it** into a single space,
+    /// so that whitespace is *data* inside the element and must not terminate
+    /// it. The dict shimmer carried its own `FindElement` port whose backslash
+    /// arm only skipped two bytes, so it split `a\<LF> b c` into three
+    /// elements where the list codec (and tclsh) see two — the mutating dict
+    /// subcommands, which reach the dict through this scan rather than through
+    /// the canonical codec, then disagreed with `llength` and with `dict size`.
+    /// The scan now *is* the shared `tcl_syntax::list` codec.
+    #[test]
+    fn backslash_newline_absorbs_the_following_space_run() {
+        leak_free(|| {
+            // Two elements per tclsh 9.0.4: `a b` and `c` ⇒ one dict pair.
+            let v = new_string_bytes(b"a\\\n b c");
+            unsafe { obj::incr_ref_count(v) };
+            assert_eq!(dict_size(v).unwrap(), 1);
+            assert_eq!(bytes(dict_get(v, b"a b").unwrap().unwrap()), b"c");
+            // The string rep re-renders the collapsed key with list quoting.
+            let mut pairs = dict_pairs(v).unwrap();
+            assert_eq!(pairs.len(), 1);
+            let (k, val) = pairs.pop().unwrap();
+            assert_eq!(bytes(k), b"a b");
+            assert_eq!(bytes(val), b"c");
+            unsafe { obj::decr_ref_count(v) };
+
+            // The odd-length mirror: three elements ⇒ `missing value to go
+            // with key`, exactly where tclsh errors.
+            let w = new_string_bytes(b"a\\\n b c d");
+            unsafe { obj::incr_ref_count(w) };
+            assert_eq!(dict_size(w), Err(DictError::MissingValue));
+            unsafe { obj::decr_ref_count(w) };
+        });
+    }
+
+    /// The dict-worded delimiter errors still carry the offending fragment
+    /// after the scan moved to the shared list codec.
+    #[test]
+    fn delimiter_errors_keep_their_dict_wording_and_fragment() {
+        leak_free(|| {
+            let v = new_string_bytes(b"a 1 {b}c d");
+            unsafe { obj::incr_ref_count(v) };
+            assert_eq!(dict_size(v), Err(DictError::BraceJunk(b"c".to_vec())));
+            unsafe { obj::decr_ref_count(v) };
+
+            let q = new_string_bytes(b"a 1 \"b\"c d");
+            unsafe { obj::incr_ref_count(q) };
+            assert_eq!(dict_size(q), Err(DictError::QuoteJunk(b"c".to_vec())));
+            unsafe { obj::decr_ref_count(q) };
+
+            let ub = new_string_bytes(b"a 1 {b");
+            unsafe { obj::incr_ref_count(ub) };
+            assert_eq!(dict_size(ub), Err(DictError::UnmatchedBrace));
+            unsafe { obj::decr_ref_count(ub) };
+
+            let uq = new_string_bytes(b"a 1 \"b");
+            unsafe { obj::incr_ref_count(uq) };
+            assert_eq!(dict_size(uq), Err(DictError::UnmatchedQuote));
+            unsafe { obj::decr_ref_count(uq) };
         });
     }
 }

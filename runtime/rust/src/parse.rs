@@ -52,7 +52,7 @@
 use std::borrow::Cow;
 
 use tcl_core_types::RecursionLimit;
-use tcl_lexer::{EscapeSyntax, Lexer, SourceMap, Token, TokenType};
+use tcl_lexer::{EscapeSyntax, Lexer, LexerConfig, SourceMap, Token, TokenType};
 
 /// How a word was delimited in the source.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +79,17 @@ pub enum WordPart<'s> {
     Variable(VarRef<'s>),
     /// `[...]` command substitution — the inner script (brackets stripped).
     Command(&'s [u8]),
+    /// A malformed construct C's parser rejects, carrying the error it raises
+    /// (currently only [`tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR`], from an
+    /// unterminated `${…}`).
+    ///
+    /// The scanner is infallible by design — it is shared with the LSP-facing
+    /// word parser, which must keep tokenizing broken source — so the error
+    /// travels as a *part* and the evaluator raises it when the left-to-right
+    /// walk reaches it. That is exactly C's order: in `subst` a command
+    /// substitution earlier in the same template has already run and kept its
+    /// side effects before the bad `${` is reported (issue #1457).
+    ParseError(&'static str),
 }
 
 /// A variable reference. `name` is the bare/`${}` name (always literal). For an
@@ -205,9 +216,9 @@ pub fn scan_parts(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) -> WordBody<'_> {
-    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, escapes, 0)
+    scan_parts_at_depth(src, do_vars, do_cmds, do_bs, config, 0)
 }
 
 /// [`scan_parts`]'s implementation, threading the `$name(index)` nesting
@@ -222,9 +233,10 @@ fn scan_parts_at_depth(
     do_vars: bool,
     do_cmds: bool,
     do_bs: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
     depth: u32,
 ) -> WordBody<'_> {
+    let escapes = config.escapes;
     let len = src.len();
     let triggered = src
         .iter()
@@ -251,20 +263,31 @@ fn scan_parts_at_depth(
             flush_text(&mut parts, src, lit_start, i, do_bs, escapes);
             i += 1;
             if src[i] == b'{' {
-                // ${name}
+                // `${name}` — the close rule is release-specific
+                // (`Tcl_ParseVarName`): 8.x ends the name at the first literal
+                // `}`, 9.x counts nested braces and skips `\X` pairs, so
+                // `subst {${a{b}c}}` reads `a{b` under 8.6 and `a{b}c` under
+                // 9.0 (issue #1457). Resolved through the one shared owner.
                 i += 1;
                 let ns = i;
-                while i < len && src[i] != b'}' {
-                    i += 1;
+                match tcl_lexer::braced_var_name_end(src, ns, config.braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(ne) => {
+                        i = ne + 1; // consume the `}`
+                        parts.push(WordPart::Variable(VarRef {
+                            name: &src[ns..ne],
+                            index: None,
+                        }));
+                    }
+                    // C raises here rather than reading a name that runs to
+                    // end-of-input; the 9.x rule also calls `${a\}` and `${a{b}`
+                    // unterminated where 8.x closes them.
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        i = len;
+                        parts.push(WordPart::ParseError(
+                            tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR,
+                        ));
+                    }
                 }
-                let ne = i;
-                if i < len {
-                    i += 1; // consume `}`
-                }
-                parts.push(WordPart::Variable(VarRef {
-                    name: &src[ns..ne],
-                    index: None,
-                }));
             } else {
                 // $name  (optionally  $arr(index))
                 let ns = i;
@@ -291,7 +314,7 @@ fn scan_parts_at_depth(
                             do_vars,
                             do_cmds,
                             do_bs,
-                            escapes,
+                            config,
                             depth + 1,
                         ) {
                             WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
@@ -425,28 +448,14 @@ pub fn parse_script_with_config(src: &[u8], config: tcl_lexer::LexerConfig) -> V
     let mut cmd_start: Option<usize> = None;
     for t in toks {
         match t.kind {
-            TokenType::Sep => flush_word(
-                &sm,
-                src,
-                &mut words,
-                &mut word_toks,
-                &mut expand,
-                config.escapes,
-            ),
+            TokenType::Sep => flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config),
             TokenType::Comment => {} // a comment is an empty command
             TokenType::Expand => {
                 expand = true; // the next word is expanded
                 cmd_start.get_or_insert(t.span.start() as usize);
             }
             TokenType::Eol | TokenType::Eof => {
-                flush_word(
-                    &sm,
-                    src,
-                    &mut words,
-                    &mut word_toks,
-                    &mut expand,
-                    config.escapes,
-                );
+                flush_word(&sm, src, &mut words, &mut word_toks, &mut expand, config);
                 if !words.is_empty() {
                     cmds.push(Command {
                         words: core::mem::take(&mut words),
@@ -498,13 +507,13 @@ fn flush_word<'s>(
     words: &mut Vec<Word<'s>>,
     word_toks: &mut Vec<Token>,
     expand: &mut bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) {
     if word_toks.is_empty() {
         *expand = false; // a stray `{*}` with no following word (shouldn't happen)
         return;
     }
-    words.push(build_word(sm, src, word_toks, *expand, escapes));
+    words.push(build_word(sm, src, word_toks, *expand, config));
     word_toks.clear();
     *expand = false;
 }
@@ -514,8 +523,9 @@ fn build_word<'s>(
     src: &'s [u8],
     toks: &[Token],
     expand: bool,
-    escapes: EscapeSyntax,
+    config: LexerConfig,
 ) -> Word<'s> {
+    let escapes = config.escapes;
     // A single braced token is a literal word (no substitution) — except a
     // backslash-newline line continuation, the one backslash sequence a braced
     // word collapses (to a single space, swallowing following spaces/tabs), as
@@ -567,7 +577,7 @@ fn build_word<'s>(
             TokenType::Var => parts.push(WordPart::Variable(parse_var_ref(
                 bytes,
                 t.content_offset == 2,
-                escapes,
+                config,
             ))),
             TokenType::Cmd => parts.push(WordPart::Command(bytes)),
             _ => {}
@@ -604,12 +614,12 @@ fn build_word<'s>(
 /// Parse a `Var` token's content into name + optional array index. `braced`
 /// (the `${name}` form) suppresses index parsing (the whole content is the
 /// name); for `$arr(idx)` the index is itself substituted.
-fn parse_var_ref(bytes: &[u8], braced: bool, escapes: EscapeSyntax) -> VarRef<'_> {
+fn parse_var_ref(bytes: &[u8], braced: bool, config: LexerConfig) -> VarRef<'_> {
     if !braced && bytes.last() == Some(&b')') {
         if let Some(open) = bytes.iter().position(|&c| c == b'(') {
             let name = &bytes[..open];
             let idx = &bytes[open + 1..bytes.len() - 1];
-            let index = match scan_parts(idx, true, true, true, escapes) {
+            let index = match scan_parts(idx, true, true, true, config) {
                 WordBody::Literal(b) => vec![WordPart::Text(Cow::Borrowed(b))],
                 WordBody::Parts(p) => p,
             };
@@ -701,73 +711,29 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 /// The byte-exact `Tcl_SplitList` error message for `src` (the `FindElement`
 /// wording, `tclUtil.c`). For the `…followed by "X" instead of space` cases this
 /// surfaces the offending fragment `X` — up to 20 non-space bytes after the
-/// closing delimiter — which [`ListError::message`] alone cannot, since the
-/// shared splitter discards the position. Other variants render their fixed text.
+/// closing delimiter — which [`ListError::message`] alone cannot, since it has
+/// no access to the position. Other variants render their fixed text.
+///
+/// Both halves come from the shared codec: the fragment walk from
+/// [`tcl_syntax::list::junk_fragment`] and the sentence from
+/// [`tcl_syntax::list::ListError::full_message`]. This function used to carry a
+/// byte-identical re-implementation of that walk (issue #1429).
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {
-    let (kind, frag) = match err {
-        ListError::BraceFollowedByJunk => (&b"braces"[..], list_junk_fragment(src)),
-        ListError::QuoteFollowedByJunk => (&b"quotes"[..], list_junk_fragment(src)),
-        other => return other.message().to_vec(),
+    let shared = match err {
+        ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
+        ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
+        ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
+        ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
+        // Not a shared variant: the runtime's own internal-rep invariant.
+        ListError::NotUtf8 => return err.message().to_vec(),
     };
-    let mut m = b"list element in ".to_vec();
-    m.extend_from_slice(kind);
-    m.extend_from_slice(b" followed by \"");
-    m.extend_from_slice(&frag);
-    m.extend_from_slice(b"\" instead of space");
-    m
-}
-
-/// Locate the junk fragment for a `…FollowedByJunk` list error: replay
-/// [`tcl_syntax::list::find_element`] to find the element that fails, then scan
-/// it to the closing delimiter and take up to 20 non-space bytes of the trailing
-/// junk (C's `p2` walk). Returns empty if it cannot be reconstructed.
-fn list_junk_fragment(src: &[u8]) -> Vec<u8> {
-    let Ok(s) = core::str::from_utf8(src) else {
-        return Vec::new();
-    };
-    // The failing element begins where the last successful element left off.
-    let mut start = 0;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(s, start) {
-        start = el.next;
+    // A non-UTF-8 `src` cannot reach the fragment walk; fall back to the fixed
+    // text rather than lose the error entirely.
+    match core::str::from_utf8(src) {
+        Ok(s) => shared.full_message(s).into_bytes(),
+        Err(_) => shared.message().as_bytes().to_vec(),
     }
-    let len = src.len();
-    let mut pos = start;
-    while pos < len && tcl_syntax::list::is_list_space(src[pos]) {
-        pos += 1;
-    }
-    // Walk to the delimiter that closes this element, honouring `\`-escapes and
-    // brace nesting, then the junk starts at the next byte.
-    let junk = match src.get(pos) {
-        Some(b'{') => {
-            let mut depth = 1usize;
-            pos += 1;
-            while pos < len && depth > 0 {
-                match src[pos] {
-                    b'\\' if pos + 1 < len => pos += 1,
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                pos += 1;
-            }
-            pos
-        }
-        Some(b'"') => {
-            pos += 1;
-            while pos < len && src[pos] != b'"' {
-                pos += if src[pos] == b'\\' { 2 } else { 1 };
-            }
-            pos + 1 // past the closing quote
-        }
-        _ => return Vec::new(),
-    };
-    let end = (junk + 20).min(len);
-    let mut p = junk;
-    while p < end && !tcl_syntax::list::is_list_space(src[p]) {
-        p += 1;
-    }
-    src.get(junk..p).map(<[u8]>::to_vec).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -1043,7 +1009,7 @@ mod tests {
         for _ in 0..DEPTH {
             src.push(')');
         }
-        let _ = scan_parts(src.as_bytes(), true, true, true, EscapeSyntax::default());
+        let _ = scan_parts(src.as_bytes(), true, true, true, LexerConfig::default());
     }
 
     /// A moderately nested array index (well under `MAX_SCAN_PARTS_DEPTH`)
@@ -1058,7 +1024,7 @@ mod tests {
     #[test]
     fn moderately_nested_array_index_still_scans_fully() {
         // $a($b($c(1)))
-        let body = scan_parts(b"$a($b($c(1)))", true, true, true, EscapeSyntax::default());
+        let body = scan_parts(b"$a($b($c(1)))", true, true, true, LexerConfig::default());
         assert_eq!(
             body,
             WordBody::Parts(vec![
