@@ -278,6 +278,20 @@ struct CmdFrame {
 /// entry) — see [`Interp::arg_locs`].
 type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
 
+/// One command-trace callback collected during namespace teardown: the
+/// command's FQN and the trace's command prefix. The name doubles as the
+/// grouping key in [`Interp::group_newest_first_per_entity`]. Command traces
+/// have no deprecated spelling, so their op word is always the full `delete`
+/// (C's `TCL_TRACE_OLD_STYLE` is a variable-trace flag only).
+type CmdTeardownCallback = (Vec<u8>, Vec<u8>);
+
+/// One variable-trace callback collected during namespace teardown: the
+/// variable's reported name (including any `(element)`), the trace's command
+/// prefix, and whether it was registered through the deprecated 8.x
+/// `trace variable` form — which decides the op word its callback receives,
+/// here exactly as on the explicit-unset path.
+type VarTeardownCallback = (Vec<u8>, Vec<u8>, bool);
+
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
     /// A non-empty result: the replacement command prefix to dispatch.
@@ -2871,14 +2885,25 @@ impl Interp {
         op: &[u8],
     ) -> bool {
         let traces = self.traces.borrow();
-        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>)> = traces
-            .traces
-            .iter()
-            .filter(|t| {
-                crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
-                    && !traces.active_var_scopes.contains(&t.scope())
-            })
-            .map(|t| (t.scope(), t.command.clone()))
+        // C fires the containing array's traces before the element's own
+        // (`TclCallVarTraces`, tclTrace.c 9.0.4: the `arrayPtr` loop at :2581
+        // precedes the `varPtr` loop at :2623), and walks each list head→tail
+        // — newest-first, since `TraceVarEx` prepends (:3090-3092). Our Vec
+        // pushes newest-last, so each group is reversed. Issue #1440.
+        let selected = |whole_array: bool| {
+            traces
+                .traces
+                .iter()
+                .rev()
+                .filter(move |t| t.elem.is_none() == whole_array)
+                .filter(|t| {
+                    crate::cmd_trace::matches(t, base, elem, op, access_ns, access_frame_level)
+                        && !traces.active_var_scopes.contains(&t.scope())
+                })
+        };
+        let cmds: Vec<(crate::cmd_trace::VarTraceScope, Vec<u8>, bool)> = selected(true)
+            .chain(selected(false))
+            .map(|t| (t.scope(), t.command.clone(), t.old_style))
             .collect();
         drop(traces);
         if cmds.is_empty() {
@@ -2890,12 +2915,16 @@ impl Interp {
         unsafe { obj::incr_ref_count(saved) };
 
         let mut errored = false;
-        for (scope, cmd) in cmds {
-            // Append `base element op` as properly-quoted trailing words.
+        let op_name = String::from_utf8_lossy(op).into_owned();
+        for (scope, cmd, old_style) in cmds {
+            // Append `base element op` as properly-quoted trailing words. A
+            // trace installed by the deprecated `trace variable` form is
+            // called with the single `rwua` letter (C's `TCL_TRACE_OLD_STYLE`).
+            let op_word = tcl_cmd_core::trace::callback_op_word(&op_name, old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(base),
                 new_string(elem.unwrap_or(b"")),
-                new_string(op),
+                new_string(op_word.as_bytes()),
             ]);
             let mut line = cmd;
             line.push(b' ');
@@ -2962,11 +2991,16 @@ impl Interp {
         if self.traces.borrow().exec_firing > 0 {
             return;
         }
+        // C prepends each new command trace (`Tcl_TraceCommand`, tclTrace.c
+        // 9.0.4:1016-1018) and `CallCommandTraces` walks the list head→tail
+        // (tclBasic.c:3972-3974), so the newest fires first. Our Vec pushes
+        // newest-last. Issue #1440.
         let cmds: Vec<Vec<u8>> = self
             .traces
             .borrow()
             .cmd_traces
             .iter()
+            .rev()
             .filter(|t| t.name == old_fqn && (t.ops & op_bit) != 0)
             .map(|t| t.command.clone())
             .collect();
@@ -3265,7 +3299,7 @@ impl Interp {
     /// drops its traces, as C does). Only `delete`-op traces are returned for
     /// firing; `rename`-only traces are removed silently (a deletion isn't a
     /// rename).
-    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<CmdTeardownCallback> {
         if self.traces.borrow().cmd_traces.is_empty() {
             return Vec::new();
         }
@@ -3311,13 +3345,15 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
-        victims
+        // Grouped per command, newest-first inside each group — see
+        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
     }
 
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
     /// delete` after the namespace has been torn down (errors ignored — a delete
     /// trace's result is discarded, matching C).
-    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<CmdTeardownCallback>) {
         if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
             return;
         }
@@ -3346,7 +3382,7 @@ impl Interp {
     /// Remove and return the `(fullName, command)` of every *unset* variable
     /// trace registered on a namespace variable in `ns` or a descendant (so it
     /// can be fired as the namespace is deleted).
-    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<VarTeardownCallback> {
         if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
             return Vec::new();
         }
@@ -3381,7 +3417,7 @@ impl Interp {
                     fqn.extend_from_slice(e);
                     fqn.push(b')');
                 }
-                victims.push((fqn, t.command.clone()));
+                victims.push((fqn, t.command.clone(), t.old_style));
             }
             !hit
         });
@@ -3391,22 +3427,68 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
-        victims
+        // Grouped per variable, newest-first inside each group — see
+        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        Self::group_newest_first_per_entity(victims, |victim| victim.0.clone())
+    }
+
+    /// Order a namespace's collected teardown callbacks the way C fires them.
+    ///
+    /// C tears a namespace down one entity at a time — a per-`Var` loop for
+    /// variables, a per-`Command` loop for commands — and each of those
+    /// completes that entity's whole trace list before the next entity starts.
+    /// So an entity's callbacks are **contiguous**, and within an entity the
+    /// newest registration fires first (the list is prepended and walked head
+    /// to tail).
+    ///
+    /// We collect with `retain` over one flat, registration-ordered Vec, which
+    /// interleaves entities. Regroup it: entities keep the order they were
+    /// first seen, each group runs newest-first. *Which* entity comes first is
+    /// C's hash-table walk and is deliberately not pinned — but that a group is
+    /// contiguous is pinned regardless of hash order, which a flat reverse got
+    /// wrong (`A1 B1 A2 B2` fired `B2 A2 B1 A1`, not C's `A2 A1 B2 B1`).
+    fn group_newest_first_per_entity<T>(victims: Vec<T>, key: impl Fn(&T) -> Vec<u8>) -> Vec<T> {
+        let mut order: Vec<Vec<u8>> = Vec::new();
+        let mut groups: std::collections::HashMap<Vec<u8>, Vec<T>> =
+            std::collections::HashMap::new();
+        for victim in victims {
+            let entity = key(&victim);
+            groups
+                .entry(entity.clone())
+                .or_insert_with(|| {
+                    order.push(entity);
+                    Vec::new()
+                })
+                .push(victim);
+        }
+        order
+            .into_iter()
+            .flat_map(|key| {
+                let mut group = groups.remove(&key).unwrap_or_default();
+                group.reverse();
+                group
+            })
+            .collect()
     }
 
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
     /// are ignored (an unset trace's result is discarded, as in C).
-    fn fire_unset_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+    fn fire_unset_callbacks(&mut self, victims: Vec<VarTeardownCallback>) {
         if victims.is_empty() {
             return;
         }
         let saved = self.result.get();
         unsafe { obj::incr_ref_count(saved) };
-        for (name, cmd) in victims {
+        for (name, cmd, old_style) in victims {
+            // A trace registered the deprecated way is called with the `rwua`
+            // letter, not the operation name — the teardown path must honour
+            // that exactly as the explicit-unset path does (`TraceVarProc`,
+            // tclTrace.c 8.6.16:2002-2011).
+            let op = tcl_cmd_core::trace::callback_op_word("unset", old_style);
             let args = crate::list::new_list_obj(&[
                 new_string(&name),
                 new_string(b""),
-                new_string(b"unset"),
+                new_string(op.as_bytes()),
             ]);
             let mut line = cmd;
             line.push(b' ');

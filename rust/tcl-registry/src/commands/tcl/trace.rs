@@ -556,10 +556,11 @@ fn trace_remove_state_transitions(arguments: InvocationArguments<'_>) -> StateTr
 fn legacy_trace_operations(op_string: TransitionSubject) -> Option<TraceOperationSet> {
     match op_string {
         TransitionSubject::Literal(op_string) => {
-            let parsed = parse_legacy_variable_ops(op_string.as_bytes()).ok()?;
-            ["array", "read", "unset", "write"]
+            // The legacy parser already yields the same canonical set the
+            // modern one does, so both spellings model identically.
+            parse_legacy_variable_ops(op_string.as_bytes())
+                .ok()?
                 .into_iter()
-                .filter(|operation| parsed.contains(operation))
                 .map(trace_operation)
                 .collect::<Option<Vec<_>>>()
                 .map(TraceOperationSet::Known)
@@ -1171,7 +1172,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         name: "vinfo",
         traits: Traits::TARGETS_VARIABLE_BY_NAME,
         arity: Arity::exact(1),
-        detail: "Return trace information for the given variable, in the same {opList command} list shape as trace info variable. Equivalent to trace info variable name. Deprecated throughout 8.4-8.6; removed in Tcl 9.0.",
+        detail: "Return trace information for the given variable: one element per trace, each a two-element {ops command} list. Unlike trace info variable, whose first element is a word list, ops here is the legacy single-letter string (a/r/w/u), rendered in the fixed order r, w, u, a — so a trace on reads and writes reports rw. Covers traces added by either spelling. Deprecated throughout 8.4-8.6; removed in Tcl 9.0.",
         synopsis: "trace vinfo name",
         pure: true,
         return_type: Some(TclType::List),
@@ -1481,10 +1482,13 @@ mod tests {
             &[StateTransitionFact {
                 transition: StateTransition::Trace(TraceTransition::Add {
                     target: TraceTarget::Variable(TransitionSubject::Literal("item".to_owned())),
+                    // The canonical order is C's `trace info` render order
+                    // (`array read write unset`), not the `opStrings[]` table
+                    // order the bad-operation error enumerates.
                     operations: TraceOperationSet::Known(vec![
                         TraceOperation::Read,
-                        TraceOperation::Unset,
                         TraceOperation::Write,
+                        TraceOperation::Unset,
                     ]),
                     prefix: TransitionSubject::Literal("{callback one}".to_owned()),
                 }),
