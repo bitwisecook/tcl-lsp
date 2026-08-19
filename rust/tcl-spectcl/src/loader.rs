@@ -774,6 +774,10 @@ impl Pack {
 /// Never fails: a pack with no `speclib` wrapper, or with declarations this
 /// server does not know, loads as much as it can and reports the rest through
 /// [`Pack::notices`].
+// One arm per pack-level statement word, over a struct initialised field by
+// field. Splitting it would scatter the single place the pack vocabulary is
+// enumerated, which is the property that makes a missing word obvious here.
+#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn load_pack(source: &str) -> Pack {
     let mut log = Log {
