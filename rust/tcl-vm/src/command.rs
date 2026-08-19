@@ -1453,7 +1453,10 @@ pub(crate) fn cmd_const(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     };
     let name = name_v.to_str();
     let bad = |reason: &str| err(format!("can't make constant \"{name}\": {reason}"));
-    if name.ends_with(')') && name.contains('(') {
+    // Through the one element-reference owner, not a local re-spelling of its
+    // predicate (issue #1458): the two agree today, which is exactly when a
+    // copy is cheapest to remove and most likely to drift later.
+    if looks_like_element(&name) {
         return bad("name refers to an element in an array");
     }
     if vm.var_is_array(&name) {
@@ -1824,14 +1827,63 @@ fn variable_name_tail(name: &str) -> &str {
     }
 }
 
+/// The namespace qualifier `name` names, or `None` when it is unqualified.
+///
+/// The array element is split off **first**, through the same
+/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) owner the
+/// element guard uses: `TclObjLookupVarEx` separates `part1(part2)` before any
+/// namespace lookup, so a `::` inside an index is data, not a path.
+///
+/// The split only applies when the name *ends* with `)`, and that distinction
+/// is load-bearing — it is what separates these three, all verified on 8.6.16
+/// and 9.0.4:
+///
+/// | name | part1 | qualifier | outcome |
+/// |---|---|---|---|
+/// | `v(x::y)` | `v` | none | accepted — the `::` is index data |
+/// | `v(a)::b` | `v(a)::b` | `v(a)` | parent namespace doesn't exist |
+/// | `::nosuch::v(k)` | `::nosuch::v` | `::nosuch` | parent namespace doesn't exist |
+///
+/// A qualifier of `""` is the global namespace, which always exists.
+fn parent_namespace_of(name: &str) -> Option<&str> {
+    let part1 = match tcl_syntax::naming::split_element_ref(name) {
+        Some((base, _)) => base,
+        None => name,
+    };
+    part1.rfind("::").map(|i| &part1[..i])
+}
+
+/// C's refusal when a qualified variable name's parent namespace is absent —
+/// `TclObjLookupVar`'s `TCL_LEAVE_ERR_MSG` path, which takes the operation
+/// word (`define` for `variable`, `access` for `global`) and reports the name
+/// **as written**, with `errorCode` `TCL LOOKUP VARNAME`.
+///
+/// This check runs *before* the element-name guard: `variable ::nosuch::v(k)`
+/// is a missing-namespace error, not an element error, on 8.6.16 and 9.0.4
+/// alike. It closes a slice of #1588 (the VM had no parent-namespace check at
+/// all); the remaining `upvar` surface of that issue is untouched.
+fn missing_parent_ns(vm: &Vm, op: &str, name: &str) -> Option<Completion<Value>> {
+    let qualifier = parent_namespace_of(name)?;
+    if vm.namespace_exists(&vm.qualify_name(qualifier)) {
+        return None;
+    }
+    Some(err_with_code(
+        format!("can't {op} \"{name}\": parent namespace doesn't exist"),
+        "TCL LOOKUP VARNAME",
+    ))
+}
+
 /// C's `MakeUpvar` refusal for a link *target name* that looks like an array
 /// element — a link is always to a scalar cell, so `upvar 0 zz (v)` and
 /// `global a(b)` are hard errors rather than silent mislinks (issue #1458's
 /// companion guard).
 fn bad_link_name(name: &str) -> Completion<Value> {
-    err(format!(
-        "bad variable name \"{name}\": can't create a scalar variable that looks like an array element"
-    ))
+    err_with_code(
+        format!(
+            "bad variable name \"{name}\": can't create a scalar variable that looks like an array element"
+        ),
+        "TCL UPVAR LOCAL_ELEMENT",
+    )
 }
 
 /// `global name ?name ...?` — link names to the global frame.
@@ -1845,11 +1897,18 @@ fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let in_proc = vm.in_proc_frame();
     for n in args {
         let nm = n.to_str();
-        // C links under the *tail* and reports the tail: `global ::x::a(b)`
-        // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
-        let tail = name_tail(&nm);
-        if in_proc && looks_like_element(tail) {
-            return bad_link_name(tail);
+        if in_proc {
+            // Namespace resolution comes first: `global ::nosuch::v(k)` is a
+            // missing-namespace error, not an element one.
+            if let Some(e) = missing_parent_ns(vm, "access", &nm) {
+                return e;
+            }
+            // C links under the *tail* and reports the tail: `global ::x::a(b)`
+            // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
+            let tail = name_tail(&nm);
+            if looks_like_element(tail) {
+                return bad_link_name(tail);
+            }
         }
         vm.add_link(&nm, 0, &nm);
     }
@@ -2039,10 +2098,17 @@ pub(crate) fn cmd_variable(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         // element reference. Only the *check* uses it — the link name keeps its
         // existing derivation, so a name that passes the check links exactly as
         // before.
+        //
+        // Namespace resolution runs first, so `variable ::nosuch::v(k)` is a
+        // missing-namespace error rather than an element one.
+        if let Some(e) = missing_parent_ns(vm, "define", &name) {
+            return e;
+        }
         if looks_like_element(variable_name_tail(&name)) {
-            return err(format!(
-                "can't define \"{name}\": name refers to an element in an array"
-            ));
+            return err_with_code(
+                format!("can't define \"{name}\": name refers to an element in an array"),
+                "TCL UPVAR LOCAL_ELEMENT",
+            );
         }
         vm.add_link(&local, 0, &qual);
         if i + 1 < args.len() {
