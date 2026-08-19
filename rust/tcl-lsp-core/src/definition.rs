@@ -337,7 +337,7 @@ pub fn definition_with(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if is_next_chain_keyword_in(&analysis.dialect, &word)
+    if is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), &word)
         && let Some(span) =
             next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
@@ -545,11 +545,17 @@ fn position_definition(
     // inside a brace-quoted variable-name word (`set {$n} 1`) is not a `$n`
     // reference, and must fall through to the declaration-span search below
     // so it answers the *literal* cell (PR #1106 review, P2).
-    if let Some(var_name) = substituting_var_at_position(source, "", line, character, cursor_off) {
+    if let Some(var_name) = substituting_var_at_position(
+        source,
+        tcl_dialect::DialectProfile::by_name(""),
+        line,
+        character,
+        cursor_off,
+    ) {
         if let Some(var_def) = lookup_var_read_at(
             &analysis.global_scope,
             source,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             cursor_off,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -637,7 +643,7 @@ fn caller_frame_definition(
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
-        "",
+        tcl_dialect::DialectProfile::by_name(""),
         resolution.with_registry(tcl_registry::registry_for_dialect("")),
         cursor_off,
         name,
@@ -1068,17 +1074,18 @@ fn method_dispatch_definition(
 /// `""` resolves to the permissive plain-Tcl profile (availability mask
 /// `ALL_TCL`), so every 8.6+ `TclOO` keyword still resolves there.
 pub(crate) fn method_dispatch_keyword_in(
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     word: &str,
 ) -> Option<tcl_registry::MethodDispatchKind> {
-    tcl_registry::registry_for_dialect(dialect).method_dispatch_keyword(word)
+    crate::registry_for_dialect_profile(dialect).method_dispatch_keyword(word)
 }
 
 /// Whether `word` is the `TclOO` self-dispatch keyword (`my`) — the word
 /// after it names a method on the *enclosing* class, reaching non-exported
 /// methods a `$obj` dispatch cannot.
 pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in("", word) == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+    method_dispatch_keyword_in(tcl_dialect::DialectProfile::by_name(""), word)
+        == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
 }
 
 /// Whether `receiver` (as returned by [`instance_method_at_cursor`]) is a
@@ -1101,7 +1108,7 @@ pub(crate) fn is_self_receiver_call(receiver: &str) -> bool {
 
 /// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
 /// `dialect` — a registry that predates `TclOO` answers `false`.
-fn is_next_chain_keyword_in(dialect: &str, word: &str) -> bool {
+fn is_next_chain_keyword_in(dialect: &'static tcl_dialect::DialectProfile, word: &str) -> bool {
     method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
 }
 
@@ -1110,9 +1117,12 @@ fn is_next_chain_keyword_in(dialect: &str, word: &str) -> bool {
 /// [`tcl_registry::ArgRole::Name`] at index 0 on the spec, which `next` does
 /// not declare. Distinguishing the two structurally rather than by name is
 /// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
-pub(crate) fn next_chain_names_a_target_in(dialect: &str, word: &str) -> bool {
+pub(crate) fn next_chain_names_a_target_in(
+    dialect: &'static tcl_dialect::DialectProfile,
+    word: &str,
+) -> bool {
     method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-        && tcl_registry::registry_for_dialect(dialect)
+        && crate::registry_for_dialect_profile(dialect)
             .get(word)
             .is_some_and(|spec| spec.arg_role_at(0) == Some(tcl_registry::ArgRole::Name))
 }
@@ -1120,7 +1130,7 @@ pub(crate) fn next_chain_names_a_target_in(dialect: &str, word: &str) -> bool {
 /// [`next_chain_names_a_target_in`] against the dialect-less plain-Tcl
 /// profile.
 fn next_chain_names_a_target(word: &str) -> bool {
-    next_chain_names_a_target_in("", word)
+    next_chain_names_a_target_in(tcl_dialect::DialectProfile::by_name(""), word)
 }
 
 /// enclosing class + method are found from the cursor's byte offset.
@@ -2216,7 +2226,7 @@ fn collect_shared_span_refs(
 #[must_use]
 pub fn qualified_variable_cell_at(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     line: u32,
     character: u32,
@@ -2305,7 +2315,7 @@ pub(crate) fn var_def_at_declaration_offset(
 pub(crate) fn lookup_var_read_at<'a>(
     global: &'a tcl_compiler::analyser::Scope,
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     cursor_off: u32,
     name: &str,
     ns_global_fallback: bool,
@@ -2318,12 +2328,16 @@ pub(crate) fn lookup_var_read_at<'a>(
 /// comment or a braced *data* word.  The two [`crate::inert_text`] proofs
 /// under one name, so every caller asks the same question the same way.
 #[must_use]
-pub(crate) fn offset_is_inert(source: &str, dialect: &str, cursor_off: u32) -> bool {
+pub(crate) fn offset_is_inert(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    cursor_off: u32,
+) -> bool {
     crate::inert_text::offset_in_comment(source, cursor_off)
         || crate::inert_text::offset_in_data_brace(
             source,
             cursor_off,
-            tcl_registry::registry_for_dialect(dialect),
+            crate::registry_for_dialect_profile(dialect),
             dialect,
         )
 }
@@ -2358,7 +2372,7 @@ pub(crate) fn offset_is_inert(source: &str, dialect: &str, cursor_off: u32) -> b
 #[must_use]
 pub(crate) fn substituting_var_at_position(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     cursor_off: u32,
@@ -2757,8 +2771,11 @@ pub(crate) fn resolved_command_name(
 /// compared.  A metaclass the registry does not recognise as a definer
 /// (which should not happen for a real `ClassDef`) is conservatively treated
 /// as *not* itcl.
-pub(crate) fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &str) -> bool {
-    tcl_registry::registry_for_dialect(dialect)
+pub(crate) fn is_itcl_class(
+    cd: &tcl_compiler::analyser::types::ClassDef,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> bool {
+    crate::registry_for_dialect_profile(dialect)
         .get(&cd.metaclass)
         .and_then(|spec| spec.definition_body)
         .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)
@@ -2778,7 +2795,7 @@ pub(crate) fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialec
 /// not a class namespace` — so only `class_methods` is consulted.
 pub(crate) fn itcl_class_proc_at<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     qname: &str,
 ) -> Option<(&'a String, String)> {
     let separator = qname.rfind("::")?;
@@ -2807,7 +2824,7 @@ pub(crate) fn itcl_class_proc_at<'a>(
 ///    proc or class command shadows it exactly as it would at runtime.
 pub(crate) fn itcl_class_proc_target<'a>(
     analysis: &'a AnalysisResult,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<(&'a String, String)> {
@@ -2858,7 +2875,7 @@ pub(crate) fn itcl_class_proc_target<'a>(
 /// [`resolved_command_name`].
 fn itcl_self_qualified_candidate(
     analysis: &AnalysisResult,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     namespace: &str,
     word: &str,
 ) -> Option<String> {
@@ -2916,7 +2933,12 @@ fn itcl_class_proc_declaration(
     namespace: &str,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let (class_q, member) = itcl_class_proc_target(analysis, "", namespace, word)?;
+    let (class_q, member) = itcl_class_proc_target(
+        analysis,
+        tcl_dialect::DialectProfile::by_name(""),
+        namespace,
+        word,
+    )?;
     analysis
         .all_classes
         .get(class_q)
@@ -2935,7 +2957,7 @@ fn itcl_class_proc_declaration(
 #[must_use]
 pub fn itcl_class_proc_target_at(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     line: u32,
     character: u32,
     analysis: &AnalysisResult,

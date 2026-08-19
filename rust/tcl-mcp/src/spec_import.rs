@@ -63,7 +63,7 @@ pub fn spec_import(args: &Value) -> Value {
     let import = import_snapshots(
         &snapshots,
         &SpecImportOptions {
-            dialect: &dialect,
+            dialect: tcl_lsp_core::profile_for_dialect(&dialect),
             package,
             complete_history,
         },

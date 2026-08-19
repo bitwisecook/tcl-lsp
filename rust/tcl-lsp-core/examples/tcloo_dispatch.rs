@@ -107,14 +107,14 @@ fn main() {
         let st = match &project_hierarchy {
             Some(h) => tcl_lsp_core::semantic_tokens::full_with_cu_and_classes(
                 &src,
-                dialect,
+                tcl_dialect::DialectProfile::by_name(dialect),
                 &registry,
                 Some(&cu),
                 Some(h),
             ),
             None => tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
                 &src,
-                dialect,
+                tcl_dialect::DialectProfile::by_name(dialect),
                 &registry,
                 Some(&cu),
                 Some(&analysis),

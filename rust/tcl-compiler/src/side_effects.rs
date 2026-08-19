@@ -928,7 +928,7 @@ fn classify_variable_assignment(
         let base = crate::naming::normalise_var_name(varname);
         if let Some(target) = tcl_registry::special_vars::special_var_write_effect(
             base,
-            dialect.map_or("", |profile| profile.name),
+            tcl_registry::special_vars::dialect_set_for_profile(dialect),
         ) {
             let mut extra = SideEffect::new(lift_registry_target(target), false, true);
             extra.dialect = dialect.map(|profile| profile.name.to_owned());
@@ -1467,7 +1467,7 @@ mod tests {
             &registry,
             "set",
             &["static::counter".into(), "0".into()],
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         let eff = &cse.effects[0];
@@ -1482,7 +1482,7 @@ mod tests {
             &registry,
             "set",
             &["local".into(), "0".into()],
-            Some(tcl_dialect::DialectProfile::by_name("irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         let eff = &cse.effects[0];
@@ -1557,7 +1557,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["value".into(), "Host".into()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         assert!(getter.pure, "HTTP::header getter should stay pure");
@@ -1571,7 +1571,7 @@ mod tests {
             &registry,
             "HTTP::header",
             &["insert".into(), "X-Foo".into(), "y".into()],
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
             None,
         );
         assert!(

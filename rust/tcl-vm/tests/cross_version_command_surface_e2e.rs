@@ -84,7 +84,12 @@ impl CompileService for CompilerSvc {
         {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir(src, self.registry, self.config, self.dialect);
+        let ir = lower_to_ir(
+            src,
+            self.registry,
+            self.config,
+            Some(tcl_dialect::DialectProfile::by_name(self.dialect)),
+        );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
     }
@@ -194,7 +199,7 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
     let v90 = DialectProfile::by_name("tcl9.0");
     let registry = tcl_registry::registry_for_profile(v91);
     let config = tcl_lexer::LexerConfig::from_grammar(v91.grammar);
-    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, v91.name);
+    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, Some(v91));
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry);
 
@@ -218,7 +223,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
     let config = tcl_lexer::LexerConfig::from_grammar(bpf.grammar);
     // `lassign` becomes list/variable opcodes, so it proves that module
     // profile validation alone cannot enforce a later command-surface change.
-    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, bpf.name);
+    let ir = lower_to_ir("lassign {a b} x; set x", registry, config, Some(bpf));
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, registry);
 
@@ -236,7 +241,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
 
 #[test]
 fn compatible_irules_host_surface_override_remains_accepted() {
-    let irules = DialectProfile::by_name("f5-irules");
+    let irules = DialectProfile::irules();
     let host = DialectProfile::by_name("tcl8.4");
     let mut vm = Vm::new();
     vm.set_dialect_profile(irules);
@@ -641,7 +646,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         "lassign {a b} x",
         traced_registry,
         traced_config,
-        v85.name,
+        Some(v85),
     );
     let traced_cfg = build_cfg_codegen(&traced_ir, false);
     let traced_aot = codegen_module(&traced_cfg, &traced_ir, traced_registry);

@@ -295,9 +295,12 @@ pub(crate) fn cursor_in_command_substitution(
 mod tests {
     use super::*;
 
-    fn visited_format_heads(source: &str, dialect: &str) -> Vec<(String, String, u32)> {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        let registry = tcl_registry::registry_for_profile(profile);
+    fn visited_format_heads(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<(String, String, u32)> {
+        let profile = dialect;
+        let registry = crate::registry_for_dialect_profile(profile);
         let config = LexerConfig::for_file_dialect(profile.name);
         let identities = tcl_compiler::head_identity::command_head_identities_with_config(
             source, config, registry,
@@ -329,7 +332,7 @@ mod tests {
             ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
             ("expect {-re {ready} \"format {%d} 1\"}", "expect", "format"),
         ] {
-            let heads = visited_format_heads(source, dialect);
+            let heads = visited_format_heads(source, tcl_dialect::DialectProfile::by_name(dialect));
             assert_eq!(
                 heads,
                 vec![(
@@ -346,7 +349,7 @@ mod tests {
     fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
         let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(aliased, "tcl8.6"),
+            visited_format_heads(aliased, tcl_dialect::DialectProfile::by_name("tcl8.6")),
             vec![(
                 "fmt".to_owned(),
                 "format".to_owned(),
@@ -356,7 +359,7 @@ mod tests {
 
         let renamed = "rename format saved\nswitch $x {a \"format {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(renamed, "tcl8.6"),
+            visited_format_heads(renamed, tcl_dialect::DialectProfile::by_name("tcl8.6")),
             vec![(
                 "format".to_owned(),
                 String::new(),
@@ -370,7 +373,8 @@ mod tests {
             "switch $x {a \"format {%d} 1\" orphan}",
         ] {
             assert!(
-                visited_format_heads(source, "tcl8.6").is_empty(),
+                visited_format_heads(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+                    .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }

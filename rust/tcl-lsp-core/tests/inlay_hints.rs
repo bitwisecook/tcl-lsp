@@ -43,7 +43,7 @@ fn hints_range(source: &str, range: LspRange) -> Vec<InlayHint> {
     let analysis = analyser.analyse(source, "tcl8.6");
     inlay_hints(
         source,
-        "tcl8.6",
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
         range,
         Some(&analysis),
         Some(registry),

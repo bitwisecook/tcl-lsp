@@ -283,7 +283,11 @@ pub fn irule_cfg_paths(args: &Value) -> Value {
 /// priority (high → normal → low).
 fn extract_test_paths(source: &str) -> Vec<PathInfo> {
     let registry = registry_for_dialect(IRULES_DIALECT);
-    let data = tcl_diagram::diagram_data_for_dialect(source, registry, IRULES_DIALECT);
+    let data = tcl_diagram::diagram_data_for_dialect(
+        source,
+        registry,
+        tcl_lsp_core::profile_for_dialect(IRULES_DIALECT),
+    );
     if data.get("error").is_some() {
         return Vec::new();
     }
@@ -613,7 +617,11 @@ fn build_condition_summary(conditions: &[Condition]) -> String {
 /// from the dataflow graph.
 fn collect_taints(source: &str) -> Vec<Taint> {
     let registry = registry_for_dialect(IRULES_DIALECT);
-    let graph = tcl_lsp_core::graphs::dataflow_graph(source, registry, IRULES_DIALECT);
+    let graph = tcl_lsp_core::graphs::dataflow_graph(
+        source,
+        registry,
+        tcl_lsp_core::profile_for_dialect(IRULES_DIALECT),
+    );
     graph
         .get("taint_warnings")
         .and_then(Value::as_array)

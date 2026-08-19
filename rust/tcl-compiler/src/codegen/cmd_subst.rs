@@ -865,7 +865,7 @@ impl CodegenCtx<'_> {
                 // it dialect-blind here left a dialect-only operator
                 // (`$x contains "a"`) unrecognised and pushed as a raw string
                 // (issue #1435).
-                let node = crate::expr_parser::parse_expr(expr_body, self.dialect);
+                let node = crate::expr_parser::parse_expr_for_profile(expr_body, self.dialect);
                 self.emit_expr(&node);
             }
             Some(InlineCodegenHookId::Incr) if (1..=2).contains(&args.len()) => {
@@ -1544,10 +1544,10 @@ mod tests {
     /// which returned the text itself rather than evaluating the operator.
     #[test]
     fn inline_expr_subst_parses_under_the_compile_dialect() {
-        let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        let profile = tcl_dialect::DialectProfile::irules();
         let registry = tcl_registry::registry_for_profile(profile);
         let mut ctx = CodegenCtx::new(true, &["x"], registry);
-        ctx.dialect = Some(profile.name);
+        ctx.dialect = Some(tcl_dialect::DialectProfile::by_name(profile.name));
         ctx.emit_inline_cmd_subst("[expr {$x contains \"a\"}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
@@ -1561,14 +1561,14 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut old = CodegenCtx::new(true, &[], &registry);
-        old.dialect = Some("tcl8.4");
+        old.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.4"));
         old.emit_inline_cmd_subst("[expr {2 ** 3}]");
         let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
         assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
 
         let mut modern = CodegenCtx::new(true, &[], &registry);
-        modern.dialect = Some("tcl8.5");
+        modern.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.5"));
         modern.emit_inline_cmd_subst("[expr {2 ** 3}]");
         let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
         assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");

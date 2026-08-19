@@ -289,7 +289,7 @@ struct CallSiteScanCtx<'a, S> {
     /// actually defines the callee.
     known: &'a HashSet<String, S>,
     registry: &'a CommandRegistry,
-    dialect: &'a str,
+    dialect: &'static tcl_dialect::DialectProfile,
     /// `namespace import` directives (`(importing_namespace, absolute_pattern)`
     /// pairs), from [`crate::ir::Module::namespace_imports`] — see
     /// [`resolve_via_namespace_import`].
@@ -803,7 +803,7 @@ fn record_call_site_evidence(
         let nested = crate::segmenter::segment_commands_with_offset_and_config(
             body_text,
             0,
-            tcl_lexer::LexerConfig::for_dialect(ctx.dialect),
+            tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
         );
         for cmd in &nested {
             let name = cmd.name();
@@ -1273,7 +1273,7 @@ pub(crate) fn collect_call_site_constants(
     procedures: &HashMap<String, crate::ir::Procedure>,
     namespace_imports: &[(String, String)],
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> CallSiteEvidence {
     let known: HashSet<String> = procedures.keys().cloned().collect();
     let var_facts = collect_module_scope_var_facts(cfg_module, extra_callers, registry);
@@ -1465,7 +1465,7 @@ fn scan_cfg_callers<'a>(
 pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     source: &str,
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     known: &HashSet<String, S>,
     dispatch_reach: &[String],
 ) -> CallSiteEvidence {
@@ -1473,7 +1473,7 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
     if known.is_empty() {
         return out;
     }
-    let config = tcl_lexer::LexerConfig::for_dialect(dialect);
+    let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
     let mut ir_module = crate::lowering::lower_to_ir_with_config(source, registry, config);
     crate::specialise_factories::specialise_factories(&mut ir_module, registry);
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
@@ -1568,10 +1568,15 @@ pub fn scan_source_call_sites<S: std::hash::BuildHasher>(
 pub fn scan_unit_linkage(
     ir_module: &IrModule,
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Traits {
-    let dialect_set =
-        tcl_dialect::DialectSet::parse(dialect).unwrap_or_else(tcl_dialect::DialectSet::empty);
+    // The *exact* parsed bit for this profile's own name, deliberately not
+    // `availability_mask`: `unit_linkage` filters registry rows by the single
+    // dialect the document is, not by the wider set of releases whose commands
+    // that dialect makes available (`f5-iapps` composes `TCL85|IAPPS`).
+    let dialect_set = dialect
+        .and_then(|profile| tcl_dialect::DialectSet::parse(profile.name))
+        .unwrap_or_else(tcl_dialect::DialectSet::empty);
     let mut found = Traits::empty();
 
     let mut visit = |stmt: &crate::ir::Statement| {
@@ -1848,7 +1853,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {a {b x}} { return $a }\nhelper 1 two\nhelper 1\n",
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -1869,7 +1874,7 @@ mod tests {
         let mut a = scan_source_call_sites(
             &format!("{src}helper prod\n"),
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -1880,7 +1885,7 @@ mod tests {
         let b = scan_source_call_sites(
             &format!("{src}helper dev\n"),
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -1897,7 +1902,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nafter 0 helper\n",
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -1915,7 +1920,13 @@ mod tests {
             "helper prod\nrename helper legacy\n",
             "helper prod\ninterp alias {} h {} helper\n",
         ] {
-            let evidence = scan_source_call_sites(src, &reg, "", &known(&["::helper"]), &[]);
+            let evidence = scan_source_call_sites(
+                src,
+                &reg,
+                tcl_dialect::DialectProfile::by_name(""),
+                &known(&["::helper"]),
+                &[],
+            );
             let helper = evidence.get("::helper").expect("calls recorded");
             assert_eq!(helper.uniform_literal_at(0), None, "{src}");
         }
@@ -1930,7 +1941,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper one two\nhelper one two\n",
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -1970,7 +1981,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nhelper prod\n",
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::helper"]),
             &[],
         );
@@ -2031,7 +2042,7 @@ mod tests {
                 &reg,
                 tcl_lexer::LexerConfig::default(),
             );
-            assert_eq!(scan_unit_linkage(&module, &reg, ""), want, "{src:?}");
+            assert_eq!(scan_unit_linkage(&module, &reg, None), want, "{src:?}");
         }
     }
 
@@ -2054,7 +2065,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
             &known(&["::a::helper", "::a::run", "::helper"]),
             &[],
         );
@@ -2091,7 +2102,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
             &known(&["::foo::helper", "::foo::runIt", "::helper"]),
             &[],
         );
@@ -2113,7 +2124,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {mode} { return $mode }\ncatch { helper prod }\n",
             &reg,
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
             &known(&["::helper"]),
             &[],
         );
@@ -2131,7 +2142,13 @@ mod tests {
     #[test]
     fn slice_for_keeps_only_the_named_callees() {
         let reg = registry();
-        let evidence = scan_source_call_sites("a 1\nb 2\n", &reg, "", &known(&["::a", "::b"]), &[]);
+        let evidence = scan_source_call_sites(
+            "a 1\nb 2\n",
+            &reg,
+            tcl_dialect::DialectProfile::by_name(""),
+            &known(&["::a", "::b"]),
+            &[],
+        );
         let sliced = evidence.slice_for(["::a"].into_iter());
         assert_eq!(sliced.callees().collect::<Vec<_>>(), vec!["::a"]);
         assert!(evidence.slice_for(["::zzz"].into_iter()).is_empty());
@@ -2140,8 +2157,11 @@ mod tests {
     /// Build the evidence for `src` under a named dialect's registry, the
     /// way `CompilationUnit` does minus the method / body-unit callers
     /// (which need a CFG context these unit tests do not exercise).
-    fn evidence_for_dialect(src: &str, dialect: &str) -> CallSiteEvidence {
-        let reg = tcl_registry::registry_for_dialect(dialect);
+    fn evidence_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> CallSiteEvidence {
+        let reg = tcl_registry::cache::registry_for_profile(dialect);
         let ir = crate::lowering::lower_to_ir(src, reg);
         let cfg_module = crate::cfg_builder::build_cfg(&ir, false);
         collect_call_site_constants(
@@ -2155,7 +2175,7 @@ mod tests {
     }
 
     fn evidence(src: &str) -> CallSiteEvidence {
-        evidence_for_dialect(src, "tcl")
+        evidence_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl"))
     }
 
     /// Whether `index` still has a single agreed literal across every
@@ -2359,7 +2379,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "oo::class create Dog { method bark {} { return woof } }\nDog new\n",
             &reg,
-            "",
+            tcl_dialect::DialectProfile::by_name(""),
             &known(&["::unknown"]),
             &[],
         );
@@ -2406,7 +2426,7 @@ mod tests {
     fn a_registry_declared_user_proc_invoker_is_a_call_site() {
         let ev = evidence_for_dialect(
             "proc helper {mode} { return $mode }\nwhen RULE_INIT { call helper dev }\n",
-            "irules",
+            tcl_dialect::DialectProfile::irules(),
         );
         assert_eq!(uniform(&ev, "::helper", 0).as_deref(), Some("dev"));
     }
@@ -2497,7 +2517,13 @@ mod tests {
             // it in the callee's component because something sources it.
             "set cmd [gets stdin]\n$cmd dev\n",
         ] {
-            let opaque = scan_source_call_sites(src, &reg, "tcl", &known, &linked);
+            let opaque = scan_source_call_sites(
+                src,
+                &reg,
+                tcl_dialect::DialectProfile::by_name("tcl"),
+                &known,
+                &linked,
+            );
             let mut project =
                 evidence("proc theirs {mode} { return $mode }\ntheirs prod\ntheirs prod\n");
             project.merge_from(&opaque);
@@ -2519,7 +2545,7 @@ mod tests {
         let opaque = scan_source_call_sites(
             "proc mine {x} { return $x }\nset cmd [gets stdin]\n$cmd dev\n",
             &reg,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             &known,
             // Not in the callee's component: its reach is its own procs.
             &["::mine".to_owned()],

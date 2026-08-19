@@ -81,7 +81,7 @@ pub fn regex_source_literal_spans(
     source: &str,
     cu: &CompilationUnit,
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<Span> {
     let mut spans: Vec<Span> = Vec::new();
     let mut units: Vec<&FunctionUnit> =
@@ -122,7 +122,7 @@ fn collect_in_function(
     source: &str,
     fu: &FunctionUnit,
     registry: &CommandRegistry,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     out: &mut Vec<Span>,
 ) {
     let mut scan = Scan::default();
@@ -253,14 +253,18 @@ fn is_literal_assignment(stmt: &Statement) -> bool {
 /// itself stop before it), so the word's **end** is recomputed by matching the
 /// opening delimiter in the source.  `None` when the statement is not a `set`
 /// with a value word.
-fn value_word_span(source: &str, dialect: &str, stmt_span: Span) -> Option<Span> {
+fn value_word_span(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    stmt_span: Span,
+) -> Option<Span> {
     let start = stmt_span.start() as usize;
     let end = (stmt_span.end() as usize).min(source.len());
     let text = source.get(start..end.max(start))?;
     let seg = segment_commands_with_offset_and_config(
         text,
         u32::try_from(start).unwrap_or(0),
-        tcl_lexer::LexerConfig::for_dialect(dialect),
+        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
     )
     .into_iter()
     .next()?;
@@ -398,10 +402,15 @@ mod tests {
     fn spans_text(source: &str) -> Vec<String> {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
-        regex_source_literal_spans(source, &cu, &registry, "tcl9.0")
-            .into_iter()
-            .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-            .collect()
+        regex_source_literal_spans(
+            source,
+            &cu,
+            &registry,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        )
+        .into_iter()
+        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
+        .collect()
     }
 
     #[test]
@@ -631,7 +640,10 @@ mod tests {
         assert!(cu.procedures.is_empty(), "no procedures materialised");
     }
 
-    fn spans_text_dialect(source: &str, dialect: &str) -> Vec<String> {
+    fn spans_text_dialect(
+        source: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<String> {
         let registry = CommandRegistry::build_default();
         let cu = CompilationUnit::build_for(source, &registry, false);
         regex_source_literal_spans(source, &cu, &registry, dialect)
@@ -648,7 +660,7 @@ mod tests {
         let src = "set re {a+b[0-9]*}\nregexp $re $s\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
             assert_eq!(
-                spans_text_dialect(src, dialect),
+                spans_text_dialect(src, tcl_dialect::DialectProfile::by_name(dialect)),
                 vec!["{a+b[0-9]*}".to_owned()],
                 "dialect {dialect}"
             );
@@ -662,7 +674,13 @@ mod tests {
         // variable is located and its source literal tracked (option-dialect
         // validity is a diagnostics concern, not a highlighting one).
         let src = "set re {x+}\nregsub -command $re $s Y out\n";
-        assert_eq!(spans_text_dialect(src, "tcl8.6"), vec!["{x+}".to_owned()]);
-        assert_eq!(spans_text_dialect(src, "tcl9.0"), vec!["{x+}".to_owned()]);
+        assert_eq!(
+            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            vec!["{x+}".to_owned()]
+        );
+        assert_eq!(
+            spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            vec!["{x+}".to_owned()]
+        );
     }
 }

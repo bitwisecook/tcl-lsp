@@ -109,9 +109,20 @@ pub struct CodegenCtx<'r> {
     /// was wrong in both directions at once (issue #1568). Defaults to 9.0 for
     /// the hand-built contexts in tests.
     pub braced_var: tcl_dialect::BracedVarStyle,
-    /// The dialect name of the release being compiled *for*, as the lowering
-    /// pass received it (`IrModule::dialect`), or `None` when the compile
-    /// named no dialect.
+    /// The resolved profile of the release being compiled *for*, from the
+    /// name the lowering pass received (`IrModule::dialect`).  `None` means
+    /// the compile named *no* dialect, and only that: a named-but-unknown
+    /// dialect still resolves (through `by_name`, to the permissive
+    /// fallback) and stays `Some`.
+    ///
+    /// The distinction matters because the readers branch on `is_some()`, not
+    /// on the profile's identity — `parse_expr_for_profile` in
+    /// [`codegen::control_flow`](crate::codegen::control_flow) and
+    /// [`codegen::cmd_subst`](crate::codegen::cmd_subst) pick the target
+    /// grammar when this is `Some` and the thread-ambient one when it is
+    /// `None`. Resolving the name with `DialectProfile::find` here would
+    /// answer `None` for `tk` and for any unrecognised name and silently move
+    /// those compiles onto the ambient grammar.
     ///
     /// This is the `expr` half of the same fact [`Self::numbers`] and
     /// [`Self::escapes`] carry: it resolves the grammar a re-parsed `expr`
@@ -119,11 +130,10 @@ pub struct CodegenCtx<'r> {
     /// [`RuntimeExprSurface`](tcl_registry::expr_surface::RuntimeExprSurface),
     /// which
     /// operators the target release's `expr` actually has (issue #1435).
-    /// Kept as the dialect *name* rather than a resolved profile so a
-    /// dialect-less compile stays distinguishable from one that named plain
+    /// A dialect-less compile stays distinguishable from one that named plain
     /// `tcl`: `parse_expr`'s numeral grammar follows the ambient runtime
     /// syntax for the former and the profile's for the latter.
-    pub dialect: Option<&'r str>,
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Literal constant pool.
     pub literals: LiteralTable,
     /// Local variable table.

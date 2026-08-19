@@ -99,7 +99,7 @@ use crate::rename_safety::RenameRefusal;
 /// Returns the [`RenameRefusal`] for the first unprovable occurrence found.
 pub fn namespace_rename_edits(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     cell: &str,
     new_tail: &str,
@@ -317,7 +317,7 @@ fn written_cell_segment(source: &str, word: Span, resolved: &str, cell: &str) ->
 /// discipline #1092 established for the member tier, applied here.
 fn namespace_rename_hazard(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     cell: &str,
     considered: &[Span],
@@ -346,7 +346,7 @@ fn namespace_rename_hazard(
             Some(span),
         ));
     }
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let mut hazard: Option<(Span, HazardKind)> = None;
     let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
         if hazard.is_some() {
@@ -460,8 +460,14 @@ mod tests {
     /// reason.
     fn renamed(source: &str, cell: &str, new_tail: &str) -> Result<String, String> {
         let analysis = analyse(source);
-        let edits = namespace_rename_edits(source, "tcl8.6", &analysis, cell, new_tail)
-            .map_err(|r| r.reason)?;
+        let edits = namespace_rename_edits(
+            source,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            cell,
+            new_tail,
+        )
+        .map_err(|r| r.reason)?;
         // Apply back-to-front so earlier spans keep their offsets.
         let line_index = LineIndex::new(source);
         let mut offsets: Vec<(usize, usize, String)> = edits

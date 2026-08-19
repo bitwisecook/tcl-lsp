@@ -364,7 +364,7 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
 /// spelling must behave exactly like `f5-irules` through the profile path.
 #[test]
 fn irules_alias_resolves_like_the_canonical_profile() {
-    let via_alias = DialectProfile::by_name("irules");
+    let via_alias = DialectProfile::irules();
     let reg = registry_for_dialect("f5-irules");
     assert!(via_alias.resolve_command(reg, "exec").is_none());
     assert!(via_alias.resolve_command(reg, "pool").is_some());

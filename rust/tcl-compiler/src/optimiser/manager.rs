@@ -60,7 +60,7 @@ pub fn optimise(source: &str, registry: &CommandRegistry) -> Vec<Optimisation> {
 pub fn optimise_with_dialect(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Vec<Optimisation> {
     let profile = match dialect {
         Some(profile) => profile,
@@ -927,7 +927,7 @@ pub fn apply_optimisations(source: &str, optimisations: &[Optimisation]) -> Stri
 pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     max_iterations: usize,
     disabled: &std::collections::HashSet<String, S>,
 ) -> (String, Vec<Optimisation>, usize) {
@@ -962,7 +962,7 @@ pub fn optimise_source_multipass_filtered<S: std::hash::BuildHasher>(
 pub fn optimise_source_multipass(
     source: &str,
     registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     max_iterations: usize,
 ) -> (String, Vec<Optimisation>) {
     let mut current = source.to_owned();
@@ -1010,7 +1010,7 @@ mod tests {
         let opts = optimise_with_dialect(
             source,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             opts.iter().all(|opt| {
@@ -1373,7 +1373,7 @@ mod tests {
         let opts = optimise_with_dialect(
             src,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
+            Some(tcl_dialect::DialectProfile::irules()),
         );
         assert!(
             opts.iter().any(|o| o.code == DiagCode::O124),

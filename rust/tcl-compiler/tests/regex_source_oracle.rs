@@ -79,10 +79,15 @@ fn inner(word: &str) -> &str {
 fn highlighted_literals(source: &str) -> Vec<String> {
     let registry = CommandRegistry::build_default();
     let cu = CompilationUnit::build_for(source, &registry, false);
-    regex_source_literal_spans(source, &cu, &registry, "tcl9.0")
-        .into_iter()
-        .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
-        .collect()
+    regex_source_literal_spans(
+        source,
+        &cu,
+        &registry,
+        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+    )
+    .into_iter()
+    .map(|s| source[s.start() as usize..s.end() as usize].to_owned())
+    .collect()
 }
 
 #[test]

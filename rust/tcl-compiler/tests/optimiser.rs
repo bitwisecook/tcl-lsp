@@ -1616,11 +1616,7 @@ mod cross_event_dse {
         let reg = registry_for_dialect("f5-irules");
         apply_optimisations(
             src,
-            &optimise_with_dialect(
-                src,
-                reg,
-                Some(tcl_dialect::DialectProfile::by_name("f5-irules")),
-            ),
+            &optimise_with_dialect(src, reg, Some(tcl_dialect::DialectProfile::irules())),
         )
     }
 

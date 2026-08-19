@@ -800,15 +800,18 @@ mod tests {
     use super::*;
 
     fn barrier_for(src: &str) -> DynamicNameBarrier {
-        barrier_for_dialect(src, "tcl8.6")
+        barrier_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6"))
     }
 
     /// The barrier for `src` analysed **as** `dialect` — registry, lexer
     /// config, and expression grammar all that dialect's, which is the
     /// configuration a real host builds (issue #1393).
-    fn barrier_for_dialect(src: &str, dialect: &str) -> DynamicNameBarrier {
-        let registry = tcl_registry::registry_for_dialect(dialect);
-        let cu = crate::compilation_unit::CompilationUnit::build_for_dialect(
+    fn barrier_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> DynamicNameBarrier {
+        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let cu = crate::compilation_unit::CompilationUnit::build_for_profile(
             src, registry, false, dialect,
         );
         let fu = cu.procedures.values().next().unwrap_or(&cu.top_level);
@@ -1064,25 +1067,26 @@ computed; got {b:?}"
     /// splitter now shared with the lowering.
     #[test]
     fn word_splitting_follows_the_dialect() {
-        let words = |src: &str, dialect: &str| -> Vec<Vec<String>> {
-            crate::ir_helpers::tokenise_command_words(
-                src,
-                tcl_lexer::LexerConfig::for_dialect(dialect),
-            )
-            .into_iter()
-            .map(|command| command.into_iter().map(|word| word.text).collect())
-            .collect()
-        };
+        let words =
+            |src: &str, dialect: &'static tcl_dialect::DialectProfile| -> Vec<Vec<String>> {
+                crate::ir_helpers::tokenise_command_words(
+                    src,
+                    tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+                )
+                .into_iter()
+                .map(|command| command.into_iter().map(|word| word.text).collect())
+                .collect()
+            };
 
         // iRules treats `}{` as a word separator; Tcl concatenates the two
         // braced groups into one word.
         assert_eq!(
-            words("cmd {a}{b}", "f5-irules"),
+            words("cmd {a}{b}", tcl_dialect::DialectProfile::irules()),
             vec![vec!["cmd", "a", "b"]],
             "an iRule splits `{{a}}{{b}}` into two words",
         );
         assert_eq!(
-            words("cmd {a}{b}", "tcl8.6"),
+            words("cmd {a}{b}", tcl_dialect::DialectProfile::by_name("tcl8.6")),
             vec![vec!["cmd", "ab"]],
             "Tcl welds them into one",
         );
@@ -1090,13 +1094,19 @@ computed; got {b:?}"
         // `{*}` expands only where the dialect has it — never in 8.4 or an
         // iRule, where it is an ordinary (literal) word.
         assert_eq!(
-            words("cmd {*}$args x", "tcl8.6"),
+            words(
+                "cmd {*}$args x",
+                tcl_dialect::DialectProfile::by_name("tcl8.6")
+            ),
             vec![vec!["cmd", "${args}", "x"]],
             "8.5+ reads `{{*}}` as the expansion marker",
         );
         for dialect in ["tcl8.4", "f5-irules"] {
             assert_eq!(
-                words("cmd {*}$args x", dialect),
+                words(
+                    "cmd {*}$args x",
+                    tcl_dialect::DialectProfile::by_name(dialect)
+                ),
                 vec![vec!["cmd", "*${args}", "x"]],
                 "{dialect} has no `{{*}}` expansion",
             );
@@ -1148,14 +1158,17 @@ computed; got {b:?}"
     #[test]
     fn a_dynamic_write_raises_the_barrier_under_every_dialect() {
         for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
-            let b = barrier_for_dialect("proc f {n} { set $n 1; return ok }\n", dialect);
+            let b = barrier_for_dialect(
+                "proc f {n} { set $n 1; return ok }\n",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             assert!(b.writes, "`set $n 1` is a dynamic write under {dialect}");
 
             // …and through a `[…]` substitution, which is where the barrier
             // walk re-splits script text itself.
             let b = barrier_for_dialect(
                 "proc f {n} { set out {}; lappend out [set $n 1]; return $out }\n",
-                dialect,
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             assert!(b.writes, "nested dynamic write missed under {dialect}");
         }
@@ -1177,7 +1190,7 @@ computed; got {b:?}"
             ] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{n}} {{ {body}; return $out }}\n"),
-                    dialect,
+                    tcl_dialect::DialectProfile::by_name(dialect),
                 );
                 assert!(b.writes, "{dialect}: `{body}` hides a dynamic write");
             }
@@ -1196,7 +1209,7 @@ computed; got {b:?}"
     fn an_84_expansionless_name_word_is_still_a_dynamic_write() {
         let b = barrier_for_dialect(
             "proc f {n} { set out [list [set {*}{$n} 1]]; return $out }\n",
-            "tcl8.4",
+            tcl_dialect::DialectProfile::by_name("tcl8.4"),
         );
         assert!(
             b.writes,
@@ -1209,7 +1222,10 @@ computed; got {b:?}"
     #[test]
     fn a_literal_name_stays_clear_under_every_dialect() {
         for dialect in ["tcl8.6", "tcl8.4", "f5-irules"] {
-            let b = barrier_for_dialect("proc f {} { set {$n} 1; return ok }\n", dialect);
+            let b = barrier_for_dialect(
+                "proc f {} { set {$n} 1; return ok }\n",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             assert!(b.is_clear(), "{dialect}: got {b:?}");
         }
     }
@@ -1225,7 +1241,10 @@ computed; got {b:?}"
     #[test]
     fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
         for dialect in ["tcl8.4", "f5-irules"] {
-            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            let b = barrier_for_dialect(
+                "proc f {n} { set {*}$n 1; return ok }\n",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             assert!(
                 b.writes,
                 "{dialect}: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
@@ -1241,7 +1260,10 @@ computed; got {b:?}"
     #[test]
     fn an_expanded_computed_name_statement_still_raises_the_write_barrier() {
         for dialect in ["tcl9.0", "tcl8.6"] {
-            let b = barrier_for_dialect("proc f {n} { set {*}$n 1; return ok }\n", dialect);
+            let b = barrier_for_dialect(
+                "proc f {n} { set {*}$n 1; return ok }\n",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             assert!(
                 b.writes,
                 "{dialect}: expanded `{{*}}$n` write missed; got {b:?}"
@@ -1259,7 +1281,7 @@ computed; got {b:?}"
             for body in ["set x 1", "set a($i) 1", "set x 1; set y $x"] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{i}} {{ {body}; return ok }}\n"),
-                    dialect,
+                    tcl_dialect::DialectProfile::by_name(dialect),
                 );
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
             }
@@ -1278,7 +1300,10 @@ computed; got {b:?}"
     #[test]
     fn incr_of_a_computed_name_raises_the_write_barrier() {
         for dialect in ["tcl8.4", "f5-irules", "tcl8.6", "tcl9.0"] {
-            let b = barrier_for_dialect("proc f {n} { incr $n; return ok }\n", dialect);
+            let b = barrier_for_dialect(
+                "proc f {n} { incr $n; return ok }\n",
+                tcl_dialect::DialectProfile::by_name(dialect),
+            );
             assert!(
                 b.writes,
                 "{dialect}: `incr $n` names `$n` — a computed name; got {b:?}",
@@ -1297,7 +1322,7 @@ computed; got {b:?}"
             for body in ["incr x", "incr a($i)", "incr x 1"] {
                 let b = barrier_for_dialect(
                     &format!("proc f {{i}} {{ set x 0; {body}; return ok }}\n"),
-                    dialect,
+                    tcl_dialect::DialectProfile::by_name(dialect),
                 );
                 assert!(b.is_clear(), "{dialect}: `{body}` got {b:?}");
             }

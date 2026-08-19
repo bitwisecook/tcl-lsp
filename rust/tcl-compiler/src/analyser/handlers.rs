@@ -9705,7 +9705,7 @@ mod tests {
         let source = "[list {p} {set y}{set z}]";
         let mut analyser = Analyser::new();
         analyser.source = source.to_owned();
-        analyser.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        analyser.profile = tcl_dialect::DialectProfile::irules();
         let token = tcl_lexer::Lexer::with_source_map(
             tcl_lexer::SourceMap::new(source),
             tcl_lexer::LexerConfig::for_dialect("f5-irules"),
@@ -10512,7 +10512,7 @@ mod tests {
         // qualified match is a library/package command living in its own
         // namespace, not a core-global shadow.)
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        a.profile = tcl_dialect::DialectProfile::irules();
         a.source = "proc pool {} {}".to_owned();
         a.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
@@ -10560,7 +10560,7 @@ mod tests {
         // is a library/package command in its own namespace, not a
         // core-global shadow — never W113.
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+        a.profile = tcl_dialect::DialectProfile::irules();
         a.handle_proc_command(
             &["HTTP::respond".to_string(), String::new(), String::new()],
             &[

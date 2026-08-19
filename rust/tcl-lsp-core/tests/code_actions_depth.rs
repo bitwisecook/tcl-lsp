@@ -98,7 +98,7 @@ fn irules_checks(
     source: &str,
     registry: &tcl_registry::CommandRegistry,
 ) -> Vec<tcl_compiler::compiler_checks::Diagnostic> {
-    let profile = tcl_dialect::DialectProfile::by_name("f5-irules");
+    let profile = tcl_dialect::DialectProfile::irules();
     let cu = CompilationUnit::build_for_with_config(
         source,
         registry,

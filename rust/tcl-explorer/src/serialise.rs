@@ -2506,8 +2506,11 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
     let command_registry = registry_for_dialect(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, &command_registry);
+    let identities = tcl_compiler::head_identity::command_head_identities(
+        source,
+        tcl_dialect::DialectProfile::by_name(dialect),
+        &command_registry,
+    );
     for (matched, handler) in
         tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
             source,

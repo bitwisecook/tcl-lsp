@@ -567,7 +567,7 @@ impl Analyser {
     /// matching W002's own "don't restrict" rule for that case.
     #[must_use]
     fn expr_mathfunc_name_known(&self, name: &str) -> bool {
-        crate::tcl_expr_eval::is_known_mathfunc_in_dialect(name, self.dialect())
+        crate::tcl_expr_eval::is_known_mathfunc_in_dialect(name, self.profile)
     }
 
     /// Whether this dialect exposes `::tcl::mathfunc::*` as literal,
@@ -575,7 +575,7 @@ impl Analyser {
     /// [`crate::tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect`].
     #[must_use]
     fn mathfunc_command_wrappers_available(&self) -> bool {
-        crate::tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect(self.dialect())
+        crate::tcl_expr_eval::mathfunc_command_wrappers_available_in_dialect(self.profile)
     }
 
     /// Whether byte offset `off` falls inside any recorded proc or class

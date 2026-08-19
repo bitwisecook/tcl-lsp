@@ -1772,9 +1772,9 @@ mod tests {
         format_tcl(src, config, &registry)
     }
 
-    fn fmt_dialect(src: &str, dialect: &str) -> String {
-        let registry = tcl_registry::registry_for_dialect(dialect);
-        format_tcl(src, &FormatterConfig::for_dialect(dialect), registry)
+    fn fmt_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
+        let registry = crate::registry_for_dialect_profile(dialect);
+        format_tcl(src, &FormatterConfig::for_profile(dialect), registry)
     }
 
     /// Regression coverage for issue #996: `format_body` recurses once per
@@ -2057,7 +2057,11 @@ mod tests {
         let registry = tcl_registry::registry_for_dialect("f5-irules");
         let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
         for spelling in ["f5-irules", "irules", "tcl-irule"] {
-            let out = format_tcl(source, &FormatterConfig::for_dialect(spelling), registry);
+            let out = format_tcl(
+                source,
+                &FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(spelling)),
+                registry,
+            );
             assert!(out.contains("} {"), "{spelling} emitted no `}} {{`:\n{out}");
             assert!(
                 !out.contains("}{"),
@@ -2066,7 +2070,11 @@ mod tests {
         }
         // The mismatched modern-Tcl profile — what a caller that forgot the
         // dialect used to get — leaves the same bytes alone.
-        let tcl9 = format_tcl(source, &FormatterConfig::for_dialect("tcl9.0"), registry);
+        let tcl9 = format_tcl(
+            source,
+            &FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            registry,
+        );
         assert!(
             tcl9.contains("}{"),
             "the Tcl 9 profile must not synthesise the separator:\n{tcl9}"
@@ -2143,7 +2151,7 @@ mod tests {
     fn switch_case_list_formatter_follows_release_matrix() {
         let valid = "switch subject {\ndefault {\nputs hit\n}\n}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
-            let out = fmt_dialect(valid, dialect);
+            let out = fmt_dialect(valid, tcl_dialect::DialectProfile::by_name(dialect));
             assert!(
                 out.contains("    default {\n        puts hit\n    }"),
                 "{dialect} must format a normal case-list body:\n{out}"
@@ -2151,13 +2159,13 @@ mod tests {
         }
         for subject in ["-regexp", "--"] {
             let ambiguous = format!("switch {subject} {{\ndefault {{\nputs hit\n}}\n}}\n");
-            let old = fmt_dialect(&ambiguous, "tcl8.4");
+            let old = fmt_dialect(&ambiguous, tcl_dialect::DialectProfile::by_name("tcl8.4"));
             assert!(
                 !old.contains("        puts hit"),
                 "Tcl 8.4 must not descend the invalid option-like two-word form {subject:?}:\n{old}"
             );
             for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
-                let out = fmt_dialect(&ambiguous, dialect);
+                let out = fmt_dialect(&ambiguous, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     out.contains("    default {\n        puts hit\n    }"),
                     "{dialect} must format the optionless two-word case list with subject {subject:?}:\n{out}"
@@ -2168,23 +2176,33 @@ mod tests {
 
     #[test]
     fn incomplete_case_list_recovery_is_presentation_only_and_idempotent() {
-        fn assert_fixed_point(source: &str, dialect: &str, nested: &str) -> String {
+        fn assert_fixed_point(
+            source: &str,
+            dialect: &'static tcl_dialect::DialectProfile,
+            nested: &str,
+        ) -> String {
             let once = fmt_dialect(source, dialect);
             assert!(
                 once.contains(nested),
-                "{dialect} did not present the incomplete case list:\n{once}"
+                "{} did not present the incomplete case list:\n{once}",
+                dialect.name
             );
             assert_eq!(
                 fmt_dialect(&once, dialect),
                 once,
-                "{dialect} formatter recovery is not idempotent"
+                "{} formatter recovery is not idempotent",
+                dialect.name
             );
             once
         }
 
         let ordinary = "switch subject {\na {\nputs hit\n}\norphan\n}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
-            assert_fixed_point(ordinary, dialect, "a {\n        puts hit\n    }");
+            assert_fixed_point(
+                ordinary,
+                tcl_dialect::DialectProfile::by_name(dialect),
+                "a {\n        puts hit\n    }",
+            );
         }
 
         // An empty list is not a semantic case invocation, but remains a
@@ -2193,17 +2211,25 @@ mod tests {
         // clause.
         let empty = "switch subject {}\n";
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"] {
-            assert_eq!(fmt_dialect(empty, dialect), empty, "{dialect}");
+            assert_eq!(
+                fmt_dialect(empty, tcl_dialect::DialectProfile::by_name(dialect)),
+                empty,
+                "{dialect}"
+            );
         }
 
         let option_like = "switch -regexp {\na {\nputs hit\n}\norphan\n}\n";
-        let old = fmt_dialect(option_like, "tcl8.4");
+        let old = fmt_dialect(option_like, tcl_dialect::DialectProfile::by_name("tcl8.4"));
         assert!(
             !old.contains("        puts hit"),
             "Tcl 8.4 must not recover the invalid two-word option form:\n{old}"
         );
         for dialect in ["tcl8.5", "tcl8.6", "tcl9.0"] {
-            assert_fixed_point(option_like, dialect, "a {\n        puts hit\n    }");
+            assert_fixed_point(
+                option_like,
+                tcl_dialect::DialectProfile::by_name(dialect),
+                "a {\n        puts hit\n    }",
+            );
         }
 
         let aliased =
@@ -2218,8 +2244,12 @@ mod tests {
     #[test]
     fn expect_case_list_formatter_preserves_descriptor_fields_and_formats_only_actions() {
         let source = "expect {\n-regexp {a; b} {puts canonical}\n-re {c; d} {puts abbreviated}\n-glob \"hello world\" {puts quoted}\n-exact \"escaped\\ pattern\" {puts escaped}\n-timeout 5 timeout {puts timed}\n-i $spawn_id eof {puts eof}\n-- {-literal} {puts literal}\nfull_buffer\n}\n";
-        let once = fmt_dialect(source, "expect");
-        assert_eq!(fmt_dialect(&once, "expect"), once, "{once}");
+        let once = fmt_dialect(source, tcl_dialect::DialectProfile::by_name("expect"));
+        assert_eq!(
+            fmt_dialect(&once, tcl_dialect::DialectProfile::by_name("expect")),
+            once,
+            "{once}"
+        );
 
         for literal in [
             "-regexp {a; b} {",
@@ -2266,8 +2296,12 @@ mod tests {
             "expect {\n-bogus {a; b} {puts opaque}\n}\n",
             "expect {\n-timeout\n}\n",
         ] {
-            let formatted = fmt_dialect(source, "expect");
-            assert_eq!(fmt_dialect(&formatted, "expect"), formatted, "{formatted}");
+            let formatted = fmt_dialect(source, tcl_dialect::DialectProfile::by_name("expect"));
+            assert_eq!(
+                fmt_dialect(&formatted, tcl_dialect::DialectProfile::by_name("expect")),
+                formatted,
+                "{formatted}"
+            );
             assert!(
                 !formatted.contains("        a\n"),
                 "malformed data was treated as an action:\n{formatted}"
@@ -2283,11 +2317,17 @@ mod tests {
             "expect {\n-n p {puts ambiguous}\nx {puts also_ambiguous}\n}\n",
             "expect {\n-timeout\n}\n",
         ] {
-            let formatted = fmt_dialect(malformed, "expect");
+            let formatted = fmt_dialect(malformed, tcl_dialect::DialectProfile::by_name("expect"));
             assert_eq!(formatted, malformed, "malformed list was rewritten");
-            assert_eq!(fmt_dialect(&formatted, "expect"), formatted);
+            assert_eq!(
+                fmt_dialect(&formatted, tcl_dialect::DialectProfile::by_name("expect")),
+                formatted
+            );
         }
-        let dynamic = fmt_dialect("expect {\n-re $pattern {puts dynamic}\n}\n", "expect");
+        let dynamic = fmt_dialect(
+            "expect {\n-re $pattern {puts dynamic}\n}\n",
+            tcl_dialect::DialectProfile::by_name("expect"),
+        );
         assert!(
             dynamic.contains("-re $pattern {"),
             "dynamic pattern changed:\n{dynamic}"

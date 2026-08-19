@@ -114,7 +114,7 @@ pub struct InlayHint {
 #[must_use]
 pub fn inlay_hints(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
     registry: Option<&CommandRegistry>,
@@ -150,7 +150,7 @@ pub fn inlay_hints(
 #[must_use]
 pub fn inlay_hints_in_program(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     range: LspRange,
     analysis: Option<&AnalysisResult>,
     resolution: crate::definition::CallResolution<'_>,
@@ -207,7 +207,7 @@ pub fn inlay_hints_in_program(
         let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
             source,
             0,
-            tcl_lexer::LexerConfig::for_file_dialect(dialect),
+            tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         );
         for seg in &segments {
             if seg.texts.is_empty() || seg.argv.is_empty() {
@@ -284,14 +284,14 @@ fn type_display(tl: &TypeLattice) -> Option<String> {
 /// is known.
 fn collect_type_hints(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let cu = CompilationUnit::build_for_dialect(source, registry, false, dialect);
+    let cu = CompilationUnit::build_for_profile(source, registry, false, dialect);
 
     // Build a *per-function* name → display map, keyed by the function's
     // qualified name (leading `::` stripped so it matches the analyser's
@@ -588,17 +588,17 @@ fn push_format_hint(
 /// Collect format-string specifier hints for the whole document.
 fn collect_format_string_hints(
     source: &str,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
     range: LspRange,
     line_index: &LineIndex,
     out: &mut Vec<InlayHint>,
 ) {
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = dialect;
     let segments = tcl_compiler::segmenter::segment_commands_with_offset_and_config(
         source,
         0,
-        tcl_lexer::LexerConfig::for_file_dialect(dialect),
+        tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
     );
     // The document's proven command-identity facts, computed once for the
     // whole file (empty, and lookup-free, unless it binds something).
@@ -1039,7 +1039,7 @@ mod tests {
     fn empty_hints_when_analysis_is_none() {
         let hints = inlay_hints(
             "set x 1\n",
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range("set x 1\n"),
             None,
             None,
@@ -1055,7 +1055,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1079,7 +1079,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1100,7 +1100,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1118,7 +1118,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1140,7 +1140,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&registry),
@@ -1162,7 +1162,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&registry),
@@ -1185,7 +1185,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1208,7 +1208,15 @@ mod tests {
             end_line: 2,
             end_character: u32::MAX,
         };
-        let hints = inlay_hints(src, "tcl", range, Some(&analysis), None, false, true);
+        let hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            range,
+            Some(&analysis),
+            None,
+            false,
+            true,
+        );
         assert_eq!(hints.len(), 1, "{hints:?}");
         assert_eq!(hints[0].position_line, 2);
     }
@@ -1240,9 +1248,24 @@ mod tests {
             end_line: 4,
             end_character: u32::MAX,
         };
-        let full_hints = inlay_hints(src, "tcl", full, Some(&analysis), Some(&reg), false, true);
-        let narrow_hints =
-            inlay_hints(src, "tcl", narrow, Some(&analysis), Some(&reg), false, true);
+        let full_hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            full,
+            Some(&analysis),
+            Some(&reg),
+            false,
+            true,
+        );
+        let narrow_hints = inlay_hints(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            narrow,
+            Some(&analysis),
+            Some(&reg),
+            false,
+            true,
+        );
         let expected: Vec<_> = full_hints
             .into_iter()
             .filter(|h| h.position_line == 4)
@@ -1279,7 +1302,7 @@ mod tests {
         let reg = registry();
         let _ = inlay_hints(
             &src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(&src),
             Some(&analysis),
             Some(&reg),
@@ -1392,7 +1415,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1412,7 +1435,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1432,7 +1455,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1453,7 +1476,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1480,7 +1503,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1501,7 +1524,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1521,7 +1544,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1541,7 +1564,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1564,7 +1587,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1605,7 +1628,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1636,7 +1659,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1657,7 +1680,7 @@ mod tests {
         let reg = registry();
         let type_only = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1671,7 +1694,7 @@ mod tests {
         );
         let param_only = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1694,7 +1717,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            "tcl",
+            tcl_dialect::DialectProfile::by_name("tcl"),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1707,10 +1730,13 @@ mod tests {
     // format-string specifier hints (InlayHintKind::Type)
 
     fn type_labels(src: &str) -> Vec<(u32, String)> {
-        type_labels_for_dialect(src, "tcl")
+        type_labels_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl"))
     }
 
-    fn type_labels_for_dialect(src: &str, dialect: &str) -> Vec<(u32, String)> {
+    fn type_labels_for_dialect(
+        src: &str,
+        dialect: &'static tcl_dialect::DialectProfile,
+    ) -> Vec<(u32, String)> {
         let analysis = analyse(src);
         let reg = registry();
         inlay_hints(
@@ -1762,7 +1788,10 @@ mod tests {
 
     #[test]
     fn binary_q_and_q_hints_are_owned_by_shared_spec_table() {
-        let labels = type_labels_for_dialect("binary format \"q Q\" 1 2\n", "tcl8.6");
+        let labels = type_labels_for_dialect(
+            "binary format \"q Q\" 1 2\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        );
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"f64le"), "{labels:?}");
         assert!(names.contains(&"f64be"), "{labels:?}");

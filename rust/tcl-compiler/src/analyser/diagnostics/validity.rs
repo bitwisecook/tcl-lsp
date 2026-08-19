@@ -4049,7 +4049,7 @@ in the active dialect ({}).",
         &mut self,
         expr_tok: tcl_lexer::Token,
     ) {
-        let Some(ceiling) = crate::tcl_expr_eval::math_func_ceiling_for_dialect(self.dialect())
+        let Some(ceiling) = crate::tcl_expr_eval::math_func_ceiling_for_dialect(self.profile)
         else {
             return;
         };

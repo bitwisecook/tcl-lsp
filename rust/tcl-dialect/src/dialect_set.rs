@@ -244,7 +244,15 @@ impl DialectSet {
             "expect" => Self::EXPECT,
             "f5-tmsh" => Self::TMSH,
             "f5-bigip" => Self::BIGIP,
-            "spectcl" => Self::SPECTCL,
+            // The SpecTcl aliases are listed for the same reason the iRules
+            // ones above are: they are real ingress spellings (`tclspec` is the
+            // editor language id and the file extension), and an ingress that
+            // resolves to the SpecTcl *profile* must not then parse to an empty
+            // dialect set. Listing them here makes that agree whether or not
+            // the caller canonicalised the name through the profile catalogue
+            // first — the alternative leaves the answer dependent on call
+            // order. See issue #1405.
+            "spectcl" | "tcl-spec" | "tclspec" => Self::SPECTCL,
             _ => return None,
         })
     }
@@ -580,6 +588,46 @@ mod tests {
             let dialect = DialectSet::parse(spelling).expect("registered iRules spelling");
             assert_eq!(dialect, DialectSet::IRULES);
             assert_eq!(dialect.canonical_name(), Some("f5-irules"));
+        }
+    }
+
+    /// Deliberate expectation change (issue #1405): the `SpecTcl` alias
+    /// spellings now carry the `SPECTCL` bit.
+    ///
+    /// They previously parsed to `None` — an empty dialect set — so an ingress
+    /// spelled `tclspec` (the editor language id and the file extension) or
+    /// `tcl-spec` resolved to the `SpecTcl` *profile* but then contributed no
+    /// vendor bit. That disagreement was only invisible because nothing
+    /// canonicalised the name before parsing it; threading resolved profiles
+    /// made the two orders observable. Aligned with the iRules aliases above,
+    /// which have always been listed.
+    #[test]
+    fn parse_canonicalises_spectcl_aliases() {
+        for spelling in ["spectcl", "tcl-spec", "tclspec"] {
+            let dialect = DialectSet::parse(spelling).expect("registered SpecTcl spelling");
+            assert_eq!(dialect, DialectSet::SPECTCL);
+            assert_eq!(dialect.canonical_name(), Some("spectcl"));
+        }
+    }
+
+    /// Every alias the profile catalogue accepts for a dialect whose name
+    /// `parse` knows must itself parse to the same bit — the property the
+    /// `SpecTcl` aliases used to violate.
+    #[test]
+    fn every_catalogue_alias_parses_to_its_profile_bit() {
+        for profile in crate::DialectProfile::all() {
+            let Some(canonical) = DialectSet::parse(profile.name) else {
+                continue;
+            };
+            for alias in profile.aliases {
+                assert_eq!(
+                    DialectSet::parse(alias),
+                    Some(canonical),
+                    "alias `{alias}` of `{}` must parse to the same dialect bit \
+                     as its canonical name",
+                    profile.name
+                );
+            }
         }
     }
 

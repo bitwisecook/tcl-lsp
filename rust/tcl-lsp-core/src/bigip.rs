@@ -345,8 +345,8 @@ fn collect_extracted_comment_folds(
         );
     }
 
-    let irules_profile = tcl_dialect::DialectProfile::by_name("f5-irules");
-    let irules_registry = tcl_registry::cache::registry_for_profile(irules_profile);
+    let irules_profile = tcl_dialect::DialectProfile::irules();
+    let irules_registry = crate::registry_for_dialect_profile(irules_profile);
     for rule in tcl_bigip::rule_extract::find_embedded_rules(source) {
         let Some(body) = source.get(rule.body_start_offset..rule.body_end_offset) else {
             continue;

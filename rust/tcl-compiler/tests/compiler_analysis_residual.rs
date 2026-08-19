@@ -937,7 +937,7 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: D,
+                dialect: Some(tcl_dialect::DialectProfile::by_name(D)),
                 external_call_sites: None,
             },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
