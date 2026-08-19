@@ -78,7 +78,13 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
-pub const DSL_VERSION: &str = "1.1";
+///
+/// Tracks the loader's newest vocabulary rather than being written out
+/// separately, because the renderer emits every word the loader reads: a
+/// header naming an older vocabulary than the body uses is exactly the
+/// inconsistency the loader's per-site notice reports, and pinning this to a
+/// literal made the renderer produce it (#1627).
+pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -2511,7 +2517,8 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 ///
 /// The pack takes its name from the dialect the draft was seeded from
 /// ([`SOURCE_DIALECT_KEY`]) when it has one, which is what the ports do —
-/// `speclib tcl 1.1`, `speclib f5-irules 1.1`.
+/// `speclib tcl 1.2`, `speclib f5-irules 1.2` — the newest vocabulary the
+/// loader reads, per [`DSL_VERSION`].
 #[must_use]
 pub fn render(draft: &Draft) -> String {
     let pack = draft

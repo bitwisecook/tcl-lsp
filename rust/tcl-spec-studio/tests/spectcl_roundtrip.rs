@@ -289,6 +289,78 @@ fn only_implied_command_prefix_roles(rendered: &Value, shipped: &Value) -> bool 
     implied == shipped_roles && !prefixes.is_empty()
 }
 
+/// Arity windows survive render → load → re-seed (issue #1627).
+///
+/// The whole-surface trip above cannot cover them: every shipped spec has
+/// empty `arity_windows`, so the field is absent from every draft it visits
+/// and a renderer that dropped the rows entirely would still pass. This
+/// drives one command that actually has them.
+#[test]
+fn arity_windows_survive_the_round_trip() {
+    use tcl_registry::arity::{Arity, ArityWindow};
+    use tcl_registry::lifecycle::Lifecycle;
+
+    const WINDOWS: &[ArityWindow] = &[
+        ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("3.0"),
+                deprecated: None,
+                retired: Some("5.0"),
+                deprecation_fix: None,
+            },
+            arity: Arity::exact(2),
+        },
+        ArityWindow {
+            lifecycle: Lifecycle {
+                introduced: Some("5.0"),
+                deprecated: None,
+                retired: None,
+                deprecation_fix: None,
+            },
+            arity: Arity::new(1, 3),
+        },
+    ];
+
+    let spec = tcl_registry::CommandSpec {
+        name: "probe::grew",
+        arity: Arity::exact(1),
+        arity_windows: WINDOWS,
+        ..tcl_registry::CommandSpec::DEFAULT
+    };
+    let draft = Value::Object(draft::from_command_spec(&spec));
+    let trip = round_trip(&draft);
+
+    assert!(trip.notices.is_empty(), "{:?}\n{}", trip.notices, trip.text);
+    assert!(
+        trip.text.contains("arity 2 -introduced 3.0 -retired 5.0"),
+        "the closed window is rendered with both releases:\n{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("arity 1..3 -introduced 5.0"),
+        "the open window renders no -retired:\n{}",
+        trip.text
+    );
+
+    let windows = trip.reloaded["arity_windows"]
+        .as_array()
+        .expect("reloaded draft carries arity_windows");
+    assert_eq!(windows.len(), 2, "{windows:?}\n{}", trip.text);
+    assert_eq!(windows[0]["arity"]["max"], serde_json::json!(2));
+    assert_eq!(
+        windows[0]["lifecycle"]["introduced"],
+        serde_json::json!("3.0")
+    );
+    assert_eq!(windows[0]["lifecycle"]["retired"], serde_json::json!("5.0"));
+    assert_eq!(windows[1]["arity"]["min"], serde_json::json!(1));
+    assert_eq!(windows[1]["arity"]["max"], serde_json::json!(3));
+    assert_eq!(windows[1]["lifecycle"]["retired"], Value::Null);
+
+    // The plain arity is untouched by the windows beside it.
+    assert_eq!(trip.reloaded["arity"]["min"], serde_json::json!(1));
+    assert_eq!(trip.reloaded["arity"]["max"], serde_json::json!(1));
+}
+
 /// **The gate.** Every command of every browsable dialect renders to `SpecTcl`,
 /// loads back, and drafts equal — except on the documented [`GAPS`].
 #[test]
