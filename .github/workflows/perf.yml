@@ -152,6 +152,14 @@ jobs:
 
       - name: Run the benchmark suite
         working-directory: scripts/perf
+        # BENCH_DEADLINE_S: bench.py's own outer wall-clock budget (issue
+        # #1399) — on expiry it reports which phase/binary/request died and
+        # exits nonzero, well inside this job's 60-minute backstop above, so
+        # a wedge here is attributed instead of just timing the whole job
+        # out. Raised above bench.py's own default (240s) because a shared
+        # runner is noisier than the maintainer laptop the default assumes.
+        env:
+          BENCH_DEADLINE_S: "480"
         run: |
           python3 bench.py \
             --server ../../target/release/tcl-lsp-server \
