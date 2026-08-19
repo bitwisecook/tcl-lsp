@@ -292,10 +292,16 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         b"variable" => legacy_var_add_remove(interp, argv, true),
         b"vdelete" => legacy_var_add_remove(interp, argv, false),
         b"vinfo" => legacy_var_info(interp, argv),
-        other => unreachable!(
-            "the registry declared an unknown trace option {:?}",
-            String::from_utf8_lossy(other)
-        ),
+        // A registry-declared option this engine has no arm for. Reporting it
+        // as unknown keeps a data-only spec edit (a new subcommand or alias)
+        // from turning into a panic in a shipped interpreter.
+        _ => {
+            let mut message = b"bad option \"".to_vec();
+            message.extend_from_slice(&word);
+            message.extend_from_slice(b"\": must be ");
+            message.extend_from_slice(tcl_cmd_core::prefix::choice_list(&options).as_bytes());
+            interp.set_error(&message)
+        }
     }
 }
 
@@ -1225,6 +1231,70 @@ mod tests {
             ok(i, b"namespace delete ::doomed");
             assert_eq!(ok(i, b"set ::log"), b"second first");
             i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// C tears a namespace down one entity at a time, completing each
+    /// variable's whole trace list before the next, so **interleaved**
+    /// registrations still fire as contiguous per-variable groups. This is the
+    /// shape a flat reverse gets wrong: `A1 B1 A2 B2` must fire `A2 A1 B2 B1`,
+    /// not `B2 A2 B1 A1`. tclsh 8.6.16 and 9.0.4 agree. Issue #1440.
+    #[test]
+    fn namespace_teardown_groups_interleaved_variable_traces() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::nsv {variable a 1\nvariable b 2}");
+            ok(i, b"trace add variable ::nsv::a unset {rec A1}");
+            ok(i, b"trace add variable ::nsv::b unset {rec B1}");
+            ok(i, b"trace add variable ::nsv::a unset {rec A2}");
+            ok(i, b"trace add variable ::nsv::b unset {rec B2}");
+            ok(i, b"namespace delete ::nsv");
+            assert_eq!(ok(i, b"set ::log"), b"A2 A1 B2 B1");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// The same grouping for the command `delete` traces the teardown collects
+    /// alongside them: `X1 Y1 X2 Y2` fires `X2 X1 Y2 Y1`. Issue #1440.
+    #[test]
+    fn namespace_teardown_groups_interleaved_command_traces() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::nsc {proc x {} {}\nproc y {} {}}");
+            ok(i, b"trace add command ::nsc::x delete {rec X1}");
+            ok(i, b"trace add command ::nsc::y delete {rec Y1}");
+            ok(i, b"trace add command ::nsc::x delete {rec X2}");
+            ok(i, b"trace add command ::nsc::y delete {rec Y2}");
+            ok(i, b"namespace delete ::nsc");
+            assert_eq!(ok(i, b"set ::log"), b"X2 X1 Y2 Y1");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// Grouping holds when a teardown callback re-enters the interpreter — the
+    /// callbacks run after the namespace is already gone, so a callback that
+    /// reads or writes global state must not disturb the remaining groups.
+    #[test]
+    fn namespace_teardown_grouping_survives_a_re_entrant_callback() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"set ::side 0");
+            ok(
+                i,
+                b"proc rec {label args} {lappend ::log $label; incr ::side; \
+                  catch {namespace exists ::nsr}}",
+            );
+            ok(i, b"namespace eval ::nsr {variable a 1\nvariable b 2}");
+            ok(i, b"trace add variable ::nsr::a unset {rec A1}");
+            ok(i, b"trace add variable ::nsr::b unset {rec B1}");
+            ok(i, b"trace add variable ::nsr::a unset {rec A2}");
+            ok(i, b"trace add variable ::nsr::b unset {rec B2}");
+            ok(i, b"namespace delete ::nsr");
+            assert_eq!(ok(i, b"set ::log"), b"A2 A1 B2 B1");
+            assert_eq!(ok(i, b"set ::side"), b"4");
+            i.eval_str(b"unset -nocomplain ::log ::side");
         });
     }
 

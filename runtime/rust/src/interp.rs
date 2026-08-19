@@ -3331,10 +3331,9 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::CommandTrace);
         }
-        // Newest-first per command, as `take_ns_unset_traces` explains; the
-        // order across the namespace's commands is C's hash walk. Issue #1440.
-        victims.reverse();
-        victims
+        // Grouped per command, newest-first inside each group — see
+        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        Self::group_newest_first_per_entity(victims)
     }
 
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
@@ -3414,12 +3413,45 @@ impl Interp {
         if removed {
             self.invalidate_guard_domain(GuardDomain::VariableTrace);
         }
-        // C fires each variable's unset traces newest-first, like every other
-        // trace list; `retain` visits our Vec oldest-first. The order *across*
-        // the namespace's variables is its hash-table walk in C, so it is not
-        // pinned either way — only the within-variable order is. Issue #1440.
-        victims.reverse();
-        victims
+        // Grouped per variable, newest-first inside each group — see
+        // [`Self::group_newest_first_per_entity`]. Issue #1440.
+        Self::group_newest_first_per_entity(victims)
+    }
+
+    /// Order a namespace's collected teardown callbacks the way C fires them.
+    ///
+    /// C tears a namespace down one entity at a time — a per-`Var` loop for
+    /// variables, a per-`Command` loop for commands — and each of those
+    /// completes that entity's whole trace list before the next entity starts.
+    /// So an entity's callbacks are **contiguous**, and within an entity the
+    /// newest registration fires first (the list is prepended and walked head
+    /// to tail).
+    ///
+    /// We collect with `retain` over one flat, registration-ordered Vec, which
+    /// interleaves entities. Regroup it: entities keep the order they were
+    /// first seen, each group runs newest-first. *Which* entity comes first is
+    /// C's hash-table walk and is deliberately not pinned — but that a group is
+    /// contiguous is pinned regardless of hash order, which a flat reverse got
+    /// wrong (`A1 B1 A2 B2` fired `B2 A2 B1 A1`, not C's `A2 A1 B2 B1`).
+    fn group_newest_first_per_entity(victims: Vec<(Vec<u8>, Vec<u8>)>) -> Vec<(Vec<u8>, Vec<u8>)> {
+        let mut order: Vec<Vec<u8>> = Vec::new();
+        let mut groups: std::collections::HashMap<Vec<u8>, Vec<(Vec<u8>, Vec<u8>)>> =
+            std::collections::HashMap::new();
+        for victim in victims {
+            let group = groups.entry(victim.0.clone()).or_insert_with(|| {
+                order.push(victim.0.clone());
+                Vec::new()
+            });
+            group.push(victim);
+        }
+        order
+            .into_iter()
+            .flat_map(|key| {
+                let mut group = groups.remove(&key).unwrap_or_default();
+                group.reverse();
+                group
+            })
+            .collect()
     }
 
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors

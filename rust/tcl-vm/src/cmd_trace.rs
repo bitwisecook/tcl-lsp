@@ -85,7 +85,14 @@ fn cmd_trace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         "variable" => legacy_variable(vm, rest, true),
         "vdelete" => legacy_variable(vm, rest, false),
         "vinfo" => trace_vinfo(vm, rest),
-        other => unreachable!("registry declared an unknown trace option {other:?}"),
+        // A registry-declared option this engine has no arm for. Reporting it
+        // as unknown keeps a data-only spec edit (a new subcommand or alias)
+        // from turning into a panic in a shipped interpreter.
+        _ => err(format!(
+            "bad option \"{}\": must be {}",
+            sub.to_str(),
+            tcl_cmd_core::prefix::choice_list(&options)
+        )),
     }
 }
 
