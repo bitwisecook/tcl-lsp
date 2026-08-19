@@ -116,9 +116,17 @@ pub enum BracedVarEnd {
 /// hard-codes one release's rule answers `subst {${a{b}c}}` wrongly on the
 /// other (issue #1457).
 ///
-/// The **compiled-word** path (`segmenter`/`values`/`helpers`) has its own
-/// pair of `${…}` decoders that still disagree with each other; consolidating
-/// those onto this owner is issue #1568 and is deliberately not done here.
+/// Two surfaces are deliberately **not** covered here:
+///
+/// - the **compiled-word** path (`segmenter`/`values`/`helpers`), whose pair of
+///   `${…}` decoders still disagree with each other — issue #1568;
+/// - the runtime's **script-word** path,
+///   `runtime/rust/src/parse.rs::build_word`, which reads `${…}` from a lexed
+///   `TokenType::Var` rather than through this scan and so keeps the lenient
+///   run-to-end-of-input behaviour on an unterminated form.
+///
+/// Both are pre-existing and out of #1457's scope; only the `subst`/tokenizer
+/// surface is consolidated on this owner.
 ///
 /// `src` need not be valid UTF-8. The scan steps a byte at a time, which is
 /// safe because the only bytes it reacts to — `{`, `}`, `\` — are ASCII, and
