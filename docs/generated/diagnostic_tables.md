@@ -62,6 +62,7 @@
 | W146 | warning | Literal argument violates a registry-declared relationship or member set (for example, a trace operation list contains an operation invalid for its trace type). | ✓ |
 | W147 | warning | Mutually exclusive command options were supplied together. | ✓ |
 | W148 | warning | Numeral spelling is not accepted by the document's resolved Tcl release. | ✓ |
+| W149 | warning | Argument count matches a different release of the command's signature — the call fits a version window other than the one the resolved package floor selects. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

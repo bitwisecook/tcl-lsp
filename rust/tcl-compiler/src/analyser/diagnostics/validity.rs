@@ -65,8 +65,8 @@ struct ArityWords<'a> {
 /// up to the last argument), plus where a "remove surplus arguments" fix
 /// should start deleting — the end of the last *kept* word, so the fix
 /// also removes the separating whitespace.
-#[derive(Clone, Copy)]
-pub(super) struct ExcessArgs {
+#[derive(Debug, Clone, Copy)]
+pub(in crate::analyser) struct ExcessArgs {
     /// Span of the surplus argument run (diagnostic anchor).
     pub span: tcl_lexer::Span,
     /// Deletion start for the removal fix (end of the preceding word).
@@ -1657,6 +1657,33 @@ impl Analyser {
                 widen_token_end_in(&source_map, cmd_tok),
             )
         };
+        // A command whose signature changed across its owning package's
+        // releases cannot be judged here at all: the shape that applies
+        // depends on the resolved floor, and a `package require` further down
+        // the file still raises it. Buffer the inputs and let
+        // `flush_gated_arity_calls` form the verdict once the floor is known
+        // — including whether the count is simply wrong (E002/E003) or is
+        // right for a *different* release (W149).
+        if !sig.arity_windows.is_empty() {
+            let axis = self.gated_arity_axis(resolution_name);
+            self.pending_gated_arity
+                .push(super::version_gate::GatedArityCall {
+                    axis,
+                    windows: sig.arity_windows,
+                    fallback: sig.arity,
+                    display_name: display_name.to_string(),
+                    resolution_name: resolution_name.to_string(),
+                    namespace: ns,
+                    enforce_order,
+                    nargs_min,
+                    positional_any_expand,
+                    span: full_span,
+                    excess,
+                    synopsis: sig.synopsis,
+                });
+            return;
+        }
+
         if let Some(diag) = arity_verdict(
             display_name,
             sig.arity,
@@ -1669,6 +1696,22 @@ impl Analyser {
             self.pending_arity
                 .push((resolution_name.to_string(), ns, enforce_order, diag));
         }
+    }
+
+    /// The version axis governing `resolution_name`'s arity windows.
+    ///
+    /// Resolves the spec back out of the registry rather than threading the
+    /// axis through [`super::dispatch::CommandSig`]: only a command that
+    /// actually declares windows ever asks, which is almost none of them, and
+    /// [`Analyser::lifecycle_axis`] is already the single place that decides
+    /// which axis a spec sits on.
+    fn gated_arity_axis(
+        &self,
+        resolution_name: &str,
+    ) -> Option<super::version_gate::VersionGateAxis> {
+        let registry = self.profile_registry();
+        let spec = registry.get(resolution_name)?;
+        self.lifecycle_axis(spec)
     }
 
     /// **W147** for the first proven conflict among the literal leading

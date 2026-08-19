@@ -122,6 +122,48 @@ pub(in crate::analyser) struct GatedOptionConflict {
     pub(in crate::analyser) diagnostic: Diagnostic,
 }
 
+/// A call to a command whose signature **changed across releases**, held
+/// until the whole-file floor picks which shape applies (issue #1627).
+///
+/// A command with no [`tcl_registry::arity::ArityWindow`]s — which is almost
+/// every command — never reaches this buffer: its arity is the same in every
+/// release, so the verdict is computed and queued inline at the dispatch site
+/// exactly as before. When windows *do* exist the verdict cannot be computed
+/// during the walk at all, in either direction: a count that fits the
+/// fallback might not fit the selected window, and a count that fails the
+/// fallback might be exactly right for it. Both are wrong answers, so the
+/// whole verdict waits.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct GatedArityCall {
+    /// The axis governing the windows, or `None` when the owning spec sits on
+    /// no version axis (permissive — the fallback arity decides).
+    pub(in crate::analyser) axis: Option<VersionGateAxis>,
+    /// The declared windows, in declaration order.
+    pub(in crate::analyser) windows: &'static [tcl_registry::arity::ArityWindow],
+    /// The shape to use when no window covers the resolved floor, or no floor
+    /// resolves at all.
+    pub(in crate::analyser) fallback: tcl_registry::arity::Arity,
+    /// Command name as the message spells it.
+    pub(in crate::analyser) display_name: String,
+    /// Base command name the post-walk arity flush resolves shadowing against.
+    pub(in crate::analyser) resolution_name: String,
+    /// Call-site command-resolution namespace.
+    pub(in crate::analyser) namespace: String,
+    /// Whether a shadowing definition must lexically precede the call.
+    pub(in crate::analyser) enforce_order: bool,
+    /// Observed positional-argument count (a lower bound under `{*}`).
+    pub(in crate::analyser) nargs_min: usize,
+    /// Whether any positional word was `{*}`-expanded, which makes the count
+    /// a lower bound and abstains from the too-few verdict.
+    pub(in crate::analyser) positional_any_expand: bool,
+    /// Span the count diagnostic anchors to.
+    pub(in crate::analyser) span: Span,
+    /// The surplus-argument span and its delete fix, when isolable.
+    pub(in crate::analyser) excess: Option<super::validity::ExcessArgs>,
+    /// The resolved spec's primary synopsis, for the "usage: …" suffix.
+    pub(in crate::analyser) synopsis: Option<&'static str>,
+}
+
 /// Version axes supported by the generic lifecycle consumer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::analyser) enum VersionGateAxis {
@@ -863,6 +905,143 @@ impl Analyser {
         }
     }
 
+    /// Decide every call to a command whose signature changed across
+    /// releases, now that the whole-file floor is known (issue #1627).
+    ///
+    /// Three outcomes, in the order they are checked:
+    ///
+    /// 1. The count fits the shape the floor selects — silence. This is also
+    ///    what an unresolved floor gives, because selection falls back to the
+    ///    plain `arity` and that is exactly today's answer.
+    /// 2. The count fails the selected shape but fits **another declared
+    ///    window** — **W149**. This is the interesting case and the reason
+    ///    the diagnostic exists: the call is not malformed, it is written for
+    ///    a different release of the command, and saying "too many arguments"
+    ///    would send the author to fix a call that is already correct
+    ///    somewhere. The message names the release whose window it fits and
+    ///    which direction it points.
+    /// 3. The count fits no window at all — the ordinary E002 / E003 / E005,
+    ///    unchanged. There is no version story to tell and inventing one
+    ///    would be noise.
+    ///
+    /// Runs before [`Analyser::flush_arity_diagnostics`] so whatever it
+    /// produces goes through the same shadowing suppression an ungated call
+    /// does: a user proc named `switch` still silences the check.
+    pub(in crate::analyser) fn flush_gated_arity_calls(&mut self) {
+        if self.pending_gated_arity.is_empty() {
+            return;
+        }
+        for call in std::mem::take(&mut self.pending_gated_arity) {
+            let floor = call
+                .axis
+                .and_then(|axis| self.axis_floor(axis))
+                .map(|(floor, _guarantee)| floor);
+            let selected = tcl_registry::arity::ArityWindow::select(call.windows, floor.as_deref());
+            let arity = selected.map_or(call.fallback, |window| window.arity);
+
+            let Some(diagnostic) = super::validity::arity_verdict(
+                &call.display_name,
+                arity,
+                call.nargs_min,
+                call.positional_any_expand,
+                call.span,
+                call.excess,
+                call.synopsis,
+            ) else {
+                continue;
+            };
+
+            // The count is wrong for the selected shape. Before reporting it
+            // as a plain arity error, ask whether some *other* declared
+            // window accepts it — that is a different fault with a different
+            // fix, and the author needs to be told which one they have.
+            let elsewhere = call.windows.iter().find(|window| {
+                Some(**window) != selected
+                    && super::validity::arity_verdict(
+                        &call.display_name,
+                        window.arity,
+                        call.nargs_min,
+                        call.positional_any_expand,
+                        call.span,
+                        None,
+                        None,
+                    )
+                    .is_none()
+            });
+
+            let diagnostic = match (elsewhere, floor.as_deref()) {
+                (Some(window), Some(floor)) => {
+                    Self::window_mismatch_diagnostic(&call, *window, floor, selected)
+                }
+                // With no resolved floor there is nothing to compare a window
+                // against, so a fitting sibling proves nothing about which
+                // release this file targets and the plain verdict stands.
+                _ => diagnostic,
+            };
+            self.pending_arity.push((
+                call.resolution_name,
+                call.namespace,
+                call.enforce_order,
+                diagnostic,
+            ));
+        }
+    }
+
+    /// The **W149** message for a call whose count fits `window` rather than
+    /// the shape the resolved `floor` selects.
+    ///
+    /// Names the direction, because the two have opposite fixes: a call
+    /// written for a *later* release needs the floor raised (or the call
+    /// rewritten), while one written for an *earlier* release needs the call
+    /// rewritten (the floor cannot go backwards without abandoning
+    /// everything else the file requires).
+    fn window_mismatch_diagnostic(
+        call: &GatedArityCall,
+        window: tcl_registry::arity::ArityWindow,
+        floor: &str,
+        selected: Option<tcl_registry::arity::ArityWindow>,
+    ) -> Diagnostic {
+        let package = call.axis.map_or("the package", VersionGateAxis::name);
+        let count = call.nargs_min;
+        let name = &call.display_name;
+        let fits = window.lifecycle.introduced.map_or_else(
+            || "another release".to_owned(),
+            |at| format!("{package} {at}"),
+        );
+        let now = selected.map_or_else(
+            || format!("the resolved floor {floor} selects the command's default shape"),
+            |current| {
+                current.lifecycle.introduced.map_or_else(
+                    || format!("the resolved floor is {floor}"),
+                    |at| format!("the resolved floor {floor} selects the {package} {at} shape"),
+                )
+            },
+        );
+        // Later-release window ⇒ the file could adopt it; earlier-release
+        // window ⇒ the call is left over from one.
+        let forward = window
+            .lifecycle
+            .introduced
+            .is_some_and(|at| tcl_registry::version::compare(at, floor).is_gt());
+        let tail = if forward {
+            format!(
+                "raise the floor with `package require {package} {}`, or write the call for {now}",
+                window.lifecycle.introduced.unwrap_or(floor)
+            )
+        } else {
+            format!(
+                "that shape was valid until {}; write the call for {now}",
+                window.lifecycle.retired.unwrap_or(floor)
+            )
+        };
+        Diagnostic::new(
+            DiagCode::W149,
+            call.span,
+            format!("{count} arguments to '{name}' matches {fits}, but {now} — {tail}"),
+            Severity::Warning,
+        )
+    }
+
     /// The hedged diagnostic for a site whose floor passes but whose
     /// `package require` **range** does not stay inside the lifecycle.
     ///
@@ -1427,6 +1606,162 @@ mod tests {
                 .any(|(_, m)| m.contains("tcl8.6 ships Tk 8.6")),
             "still the profile pin: {before:?}"
         );
+    }
+
+    // -- versioned arity, W149 (issue #1627) ------------------------------
+
+    /// Install a command owned by `Probe` whose signature changed: two
+    /// arguments from 3.0 until 5.0, three from 5.0. The plain `arity` is the
+    /// pre-3.0 shape and the fallback whenever no window covers the floor.
+    fn analyser_with_windows(key: u64, ambient: Option<&'static str>) -> Analyser {
+        use tcl_registry::arity::{Arity, ArityWindow};
+        use tcl_registry::lifecycle::Lifecycle;
+
+        const WINDOWS: &[ArityWindow] = &[
+            ArityWindow {
+                lifecycle: Lifecycle {
+                    introduced: Some("3.0"),
+                    deprecated: None,
+                    retired: Some("5.0"),
+                    deprecation_fix: None,
+                },
+                arity: Arity::exact(2),
+            },
+            ArityWindow {
+                lifecycle: Lifecycle {
+                    introduced: Some("5.0"),
+                    deprecated: None,
+                    retired: None,
+                    deprecation_fix: None,
+                },
+                arity: Arity::exact(3),
+            },
+        ];
+
+        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let _registry =
+            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
+                registry.insert(tcl_registry::CommandSpec {
+                    name: "probe::grew",
+                    arity: Arity::exact(1),
+                    arity_windows: WINDOWS,
+                    required_package: Some("Probe"),
+                    ..tcl_registry::CommandSpec::DEFAULT
+                });
+                if let Some(version) = ambient {
+                    registry.insert_ambient_package("Probe", version);
+                }
+            });
+        Analyser::new().with_pack_overlay(key)
+    }
+
+    fn arity_diags(analyser: &mut Analyser, source: &str) -> Vec<(String, String)> {
+        analyser
+            .analyse(source, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "E002" | "E003" | "W149"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    /// The window covering the resolved floor is the shape the call is
+    /// judged against — not the plain `arity`, which is only the fallback.
+    #[test]
+    fn the_window_covering_the_resolved_floor_decides_the_arity() {
+        // Floor 3.0 selects the two-argument window, so two words are right
+        // and one is too few even though the plain `arity` is exactly 1.
+        let mut a = analyser_with_windows(0x1627_1001, None);
+        assert!(
+            arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b\n").is_empty(),
+            "two arguments fit the 3.0 window"
+        );
+
+        // Floor 5.0 selects the three-argument window.
+        let mut a = analyser_with_windows(0x1627_1002, None);
+        assert!(
+            arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b c\n").is_empty(),
+            "three arguments fit the 5.0 window"
+        );
+    }
+
+    /// The case W149 exists for: the call is not malformed, it is written
+    /// for a different release. Reporting "too many arguments" would send the
+    /// author to fix a call that is already correct somewhere.
+    #[test]
+    fn a_count_fitting_another_window_is_w149_not_a_plain_arity_error() {
+        // Floor 3.0 wants two; the call passes three, which is the 5.0 shape.
+        let mut a = analyser_with_windows(0x1627_1003, None);
+        let diags = arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b c\n");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].0, "W149", "not a bare E003: {diags:?}");
+        assert!(
+            diags[0].1.contains("matches Probe 5.0"),
+            "names the release it fits: {diags:?}"
+        );
+        assert!(
+            diags[0].1.contains("package require Probe 5.0"),
+            "a later window points forward, at raising the floor: {diags:?}"
+        );
+
+        // The mirror: floor 5.0 wants three, the call passes two — the shape
+        // that was valid until 5.0. Same code, opposite direction.
+        let mut a = analyser_with_windows(0x1627_1004, None);
+        let diags = arity_diags(&mut a, "package require Probe 5.0\nprobe::grew a b\n");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].0, "W149", "{diags:?}");
+        assert!(
+            diags[0].1.contains("was valid until 5.0"),
+            "an earlier window points at the call, not the floor: {diags:?}"
+        );
+    }
+
+    /// A count no window accepts is an ordinary arity error. There is no
+    /// version story to tell and inventing one would be noise.
+    #[test]
+    fn a_count_matching_no_window_stays_a_plain_arity_error() {
+        let mut a = analyser_with_windows(0x1627_1005, None);
+        let diags = arity_diags(&mut a, "package require Probe 3.0\nprobe::grew a b c d e\n");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].0, "E003", "five arguments fit nothing: {diags:?}");
+    }
+
+    /// FN guard: with no floor there is nothing to select against, so the
+    /// plain `arity` decides exactly as it did before windows existed — and
+    /// a sibling window fitting the count proves nothing about which release
+    /// the file targets, so it must not become a W149.
+    #[test]
+    fn no_resolvable_floor_falls_back_to_the_plain_arity() {
+        let mut a = analyser_with_windows(0x1627_1006, None);
+        assert!(
+            arity_diags(&mut a, "probe::grew a\n").is_empty(),
+            "the plain arity is exactly 1"
+        );
+
+        let mut a = analyser_with_windows(0x1627_1007, None);
+        let diags = arity_diags(&mut a, "probe::grew a b\n");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(
+            diags[0].0, "E003",
+            "no floor ⇒ no version claim, however well two words fit the 3.0 window: {diags:?}"
+        );
+    }
+
+    /// The two mechanisms this issue added meet here: a pack's
+    /// `ambient_package` floor selects the window with no `package require`
+    /// in the file at all.
+    #[test]
+    fn a_pack_ambient_floor_selects_the_window() {
+        let mut a = analyser_with_windows(0x1627_1008, Some("5.0"));
+        assert!(
+            arity_diags(&mut a, "probe::grew a b c\n").is_empty(),
+            "the ambient 5.0 selects the three-argument window"
+        );
+
+        let mut a = analyser_with_windows(0x1627_1009, Some("5.0"));
+        let diags = arity_diags(&mut a, "probe::grew a b\n");
+        assert_eq!(diags.len(), 1, "{diags:?}");
+        assert_eq!(diags[0].0, "W149", "{diags:?}");
     }
 
     #[test]

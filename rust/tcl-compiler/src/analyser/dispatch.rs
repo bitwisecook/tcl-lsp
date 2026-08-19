@@ -43,8 +43,19 @@ use tcl_registry::{ArgRole, Arity, CommandRegistry, Traits};
 /// no meaningful equality); nothing compares two `CommandSig`s anyway.
 #[derive(Debug, Clone)]
 pub struct CommandSig {
-    /// Argument-count bounds.
+    /// Argument-count bounds — the shape when the signature never changed,
+    /// and the fallback whenever [`Self::arity_windows`] selects nothing.
     pub arity: Arity,
+    /// Per-release signature shapes, when the owning package changed this
+    /// command's argument count across its releases (issue #1627).
+    ///
+    /// Empty for almost every command, which is why the arity check's
+    /// behaviour is unchanged for them: with no windows there is nothing to
+    /// select and [`Self::arity`] is the whole answer. When non-empty, the
+    /// verdict is **deferred** to the post-walk pass, because the window that
+    /// applies depends on the resolved package floor and a `package require`
+    /// later in the file still counts.
+    pub arity_windows: &'static [tcl_registry::arity::ArityWindow],
     /// Static arg-index → role map (0-based, after the command
     /// name). Args not listed default to ``ArgRole::Value``.
     pub arg_roles: HashMap<u8, ArgRole>,
@@ -239,6 +250,7 @@ pub fn signature_for_command(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     leading_options,
@@ -285,6 +297,7 @@ pub fn signature_for_command(
     let leading_option_specs = profile.available_option_specs(spec);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
+        arity_windows: spec.arity_windows,
         arg_roles,
         traits: spec.traits,
         leading_options,
@@ -341,6 +354,7 @@ pub fn signature_for_command_any_dialect(
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     leading_options,
@@ -380,6 +394,7 @@ pub fn signature_for_command_any_dialect(
     let leading_option_specs = spec.option_specs(None);
     Some(CommandSignature::Simple(CommandSig {
         arity: spec.arity,
+        arity_windows: spec.arity_windows,
         arg_roles,
         traits: spec.traits,
         leading_options,
@@ -426,6 +441,7 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                 sub.name.to_string(),
                 CommandSig {
                     arity: sub.arity,
+                    arity_windows: sub.arity_windows,
                     arg_roles,
                     traits: sub.traits,
                     // Scoped ensemble operations declare no option flags.
@@ -449,6 +465,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
     }
     CommandSignature::Simple(CommandSig {
         arity: scoped.arity,
+        // A ScopedCommand names a reused SubCommand shape, not a versioned
+        // one; there is no window set to carry.
+        arity_windows: &[],
         arg_roles: HashMap::new(),
         // `ScopedCommand` itself carries no `traits` — only its
         // (reused-`SubCommand`) ensemble operations do.
