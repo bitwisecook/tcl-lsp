@@ -708,6 +708,16 @@ pub struct FileExtension {
     pub dialect: Option<&'static str>,
     /// The declaring line, for notices and editors.
     pub line: u32,
+    /// The file this row was declared in.
+    ///
+    /// Exactly the arrangement [`PackCommand::file`] uses, and for the same
+    /// reason: empty as the loader builds it, filled in by
+    /// [`crate::pack::load`] during the merge. A logical pack can span several
+    /// files, so the row's own path is the only thing that attributes a
+    /// collision notice to the file the author must edit — attaching it to the
+    /// merged pack's *first* file publishes a squiggle against a line that
+    /// belongs to a different document (found reviewing #1637).
+    pub file: std::path::PathBuf,
 }
 
 impl Pack {
@@ -910,6 +920,8 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
         display_name: None,
         dialect: None,
         line: stmt.line,
+        // Filled in by the merge, the only layer that knows the path.
+        file: std::path::PathBuf::new(),
     };
     let words = &stmt.words;
     let mut i = 2;
@@ -3126,37 +3138,24 @@ struct CommandAcc {
     clause_grammar: Option<ClauseGrammar>,
 }
 
-/// The declared command name, if it is one a call site could ever match.
-///
-/// Two ways it is not. Empty is the obvious one. The other is a name carrying
-/// whitespace: Tcl dispatches on a single command word, so `command {evil name}`
-/// declares something no document can invoke — and before issue #1638 it loaded
-/// silently, was interned for the life of the process, and appeared in
-/// completion as an entry the user could not use. `command { }`, a name that is
-/// *only* whitespace, takes that branch too, which is why the empty check alone
-/// was not enough.
-fn command_name<'s>(stmt: &'s Stmt, log: &mut Log) -> Option<&'s str> {
+fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
+    // A name carrying whitespace is deliberately *not* rejected here. A Tcl
+    // command name is an arbitrary string key in the namespace's command table
+    // — `Tcl_CreateObjCommand` hashes it without inspecting a character — so
+    // `proc {evil name}` is a real command and a braced or quoted call site
+    // invokes it. Verified against tclsh 8.6 and 9.0: created, listed by
+    // `info commands`, and successfully invoked, for names carrying a space, a
+    // tab, and a newline, and for a name that is only a space. Our own pipeline
+    // agrees — a braced command word lowers to `WordExpr::BracedLiteral`, whose
+    // `legacy_text` is the brace-stripped content, so the call site resolves to
+    // the same key the spec declares. Issue #1638 dropped such names with a
+    // notice; that was wrong and the drop was removed after review. See
+    // `a_whitespace_bearing_command_name_loads_and_is_installable`.
     let name = stmt.word_text(1);
     if name.is_empty() {
         log.say(stmt.line, "`command` with no name dropped");
         return None;
     }
-    if name.chars().any(char::is_whitespace) {
-        log.say(
-            stmt.line,
-            format!(
-                "`command {}` contains whitespace; a command word cannot, so \
-                 nothing could ever invoke it — dropped",
-                quotable(name)
-            ),
-        );
-        return None;
-    }
-    Some(name)
-}
-
-fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
-    let name = command_name(stmt, log)?;
     let overrides_shipped = stmt.words.iter().any(|w| w.text == "-override");
     // Naming the command matters more here than anywhere else in the loader:
     // the shape that reaches this branch is almost always the brace-on-the-

@@ -359,7 +359,20 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
     }
 
     let mut out = Vec::new();
-    let mut claimed: BTreeMap<&'static str, Claim> = BTreeMap::new();
+    // Every claim that still stands for a name, not just the most recent one.
+    //
+    // One entry per name is not enough, because claims can be *mutually
+    // exclusive*: several stand at once, one per vendor that could be live.
+    // Three packs claiming `report_timing` — the first for Synopsys, the next
+    // two for Cadence — leave the Synopsys claim standing while the two
+    // Cadence claims genuinely collide with each other. A single-entry map
+    // compares the third claim only against the first, finds them
+    // vendor-disjoint, and reports nothing; the real collision goes unreported
+    // (found reviewing #1637). So each claim is checked against every standing
+    // claim and settles against the first it *could* collide with — which is
+    // the one `install_into` would have let win, since both walk packs in the
+    // same order.
+    let mut claimed: BTreeMap<&'static str, Vec<Claim>> = BTreeMap::new();
 
     for pack in packs {
         for command in &pack.commands {
@@ -370,17 +383,23 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                 package: command.spec.required_package,
                 tier: pack.tier,
             };
-            let Some(prior) = claimed.get(command.spec.name) else {
-                claimed.insert(command.spec.name, claim);
+            let standing = claimed.entry(command.spec.name).or_default();
+            let Some(idx) = standing
+                .iter()
+                .position(|prior| could_collide(prior.package, command.spec.required_package))
+            else {
+                // Nothing standing is ever live in the same registry as this
+                // one, so it shadows nothing and nothing shadows it: it joins
+                // the standing set rather than replacing it.
+                standing.push(claim);
                 continue;
             };
-            let (prior_pack, prior_file, prior_line) = (&prior.pack, &prior.file, prior.line);
-            if !could_collide(prior.package, command.spec.required_package) {
-                // Different vendors: no profile admits both, so neither is
-                // shadowing the other. Leave the standing claim in place.
-                continue;
-            }
-            if prior.tier == Tier::Bundled && pack.tier == Tier::Bundled {
+            // Copied out before the standing set is mutated below.
+            let prior_pack = standing[idx].pack.clone();
+            let prior_file = standing[idx].file.clone();
+            let prior_line = standing[idx].line;
+            let prior_tier = standing[idx].tier;
+            if prior_tier == Tier::Bundled && pack.tier == Tier::Bundled {
                 // Shipped layering — see the note above.
                 continue;
             }
@@ -401,7 +420,10 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
                     ),
                     severity: Severity::Warning,
                 });
-                claimed.insert(command.spec.name, claim);
+                // Replaces the claim it displaced, in place — the other
+                // standing claims for this name are for other vendors and are
+                // untouched by an override aimed at this one.
+                standing[idx] = claim;
             } else {
                 out.push(PackNotice {
                     path: command.file.clone(),
@@ -462,10 +484,12 @@ fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
             let Some(dialect) = row.dialect else {
                 continue;
             };
-            let file = pack.files.first().cloned().unwrap_or_default();
             match owner.get(&row.extension) {
                 Some((prior_pack, prior_dialect)) => out.push(PackNotice {
-                    path: file,
+                    // The row's *own* file, not the merged pack's first one:
+                    // a logical pack can span several files, and `row.line` is
+                    // a line in this one (issue #1637 review).
+                    path: row.file.clone(),
                     line: row.line,
                     context: format!("file_extension {}", row.extension),
                     message: format!(
@@ -528,7 +552,11 @@ fn merge_group(
         if merged.display_name.is_none() {
             merged.display_name.clone_from(&pack.display_name);
         }
-        for row in pack.file_extensions {
+        for mut row in pack.file_extensions {
+            // Same reason as the command loop below: the merge is the only
+            // layer that knows which file of a multi-file pack a row came from
+            // (found reviewing #1637).
+            row.file.clone_from(&file.path);
             if !merged
                 .file_extensions
                 .iter()

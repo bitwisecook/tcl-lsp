@@ -1671,31 +1671,174 @@ fn a_second_speclib_block_is_reported_with_its_command_count() {
     );
 }
 
-/// A command name carrying whitespace can never be invoked, so it is dropped
-/// with a notice rather than reaching completion (#1638).
+/// A command name carrying whitespace is **valid Tcl** and must load.
+///
+/// #1638 originally dropped these, reasoning that a command word cannot carry
+/// whitespace. It can: a Tcl command name is an arbitrary string key in the
+/// namespace command table, and a braced or quoted call site invokes it.
+/// Confirmed against tclsh 8.6 and 9.0 — `proc {evil name} {} {…}` is created,
+/// listed by `info commands`, and invoked as `{evil name}`; the same holds for
+/// a tab, a newline, and for a name that is only a space. Our own pipeline
+/// resolves such a call site too, since a braced command word lowers to
+/// `WordExpr::BracedLiteral` whose text is the brace-stripped content. The
+/// drop removed valid specs; this pins the reversal.
 #[test]
-fn a_whitespace_bearing_command_name_is_dropped_with_a_notice() {
-    for source in [
-        "speclib demo 1.1 {\n command { } { arity 1 }\n}\n",
-        "speclib demo 1.1 {\n command {evil name} { arity 1 }\n}\n",
+fn a_whitespace_bearing_command_name_loads_and_is_installable() {
+    for (source, expected) in [
+        (
+            "speclib demo 1.1 {\n command {evil name} { arity 1 }\n}\n",
+            "evil name",
+        ),
+        ("speclib demo 1.1 {\n command { } { arity 1 }\n}\n", " "),
+        (
+            "speclib demo 1.1 {\n command {tab\tname} { arity 1 }\n}\n",
+            "tab\tname",
+        ),
     ] {
         let pack = load_pack(source);
         assert!(
-            pack.commands.is_empty(),
-            "an uninvocable name must not reach the registry: {:?}",
+            pack.commands.iter().any(|c| c.spec.name == expected),
+            "a whitespace-bearing name is valid Tcl and must load; wanted \
+             {expected:?}, got {:?}",
             pack.commands
                 .iter()
                 .map(|c| c.spec.name)
                 .collect::<Vec<_>>()
         );
         assert!(
-            pack.notices
+            !pack
+                .notices
                 .iter()
-                .any(|n| n.message.contains("contains whitespace")),
-            "and must be reported: {:#?}",
+                .any(|n| n.message.contains("whitespace")),
+            "and must not be warned about: {:#?}",
             pack.notices
         );
     }
+}
+
+/// Three packs claim one name; two of them are live in the same profile.
+///
+/// The collision that matters is between the *second* and the *third*, and a
+/// standing-claim map holding one entry per name cannot see it: the third
+/// claim is compared only against the first, found vendor-disjoint, and waved
+/// through. Found reviewing #1637 — the fix keeps every standing claim, so a
+/// new one settles against the first claim it could actually share a registry
+/// with.
+#[test]
+fn a_collision_behind_a_vendor_disjoint_claim_is_still_reported() {
+    let root = scratch("three-way-claim");
+    let a = write_pack(
+        &root,
+        "alpha.tclspec",
+        "speclib alpha 1.1 {\n\
+        \x20 command vendor::report_timing {\n\
+        \x20   arity 1\n\
+        \x20   required_package synopsys\n\
+        \x20 }\n\
+        }\n",
+    );
+    let b = write_pack(
+        &root,
+        "bravo.tclspec",
+        "speclib bravo 1.1 {\n\
+        \x20 command vendor::report_timing {\n\
+        \x20   arity 2\n\
+        \x20   required_package cadence-genus\n\
+        \x20 }\n\
+        }\n",
+    );
+    let c = write_pack(
+        &root,
+        "charlie.tclspec",
+        "speclib charlie 1.1 {\n\
+        \x20 command vendor::report_timing {\n\
+        \x20   arity 3\n\
+        \x20   required_package cadence-genus\n\
+        \x20 }\n\
+        }\n",
+    );
+    let set = load_files(&[a, b, c]);
+
+    let notice = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("is already declared by pack"))
+        .unwrap_or_else(|| {
+            panic!(
+                "two packs live in one profile collide even behind a \
+                 vendor-disjoint claim: {:#?}",
+                set.notices
+            )
+        });
+    assert!(
+        notice.path.ends_with("charlie.tclspec"),
+        "the notice belongs on the claim that lost, got {}",
+        notice.path.display()
+    );
+    assert!(
+        notice.message.contains("`bravo`"),
+        "and must name the claim it actually collided with — `bravo`, not the \
+         vendor-disjoint `alpha`: {}",
+        notice.message
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A logical pack spanning two files: an extension collision is attributed to
+/// the file that declared the row, not to the pack's first file.
+///
+/// The same class already fixed for commands via `PackCommand::file`. With the
+/// row's line published against the wrong document the squiggle lands on
+/// whatever sits at that line of a file the author was not editing.
+#[test]
+fn an_extension_collision_names_the_file_that_declared_the_row() {
+    let root = scratch("extension-attribution");
+    let alpha = write_pack(
+        &root,
+        "alpha.tclspec",
+        "speclib alpha 1.1 {\n\
+        \x20 file_extension shr -name {Alpha's} -dialect tcl9.0\n\
+        }\n",
+    );
+    // One logical pack, two files. The extension row sits several lines into
+    // the second, so a notice published against the first file would point at
+    // a line that file does not even have.
+    let beta_one = write_pack(
+        &root,
+        "beta-one.tclspec",
+        "speclib beta 1.1 {\n\
+        \x20 command beta::cmd { arity 1 }\n\
+        }\n",
+    );
+    let beta_two = write_pack(
+        &root,
+        "beta-two.tclspec",
+        "speclib beta 1.1 {\n\
+        \x20 command beta::other { arity 1 }\n\
+        \x20 command beta::third { arity 1 }\n\
+        \x20 file_extension shr -name {Beta's} -dialect tcl8.6\n\
+        }\n",
+    );
+    let set = load_files(&[alpha, beta_one, beta_two]);
+
+    let notice = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("is already claimed by pack"))
+        .expect("the extension collision must still be reported");
+    assert!(
+        notice.path.ends_with("beta-two.tclspec"),
+        "the row was declared in beta-two.tclspec, so the notice belongs there, \
+         got {}",
+        notice.path.display()
+    );
+    assert_eq!(
+        notice.line, 4,
+        "on the `file_extension` row's own line in that file"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 /// `speclib` with no version word is refused rather than taking the body as
