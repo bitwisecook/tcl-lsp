@@ -40,6 +40,10 @@
 //!   gate, issue #1396).
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
+//! - `f5-query-builtins-doc` — verify `docs/references/f5_query/builtins.md`
+//!   documents exactly the builtins `tcl-bigip-query` registers (issue #1404).
+//! - `bigip-data-schema` — verify the hand-maintained BIG-IP object-spec data
+//!   is internally consistent (issue #1404).
 //! - `gen-editor-catalogs` — generate the Zed/VS Code command & iRules-event
 //!   catalog JSON from the registry (`--check` to verify instead of write).
 //! - `number-drift` — flag hand-rolled Tcl radix-prefix recognition outside
@@ -56,10 +60,12 @@ use std::process::ExitCode;
 use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
+mod bigip_data_schema;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
 mod editor_extensions;
+mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
 mod gen_editor_catalogs;
@@ -129,6 +135,29 @@ enum Command {
     WasmBacking {
         /// Verify backing + report are in sync instead of rewriting; exit
         /// non-zero on a gap, a stale classification, or report drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Verify `docs/references/f5_query/builtins.md` documents exactly the
+    /// builtins `tcl-bigip-query` registers — no more, no fewer (issue #1404).
+    #[command(name = "f5-query-builtins-doc")]
+    F5QueryBuiltinsDoc {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; there is no generated form to write — see the module
+        /// doc comment for why).
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Verify the hand-maintained BIG-IP object-spec data
+    /// (`rust/tcl-registry/src/bigip/data/`) is internally consistent
+    /// (issue #1404).
+    #[command(name = "bigip-data-schema")]
+    BigipDataSchema {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; there is no generated form to write — see the module
+        /// doc comment for why).
         #[arg(long)]
         check: bool,
     },
@@ -334,6 +363,8 @@ fn main() -> anyhow::Result<ExitCode> {
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects { check } => audit_option_dialects::run(check),
         Command::WasmBacking { check } => command_backing::run(check),
+        Command::F5QueryBuiltinsDoc { check } => f5query_builtins_doc::run(check),
+        Command::BigipDataSchema { check } => bigip_data_schema::run(check),
         Command::DiagTables { check } => diag_tables::run(check),
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
