@@ -88,7 +88,7 @@ impl CompileService for Svc {
         if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, profile.name);
+        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, Some(profile));
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
     }
@@ -103,7 +103,7 @@ impl CompileService for Svc {
         if let Some(msg) = first_fatal_parse_error_with_config(src, config) {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_traced_with_dialect(src, registry, config, profile.name);
+        let ir = lower_to_ir_traced_with_dialect(src, registry, config, Some(profile));
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
     }
