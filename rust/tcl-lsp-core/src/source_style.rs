@@ -308,7 +308,7 @@ pub fn check_comment_continuation_for_dialect(source: &str, dialect: &'static tc
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        tcl_registry::cache::registry_for_profile(profile),
+        crate::registry_for_dialect_profile(profile),
     );
     let mut out = Vec::new();
 

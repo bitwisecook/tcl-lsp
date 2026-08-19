@@ -727,7 +727,7 @@ pub fn namespace_variable_rename_hazard(
     cell: &str,
     line_index: &LineIndex,
 ) -> Option<RenameRefusal> {
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let mut hazard: Option<Span> = None;
     let mut visit = |cmd: &SegmentedCommand| {
         if hazard.is_some() {

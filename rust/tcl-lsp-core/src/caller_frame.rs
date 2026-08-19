@@ -133,7 +133,7 @@ pub(crate) fn substituted_var_read_at(
         || crate::inert_text::offset_in_data_brace(
             source,
             cursor_off,
-            tcl_registry::cache::registry_for_profile(dialect),
+            crate::registry_for_dialect_profile(dialect),
             dialect,
         );
     (!inert).then_some(name)
@@ -371,7 +371,7 @@ fn collect_bindings_in_region(
         for (inner_start, inner_end) in crate::references::nested_dispatch_regions_with_identities(
             ctx.source,
             ctx.dialect,
-            tcl_registry::cache::registry_for_profile(ctx.dialect),
+            crate::registry_for_dialect_profile(ctx.dialect),
             ctx.identities,
             cmd,
         ) {
@@ -701,7 +701,7 @@ fn substituted_read_spans(
                 || crate::inert_text::offset_in_data_brace(
                     source,
                     name_start,
-                    tcl_registry::cache::registry_for_profile(dialect),
+                    crate::registry_for_dialect_profile(dialect),
                     dialect,
                 );
             if inert {

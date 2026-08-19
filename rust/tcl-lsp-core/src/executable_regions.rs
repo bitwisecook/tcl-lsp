@@ -297,7 +297,7 @@ mod tests {
 
     fn visited_format_heads(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> Vec<(String, String, u32)> {
         let profile = dialect;
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = crate::registry_for_dialect_profile(profile);
         let config = LexerConfig::for_file_dialect(profile.name);
         let identities = tcl_compiler::head_identity::command_head_identities_with_config(
             source, config, registry,

@@ -1030,7 +1030,7 @@ fn continuation_comment_actions(source: &str, range: LspRange, dialect: &'static
     let comments = tcl_compiler::analyser::utils::script_comment_facts(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        tcl_registry::cache::registry_for_profile(profile),
+        crate::registry_for_dialect_profile(profile),
     );
     let Some(block_end) =
         crate::source_style::comment_continuation_run_with_facts(&lines, &comments, start_line)

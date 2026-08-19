@@ -844,7 +844,7 @@ fn hover_impl(
         return crate::namespace_symbol::namespace_hover_text(analysis, &cell).map(Hover::markdown);
     }
 
-    let hover_registry = registry.unwrap_or_else(|| tcl_registry::registry_for_profile(profile));
+    let hover_registry = registry.unwrap_or_else(|| crate::registry_for_dialect_profile(profile));
     if let Some(hover) = registry_pattern_format_hover(
         source,
         line,

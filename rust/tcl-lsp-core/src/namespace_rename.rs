@@ -346,7 +346,7 @@ fn namespace_rename_hazard(
             Some(span),
         ));
     }
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let mut hazard: Option<(Span, HazardKind)> = None;
     let mut visit = |cmd: &tcl_compiler::segmenter::SegmentedCommand| {
         if hazard.is_some() {

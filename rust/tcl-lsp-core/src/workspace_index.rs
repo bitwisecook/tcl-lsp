@@ -222,7 +222,7 @@ impl WorkspaceClass {
     /// data (`DefinerFamily`), not a hardcoded command-name check.
     #[must_use]
     pub fn is_itcl(&self, dialect: &'static tcl_dialect::DialectProfile) -> bool {
-        tcl_registry::cache::registry_for_profile(dialect)
+        crate::registry_for_dialect_profile(dialect)
             .get(&self.metaclass)
             .and_then(|spec| spec.definition_body)
             .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)

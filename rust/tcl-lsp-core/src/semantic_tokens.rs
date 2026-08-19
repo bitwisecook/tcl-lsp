@@ -5530,7 +5530,7 @@ fn scan_loop_vars(
     if MAX_TOKEN_RECURSION.exceeded(depth) {
         return;
     }
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
@@ -5606,7 +5606,7 @@ fn augment_snit_handles(
     // The member-body installers this dialect's definers inject, resolved once
     // per document rather than per segment.
     let member_bindings: FxHashMap<&'static str, tcl_registry::HandleBindingSpec> =
-        tcl_registry::cache::registry_for_profile(dialect)
+        crate::registry_for_dialect_profile(dialect)
             .member_body_handle_bindings()
             .into_iter()
             .collect();
@@ -5892,7 +5892,7 @@ fn scan_snit_handles(
         classes,
         member_bindings,
     } = *ctx;
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     for seg in segment_commands_with_offset_and_config(
         text,
         base_offset,
@@ -7796,7 +7796,7 @@ mod tests {
         // `button .b -command {puts $x}` — the `-command` value is a script
         // body (Phase 3: ArgRole::Body), so it recurses: `$x` inside the braces
         // resolves as a Variable rather than one opaque string.
-        let toks = decode_full("button .b -command {puts $x}\n", tcl_dialect::DialectProfile::by_name("tk"), &reg());
+        let toks = decode_full("button .b -command {puts $x}\n", crate::profile_for_dialect("tk"), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7810,7 +7810,7 @@ mod tests {
         // argument is a body (ArgRole::Body via the `console` SubCommand
         // table), so it recurses: `$x` inside the braces resolves as a
         // Variable rather than the whole `{...}` staying one opaque string.
-        let toks = decode_full("console eval {puts $x}\n", tcl_dialect::DialectProfile::by_name("tk"), &reg());
+        let toks = decode_full("console eval {puts $x}\n", crate::profile_for_dialect("tk"), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7825,7 +7825,7 @@ mod tests {
         // does.
         for sub in ["eval", "record"] {
             let src = format!("consoleinterp {sub} {{puts $x}}\n");
-            let toks = decode_full(&src, tcl_dialect::DialectProfile::by_name("tk"), &reg());
+            let toks = decode_full(&src, crate::profile_for_dialect("tk"), &reg());
             assert!(
                 toks.iter()
                     .any(|(_, _, _, k, _)| *k == TokenKind::Variable as u32),
@@ -7838,7 +7838,7 @@ mod tests {
     fn option_enum_value_is_enum_member() {
         // `button .b -relief raised` — the closed-set option value is coloured
         // as an EnumMember (Phase 5), not a generic OptionValue.
-        let toks = decode_full("button .b -relief raised\n", tcl_dialect::DialectProfile::by_name("tk"), &reg());
+        let toks = decode_full("button .b -relief raised\n", crate::profile_for_dialect("tk"), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, _)| *k == TokenKind::EnumMember as u32),
@@ -7851,7 +7851,7 @@ mod tests {
         // `entry .e -textvariable myvar` — the value names a variable the widget
         // reads/writes (Phase 3: ArgRole::VarWrite), so it is a Variable
         // declaration, not a plain `OptionValue` string.
-        let toks = decode_full("entry .e -textvariable myvar\n", tcl_dialect::DialectProfile::by_name("tk"), &reg());
+        let toks = decode_full("entry .e -textvariable myvar\n", crate::profile_for_dialect("tk"), &reg());
         assert!(
             toks.iter()
                 .any(|(_, _, _, k, m)| *k == TokenKind::Variable as u32 && *m == MOD_DECLARATION),

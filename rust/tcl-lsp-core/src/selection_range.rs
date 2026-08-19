@@ -513,7 +513,7 @@ fn command_span_at(
         }
     }
     let profile = dialect;
-    let registry = tcl_registry::cache::registry_for_profile(profile);
+    let registry = crate::registry_for_dialect_profile(profile);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
     let mut best = None;

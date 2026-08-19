@@ -889,7 +889,7 @@ fn caller_frame_references(
     // proc a binding's call-site word reaches is itself a call resolution, so
     // dropping the oracle here would let find-references disagree with
     // go-to-definition on a `-force`-shadowed callee (issue #1116 item 1).
-    let resolution = resolution.with_registry(tcl_registry::cache::registry_for_profile(dialect));
+    let resolution = resolution.with_registry(crate::registry_for_dialect_profile(dialect));
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
@@ -971,7 +971,7 @@ fn variable_references(ctx: &RefCtx<'_>) -> Option<Vec<LspRange>> {
         analysis,
         source,
         dialect,
-        resolution.with_registry(tcl_registry::cache::registry_for_profile(dialect)),
+        resolution.with_registry(crate::registry_for_dialect_profile(dialect)),
         byte_offset,
         &find_word_span_at_position(source, line, character)
             .map(|(w, _, _)| w)
@@ -1833,7 +1833,7 @@ pub(crate) fn scan_my_method_sites(
     method: &str,
     skip: Option<tcl_lexer::Span>,
 ) -> Vec<tcl_lexer::Span> {
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = MyMethodScan {
@@ -2007,7 +2007,7 @@ fn scan_next_dispatch_sites_with_target(
     dialect: &'static tcl_dialect::DialectProfile,
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = NextDispatchScan {
@@ -2554,7 +2554,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
         return out;
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let ctx = ObjMethodScan {
@@ -3051,7 +3051,7 @@ pub(crate) fn nested_dispatch_regions(
     dialect: &'static tcl_dialect::DialectProfile,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
@@ -3151,7 +3151,7 @@ pub(crate) fn frame_shifted_dispatch_regions(
     let Some(cmd_name) = cmd.texts.first() else {
         return regions;
     };
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
     // `plain_body_arg_indices` is `arg_indices_for_role(Body)` gated on the
     // call's resolved `BodyKind`, so an empty plain list against a non-empty
@@ -3241,7 +3241,7 @@ pub(crate) fn member_reference_spans(
     method: &str,
 ) -> Vec<tcl_lexer::Span> {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let Some(grammar) = registry
         .get(&class_def.metaclass)
         .and_then(|spec| spec.definition_body)
@@ -3308,7 +3308,7 @@ fn definition_body_regions_naming(
     class_def: &tcl_compiler::analyser::types::ClassDef,
 ) -> Vec<(usize, usize)> {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let registry = crate::registry_for_dialect_profile(dialect);
     let commands = segment_commands_with_offset_and_config(
         source,
         0,

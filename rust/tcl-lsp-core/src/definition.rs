@@ -1071,7 +1071,7 @@ pub(crate) fn method_dispatch_keyword_in(
     dialect: &'static tcl_dialect::DialectProfile,
     word: &str,
 ) -> Option<tcl_registry::MethodDispatchKind> {
-    tcl_registry::cache::registry_for_profile(dialect).method_dispatch_keyword(word)
+    crate::registry_for_dialect_profile(dialect).method_dispatch_keyword(word)
 }
 
 /// Whether `word` is the `TclOO` self-dispatch keyword (`my`) — the word
@@ -1112,7 +1112,7 @@ fn is_next_chain_keyword_in(dialect: &'static tcl_dialect::DialectProfile, word:
 /// what `TCLOO_NEXT_CHAIN`'s own documentation asks consumers to do.
 pub(crate) fn next_chain_names_a_target_in(dialect: &'static tcl_dialect::DialectProfile, word: &str) -> bool {
     method_dispatch_keyword_in(dialect, word) == Some(tcl_registry::MethodDispatchKind::NextChain)
-        && tcl_registry::cache::registry_for_profile(dialect)
+        && crate::registry_for_dialect_profile(dialect)
             .get(word)
             .is_some_and(|spec| spec.arg_role_at(0) == Some(tcl_registry::ArgRole::Name))
 }
@@ -2323,7 +2323,7 @@ pub(crate) fn offset_is_inert(source: &str, dialect: &'static tcl_dialect::Diale
         || crate::inert_text::offset_in_data_brace(
             source,
             cursor_off,
-            tcl_registry::cache::registry_for_profile(dialect),
+            crate::registry_for_dialect_profile(dialect),
             dialect,
         )
 }
@@ -2758,7 +2758,7 @@ pub(crate) fn resolved_command_name(
 /// (which should not happen for a real `ClassDef`) is conservatively treated
 /// as *not* itcl.
 pub(crate) fn is_itcl_class(cd: &tcl_compiler::analyser::types::ClassDef, dialect: &'static tcl_dialect::DialectProfile) -> bool {
-    tcl_registry::cache::registry_for_profile(dialect)
+    crate::registry_for_dialect_profile(dialect)
         .get(&cd.metaclass)
         .and_then(|spec| spec.definition_body)
         .is_some_and(|g| g.family == tcl_registry::definer::DefinerFamily::Itcl)

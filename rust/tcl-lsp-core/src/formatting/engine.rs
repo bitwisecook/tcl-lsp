@@ -1773,7 +1773,7 @@ mod tests {
     }
 
     fn fmt_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = crate::registry_for_dialect_profile(dialect);
         format_tcl(src, &FormatterConfig::for_dialect(dialect), registry)
     }
 

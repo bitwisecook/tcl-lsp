@@ -116,7 +116,7 @@ fn build_event_handlers(
     EXPENSIVE_BUILD_COUNT.with(|count| count.set(count.get() + 1));
 
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
-    let registry = tcl_registry::registry_for_profile(profile);
+    let registry = crate::registry_for_dialect_profile(profile);
     let identities =
         tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
     let events = tcl_registry::events::EventRegistry::build();

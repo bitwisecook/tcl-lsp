@@ -3566,7 +3566,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let src = "butt\n";
         let analysis = analyse(src);
-        let items = completions(src, 0, 4, &analysis, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tk"));
+        let items = completions(src, 0, 4, &analysis, Some(&registry), None, crate::profile_for_dialect("tk"));
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"button"),
@@ -3733,7 +3733,7 @@ mod tests {
         let cur = analyse(src);
         let registry = CommandRegistry::build_default();
         let col = u32::try_from(src.len()).unwrap();
-        let items = completions(src, 0, col, &cur, Some(&registry), None, tcl_dialect::DialectProfile::by_name("tk"));
+        let items = completions(src, 0, col, &cur, Some(&registry), None, crate::profile_for_dialect("tk"));
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
             labels.contains(&"raised"),
