@@ -565,6 +565,41 @@ fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
     out_eq("puts [subst -noc {[cmd]}]\n", "[cmd]\n");
 }
 
+/// Issue #1443's bug, found repeated verbatim in `interp limit`'s option
+/// matcher by the centralisation audit: a hand-rolled `starts_with` filter can
+/// only ever say `bad option`, so the empty word — a prefix of *every* entry —
+/// reported `bad option ""` where C reports `ambiguous option ""`. Both
+/// engines now route through `prefix::OptionTable::abbreviating`, which owns
+/// the verdict and the `", or"` enumeration alike.
+///
+/// Byte-checked against tclsh 8.6.16 and 9.0.4, which agree on every row.
+#[test]
+fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
+    const MUST: &str = "must be -command, -granularity, -milliseconds, or -seconds";
+    let msg = |src: &str| {
+        let (ok, result, _) = run(src);
+        assert!(!ok, "expected an error for {src}, got ok");
+        result
+    };
+    assert_eq!(
+        msg("interp create i\ninterp limit i time {}\n"),
+        format!("ambiguous option \"\": {MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp limit i time -\n"),
+        format!("ambiguous option \"-\": {MUST}")
+    );
+    assert_eq!(
+        msg("interp create i\ninterp limit i time -zz\n"),
+        format!("bad option \"-zz\": {MUST}")
+    );
+    // Unique prefixes still resolve.
+    let (ok, _r, _) = run("interp create i\ninterp limit i time -sec 5\n");
+    assert!(ok, "a unique prefix must still resolve");
+    let (ok, _r, _) = run("interp create i\ninterp limit i time -com {}\n");
+    assert!(ok);
+}
+
 #[test]
 fn regexp_regsub() {
     out_eq("puts [regexp {[0-9]+} abc123]\n", "1\n");

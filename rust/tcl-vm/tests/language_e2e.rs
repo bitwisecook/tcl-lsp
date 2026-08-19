@@ -498,6 +498,128 @@ fn link_commands_reject_element_looking_names() {
     assert_eq!(out, "ok\n");
 }
 
+/// `global`'s guard applies **only inside a procedure**; `variable` and
+/// `upvar`'s apply everywhere.
+///
+/// `Tcl_GlobalObjCmd` returns `TCL_OK` before looking at its arguments when the
+/// current frame is already the global frame, so outside a proc `global` is a
+/// documented no-op and never reaches the element-name check — `global (x)` at
+/// top level, and inside `namespace eval`, are both accepted. `variable` and
+/// `upvar` place their checks in the link-creation path itself, which runs at
+/// every scope, so those stay unconditional.
+///
+/// Verified on `tclsh8.6.16` and `tclsh9.0.4`, which agree on all eight rows.
+#[test]
+fn global_element_guard_applies_only_inside_a_proc() {
+    const SCALAR: &str = "can't create a scalar variable that looks like an array element";
+    const DEFINE: &str = "name refers to an element in an array";
+
+    // `global` outside a proc: accepted, no-op.
+    for script in [
+        "global (x)\nputs ok\n",
+        "global a(b)\nputs ok\n",
+        "namespace eval nsx {global (x)}\nputs ok\n",
+        "namespace eval nsx {global a(b)}\nputs ok\n",
+    ] {
+        let (ok, r, out) = run(script);
+        assert!(ok, "{script:?} must be a no-op outside a proc, got {r}");
+        assert_eq!(out, "ok\n");
+    }
+    // Inside a proc the same words are refused.
+    let (ok, r, _) = run("proc p {} { global (x) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"(x)\": {SCALAR}"));
+    let (ok, r, _) = run("proc p {} { global a(b) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"a(b)\": {SCALAR}"));
+
+    // `variable` is unconditional — top level, namespace eval, and proc alike.
+    for script in [
+        "variable (y) 1\n",
+        "namespace eval nsx {variable (y) 1}\n",
+        "proc p {} { variable (y) }\np\n",
+    ] {
+        let (ok, r, _) = run(script);
+        assert!(!ok, "{script:?} must be refused at every scope");
+        assert_eq!(r, format!("can't define \"(y)\": {DEFINE}"));
+    }
+
+    // `upvar` is unconditional too.
+    let (ok, r, _) = run("set zz 1\nupvar 0 zz (v)\n");
+    assert!(!ok, "upvar's guard is not scoped to a proc frame");
+    assert_eq!(r, format!("bad variable name \"(v)\": {SCALAR}"));
+}
+
+/// A qualified name's **parent namespace is resolved before** the element-name
+/// guard, so a missing namespace is reported as such rather than as an element
+/// error (closes a slice of #1588; the `upvar` surface of that issue remains).
+///
+/// C reports the name **as written** with `errorCode` `TCL LOOKUP VARNAME`, and
+/// uses a different verb per command — `define` for `variable`, `access` for
+/// `global`. The element split happens first and only when the name *ends* with
+/// `)`, which is what keeps `global v(x::y)` (index data, not a path) accepted
+/// while `variable v(a)::b` is a namespace error.
+///
+/// Every row byte-checked against `tclsh8.6.16` and `tclsh9.0.4`, which agree.
+#[test]
+fn parent_namespace_is_resolved_before_the_element_guard() {
+    let err_of = |src: &str| {
+        let (ok, r, _) = run(src);
+        assert!(!ok, "expected an error for {src}");
+        r
+    };
+    let code_of = |src: &str| {
+        let (ok, _r, out) = run(&format!("catch {{{src}}} m\nputs -nonewline $::errorCode"));
+        assert!(ok);
+        out
+    };
+
+    // `variable` — missing namespace wins over the element guard.
+    for name in ["::nosuch::v(k)", "::nosuch::v"] {
+        let src = format!("variable {name} 1\n");
+        assert_eq!(
+            err_of(&src),
+            format!("can't define \"{name}\": parent namespace doesn't exist")
+        );
+        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME");
+    }
+    // A *relative* qualified name resolves against the current namespace.
+    assert_eq!(
+        err_of("namespace eval real {}\nnamespace eval real {variable nope::v(k) 1}\n"),
+        "can't define \"nope::v(k)\": parent namespace doesn't exist"
+    );
+    // When the namespace exists, the element guard is what fires.
+    assert_eq!(
+        err_of("namespace eval real {}\nvariable ::real::v(k) 1\n"),
+        "can't define \"::real::v(k)\": name refers to an element in an array"
+    );
+    assert_eq!(
+        code_of("namespace eval real {}\nvariable ::real::v(k) 1"),
+        "TCL UPVAR LOCAL_ELEMENT"
+    );
+
+    // `global` — same precedence, but the verb is `access`.
+    for name in ["::nosuch::v(k)", "::nosuch::v"] {
+        let src = format!("proc p {{}} {{ global {name} }}\np\n");
+        assert_eq!(
+            err_of(&src),
+            format!("can't access \"{name}\": parent namespace doesn't exist")
+        );
+        assert_eq!(code_of(&src), "TCL LOOKUP VARNAME");
+    }
+
+    // The element split only applies when the name ENDS with `)`. That is what
+    // separates these two: `v(x::y)` is array `v` (accepted), while `v(a)::b`
+    // has no element to split off, so `v(a)` is read as a namespace.
+    let (ok, _r, out) = run("proc p {} { global v(x::y); puts ok }\np\n");
+    assert!(ok, "a `::` inside an index is data, not a namespace path");
+    assert_eq!(out, "ok\n");
+    assert_eq!(
+        err_of("namespace eval real {variable v(a)::b 1}\n"),
+        "can't define \"v(a)::b\": parent namespace doesn't exist"
+    );
+}
+
 /// `variable` and `global` split a qualified name **differently**, and a `::`
 /// inside an array index is what separates them.
 ///

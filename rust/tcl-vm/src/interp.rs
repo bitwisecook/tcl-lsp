@@ -152,21 +152,18 @@ fn parse_recursion_limit(s: &str) -> Result<i64, String> {
 }
 
 /// Resolve an `interp limit` option by unambiguous prefix against `opts`,
-/// matching C's `Tcl_GetIndexFromObj`. Returns the canonical spelling or a
-/// `bad option "X": must be …` error.
+/// matching C's `Tcl_GetIndexFromObj` — through the one shared owner.
+///
+/// The hand-rolled `starts_with` filter this replaced had #1443's bug verbatim:
+/// it could only ever say `bad option`, so the empty word — which is a prefix of
+/// *every* option — reported `bad option ""` where C reports
+/// `ambiguous option ""`. `OptionTable::abbreviating` owns both verdicts and the
+/// `", or"` enumeration.
 fn resolve_limit_opt<'a>(arg: &str, opts: &'a [&'a str]) -> Result<&'a str, String> {
-    let matches: Vec<&str> = opts
-        .iter()
-        .copied()
-        .filter(|o| o.starts_with(arg))
-        .collect();
-    match matches.as_slice() {
-        [exact] => Ok(exact),
-        _ if opts.contains(&arg) => Ok(opts[opts.iter().position(|o| *o == arg).unwrap()]),
-        _ => Err(format!(
-            "bad option \"{arg}\": must be {}",
-            oxford_or(&opts.iter().map(|o| (*o).to_string()).collect::<Vec<_>>())
-        )),
+    let table = tcl_cmd_core::prefix::OptionTable::abbreviating("option", opts);
+    match table.index_of(arg.as_bytes()) {
+        Ok(i) => Ok(opts[i]),
+        Err(m) => Err(String::from_utf8_lossy(&m).into_owned()),
     }
 }
 
@@ -4757,6 +4754,16 @@ impl Vm {
 
     pub(crate) fn current_level(&self) -> usize {
         self.frames.len() - 1
+    }
+
+    /// Whether the current frame is a **procedure** activation.
+    ///
+    /// A proc frame carries its name; the global frame and a `namespace eval`
+    /// body do not (the latter runs in the current frame and pushes none). This
+    /// is the condition `Tcl_GlobalObjCmd` tests before doing anything at all —
+    /// outside a proc, `global` is a no-op (issue #1458's guard is scoped to it).
+    pub(crate) fn in_proc_frame(&self) -> bool {
+        self.frames.last().is_some_and(|f| f.proc_name.is_some())
     }
 
     pub(crate) fn push_call_frame(

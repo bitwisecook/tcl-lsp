@@ -439,8 +439,18 @@ fn emit_foreach_header(
         ctx.seen_generic_invoke = true;
         state.foreach_end_labels.insert(fi.end.clone(), fe_lbl);
     }
-    for la in &fi.list_args {
-        ctx.emit_value(la, false);
+    for (i, la) in fi.list_args.iter().enumerate() {
+        // A braced list word is a literal in every direction: `TclFindElement`'s
+        // brace semantics keep `$` / `[…]` inert both for the word itself and
+        // for any braced element inside it, so it must be pushed verbatim.
+        // Pushing it as an ordinary literal let the VM's `subst_word` run the
+        // substitution at loop entry — `foreach e {{a[b]c} x}` raised
+        // `invalid command name "b"` where tclsh prints `a[b]c` (issue #1572).
+        if fi.list_braced.get(i).copied().unwrap_or(false) {
+            ctx.push_lit_verbatim(la);
+        } else {
+            ctx.emit_value(la, false);
+        }
     }
     let fs_idx = ctx.emit(Op::FOREACH_START, vec![Operand::Imm(0)]);
     // Carry the loop-variable groups (C Tcl `ForeachInfo.varLists`) so

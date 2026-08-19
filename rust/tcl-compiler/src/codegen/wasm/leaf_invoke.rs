@@ -57,6 +57,7 @@ use crate::backend_registry::{
     SelectionFacts, SelectionInput, SelectionRegion, SelectorAttemptFailure, SelectorDecision,
     SelectorPriority, SelectorRequest,
 };
+use crate::codegen::values::whole_var_reference;
 use crate::ir::{CommandTokens, Provenance, SourceSite, WordExpr, WordPart};
 use crate::target_contract::{
     LegalisationRequirements, TargetCapabilities, TargetContract, TargetFamily,
@@ -460,7 +461,7 @@ fn plan_variable(
     source: &SourceSite,
     slot: usize,
 ) -> Result<WasmWordPlan, WasmLeafInvokeDecline> {
-    let name = variable_name(spelling).ok_or(WasmLeafInvokeDecline::DynamicVariableName)?;
+    let name = whole_var_reference(spelling).ok_or(WasmLeafInvokeDecline::DynamicVariableName)?;
     if !name.contains('(') {
         return Ok(WasmWordPlan::Scalar {
             slot,
@@ -495,22 +496,6 @@ fn plan_variable(
 
 fn extent(span: Span) -> usize {
     span.end().saturating_sub(span.start()) as usize
-}
-
-/// The exact Tcl variable name a compatibility spelling refers to.
-fn variable_name(spelling: &str) -> Option<&str> {
-    if let Some(name) = spelling
-        .strip_prefix("${")
-        .and_then(|s| s.strip_suffix('}'))
-    {
-        return (!name.is_empty()).then_some(name);
-    }
-    let name = spelling.strip_prefix('$')?;
-    (!name.is_empty()
-        && name
-            .bytes()
-            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b':')))
-    .then_some(name)
 }
 
 /// Split `base(key)` the way the runtime's own array reference split does.

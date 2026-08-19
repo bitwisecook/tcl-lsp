@@ -2251,7 +2251,9 @@ impl Vm {
             }
             Op::ARRAY_MAKE_STK => {
                 let name = pop(f).to_str();
-                if name.ends_with(')') && name.contains('(') {
+                // The element-reference test comes from the one owner rather
+                // than a local re-spelling of its predicate (issue #1458).
+                if tcl_syntax::naming::split_element_ref(&name).is_some() {
                     return Tick::Return(err(format!(
                         "can't array set \"{name}\": variable isn't array"
                     )));
