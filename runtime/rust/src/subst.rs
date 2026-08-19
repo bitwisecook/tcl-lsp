@@ -37,7 +37,7 @@
 use tcl_core_types::RecursionLimit;
 
 use crate::parse::{self, WordBody, WordPart};
-use tcl_lexer::EscapeSyntax;
+use tcl_lexer::{EscapeSyntax, LexerConfig};
 
 /// Cap on `$name(index)` nesting depth [`resolve_parts`] will recurse into
 /// while resolving a `WordPart::Variable`'s own `index` components. Separate
@@ -75,9 +75,12 @@ impl Default for SubstFlags {
 }
 
 /// Scan `src` into substitution components per `flags`, without evaluating.
-/// `escapes` is the emulated release's backslash grammar (issue #1479).
-pub fn scan(src: &[u8], flags: SubstFlags, escapes: EscapeSyntax) -> WordBody<'_> {
-    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes, escapes)
+/// `config` is the emulated release's resolved grammar — its backslash rules
+/// (issue #1479) and its `${…}` close rule (issue #1457) both differ by
+/// release, so `subst` must read the template the way that release's parser
+/// would.
+pub fn scan(src: &[u8], flags: SubstFlags, config: LexerConfig) -> WordBody<'_> {
+    parse::scan_parts(src, flags.vars, flags.cmds, flags.backslashes, config)
 }
 
 /// Resolve a scanned [`WordBody`] to bytes. Literals are copied and backslashes
@@ -130,6 +133,11 @@ where
                     out.extend_from_slice(&val);
                 }
             }
+            // This layer is deliberately error-free (see `resolve_with`): an
+            // unresolved var contributes nothing, and so does a parse error.
+            // The eval loop — `Interp::resolve_subst_parts` / `substitute_word`
+            // — is where it becomes C's raised error.
+            WordPart::ParseError(_) => {}
         }
     }
     out
@@ -177,7 +185,79 @@ mod tests {
 
     /// [`subst`] under an explicit release grammar.
     fn subst_in(src: &[u8], escapes: EscapeSyntax) -> Vec<u8> {
-        resolve_with(&scan(src, SubstFlags::default(), escapes), &var, &cmd)
+        let config = LexerConfig {
+            escapes,
+            ..LexerConfig::default()
+        };
+        resolve_with(&scan(src, SubstFlags::default(), config), &var, &cmd)
+    }
+
+    /// Issue #1457 — the `${…}` close rule moves with the release.
+    ///
+    /// `Tcl_ParseVarName` ends the brace form at the **first** literal `}` in
+    /// 8.4–8.6 (`tclParse.c(8.6.16):1398`) but counts nested `{…}` and skips
+    /// `\X` pairs from 9.0 (`tclParse.c(9.0.4):1315`). `subst` reads its
+    /// template with the parser of the release it emulates, so
+    /// `subst {${a{b}c}}` names `a{b` under 8.x and `a{b}c` under 9.x. The
+    /// engine used to scan to the first `}` regardless of the pinned release.
+    #[test]
+    fn braced_var_close_rule_follows_the_emulated_release() {
+        let nine = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::Tcl9Nesting,
+            ..LexerConfig::default()
+        };
+        let eight = LexerConfig {
+            braced_var: tcl_lexer::BracedVarStyle::FirstClose,
+            ..LexerConfig::default()
+        };
+        // `var` below answers for the name it is handed, so assert on the name
+        // each rule extracts rather than on a value.
+        let name_of = |src: &[u8], config: LexerConfig| -> Vec<u8> {
+            let body = scan(src, SubstFlags::default(), config);
+            let seen = std::cell::RefCell::new(Vec::new());
+            let capture = |name: &[u8], _idx: Option<&[u8]>| -> Option<Vec<u8>> {
+                seen.borrow_mut().extend_from_slice(name);
+                Some(Vec::new())
+            };
+            let _ = resolve_with(&body, &capture, &cmd);
+            seen.into_inner()
+        };
+        // 9.x balances the inner braces; 8.x stops at the first `}` and leaves
+        // `c}` as ordinary text.
+        assert_eq!(name_of(b"${a{b}c}", nine), b"a{b}c");
+        assert_eq!(name_of(b"${a{b}c}", eight), b"a{b");
+        assert_eq!(
+            resolve_with(&scan(b"${a{b}c}", SubstFlags::default(), eight), &var, &cmd),
+            b"c}",
+            "8.x leaves the text past the first close-brace in the template"
+        );
+        // The escaped-brace half of the same rule.
+        assert_eq!(name_of(b"${a\\}b}", nine), b"a\\}b");
+        assert_eq!(name_of(b"${a\\}b}", eight), b"a\\");
+
+        // An unterminated `${` is NOT a name that runs to end-of-input — it is
+        // C's `missing close-brace for variable name`, on both releases. The
+        // scanner emits a `ParseError` part and no variable at all, so no name
+        // reaches the resolver.
+        fn parts_of(src: &[u8], config: LexerConfig) -> Vec<WordPart<'_>> {
+            match scan(src, SubstFlags::default(), config) {
+                WordBody::Parts(p) => p,
+                WordBody::Literal(_) => panic!("expected parts"),
+            }
+        }
+        let err_part = WordPart::ParseError(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR);
+        for style in [nine, eight] {
+            assert_eq!(name_of(b"${abc", style), b"");
+            assert_eq!(parts_of(b"${abc", style), vec![err_part.clone()]);
+            assert_eq!(parts_of(b"${a{b", style), vec![err_part.clone()]);
+        }
+        // The nesting rule widens "unterminated": 8.x closes these, 9.x does
+        // not. Matches real tclsh — 8.6.16 reads the names `a{b` / `a\`, while
+        // 9.0.4 raises on both.
+        assert_eq!(parts_of(b"${a{b}", nine), vec![err_part.clone()]);
+        assert_eq!(name_of(b"${a{b}", eight), b"a{b");
+        assert_eq!(parts_of(b"${a\\}", nine), vec![err_part.clone()]);
+        assert_eq!(name_of(b"${a\\}", eight), b"a\\");
     }
 
     #[test]
@@ -297,7 +377,7 @@ mod tests {
             backslashes: true,
         };
         assert_eq!(
-            resolve_with(&scan(b"$x\\t", f, EscapeSyntax::default()), &var, &cmd),
+            resolve_with(&scan(b"$x\\t", f, LexerConfig::default()), &var, &cmd),
             b"$x\t"
         );
         // backslashes_only: `$`/`[` literal, `\n` decodes.

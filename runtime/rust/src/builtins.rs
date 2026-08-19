@@ -582,13 +582,11 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     // `objv[1 .. objc-1]`), matched with Tcl's unambiguous-prefix rule.
     let mut flags = crate::subst::SubstFlags::default();
     for &opt in &argv[1..argv.len() - 1] {
-        let name = obj_bytes(opt);
-        match subst_option_index(&name) {
-            SubstOpt::Backslashes => flags.backslashes = false,
-            SubstOpt::Commands => flags.cmds = false,
-            SubstOpt::Variables => flags.vars = false,
-            SubstOpt::Bad => return subst_bad_option(interp, b"bad", &name),
-            SubstOpt::Ambiguous => return subst_bad_option(interp, b"ambiguous", &name),
+        match SUBST_OPTIONS.index_of(&obj_bytes(opt)) {
+            Ok(0) => flags.backslashes = false,
+            Ok(1) => flags.cmds = false,
+            Ok(_) => flags.vars = false,
+            Err(m) => return interp.set_error(&m),
         }
     }
     let last = argv[argv.len() - 1];
@@ -605,47 +603,15 @@ fn subst_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
 }
 
-/// The resolution of a `subst` option word against `{-nobackslashes,
-/// -nocommands, -novariables}` (Tcl's exact-or-unique-prefix matching).
-enum SubstOpt {
-    Backslashes,
-    Commands,
-    Variables,
-    Bad,
-    Ambiguous,
-}
-
-fn subst_option_index(name: &[u8]) -> SubstOpt {
-    const NAMES: [&[u8]; 3] = [b"-nobackslashes", b"-nocommands", b"-novariables"];
-    let mut found = None;
-    let mut count = 0;
-    for (k, n) in NAMES.iter().enumerate() {
-        if *n == name {
-            count = 1;
-            found = Some(k);
-            break;
-        }
-        if n.starts_with(name) {
-            found = Some(k);
-            count += 1;
-        }
-    }
-    match (count, found) {
-        (1, Some(0)) => SubstOpt::Backslashes,
-        (1, Some(1)) => SubstOpt::Commands,
-        (1, Some(2)) => SubstOpt::Variables,
-        (0, _) => SubstOpt::Bad,
-        _ => SubstOpt::Ambiguous,
-    }
-}
-
-fn subst_bad_option(interp: &mut Interp, kind: &[u8], name: &[u8]) -> Code {
-    let mut m = kind.to_vec();
-    m.extend_from_slice(b" option \"");
-    m.extend_from_slice(name);
-    m.extend_from_slice(b"\": must be -nobackslashes, -nocommands, or -novariables");
-    interp.set_error(&m)
-}
+/// `subst`'s option words. C's `TclSubstOptions` (`tclCmdMZ.c:3341`) resolves
+/// them with `Tcl_GetIndexFromObj` at flags `0`, so abbreviations match and the
+/// *empty* word — which prefixes all three entries — is `ambiguous`, not `bad`.
+/// Shared with the bytecode VM through the one `tcl-cmd-core::prefix` matcher.
+const SUBST_OPTIONS: tcl_cmd_core::prefix::OptionTable<'static, &[u8]> =
+    tcl_cmd_core::prefix::OptionTable::abbreviating(
+        "option",
+        &[b"-nobackslashes", b"-nocommands", b"-novariables"],
+    );
 
 // -- helpers ---------------------------------------------------------------
 
@@ -1038,6 +1004,37 @@ mod tests {
         });
     }
 
+    /// Issue #1443 — `subst`'s option words go through the one shared
+    /// `tcl-cmd-core::prefix` matcher, so every miss is worded exactly as
+    /// `Tcl_GetIndexFromObj` at flags `0` words it (`TclSubstOptions`,
+    /// `tclCmdMZ.c:3341`): the empty word prefixes all three entries and is
+    /// therefore `ambiguous`, not `bad`.
+    #[test]
+    fn subst_option_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be -nobackslashes, -nocommands, or -novariables";
+        leak_free(|i| {
+            assert_eq!(i.eval_str(b"subst {} abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"subst -no abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"-no\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"subst -q abc"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad option \"-q\": {MUST}").as_bytes()
+            );
+            // Unique prefixes still resolve (subst-7.7).
+            assert_eq!(ok(i, b"subst -nov {$x}"), b"$x");
+            assert_eq!(ok(i, br"subst -nob {a\tb}"), br"a\tb");
+            assert_eq!(ok(i, b"subst -noc {[cmd]}"), b"[cmd]");
+        });
+    }
+
     /// Tcl 8.6/9.0 (`Tcl_ParseVarName`, `generic/tclParse.c`) consumes the
     /// complete colon separator run before looking up an unbraced variable.
     #[test]
@@ -1058,6 +1055,90 @@ mod tests {
                 i.result_bytes(),
                 b"can't read \"missing:::b\": no such variable"
             );
+        });
+    }
+
+    /// An unterminated `${…}` is `Tcl_ParseVarName`'s
+    /// `missing close-brace for variable name` — **not** a name that runs to
+    /// end-of-input, and not a literal `$`.
+    ///
+    /// This engine used to scan the name with `.unwrap_or(len)`, silently
+    /// swallowing the rest of the template (and, for `${a\`, dropping the
+    /// backslash and succeeding where C errors). The scan now reports
+    /// [`tcl_lexer::BracedVarEnd::Unterminated`] and the eval loop raises
+    /// (issue #1457).
+    ///
+    /// The error is raised in evaluation order, so a `[...]` earlier in the
+    /// same template has already run — verified against tclsh 8.6.16 and
+    /// 9.0.4, which both leave the counter at 1.
+    /// Templates are built with `binary format H*` so the *script* parser's own
+    /// brace matching cannot reshape the bytes `subst` is handed — writing
+    /// `subst {${abc}` instead makes the script parser hand over `${abc}`,
+    /// which is a perfectly terminated reference and tests nothing.
+    #[test]
+    fn unterminated_braced_var_raises_missing_close_brace() {
+        const MSG: &[u8] = b"missing close-brace for variable name";
+        leak_free(|i| {
+            for hex in [
+                &b"247B616263"[..],       // `${abc`  — no closer at all
+                &b"7A247B617B62"[..],     // `z${a{b` — unbalanced `{`
+                &b"247B615C"[..],         // `${a\`   — trailing lone backslash
+            ] {
+                let script = [b"subst [binary format H* ".as_ref(), hex, b"]"].concat();
+                assert_eq!(i.eval_str(&script), Code::Error, "{hex:?}");
+                assert_eq!(i.result_bytes(), MSG, "{hex:?}");
+            }
+            // A *closed* form still resolves normally: `${a{b}c}` under the
+            // default 9.x nesting rule names the variable `a{b}c`.
+            ok(i, b"set {a{b}c} WORLD");
+            assert_eq!(
+                ok(i, b"subst [binary format H* 247B617B627D637D]"),
+                b"WORLD"
+            );
+
+            // Side effects before the bad `${` survive, as in C: `[incr c]${a{b`
+            // leaves the counter at 1 on both tclsh 8.6.16 and 9.0.4.
+            ok(i, b"set c 0");
+            assert_eq!(
+                i.eval_str(b"subst [binary format H* 5B696E637220635D247B617B62]"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), MSG);
+            assert_eq!(ok(i, b"set c"), b"1");
+        });
+    }
+
+    /// Issue #1443's bug repeated in `interp limit`'s option matcher (found by
+    /// the centralisation audit). The hand-rolled `starts_with` filter could
+    /// only say `bad option`, and hand-built its own `", or"` enumeration
+    /// beside the one `prefix::choice_list_bytes` owns. Both now come from
+    /// `OptionTable::abbreviating`.
+    ///
+    /// Byte-checked against tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn interp_limit_option_words_resolve_like_tcl_get_index_from_obj() {
+        const MUST: &str = "must be -command, -granularity, -milliseconds, or -seconds";
+        leak_free(|i| {
+            ok(i, b"interp create i");
+            // The empty word prefixes every entry ⇒ ambiguous, not bad.
+            assert_eq!(i.eval_str(b"interp limit i time {}"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"\": {MUST}").as_bytes()
+            );
+            assert_eq!(i.eval_str(b"interp limit i time -"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("ambiguous option \"-\": {MUST}").as_bytes()
+            );
+            // A word prefixing nothing is bad.
+            assert_eq!(i.eval_str(b"interp limit i time -zz"), Code::Error);
+            assert_eq!(
+                i.result_bytes(),
+                format!("bad option \"-zz\": {MUST}").as_bytes()
+            );
+            // A unique prefix still resolves.
+            assert_eq!(i.eval_str(b"interp limit i time -sec 5"), Code::Ok);
         });
     }
 

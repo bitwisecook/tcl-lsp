@@ -99,6 +99,7 @@ struct ModuleEmit<'a> {
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     numbers: tcl_dialect::NumberSyntax,
     escapes: tcl_dialect::EscapeSyntax,
+    braced_var: tcl_dialect::BracedVarStyle,
 }
 
 fn codegen_function_src(
@@ -112,6 +113,7 @@ fn codegen_function_src(
     let mut ctx = CodegenCtx::new(is_proc, params, module.registry);
     ctx.numbers = module.numbers;
     ctx.escapes = module.escapes;
+    ctx.braced_var = module.braced_var;
     ctx.dialect = module.dialect;
     ctx.set_source(module.source);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
@@ -168,12 +170,14 @@ pub fn codegen_module(
     let dialect = ir_module.dialect.as_deref();
     let numbers = tcl_dialect::NumberSyntax::of_dialect_name(dialect);
     let escapes = tcl_dialect::EscapeSyntax::of_dialect_name(dialect);
+    let braced_var = tcl_dialect::BracedVarStyle::of_dialect_name(dialect);
     let module = ModuleEmit {
         registry,
         source: src,
         dialect: emit_profile(dialect),
         numbers,
         escapes,
+        braced_var,
     };
     let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();

@@ -32,6 +32,8 @@
 
 use tcl_runtime_api::Code;
 
+use tcl_dialect::BracedVarStyle;
+
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -324,7 +326,7 @@ enum VarFlow {
 
 /// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
 fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at) else {
+    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style())? else {
         return Ok(VarFlow::Literal);
     };
     let Some(raw_index) = vr.index else {
@@ -393,7 +395,7 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 }
             }
             b'$' if i + 1 < n => {
-                if let Some(vr) = parse_var_ref_parts(idx, i) {
+                if let Some(vr) = parse_var_ref_parts(idx, i, vm.braced_var_style())? {
                     let v = match vr.index {
                         None => read_var(vm, vr.base)?,
                         // A nested array index recurses; control flow from it
@@ -442,22 +444,44 @@ struct VarRef<'a> {
 
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
 /// `$name(idx)`).
-fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
+///
+/// `braced_var` is the release's `${…}` close rule, resolved through the one
+/// shared owner: the 8.x family ends the name at the first literal `}` while
+/// 9.x counts nested braces and skips `\X` pairs, so `subst {${a{b}c}}` errors
+/// on `a{b` under 8.6 and reads `a{b}c` under 9.0 (issue #1457). Hard-coding
+/// either rule gives the wrong answer on the other release.
+///
+/// `Ok(None)` means "not a variable reference" — the `$` is literal text. An
+/// **unterminated** `${…}` is different: it is C's
+/// [`MISSING_CLOSE_BRACE_FOR_VAR`] error, not a literal `$`, so it returns
+/// `Err`. Raising it here (rather than at the top of `subst`) reproduces C's
+/// left-to-right evaluation, where earlier command substitutions in the same
+/// template have already run and kept their side effects — verified against
+/// both oracles.
+fn parse_var_ref_parts(
+    s: &str,
+    at: usize,
+    braced_var: BracedVarStyle,
+) -> Result<Option<VarRef<'_>>, TclError> {
     let b = s.as_bytes();
     let n = b.len();
     if b.get(at + 1) == Some(&b'{') {
-        let rel = s[at + 2..].find('}')?;
-        let close = at + 2 + rel;
-        return Some(VarRef {
+        let close = match tcl_lexer::braced_var_name_end(b, at + 2, braced_var) {
+            tcl_lexer::BracedVarEnd::Closed(close) => close,
+            tcl_lexer::BracedVarEnd::Unterminated => {
+                return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+            }
+        };
+        return Ok(Some(VarRef {
             base: &s[at + 2..close],
             index: None,
             next: close + 1,
-        });
+        }));
     }
     let start = at + 1;
     let j = tcl_core_types::naming::scan_var_name_end(b, start);
     if j == start {
-        return None;
+        return Ok(None);
     }
     // Optional array index `(...)`.
     if j < n
@@ -465,17 +489,17 @@ fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
         && let Some(rel) = s[j..].find(')')
     {
         let close = j + rel;
-        return Some(VarRef {
+        return Ok(Some(VarRef {
             base: &s[start..j],
             index: Some(&s[j + 1..close]),
             next: close + 1,
-        });
+        }));
     }
-    Some(VarRef {
+    Ok(Some(VarRef {
         base: &s[start..j],
         index: None,
         next: j,
-    })
+    }))
 }
 
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
@@ -499,13 +523,35 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
         return eval_subst(vm, &word[1..end]);
     }
     // Fast path: the whole word is one `${name}`.
+    //
+    // The close rule is the release's, resolved through the one shared owner
+    // (issue #1568). This used to be `find('}')` — the 8.x first-close rule
+    // applied at *every* release — so a compiled word `${a{b}c}` read the
+    // variable `a{b` even when emulating 9.x. `subst`'s own engine was fixed
+    // for #1457 via `parse_var_ref_parts`; this is the compiled-word path,
+    // which had its own copy.
+    //
+    // Do not go hunting for a test that pins the *style* here: there is none,
+    // and that was measured, not assumed. Pinning this call to `FirstClose`
+    // leaves every vector in a ~130-program search unchanged, because the arm is
+    // only ever *reached* when both rules agree. A whole-word `${name}` whose
+    // rules agree is resolved at compile time (`parse_simple_var_ref` →
+    // `load_var`) and never reaches `subst_word` at all; one whose rules
+    // disagree fails this arm's `close == n - 1` test under either style and
+    // falls through to the general scan below, which is the arm the release
+    // rule is observable through (and which is pinned by
+    // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
+    // It is written release-aware anyway so the two arms cannot drift apart —
+    // the drift between two such copies is the whole of #1568.
+    let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
         && b[1] == b'{'
-        && let Some(rel) = word[2..].find('}')
-        && 2 + rel == n - 1
+        && let tcl_lexer::BracedVarEnd::Closed(close) =
+            tcl_lexer::braced_var_name_end(b, 2, braced_var)
+        && close == n - 1
     {
-        return read_var(vm, &word[2..2 + rel]);
+        return read_var(vm, &word[2..close]);
     }
     // No substitution triggers: the literal is its own value.
     if !word.contains("${") && !word.contains('[') {
@@ -526,14 +572,33 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             b'\\' => i = (i + 2).min(n),
             b'$' if i + 1 < n && b[i + 1] == b'{' => {
                 out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
-                if let Some(rel) = word[i + 2..].find('}') {
-                    let close = i + 2 + rel;
-                    let v = read_var(vm, &word[i + 2..close])?;
-                    out.push_str(&v.to_str());
-                    i = close + 1;
-                } else {
-                    out.push('$');
-                    i += 1;
+                // Same release-aware close rule as the whole-word fast path
+                // above — the second of this function's two hard-coded 8.x
+                // copies (issue #1568).
+                match tcl_lexer::braced_var_name_end(b, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(close) => {
+                        let v = read_var(vm, &word[i + 2..close])?;
+                        out.push_str(&v.to_str());
+                        i = close + 1;
+                    }
+                    // C raises `missing close-brace for variable name` here,
+                    // and both `subst` engines now do (issue #1457).
+                    //
+                    // Note this is a *parse* error, not an evaluation one, and
+                    // C reports it before the command runs at all: it parses
+                    // every word of a command before evaluating any of them.
+                    // So no earlier `[…]` in the same word has run when this
+                    // fires — `puts "[side]pre${abc"` never calls `side` on
+                    // 8.6.16 or 9.0.4, and does not here either. (An earlier
+                    // revision of this comment claimed the opposite, reasoning
+                    // from left-to-right *evaluation*; the behaviour was right
+                    // and the justification wrong. Pinned by
+                    // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
+                    // which also records why no vector reaches *this* arm: the
+                    // compiler rejects such source before the VM sees it.)
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+                    }
                 }
                 lit = i;
             }
@@ -557,7 +622,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
+    use super::{BracedVarStyle, command_end, parse_var_ref_parts, subst_command, whole_braced};
     use crate::interp::Vm;
 
     /// `subst_command` with only backslash substitution enabled.
@@ -596,11 +661,15 @@ mod tests {
             ("$::a:::b", "::a:::b", 8),
             ("$foo:::", "foo:::", 7),
         ] {
-            let parsed = parse_var_ref_parts(source, 0).expect("variable reference");
+            let parsed = parse_var_ref_parts(source, 0, BracedVarStyle::Tcl9Nesting)
+                .expect("parses")
+                .expect("variable reference");
             assert_eq!(parsed.base, base);
             assert_eq!(parsed.next, next);
         }
-        let parsed = parse_var_ref_parts("$a:::b(k)", 0).expect("array reference");
+        let parsed = parse_var_ref_parts("$a:::b(k)", 0, BracedVarStyle::Tcl9Nesting)
+            .expect("parses")
+            .expect("array reference");
         assert_eq!(parsed.base, "a:::b");
         assert_eq!(parsed.index, Some("k"));
     }

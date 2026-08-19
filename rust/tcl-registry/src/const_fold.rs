@@ -339,19 +339,39 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
 
 // dict commands
 
-/// Parse a flat Tcl dict string into key/value pairs (insertion order),
-/// or `None` when malformed (odd element count or unsplittable).
+/// Parse a flat Tcl dict string into its **canonical** key/value pairs, or
+/// `None` when malformed (odd element count or unsplittable).
+///
+/// Canonical means what `SetDictFromAny` (tclDictObj.c) produces: a repeated
+/// key keeps its **first-occurrence position** and its **last value**, because
+/// the `Tcl_DictObjPut` behind it overwrites on a hash collision. This is the
+/// same rule [`tcl_syntax::value::ValueOps::dict_pairs`] applies at runtime and
+/// that [`fold_dict_create`] below already applied — these folders were the
+/// odd ones out.
+///
+/// It matters because these are *constant folds* feeding analyser and tooling
+/// evaluation: decoding the list rep straight into `chunks_exact(2)` pairs left
+/// both values of a duplicate key present, so every `find` read the **first**
+/// one and `[dict get {a 1 a 2} a]` folded to `1` where Tcl says `2` — an
+/// optimisation that changes program results (issue #1427).
 fn parse_dict(s: &str) -> Option<Vec<(String, String)>> {
     let elems = split_list(s)?;
     if elems.len() % 2 != 0 {
         return None;
     }
-    Some(
-        elems
-            .chunks_exact(2)
-            .map(|kv| (kv[0].clone(), kv[1].clone()))
-            .collect(),
-    )
+    let mut index: std::collections::HashMap<String, usize> =
+        std::collections::HashMap::with_capacity(elems.len() / 2);
+    let mut pairs: Vec<(String, String)> = Vec::with_capacity(elems.len() / 2);
+    for kv in elems.chunks_exact(2) {
+        let (k, v) = (&kv[0], &kv[1]);
+        if let Some(&pos) = index.get(k) {
+            pairs[pos].1.clone_from(v); // last value wins, position preserved
+        } else {
+            index.insert(k.clone(), pairs.len());
+            pairs.push((k.clone(), v.clone()));
+        }
+    }
+    Some(pairs)
 }
 
 /// `dict get dictionary ?key ...?`.
@@ -442,18 +462,37 @@ pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
 
 /// `dict merge ?dictionary ...?` — later dicts override earlier keys
 /// (last value wins, first-seen key position preserved).
+///
+/// C's `DictMergeCmd` does **not** canonicalise when it has nothing to merge:
+/// with a single argument it validates and returns that object *verbatim*, and
+/// with more it makes the first the base and `Tcl_DictObjPut`s each later
+/// dict's pairs into it — so if no pair is ever put, the base keeps its
+/// original string rep. Hence `dict merge {a 1 a 2}` and
+/// `dict merge {a 1 a 2} {}` both stay `a 1 a 2`, while
+/// `dict merge {} {a 1 a 2}` canonicalises to `a 2`. Verified on 8.6.16
+/// and 9.0.4, which agree on every row.
 pub(crate) fn fold_dict_merge(args: &[&str]) -> Option<String> {
+    let Some((first, rest)) = args.split_first() else {
+        return Some(String::new());
+    };
+    // Every argument must parse, or this is not a fold we may perform.
+    let base = parse_dict(first)?;
+    let later: Vec<Vec<(String, String)>> =
+        rest.iter().map(|a| parse_dict(a)).collect::<Option<_>>()?;
+    if later.iter().all(Vec::is_empty) {
+        // No `Tcl_DictObjPut` happens, so the base is returned untouched —
+        // duplicates and all.
+        return Some((*first).to_owned());
+    }
     let mut order: Vec<String> = Vec::new();
     let mut pos: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
-    for arg in args {
-        for (k, v) in parse_dict(arg)? {
-            if let Some(&p) = pos.get(&k) {
-                order[p + 1] = v;
-            } else {
-                pos.insert(k.clone(), order.len());
-                order.push(k);
-                order.push(v);
-            }
+    for (k, v) in base.into_iter().chain(later.into_iter().flatten()) {
+        if let Some(&p) = pos.get(&k) {
+            order[p + 1] = v;
+        } else {
+            pos.insert(k.clone(), order.len());
+            order.push(k);
+            order.push(v);
         }
     }
     Some(list_join(&order))
@@ -462,6 +501,134 @@ pub(crate) fn fold_dict_merge(args: &[&str]) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A minimal string-backed `ValueOps` so these folds can be cross-checked
+    /// against the **real** canonicalisation owner rather than against a second
+    /// copy of my own reasoning. Values are `Rc<str>`; lists are the elements
+    /// this module's own `split_list` finds, so both sides see identical input.
+    #[derive(Default)]
+    struct Strs;
+
+    impl tcl_syntax::value::ValueOps for Strs {
+        type Value = std::rc::Rc<str>;
+
+        fn new_str(&mut self, s: &str) -> Self::Value {
+            std::rc::Rc::from(s)
+        }
+        fn new_int(&mut self, n: i64) -> Self::Value {
+            std::rc::Rc::from(n.to_string().as_str())
+        }
+        fn new_double(&mut self, f: f64) -> Self::Value {
+            std::rc::Rc::from(f.to_string().as_str())
+        }
+        fn new_bool(&mut self, b: bool) -> Self::Value {
+            std::rc::Rc::from(if b { "1" } else { "0" })
+        }
+        fn new_list(&mut self, items: Vec<Self::Value>) -> Self::Value {
+            std::rc::Rc::from(
+                list_join(
+                    &items
+                        .iter()
+                        .map(std::string::ToString::to_string)
+                        .collect::<Vec<_>>(),
+                )
+                .as_str(),
+            )
+        }
+        fn as_str(&mut self, v: &Self::Value) -> std::rc::Rc<str> {
+            v.clone()
+        }
+        fn as_int(&mut self, v: &Self::Value) -> Result<i64, tcl_syntax::value::ValueError> {
+            v.parse::<i64>()
+                .map_err(|_| tcl_syntax::value::ValueError::NotInteger(v.to_string()))
+        }
+        fn as_double(&mut self, v: &Self::Value) -> Result<f64, tcl_syntax::value::ValueError> {
+            v.parse::<f64>()
+                .map_err(|_| tcl_syntax::value::ValueError::NotDouble(v.to_string()))
+        }
+        fn as_bool(&mut self, v: &Self::Value) -> Result<bool, tcl_syntax::value::ValueError> {
+            Ok(!matches!(v.as_ref(), "0" | "false" | "no" | "off" | ""))
+        }
+        fn list_elements(
+            &mut self,
+            v: &Self::Value,
+        ) -> Result<Vec<Self::Value>, tcl_syntax::value::ValueError> {
+            match split_list(v) {
+                Some(elems) => Ok(elems
+                    .into_iter()
+                    .map(|e| std::rc::Rc::from(e.as_str()))
+                    .collect()),
+                None => Err(tcl_syntax::value::ValueError::BadList(
+                    "unparsable list".to_string(),
+                )),
+            }
+        }
+    }
+
+    /// Issue #1427's third site: these registry const-folds decode a dict
+    /// **string** and must canonicalise duplicate keys exactly as the runtime
+    /// does, or the O129 folds change program results.
+    ///
+    /// Each expectation is the byte-exact output of `tclsh9.0.4` (and
+    /// `tclsh8.6.16`, which agrees on every row), and `parse_dict` is
+    /// additionally cross-checked pair-for-pair against
+    /// [`tcl_syntax::value::ValueOps::dict_pairs`] — the owner — on the same
+    /// inputs, so the two cannot drift apart silently.
+    #[test]
+    fn dict_folds_canonicalise_duplicate_keys_like_the_owner() {
+        use tcl_syntax::value::ValueOps as _;
+
+        // Cross-check against the owner on the same inputs.
+        for src in [
+            "a 1 a 2",
+            "x 1 x 2 y 3",
+            "a 1 b 2 a 3",
+            "a 1 b 2",
+            "",
+            "k {v 1 v 2}",
+        ] {
+            let mine = parse_dict(src).expect("parses");
+            let mut ops = Strs;
+            let v: std::rc::Rc<str> = std::rc::Rc::from(src);
+            let theirs = ops.dict_pairs(&v).expect("owner parses");
+            let theirs: Vec<(String, String)> = theirs
+                .into_iter()
+                .map(|(k, val)| (k.to_string(), val.to_string()))
+                .collect();
+            assert_eq!(
+                mine, theirs,
+                "parse_dict disagrees with the owner on {src:?}"
+            );
+        }
+
+        // Oracle rows for the folds the duplicate bug actually reached.
+        assert_eq!(fold_dict_get(&["a 1 a 2", "a"]).unwrap(), "2");
+        assert_eq!(fold_dict_get(&["x 1 x 2 y 3", "x"]).unwrap(), "2");
+        assert_eq!(fold_dict_size(&["a 1 a 2"]).unwrap(), "1");
+        assert_eq!(fold_dict_size(&["x 1 x 2 y 3"]).unwrap(), "2");
+        assert_eq!(fold_dict_keys(&["a 1 a 2"]).unwrap(), "a");
+        assert_eq!(fold_dict_keys(&["x 1 x 2 y 3"]).unwrap(), "x y");
+        assert_eq!(fold_dict_values(&["a 1 a 2"]).unwrap(), "2");
+        assert_eq!(fold_dict_values(&["x 1 x 2 y 3"]).unwrap(), "2 3");
+        assert_eq!(fold_dict_exists(&["a 1 a 2", "a"]).unwrap(), "1");
+        // First-occurrence position survives a later duplicate.
+        assert_eq!(fold_dict_keys(&["a 1 b 2 a 3"]).unwrap(), "a b");
+        assert_eq!(fold_dict_values(&["a 1 b 2 a 3"]).unwrap(), "3 2");
+        // `dict get` returns a nested value verbatim — it is not re-canonicalised.
+        assert_eq!(fold_dict_get(&["o {a 1 a 2}", "o"]).unwrap(), "a 1 a 2");
+
+        // `dict merge` only canonicalises when a pair is actually merged in.
+        assert_eq!(fold_dict_merge(&[]).unwrap(), "");
+        assert_eq!(fold_dict_merge(&["a 1 a 2"]).unwrap(), "a 1 a 2");
+        assert_eq!(fold_dict_merge(&["x 1 x 2 y 3"]).unwrap(), "x 1 x 2 y 3");
+        assert_eq!(fold_dict_merge(&["a 1 a 2", ""]).unwrap(), "a 1 a 2");
+        assert_eq!(fold_dict_merge(&["a 1 a 2", "b 9"]).unwrap(), "a 2 b 9");
+        assert_eq!(fold_dict_merge(&["a 1", "a 2 a 3"]).unwrap(), "a 3");
+        assert_eq!(fold_dict_merge(&["", "a 1 a 2"]).unwrap(), "a 2");
+
+        // `dict create` already had the rule; it must stay agreeing.
+        assert_eq!(fold_dict_create(&["a", "1", "a", "2"]).unwrap(), "a 2");
+    }
 
     #[test]
     fn split_list_handles_braces_quotes_bare() {

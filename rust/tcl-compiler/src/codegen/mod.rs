@@ -92,6 +92,23 @@ pub struct CodegenCtx<'r> {
     /// `\x4142` is `B` when compiling for 8.5 and `A42` from 8.6 (issue #1479).
     /// Defaults to 9.0 for the hand-built contexts in tests.
     pub escapes: tcl_dialect::EscapeSyntax,
+    /// The `${…}` variable-name close rule of the release being compiled
+    /// *for*.
+    ///
+    /// Threaded from `IrModule::dialect` beside [`Self::numbers`] and
+    /// [`Self::escapes`], and for the same reason: `Tcl_ParseVarName` changed
+    /// between 8.x and 9.x, so a `${…}` reference must be decoded the way the
+    /// *target* release reads it. 9.x counts nested `{…}` and consumes `\X` as
+    /// an inert pair, making `${a{b}c}` the variable `a{b}c`; the 8.x family
+    /// ends the name at the first literal `}`, making it `a{b` followed by the
+    /// ordinary word text `c}`.
+    ///
+    /// Before this was threaded, the two decoders hard-coded *opposite* rules —
+    /// `values::parse_simple_var_ref` the 9.x one and
+    /// `helpers::parse_subst_template` the 8.x one — so the compiled-word path
+    /// was wrong in both directions at once (issue #1568). Defaults to 9.0 for
+    /// the hand-built contexts in tests.
+    pub braced_var: tcl_dialect::BracedVarStyle,
     /// The resolved profile of the release being compiled *for*, from the
     /// name the lowering pass received (`IrModule::dialect`).  `None` means
     /// the compile named *no* dialect, and only that: a named-but-unknown
@@ -194,6 +211,7 @@ impl<'r> CodegenCtx<'r> {
         Self {
             numbers: tcl_dialect::NumberSyntax::default(),
             escapes: tcl_dialect::EscapeSyntax::default(),
+            braced_var: tcl_dialect::BracedVarStyle::default(),
             dialect: None,
             literals: LiteralTable::new(),
             lvt: LocalVarTable::new(params),

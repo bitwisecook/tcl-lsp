@@ -693,14 +693,12 @@ impl FrameStack {
 
 /// Split `a(b)` into (`a`, `Some(b)`); a plain name yields (`name`, `None`).
 /// The command layer uses this to route `set a(k)` / `unset a(k)` to the array
-/// element ops.
+/// element ops. `TclObjLookupVarEx`'s rule comes from the shared naming owner,
+/// so a zero-length array name (`(x)`) stays an element reference here and in
+/// the VM alike (issue #1458).
 pub(crate) fn split_array_ref(name: &[u8]) -> (Vec<u8>, Option<Vec<u8>>) {
-    if name.last() == Some(&b')') {
-        if let Some(open) = name.iter().position(|&c| c == b'(') {
-            let base = name[..open].to_vec();
-            let elem = name[open + 1..name.len() - 1].to_vec();
-            return (base, Some(elem));
-        }
+    match tcl_syntax::naming::split_element_ref_bytes(name) {
+        Some((base, elem)) => (base.to_vec(), Some(elem.to_vec())),
+        None => (name.to_vec(), None),
     }
-    (name.to_vec(), None)
 }

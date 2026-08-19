@@ -29,13 +29,13 @@
 //!
 //! Semantics verified against tclsh 9.0 (`Tcl_ZlibObjCmd`, `tclZlib.c`).
 
-use crate::ensemble::{must_be, resolve_subcommand};
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
 use flate2::read::{DeflateDecoder, GzDecoder, ZlibDecoder};
 use flate2::write::{DeflateEncoder, GzEncoder, ZlibEncoder};
 use flate2::Compression;
 use std::io::{Read, Write};
+use tcl_cmd_core::ensemble::{resolve_subcommand, subcommand_choices};
 
 /// Register the `zlib` ensemble.
 pub fn install(interp: &mut Interp) {
@@ -178,7 +178,7 @@ fn zlib_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let mut m = b"unknown or ambiguous subcommand \"".to_vec();
         m.extend_from_slice(&sub);
         m.extend_from_slice(b"\": must be ");
-        m.extend_from_slice(&must_be(&names));
+        m.extend_from_slice(&subcommand_choices(&names));
         return interp.set_error(&m);
     };
     match SUBS[idx] {

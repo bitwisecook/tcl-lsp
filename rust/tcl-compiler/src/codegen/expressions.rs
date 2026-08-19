@@ -215,7 +215,7 @@ impl CodegenCtx<'_> {
                 self.push_lit(&backslash_subst_in(inner, self.escapes));
                 return false;
             }
-            match super::helpers::parse_subst_template(inner, self.escapes) {
+            match super::helpers::parse_subst_template(inner, self.escapes, self.braced_var) {
                 Some(parts) => self.emit_subst_parts(&parts),
                 // Unparseable template (e.g. a bare `$` with no name): literal.
                 None => self.push_lit(&backslash_subst_in(inner, self.escapes)),
@@ -460,7 +460,7 @@ impl CodegenCtx<'_> {
                 if let Some(name) = parse_braced_scalar_ref(text) {
                     self.push_lit(name);
                     self.emit(Op::LOAD_STK, vec![]);
-                } else if let Some(var_name) = parse_simple_var_ref(text) {
+                } else if let Some(var_name) = parse_simple_var_ref(text, self.braced_var) {
                     self.load_var(var_name);
                 } else {
                     self.push_lit(text);
