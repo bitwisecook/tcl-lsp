@@ -31,10 +31,11 @@ Add to your `init.el`:
 (define-derived-mode f5-iapps-mode  tcl-mode "iApp")
 (define-derived-mode expect-mode    tcl-mode "Expect")
 
-(add-to-list 'auto-mode-alist '("\\.irule?\\'" . f5-irules-mode)) ; .irul / .irule
-(add-to-list 'auto-mode-alist '("\\.iapp\\'"   . f5-iapps-mode))
-(add-to-list 'auto-mode-alist '("\\.apl\\'"    . f5-iapps-mode))
-(add-to-list 'auto-mode-alist '("\\.exp\\'"    . expect-mode))
+;; The extensions each profile owns in the dialect catalog.
+(add-to-list 'auto-mode-alist '("\\.irul\\(es?\\)?\\'" . f5-irules-mode)) ; .irul / .irule / .irules
+(add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\)\\'" . f5-iapps-mode))
+(add-to-list 'auto-mode-alist '("\\.apl\\'"            . f5-iapps-mode)) ; the iApp presentation language
+(add-to-list 'auto-mode-alist '("\\.\\(exp\\|expect\\)\\'" . expect-mode))
 
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
@@ -70,11 +71,12 @@ Pass settings via eglot workspace configuration:
 
 ```elisp
 (setq-default eglot-workspace-configuration
-              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | synopsys-eda-tcl | cadence-eda-tcl | xilinx-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | expect
+              '(:tclLsp (:dialect "tcl8.6"   ;; tcl8.4 | tcl8.5 | tcl8.6 | tcl9.0 | tcl9.1 | f5-irules | f5-iapps | f5-tmsh | f5-bigip | bpf | expect | spectcl | cadence-eda-tcl | intel-quartus-eda-tcl | mentor-eda-tcl | microchip-libero-eda-tcl | synopsys-eda-tcl | xilinx-eda-tcl
                          :formatting (:indentSize 4 :maxLineLength 120))))
 ```
 
-`.apl` (and `.irul` / `.iapp` / `.exp`) files are handled by the dialect
+`.apl` (and `.irul` / `.irule` / `.irules` / `.iapp` / `.iappimpl` / `.impl` /
+`.exp` / `.expect`) files are handled by the dialect
 derived modes in the eglot setup above, which send the correct `languageId` —
 do **not** also map `.apl` to plain `tcl-mode`, or it would analyse as tcl8.6.
 

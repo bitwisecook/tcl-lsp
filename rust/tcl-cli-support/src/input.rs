@@ -189,11 +189,34 @@ pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectPro
         .map(|name| {
             DialectProfile::resolve_known(name).ok_or_else(|| {
                 CliError::input(format!(
-                    "unknown dialect `{name}`; use a registered dialect name or alias"
+                    "unknown dialect `{name}`; valid names are {} (registered aliases such as `irules` are also accepted)",
+                    known_dialect_names()
                 ))
             })
         })
         .transpose()
+}
+
+/// The canonical dialect names [`resolve_dialect`] accepts, comma-separated:
+/// the profile catalog plus the additive `tk` ingress, which has no catalog
+/// profile by design but resolves all the same.
+fn known_dialect_names() -> String {
+    DialectProfile::all()
+        .iter()
+        .map(|profile| profile.name)
+        .chain(std::iter::once(DialectProfile::tk().name))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// The file extensions [`is_supported_source_file`] accepts, rendered
+/// `.tcl, .tk, …` for user-facing errors.
+fn expected_source_extensions() -> String {
+    SOURCE_SUFFIXES
+        .iter()
+        .map(|ext| format!(".{ext}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// `pkgIndex.tcl` is always accepted; otherwise the extension must be known.
@@ -298,8 +321,9 @@ pub fn read_input_documents(
         if path.is_file() {
             if !is_supported_source_file(&path) {
                 return Err(CliError::input(format!(
-                    "unsupported source file: {} (expected Tcl/iRules file extensions)",
-                    path.display()
+                    "unsupported source file: {} (expected one of: {}, or a pkgIndex.tcl)",
+                    path.display(),
+                    expected_source_extensions()
                 )));
             }
             ordered_files.push(canonical(&path));
@@ -441,9 +465,32 @@ mod tests {
     fn unknown_explicit_dialect_is_an_input_error() {
         let error = resolve_dialect(Some("not-a-real-dialect"))
             .expect_err("an unknown spelling must not fall back");
-        assert_eq!(
-            error.to_string(),
-            "unknown dialect `not-a-real-dialect`; use a registered dialect name or alias"
+        let message = error.to_string();
+        assert!(
+            message.starts_with("unknown dialect `not-a-real-dialect`; valid names are "),
+            "unexpected message: {message}"
         );
+        for profile in DialectProfile::all() {
+            assert!(
+                message.contains(profile.name),
+                "message omits `{}`: {message}",
+                profile.name
+            );
+        }
+        assert!(message.contains("tk"), "message omits `tk`: {message}");
+    }
+
+    #[test]
+    fn unsupported_source_file_error_names_the_registry_extensions() {
+        let error =
+            super::read_input_documents(&[std::path::PathBuf::from("Cargo.toml")], &[], false)
+                .expect_err("a .toml file is not a Tcl source");
+        let message = error.to_string();
+        for ext in tcl_registry::dialects::TCL_SOURCE_EXTENSIONS {
+            assert!(
+                message.contains(&format!(".{ext}")),
+                "message omits `.{ext}`: {message}"
+            );
+        }
     }
 }

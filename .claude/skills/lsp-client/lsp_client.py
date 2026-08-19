@@ -64,12 +64,21 @@ import argparse
 import json
 import os
 import re
+import select
 import subprocess
 import sys
 import threading
 import time
 from pathlib import Path
 from typing import Any
+
+#: Default budget for one write to the server's stdin (see `_send`). Not the
+#: same knob as a request's response timeout (`send_request(timeout=...)`
+#: bounds the round-trip; this bounds only getting the bytes out the door) —
+#: kept as a separate, generous constant so a caller that passes its own
+#: request timeout down to `_send` still gets *some* bound even if that
+#: timeout is small.
+DEFAULT_WRITE_TIMEOUT_S = 30.0
 
 # Constants
 
@@ -267,6 +276,15 @@ class LspClient:
         self._reader_thread: threading.Thread | None = None
         self._stderr_thread: threading.Thread | None = None
         self._running = False
+        #: Method/id of the most recent request this client tried to send,
+        #: updated *before* the write is attempted — so a caller stuck
+        #: watching for a hang (see `scripts/perf/bench.py`'s `--deadline`)
+        #: can report what the process was doing even when it never got a
+        #: response, or never finished sending. Not lock-protected: a reader
+        #: only wants this for a diagnostic after something has already gone
+        #: wrong, so a torn read is a wrong message, not a wrong result.
+        self.last_request_method: str | None = None
+        self.last_request_id: int | None = None
 
     def start(self) -> None:
         """Spawn the server and start the reader thread."""
@@ -277,19 +295,85 @@ class LspClient:
             stderr=subprocess.PIPE,
             cwd=self.server_dir,
         )
+        # Non-blocking so `_send`'s select()-bounded write loop actually
+        # bounds the write: a *blocking* fd's write() can itself block for
+        # the full requested size once select() reports only partial room
+        # (observed directly — not just a documentation nuance — in this
+        # project's sandboxed CI/dev containers), which would silently
+        # reintroduce the unbounded wait `_send` exists to remove.
+        #
+        # `Popen.stdin` is typed `IO[Any] | None` because Popen doesn't know
+        # statically that this call passed `stdin=PIPE`; it always does here,
+        # so a `None` at this point is not a "maybe" — it means Popen itself
+        # is broken, and an assert says so honestly instead of a silent
+        # AttributeError three lines further down.
+        stdin = self.process.stdin
+        assert stdin is not None, (
+            "Popen was called with stdin=PIPE but has no stdin pipe"
+        )
+        os.set_blocking(stdin.fileno(), False)
         self._running = True
         self._reader_thread = threading.Thread(target=self._reader_loop, daemon=True)
         self._reader_thread.start()
         self._stderr_thread = threading.Thread(target=self._stderr_loop, daemon=True)
         self._stderr_thread.start()
 
-    def _send(self, data: dict) -> None:
-        """Send a JSON-RPC message with Content-Length framing."""
+    def _send(self, data: dict, timeout: float = DEFAULT_WRITE_TIMEOUT_S) -> None:
+        """Send a JSON-RPC message with Content-Length framing.
+
+        Writes through a raw, `select()`-bounded loop on the stdin file
+        descriptor rather than the buffered file object's blocking
+        `write()`/`flush()`. That blocking write had no timeout at all: a
+        server that stops draining stdin (wedged, or mid-crash, or the
+        intermittent #1399 hang — a client stuck in `write()` opposite a
+        server idle in `read()`) blocked here forever, and `REQUEST_TIMEOUT_S`
+        in `send_request` never even got a chance to fire because the
+        request was never fully sent. `select()` reports writability before
+        each chunk, so a stalled peer surfaces as a `TimeoutError` a caller
+        can catch (as `Bench.check`/`Bench.request` in `bench.py` already
+        do for the read side) instead of a wedged process indistinguishable
+        from real work.
+
+        `os.write` is used directly on the fd (set non-blocking in `start()`)
+        rather than mixed with the buffered `Popen.stdin` object, so every
+        send in this client must go through `_send` — do not call
+        `self.process.stdin.write()` elsewhere. The fd must stay
+        non-blocking: with a blocking fd, `os.write()` can itself block for
+        the full requested size even right after `select()` reports the fd
+        writable, silently reintroducing the unbounded wait this method
+        exists to remove.
+        """
         body = json.dumps(data).encode("utf-8")
         header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+        payload = header + body
         assert self.process and self.process.stdin
-        self.process.stdin.write(header + body)
-        self.process.stdin.flush()
+        fd = self.process.stdin.fileno()
+        deadline = time.monotonic() + timeout
+        view = memoryview(payload)
+        while view:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    f"write() to server stdin blocked for >{timeout}s "
+                    f"({len(payload) - len(view)}/{len(payload)} bytes sent) "
+                    "— the server appears to have stopped draining stdin "
+                    "(see issue #1399)"
+                )
+            try:
+                _, writable, _ = select.select([], [fd], [], remaining)
+            except (OSError, ValueError) as exc:
+                raise BrokenPipeError(
+                    f"server stdin closed while sending: {exc}"
+                ) from exc
+            if not writable:
+                continue  # spurious wake or remaining rounded to 0; recheck deadline
+            try:
+                n = os.write(fd, view)
+            except BlockingIOError:
+                continue
+            except BrokenPipeError:
+                raise
+            view = view[n:]
 
     def _read_message(self) -> dict | None:
         """Read one Content-Length-framed message from the server's stdout."""
@@ -367,16 +451,38 @@ class LspClient:
         self._send({"jsonrpc": "2.0", "id": request_id, "result": result})
 
     def send_request(self, method: str, params: dict, timeout: float = 30.0) -> Any:
-        """Send a request and wait for the response."""
+        """Send a request and wait for the response.
+
+        `timeout` now bounds *both* halves of the round-trip: getting the
+        request onto the wire (the `_send` write, previously unbounded — see
+        `_send`'s docstring) and waiting for the reply. A caller that passed
+        a generous `timeout` for a slow server got that generosity on the
+        write before too; it just also now has a ceiling.
+        """
         self._request_id += 1
         rid = self._request_id
+        # Recorded before the write is attempted, not after: a diagnostic
+        # reading this while the write itself is stuck should still say
+        # which request that was.
+        self.last_request_method = method
+        self.last_request_id = rid
         event = threading.Event()
         with self._lock:
             self._pending[rid] = {"event": event, "result": None}
 
-        self._send({"jsonrpc": "2.0", "id": rid, "method": method, "params": params})
+        try:
+            self._send(
+                {"jsonrpc": "2.0", "id": rid, "method": method, "params": params},
+                timeout=timeout,
+            )
+        except Exception:
+            with self._lock:
+                self._pending.pop(rid, None)
+            raise
 
         if not event.wait(timeout):
+            with self._lock:
+                self._pending.pop(rid, None)
             raise TimeoutError(f"Timeout waiting for response to {method} (id={rid})")
 
         with self._lock:
@@ -389,12 +495,23 @@ class LspClient:
 
         return result.get("result")
 
-    def send_notification(self, method: str, params: dict | None = None) -> None:
-        """Send a notification (no response expected)."""
+    def send_notification(
+        self,
+        method: str,
+        params: dict | None = None,
+        timeout: float = DEFAULT_WRITE_TIMEOUT_S,
+    ) -> None:
+        """Send a notification (no response expected).
+
+        `timeout` bounds only the write (there is no response to wait for) —
+        see `_send`. Defaulted generously since callers rarely pass one.
+        """
+        self.last_request_method = method
+        self.last_request_id = None
         msg: dict = {"jsonrpc": "2.0", "method": method}
         if params is not None:
             msg["params"] = params
-        self._send(msg)
+        self._send(msg, timeout=timeout)
 
     def collect_notifications(self, method: str, timeout: float = 3.0) -> list[dict]:
         """Wait up to *timeout* seconds and return all notifications matching *method*."""

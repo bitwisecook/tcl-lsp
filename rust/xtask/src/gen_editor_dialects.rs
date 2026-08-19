@@ -41,6 +41,7 @@ use crate::util::repo_root;
 
 const VSCODE_PACKAGE: &str = "editors/vscode/package.json";
 const VSCODE_RUNTIME: &str = "editors/vscode/src/extension.ts";
+const VSCODE_EXPLORER: &str = "editors/vscode/src/compilerExplorerHtml.ts";
 const JETBRAINS_SETTINGS: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/settings/TclLspSettings.kt";
 const SUBLIME_PLUGIN: &str = "editors/sublime-text/plugin.py";
@@ -51,36 +52,18 @@ const SUBLIME_PACKAGE: &str = "editors/sublime-text/sublime-package.json";
 struct EditorDialect {
     name: &'static str,
     label: &'static str,
+    short_label: &'static str,
 }
 
-/// The profile catalogue owns membership and canonical IDs.  This explicit
-/// presentation mapping owns only spelling/capitalisation suitable for menus;
-/// its exhaustive match intentionally turns a new profile into a generator
-/// maintenance event instead of an editor omission.
+/// The profile catalogue owns membership, canonical IDs, *and* the
+/// human-facing spellings: `display_name` for menus, `short_name` for tight
+/// UI like the compiler-explorer dropdown.  Both are mandatory struct
+/// fields, so adding a profile can't ship without its labels.
 fn editor_dialect(profile: &DialectProfile) -> EditorDialect {
-    let label = match profile.name {
-        "bpf" => "BPF",
-        "cadence-eda-tcl" => "Cadence EDA Tcl",
-        "expect" => "Expect",
-        "f5-bigip" => "F5 BIG-IP",
-        "f5-iapps" => "F5 iApps",
-        "f5-irules" => "F5 iRules",
-        "f5-tmsh" => "F5 tmsh Scripts",
-        "intel-quartus-eda-tcl" => "Intel Quartus EDA Tcl",
-        "mentor-eda-tcl" => "Mentor EDA Tcl",
-        "spectcl" => "SpecTcl",
-        "synopsys-eda-tcl" => "Synopsys EDA Tcl",
-        "tcl8.4" => "Tcl 8.4",
-        "tcl8.5" => "Tcl 8.5",
-        "tcl8.6" => "Tcl 8.6",
-        "tcl9.0" => "Tcl 9.0",
-        "tcl9.1" => "Tcl 9.1",
-        "xilinx-eda-tcl" => "Xilinx EDA Tcl",
-        other => panic!("DialectProfile catalog entry {other:?} needs an editor display label"),
-    };
     EditorDialect {
         name: profile.name,
-        label,
+        label: profile.display_name,
+        short_label: profile.short_name,
     }
 }
 
@@ -258,6 +241,27 @@ fn render_sublime_package(original: &str, ds: &[EditorDialect]) -> Result<String
     ))
 }
 
+/// The compiler-explorer toolbar dropdown: every catalog profile, labelled
+/// with the profile's compact `short_name` (the toolbar has no room for the
+/// full display names), `tcl8.6` pre-selected as the explorer's default.
+fn render_compiler_explorer(original: &str, ds: &[EditorDialect]) -> Result<String> {
+    let mut rows = String::new();
+    for d in ds {
+        let selected = if d.name == "tcl8.6" { " selected" } else { "" };
+        let _ = writeln!(
+            rows,
+            "      <option value=\"{}\"{selected}>{}</option>",
+            d.name, d.short_label
+        );
+    }
+    replace_marked_block(
+        original,
+        "<!-- @generated:dialect-options:begin",
+        "<!-- @generated:dialect-options:end -->",
+        &rows,
+    )
+}
+
 type Render = fn(&str, &[EditorDialect]) -> Result<String>;
 
 pub fn run(check: bool) -> Result<ExitCode> {
@@ -270,6 +274,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
     let targets: &[(&str, Render)] = &[
         (VSCODE_PACKAGE, render_vscode),
         (VSCODE_RUNTIME, render_vscode_runtime),
+        (VSCODE_EXPLORER, render_compiler_explorer),
         (JETBRAINS_SETTINGS, render_jetbrains),
         (SUBLIME_PLUGIN, render_sublime_plugin),
         (SUBLIME_README, render_sublime_readme),
@@ -325,6 +330,7 @@ mod tests {
         for (rel, render) in [
             (VSCODE_PACKAGE, render_vscode as Render),
             (VSCODE_RUNTIME, render_vscode_runtime),
+            (VSCODE_EXPLORER, render_compiler_explorer),
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),
@@ -362,10 +368,12 @@ mod tests {
         added.push(EditorDialect {
             name: "future-dialect",
             label: "Future Dialect",
+            short_label: "Future",
         });
         for (rel, render) in [
             (VSCODE_PACKAGE, render_vscode as Render),
             (VSCODE_RUNTIME, render_vscode_runtime),
+            (VSCODE_EXPLORER, render_compiler_explorer),
             (JETBRAINS_SETTINGS, render_jetbrains),
             (SUBLIME_PLUGIN, render_sublime_plugin),
             (SUBLIME_README, render_sublime_readme),

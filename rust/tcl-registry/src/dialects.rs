@@ -391,8 +391,74 @@ pub fn tcl_source_glob_any_case() -> String {
     format!("**/*.{{{}}}", alternatives.join(","))
 }
 
+/// Extension-to-dialect routing declared by loaded `SpecTcl` packs
+/// (`file_extension upf -dialect synopsys-eda-tcl`), published by the pack
+/// merge so a pack — bundled or private — is the source of truth for its
+/// own extensions. Inserted additively: a later registration for the same
+/// extension wins, and nothing here ever removes the static fallback arms
+/// below, which keep working for consumers that load no packs.
+static PACK_EXTENSION_DIALECTS: std::sync::RwLock<
+    Option<std::collections::HashMap<String, &'static str>>,
+> = std::sync::RwLock::new(None);
+
+/// Publish extension routing declared by loaded packs. Keys are lower-case
+/// extensions without the leading dot; values must be canonical profile
+/// names (the loader validates them against the profile catalogue).
+///
+/// **Snapshot semantics**: each call replaces the whole routing table with
+/// the new generation, so a workspace-pack reload that dropped a
+/// `file_extension` row retires that route immediately — an insert-merge
+/// would pin the stale dialect until the process restarted. Callers
+/// therefore always pass the *complete* pack set's pairs, which
+/// `PackSet::extension_dialects` (the one producer) does by construction.
+pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String, &'static str)>) {
+    let map: std::collections::HashMap<String, &'static str> = pairs.into_iter().collect();
+    let mut guard = match PACK_EXTENSION_DIALECTS.write() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    *guard = Some(map);
+}
+
+/// The pack-declared dialect for `ext`, if any pack registered one.
+fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    guard.as_ref()?.get(ext).copied()
+}
+
+/// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
+/// the `file_extensions` axis each profile declares (`xdc` →
+/// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee
+/// one owner per extension.
+fn catalog_extension_dialect(ext: &str) -> Option<&'static str> {
+    static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
+        std::sync::OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        for profile in tcl_dialect::DialectProfile::all() {
+            for row in profile.file_extensions {
+                map.insert(row.extension, profile.name);
+            }
+        }
+        map
+    })
+    .get(ext)
+    .copied()
+}
+
 /// The dialect implied by a filename extension, or `None` when the extension
 /// is generic (`.tcl`) or unknown — in which case content heuristics decide.
+///
+/// Pack-declared routing ([`register_pack_extension_dialects`]) is consulted
+/// first, so a loaded pack owns its extensions; the
+/// [`tcl_dialect::DialectProfile`] catalog's per-profile `file_extensions`
+/// are the no-packs fallback and the home of everything no pack declares.
+/// Deliberate non-mappings stay deliberate: `.svrf` (Calibre rule decks) is
+/// a declarative DSL, not Tcl, so it falls through to content/default; the
+/// generic `.tcl` and HDL extensions let content decide.
 #[must_use]
 pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     let base = filename
@@ -411,30 +477,10 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
         return Some("cadence-eda-tcl");
     }
     let ext = base.rsplit('.').next()?;
-    Some(match ext {
-        "irul" | "irule" | "irules" => "f5-irules",
-        "iapp" => "f5-iapps",
-        "tmsh" => "f5-tmsh",
-        "exp" | "expect" => "expect",
-        // A SpecTcl command pack. The extension is what activates the pack's
-        // own statement vocabulary, which is why `spec-packs.md` calls for
-        // "file-type registration across every editor integration": with it,
-        // authoring a pack needs no configuration at all.
-        "tclspec" => "spectcl",
-        "xdc" => "xilinx-eda-tcl",
-        "sdc" => "synopsys-eda-tcl",
-        // Mentor/Questa simulation macro files (`.do` is Tcl).
-        "do" => "mentor-eda-tcl",
-        // Intel Quartus project / settings / IP files (Tcl-syntax).
-        "qsf" | "qpf" | "qip" => "intel-quartus-eda-tcl",
-        // Cadence Innovus/Genus `.globals` (Tcl-syntax, written by saveDesign).
-        "globals" => "cadence-eda-tcl",
-        // NOTE: `.svrf` (Calibre DRC/LVS rule decks) is a declarative DSL, not
-        // Tcl — deliberately NOT mapped, so it falls through to content/default
-        // rather than being forced to an EDA Tcl dialect.
-        // Generic `.tcl`, HDL (`.sv`/`.svh`), or unknown → let content decide.
-        _ => return None,
-    })
+    if let Some(dialect) = pack_extension_dialect(ext) {
+        return Some(dialect);
+    }
+    catalog_extension_dialect(ext)
 }
 
 /// Truncate `source` to at most [`DETECT_SCAN_BYTES`] on a UTF-8 char boundary.
@@ -573,6 +619,20 @@ const CONTENT_SIGNATURES: &[(&str, &[&str])] = &[
     (
         "mentor-eda-tcl",
         &["vsim", "vlog", "vcom", "vlib", "vmap", "vopt", "questa"],
+    ),
+    // Microchip (Microsemi) Libero SoC project/flow scripting. Markers are
+    // Libero-proprietary command spellings only — the SmartTime SDC verbs are
+    // excluded for the same portable-`.sdc` reason as the vendors above.
+    (
+        "microchip-libero-eda-tcl",
+        &[
+            "run_designer",
+            "select_libero_design_device",
+            "smartpower_report_power",
+            "export_prog_job",
+            "pin_fix_all",
+            "configure_tool",
+        ],
     ),
     // Expect automation.
     (
@@ -917,6 +977,12 @@ mod detect_tests {
             detect_dialect("x\n", Some("/p/genus.invs_setup.tcl"), DEF),
             "cadence-eda-tcl"
         );
+        // IEEE 1801 UPF power intent — cross-vendor Tcl, same representative
+        // profile as `.sdc`.
+        assert_eq!(
+            detect_dialect("create_power_domain PD_top\n", Some("soc.upf"), DEF),
+            "synopsys-eda-tcl"
+        );
         // `.svrf` (Calibre rule decks) is NOT Tcl — falls to the caller default.
         assert_eq!(
             detect_dialect("LAYOUT PATH x\n", Some("drc.svrf"), DEF),
@@ -962,6 +1028,19 @@ mod detect_tests {
         assert_eq!(
             detect_dialect("vlib work\nvmap work work\n", None, DEF),
             "mentor-eda-tcl"
+        );
+        // Microchip Libero flow verbs.
+        assert_eq!(
+            detect_dialect("open_project {a.prjx}\nrun_designer\n", None, DEF),
+            "microchip-libero-eda-tcl"
+        );
+        assert_eq!(
+            detect_dialect(
+                "configure_tool -name {PLACEROUTE} -params {EFFORT_LEVEL:false}\n",
+                None,
+                DEF
+            ),
+            "microchip-libero-eda-tcl"
         );
     }
 

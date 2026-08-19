@@ -44,10 +44,12 @@
 # comparison against this afternoon.
 #
 # Options:
-#   --scope NAME   benchmark scope (default: small — see scripts/perf/README.md)
-#   --server PATH  measure an existing binary instead of building one
-#   --force        re-measure a version that already has a result file
-#   --skip-build   reuse target/release/tcl-lsp-server as-is
+#   --scope NAME    benchmark scope (default: small — see scripts/perf/README.md)
+#   --server PATH   measure an existing binary instead of building one
+#   --force         re-measure a version that already has a result file
+#   --skip-build    reuse target/release/tcl-lsp-server as-is
+#   --deadline SECS outer wall-clock budget forwarded to `bench.py --deadline`
+#                   (issue #1399; default: bench.py's own, currently 240s)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -58,6 +60,7 @@ scope=small
 server=""
 force=0
 skip_build=0
+deadline=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -65,6 +68,7 @@ while [ $# -gt 0 ]; do
         --server) server="$2"; shift 2 ;;
         --force) force=1; shift ;;
         --skip-build) skip_build=1; shift ;;
+        --deadline) deadline="$2"; shift 2 ;;
         -h|--help)
             cat <<'EOF'
 Usage: scripts/release/perf_release.sh X.Y.Z [options]
@@ -72,10 +76,12 @@ Usage: scripts/release/perf_release.sh X.Y.Z [options]
 Build the server from this tree, benchmark it against the pinned corpus, and
 re-render scripts/perf/graphs/ with X.Y.Z as the highlighted current release.
 
-  --scope NAME   benchmark scope (default: small — see scripts/perf/README.md)
-  --server PATH  measure an existing binary instead of building one
-  --force        re-measure a version that already has a committed result
-  --skip-build   reuse target/release/tcl-lsp-server as-is
+  --scope NAME    benchmark scope (default: small — see scripts/perf/README.md)
+  --server PATH   measure an existing binary instead of building one
+  --force         re-measure a version that already has a committed result
+  --skip-build    reuse target/release/tcl-lsp-server as-is
+  --deadline SECS outer wall-clock budget forwarded to `bench.py --deadline`
+                  (issue #1399; default: bench.py's own, currently 240s)
 EOF
             exit 0 ;;
         -*) echo "error: unknown option: $1" >&2; exit 2 ;;
@@ -144,7 +150,15 @@ echo "==> Reconstituting the pinned corpus (scope: $scope)"
 # --- 3. the measurement ------------------------------------------------------
 
 echo "==> Benchmarking $V"
-(cd "$PERF" && python3 bench.py --server "$server" --version "$V" --scope "$scope" --out results)
+# bench.py's own outer `--deadline` (issue #1399) reports which
+# phase/binary/request it died on before exiting nonzero, rather than this
+# call — which had no timeout of any kind before that existed — wedging a
+# release cut indefinitely with nothing to say why. Left unset here, bench.py
+# falls back to its own default / BENCH_DEADLINE_S; pass --deadline to this
+# script for a scope that legitimately needs longer.
+bench_args=(python3 bench.py --server "$server" --version "$V" --scope "$scope" --out results)
+[ -n "$deadline" ] && bench_args+=(--deadline "$deadline")
+(cd "$PERF" && "${bench_args[@]}")
 
 # --- 4. the manifest ---------------------------------------------------------
 

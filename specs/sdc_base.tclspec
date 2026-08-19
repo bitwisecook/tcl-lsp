@@ -17,7 +17,9 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib sdc_base 1.0 {
+speclib sdc_base 1.1 {
+
+display_name {Synopsys Design Constraints}
 
 command all_clocks {
     dialects all-tcl
@@ -62,11 +64,11 @@ command all_inputs {
     dialects all-tcl
     required_package sdc
 
-    form Default {all_inputs}
+    form Default {all_inputs ?-level_sensitive? ?-edge_triggered? ?-clock clock_name?}
 
     hover {
         summary {Return all input ports.}
-        synopsis {all_inputs}
+        synopsis {all_inputs ?-level_sensitive? ?-edge_triggered? ?-clock clock_name?}
         source {F5}
     }
 }
@@ -75,11 +77,11 @@ command all_outputs {
     dialects all-tcl
     required_package sdc
 
-    form Default {all_outputs}
+    form Default {all_outputs ?-level_sensitive? ?-edge_triggered? ?-clock clock_name?}
 
     hover {
         summary {Return all output ports.}
-        synopsis {all_outputs}
+        synopsis {all_outputs ?-level_sensitive? ?-edge_triggered? ?-clock clock_name?}
         source {F5}
     }
 }
@@ -88,11 +90,11 @@ command all_registers {
     dialects all-tcl
     required_package sdc
 
-    form Default {all_registers ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_pins? ?-clock_pins? ?-slave_clock_pins? ?-async_pins? ?-output_pins? ?-level_sensitive?}
+    form Default {all_registers ?-no_hierarchy? ?-hsc separator? ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_pins? ?-clock_pins? ?-slave_clock_pins? ?-async_pins? ?-output_pins? ?-level_sensitive? ?-edge_triggered? ?-master_slave?}
 
     hover {
         summary {Return all register cells.}
-        synopsis {all_registers ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_}
+        synopsis {all_registers ?-no_hierarchy? ?-hsc separator? ?-clock clock_name? ?-rise_clock clock_name? ?-fall_clock clock_name? ?-cells? ?-data_pins? ?-clock_pins? ?-slave_clock_pins? ?-async_pins? ?-output_pins? ?-level_sensitive? ?-edge_triggered? ?-master_slave?}
         source {F5}
     }
 }
@@ -131,11 +133,11 @@ command create_clock {
     arity 1..
     required_package sdc
 
-    form Default {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?source_objects?}
+    form Default {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?-comment comment? ?source_objects?}
 
     hover {
         summary {Create a clock object.}
-        synopsis {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?source_objects?}
+        synopsis {create_clock ?-period period? ?-name name? ?-waveform edge_list? ?-add? ?-comment comment? ?source_objects?}
         source {F5}
     }
 }
@@ -145,12 +147,26 @@ command create_generated_clock {
     arity 1..
     required_package sdc
 
-    form Default {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-multiply_by factor? ?-duty_cycle percent? ?-invert? ?-add? source_objects}
+    form Default {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-multiply_by factor? ?-duty_cycle percent? ?-invert? ?-add? ?-comment comment? source_objects}
 
     hover {
         summary {Create a generated clock object.}
-        synopsis {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-mult}
+        synopsis {create_generated_clock ?-name name? -source master_pin ?-edges edge_list? ?-divide_by factor? ?-multiply_by factor? ?-duty_cycle percent? ?-invert? ?-add? ?-comment comment? source_objects}
         source {F5}
+    }
+}
+
+command create_voltage_area {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {create_voltage_area -name area_name ?-coordinate coordinate_list? ?-guard_band_x guard_band_x? ?-guard_band_y guard_band_y? ?cell_list?}
+
+    hover {
+        summary {Create a voltage area for multi-voltage designs.}
+        synopsis {create_voltage_area -name area_name ?-coordinate coordinate_list? ?-guard_band_x guard_band_x? ?-guard_band_y guard_band_y? ?cell_list?}
+        source {SDC 2.2}
     }
 }
 
@@ -164,6 +180,20 @@ command current_design {
         summary {Get or set the current design.}
         synopsis {current_design ?design_name?}
         source {F5}
+    }
+}
+
+command current_instance {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {current_instance ?instance?}
+
+    hover {
+        summary {Get or set the current instance.}
+        synopsis {current_instance ?instance?}
+        description {With no argument the current instance is reset to the top of the design.}
+        source {SDC 2.2}
     }
 }
 
@@ -245,11 +275,11 @@ command get_lib_cells {
     dialects all-tcl
     required_package sdc
 
-    form Default {get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+    form Default {get_lib_cells ?-regexp? ?-hsc separator? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
 
     hover {
         summary {Get library cell objects matching a pattern.}
-        synopsis {get_lib_cells ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        synopsis {get_lib_cells ?-regexp? ?-hsc separator? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
         source {F5}
     }
 }
@@ -284,11 +314,11 @@ command get_nets {
     dialects all-tcl
     required_package sdc
 
-    form Default {get_nets ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+    form Default {get_nets ?-hierarchical? ?-hsc separator? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
 
     hover {
         summary {Get net objects matching a pattern.}
-        synopsis {get_nets ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
+        synopsis {get_nets ?-hierarchical? ?-hsc separator? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?patterns?}
         source {F5}
     }
 }
@@ -311,11 +341,11 @@ command get_pins {
     dialects all-tcl
     required_package sdc
 
-    form Default {get_pins ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
+    form Default {get_pins ?-hierarchical? ?-hsc separator? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
 
     hover {
         summary {Get pin objects matching a pattern.}
-        synopsis {get_pins ?-hierarchical? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
+        synopsis {get_pins ?-hierarchical? ?-hsc separator? ?-regexp? ?-nocase? ?-filter expr? ?-of_objects objects? ?-leaf? ?patterns?}
         source {F5}
     }
 }
@@ -337,11 +367,11 @@ command group_path {
     dialects all-tcl
     required_package sdc
 
-    form Default {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weight? ?-default?}
+    form Default {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weight? ?-default? ?-comment comment?}
 
     hover {
         summary {Group paths for multi-scenario analysis.}
-        synopsis {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weigh}
+        synopsis {group_path ?-name group_name? ?-from from_list? ?-through through_list? ?-to to_list? ?-weight weight? ?-default? ?-comment comment?}
         source {F5}
     }
 }
@@ -466,15 +496,29 @@ command set_case_analysis {
     }
 }
 
+command set_clock_gating_check {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_clock_gating_check ?-setup setup_value? ?-hold hold_value? ?-rise | -fall? ?-high | -low? ?object_list?}
+
+    hover {
+        summary {Set clock gating setup and hold checks.}
+        synopsis {set_clock_gating_check ?-setup setup_value? ?-hold hold_value? ?-rise | -fall? ?-high | -low? ?object_list?}
+        description {With no object_list the check applies design-wide.}
+        source {SDC 2.2}
+    }
+}
+
 command set_clock_groups {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? -group clock_list ...}
+    form Default {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? ?-allow_paths? ?-name name? ?-comment comment? -group clock_list ...}
 
     hover {
         summary {Set mutual exclusivity between clock groups.}
-        synopsis {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? -group clock_list ..}
+        synopsis {set_clock_groups ?-physically_exclusive | -logically_exclusive | -asynchronous? ?-allow_paths? ?-name name? ?-comment comment? -group clock_list ...}
         source {F5}
     }
 }
@@ -483,12 +527,28 @@ command set_clock_latency {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_clock_latency ?-source? ?-early | -late? ?-rise | -fall? delay object_list}
+    form Default {set_clock_latency ?-source? ?-min | -max? ?-early | -late? ?-rise | -fall? ?-clock clock_list? delay object_list}
 
     hover {
         summary {Set clock network latency.}
-        synopsis {set_clock_latency ?-source? ?-early | -late? ?-rise | -fall? delay object_list}
+        synopsis {set_clock_latency ?-source? ?-min | -max? ?-early | -late? ?-rise | -fall? ?-clock clock_list? delay object_list}
         source {F5}
+    }
+}
+
+command set_clock_sense {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+    deprecated_replacement set_sense
+
+    form Default {set_clock_sense ?-positive? ?-negative? ?-pulse pulse_type? ?-stop_propagation? ?-clocks clock_list? pin_list}
+
+    hover {
+        summary {Legacy: set the sense of a clock path at a pin.}
+        synopsis {set_clock_sense ?-positive? ?-negative? ?-pulse pulse_type? ?-stop_propagation? ?-clocks clock_list? pin_list}
+        description {SDC 2.0 folded this command into set_sense -type clock; new constraint files should use set_sense. -pulse takes one of rise_triggered_high_pulse, rise_triggered_low_pulse, fall_triggered_high_pulse or fall_triggered_low_pulse.}
+        source {SDC 2.2}
     }
 }
 
@@ -509,12 +569,27 @@ command set_clock_uncertainty {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-to to_clock? ?-rise | -fall? uncertainty ?object_list?}
+    form Default {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-rise_from rise_from_clock? ?-fall_from fall_from_clock? ?-to to_clock? ?-rise_to rise_to_clock? ?-fall_to fall_to_clock? ?-rise | -fall? uncertainty ?object_list?}
 
     hover {
         summary {Set clock uncertainty (jitter).}
-        synopsis {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-to to_clock? ?-rise | -fall? uncertainty}
+        synopsis {set_clock_uncertainty ?-setup | -hold? ?-from from_clock? ?-rise_from rise_from_clock? ?-fall_from fall_from_clock? ?-to to_clock? ?-rise_to rise_to_clock? ?-fall_to fall_to_clock? ?-rise | -fall? uncertainty ?object_list?}
         source {F5}
+    }
+}
+
+command set_data_check {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {set_data_check ?-from from_object? ?-to to_object? ?-rise_from rise_from_object? ?-fall_from fall_from_object? ?-rise_to rise_to_object? ?-fall_to fall_to_object? ?-setup? ?-hold? ?-clock clock_name? value}
+
+    hover {
+        summary {Set a data-to-data timing check.}
+        synopsis {set_data_check ?-from from_object? ?-to to_object? ?-rise_from rise_from_object? ?-fall_from fall_from_object? ?-rise_to rise_to_object? ?-fall_to fall_to_object? ?-setup? ?-hold? ?-clock clock_name? value}
+        description {Requires one of -from/-rise_from/-fall_from and one of -to/-rise_to/-fall_to alongside the check value.}
+        source {SDC 2.2}
     }
 }
 
@@ -557,15 +632,28 @@ command set_dont_use {
     }
 }
 
+command set_drive {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_drive ?-rise | -fall? ?-min | -max? resistance port_list}
+
+    hover {
+        summary {Set the drive resistance on input ports.}
+        synopsis {set_drive ?-rise | -fall? ?-min | -max? resistance port_list}
+        source {SDC 2.2}
+    }
+}
+
 command set_driving_cell {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_driving_cell ?-lib_cell cell_name? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no_design_rule? ?-dont_scale? ?-input_transition_rise rise? ?-input_transition_fall fall? port_list}
+    form Default {set_driving_cell ?-lib_cell cell_name? ?-rise | -fall? ?-min | -max? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no_design_rule? ?-dont_scale? ?-clock clock_name? ?-clock_fall? ?-input_transition_rise rise? ?-input_transition_fall fall? port_list}
 
     hover {
         summary {Set the driving cell for input ports.}
-        synopsis {set_driving_cell ?-lib_cell cell_name? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no}
+        synopsis {set_driving_cell ?-lib_cell cell_name? ?-rise | -fall? ?-min | -max? ?-library lib? ?-pin pin_name? ?-from_pin from_pin_name? ?-no_design_rule? ?-dont_scale? ?-clock clock_name? ?-clock_fall? ?-input_transition_rise rise? ?-input_transition_fall fall? port_list}
         source {F5}
     }
 }
@@ -574,12 +662,40 @@ command set_false_path {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-comment comment?}
+    form Default {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-comment comment?}
 
     hover {
         summary {Define a false timing path.}
-        synopsis {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from }
+        synopsis {set_false_path ?-setup | -hold? ?-from from_list? ?-through through_list? ?-to to_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-comment comment?}
         source {F5}
+    }
+}
+
+command set_fanout_load {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_fanout_load value port_list}
+
+    hover {
+        summary {Set the fanout load on output ports.}
+        synopsis {set_fanout_load value port_list}
+        source {SDC 2.2}
+    }
+}
+
+command set_hierarchy_separator {
+    dialects all-tcl
+    arity 1
+    required_package sdc
+
+    form Default {set_hierarchy_separator separator}
+
+    hover {
+        summary {Set the hierarchy separator character.}
+        synopsis {set_hierarchy_separator separator}
+        description {A single character, typically / or .}
+        source {SDC 2.2}
     }
 }
 
@@ -609,15 +725,28 @@ command set_ideal_network {
     }
 }
 
+command set_ideal_transition {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_ideal_transition ?-rise | -fall? ?-min | -max? transition_time object_list}
+
+    hover {
+        summary {Set the ideal transition time on a network.}
+        synopsis {set_ideal_transition ?-rise | -fall? ?-min | -max? transition_time object_list}
+        source {SDC 2.2}
+    }
+}
+
 command set_input_delay {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_input_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
+    form Default {set_input_delay ?-clock clock_name? ?-reference_pin pin? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
 
     hover {
         summary {Set input delay on ports.}
-        synopsis {set_input_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?}
+        synopsis {set_input_delay ?-clock clock_name? ?-reference_pin pin? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
         source {F5}
     }
 }
@@ -626,12 +755,40 @@ command set_input_transition {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_input_transition ?-rise | -fall? ?-min | -max? transition port_list}
+    form Default {set_input_transition ?-rise | -fall? ?-min | -max? ?-clock clock_name? ?-clock_fall? transition port_list}
 
     hover {
         summary {Set input transition time on ports.}
-        synopsis {set_input_transition ?-rise | -fall? ?-min | -max? transition port_list}
+        synopsis {set_input_transition ?-rise | -fall? ?-min | -max? ?-clock clock_name? ?-clock_fall? transition port_list}
         source {F5}
+    }
+}
+
+command set_level_shifter_strategy {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_level_shifter_strategy -rule rule}
+
+    hover {
+        summary {Set the level shifter insertion rule.}
+        synopsis {set_level_shifter_strategy -rule rule}
+        description {-rule takes one of all, low_to_high or high_to_low.}
+        source {SDC 2.2}
+    }
+}
+
+command set_level_shifter_threshold {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_level_shifter_threshold ?-voltage voltage? ?-percent percent?}
+
+    hover {
+        summary {Set the level shifter voltage and percentage thresholds.}
+        synopsis {set_level_shifter_threshold ?-voltage voltage? ?-percent percent?}
+        description {The two thresholds are independent; either one alone is legal.}
+        source {SDC 2.2}
     }
 }
 
@@ -639,12 +796,51 @@ command set_load {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? value objects}
+    form Default {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? ?-rise | -fall? value objects}
 
     hover {
         summary {Set capacitive load on nets or ports.}
-        synopsis {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? value objects}
+        synopsis {set_load ?-pin_load | -wire_load? ?-min | -max? ?-subtract_pin_load? ?-rise | -fall? value objects}
         source {F5}
+    }
+}
+
+command set_logic_dc {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_logic_dc port_list}
+
+    hover {
+        summary {Set ports to a logic don't-care value.}
+        synopsis {set_logic_dc port_list}
+        source {SDC 2.2}
+    }
+}
+
+command set_logic_one {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_logic_one port_list}
+
+    hover {
+        summary {Set ports to a logic one value.}
+        synopsis {set_logic_one port_list}
+        source {SDC 2.2}
+    }
+}
+
+command set_logic_zero {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_logic_zero port_list}
+
+    hover {
+        summary {Set ports to a logic zero value.}
+        synopsis {set_logic_zero port_list}
+        source {SDC 2.2}
     }
 }
 
@@ -666,11 +862,11 @@ command set_max_capacitance {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_max_capacitance cap_value object_list}
+    form Default {set_max_capacitance ?-clock_path? ?-data_path? cap_value object_list}
 
     hover {
         summary {Set maximum capacitance constraint.}
-        synopsis {set_max_capacitance cap_value object_list}
+        synopsis {set_max_capacitance ?-clock_path? ?-data_path? cap_value object_list}
         source {F5}
     }
 }
@@ -679,12 +875,27 @@ command set_max_delay {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_max_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+    form Default {set_max_delay ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-ignore_clock_latency? ?-comment comment? delay_value}
 
     hover {
         summary {Set maximum delay constraint on a path.}
-        synopsis {set_max_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+        synopsis {set_max_delay ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-ignore_clock_latency? ?-comment comment? delay_value}
         source {F5}
+    }
+}
+
+command set_max_dynamic_power {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {set_max_dynamic_power power ?unit?}
+
+    hover {
+        summary {Set the maximum dynamic power constraint.}
+        synopsis {set_max_dynamic_power power ?unit?}
+        description {unit is optional and defaults to the power unit of the library, e.g. mW or W.}
+        source {SDC 2.2}
     }
 }
 
@@ -701,16 +912,44 @@ command set_max_fanout {
     }
 }
 
+command set_max_leakage_power {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {set_max_leakage_power power ?unit?}
+
+    hover {
+        summary {Set the maximum leakage power constraint.}
+        synopsis {set_max_leakage_power power ?unit?}
+        description {unit is optional and defaults to the power unit of the library, e.g. mW or W.}
+        source {SDC 2.2}
+    }
+}
+
 command set_max_transition {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_max_transition transition_value ?-clock_path? ?-data_path? object_list}
+    form Default {set_max_transition transition_value ?-clock_path? ?-data_path? ?-rise | -fall? object_list}
 
     hover {
         summary {Set maximum transition time constraint.}
-        synopsis {set_max_transition transition_value ?-clock_path? ?-data_path? object_list}
+        synopsis {set_max_transition transition_value ?-clock_path? ?-data_path? ?-rise | -fall? object_list}
         source {F5}
+    }
+}
+
+command set_min_capacitance {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_min_capacitance value object_list}
+
+    hover {
+        summary {Set minimum capacitance constraint.}
+        synopsis {set_min_capacitance value object_list}
+        source {SDC 2.2}
     }
 }
 
@@ -718,11 +957,11 @@ command set_min_delay {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_min_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+    form Default {set_min_delay ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-ignore_clock_latency? ?-comment comment? delay_value}
 
     hover {
         summary {Set minimum delay constraint on a path.}
-        synopsis {set_min_delay ?-from from_list? ?-through through_list? ?-to to_list? ?-rise | -fall? delay_value}
+        synopsis {set_min_delay ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-ignore_clock_latency? ?-comment comment? delay_value}
         source {F5}
     }
 }
@@ -731,12 +970,26 @@ command set_multicycle_path {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-through through_list? ?-to to_list? path_multiplier}
+    form Default {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-comment comment? path_multiplier}
 
     hover {
         summary {Define a multicycle timing path.}
-        synopsis {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-through through_list? ?-to }
+        synopsis {set_multicycle_path ?-setup | -hold? ?-start | -end? ?-from from_list? ?-rise_from rise_from_list? ?-fall_from fall_from_list? ?-through through_list? ?-rise_through rise_through_list? ?-fall_through fall_through_list? ?-to to_list? ?-rise_to rise_to_list? ?-fall_to fall_to_list? ?-rise | -fall? ?-comment comment? path_multiplier}
         source {F5}
+    }
+}
+
+command set_operating_conditions {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_operating_conditions ?-library lib? ?-analysis_type analysis_type? ?-max max_cond? ?-min min_cond? ?-max_library max_lib? ?-min_library min_lib? ?-object_list objects? ?condition?}
+
+    hover {
+        summary {Set operating conditions for timing analysis.}
+        synopsis {set_operating_conditions ?-library lib? ?-analysis_type analysis_type? ?-max max_cond? ?-min min_cond? ?-max_library max_lib? ?-min_library min_lib? ?-object_list objects? ?condition?}
+        description {-analysis_type takes one of single, bc_wc or on_chip_variation. Unlike most commands, -min and -max here take operating condition names rather than being flags.}
+        source {SDC 2.2}
     }
 }
 
@@ -744,12 +997,25 @@ command set_output_delay {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_output_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
+    form Default {set_output_delay ?-clock clock_name? ?-reference_pin pin? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
 
     hover {
         summary {Set output delay on ports.}
-        synopsis {set_output_delay ?-clock clock_name? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? }
+        synopsis {set_output_delay ?-clock clock_name? ?-reference_pin pin? ?-clock_fall? ?-level_sensitive? ?-rise | -fall? ?-min | -max? ?-add_delay? ?-network_latency_included? ?-source_latency_included? delay_value port_pin_list}
         source {F5}
+    }
+}
+
+command set_port_fanout_number {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_port_fanout_number value port_list}
+
+    hover {
+        summary {Set the external fanout number on output ports.}
+        synopsis {set_port_fanout_number value port_list}
+        source {SDC 2.2}
     }
 }
 
@@ -766,6 +1032,34 @@ command set_propagated_clock {
     }
 }
 
+command set_resistance {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_resistance ?-min | -max? value net_list}
+
+    hover {
+        summary {Set the resistance on nets.}
+        synopsis {set_resistance ?-min | -max? value net_list}
+        source {SDC 2.2}
+    }
+}
+
+command set_sense {
+    dialects all-tcl
+    arity 1..
+    required_package sdc
+
+    form Default {set_sense ?-type type? ?-non_unate? ?-positive? ?-negative? ?-clock_leaf? ?-stop_propagation? ?-pulse pulse_type? ?-clocks clock_list? pin_list}
+
+    hover {
+        summary {Set the sense of a pin for timing analysis.}
+        synopsis {set_sense ?-type type? ?-non_unate? ?-positive? ?-negative? ?-clock_leaf? ?-stop_propagation? ?-pulse pulse_type? ?-clocks clock_list? pin_list}
+        description {-type takes clock or data. -pulse takes one of rise_triggered_high_pulse, rise_triggered_low_pulse, fall_triggered_high_pulse or fall_triggered_low_pulse.}
+        source {SDC 2.2}
+    }
+}
+
 command set_size_only {
     dialects all-tcl
     required_package sdc
@@ -776,6 +1070,20 @@ command set_size_only {
         summary {Mark cells as size-only (no restructuring).}
         synopsis {set_size_only object_list ?-all_instances?}
         source {F5}
+    }
+}
+
+command set_timing_derate {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_timing_derate ?-cell_delay? ?-cell_check? ?-net_delay? ?-data? ?-clock? ?-early? ?-late? ?-rise? ?-fall? ?-static? ?-dynamic? ?-increment? ?-min_period? ?-min_pulse_width? derate_value ?object_list?}
+
+    hover {
+        summary {Set a timing derate factor.}
+        synopsis {set_timing_derate ?-cell_delay? ?-cell_check? ?-net_delay? ?-data? ?-clock? ?-early? ?-late? ?-rise? ?-fall? ?-static? ?-dynamic? ?-increment? ?-min_period? ?-min_pulse_width? derate_value ?object_list?}
+        description {-clock and -data are flags here selecting clock or data paths, not value-taking options.}
+        source {SDC 2.2}
     }
 }
 
@@ -792,6 +1100,34 @@ command set_units {
     }
 }
 
+command set_voltage {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_voltage ?-min min_case_voltage? ?-object_list power_nets? max_case_voltage}
+
+    hover {
+        summary {Set the operating voltage on power nets.}
+        synopsis {set_voltage ?-min min_case_voltage? ?-object_list power_nets? max_case_voltage}
+        description {max_case_voltage is the one mandatory argument; -min supplies the minimum case voltage.}
+        source {SDC 2.2}
+    }
+}
+
+command set_wire_load_min_block_size {
+    dialects all-tcl
+    arity 1
+    required_package sdc
+
+    form Default {set_wire_load_min_block_size size}
+
+    hover {
+        summary {Set the minimum block size for wire load selection.}
+        synopsis {set_wire_load_min_block_size size}
+        source {SDC 2.2}
+    }
+}
+
 command set_wire_load_mode {
     dialects all-tcl
     arity 1
@@ -802,6 +1138,7 @@ command set_wire_load_mode {
     hover {
         summary {Set the wire load mode.}
         synopsis {set_wire_load_mode mode}
+        description {mode is one of top, enclosed or segmented.}
         source {F5}
     }
 }
@@ -810,12 +1147,25 @@ command set_wire_load_model {
     dialects all-tcl
     required_package sdc
 
-    form Default {set_wire_load_model -name model_name ?-library lib? ?object_list?}
+    form Default {set_wire_load_model -name model_name ?-library lib? ?-min | -max? ?object_list?}
 
     hover {
         summary {Set the wire load model.}
-        synopsis {set_wire_load_model -name model_name ?-library lib? ?object_list?}
+        synopsis {set_wire_load_model -name model_name ?-library lib? ?-min | -max? ?object_list?}
         source {F5}
+    }
+}
+
+command set_wire_load_selection_group {
+    dialects all-tcl
+    required_package sdc
+
+    form Default {set_wire_load_selection_group ?-library lib? ?-min | -max? group_name ?object_list?}
+
+    hover {
+        summary {Set the wire load selection group.}
+        synopsis {set_wire_load_selection_group ?-library lib? ?-min | -max? group_name ?object_list?}
+        source {SDC 2.2}
     }
 }
 

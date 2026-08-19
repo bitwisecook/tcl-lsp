@@ -5506,12 +5506,26 @@ mod class_factories {
     fn full_tcllib_clay_factory_resolves_when_the_corpus_is_available() {
         // Exact tcllib 2.0 corpus oracle. Developer/bootstrap environments
         // fetch this source under tmp; a source-only distribution may omit it.
+        //
+        // Corpus-gated (issue #1571): a checkout without the corpus must not
+        // read as a silent pass — announce the skip on stderr, matching the
+        // convention `tcl-lsp-db/tests/compiler_check_corpus.rs` already uses
+        // for the same tcllib-2.0 corpus ("skip: {path} not present"), so
+        // `cargo test -- --nocapture` (or a failure elsewhere in the run)
+        // makes it obvious this test asserted nothing. The underlying clay
+        // metaclass-factory resolution defect issue #1571 also reports is
+        // NOT fixed here — this test still needs the corpus present, and
+        // still fails against it, until that defect is fixed separately.
         let corpus = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
             || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tcllib-2.0"),
             std::path::PathBuf::from,
         );
         let path = corpus.join("modules/clay/clay.tcl");
-        let Ok(src) = std::fs::read_to_string(path) else {
+        let Ok(src) = std::fs::read_to_string(&path) else {
+            eprintln!(
+                "skip: {} not present (fetch tcllib 2.0 under tmp/, or set TCLLIB_2_0_DIR)",
+                path.display()
+            );
             return;
         };
         let result = analysis(&src, "tcl9.0");

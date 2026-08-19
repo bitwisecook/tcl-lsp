@@ -197,6 +197,27 @@ fn default_statement() -> CommandSpec {
     )
 }
 
+/// `display_name {…}` — the pack's human-readable name.
+fn display_name_statement() -> CommandSpec {
+    super::statement(
+        "display_name",
+        Arity::exact(1),
+        "Name the pack for humans.",
+        "The pack's human-readable name (`display_name {IEEE 1801 UPF}`), for editor surfaces that show a library rather than a file. One per pack; a redeclaration keeps the last and says so.",
+    )
+}
+
+/// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
+/// pack's language is written under.
+fn file_extension_statement() -> CommandSpec {
+    super::statement(
+        "file_extension",
+        Arity::at_least(1),
+        "Declare a file extension the pack's language is written under.",
+        "One row per extension (`file_extension upf -name {Unified Power Format} -dialect synopsys-eda-tcl`). `-name` is the human-readable name for editor pickers; `-dialect` must name a canonical dialect profile and routes files of this extension to it in dialect detection — a loaded pack is the source of truth for its own extensions, ahead of the built-in table. The extension is normalised to lower-case without its leading dot.",
+    )
+}
+
 /// One documentation key of a `hover { … }` block, as the analyser sees it:
 /// a command ambient inside that body and nowhere else.
 const fn hover_key(
@@ -291,6 +312,8 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         hook(),
         descriptor(),
         default_statement(),
+        display_name_statement(),
+        file_extension_statement(),
         // --- documentation ---
         CommandSpec {
             body_scope: Some(&SPECTCL_HOVER_ENV),

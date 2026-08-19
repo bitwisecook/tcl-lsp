@@ -27,8 +27,21 @@ use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_dialect::DialectProfile;
 use tcl_registry::command_snapshot::{command_registry_snapshot, command_registry_snapshots};
 
-/// The Tcl dialects `--all-dialects` snapshots, in stable order.
-const TCL_DIALECTS: [&str; 4] = ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0"];
+/// The plain-Tcl-version dialects `--all-dialects` snapshots, in the catalog's
+/// stable sorted-name order.
+///
+/// The predicate is the catalog's own "this profile is a plain Tcl release"
+/// fact ([`DialectProfile::const_fold_version`], `Some` only for the versioned
+/// Tcl profiles and `None` for every vendor dialect), so a new release added to
+/// the catalog is snapshotted without a second list to update — which is how
+/// the hand-written array came to be missing `tcl9.1`.
+fn tcl_dialects() -> Vec<&'static str> {
+    DialectProfile::all()
+        .iter()
+        .filter(|profile| profile.const_fold_version().is_some())
+        .map(|profile| profile.name)
+        .collect()
+}
 
 /// `tcl registry-dump` — dump the command registry for one dialect (or
 /// every Tcl dialect with `--all-dialects`) as canonical JSON.
@@ -39,10 +52,10 @@ pub fn run_registry_dump(
 ) -> anyhow::Result<u8> {
     let target = OutputTarget::from_arg(output);
     // `build_default` already carries every Tcl dialect's commands, so the
-    // `tcl8.6` registry serves all four Tcl dialects (and `--all-dialects`).
+    // `tcl8.6` registry serves every Tcl dialect (and `--all-dialects`).
     let json = if all_dialects {
         let registry = registry_for_dialect(DialectProfile::by_name("tcl8.6").name);
-        command_registry_snapshots(&registry, &TCL_DIALECTS)
+        command_registry_snapshots(&registry, &tcl_dialects())
     } else {
         let registry = registry_for_dialect(dialect.name);
         command_registry_snapshot(&registry, dialect.name)

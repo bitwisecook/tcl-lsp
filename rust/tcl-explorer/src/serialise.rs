@@ -82,11 +82,23 @@ use crate::views::{Severity, VIEW_META};
 
 /// Serialise the `meta` view: dialect list, view-tab table, and the
 /// severity vocabulary.
+///
+/// Dialects carry their catalog labels (`display_name` for menus,
+/// `short_name` for toolbars) exactly like the `views` entries carry
+/// theirs, so no GUI consumer needs its own name table. A name without a
+/// catalog profile repeats itself as both labels.
 #[must_use]
 pub fn serialise_meta() -> Value {
     let dialects: Vec<Value> = available_dialects()
         .iter()
-        .map(|d| Value::String((*d).to_owned()))
+        .map(|d| {
+            let profile = tcl_dialect::DialectProfile::find(d);
+            json!({
+                "name": *d,
+                "displayName": profile.map_or(*d, |p| p.display_name),
+                "shortName": profile.map_or(*d, |p| p.short_name),
+            })
+        })
         .collect();
     let views: Vec<Value> = VIEW_META
         .iter()
@@ -3149,9 +3161,14 @@ mod tests {
             .as_array()
             .unwrap()
             .iter()
-            .map(|d| d.as_str().unwrap())
+            .map(|d| d["name"].as_str().unwrap())
             .collect();
         assert_eq!(dialects, available_dialects());
+        // Every entry carries its catalog labels, like the `views` entries.
+        for entry in meta["dialects"].as_array().unwrap() {
+            assert!(entry["displayName"].as_str().is_some_and(|s| !s.is_empty()));
+            assert!(entry["shortName"].as_str().is_some_and(|s| !s.is_empty()));
+        }
         // The original 27 views, plus World SSA and six durable compiler
         // artefact views.
         assert_eq!(meta["views"].as_array().unwrap().len(), 34);

@@ -127,6 +127,7 @@ const LOADABLE_DIALECTS: &[&str] = &[
     "xilinx-eda-tcl",
     "intel-quartus-eda-tcl",
     "mentor-eda-tcl",
+    "microchip-libero-eda-tcl",
     "bpf",
     "spectcl",
 ];
