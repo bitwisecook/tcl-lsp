@@ -4759,6 +4759,16 @@ impl Vm {
         self.frames.len() - 1
     }
 
+    /// Whether the current frame is a **procedure** activation.
+    ///
+    /// A proc frame carries its name; the global frame and a `namespace eval`
+    /// body do not (the latter runs in the current frame and pushes none). This
+    /// is the condition `Tcl_GlobalObjCmd` tests before doing anything at all —
+    /// outside a proc, `global` is a no-op (issue #1458's guard is scoped to it).
+    pub(crate) fn in_proc_frame(&self) -> bool {
+        self.frames.last().is_some_and(|f| f.proc_name.is_some())
+    }
+
     pub(crate) fn push_call_frame(
         &mut self,
         proc_name: Option<String>,

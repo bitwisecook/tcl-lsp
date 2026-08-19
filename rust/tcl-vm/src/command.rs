@@ -1835,13 +1835,20 @@ fn bad_link_name(name: &str) -> Completion<Value> {
 }
 
 /// `global name ?name ...?` — link names to the global frame.
+///
+/// Outside a procedure `global` is a documented no-op: `Tcl_GlobalObjCmd`
+/// returns `TCL_OK` before touching its arguments when the current frame *is*
+/// the global frame. So the element-name guard below is reached only from a
+/// proc — at top level and inside `namespace eval`, even `global (x)` and
+/// `global a(b)` are accepted. Verified on 8.6.16 and 9.0.4, which agree.
 fn cmd_global(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let in_proc = vm.in_proc_frame();
     for n in args {
         let nm = n.to_str();
         // C links under the *tail* and reports the tail: `global ::x::a(b)`
         // says `bad variable name "a(b)"`. Verified on 8.6.16 and 9.0.4.
         let tail = name_tail(&nm);
-        if looks_like_element(tail) {
+        if in_proc && looks_like_element(tail) {
             return bad_link_name(tail);
         }
         vm.add_link(&nm, 0, &nm);

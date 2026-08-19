@@ -498,6 +498,58 @@ fn link_commands_reject_element_looking_names() {
     assert_eq!(out, "ok\n");
 }
 
+/// `global`'s guard applies **only inside a procedure**; `variable` and
+/// `upvar`'s apply everywhere.
+///
+/// `Tcl_GlobalObjCmd` returns `TCL_OK` before looking at its arguments when the
+/// current frame is already the global frame, so outside a proc `global` is a
+/// documented no-op and never reaches the element-name check — `global (x)` at
+/// top level, and inside `namespace eval`, are both accepted. `variable` and
+/// `upvar` place their checks in the link-creation path itself, which runs at
+/// every scope, so those stay unconditional.
+///
+/// Verified on `tclsh8.6.16` and `tclsh9.0.4`, which agree on all eight rows.
+#[test]
+fn global_element_guard_applies_only_inside_a_proc() {
+    const SCALAR: &str = "can't create a scalar variable that looks like an array element";
+    const DEFINE: &str = "name refers to an element in an array";
+
+    // `global` outside a proc: accepted, no-op.
+    for script in [
+        "global (x)\nputs ok\n",
+        "global a(b)\nputs ok\n",
+        "namespace eval nsx {global (x)}\nputs ok\n",
+        "namespace eval nsx {global a(b)}\nputs ok\n",
+    ] {
+        let (ok, r, out) = run(script);
+        assert!(ok, "{script:?} must be a no-op outside a proc, got {r}");
+        assert_eq!(out, "ok\n");
+    }
+    // Inside a proc the same words are refused.
+    let (ok, r, _) = run("proc p {} { global (x) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"(x)\": {SCALAR}"));
+    let (ok, r, _) = run("proc p {} { global a(b) }\np\n");
+    assert!(!ok);
+    assert_eq!(r, format!("bad variable name \"a(b)\": {SCALAR}"));
+
+    // `variable` is unconditional — top level, namespace eval, and proc alike.
+    for script in [
+        "variable (y) 1\n",
+        "namespace eval nsx {variable (y) 1}\n",
+        "proc p {} { variable (y) }\np\n",
+    ] {
+        let (ok, r, _) = run(script);
+        assert!(!ok, "{script:?} must be refused at every scope");
+        assert_eq!(r, format!("can't define \"(y)\": {DEFINE}"));
+    }
+
+    // `upvar` is unconditional too.
+    let (ok, r, _) = run("set zz 1\nupvar 0 zz (v)\n");
+    assert!(!ok, "upvar's guard is not scoped to a proc frame");
+    assert_eq!(r, format!("bad variable name \"(v)\": {SCALAR}"));
+}
+
 /// `variable` and `global` split a qualified name **differently**, and a `::`
 /// inside an array index is what separates them.
 ///
