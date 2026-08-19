@@ -2854,9 +2854,7 @@ impl Analyser {
     ) {
         if let Some(entry) = self
             .result
-            .ensemble_subcommand_targets
-            .get(resolved_cmd)
-            .and_then(|subs| subs.get(sub))
+            .resolve_ensemble_subcommand(resolved_cmd, sub)
             .cloned()
         {
             self.push_ensemble_dispatch_reference(sub.to_owned(), span, &entry, argc);
@@ -2892,9 +2890,7 @@ impl Analyser {
         for cand in pending {
             let Some(entry) = self
                 .result
-                .ensemble_subcommand_targets
-                .get(&cand.ensemble)
-                .and_then(|subs| subs.get(&cand.sub))
+                .resolve_ensemble_subcommand(&cand.ensemble, &cand.sub)
                 .cloned()
             else {
                 continue;

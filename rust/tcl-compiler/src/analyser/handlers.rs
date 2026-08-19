@@ -3740,7 +3740,7 @@ impl Analyser {
         if let (Some(value), Some(key)) = (value, ensemble_key)
             && matches!(tcl_registry::abbrev::resolve_boolean(value), Some(false))
         {
-            self.prefixless_ensembles.insert(key.to_owned());
+            self.result.prefixless_ensembles.insert(key.to_owned());
         }
     }
 
@@ -9204,7 +9204,13 @@ impl Analyser {
     /// to a glob text, so it is silently skipped — the wildcard-import
     /// resolver then correctly abstains for names it might have covered,
     /// rather than guessing. A dynamic word cannot hide a `-clear`, which is
-    /// a literal flag word or nothing.
+    /// a literal flag word or nothing. It is skipped rather than treated as
+    /// the abort below, for the same reason: whether it resolves to a
+    /// qualified pattern is unknowable here.
+    ///
+    /// A **qualified** pattern is a guaranteed runtime error (`Tcl_Export`
+    /// rejects it), and C `return`s from the pattern loop on that failure, so
+    /// recording stops there — see the loop for the oracle.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::NamespaceExport`] (stamped on
@@ -9251,6 +9257,18 @@ impl Analyser {
             if pattern.contains('$') || pattern.contains('[') {
                 idx += 1;
                 continue;
+            }
+            // `NamespaceExportCmd` calls `Tcl_Export` per pattern and
+            // `return`s on the first failure, so a qualified pattern aborts
+            // the loop: every *later* word is never exported at all. The
+            // earlier ones stay — C commits each pattern as it goes.
+            // Oracle (tclsh 8.6.16 / 9.0.4): `namespace export one ::bad
+            // three` leaves exactly `one` exported, and `namespace export
+            // ::bad ok` leaves nothing. Recording past the bad word let a
+            // wildcard-import bareword resolve where real Tcl would not
+            // (issue #1612).
+            if tcl_syntax::naming::is_qualified(pattern.as_bytes()) {
+                break;
             }
             self.result.namespace_exports.push(
                 crate::signature_scan::types::SignatureNamespaceExport {
@@ -10815,6 +10833,89 @@ mod tests {
             .map(|e| e.pattern.as_str())
             .collect();
         assert_eq!(patterns, vec!["bar", "b*"]);
+    }
+
+    /// `NamespaceExportCmd` calls `Tcl_Export` per pattern and returns on the
+    /// first failure, so a qualified pattern aborts the loop — the patterns
+    /// *before* it are committed, the ones after are never exported at all.
+    /// Oracle rows (identical on tclsh 8.6.16 and 9.0.4, `namespace export`
+    /// read back from the namespace afterwards):
+    ///
+    /// | script | exports |
+    /// |---|---|
+    /// | `namespace export ::bad ok` | nothing |
+    /// | `namespace export ok ::bad` | `ok` |
+    /// | `namespace export one ::bad three` | `one` |
+    #[test]
+    fn handle_namespace_export_stops_at_the_first_qualified_pattern() {
+        let recorded = |words: &[&str]| -> Vec<String> {
+            let mut a = Analyser::new();
+            let args: Vec<String> = std::iter::once("export".to_string())
+                .chain(words.iter().map(|w| (*w).to_string()))
+                .collect();
+            let tokens: Vec<Token> = (0..args.len())
+                .map(|i| {
+                    let start = u32::try_from(i).expect("small index") * 10;
+                    esc_tok(span(start, start + 5))
+                })
+                .collect();
+            a.handle_namespace_export_command(&args, &tokens, &[]);
+            a.result
+                .namespace_exports
+                .iter()
+                .map(|e| e.pattern.clone())
+                .collect()
+        };
+
+        // The bad pattern is first: nothing is exported.
+        assert!(recorded(&["::bad", "ok"]).is_empty());
+        // …and after a valid one: only the valid one survives.
+        assert_eq!(recorded(&["ok", "::bad"]), vec!["ok".to_string()]);
+        assert_eq!(
+            recorded(&["one", "::bad", "three"]),
+            vec!["one".to_string()]
+        );
+        // A *relative* qualifier is equally invalid (oracle: `namespace
+        // export sub::pat` errors), so it aborts too.
+        assert!(recorded(&["sub::pat", "ok"]).is_empty());
+        // A lone colon is not a separator, so `a:b` is a perfectly valid
+        // pattern and must not abort (oracle: exports `a:b`).
+        assert_eq!(
+            recorded(&["a:b", "ok"]),
+            vec!["a:b".to_string(), "ok".to_string()]
+        );
+        // The empty pattern is valid too (oracle: exports `{} ok`).
+        assert_eq!(recorded(&["", "ok"]), vec![String::new(), "ok".to_string()]);
+    }
+
+    #[test]
+    fn handle_namespace_export_clear_commits_before_an_invalid_pattern() {
+        // C spends a whole `Tcl_Export(…, "::", 1)` call on `-clear`, which
+        // resets the list before any pattern is looked at, so a later bad
+        // pattern cannot undo it. Oracle: a namespace exporting `keep`, then
+        // `namespace export -clear ::bad`, exports nothing afterwards.
+        let mut a = Analyser::new();
+        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.handle_namespace_export_command(
+            &[
+                "export".to_string(),
+                "-clear".to_string(),
+                "::bad".to_string(),
+            ],
+            &[
+                esc_tok(span(0, 6)),
+                esc_tok(span(7, 13)),
+                esc_tok(span(14, 19)),
+            ],
+            &[],
+        );
+        let events: Vec<(&str, bool)> = a
+            .result
+            .namespace_exports
+            .iter()
+            .map(|e| (e.pattern.as_str(), e.clears))
+            .collect();
+        assert_eq!(events, vec![("", true)]);
     }
 
     #[test]

@@ -73,7 +73,7 @@
 
 use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::segment_commands_with_offset;
-use tcl_dialect::NumberSyntax;
+use tcl_dialect::{BracedVarStyle, NumberSyntax};
 use tcl_lexer::{Token, TokenType};
 use tcl_registry::{ArgRole, CommandRegistry};
 
@@ -149,8 +149,12 @@ pub fn inline_proc_in_program(
     let numbers = tcl_dialect::DialectProfile::by_name(&analysis.dialect)
         .grammar
         .numbers;
+    // …and its `${…}` close rule, for the same reason: which bytes are the
+    // variable's name is release-dependent, and this transform rewrites the
+    // reference's own span (issue #1605).
+    let style = super::braced_var_style(analysis);
 
-    match plan_inline(source, &call, proc_def, registry, numbers) {
+    match plan_inline(source, &call, proc_def, registry, numbers, style) {
         Ok(new_text) => Some(Refactoring {
             title,
             edits: vec![RefactorEdit {
@@ -179,6 +183,7 @@ fn plan_inline(
     proc_def: &tcl_compiler::analyser::ProcDef,
     registry: &CommandRegistry,
     numbers: NumberSyntax,
+    style: BracedVarStyle,
 ) -> Result<String, String> {
     if proc_def.params_computed {
         return Err(
@@ -190,8 +195,8 @@ fn plan_inline(
     let bindings = bind_arguments(source, call, proc_def)?;
     reject_frame_sensitive_body(&body, registry)?;
     reject_body_variable_writes(&body, registry)?;
-    reject_args_reference(&body, proc_def)?;
-    substitute_bindings(&body, &bindings, registry, numbers)
+    reject_args_reference(&body, proc_def, style)?;
+    substitute_bindings(&body, &bindings, registry, numbers, style)
 }
 
 /// One command's worth of proc body, re-segmented so its argument roles and
@@ -452,11 +457,12 @@ fn reject_body_variable_writes(
 fn reject_args_reference(
     body: &BodyCommand,
     proc_def: &tcl_compiler::analyser::ProcDef,
+    style: BracedVarStyle,
 ) -> Result<(), String> {
     if proc_def.params.last().is_none_or(|p| p.name != "args") {
         return Ok(());
     }
-    if variable_references(&body.text)
+    if variable_references(&body.text, style)
         .into_iter()
         .any(|(name, _, _)| name == "args")
     {
@@ -477,8 +483,9 @@ fn substitute_bindings(
     bindings: &[Binding],
     registry: &CommandRegistry,
     numbers: NumberSyntax,
+    style: BracedVarStyle,
 ) -> Result<String, String> {
-    let references = variable_references(&body.text);
+    let references = variable_references(&body.text, style);
     let expr_ranges = expr_argument_ranges(&body.command, registry);
     let mut replacements: Vec<(usize, usize, String)> = Vec::new();
     for binding in bindings {
@@ -562,39 +569,11 @@ fn expr_argument_ranges(
 /// Matching whole references rather than doing a `str::replace` is what keeps
 /// `$nn` intact when the parameter is `n`, and stops a `$name` embedded in a
 /// longer token being half-rewritten.
-fn variable_references(text: &str) -> Vec<(String, usize, usize)> {
-    let bytes = text.as_bytes();
-    let mut out = Vec::new();
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] != b'$' {
-            index += 1;
-            continue;
-        }
-        if bytes.get(index + 1) == Some(&b'{') {
-            if let Some(offset) = text.get(index + 2..).and_then(|rest| rest.find('}')) {
-                let name = text[index + 2..index + 2 + offset].to_string();
-                out.push((name, index, index + 2 + offset + 1));
-                index = index + 2 + offset + 1;
-                continue;
-            }
-            index += 1;
-            continue;
-        }
-        let mut end = index + 1;
-        while end < bytes.len()
-            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b':')
-        {
-            end += 1;
-        }
-        if end > index + 1 {
-            out.push((text[index + 1..end].to_string(), index, end));
-            index = end;
-        } else {
-            index += 1;
-        }
-    }
-    out
+/// Every `$name` / `${name}` reference in `text`, with the byte span of the
+/// whole reference — the span this transform rewrites, so it must be the
+/// span the document's own release would parse (issue #1605).
+fn variable_references(text: &str, style: BracedVarStyle) -> Vec<(String, usize, usize)> {
+    super::variable_reference_spans(text, style)
 }
 
 /// `true` when `value` can be written into any Tcl word position verbatim
@@ -941,8 +920,33 @@ mod tests {
 
     #[test]
     fn variable_references_finds_whole_names_only() {
-        let found = variable_references("puts $n$nn ${n}x");
+        let found = variable_references("puts $n$nn ${n}x", BracedVarStyle::Tcl9Nesting);
         let names: Vec<&str> = found.iter().map(|(name, _, _)| name.as_str()).collect();
         assert_eq!(names, vec!["n", "nn", "n"]);
+    }
+
+    /// Issue #1605 — inline-proc **rewrites** each reference's own byte
+    /// span, so the span must be the one the document's release parses. On a
+    /// 9.x document `${a{b}c}` is one reference spanning all 8 bytes; on 8.x
+    /// it ends at the first `}` and the trailing `c}` is word text that must
+    /// survive the substitution untouched.
+    ///
+    /// Oracle: `puts ${a{b}c}` prints `NINE` on tclsh 9.0.4 and `EIGHTc}` on
+    /// 8.6.16.
+    #[test]
+    fn variable_reference_spans_follow_the_documents_release() {
+        let text = "puts ${a{b}c}";
+        let nine = variable_references(text, BracedVarStyle::Tcl9Nesting);
+        assert_eq!(nine.len(), 1, "{nine:?}");
+        assert_eq!(nine[0].0, "a{b}c");
+        // `$` at 5 through the closing `}` at 12 inclusive.
+        assert_eq!((nine[0].1, nine[0].2), (5, 13));
+
+        let eight = variable_references(text, BracedVarStyle::FirstClose);
+        assert_eq!(eight.len(), 1, "{eight:?}");
+        assert_eq!(eight[0].0, "a{b");
+        // The reference stops before `c}`, which stays ordinary word text.
+        assert_eq!((eight[0].1, eight[0].2), (5, 11));
+        assert_eq!(&text[eight[0].2..], "c}");
     }
 }

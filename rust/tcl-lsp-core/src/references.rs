@@ -4579,6 +4579,55 @@ mod tests {
         );
     }
 
+    /// Issue #1611 — the analyser's own dispatch recording resolves the
+    /// subcommand the way the ensemble does, so an **abbreviated** call site
+    /// is a reference too. Oracle (tclsh 8.6.16 / 9.0.4): with `-map {foo
+    /// ::e::Foo}` and the default `-prefixes 1`, `e fo` returns `foo: bar`.
+    ///
+    /// The abbreviated site sits inside a proc body so the deferred replay
+    /// path (`flush_pending_ensemble_subcommand_invocations`) resolves it,
+    /// not only the direct one.
+    #[test]
+    fn ensemble_abbreviated_dispatch_is_a_reference_to_the_target() {
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\nproc caller {} {\n    return [e fo bar]\n}\n";
+        let analysis = analyse(src);
+        // Cursor on the declaration of ::e::Foo (0-based line 5).
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            11,
+            &analysis,
+            true,
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == 7),
+            "expected the abbreviated call site inside the proc body: {refs:?}",
+        );
+    }
+
+    /// The `-prefixes 0` counterpart: prefix matching is off, so the
+    /// abbreviated word is a plain unknown subcommand and must NOT be
+    /// recorded as a dispatch reference. Oracle: `g fo` errors
+    /// `unknown subcommand "fo": must be foo`.
+    #[test]
+    fn prefixless_ensemble_abbreviation_is_not_a_reference() {
+        let src = "namespace eval ::g {\n    namespace ensemble create -map {\n        foo ::g::Foo\n    } -prefixes 0\n}\nproc ::g::Foo {args} { return G }\nproc caller {} {\n    return [g fo bar]\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            5,
+            11,
+            &analysis,
+            true,
+        );
+        assert!(
+            !refs.iter().any(|r| r.start_line == 7),
+            "a -prefixes 0 ensemble must not resolve the abbreviation: {refs:?}",
+        );
+    }
+
     /// Issue #923 idx 85 — the ensemble is created by
     /// `namespace ensemble create -map` inside a proc declared with a
     /// fully-qualified name at top level, with no enclosing `namespace eval`,

@@ -1868,6 +1868,16 @@ pub struct AnalysisResult {
     /// the name — because a consumer that rewrites the subcommand word
     /// (rename) is only correct for one of the two.
     pub ensemble_subcommand_targets: HashMap<String, HashMap<String, EnsembleSubcommandTarget>>,
+    /// Resolved command names of ensembles this file configured with
+    /// `namespace ensemble … -prefixes 0`, which turns off the
+    /// `Tcl_GetIndexFromObj` prefix matching every other ensemble has.
+    ///
+    /// Consulted by the abbreviation machinery (W145 and the formatter's
+    /// expansion) so an abbreviation on such an ensemble is never reported
+    /// ambiguous or rewritten, and by
+    /// [`Self::resolve_ensemble_subcommand`] so navigation does not follow
+    /// an abbreviation the ensemble would refuse.
+    pub prefixless_ensembles: std::collections::HashSet<String>,
     /// Namespace import records.
     pub namespace_imports: Vec<SignatureNamespaceImport>,
     /// Namespace `forget` records — the removal half of the import edge's
@@ -2118,6 +2128,56 @@ pub struct AnalysisResult {
 }
 
 impl AnalysisResult {
+    /// Does this document configure the ensemble resolving to `ensemble`
+    /// with `namespace ensemble … -prefixes 0`?
+    ///
+    /// [`Self::prefixless_ensembles`] is keyed by the ensemble's resolved
+    /// command name, which callers hold in either spelling depending on how
+    /// they got it, so both are tried here rather than at each call site.
+    #[must_use]
+    pub fn ensemble_refuses_prefixes(&self, ensemble: &str) -> bool {
+        self.prefixless_ensembles.contains(ensemble)
+            || self
+                .prefixless_ensembles
+                .contains(&format!("::{}", ensemble.trim_start_matches(':')))
+    }
+
+    /// Resolve `sub` against the subcommands recorded for the ensemble
+    /// command `ensemble`, the way the ensemble itself would
+    /// (`NsEnsembleImplementationCmd`): an exact name first, then — unless
+    /// the ensemble was configured `-prefixes 0` — a **unique** prefix.
+    ///
+    /// The match rule is not re-derived here: it is
+    /// [`tcl_cmd_core::ensemble::resolve_subcommand`], the owner the engines
+    /// dispatch through, so navigation follows exactly the subcommand real
+    /// Tcl would run. An *ambiguous* prefix resolves to nothing and the
+    /// caller keeps abstaining — the ensemble would error there, so there is
+    /// no target to point at (issue #1611).
+    ///
+    /// `None` when the ensemble is unknown to this document, its `-map` was
+    /// dynamic (nothing is ever recorded for it), or `sub` matches nothing.
+    #[must_use]
+    pub fn resolve_ensemble_subcommand(
+        &self,
+        ensemble: &str,
+        sub: &str,
+    ) -> Option<&EnsembleSubcommandTarget> {
+        let subs = self.ensemble_subcommand_targets.get(ensemble)?;
+        if let Some(entry) = subs.get(sub) {
+            return Some(entry); // the exact-name probe C does first
+        }
+        // The recorded map is unordered; the scan needs a stable candidate
+        // order to call a prefix unique, and C's own table is sorted.
+        let mut names: Vec<&str> = subs.keys().map(String::as_str).collect();
+        names.sort_unstable();
+        let index = tcl_cmd_core::ensemble::resolve_subcommand(
+            &names,
+            sub.as_bytes(),
+            !self.ensemble_refuses_prefixes(ensemble),
+        )?;
+        subs.get(names[index])
+    }
+
     /// Every **class factory** this document declares, keyed by qualified
     /// name — the slice a host merges into the workspace factory index it
     /// feeds back through
