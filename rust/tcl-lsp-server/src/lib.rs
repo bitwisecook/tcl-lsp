@@ -19543,7 +19543,11 @@ fn apl_presentation_diagnostics(
     disabled: &HashSet<String>,
 ) -> Vec<tower_lsp_server::ls_types::Diagnostic> {
     let model = tcl_bigip::apl::parse_apl(text);
-    tcl_bigip::apl::validate_iapp_presentation(&model, impl_var_refs, "f5-iapps")
+    tcl_bigip::apl::validate_iapp_presentation(
+        &model,
+        impl_var_refs,
+        tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+    )
         .into_iter()
         .filter(|d| !disabled.contains(&d.code))
         .map(|d| lift_config_diagnostic(&d))

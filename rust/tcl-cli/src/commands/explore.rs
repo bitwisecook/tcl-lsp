@@ -51,7 +51,7 @@ pub fn run_explore(
     let _registry = tcl_cli_support::registry_for_dialect(dialect.name);
 
     if tui {
-        return run_tui(&source, dialect.name);
+        return run_tui(&source, dialect);
     }
 
     let result = tcl_explorer::run_pipeline(&source, dialect.name);
@@ -72,13 +72,13 @@ pub fn run_explore(
 
 /// Launch the interactive TUI (feature `tui`), or explain how to enable it.
 #[cfg(feature = "tui")]
-fn run_tui(source: &str, dialect: &str) -> anyhow::Result<u8> {
+fn run_tui(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> anyhow::Result<u8> {
     crate::tui::run(source, dialect)?;
     Ok(0)
 }
 
 #[cfg(not(feature = "tui"))]
-fn run_tui(_source: &str, _dialect: &str) -> anyhow::Result<u8> {
+fn run_tui(_source: &str, _dialect: &'static tcl_dialect::DialectProfile) -> anyhow::Result<u8> {
     anyhow::bail!("the TUI is not compiled in — rebuild with `--features tui`");
 }
 

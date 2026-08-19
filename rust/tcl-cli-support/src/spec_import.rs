@@ -105,7 +105,7 @@ pub enum SpecImportError {
 #[derive(Debug, Clone, Copy)]
 pub struct SpecImportOptions<'a> {
     /// Registry dialect every snapshot is analysed as.
-    pub dialect: &'a str,
+    pub dialect: &'static tcl_dialect::DialectProfile,
     /// Pack name override; otherwise the `package provide` name is used.
     pub package: Option<&'a str>,
     /// Whether the snapshots are *every* release of the package.
@@ -358,7 +358,7 @@ pub fn import_snapshots(
 ) -> SpecImport {
     let import = import_package_versions(
         snapshots,
-        options.dialect,
+        options.dialect.name,
         &VersionedImportOptions {
             complete_history: options.complete_history,
         },
@@ -442,7 +442,7 @@ fn header_comments(
         "Derived by `tcl spec import` from {} release snapshot(s) of `{package}`, \
          analysed as dialect {}.",
         versions.len(),
-        options.dialect
+        options.dialect.name
     ));
     line(&format!("Releases, oldest first: {}", versions.join(", ")));
     if options.complete_history {

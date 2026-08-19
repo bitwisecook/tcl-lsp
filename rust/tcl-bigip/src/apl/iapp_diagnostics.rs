@@ -52,8 +52,8 @@ pub const IAPP_DIAGNOSTIC_CODES: &[DiagCode] =
 
 /// Whether `dialect` is one where iApp checks apply.
 #[must_use]
-pub fn iapp_dialect_active(dialect: &str) -> bool {
-    IAPP_DIALECTS.contains(&dialect)
+pub fn iapp_dialect_active(dialect: &'static tcl_dialect::DialectProfile) -> bool {
+    IAPP_DIALECTS.contains(&dialect.name)
 }
 
 /// Validate an APL presentation model, optionally cross-checked against
@@ -68,7 +68,7 @@ pub fn iapp_dialect_active(dialect: &str) -> bool {
 pub fn validate_iapp_presentation(
     model: &AplModel,
     impl_var_refs: Option<&[IappVarRef]>,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<ConfigDiagnostic> {
     if !iapp_dialect_active(dialect) {
         return Vec::new();
@@ -134,7 +134,7 @@ pub fn validate_iapp_presentation(
 pub fn validate_iapp_implementation(
     impl_var_refs: &[IappVarRef],
     model: Option<&AplModel>,
-    dialect: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<ConfigDiagnostic> {
     if !iapp_dialect_active(dialect) {
         return Vec::new();
@@ -202,7 +202,7 @@ mod tests {
     fn iapp7001_fires_for_undefined_variable() {
         let model = parse_apl(PRESENTATION);
         let refs = extract_iapp_var_refs("set x $::basic__missing");
-        let diags = validate_iapp_implementation(&refs, Some(&model), "f5-iapps");
+        let diags = validate_iapp_implementation(&refs, Some(&model), tcl_dialect::DialectProfile::by_name("f5-iapps"));
         assert!(codes(&diags).contains(&"IAPP7001"));
     }
 
@@ -210,7 +210,7 @@ mod tests {
     fn iapp7001_quiet_for_defined_variable() {
         let model = parse_apl(PRESENTATION);
         let refs = extract_iapp_var_refs("set x $::basic__addr");
-        let diags = validate_iapp_implementation(&refs, Some(&model), "f5-iapps");
+        let diags = validate_iapp_implementation(&refs, Some(&model), tcl_dialect::DialectProfile::by_name("f5-iapps"));
         assert!(diags.is_empty());
     }
 
@@ -219,7 +219,7 @@ mod tests {
         let model = parse_apl(PRESENTATION);
         // Implementation references only `basic.addr`, leaving `basic.port`.
         let refs = extract_iapp_var_refs("set x $::basic__addr");
-        let diags = validate_iapp_presentation(&model, Some(&refs), "f5-iapps");
+        let diags = validate_iapp_presentation(&model, Some(&refs), tcl_dialect::DialectProfile::by_name("f5-iapps"));
         assert!(codes(&diags).contains(&"IAPP7002"));
     }
 
@@ -227,7 +227,7 @@ mod tests {
     fn no_iapp_checks_outside_iapp_dialects() {
         let model = parse_apl(PRESENTATION);
         let refs = extract_iapp_var_refs("set x $::basic__missing");
-        assert!(validate_iapp_implementation(&refs, Some(&model), "tcl").is_empty());
-        assert!(validate_iapp_presentation(&model, Some(&refs), "f5-irules").is_empty());
+        assert!(validate_iapp_implementation(&refs, Some(&model), tcl_dialect::DialectProfile::by_name("tcl")).is_empty());
+        assert!(validate_iapp_presentation(&model, Some(&refs), tcl_dialect::DialectProfile::by_name("f5-irules")).is_empty());
     }
 }

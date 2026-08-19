@@ -154,7 +154,7 @@ pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -
         diagnostics.extend(tcl_bigip::apl::validate_iapp_presentation(
             &model,
             refs.as_deref(),
-            "f5-iapps",
+            tcl_dialect::DialectProfile::by_name("f5-iapps"),
         ));
     } else if is_iapp_implementation_uri(uri)
         && let Some(presentation) = iapp_peer(uri, sources, false)
@@ -164,7 +164,7 @@ pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -
         diagnostics.extend(tcl_bigip::apl::validate_iapp_implementation(
             &refs,
             Some(&model),
-            "f5-iapps",
+            tcl_dialect::DialectProfile::by_name("f5-iapps"),
         ));
     }
     J::Array(diagnostics.iter().map(f5_diagnostic_json).collect())

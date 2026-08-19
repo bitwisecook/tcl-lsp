@@ -178,7 +178,7 @@ pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
     let import = import_snapshots(
         &snapshots,
         &SpecImportOptions {
-            dialect: &args.dialect,
+            dialect: tcl_dialect::DialectProfile::by_name(&args.dialect),
             package: args.package.as_deref(),
             complete_history,
         },

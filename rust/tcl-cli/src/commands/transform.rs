@@ -105,7 +105,7 @@ pub fn run_format(
         &formatted,
         use_colour,
         DEFAULT_TAB_WIDTH,
-        dialect.name,
+        dialect,
     )?;
     Ok(0)
 }
@@ -183,7 +183,7 @@ pub fn run_opt(
         &rendered,
         use_colour,
         DEFAULT_TAB_WIDTH,
-        dialect.name,
+        dialect,
     )?;
 
     if !target.is_stdout() {
@@ -281,7 +281,7 @@ pub fn run_minify(
         &rendered,
         use_colour,
         DEFAULT_TAB_WIDTH,
-        dialect.name,
+        dialect,
     )?;
 
     if let Some(path) = symbol_map {

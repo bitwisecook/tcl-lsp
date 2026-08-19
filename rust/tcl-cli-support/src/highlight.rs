@@ -25,7 +25,7 @@
 
 use std::collections::HashSet;
 
-use crate::registry_for_dialect;
+use tcl_registry::cache::registry_for_profile;
 use tcl_compiler::segmenter::segment_commands;
 use tcl_lexer::{Lexer, TokenType};
 
@@ -98,8 +98,8 @@ fn token_kind(
 }
 
 /// Collect the spans of command heads and resolved subcommands.
-fn collect_command_spans(source: &str, dialect: &str) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
-    let registry = registry_for_dialect(dialect);
+fn collect_command_spans(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> (HashSet<SpanKey>, HashSet<SpanKey>) {
+    let registry = registry_for_profile(dialect);
     let mut command_spans = HashSet::new();
     let mut subcommand_spans = HashSet::new();
     for command in segment_commands(source) {
@@ -133,11 +133,11 @@ fn is_body_token(text: &str) -> bool {
 /// ANSI-highlight `source` for the given dialect. Caller decides whether colour
 /// is wanted (ANSI colour variant).
 #[must_use]
-pub fn highlight_ansi(source: &str, dialect: &str) -> String {
+pub fn highlight_ansi(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
     highlight_ansi_inner(source, dialect, 0)
 }
 
-fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
+fn highlight_ansi_inner(source: &str, dialect: &'static tcl_dialect::DialectProfile, depth: u32) -> String {
     if source.is_empty() || depth > 8 {
         return source.to_owned();
     }
@@ -191,7 +191,7 @@ fn highlight_ansi_inner(source: &str, dialect: &str, depth: u32) -> String {
 
 /// HTML-highlight `source`.
 #[must_use]
-pub fn highlight_html(source: &str, dialect: &str) -> String {
+pub fn highlight_html(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
     if source.is_empty() {
         return "<pre></pre>\n".to_owned();
     }
