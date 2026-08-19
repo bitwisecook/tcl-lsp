@@ -2801,7 +2801,7 @@ fn visit_string_interpolation(
     if is_whole_word_cmd_subst(inside) {
         return;
     }
-    let Some(rewritten) = substitute_dollar_refs(inside, constants) else {
+    let Some(rewritten) = substitute_dollar_refs(inside, constants, ctx.braced_var()) else {
         return;
     };
     if rewritten == inside {
@@ -2829,6 +2829,7 @@ fn visit_string_interpolation(
 fn substitute_dollar_refs(
     text: &str,
     constants: &std::collections::HashMap<String, String>,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     let bytes = text.as_bytes();
     let mut out = String::with_capacity(text.len());
@@ -2875,14 +2876,17 @@ fn substitute_dollar_refs(
             return None;
         }
         let (name, new_i) = if bytes[i] == b'{' {
+            // The name starts just past the `${`; its closer is the shared
+            // owner's, under this document's release rule. Reading it with a
+            // fixed first-`}` scan named a *different* variable than the one
+            // the lexer spanned, so this rewrite could inline the constant of
+            // some other name into the string (issue #1604).
             let start = i + 1;
-            let mut end = start;
-            while end < bytes.len() && bytes[end] != b'}' {
-                end += 1;
-            }
-            if end >= bytes.len() {
+            let tcl_lexer::BracedVarEnd::Closed(end) =
+                tcl_lexer::braced_var_name_end(bytes, start, braced_var)
+            else {
                 return None;
-            }
+            };
             (
                 std::str::from_utf8(&bytes[start..end]).ok()?.to_owned(),
                 end + 1,
@@ -3255,6 +3259,34 @@ mod tests {
 
     // internal helpers
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// constant this rewrite inlines belongs to the name the lexer spanned.
+    ///
+    /// The rewritten text is written back into the document as an O100 fix, so
+    /// resolving the wrong name substitutes some other variable's value into
+    /// the user's string.
+    #[test]
+    fn substitute_dollar_refs_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let mut c = std::collections::HashMap::new();
+        c.insert("a{b}c".to_owned(), "NESTED".to_owned());
+        c.insert("a{b".to_owned(), "FIRST".to_owned());
+
+        // 9.x names `a{b}c`; the whole reference is consumed.
+        assert_eq!(
+            substitute_dollar_refs("v=${a{b}c}", &c, Tcl9Nesting).as_deref(),
+            Some("v=NESTED")
+        );
+        // 8.x names `a{b`, and `c}` stays as literal word text.
+        assert_eq!(
+            substitute_dollar_refs("v=${a{b}c}", &c, FirstClose).as_deref(),
+            Some("v=FIRSTc}")
+        );
+        // An unterminated reference declines the whole rewrite rather than
+        // inventing a name that runs to end-of-input.
+        assert!(substitute_dollar_refs("v=${a{b", &c, Tcl9Nesting).is_none());
+    }
+
     #[test]
     fn simple_var_ref_parses_bare_and_braced() {
         assert_eq!(simple_var_ref("$foo"), Some("foo"));
@@ -3579,11 +3611,14 @@ mod tests {
         let mut c = std::collections::HashMap::new();
         c.insert("x".into(), "42".into());
         assert_eq!(
-            substitute_dollar_refs("a${x}b", &c).as_deref(),
+            substitute_dollar_refs("a${x}b", &c, tcl_dialect::BracedVarStyle::default()).as_deref(),
             Some("a42b"),
         );
         // Missing var → None (cannot partially substitute).
-        assert!(substitute_dollar_refs("$unknown", &c).is_none());
+        assert!(
+            substitute_dollar_refs("$unknown", &c, tcl_dialect::BracedVarStyle::default())
+                .is_none()
+        );
     }
 
     #[test]
@@ -3594,15 +3629,27 @@ mod tests {
         // A multi-word value in plain string text inlines verbatim (it stays
         // part of the one string word).
         assert_eq!(
-            substitute_dollar_refs("x=$lst", &c).as_deref(),
+            substitute_dollar_refs("x=$lst", &c, tcl_dialect::BracedVarStyle::default()).as_deref(),
             Some("x=a b c"),
         );
         // The SAME value inside a `[…]` command substitution would split one
         // argument into several — bail, keeping `$lst`.
-        assert!(substitute_dollar_refs("r: [lsearch $lst x]", &c).is_none());
+        assert!(
+            substitute_dollar_refs(
+                "r: [lsearch $lst x]",
+                &c,
+                tcl_dialect::BracedVarStyle::default()
+            )
+            .is_none()
+        );
         // A single-word value inside a cmd-sub is still safe to inline.
         assert_eq!(
-            substitute_dollar_refs("r: [expr $n + 1]", &c).as_deref(),
+            substitute_dollar_refs(
+                "r: [expr $n + 1]",
+                &c,
+                tcl_dialect::BracedVarStyle::default()
+            )
+            .as_deref(),
             Some("r: [expr 5 + 1]"),
         );
     }

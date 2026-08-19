@@ -1088,7 +1088,8 @@ impl Analyser {
         // is an SCCP const and *every* composed name `<value>::tail` resolves to
         // a known command/proc/class, the dispatch is statically resolvable —
         // suppress.  A composition that resolves to nothing still fires.
-        if let Some((prefix, tail)) = parse_namespaced_ensemble(&self.source, site.cmd_span)
+        if let Some((prefix, tail)) =
+            parse_namespaced_ensemble(&self.source, site.cmd_span, self.braced_var())
             && let Some(values) = ctx.all_constsets.get(&prefix)
             && !values.is_empty()
             && values
@@ -2399,7 +2400,8 @@ impl Analyser {
                 kept.push(d);
                 continue;
             }
-            let Some(resolved) = crate::text::fold_interpolation_set(&cmd_name, &all_constsets)
+            let Some(resolved) =
+                crate::text::fold_interpolation_set(&cmd_name, &all_constsets, self.braced_var())
             else {
                 kept.push(d);
                 continue;
@@ -2450,16 +2452,28 @@ impl Analyser {
 /// so it must NOT be treated as ensemble dispatch.  This only matters after
 /// a `${…}` closing brace — the bare VAR token already swallows the `::tail`,
 /// so the character after it is never `::`.
-fn parse_namespaced_ensemble(source: &str, span: tcl_lexer::Span) -> Option<(String, String)> {
+fn parse_namespaced_ensemble(
+    source: &str,
+    span: tcl_lexer::Span,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Option<(String, String)> {
     let start = span.start() as usize;
     let end = (span.end() as usize).min(source.len());
     if start >= end {
         return None;
     }
     let head = &source[start..end];
-    let braced = head.strip_prefix("${")?;
-    let close = braced.find('}')?;
-    let (prefix, after) = (&braced[..close], &braced[close + 1..]);
+    head.strip_prefix("${")?;
+    // The closer comes from the shared owner under this document's release
+    // rule — `2` is the byte just past the `${`. A first-`}` scan split
+    // `${a{b}c}::tail` at the wrong brace, so the prefix this reports is a
+    // variable the source never names (issue #1604).
+    let tcl_lexer::BracedVarEnd::Closed(close) =
+        tcl_lexer::braced_var_name_end(head.as_bytes(), 2, braced_var)
+    else {
+        return None;
+    };
+    let (prefix, after) = (&head[2..close], &head[close + 1..]);
     let tail = after.strip_prefix("::")?;
     // Both prefix and tail must be non-empty; a `${arr(key)}` array element is
     // not an ensemble prefix.

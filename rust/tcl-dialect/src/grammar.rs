@@ -127,6 +127,21 @@ impl BracedVarStyle {
             crate::DialectProfile::by_name(n).grammar.braced_var
         })
     }
+
+    /// The rule of an already-resolved `profile`, or the 9.x default when the
+    /// caller has none.
+    ///
+    /// The compiler layers that carry an `Option<&DialectProfile>` — the
+    /// optimiser's `PassContext`, GVN's per-function `dialect`, the taint
+    /// context, the W313 scan — each need exactly this mapping, and each grew
+    /// its own copy of it during the issue-#1604 sweep. One copy lives here,
+    /// beside [`Self::of_dialect_name`], so "no dialect means the default
+    /// rule" is stated once: a layer that answered differently would read the
+    /// same bytes under a rule the document was not lexed with.
+    #[must_use]
+    pub fn of_profile(profile: Option<&crate::DialectProfile>) -> Self {
+        profile.map_or(Self::default(), |p| p.grammar.braced_var)
+    }
 }
 
 /// Whether `#` starts a comment inside an `[expr]` body — Tcl 9.0 added it

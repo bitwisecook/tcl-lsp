@@ -243,6 +243,7 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
     text: &str,
     uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> String {
     use std::fmt::Write as _;
     if uses.is_empty() {
@@ -259,13 +260,16 @@ pub fn canonicalise_word<S: std::hash::BuildHasher>(
         }
         // At `$` — inspect the next char.
         if i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-            // `${name}` — find the closing brace.
+            // `${name}` — the name starts just past the `${`, and its closer
+            // comes from the shared owner under this document's release rule.
+            // A name this misreads is not merely unversioned: the reference is
+            // then copied through verbatim, so two occurrences at *different*
+            // SSA versions produce the same key and GVN treats them as
+            // redundant — an unsound CSE, not a lost one (issue #1604).
             let start = i + 2;
-            let mut j = start;
-            while j < bytes.len() && bytes[j] != b'}' {
-                j += 1;
-            }
-            if j < bytes.len() {
+            if let tcl_lexer::BracedVarEnd::Closed(j) =
+                tcl_lexer::braced_var_name_end(bytes, start, braced_var)
+            {
                 let name = &text[start..j];
                 if let Some(ver) = ssa.var_symbol(name).and_then(|s| uses.get(&s)) {
                     let _ = write!(out, "${name}@{ver}");
@@ -316,12 +320,13 @@ pub fn build_call_key<S: std::hash::BuildHasher>(
     args: &[String],
     uses: &HashMap<crate::ssa::Symbol, u32, S>,
     ssa: &SsaFunction,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> ExprKey {
     let mut parts: ExprKey = Vec::with_capacity(2 + args.len());
     parts.push("call".into());
     parts.push(command.to_owned());
     for arg in args {
-        parts.push(canonicalise_word(arg, uses, ssa));
+        parts.push(canonicalise_word(arg, uses, ssa, braced_var));
     }
     parts
 }
@@ -1048,7 +1053,13 @@ fn statement_occurrences_for_gvn(
             GvnLegalitySource::Common(None) => None,
         };
         if let Some((canonical_command, world_key)) = eligible {
-            let mut key = build_call_key(canonical_command, args, &stmt_ssa.uses, ssa);
+            let mut key = build_call_key(
+                canonical_command,
+                args,
+                &stmt_ssa.uses,
+                ssa,
+                tcl_dialect::BracedVarStyle::of_profile(dialect),
+            );
             // Two occurrences may only match when the world state their
             // dispatch and result depend on carries the same versions.
             key.extend(world_key.iter().cloned());
@@ -1083,7 +1094,13 @@ fn statement_occurrences_for_gvn(
                 continue;
             }
             out.push(ExprOccurrence {
-                key: build_call_key(&cmd, &args, &stmt_ssa.uses, ssa),
+                key: build_call_key(
+                    &cmd,
+                    &args,
+                    &stmt_ssa.uses,
+                    ssa,
+                    tcl_dialect::BracedVarStyle::of_profile(dialect),
+                ),
                 span,
                 expression_text: format_expression_text(&cmd, &args),
                 block: block_name.to_owned(),
@@ -2099,6 +2116,10 @@ pub fn find_loop_invariants_for_cu(
 
 #[cfg(test)]
 mod tests {
+    /// The default document's `${…}` close rule — these unit tests build no
+    /// dialect profile, so they exercise the same style the lexer would use.
+    const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+
     use super::*;
     use crate::semantic_analysis::ExecutableAnalysisAvailability;
 
@@ -2525,7 +2546,7 @@ mod tests {
     fn canonicalise_empty_uses_returns_input() {
         let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("foo", &uses, &ssa), "foo");
+        assert_eq!(canonicalise_word("foo", &uses, &ssa, STYLE), "foo");
     }
 
     #[test]
@@ -2533,8 +2554,47 @@ mod tests {
         let mut ssa = bare_ssa();
         let mut uses = HashMap::new();
         uses.insert(ssa.intern_var("x"), 3);
-        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x@3");
-        assert_eq!(canonicalise_word("${x}", &uses, &ssa), "$x@3");
+        assert_eq!(canonicalise_word("$x", &uses, &ssa, STYLE), "$x@3");
+        assert_eq!(canonicalise_word("${x}", &uses, &ssa, STYLE), "$x@3");
+    }
+
+    /// Issue #1604 — the `${…}` closer follows the release rule, so a
+    /// nested-brace name is *versioned* rather than copied through verbatim.
+    ///
+    /// The verbatim copy is the unsound half: two occurrences of `${a{b}c}` at
+    /// different SSA versions both render to the same literal text, so their
+    /// `ExprKey`s match and GVN reports the second as redundant — a CSE that
+    /// reuses a stale value. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7`
+    /// on tclsh 9.0.4 and `can't read "a{b"` on 8.6.16.
+    #[test]
+    fn canonicalise_braced_var_follows_the_release_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let mut ssa = bare_ssa();
+        let mut uses = HashMap::new();
+        let nested = ssa.intern_var("a{b}c");
+        let first = ssa.intern_var("a{b");
+        uses.insert(nested, 4);
+        uses.insert(first, 9);
+
+        // 9.x: the whole name is `a{b}c`, so the reference carries its version.
+        assert_eq!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
+            "$a{b}c@4"
+        );
+        // 8.x: the name ends at the first `}` and `c}` is ordinary word text.
+        assert_eq!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, FirstClose),
+            "$a{b@9c}"
+        );
+
+        // Two versions of the same nested name must not canonicalise alike —
+        // the property the unsound CSE turned on.
+        let mut other = HashMap::new();
+        other.insert(nested, 5);
+        assert_ne!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
+            canonicalise_word("${a{b}c}", &other, &ssa, Tcl9Nesting),
+        );
     }
 
     #[test]
@@ -2545,7 +2605,7 @@ mod tests {
         let mut uses = HashMap::new();
         uses.insert(ssa.intern_var("long"), 1);
         uses.insert(ssa.intern_var("longname"), 2);
-        let out = canonicalise_word("$longname$long", &uses, &ssa);
+        let out = canonicalise_word("$longname$long", &uses, &ssa, STYLE);
         assert_eq!(out, "$longname@2$long@1");
     }
 
@@ -2553,7 +2613,7 @@ mod tests {
     fn canonicalise_ignores_unmentioned_variables() {
         let ssa = bare_ssa();
         let uses = HashMap::new();
-        assert_eq!(canonicalise_word("$x", &uses, &ssa), "$x");
+        assert_eq!(canonicalise_word("$x", &uses, &ssa, STYLE), "$x");
     }
 
     #[test]
@@ -2562,7 +2622,7 @@ mod tests {
         let mut uses = HashMap::new();
         uses.insert(ssa.intern_var("x"), 3);
         let args = vec!["$x".into(), "literal".into()];
-        let key = build_call_key("llength", &args, &uses, &ssa);
+        let key = build_call_key("llength", &args, &uses, &ssa, STYLE);
         assert_eq!(
             key,
             vec![

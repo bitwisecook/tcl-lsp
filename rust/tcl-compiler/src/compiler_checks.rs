@@ -531,6 +531,7 @@ pub fn push_taint_and_module_checks(
             &taints,
             &fu.sccp.executable_blocks,
             registry,
+            dialect,
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }

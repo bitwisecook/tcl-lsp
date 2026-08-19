@@ -1320,6 +1320,47 @@ impl Analyser {
         self.profile.name
     }
 
+    /// The active dialect's `${…}` close rule — the input to the shared owner
+    /// [`tcl_lexer::braced_var_name_end`].
+    ///
+    /// Every analyser scan that recovers a variable name out of free word text
+    /// must resolve the closer through the owner under *this* style. Anything
+    /// else contradicts the spans the document was lexed with: at 9.x the
+    /// lexer makes `${a{b}c}` one `Var` naming `a{b}c`, while a hard-coded
+    /// first-`}` scan reads `a{b` and reports on a variable the source never
+    /// mentions (issue #1604).
+    #[must_use]
+    pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
+        self.profile.grammar.braced_var
+    }
+
+    /// Split a `${…}`-headed `Var` token's text (as
+    /// [`tcl_lexer::SourceMap::token_text`] returns it, i.e. already past the
+    /// `${`) into the dispatched variable name and the word suffix glued to
+    /// it.
+    ///
+    /// The lexer merges a braced substitution and everything concatenated to
+    /// it into **one** `Var` token, so `${ns}::setdef` arrives as the raw text
+    /// `ns}::setdef` — the name is `ns` and `::setdef` is an ordinary suffix.
+    /// A *pure* `${x}` reference arrives as `x`, its closer already excluded
+    /// from the span, and is wholly the name.
+    ///
+    /// Both shapes fall out of the shared owner
+    /// [`tcl_lexer::braced_var_name_end`] under this dialect's rule:
+    /// `Closed` is the composite case, `Unterminated` the pure one. The
+    /// first-`}` split this replaces split `${a{b}c}::setdef` after `a{b`,
+    /// naming a variable the source never mentions and handing the rest to
+    /// the suffix fold (issue #1604). The three call sites — the const
+    /// dispatch record, the W307 head reading, and `resolve_dynamic_word` —
+    /// share it so they cannot disagree about which bytes name the variable.
+    #[must_use]
+    pub(in crate::analyser) fn split_braced_head<'t>(&self, raw: &'t str) -> (&'t str, &'t str) {
+        match tcl_lexer::braced_var_name_end(raw.as_bytes(), 0, self.braced_var()) {
+            tcl_lexer::BracedVarEnd::Closed(end) => (&raw[..end], &raw[end + 1..]),
+            tcl_lexer::BracedVarEnd::Unterminated => (raw, ""),
+        }
+    }
+
     /// `true` when `cmd_name`'s registry spec declares its pattern argument
     /// as a regular expression ([`tcl_registry::PatternType::Regex`]) —
     /// `regexp` / `regsub`.  The regex-specific analyses (W303 `ReDoS`, W306
@@ -2789,6 +2830,34 @@ impl Default for Analyser {
 mod tests {
     use super::*;
     use crate::analyser::types::ScopeKind;
+
+    /// Issue #1604 — the composite-head split asks the shared owner where the
+    /// `${…}` name ends, so the dispatched variable and the word suffix move
+    /// with the release rather than always splitting at the first `}`.
+    ///
+    /// The lexer merges `${ns}::setdef` into one `Var` token whose text is
+    /// `ns}::setdef`; a *pure* `${x}` arrives as `x`, its closer already
+    /// outside the span. Both shapes fall out of `braced_var_name_end`:
+    /// `Closed` is the composite case, `Unterminated` the pure one.
+    #[test]
+    fn split_braced_head_follows_the_release_close_rule() {
+        let mut a = Analyser::new();
+
+        // 9.x nests, so `${a{b}c}::setdef` dispatches on `a{b}c`.
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
+        assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b}c", "::setdef"));
+        // A pure `${…}` token has no closer inside its text: all name.
+        assert_eq!(a.split_braced_head("a{b}c"), ("a{b}c", ""));
+        assert_eq!(a.split_braced_head("x"), ("x", ""));
+        // A simple `$obj` / `$ns::v` head is unchanged.
+        assert_eq!(a.split_braced_head("ns::v"), ("ns::v", ""));
+
+        // 8.x ends the name at the first literal `}`.
+        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
+        assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b", "c}::setdef"));
+    }
 
     #[test]
     fn new_analyser_starts_at_global_scope_with_empty_state() {

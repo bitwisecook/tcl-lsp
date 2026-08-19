@@ -253,13 +253,36 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 /// namespace eval ::ns { variable total 5 } ; set j 1 ; set v$j 2
 ///   -> info vars ::v* is {::v1}, ::ns::total still 5
 /// ```
+/// `braced_var` is the **document's** `${…}` close rule, and it is a required
+/// parameter rather than a defaulted one on purpose. Where the closer lands
+/// decides how much of the word is *literal*, and the literal characters are
+/// the whole bound this gate rests on, so the two release rules move the
+/// answer in opposite directions:
+///
+/// - Reading an **8.x** document with the 9.x rule makes `${a{b}c}` one
+///   wildcard, which matches every cell — so a rename that is provably safe is
+///   refused (the LSP declines an otherwise-fine namespace/variable rename).
+/// - Reading a **9.x** document with the 8.x rule makes it a wildcard followed
+///   by the literal `c}` — a narrower pattern, so a cell the word really can
+///   spell is judged out of reach and the rename proceeds *unsafely*.
+///
+/// A convenience overload defaulting to [`tcl_dialect::BracedVarStyle::default`]
+/// used to exist here; every production caller
+/// (`tcl_lsp_core::rename_safety`, `tcl_lsp_core::namespace_rename`) already
+/// holds a resolved `DialectProfile`, and one of them silently taking the
+/// default is exactly the defect issue #1604 is about. It was removed so the
+/// style cannot be omitted by accident (PR #1645 review).
 #[must_use]
-pub fn dynamic_variable_word_can_spell(word: &str, qualified_cell: &str) -> bool {
+pub fn dynamic_variable_word_can_spell(
+    word: &str,
+    qualified_cell: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     // An element suffix names an element of the base array, so the *variable*
     // this word names is the base — the same split `names_a_dynamic_variable`
     // makes.
     let base = word.split_once('(').map_or(word, |(base, _)| base);
-    let pattern = name_word_pattern(base);
+    let pattern = name_word_pattern(base, braced_var);
     cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, spelling))
 }
 
@@ -278,7 +301,7 @@ enum NamePiece {
 /// substitution canonicalised to `${name}`) or as a token's verbatim
 /// spelling, so both are recognised — the same double spelling
 /// [`names_a_dynamic_variable`] documents.
-fn name_word_pattern(word: &str) -> Vec<NamePiece> {
+fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<NamePiece> {
     let bytes = word.as_bytes();
     let mut pieces: Vec<NamePiece> = Vec::new();
     let mut literal = String::new();
@@ -294,9 +317,12 @@ fn name_word_pattern(word: &str) -> Vec<NamePiece> {
     while i < bytes.len() {
         match bytes[i] {
             b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
-                i = match word[i + 2..].find('}') {
-                    Some(off) => i + 2 + off + 1,
-                    None => bytes.len(),
+                // The name starts just past the `${`. An unterminated
+                // reference has no closer, so the wildcard runs to the end of
+                // the word — which is what a lenient tokenizer does with it.
+                i = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(end) => end + 1,
+                    tcl_lexer::BracedVarEnd::Unterminated => bytes.len(),
                 };
                 push_wildcard(&mut pieces, &mut literal);
             }
@@ -796,8 +822,38 @@ fn scan_command(
 }
 
 #[cfg(test)]
+mod braced_var_close_rule_tests {
+    use super::dynamic_variable_word_can_spell as can_spell;
+    use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+
+    /// Issue #1604 — the wildcard extents come from the shared owner, so the
+    /// *literal* characters that bound what a dynamic word can spell move with
+    /// the release.
+    ///
+    /// Under the default (9.x) rule `${a{b}c}` is one wildcard and can spell
+    /// any cell; under 8.x the name ends at the first `}` and the literal `c}`
+    /// remains, which no ordinary cell name ends with. A narrower pattern is
+    /// the unsafe direction: it judges a cell the word really can reach as out
+    /// of reach, and rename proceeds.
+    #[test]
+    fn wildcard_extent_follows_the_release_close_rule() {
+        assert!(can_spell("${a{b}c}", "::v", Tcl9Nesting));
+        assert!(!can_spell("${a{b}c}", "::v", FirstClose));
+        // With the 8.x remainder actually present in the cell name, the
+        // narrower pattern does match — the literal run is the whole bound.
+        assert!(can_spell("${a{b}c}", "::xc}", FirstClose));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    /// These cases carry no `{`/`}`/`\\` in a `${…}` name, so both release
+    /// rules answer alike; pin them to the default document's rule.
+    fn dynamic_variable_word_can_spell(word: &str, cell: &str) -> bool {
+        super::dynamic_variable_word_can_spell(word, cell, tcl_dialect::BracedVarStyle::default())
+    }
 
     fn barrier_for(src: &str) -> DynamicNameBarrier {
         barrier_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl8.6"))

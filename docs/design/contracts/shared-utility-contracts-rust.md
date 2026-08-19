@@ -155,17 +155,74 @@ entry point, or gate moves without this contract being updated.
   half-typed source). The 9.x rule also *widens* what is unterminated —
   `${a\}` and `${a{b}` close under 8.x but not under 9.x.
 
-  Scope — this owns the `subst`/tokenizer surface **only**, and the
-  uncovered remainder is much larger than one path. A centralisation audit
-  found, besides the compiled-word decoders (`segmenter` / `values` /
-  `helpers`, #1568) and the runtime's script-word surface
-  (`runtime/rust/src/parse.rs::build_word`), roughly **20 free-text
-  "first `}` wins" scanners and 15 "strip the trailing `}`" helpers** spread
-  across the compiler optimiser and analyser and `tcl-lsp-core`. Every one
-  of them hard-codes a release rule this owner exists to decide. They are
-  tracked as follow-ups rather than fixed here; do not read this entry as
-  claiming the codebase has one `${...}` decoder — it has one *for the
-  surfaces named above*.
+  Scope — the surfaces consolidated on this owner are now the
+  `subst`/tokenizer surface (#1457), the compiled-word decoders
+  (`segmenter` / `values` / `helpers`, #1568), the **expression** sub-lexer
+  `expr_lexer::variable` (#1601 — an `expr` body is parsed out of an
+  ordinary Tcl word, so `expr {${a{b}c} + 1}` must resolve the reference
+  exactly as `if {${a{b}c} > 3}` does), and, from #1604, the free-text
+  scanners in `tcl-syntax::naming` and across the compiler optimiser,
+  dataflow, taint and analyser layers.
+
+  A caller **passes the resolved `BracedVarStyle` down**; it does not
+  re-derive the closer. `tcl_syntax::naming` exposes `split_braced_var_ref`
+  plus `*_for_style` entry points for every reader that unwraps `${...}`
+  (`normalise_var_name`, `var_reference`, `element_var_name`,
+  `split_array_name` and their `_braced` variants) — the no-argument
+  spellings take `BracedVarStyle::default()`, which is the rule a document
+  with no explicit dialect is lexed under, and a caller that has resolved
+  the document's dialect must use the `_for_style` form. In the compiler the
+  style comes from the layer's existing dialect view:
+  `optimiser::PassContext::braced_var`, `analyser::Analyser::braced_var`,
+  the taint `TaintCtx` / `TaintScan` / `SinkCall`, `ScanCtx`'s `LexerConfig`,
+  the `Lowerer`'s `config`. In `tcl-lsp-core` it comes from the resolved
+  `DialectProfile` the rename entry points already carry.
+
+  A **defaulting convenience overload beside a style-taking one is a trap**,
+  not a courtesy: `dynamic_names::dynamic_variable_word_can_spell` had one,
+  and all three production callers (`rename_safety` twice,
+  `namespace_rename` once) silently took it although each held a resolved
+  profile. The style is a required parameter there now, so it cannot be
+  omitted by accident (PR #1645 review). Where a defaulted spelling *is* kept
+  — the `naming` readers, whose callers number in the hundreds — the rule is
+  that a caller holding a resolved dialect must use the `_for_style` form;
+  the default is for a document that genuinely has no dialect, not a
+  shorthand for one that does.
+
+  That gate shows why the direction matters as much as the rule. The literal
+  characters around a substitution bound which cells a computed name can
+  spell, so the two rules move a rename decision opposite ways: 9.x reads
+  `${a{b}c}` as one wildcard that can spell anything (refuse the rename),
+  while 8.x ends the name at the first `}` and leaves the literal `c}`
+  (provably out of reach, allow it). Reading an 8.x document with the 9.x
+  default refuses a rename that is provably safe; reading a 9.x document with
+  the 8.x rule lets an unsafe one through.
+
+  Two classes of site are deliberately **not** threaded, and both are
+  documented in place so they are not "fixed" back into plumbing that cannot
+  change an answer:
+
+  - a scan whose own gate rejects every name the two rules can disagree
+    about. The rules differ only on names containing `{`, `}` or `\`, and
+    `analyser::param_traits::extract_var_name` accepts only
+    `[A-Za-z_][A-Za-z0-9_:]*` while `subst_nocommands`'
+    `is_complex_var_name` accepts only alphanumerics and `_`. Threading a
+    style into either could not change an answer — a mutant pinning them to
+    `FirstClose` survives, which is the proof — so both carry the reasoning
+    in place instead of the parameter;
+  - an entry point with no document profile in scope at all
+    (`auto_path_eval`, `specialise_factories`), which passes
+    `BracedVarStyle::default()` explicitly rather than silently.
+
+  Still uncovered, tracked as follow-ups: the runtime's script-word surface
+  (`runtime/rust/src/parse.rs::build_word`, which reads `${...}` from a lexed
+  `TokenType::Var` rather than through this scan), and `value_shapes`'
+  `scan_pure_var_ref` / `is_braced_whole_name_array_ref` /
+  `whole_word_scalar_var_name` — whose combined ~45 callers make them their
+  own sweep, and each of which currently *declines* on a divergent shape
+  rather than answering wrongly. Do not read this entry as claiming the
+  codebase has one `${...}` decoder — it has one *for the surfaces named
+  above*.
 
 ### `tcl-cmd-core` — portable command logic
 

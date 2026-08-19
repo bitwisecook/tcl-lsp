@@ -461,7 +461,7 @@ fn emit_dead_stores_and_unused(
     // appears in any source slice. Any def of a name referenced
     // textually is kept live — conservative but correct.
     let mut textually_referenced =
-        collect_textual_var_references(ctx.source, &fu.cfg, fu.base_offset);
+        collect_textual_var_references(ctx.source, &fu.cfg, fu.base_offset, ctx.braced_var());
     // A read-modify-write command's target buried in a substitution
     // (`lappend r [incr i $j]` reads `i`) keeps a feeding `set i 0` alive.
     if let Some(registry) = ctx.registry {
@@ -841,7 +841,20 @@ fn emit_adce_reports(
 /// suppression across proc boundaries no longer applies.
 /// Scan a slice for `$var` and `${var}` references, inserting names
 /// into *out*.  Extracted from `collect_textual_var_references`.
-fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
+///
+/// `braced_var` is the document's `${…}` close rule; the closer is located by
+/// the shared owner [`tcl_lexer::braced_var_name_end`], never re-derived here.
+/// This harvest is what keeps a textually-referenced variable's def alive, so
+/// a name it fails to see is a *wrong transform*, not a missed opportunity:
+/// under the default (9.x) rule the lexer spans `${a{b}c}` as one reference to
+/// `a{b}c`, and the old first-`}` walk harvested `a{b` — a name nothing else
+/// in the pipeline uses — leaving `set {a{b}c} 1` reported as a dead store
+/// (O109) and an unused variable (W211) despite the live read (issue #1604).
+fn scan_dollar_refs(
+    slice: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+    out: &mut HashSet<String>,
+) {
     let bytes = slice.as_bytes();
     let mut pos = 0;
     while pos < bytes.len() {
@@ -854,14 +867,19 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
             break;
         }
         if bytes[pos] == b'{' {
-            // ${name}
-            pos += 1;
-            let start = pos;
-            while pos < bytes.len() && bytes[pos] != b'}' {
-                pos += 1;
-            }
-            if start < pos
-                && let Ok(name) = std::str::from_utf8(&bytes[start..pos])
+            // ${name} — the name starts just past the `${`.
+            let start = pos + 1;
+            // An unterminated reference has no name to harvest; resume after
+            // the `{` so the rest of the slice is still scanned.
+            let close = match tcl_lexer::braced_var_name_end(bytes, start, braced_var) {
+                tcl_lexer::BracedVarEnd::Closed(end) => end,
+                tcl_lexer::BracedVarEnd::Unterminated => {
+                    pos = start;
+                    continue;
+                }
+            };
+            if start < close
+                && let Ok(name) = std::str::from_utf8(&bytes[start..close])
             {
                 // Strip any array index.
                 let name = name.split('(').next().unwrap_or(name);
@@ -869,9 +887,7 @@ fn scan_dollar_refs(slice: &str, out: &mut HashSet<String>) {
                     out.insert(name.to_owned());
                 }
             }
-            if pos < bytes.len() {
-                pos += 1; // consume closing `}`
-            }
+            pos = close + 1; // resume past the closing `}`
             continue;
         }
         // $name: identifier chars (letters, digits, underscore, ::).
@@ -1015,6 +1031,7 @@ pub(crate) fn collect_textual_var_references(
     source: &str,
     cfg: &CfgFunction,
     base_offset: i64,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> HashSet<String> {
     // CFG spans are relative to `base_offset` (0 for a real-position build, the
     // body offset for a memoised offset-0 unit); shift to absolute before
@@ -1053,7 +1070,7 @@ pub(crate) fn collect_textual_var_references(
     }
     let slice = &source[start..end];
     let mut out: HashSet<String> = HashSet::new();
-    scan_dollar_refs(slice, &mut out);
+    scan_dollar_refs(slice, braced_var, &mut out);
     scan_set_read_refs(slice, &mut out);
     out
 }
@@ -1736,6 +1753,42 @@ mod tests {
                 .all(|o| o.code != DiagCode::O109 && o.code != DiagCode::O126),
             "used var should not be flagged, got {opts:?}",
         );
+    }
+
+    /// Issue #1604 — the textual liveness harvest reads `${…}` through the
+    /// shared owner, so the name it keeps alive is the one the lexer spanned.
+    ///
+    /// This scan is *suppress-only*: a name it fails to see lets O109 delete a
+    /// live store and W211 call a read variable unused. Under the default (9.x)
+    /// rule the reference names `a{b}c`; under 8.x it names `a{b` and `c}` is
+    /// ordinary word text. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
+    /// tclsh 9.0.4 and `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`,
+    /// `tclParse.c:1315` vs `:1398`).
+    #[test]
+    fn scan_dollar_refs_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let names = |slice: &str, style| {
+            let mut out = HashSet::new();
+            scan_dollar_refs(slice, style, &mut out);
+            let mut v: Vec<String> = out.into_iter().collect();
+            v.sort();
+            v
+        };
+
+        assert_eq!(
+            names("puts ${a{b}c}", Tcl9Nesting),
+            vec!["a{b}c".to_owned()]
+        );
+        assert_eq!(names("puts ${a{b}c}", FirstClose), vec!["a{b".to_owned()]);
+        assert_eq!(
+            names(r"puts ${a\}b}", Tcl9Nesting),
+            vec![r"a\}b".to_owned()]
+        );
+        assert_eq!(names(r"puts ${a\}b}", FirstClose), vec![r"a\".to_owned()]);
+
+        // A `${…}` that never closes yields no name, and must not swallow the
+        // rest of the slice: the following `$tail` is still harvested.
+        assert_eq!(names("${a{b $tail", Tcl9Nesting), vec!["tail".to_owned()]);
     }
 
     #[test]

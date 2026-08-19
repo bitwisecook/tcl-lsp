@@ -371,7 +371,11 @@ fn namespace_rename_hazard(
             if !word.contains(['$', '[']) {
                 continue;
             }
-            if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(word, cell) {
+            if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+                word,
+                cell,
+                dialect.grammar.braced_var,
+            ) {
                 continue;
             }
             if let Some(tok) = cmd.argv.get(idx + 1) {

@@ -232,7 +232,10 @@ enum Segment<'a> {
 /// array-indexed reads aren't expected in command-head positions, and
 /// rejecting them errs on the safe side (returns `None`, leaving the
 /// caller's fallback — e.g. a W123 diagnostic — in place).
-fn split_interpolation_segments(word: &str) -> Option<Vec<Segment<'_>>> {
+fn split_interpolation_segments(
+    word: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Option<Vec<Segment<'_>>> {
     if word.is_empty() {
         return None;
     }
@@ -250,12 +253,20 @@ fn split_interpolation_segments(word: &str) -> Option<Vec<Segment<'_>>> {
                 segments.push(Segment::Literal(&word[literal_start..i]));
             }
             i += 1;
-            // ``${var}`` form.
+            // ``${var}`` form — the name starts just past the `${`, and its
+            // closer comes from the shared owner under this document's release
+            // rule. Reading it with a fixed first-`}` scan resolved a
+            // *different* variable than the one the lexer spanned, and the
+            // folded string is written back into a diagnostic (issue #1604).
             if i < bytes.len() && bytes[i] == b'{' {
                 i += 1;
-                let close = bytes[i..].iter().position(|&b| b == b'}')?;
-                segments.push(Segment::Var(&word[i..i + close]));
-                i += close + 1;
+                let tcl_lexer::BracedVarEnd::Closed(close) =
+                    tcl_lexer::braced_var_name_end(bytes, i, braced_var)
+                else {
+                    return None;
+                };
+                segments.push(Segment::Var(&word[i..close]));
+                i = close + 1;
                 literal_start = i;
                 continue;
             }
@@ -311,8 +322,9 @@ fn split_interpolation_segments(word: &str) -> Option<Vec<Segment<'_>>> {
 pub(crate) fn fold_interpolation_set(
     word: &str,
     var_values: &std::collections::HashMap<String, HashSet<String>>,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> Option<HashSet<String>> {
-    let segments = split_interpolation_segments(word)?;
+    let segments = split_interpolation_segments(word, braced_var)?;
 
     // Cartesian product, bounded by `MAX_FOLD_PRODUCT`.
     let mut current: Vec<String> = vec![String::new()];
@@ -354,9 +366,10 @@ pub(crate) fn fold_interpolation_set(
 #[must_use]
 pub(crate) fn fold_interpolation_single(
     word: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
     mut resolve_var: impl FnMut(&str) -> Option<String>,
 ) -> Option<String> {
-    let segments = split_interpolation_segments(word)?;
+    let segments = split_interpolation_segments(word, braced_var)?;
     let mut result = String::new();
     for seg in segments {
         match seg {
@@ -498,7 +511,8 @@ mod tests {
     fn fold_interpolation_set_resolves_simple_dollar_var() {
         // ``foo$x`` with ``x ∈ {a, b}`` → ``{fooa, foob}``.
         let vars = vmap(&[("x", &["a", "b"])]);
-        let set = fold_interpolation_set("foo$x", &vars).expect("resolved");
+        let set = fold_interpolation_set("foo$x", &vars, tcl_dialect::BracedVarStyle::default())
+            .expect("resolved");
         assert!(set.contains("fooa"));
         assert!(set.contains("foob"));
         assert_eq!(set.len(), 2);
@@ -507,27 +521,42 @@ mod tests {
     #[test]
     fn fold_interpolation_set_resolves_braced_form() {
         let vars = vmap(&[("x", &["a"])]);
-        let set = fold_interpolation_set("foo${x}bar", &vars).expect("resolved");
+        let set =
+            fold_interpolation_set("foo${x}bar", &vars, tcl_dialect::BracedVarStyle::default())
+                .expect("resolved");
         assert!(set.contains("fooabar"));
     }
 
     #[test]
     fn fold_interpolation_set_returns_none_for_unknown_var() {
         let vars: HashMap<String, HashSet<String>> = HashMap::new();
-        assert!(fold_interpolation_set("foo$x", &vars).is_none());
+        assert!(
+            fold_interpolation_set("foo$x", &vars, tcl_dialect::BracedVarStyle::default())
+                .is_none()
+        );
     }
 
     #[test]
     fn fold_interpolation_set_returns_none_for_command_substitution() {
         let vars = vmap(&[("x", &["a"])]);
-        assert!(fold_interpolation_set("foo[bar]", &vars).is_none());
+        assert!(
+            fold_interpolation_set("foo[bar]", &vars, tcl_dialect::BracedVarStyle::default())
+                .is_none()
+        );
     }
 
     #[test]
     fn fold_interpolation_set_returns_none_for_array_indexed_var() {
         // ``$arr(idx)`` is rejected.
         let vars = vmap(&[("arr", &["a"])]);
-        assert!(fold_interpolation_set("foo$arr(idx)", &vars).is_none());
+        assert!(
+            fold_interpolation_set(
+                "foo$arr(idx)",
+                &vars,
+                tcl_dialect::BracedVarStyle::default()
+            )
+            .is_none()
+        );
     }
 
     #[test]
@@ -537,7 +566,9 @@ mod tests {
         let vars = vmap(&[("x", &["a", "b", "c", "d", "e", "f"])]);
         // 4 × 6 = 24 still fits, but 7 × 6 = 42 overflows.
         let big = "$x$x$x$x$x$x$x";
-        assert!(fold_interpolation_set(big, &vars).is_none());
+        assert!(
+            fold_interpolation_set(big, &vars, tcl_dialect::BracedVarStyle::default()).is_none()
+        );
     }
 
     #[test]
@@ -546,7 +577,8 @@ mod tests {
         // still accepts this and resolves it to a one-element
         // set containing the literal unchanged.
         let vars: HashMap<String, HashSet<String>> = HashMap::new();
-        let set = fold_interpolation_set("foo", &vars).expect("resolved");
+        let set = fold_interpolation_set("foo", &vars, tcl_dialect::BracedVarStyle::default())
+            .expect("resolved");
         assert!(set.contains("foo"));
         assert_eq!(set.len(), 1);
     }
@@ -562,15 +594,49 @@ mod tests {
     #[test]
     fn fold_interpolation_single_resolves_simple_dollar_var() {
         assert_eq!(
-            fold_interpolation_single("foo_$x", resolver(&[("x", "impl")])),
+            fold_interpolation_single(
+                "foo_$x",
+                tcl_dialect::BracedVarStyle::default(),
+                resolver(&[("x", "impl")])
+            ),
             Some("foo_impl".to_string())
+        );
+    }
+
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// variable the fold resolves is the one the lexer spanned.
+    #[test]
+    fn fold_interpolation_braced_close_rule_follows_the_release() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let vars = |name: &str| match name {
+            "a{b}c" => Some("NESTED".to_owned()),
+            "a{b" => Some("FIRST".to_owned()),
+            _ => None,
+        };
+        assert_eq!(
+            fold_interpolation_single("x=${a{b}c}", Tcl9Nesting, vars),
+            Some("x=NESTED".to_owned())
+        );
+        assert_eq!(
+            fold_interpolation_single("x=${a{b}c}", FirstClose, vars),
+            Some("x=FIRSTc}".to_owned())
+        );
+        // An unterminated reference abstains — the module-wide rule is that we
+        // never guess.
+        assert_eq!(
+            fold_interpolation_single("x=${a{b", Tcl9Nesting, vars),
+            None
         );
     }
 
     #[test]
     fn fold_interpolation_single_resolves_braced_form() {
         assert_eq!(
-            fold_interpolation_single("foo${x}bar", resolver(&[("x", "a")])),
+            fold_interpolation_single(
+                "foo${x}bar",
+                tcl_dialect::BracedVarStyle::default(),
+                resolver(&[("x", "a")])
+            ),
             Some("fooabar".to_string())
         );
     }
@@ -580,6 +646,7 @@ mod tests {
         assert_eq!(
             fold_interpolation_single(
                 "::mypkg::${c}_$key",
+                tcl_dialect::BracedVarStyle::default(),
                 resolver(&[("c", "greet"), ("key", "tcl")])
             ),
             Some("::mypkg::greet_tcl".to_string())
@@ -588,18 +655,36 @@ mod tests {
 
     #[test]
     fn fold_interpolation_single_returns_none_for_unknown_var() {
-        assert_eq!(fold_interpolation_single("foo_$x", resolver(&[])), None);
+        assert_eq!(
+            fold_interpolation_single(
+                "foo_$x",
+                tcl_dialect::BracedVarStyle::default(),
+                resolver(&[])
+            ),
+            None
+        );
     }
 
     #[test]
     fn fold_interpolation_single_returns_none_for_command_substitution() {
-        assert_eq!(fold_interpolation_single("foo[bar]", resolver(&[])), None);
+        assert_eq!(
+            fold_interpolation_single(
+                "foo[bar]",
+                tcl_dialect::BracedVarStyle::default(),
+                resolver(&[])
+            ),
+            None
+        );
     }
 
     #[test]
     fn fold_interpolation_single_returns_none_for_array_indexed_var() {
         assert_eq!(
-            fold_interpolation_single("foo$arr(idx)", resolver(&[("arr", "a")])),
+            fold_interpolation_single(
+                "foo$arr(idx)",
+                tcl_dialect::BracedVarStyle::default(),
+                resolver(&[("arr", "a")])
+            ),
             None
         );
     }
@@ -607,13 +692,16 @@ mod tests {
     #[test]
     fn fold_interpolation_single_preserves_pure_literal() {
         assert_eq!(
-            fold_interpolation_single("foo", resolver(&[])),
+            fold_interpolation_single("foo", tcl_dialect::BracedVarStyle::default(), resolver(&[])),
             Some("foo".to_string())
         );
     }
 
     #[test]
     fn fold_interpolation_single_returns_none_for_empty_word() {
-        assert_eq!(fold_interpolation_single("", resolver(&[])), None);
+        assert_eq!(
+            fold_interpolation_single("", tcl_dialect::BracedVarStyle::default(), resolver(&[])),
+            None
+        );
     }
 }

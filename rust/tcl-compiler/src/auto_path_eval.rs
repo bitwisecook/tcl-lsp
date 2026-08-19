@@ -1234,8 +1234,19 @@ fn eval(
         // Resolution happens on the parsed word, via the interpolation
         // folder's own segment grammar (which also rejects array-indexed
         // names and stray `[`) — never by splicing text and re-lexing.
-        Node::Subst(word) => crate::text::fold_interpolation_single(word, |name| resolve_var(name))
-            .map(|v| to_tcl_slash_form(&v)),
+        // `${…}` is delimited by the shared owner
+        // ([`tcl_lexer::braced_var_name_end`]) rather than a local scan. This
+        // entry point is dialect-free — the LSP server folds an `auto_path`
+        // expression with no document profile in hand — so the *default*
+        // release rule applies, which is the one a document with no explicit
+        // dialect is lexed under. A name this misreads simply fails to
+        // resolve, abstaining the whole fold (issue #1604).
+        Node::Subst(word) => crate::text::fold_interpolation_single(
+            word,
+            tcl_dialect::BracedVarStyle::default(),
+            |name| resolve_var(name),
+        )
+        .map(|v| to_tcl_slash_form(&v)),
         Node::Cmd(name, args) => {
             if name == "info" && args.len() == 1 {
                 return match eval(&args[0], info_script, resolve_var).as_deref() {

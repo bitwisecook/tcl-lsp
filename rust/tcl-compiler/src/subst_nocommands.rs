@@ -56,6 +56,16 @@ use std::hash::BuildHasher;
 /// their literal string values. Names are looked up with their
 /// `{…}`-stripped form, so `${foo}` and `$foo` resolve the same
 /// entry.
+///
+/// The `${…}` scan below is deliberately **not** threaded through
+/// [`tcl_lexer::braced_var_name_end`], and that is not the issue-#1604 gap it
+/// resembles. The two release rules can only disagree about a name containing
+/// `{`, `}`, or `\` — and [`is_complex_var_name`] refuses every one of those
+/// (`is_name_byte` is alphanumerics and `_`), so both readings decline the
+/// same templates at the same offsets. A mutation pinning this scan to
+/// `FirstClose` survives, which is the proof. Do not add the parameter back
+/// without first widening `is_complex_var_name`, which is what would make the
+/// rule observable here.
 #[must_use]
 pub fn subst_nocommands<S: BuildHasher>(
     template: &str,

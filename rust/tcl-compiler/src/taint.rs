@@ -530,6 +530,20 @@ pub(crate) struct TaintCtx<'a> {
         Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
 }
 
+impl TaintCtx<'_> {
+    /// This document's `${…}` close rule, for the shared owner
+    /// [`tcl_lexer::braced_var_name_end`].
+    ///
+    /// Taint is keyed by variable *name*, so a scan that recovers the wrong
+    /// name tracks the wrong cell: the tainted value's colour is dropped and
+    /// the security diagnostics that depend on it (T1xx, W201) go quiet on a
+    /// sink they should flag. With no explicit dialect the document was lexed
+    /// under [`tcl_dialect::BracedVarStyle::default`] (issue #1604).
+    pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
+        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
+    }
+}
+
 /// Infer the taint of an argument word from already-known per-variable
 /// taint values.
 ///
@@ -653,12 +667,15 @@ fn word_taint_at<S: std::hash::BuildHasher>(
             rest = &rest[pos + 1..];
             // ${name} form.
             let raw_name = if rest.starts_with('{') {
-                if let Some(end) = rest.find('}') {
-                    let n = &rest[1..end];
-                    rest = &rest[end + 1..];
-                    n
-                } else {
-                    break;
+                // The name starts just past the `${`; an unterminated
+                // reference names nothing, so stop scanning this word.
+                match tcl_lexer::braced_var_name_end(rest.as_bytes(), 1, ctx.braced_var()) {
+                    tcl_lexer::BracedVarEnd::Closed(end) => {
+                        let n = &rest[1..end];
+                        rest = &rest[end + 1..];
+                        n
+                    }
+                    tcl_lexer::BracedVarEnd::Unterminated => break,
                 }
             } else {
                 // $name — grab identifier chars (including :: for namespaces).
@@ -1601,11 +1618,15 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
     taints: &HashMap<ValueKey, TaintLattice, S>,
     executable_blocks: &HashSet<BlockId, E>,
     registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
     let destructive = destructive_file_subs(registry);
     if destructive.is_empty() {
         return Vec::new();
     }
+    // The document's `${…}` close rule, threaded into the path-variable scan
+    // so the name W313 anchors on is the one the lexer spanned (issue #1604).
+    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let guard_map = compute_branch_guard_map(cfg, registry);
 
     let mut warnings: Vec<TaintWarning> = Vec::new();
@@ -1654,7 +1675,7 @@ pub fn find_destructive_file_warnings<S: std::hash::BuildHasher, E: std::hash::B
             let mut seen: FxHashSet<String> = FxHashSet::default();
             let mut ordered: Vec<(usize, String)> = Vec::new();
             for (idx, a) in args.iter().enumerate().skip(path_start) {
-                for name in arg_var_names_ordered(a) {
+                for name in arg_var_names_ordered(a, braced_var) {
                     if seen.insert(name.clone()) {
                         ordered.push((idx, name));
                     }
@@ -1735,15 +1756,15 @@ fn destructive_file_subs(registry: &CommandRegistry) -> HashSet<&'static str> {
 /// W313's variable set — a false-negative regression — so this stays a
 /// bespoke scanner; see the `arg_var_names_vs_vars_in_word` test module for
 /// the full comparison.
-fn arg_var_names(arg: &str) -> HashSet<String> {
-    arg_var_names_ordered(arg).into_iter().collect()
+fn arg_var_names(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> HashSet<String> {
+    arg_var_names_ordered(arg, braced_var).into_iter().collect()
 }
 
 /// Variable names referenced in `arg`, in left-to-right source order with
 /// duplicates preserved.  Callers that need a deterministic *first* variable
 /// (e.g. W313's "first offending path variable") iterate this rather than the
 /// `HashSet` from [`arg_var_names`], whose order is nondeterministic.
-fn arg_var_names_ordered(arg: &str) -> Vec<String> {
+fn arg_var_names_ordered(arg: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<String> {
     let mut names = Vec::new();
     let bytes = arg.as_bytes();
     let mut i = 0;
@@ -1762,11 +1783,20 @@ fn arg_var_names_ordered(arg: &str) -> Vec<String> {
             i += 1;
             continue;
         }
+        // The `${…}` name starts just past the `${`; its closer comes from the
+        // shared owner under this document's release rule. Taint is keyed by
+        // name, so recovering `a{b` where the lexer spanned `a{b}c` tracks a
+        // cell nothing writes — the tainted value's colour is lost and the
+        // sink goes unflagged (issue #1604).
         if bytes.get(i + 1) == Some(&b'{')
-            && let Some(rel) = arg[i + 2..].find('}')
+            && let tcl_lexer::BracedVarEnd::Closed(end) =
+                tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
         {
-            names.push(normalise_var_name(&arg[i + 2..i + 2 + rel]).to_owned());
-            i = i + 2 + rel + 1;
+            names.push(
+                tcl_syntax::naming::normalise_var_name_for_style(&arg[i + 2..end], braced_var)
+                    .to_owned(),
+            );
+            i = end + 1;
             continue;
         }
         let start = i + 1;
@@ -2231,7 +2261,7 @@ pub fn find_taint_warnings_for_cu(
             dialect,
         ));
         out.extend(find_destructive_file_warnings(
-            &fu.cfg, &fu.ssa, &taints, exec, registry,
+            &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
         ));
     }
     out
@@ -2448,10 +2478,14 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // T103 (regexp pattern) → T106 (double-encode) → the sink loop
     // (T100/output/log, then T102, then T104/T105).
 
+    // The document's `${…}` close rule, carried into every name scan below so
+    // they read the same closer the lexer did (issue #1604).
+    let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let env = TaintScan {
         uses: &ssa_stmt.uses,
         taints,
         ssa,
+        braced_var,
     };
 
     // T103: tainted data in a regexp/regsub pattern position.
@@ -2485,6 +2519,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
         args: call_args,
         registry,
         tokens,
+        braced_var,
     };
     // Primary sink classification (T100 code-exec / T101 + iRules output / log).
     if let Some((code, sink_label)) = classify_sink(registry, command, call_args, dialect) {
@@ -2514,6 +2549,10 @@ struct TaintScan<'a, S> {
     uses: &'a HashMap<Symbol, u32>,
     taints: &'a HashMap<ValueKey, TaintLattice, S>,
     ssa: &'a SsaFunction,
+    /// The document's `${…}` close rule, for the shared owner
+    /// [`tcl_lexer::braced_var_name_end`] — carried here so every name scan
+    /// below reads the same closer the lexer did (issue #1604).
+    braced_var: tcl_dialect::BracedVarStyle,
 }
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
@@ -2541,7 +2580,7 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
     let Some(arg) = args.get(pattern_idx) else {
         return;
     };
-    let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
+    let mut names: Vec<String> = arg_var_names(arg, env.braced_var).into_iter().collect();
     names.sort_unstable();
     for var in names {
         let Some(sym) = ssa.var_symbol(&var) else {
@@ -2862,8 +2901,9 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
         else {
             continue;
         };
+        let braced_var = tcl_dialect::BracedVarStyle::of_profile(ctx.dialect);
         let mut uses: HashMap<Symbol, u32> = HashMap::new();
-        for name in arg_var_names(&text) {
+        for name in arg_var_names(&text, braced_var) {
             if let Some(sym) = ctx.ssa.var_symbol(&name) {
                 let ver = ctx.ssa_block.exit_versions.get(&sym).copied().unwrap_or(0);
                 uses.insert(sym, ver);
@@ -2873,12 +2913,14 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
             uses: &uses,
             taints: ctx.taints,
             ssa: ctx.ssa,
+            braced_var,
         };
         let sink_call = SinkCall {
             command: &command,
             args: &call_args,
             registry: ctx.registry,
             tokens: None,
+            braced_var,
         };
         emit_sink_warnings(&env, fallback_span, code, &sink_label, &sink_call, warnings);
     }
@@ -2911,6 +2953,10 @@ struct SinkCall<'a> {
     /// [`sink_arg_span`]'s per-argument highlighting; `None` falls every hit
     /// back to the whole-statement span.
     tokens: Option<&'a CommandTokens>,
+    /// The document's `${…}` close rule, for the shared owner
+    /// [`tcl_lexer::braced_var_name_end`] — the position-aware sink filters
+    /// below all key on variable *names* scanned out of `args` (issue #1604).
+    braced_var: tcl_dialect::BracedVarStyle,
 }
 
 /// The tight span of the argument word that carries `name`, using the
@@ -2928,7 +2974,7 @@ fn sink_arg_span(call: &SinkCall<'_>, name: &str, fallback: Span) -> Span {
         return fallback;
     };
     for (i, arg) in call.args.iter().enumerate() {
-        if arg_var_names(arg).contains(name)
+        if arg_var_names(arg, call.braced_var).contains(name)
             && let Some(&arg_span) = tokens.argv.get(i + 1)
         {
             return arg_span;
@@ -2969,13 +3015,9 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 /// Position-aware sink filter: `true` when a tainted variable `name`
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
 /// the sink.
-fn sink_var_position_safe(
-    registry: &CommandRegistry,
-    code: DiagCode,
-    command: &str,
-    args: &[String],
-    name: &str,
-) -> bool {
+fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bool {
+    let (registry, command, args, braced_var) =
+        (call.registry, call.command, call.args, call.braced_var);
     // A value that only reaches an `ArgRole::Channel` argument slot (e.g.
     // `puts`'s optional leading `channelId`) is a handle, not sink content
     // — regardless of which sink code classified the call. The position
@@ -2986,10 +3028,9 @@ fn sink_var_position_safe(
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let channel_positions = registry.arg_indices_for_role(command, &arg_refs, ArgRole::Channel);
     if !channel_positions.is_empty()
-        && args
-            .iter()
-            .enumerate()
-            .all(|(i, a)| channel_positions.contains(&i) || !arg_var_names(a).contains(name))
+        && args.iter().enumerate().all(|(i, a)| {
+            channel_positions.contains(&i) || !arg_var_names(a, braced_var).contains(name)
+        })
     {
         return true;
     }
@@ -3001,7 +3042,7 @@ fn sink_var_position_safe(
         // `taint_network_sink_args`. `None`/`Some(&[])` (positions
         // unspecified) imposes no filter.
         DiagCode::T104 => {
-            var_only_in_safe_positions(spec, spec.taint_network_sink_args, args, name)
+            var_only_in_safe_positions(spec, spec.taint_network_sink_args, args, name, braced_var)
         }
         // T100 code injection — only the code-execution slot named by
         // `taint_code_sink_args` (`apply`'s lambda `func`, `open`'s
@@ -3011,7 +3052,9 @@ fn sink_var_position_safe(
         // sink. `None` (`eval`/`uplevel`/`subst`/`exec` — the whole tail is
         // one script) or `Some(&[])` imposes no filter, so every tainted
         // argument stays dangerous as before.
-        DiagCode::T100 => var_only_in_safe_positions(spec, spec.taint_code_sink_args, args, name),
+        DiagCode::T100 => {
+            var_only_in_safe_positions(spec, spec.taint_code_sink_args, args, name, braced_var)
+        }
         _ => false,
     }
 }
@@ -3028,6 +3071,7 @@ fn var_only_in_safe_positions(
     positions: Option<&'static [u8]>,
     args: &[String],
     name: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> bool {
     let Some(positions) = positions else {
         return false;
@@ -3039,7 +3083,7 @@ fn var_only_in_safe_positions(
     let in_dangerous_slot = positions.iter().any(|&p| {
         positionals
             .get(p as usize)
-            .is_some_and(|s| arg_var_names(s).contains(name))
+            .is_some_and(|s| arg_var_names(s, braced_var).contains(name))
     });
     !in_dangerous_slot
 }
@@ -3051,11 +3095,8 @@ fn var_only_in_safe_positions(
 /// word, so `eval`/`uplevel`/`interp eval` of the list runs no injected
 /// command. `[list $x …]` (variable head) and `[list]`-free args return
 /// `false`.
-fn list_wrapped_arg_command_is_literal(
-    registry: &CommandRegistry,
-    args: &[String],
-    name: &str,
-) -> bool {
+fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool {
+    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
     for arg in args {
         let trimmed = arg.trim();
         let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
@@ -3078,7 +3119,7 @@ fn list_wrapped_arg_command_is_literal(
         }
         // `name` must actually flow through this list arg (and, since the
         // head is a literal, only at an argument position ≥ 1).
-        if arg_var_names(arg).contains(name) {
+        if arg_var_names(arg, braced_var).contains(name) {
             return true;
         }
     }
@@ -3130,22 +3171,23 @@ fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
 /// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
 /// taint reaches the sink). Mirrors the carve-out the `expr`/`word_taint` path
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
-fn var_consumed_by_sanitiser(registry: &CommandRegistry, args: &[String], name: &str) -> bool {
+fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
+    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
     let mut seen = false;
     for arg in args {
-        if !arg_var_names(arg).contains(name) {
+        if !arg_var_names(arg, braced_var).contains(name) {
             continue;
         }
         seen = true;
         let (residual, subs) = split_top_level_cmd_subs(arg);
         // A bare reference outside any command substitution reaches the sink.
-        if arg_var_names(&residual).contains(name) {
+        if arg_var_names(&residual, braced_var).contains(name) {
             return false;
         }
         // Each top-level substitution that references `name` must be a sanitiser
         // (a sanitiser's result is a clean bounded value regardless of nesting).
         for sub in subs {
-            if !arg_var_names(sub).contains(name) {
+            if !arg_var_names(sub, braced_var).contains(name) {
                 continue;
             }
             let Some((cmd, sub_args)) = parse_command_substitution(sub) else {
@@ -3187,7 +3229,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // substitution — `puts [string length $x]` outputs the integer length,
         // not `$x` (tclsh-verified). The expr-operand path applies this via
         // word_taint; mirror it here for the direct sink-argument path.
-        if var_consumed_by_sanitiser(call.registry, call.args, name) {
+        if var_consumed_by_sanitiser(call, name) {
             continue;
         }
         // Per-code mitigation suppression (IRULE3001–3004).
@@ -3217,7 +3259,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // Position-aware sink filter: a tainted variable only trips the
         // sink when it occupies a *dangerous* argument slot (the `puts`
         // content arg, a `taint_network_sink_args` network-address slot).
-        if sink_var_position_safe(call.registry, code, call.command, call.args, name) {
+        if sink_var_position_safe(call, code, name) {
             continue;
         }
         // `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]`: the
@@ -3226,7 +3268,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // no code-injection vector LIST_CANONICAL
         // head-literal filter).
         if matches!(code, DiagCode::T100 | DiagCode::T105)
-            && list_wrapped_arg_command_is_literal(call.registry, call.args, name)
+            && list_wrapped_arg_command_is_literal(call, name)
         {
             continue;
         }
@@ -3433,6 +3475,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
         args,
         registry,
         tokens: _,
+        braced_var: _,
     } = sink_call;
     let (uses, taints, ssa) = (env.uses, env.taints, env.ssa);
     let args_str: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -3468,7 +3511,7 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
     let mut emitted: FxHashSet<Symbol> = FxHashSet::default();
     for i in ordered {
         let Some(arg) = args.get(i) else { continue };
-        let mut names: Vec<String> = arg_var_names(arg).into_iter().collect();
+        let mut names: Vec<String> = arg_var_names(arg, env.braced_var).into_iter().collect();
         names.sort_unstable();
         for var in names {
             let Some(sym) = ssa.var_symbol(&var) else {
@@ -4272,7 +4315,14 @@ mod tests {
         );
         let sccp = simple_sccp(&[entry]);
         let taints = plain_taints(&cfg, &ssa, &sccp, &registry);
-        find_destructive_file_warnings(&cfg, &ssa, &taints, &sccp.executable_blocks, &registry)
+        find_destructive_file_warnings(
+            &cfg,
+            &ssa,
+            &taints,
+            &sccp.executable_blocks,
+            &registry,
+            None,
+        )
     }
 
     fn file_call(args: &[&str]) -> Statement {
@@ -4380,9 +4430,13 @@ mod tests {
 
     #[test]
     fn w313_helpers_parse_vars_and_guards() {
-        assert!(arg_var_names("$p").contains("p"));
-        assert!(arg_var_names("${dir}/$file").contains("dir"));
-        assert!(arg_var_names("${dir}/$file").contains("file"));
+        assert!(arg_var_names("$p", tcl_dialect::BracedVarStyle::default()).contains("p"));
+        assert!(
+            arg_var_names("${dir}/$file", tcl_dialect::BracedVarStyle::default()).contains("dir")
+        );
+        assert!(
+            arg_var_names("${dir}/$file", tcl_dialect::BracedVarStyle::default()).contains("file")
+        );
         assert_eq!(extract_var_name("$p").as_deref(), Some("p"));
         assert_eq!(extract_var_name("${p}").as_deref(), Some("p"));
         assert_eq!(
@@ -6154,6 +6208,34 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// name taint is keyed on is the one the lexer spanned.
+    ///
+    /// Taint is name-keyed: a scan that recovers `a{b` where the document's
+    /// lexer spanned `a{b}c` looks up a cell nothing ever writes, so the
+    /// tainted value's colour is lost and the sink diagnostics that depend on
+    /// it (T1xx, W313) go quiet on a flow they should flag. Oracle:
+    /// `set {a{b}c} 7; subst {${a{b}c}}` is `7` on tclsh 9.0.4 and
+    /// `can't read "a{b"` on 8.6.16.
+    #[test]
+    fn arg_var_names_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        assert_eq!(
+            arg_var_names("/tmp/${a{b}c}", Tcl9Nesting),
+            HashSet::from(["a{b}c".to_owned()])
+        );
+        assert_eq!(
+            arg_var_names("/tmp/${a{b}c}", FirstClose),
+            HashSet::from(["a{b".to_owned()])
+        );
+        // The scan resumes past the reference under either rule, so a second
+        // ordinary reference in the same word is still collected.
+        assert_eq!(
+            arg_var_names("${a{b}c}/$tail", Tcl9Nesting),
+            HashSet::from(["a{b}c".to_owned(), "tail".to_owned()])
+        );
+    }
+
     /// `arg_var_names` vs. `crate::var_refs::vars_in_word` on the tricky
     /// shapes the centralisation question
     /// turns on. The two are **not** interchangeable — each is right where
@@ -6168,7 +6250,10 @@ mod tests {
         #[test]
         fn agree_on_bare_var() {
             let registry = CommandRegistry::build_default();
-            assert_eq!(arg_var_names("$p"), HashSet::from(["p".to_owned()]));
+            assert_eq!(
+                arg_var_names("$p", tcl_dialect::BracedVarStyle::default()),
+                HashSet::from(["p".to_owned()])
+            );
             assert_eq!(
                 crate::var_refs::vars_in_word("$p", &registry)
                     .into_iter()
@@ -6183,7 +6268,10 @@ mod tests {
         fn agree_on_braced_and_bare_in_one_word() {
             let registry = CommandRegistry::build_default();
             let want = HashSet::from(["dir".to_owned(), "file".to_owned()]);
-            assert_eq!(arg_var_names("${dir}/$file"), want);
+            assert_eq!(
+                arg_var_names("${dir}/$file", tcl_dialect::BracedVarStyle::default()),
+                want
+            );
             assert_eq!(
                 crate::var_refs::vars_in_word("${dir}/$file", &registry)
                     .into_iter()
@@ -6197,7 +6285,10 @@ mod tests {
         #[test]
         fn agree_on_var_inside_command_substitution() {
             let registry = CommandRegistry::build_default();
-            assert_eq!(arg_var_names("[foo $x]"), HashSet::from(["x".to_owned()]));
+            assert_eq!(
+                arg_var_names("[foo $x]", tcl_dialect::BracedVarStyle::default()),
+                HashSet::from(["x".to_owned()])
+            );
             assert_eq!(
                 crate::var_refs::vars_in_word("[foo $x]", &registry)
                     .into_iter()
@@ -6222,7 +6313,7 @@ mod tests {
         fn disagree_on_var_nested_in_array_index() {
             let registry = CommandRegistry::build_default();
             assert_eq!(
-                arg_var_names("$arr($cmd)"),
+                arg_var_names("$arr($cmd)", tcl_dialect::BracedVarStyle::default()),
                 HashSet::from(["arr".to_owned(), "cmd".to_owned()]),
                 "arg_var_names must keep catching the nested index variable"
             );
@@ -6245,7 +6336,7 @@ mod tests {
         fn escaped_dollar_is_not_a_reference() {
             let registry = CommandRegistry::build_default();
             assert!(
-                arg_var_names("\\$notavar").is_empty(),
+                arg_var_names("\\$notavar", tcl_dialect::BracedVarStyle::default()).is_empty(),
                 "an escaped \\$ must not be read as a variable reference"
             );
             assert!(crate::var_refs::vars_in_word("\\$notavar", &registry).is_empty());
@@ -6256,13 +6347,18 @@ mod tests {
         /// variable reference still must be found.
         #[test]
         fn double_backslash_then_live_var_is_still_found() {
-            assert_eq!(arg_var_names("\\\\$foo"), HashSet::from(["foo".to_owned()]));
+            assert_eq!(
+                arg_var_names("\\\\$foo", tcl_dialect::BracedVarStyle::default()),
+                HashSet::from(["foo".to_owned()])
+            );
         }
 
         /// TN: plain literal text with no `$` sigil at all.
         #[test]
         fn no_dollar_sigil_is_empty() {
-            assert!(arg_var_names("hello world").is_empty());
+            assert!(
+                arg_var_names("hello world", tcl_dialect::BracedVarStyle::default()).is_empty()
+            );
         }
     }
 

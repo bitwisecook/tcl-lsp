@@ -303,6 +303,13 @@ struct Inner<'s> {
     /// The release's number grammar, forwarded intact to the shared
     /// expression-numeral boundary scanner.
     numbers: tcl_dialect::NumberSyntax,
+    /// The release's `${…}` close rule, forwarded intact to the shared owner
+    /// [`crate::ranges::braced_var_name_end`]. `expr` bodies are ordinary Tcl
+    /// words, so `expr {${a{b}c} + 1}` must resolve the reference exactly as
+    /// `if {${a{b}c} > 3}` does; re-deriving it here with a first-`}` scan made
+    /// the VM answer one expression grammar two ways depending on the carrying
+    /// command (issue #1601).
+    braced_var: tcl_dialect::BracedVarStyle,
     /// The release whose `expr` lexeme table this dialect uses, for the
     /// word-shaped operators (`eq`, `in`, `lt`, …) — the profile's
     /// `expr_grammar_base`, resolved through
@@ -327,6 +334,7 @@ impl<'s> Inner<'s> {
             irules_operators: profile.is_irules(),
             expr_comments: profile.grammar.expr_comments.comments(),
             numbers: profile.grammar.numbers,
+            braced_var: profile.grammar.braced_var,
             expr_grammar_base: profile.expr_grammar_base,
             numeric_suffix_probe: false,
             unknown: false,
@@ -469,21 +477,33 @@ impl<'s> Inner<'s> {
         self.tok(ExprTokenType::Comment, start)
     }
 
+    /// Scan a `$…` reference.
+    ///
+    /// The `${…}` form is delimited by the shared owner
+    /// [`crate::ranges::braced_var_name_end`] under this dialect's
+    /// [`tcl_dialect::BracedVarStyle`], not by a local scan. An `expr` body is
+    /// parsed out of an ordinary Tcl word, so the reference boundary is the
+    /// same `Tcl_ParseVarName` rule every other surface uses: at 9.x
+    /// `expr {${a{b}c} + 1}` is one `Variable` naming `a{b}c` (tclsh 9.0.4:
+    /// `8`), while at 8.x the name ends at the first `}` and the trailing `c}`
+    /// is separate lexemes (tclsh 8.6.16: `invalid bareword "c"`). The old
+    /// release-blind first-`}` walk gave the 8.x answer at every release, so
+    /// the VM disagreed with its own `if` / `while` / `for` conditions on the
+    /// identical expression (issue #1601).
     fn variable(&mut self) -> ExprToken {
         let start = self.i;
         self.i += 1;
         if self.i < self.b.len() && self.b[self.i] == b'{' {
-            self.i += 1;
-            while self.i < self.b.len() && self.b[self.i] != b'}' {
-                self.i += 1;
-            }
-            if self.i < self.b.len() {
-                self.i += 1;
-            } else {
-                // Preserve a recovery token for editor callers, but a
-                // variable whose `${…}` closer is absent cannot participate in
-                // an executable expression.
-                self.unknown = true;
+            // The name starts just past the `${`.
+            match crate::ranges::braced_var_name_end(self.b, self.i + 1, self.braced_var) {
+                crate::ranges::BracedVarEnd::Closed(end) => self.i = end + 1,
+                crate::ranges::BracedVarEnd::Unterminated => {
+                    // Preserve a recovery token for editor callers, but a
+                    // variable whose `${…}` closer is absent cannot participate
+                    // in an executable expression.
+                    self.i = self.b.len();
+                    self.unknown = true;
+                }
             }
         } else {
             // A bare `$name` consumes alphanumerics / `_`, and `:` only as part
@@ -752,6 +772,14 @@ mod tests {
             .collect()
     }
 
+    fn texts_for(source: &str, dialect: &str) -> Vec<String> {
+        tokenise_expr(source, Some(dialect))
+            .into_iter()
+            .filter(|t| t.kind != ExprTokenType::Whitespace)
+            .map(|t| t.text)
+            .collect()
+    }
+
     #[test]
     fn integer() {
         assert_eq!(texts("42"), vec!["42"]);
@@ -888,6 +916,53 @@ mod tests {
             texts("$a(${b(c)})").first().map(String::as_str),
             Some("$a(${b(c)})")
         );
+    }
+
+    /// Issue #1601 — the `${…}` closer follows the release's
+    /// `Tcl_ParseVarName` rule, the same one the carrying command's condition
+    /// already used, not a local first-`}` walk.
+    ///
+    /// Oracles (`set {a{b}c} 7`, `set {a\}b} 7`, `set {a{b}} 7`):
+    ///
+    /// | expression | tclsh 9.0.4 | tclsh 8.6.16 |
+    /// |---|---|---|
+    /// | `expr {${a{b}c} + 1}` | `8` | `invalid bareword "c"` |
+    /// | `expr {${a\}b} + 1}`  | `8` | `invalid bareword "b"` |
+    /// | `expr {${a{b}} + 1}`  | `8` | `invalid character "}"` |
+    #[test]
+    fn braced_variable_closer_follows_the_release_rule() {
+        // 9.x nests `{…}` and consumes `\X`, so each of these is one Variable
+        // spanning the whole reference.
+        for source in [r"${a{b}c}", r"${a\}b}", r"${a{b}}"] {
+            let t = texts(source);
+            assert_eq!(
+                t.first().map(String::as_str),
+                Some(source),
+                "9.x names the whole reference: {source:?} -> {t:?}"
+            );
+            assert_eq!(t.len(), 1, "no trailing lexemes at 9.x: {t:?}");
+        }
+
+        // 8.x ends the name at the first literal `}` — `{` and `\` are name
+        // characters — so the remainder lexes as its own (invalid) lexemes.
+        let t = texts_for("${a{b}c}", "tcl8.6");
+        assert_eq!(t.first().map(String::as_str), Some("${a{b}"), "{t:?}");
+        assert!(t.iter().any(|s| s == "c"), "trailing bareword: {t:?}");
+        let t = texts_for(r"${a\}b}", "tcl8.6");
+        assert_eq!(t.first().map(String::as_str), Some(r"${a\}"), "{t:?}");
+        assert!(t.iter().any(|s| s == "b"), "trailing bareword: {t:?}");
+
+        // The nesting rule also *widens* what counts as unterminated: `${a{b}`
+        // closes at 8.x but runs off the end at 9.x.
+        let (tokens, unknown) = tokenise_expr_checked("${a{b}", Some("tcl8.6"));
+        assert!(!unknown, "8.x closes at the first `}}`");
+        assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
+        let (tokens, unknown) = tokenise_expr_checked("${a{b}", Some("tcl9.0"));
+        assert!(
+            unknown,
+            "9.x has no closer left, so the expression is inexecutable"
+        );
+        assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
     }
 
     #[test]

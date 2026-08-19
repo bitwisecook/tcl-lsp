@@ -146,6 +146,9 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     let Some((var, span)) = sinkable_assignment(stmt) else {
         return;
     };
+    // The document's `${…}` close rule, threaded into every textual use scan
+    // below so they agree with the spans the lexer produced (issue #1604).
+    let braced_var = ctx.braced_var();
     // A variable that carries state across `when <event>` boundaries
     // (iRules) is observable after this event handler returns, so its
     // definition must not be sunk into a branch that may not run.
@@ -166,15 +169,15 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     if !is_decision(decision) {
         return;
     }
-    if decision_condition_uses_var(decision, &var) {
+    if decision_condition_uses_var(decision, &var, braced_var) {
         return;
     }
-    if !any_decision_body_uses_var(decision, &var, depth) {
+    if !any_decision_body_uses_var(decision, &var, depth, braced_var) {
         return;
     }
     if stmts[i + 2..]
         .iter()
-        .any(|later| statement_uses_var(later, &var, depth))
+        .any(|later| statement_uses_var(later, &var, depth, braced_var))
     {
         return;
     }
@@ -184,10 +187,10 @@ fn consider_sink_at(ctx: &mut PassContext<'_>, stmts: &[Statement], i: usize, de
     // computation would observe a different value — a miscompile. The
     // earlier guards only protect the assigned variable itself, not its
     // read-set.
-    if sink_rhs_clobbered_by_decision(stmt, decision) {
+    if sink_rhs_clobbered_by_decision(stmt, decision, braced_var) {
         return;
     }
-    let targets = decision_sink_targets(decision, &var);
+    let targets = decision_sink_targets(decision, &var, braced_var);
     // A `Barrier` / `UpFrame` answers "uses every variable" (issue
     // #1402), which is the right *blocking* answer for the later-use
     // scan above but must never *enable* a sink: a branch whose first
@@ -264,10 +267,14 @@ fn emit_sink(
 /// branch body that uses `var`, the deepest first-using statement (a
 /// single-use branch whose lone consumer is itself a decision descends
 /// further).
-fn decision_sink_targets<'a>(decision: &'a Statement, var: &str) -> Vec<&'a Statement> {
+fn decision_sink_targets<'a>(
+    decision: &'a Statement,
+    var: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Vec<&'a Statement> {
     let mut targets = Vec::new();
     for body in decision_branch_bodies(decision) {
-        targets.extend(find_deepest_targets(body, var, 0));
+        targets.extend(find_deepest_targets(body, var, 0, braced_var));
     }
     targets
 }
@@ -316,12 +323,17 @@ fn decision_branch_bodies(decision: &Statement) -> Vec<&Script> {
 /// [`super::MAX_OPTIMISER_WALK_DEPTH`] this stops descending and anchors at
 /// the current body's first using statement, same as the `using.len() != 1`
 /// case — a shallower-than-ideal sink target, not an unsound one.
-fn find_deepest_targets<'a>(body: &'a Script, var: &str, depth: u32) -> Vec<&'a Statement> {
+fn find_deepest_targets<'a>(
+    body: &'a Script,
+    var: &str,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Vec<&'a Statement> {
     let using: Vec<usize> = body
         .statements
         .iter()
         .enumerate()
-        .filter(|(_, s)| statement_uses_var(s, var, depth))
+        .filter(|(_, s)| statement_uses_var(s, var, depth, braced_var))
         .map(|(i, _)| i)
         .collect();
     let Some(&first) = using.first() else {
@@ -332,7 +344,7 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str, depth: u32) -> Vec<&'a 
             .iter()
             .any(|s| statement_defines_var(s, var));
         if no_prior_redefine && is_decision(&body.statements[first]) {
-            let deeper = try_deeper_sink(&body.statements[first], var, depth + 1);
+            let deeper = try_deeper_sink(&body.statements[first], var, depth + 1, braced_var);
             if !deeper.is_empty() {
                 return deeper;
             }
@@ -344,13 +356,18 @@ fn find_deepest_targets<'a>(body: &'a Script, var: &str, depth: u32) -> Vec<&'a 
 /// Descend into a decision's branches for a deeper sink — but only when
 /// the var's value is not read by any condition (which would make sinking
 /// past it unsound).
-fn try_deeper_sink<'a>(stmt: &'a Statement, var: &str, depth: u32) -> Vec<&'a Statement> {
-    if decision_condition_uses_var(stmt, var) {
+fn try_deeper_sink<'a>(
+    stmt: &'a Statement,
+    var: &str,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Vec<&'a Statement> {
+    if decision_condition_uses_var(stmt, var, braced_var) {
         return Vec::new();
     }
     let mut targets = Vec::new();
     for body in decision_branch_bodies(stmt) {
-        targets.extend(find_deepest_targets(body, var, depth));
+        targets.extend(find_deepest_targets(body, var, depth, braced_var));
     }
     targets
 }
@@ -393,13 +410,17 @@ fn stmt_defined_vars(stmt: &Statement) -> Vec<&str> {
 /// sink is unsafe when either the decision's condition contains a command
 /// substitution that could write a read variable (`[regexp … -> a]`), or any
 /// statement in a branch body (at any nesting) redefines a read variable.
-fn sink_rhs_clobbered_by_decision(sink: &Statement, decision: &Statement) -> bool {
+fn sink_rhs_clobbered_by_decision(
+    sink: &Statement,
+    decision: &Statement,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     if assignment_reads_any_var(sink) && decision_condition_has_command_subst(decision) {
         return true;
     }
     decision_branch_bodies(decision)
         .iter()
-        .any(|body| script_redefines_sink_read(body, sink, 0))
+        .any(|body| script_redefines_sink_read(body, sink, 0, braced_var))
 }
 
 /// Whether the assignment `sink` reads at least one variable in its RHS.
@@ -429,11 +450,16 @@ fn decision_condition_has_command_subst(decision: &Statement) -> bool {
 
 /// Whether any statement in `script` (recursively) redefines a variable the
 /// `sink` assignment's RHS reads.
-fn script_redefines_sink_read(script: &Script, sink: &Statement, depth: u32) -> bool {
+fn script_redefines_sink_read(
+    script: &Script,
+    sink: &Statement,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     script
         .statements
         .iter()
-        .any(|s| stmt_redefines_sink_read(s, sink, depth))
+        .any(|s| stmt_redefines_sink_read(s, sink, depth, braced_var))
 }
 
 /// `depth` is this recursion's own nesting level (independent of
@@ -443,13 +469,18 @@ fn script_redefines_sink_read(script: &Script, sink: &Statement, depth: u32) -> 
 /// (`sink_rhs_clobbered_by_decision`), so an unresolved deep answer must
 /// lean toward blocking the sink, never toward permitting one that could be
 /// a miscompile.
-fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement, depth: u32) -> bool {
+fn stmt_redefines_sink_read(
+    stmt: &Statement,
+    sink: &Statement,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return true;
     }
     if stmt_defined_vars(stmt)
         .iter()
-        .any(|d| statement_uses_var(sink, d, 0))
+        .any(|d| statement_uses_var(sink, d, 0, braced_var))
     {
         return true;
     }
@@ -461,36 +492,38 @@ fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement, depth: u32) -> b
         } => {
             clauses
                 .iter()
-                .any(|c| script_redefines_sink_read(&c.body, sink, depth + 1))
+                .any(|c| script_redefines_sink_read(&c.body, sink, depth + 1, braced_var))
                 || else_body
                     .as_ref()
-                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
+                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1, braced_var))
         }
         Statement::For {
             init, next, body, ..
         } => {
-            script_redefines_sink_read(init, sink, depth + 1)
-                || script_redefines_sink_read(next, sink, depth + 1)
-                || script_redefines_sink_read(body, sink, depth + 1)
+            script_redefines_sink_read(init, sink, depth + 1, braced_var)
+                || script_redefines_sink_read(next, sink, depth + 1, braced_var)
+                || script_redefines_sink_read(body, sink, depth + 1, braced_var)
         }
         Statement::While { body, .. }
         | Statement::Foreach { body, .. }
         | Statement::Catch { body, .. }
         | Statement::UpFrame { body, .. }
-        | Statement::Block { body, .. } => script_redefines_sink_read(body, sink, depth + 1),
+        | Statement::Block { body, .. } => {
+            script_redefines_sink_read(body, sink, depth + 1, braced_var)
+        }
         Statement::Try {
             body,
             handlers,
             finally_body,
             ..
         } => {
-            script_redefines_sink_read(body, sink, depth + 1)
+            script_redefines_sink_read(body, sink, depth + 1, braced_var)
                 || handlers
                     .iter()
-                    .any(|h| script_redefines_sink_read(&h.body, sink, depth + 1))
+                    .any(|h| script_redefines_sink_read(&h.body, sink, depth + 1, braced_var))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|fb| script_redefines_sink_read(fb, sink, depth + 1))
+                    .is_some_and(|fb| script_redefines_sink_read(fb, sink, depth + 1, braced_var))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -498,10 +531,10 @@ fn stmt_redefines_sink_read(stmt: &Statement, sink: &Statement, depth: u32) -> b
             arms.iter().any(|a| {
                 a.body
                     .as_ref()
-                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
+                    .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1, braced_var))
             }) || default_body
                 .as_ref()
-                .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1))
+                .is_some_and(|b| script_redefines_sink_read(b, sink, depth + 1, braced_var))
         }
         _ => false,
     }
@@ -552,25 +585,36 @@ fn is_decision(stmt: &Statement) -> bool {
 
 /// Return `true` when the decision's *condition* (or switch
 /// subject) textually references `$var`.
-fn decision_condition_uses_var(stmt: &Statement, var: &str) -> bool {
+fn decision_condition_uses_var(
+    stmt: &Statement,
+    var: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     match stmt {
         Statement::If { clauses, .. } => clauses
             .iter()
             .any(|c| expr_references_var(&c.condition, var)),
-        Statement::Switch { subject, .. } => text_references_var(subject, var),
+        Statement::Switch { subject, .. } => text_references_var(subject, var, braced_var),
         _ => false,
     }
 }
 
-fn any_decision_body_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
+fn any_decision_body_uses_var(
+    stmt: &Statement,
+    var: &str,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     match stmt {
         Statement::If {
             clauses, else_body, ..
         } => {
-            clauses.iter().any(|c| script_uses_var(&c.body, var, depth))
+            clauses
+                .iter()
+                .any(|c| script_uses_var(&c.body, var, depth, braced_var))
                 || else_body
                     .as_ref()
-                    .is_some_and(|b| script_uses_var(b, var, depth))
+                    .is_some_and(|b| script_uses_var(b, var, depth, braced_var))
         }
         Statement::Switch {
             arms, default_body, ..
@@ -578,20 +622,25 @@ fn any_decision_body_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
             arms.iter().any(|a| {
                 a.body
                     .as_ref()
-                    .is_some_and(|b| script_uses_var(b, var, depth))
+                    .is_some_and(|b| script_uses_var(b, var, depth, braced_var))
             }) || default_body
                 .as_ref()
-                .is_some_and(|b| script_uses_var(b, var, depth))
+                .is_some_and(|b| script_uses_var(b, var, depth, braced_var))
         }
         _ => false,
     }
 }
 
-fn script_uses_var(script: &Script, var: &str, depth: u32) -> bool {
+fn script_uses_var(
+    script: &Script,
+    var: &str,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     script
         .statements
         .iter()
-        .any(|s| statement_uses_var(s, var, depth))
+        .any(|s| statement_uses_var(s, var, depth, braced_var))
 }
 
 /// Inspect an IR statement for a textual `$var` / `${var}` use.
@@ -606,7 +655,12 @@ fn script_uses_var(script: &Script, var: &str, depth: u32) -> bool {
 /// query uses a `true` answer to *decline* an optimisation (skip a sink, or
 /// treat a variable as still-needed), so an unresolved deep answer must
 /// lean toward "don't touch it", never toward "safe to rewrite".
-fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
+fn statement_uses_var(
+    stmt: &Statement,
+    var: &str,
+    depth: u32,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     if super::MAX_OPTIMISER_WALK_DEPTH.exceeded(depth) {
         return true;
     }
@@ -620,28 +674,31 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
         // evaluates in a *different* frame that can reach this one, so it
         // gets the same conservative answer rather than a body recursion.
         Statement::Barrier { .. } | Statement::UpFrame { .. } => true,
-        Statement::AssignValue { value, .. } => text_references_var(value, var),
+        Statement::AssignValue { value, .. } => text_references_var(value, var, braced_var),
         Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => {
             expr_references_var(expr, var)
         }
         Statement::Incr { amount, .. } => amount
             .as_deref()
-            .is_some_and(|a| text_references_var(a, var)),
+            .is_some_and(|a| text_references_var(a, var, braced_var)),
         Statement::Return { value, expr, .. } => {
             value
                 .as_deref()
-                .is_some_and(|v| text_references_var(v, var))
+                .is_some_and(|v| text_references_var(v, var, braced_var))
                 || expr.as_ref().is_some_and(|e| expr_references_var(e, var))
         }
-        Statement::Call { args, .. } => args.iter().any(|a| text_references_var(a, var)),
+        Statement::Call { args, .. } => {
+            args.iter().any(|a| text_references_var(a, var, braced_var))
+        }
         Statement::If {
             clauses, else_body, ..
         } => {
             clauses.iter().any(|c| {
-                expr_references_var(&c.condition, var) || script_uses_var(&c.body, var, depth + 1)
+                expr_references_var(&c.condition, var)
+                    || script_uses_var(&c.body, var, depth + 1, braced_var)
             }) || else_body
                 .as_ref()
-                .is_some_and(|b| script_uses_var(b, var, depth + 1))
+                .is_some_and(|b| script_uses_var(b, var, depth + 1, braced_var))
         }
         Statement::For {
             init,
@@ -650,24 +707,26 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
             body,
             ..
         } => {
-            script_uses_var(init, var, depth + 1)
+            script_uses_var(init, var, depth + 1, braced_var)
                 || expr_references_var(condition, var)
-                || script_uses_var(next, var, depth + 1)
-                || script_uses_var(body, var, depth + 1)
+                || script_uses_var(next, var, depth + 1, braced_var)
+                || script_uses_var(body, var, depth + 1, braced_var)
         }
         Statement::While {
             condition, body, ..
-        } => expr_references_var(condition, var) || script_uses_var(body, var, depth + 1),
+        } => {
+            expr_references_var(condition, var) || script_uses_var(body, var, depth + 1, braced_var)
+        }
         Statement::Foreach {
             iterators, body, ..
         } => {
             iterators
                 .iter()
-                .any(|it| text_references_var(&it.list_arg, var))
-                || script_uses_var(body, var, depth + 1)
+                .any(|it| text_references_var(&it.list_arg, var, braced_var))
+                || script_uses_var(body, var, depth + 1, braced_var)
         }
         Statement::Catch { body, .. } | Statement::Block { body, .. } => {
-            script_uses_var(body, var, depth + 1)
+            script_uses_var(body, var, depth + 1, braced_var)
         }
         Statement::Try {
             body,
@@ -675,13 +734,13 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
             finally_body,
             ..
         } => {
-            script_uses_var(body, var, depth + 1)
+            script_uses_var(body, var, depth + 1, braced_var)
                 || handlers
                     .iter()
-                    .any(|h| script_uses_var(&h.body, var, depth + 1))
+                    .any(|h| script_uses_var(&h.body, var, depth + 1, braced_var))
                 || finally_body
                     .as_ref()
-                    .is_some_and(|fb| script_uses_var(fb, var, depth + 1))
+                    .is_some_and(|fb| script_uses_var(fb, var, depth + 1, braced_var))
         }
         Statement::Switch {
             subject,
@@ -689,22 +748,30 @@ fn statement_uses_var(stmt: &Statement, var: &str, depth: u32) -> bool {
             default_body,
             ..
         } => {
-            text_references_var(subject, var)
+            text_references_var(subject, var, braced_var)
                 || arms.iter().any(|a| {
                     a.body
                         .as_ref()
-                        .is_some_and(|b| script_uses_var(b, var, depth + 1))
+                        .is_some_and(|b| script_uses_var(b, var, depth + 1, braced_var))
                 })
                 || default_body
                     .as_ref()
-                    .is_some_and(|db| script_uses_var(db, var, depth + 1))
+                    .is_some_and(|db| script_uses_var(db, var, depth + 1, braced_var))
         }
     }
 }
 
 /// Scan a raw Tcl-source word for `$name` / `${name}`
 /// references and return `true` when any matches `var`.
-fn text_references_var(text: &str, var: &str) -> bool {
+///
+/// `braced_var` is the document's `${…}` close rule, resolved through the
+/// shared owner [`tcl_lexer::braced_var_name_end`]. A `false` here *permits* a
+/// sink, so a name this scan fails to recognise moves a statement past a real
+/// read — a miscompile, not a lost opportunity. The old first-`}` walk
+/// compared `a{b` against the `a{b}c` the rest of the pipeline uses, so under
+/// the default (9.x) rule `set v 1; if {…} {puts ${a{b}c}$v}` saw no use of a
+/// variable the branch does read (issue #1604).
+fn text_references_var(text: &str, var: &str, braced_var: tcl_dialect::BracedVarStyle) -> bool {
     let bytes = text.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -717,19 +784,23 @@ fn text_references_var(text: &str, var: &str) -> bool {
             break;
         }
         if bytes[i] == b'{' {
-            i += 1;
-            let start = i;
-            while i < bytes.len() && bytes[i] != b'}' {
-                i += 1;
-            }
-            if let Ok(name) = std::str::from_utf8(&bytes[start..i])
+            // The name starts just past the `${`.
+            let start = i + 1;
+            let close = match tcl_lexer::braced_var_name_end(bytes, start, braced_var) {
+                tcl_lexer::BracedVarEnd::Closed(end) => end,
+                // No closer: there is no reference to compare. Resume after the
+                // `{` so the remainder of the word is still scanned.
+                tcl_lexer::BracedVarEnd::Unterminated => {
+                    i = start;
+                    continue;
+                }
+            };
+            if let Ok(name) = std::str::from_utf8(&bytes[start..close])
                 && name == var
             {
                 return true;
             }
-            if i < bytes.len() {
-                i += 1;
-            }
+            i = close + 1;
             continue;
         }
         let start = i;
@@ -1046,6 +1117,25 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the textual use scan reads `${…}` through the shared
+    /// owner, so a nested-brace name is recognised as a use.
+    ///
+    /// `false` here *permits* the sink, so a name this scan misses moves the
+    /// definition past a real read — a miscompile, not a lost optimisation.
+    /// Under the default (9.x) rule `${a{b}c}` names `a{b}c`; under 8.x it
+    /// names `a{b` and `c}` is ordinary word text.
+    #[test]
+    fn text_references_var_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        assert!(text_references_var("puts ${a{b}c}", "a{b}c", Tcl9Nesting));
+        assert!(!text_references_var("puts ${a{b}c}", "a{b", Tcl9Nesting));
+        assert!(text_references_var("puts ${a{b}c}", "a{b", FirstClose));
+        assert!(!text_references_var("puts ${a{b}c}", "a{b}c", FirstClose));
+        // An unterminated reference names nothing, but must not hide a later
+        // ordinary reference in the same word.
+        assert!(text_references_var("${a{b $x", "x", Tcl9Nesting));
+    }
+
     /// Issue #1402 — the conservative direction directly: a `Barrier` (and
     /// an `UpFrame`) answers "uses every variable", matching
     /// `propagation`'s `has_intervening_barrier`.
@@ -1059,7 +1149,12 @@ mod tests {
             args: vec!["$s".to_owned()],
             tokens: None,
         };
-        assert!(statement_uses_var(&barrier, "x", 0));
+        assert!(statement_uses_var(
+            &barrier,
+            "x",
+            0,
+            tcl_dialect::BracedVarStyle::default()
+        ));
     }
 
     #[test]

@@ -698,6 +698,7 @@ fn collect_taint_warnings(
         taints,
         &fu.sccp.executable_blocks,
         registry,
+        Some(profile),
     ) {
         push(
             w.code.as_str(),

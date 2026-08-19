@@ -751,7 +751,11 @@ pub fn namespace_variable_rename_hazard(
                 // Per-site provenance: a word that provably cannot spell this
                 // cell is not a hazard for *this* rename, however dynamic it
                 // is.
-                if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(word, cell) {
+                if !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+                    word,
+                    cell,
+                    dialect.grammar.braced_var,
+                ) {
                     continue;
                 }
                 let Some(tok) = cmd.argv.get(idx + 1) else {
@@ -762,7 +766,7 @@ pub fn namespace_variable_rename_hazard(
                 // this cell, however wildcard the text is (issue #1262).
                 // Narrowing only — a site with no recorded resolution, or one
                 // the analyser's walk never reached, keeps refusing.
-                if site_resolution_rules_out(analysis, tok.span, cell) {
+                if site_resolution_rules_out(analysis, tok.span, cell, dialect) {
                     continue;
                 }
                 hazard = Some(tok.span);
@@ -801,11 +805,20 @@ pub fn namespace_variable_rename_hazard(
 /// row whose resolution is `None` (branch-dependent, parameter-fed, or a `[…]`
 /// substitution).  A gate that only skips on `true` therefore never accepts
 /// more than the text-only bound did.
-fn site_resolution_rules_out(analysis: &AnalysisResult, span: Span, cell: &str) -> bool {
+fn site_resolution_rules_out(
+    analysis: &AnalysisResult,
+    span: Span,
+    cell: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+) -> bool {
     analysis.dynamic_variable_names.iter().any(|site| {
         site.span == span
             && site.resolved.as_deref().is_some_and(|resolved| {
-                !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(resolved, cell)
+                !tcl_compiler::dynamic_names::dynamic_variable_word_can_spell(
+                    resolved,
+                    cell,
+                    dialect.grammar.braced_var,
+                )
             })
     })
 }
@@ -1084,6 +1097,63 @@ mod tests {
             &LineIndex::new(source),
         )
         .map(|r| r.reason)
+    }
+
+    /// [`var_hazard`] under an explicitly named dialect.
+    fn var_hazard_as(source: &str, cell: &str, dialect: &str) -> Option<String> {
+        let analysis = analyse(source);
+        namespace_variable_rename_hazard(
+            source,
+            tcl_dialect::DialectProfile::by_name(dialect),
+            &analysis,
+            cell,
+            &LineIndex::new(source),
+        )
+        .map(|r| r.reason)
+    }
+
+    /// PR #1645 review (Codex, P2) — the rename gate reads a computed name's
+    /// `${…}` extent under the **document's** close rule, not the 9.x default.
+    ///
+    /// The literal characters around a substitution are the whole bound this
+    /// gate rests on, so the two release rules move the decision in opposite
+    /// directions, and the caller holds the resolved profile either way:
+    ///
+    /// - **9.x** — `${a{b}c}` is one wildcard (the nesting rule consumes the
+    ///   inner pair), which can spell any cell, so the rename is refused.
+    /// - **8.x** — the name ends at the first `}`, leaving the wildcard
+    ///   followed by the literal `c}`; no ordinary cell name ends that way, so
+    ///   the word provably cannot reach `::ns::v` and the rename is safe.
+    ///
+    /// Reading an 8.x document with the 9.x default therefore refuses a rename
+    /// that is provably safe. Oracle for the underlying split:
+    /// `set {a{b}c} HIT; subst {${a{b}c}}` is `HIT` on tclsh 9.0.4 and
+    /// `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`, `tclParse.c:1315` vs
+    /// `:1398`).
+    #[test]
+    fn the_computed_name_bound_follows_the_document_close_rule() {
+        let src = "namespace eval ::ns {\n\
+                   \x20   variable v 1\n\
+                   \x20   proc p {} { set ${a{b}c} 2 }\n\
+                   }\n";
+
+        let reason = var_hazard_as(src, "::ns::v", "tcl9.0")
+            .expect("9.x reads `${a{b}c}` as one wildcard, which can spell the cell");
+        assert!(reason.contains("computed at run time"), "{reason}");
+
+        assert_eq!(
+            var_hazard_as(src, "::ns::v", "tcl8.6"),
+            None,
+            "8.x ends the name at the first `}}`, so the trailing literal `c}}` \
+             puts `::ns::v` out of reach and the rename is safe",
+        );
+
+        // Control: with the 8.x remainder actually present in the cell name the
+        // narrower pattern *does* match, so 8.x still refuses — the bound is a
+        // narrowing, not a disabling.
+        let reason = var_hazard_as(src, "::ns::xc}", "tcl8.6")
+            .expect("`*c}` really can spell a cell ending in `c}`");
+        assert!(reason.contains("computed at run time"), "{reason}");
     }
 
     /// FP guard: a computed variable name in a registry-declared variable-name

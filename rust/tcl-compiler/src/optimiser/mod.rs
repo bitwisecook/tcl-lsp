@@ -306,6 +306,24 @@ impl<'a> PassContext<'a> {
         }
     }
 
+    /// This document's `${…}` close rule — the input to the shared owner
+    /// [`tcl_lexer::braced_var_name_end`].
+    ///
+    /// Every pass that reads a variable name out of free statement text must
+    /// resolve the closer through the owner under *this* style, not re-derive
+    /// it: an optimiser that harvests `a{b` where the lexer spanned `a{b}c`
+    /// misses the use, and a missed use is a wrong transform — a live write
+    /// reported dead (O109/W211) or a statement sunk past a real read
+    /// (issue #1604).
+    ///
+    /// With no explicit dialect the document was lexed under
+    /// [`tcl_dialect::BracedVarStyle::default`], so that is what the fallback
+    /// returns; anything else would contradict the spans the pass is reading.
+    #[must_use]
+    pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
+        tcl_dialect::BracedVarStyle::of_profile(self.dialect)
+    }
+
     /// Record an optimisation diagnostic.
     pub fn report(&mut self, opt: Optimisation) {
         self.optimisations.push(opt);
