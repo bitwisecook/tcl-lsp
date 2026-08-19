@@ -203,8 +203,19 @@ fn flush_subst_lit(
 ///
 /// `escapes` is the target release's backslash grammar — the skip width and the
 /// decoded value must come from the same release, so both take it.
+///
+/// `braced_var` is the same release's `${…}` close rule, resolved through the
+/// shared owner [`tcl_lexer::braced_var_name_end`]. It is a second grammar
+/// fact about the same target and travels beside `escapes` for the same
+/// reason: this decoder hard-coded the 8.x first-`}` rule at every release
+/// while `values::parse_simple_var_ref` hard-coded the 9.x nesting rule, so
+/// the compiled-word path was wrong in both directions at once (issue #1568).
 #[must_use]
-pub fn parse_subst_template(template: &str, escapes: EscapeSyntax) -> Option<Vec<SubstPart>> {
+pub fn parse_subst_template(
+    template: &str,
+    escapes: EscapeSyntax,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Option<Vec<SubstPart>> {
     let bytes = template.as_bytes();
     let n = bytes.len();
     let mut parts = Vec::new();
@@ -251,13 +262,25 @@ pub fn parse_subst_template(template: &str, escapes: EscapeSyntax) -> Option<Vec
                 return None;
             }
             if bytes[i] == b'=' && i + 1 < n && bytes[i + 1] == b'{' {
-                // Braced scalar: $={name}
-                let end = template[i + 2..].find('}').map(|p| i + 2 + p)?;
+                // Braced scalar: $={name}. The compiler's own marker for "load
+                // this name as a scalar", but its name is spelt by the same
+                // brace form, so it closes by the same release rule.
+                let end = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(end) => end,
+                    tcl_lexer::BracedVarEnd::Unterminated => return None,
+                };
                 parts.push(SubstPart::Scalar(template[i + 2..end].to_owned()));
                 i = end + 1;
             } else if bytes[i] == b'{' {
-                // Braced variable: ${name}
-                let end = template[i + 1..].find('}').map(|p| i + 1 + p)?;
+                // Braced variable: ${name}, closed by the target release's
+                // `Tcl_ParseVarName` rule. This used to be `find('}')` — the
+                // 8.x first-close rule applied at every release, disagreeing
+                // with `values::parse_simple_var_ref`'s 9.x nesting rule on the
+                // very same encoding (issue #1568).
+                let end = match tcl_lexer::braced_var_name_end(bytes, i + 1, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(end) => end,
+                    tcl_lexer::BracedVarEnd::Unterminated => return None,
+                };
                 parts.push(SubstPart::Var(template[i + 1..end].to_owned()));
                 i = end + 1;
             } else {
@@ -632,7 +655,11 @@ mod tests {
     /// [`parse_subst_template`] under the release-blind Tcl 9.0 grammar — what
     /// these tests assert unless they name a release.
     fn template(text: &str) -> Option<Vec<SubstPart>> {
-        parse_subst_template(text, EscapeSyntax::default())
+        parse_subst_template(
+            text,
+            EscapeSyntax::default(),
+            tcl_dialect::BracedVarStyle::default(),
+        )
     }
 
     #[test]
@@ -640,9 +667,13 @@ mod tests {
         // The compile target's escape grammar reaches the template parser, so
         // an 8.5 build freezes `B` where a 9.0 build freezes `A42`, and the
         // skip width used to find the next `$`/`[` trigger matches (#1479).
-        let lit = |text: &str, escapes| match parse_subst_template(text, escapes)
-            .expect("template parses")
-            .as_slice()
+        let lit = |text: &str, escapes| match parse_subst_template(
+            text,
+            escapes,
+            tcl_dialect::BracedVarStyle::default(),
+        )
+        .expect("template parses")
+        .as_slice()
         {
             [SubstPart::Lit(s)] => s.clone(),
             other => panic!("expected one literal part, got {other:?}"),

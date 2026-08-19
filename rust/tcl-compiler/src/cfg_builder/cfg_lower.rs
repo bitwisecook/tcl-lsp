@@ -116,9 +116,9 @@ fn literal_true_expr() -> ExprNode {
 /// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
 /// can never be compared as if it were its own literal text.
 fn switch_subject_operand(subject: &str) -> ExprNode {
-    use crate::codegen::values::{parse_braced_scalar_ref, parse_simple_var_ref};
+    use crate::codegen::values::parse_braced_scalar_ref;
 
-    if parse_braced_scalar_ref(subject).is_some() || parse_simple_var_ref(subject).is_some() {
+    if parse_braced_scalar_ref(subject).is_some() || is_whole_var_ref(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
         };
@@ -128,6 +128,67 @@ fn switch_subject_operand(subject: &str) -> ExprNode {
         start: 0,
         end: 0,
     }
+}
+
+/// Whether `subject` is one whole `${…}` / `$name` variable reference under
+/// **either** release's close rule.
+///
+/// # This gate must accept under either rule — do not "simplify" it
+///
+/// The `${…}` close rule is release-dependent (issue #1568) and CFG lowering
+/// has no dialect in hand: it runs before the target release reaches codegen.
+/// Every narrower gate is wrong, and each has its own distinguishing program.
+///
+/// Declining is not free. It sends the subject down the `String` path, where
+/// the whole word is re-substituted as ordinary text — and for a name carrying
+/// a backslash that is *not* the same operation as loading the variable, because
+/// the escape is processed instead of staying literal. So `Raw` is not merely an
+/// optimisation over `String`; it is the only arm that preserves the name. That
+/// makes an accepting gate the safe direction and abstention the risky one,
+/// which is the opposite of the usual intuition about optimisation gates.
+///
+/// **Pinning to [`BracedVarStyle::Tcl9Nesting`]** (the `default()`, and what
+/// this gate did until the vector below was reported on #1615) loses a subject
+/// that is whole under the 8.x rule only:
+///
+/// ```tcl
+/// set "a\\" K
+/// switch -- ${a\} { K {puts hit} default {puts miss} }
+/// ```
+///
+/// `${a\}` closes at the first `}` under `FirstClose`, naming `a\`; under
+/// `Tcl9Nesting` the `\}` is inert so the name never closes. Real tclsh 8.6
+/// prints `hit`. Pinned to the 9.x rule this gate declines, the subject is
+/// re-substituted as text, the `\}` is processed, and the load becomes
+/// `can't read "a"` — an error, not a wrong branch. (At 9.x the same spelling
+/// is unterminated, so the script is a parse error and never reaches the gate.)
+///
+/// **Pinning to [`BracedVarStyle::FirstClose`], or requiring both rules to
+/// agree** (an earlier revision of this fix did the latter, believing
+/// abstention was safe) loses the mirror-image subject:
+///
+/// ```tcl
+/// set {a\}b} K
+/// switch -- ${a\}b} { K {puts hit} default {puts miss} }
+/// ```
+///
+/// Real tclsh: `can't read "a\"` at 8.6, `hit` at 9.0. Either narrowing yields
+/// `can't read "a"` at **both** releases — wrong twice over.
+///
+/// Accepting under either rule is what covers both, and it is sound because the
+/// gate only chooses a *representation*: dialect-aware codegen re-decides the
+/// reference under the real target style, and a spelling that is whole under
+/// only one rule is a parse error under the other, so it can never reach
+/// codegen wearing the wrong release's answer. Pinned by
+/// `compiled_interpolated_and_switch_paths_follow_the_emulated_release` and
+/// `switch_subject_whole_under_the_8x_rule_only_follows_the_emulated_release`.
+fn is_whole_var_ref(subject: &str) -> bool {
+    [
+        tcl_dialect::BracedVarStyle::Tcl9Nesting,
+        tcl_dialect::BracedVarStyle::FirstClose,
+    ]
+    .into_iter()
+    .any(|style| crate::codegen::values::parse_simple_var_ref(subject, style).is_some())
 }
 
 impl CfgBuilder {

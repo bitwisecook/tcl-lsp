@@ -217,18 +217,35 @@ impl CodegenCtx<'_> {
     /// the index never expanded and the element lookup failed. A pure literal
     /// key is pushed verbatim.
     pub fn push_array_key(&mut self, elem: &str) {
-        if let Some(inner) = elem
-            .strip_prefix("${")
-            .and_then(|s| s.strip_suffix('}'))
-            .filter(|inner| !inner.contains(['{', '}']))
-        {
+        if let Some(inner) = parse_simple_var_ref(elem, self.braced_var) {
             // Whole braced variable reference: `${var}`.
+            //
+            // Resolved through the same release-aware decoder as every other
+            // `${…}` consumer (issue #1568). This arm used to hand-roll the
+            // scan — `strip_suffix('}')` plus a
+            // `.filter(|inner| !inner.contains(['{', '}']))` guard — which was
+            // a *fourth* copy of the close rule and the only one left
+            // unthreaded. It got two shapes wrong:
+            //
+            //   set {a\}b} K; set arr(K) V; puts $arr(${a\}b})
+            //   set {a\{b} K; set arr(K) V; puts $arr(${a\{b})
+            //
+            // A whole `${…}` key containing a backslash fell past this arm
+            // (the guard rejects any brace in the name), past the bare-`$`
+            // arm, and past the composite arm (one part, not >1), landing in
+            // the trailing `elem.contains('\\')` literal arm — which ran
+            // `backslash_subst_in` over the *whole* `${…}` spelling. Inside
+            // `${}` the name is literal in C, so that decoded escapes that
+            // must stay verbatim: the first vector failed at 9.x and the
+            // second at **every** release. Composite keys (`x${a\}b}`) were
+            // always correct, which is why only this arm needed the fix.
             self.load_var(inner);
         } else if let Some(var) = elem.strip_prefix('$').filter(|v| is_bare_var_name(v)) {
             // Whole bare variable reference: `$var` (the name runs to the end).
             self.load_var(var);
         } else if has_unescaped_subst(elem)
-            && let Some(parts) = super::helpers::parse_subst_template(elem, self.escapes)
+            && let Some(parts) =
+                super::helpers::parse_subst_template(elem, self.escapes, self.braced_var)
             && parts.len() > 1
         {
             // Composite key with an embedded substitution (`-$opt`, `x$item`,
@@ -397,7 +414,7 @@ impl CodegenCtx<'_> {
             }
             Some(amt) => {
                 // Variable amount — try to resolve as ${var} reference
-                let var_ref = parse_simple_var_ref(amt);
+                let var_ref = parse_simple_var_ref(amt, self.braced_var);
                 self.load_var(var_ref.unwrap_or(amt));
                 self.emit_comment(
                     Op::INCR_SCALAR1,
@@ -453,7 +470,7 @@ impl CodegenCtx<'_> {
                 }
             }
             Some(amt) => {
-                let var_ref = parse_simple_var_ref(amt);
+                let var_ref = parse_simple_var_ref(amt, self.braced_var);
                 if let (None, Some(vr)) = (arr, var_ref) {
                     self.push_lit(name);
                     self.load_var(vr);
@@ -476,40 +493,67 @@ impl CodegenCtx<'_> {
 
 // -- Reference parsing --
 
-/// Extract variable name from a normalised `${var}` reference.
+/// Extract variable name from a normalised `${var}` reference, under the
+/// target release's `${…}` close rule.
 ///
 /// The lowering pass normalises actual variable substitutions to
 /// `${varname}`; bare `$varname` (from braced literals like `{$x}`)
 /// is left as-is.  Only the `${...}` form is treated as a resolvable
 /// reference.
 ///
-/// Handles nested variable references like `${::a(${::a(1)})}` where
-/// the inner `${...}` creates additional brace pairs.
+/// `style` is the release-aware `Tcl_ParseVarName` brace rule, resolved
+/// through the shared owner [`tcl_lexer::braced_var_name_end`] rather than
+/// re-scanned here. This function used to walk brace *depth* and require the
+/// first balanced close to be the final byte — which is the **9.x** rule,
+/// applied at every release — while `helpers::parse_subst_template` used the
+/// **8.x** first-`}` rule. Two decoders reading one encoding under two
+/// different releases' rules is what made issue #1568's outcome *inverted*
+/// rather than merely wrong.
+///
+/// The whole value must be the reference: a trailing byte after the name's
+/// closer means this word is `${…}` followed by literal text, which is not a
+/// simple variable load. Under 9.x that still admits nested references like
+/// `${::a(${::a(1)})}`, because the nesting rule consumes the inner pairs.
+///
+/// An unterminated name yields `None`: there is no reference to load, and the
+/// caller's fallback path re-reads the word (issue #1457 gave the shared owner
+/// [`tcl_lexer::BracedVarEnd::Unterminated`] precisely so each consumer stops
+/// inventing its own recovery).
+///
+/// Both wrong values of `style` are real defects — do not "simplify" this
+/// parameter away in either direction.
+///
+/// Pinning it to `Tcl9Nesting` lets an 8.x compile accept `${a{b}c}` as one
+/// reference to `a{b}c`; five tests fail.
+///
+/// Pinning it to `FirstClose` is **not** merely pessimal, which an earlier
+/// revision of this comment claimed. Declining here forfeits the direct load
+/// and hands the word to the runtime fallback, and that fallback is only
+/// equivalent when the *name* survives ordinary word substitution unchanged.
+/// It does not always:
+///
+/// ```tcl
+/// set {{}} V
+/// puts ${{}}          ;# 9.0: V   — with FirstClose: can't read "{}"
+/// set {a\}b} K
+/// set arr(K) V
+/// puts $arr(${a\}b})  ;# 9.0: V   — with FirstClose: can't read "a"
+/// ```
+///
+/// A leading `{` and an embedded `\}` both fail to round-trip through the
+/// fallback, so declining loses the name rather than merely costing a fast
+/// path. Declining is safe *only* where the fallback is equivalent, and these
+/// are the counterexamples.
 #[must_use]
-pub fn parse_simple_var_ref(value: &str) -> Option<&str> {
+pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> Option<&str> {
     let rest = value.strip_prefix("${")?;
-    if !value.ends_with('}') {
-        return None;
+    // `2` is the byte just past the `${`, i.e. where the name starts.
+    match tcl_lexer::braced_var_name_end(value.as_bytes(), 2, style) {
+        // The closer must be the final byte; anything after it makes the word
+        // a concatenation rather than one whole reference.
+        tcl_lexer::BracedVarEnd::Closed(end) if end == value.len() - 1 => Some(&rest[..end - 2]),
+        _ => None,
     }
-
-    // Verify the closing } matches the opening ${ by checking balanced braces.
-    let mut depth: i32 = 0;
-    for (i, ch) in value.char_indices() {
-        if ch == '{' {
-            depth += 1;
-        } else if ch == '}' {
-            depth -= 1;
-            if depth == 0 {
-                // The first balanced close should be the final character.
-                return if i == value.len() - 1 {
-                    Some(&rest[..rest.len() - 1])
-                } else {
-                    None
-                };
-            }
-        }
-    }
-    None
 }
 
 /// Extract variable name from a braced-scalar marker `$={name}`.
@@ -577,30 +621,42 @@ mod tests {
 
     #[test]
     fn parse_simple_var_ref_basic() {
-        assert_eq!(parse_simple_var_ref("${x}"), Some("x"));
+        assert_eq!(
+            parse_simple_var_ref("${x}", tcl_dialect::BracedVarStyle::default()),
+            Some("x")
+        );
     }
 
     #[test]
     fn parse_simple_var_ref_qualified() {
-        assert_eq!(parse_simple_var_ref("${::foo}"), Some("::foo"));
+        assert_eq!(
+            parse_simple_var_ref("${::foo}", tcl_dialect::BracedVarStyle::default()),
+            Some("::foo")
+        );
     }
 
     #[test]
     fn parse_simple_var_ref_nested() {
         assert_eq!(
-            parse_simple_var_ref("${::a(${::a(1)})}"),
+            parse_simple_var_ref("${::a(${::a(1)})}", tcl_dialect::BracedVarStyle::default()),
             Some("::a(${::a(1)})")
         );
     }
 
     #[test]
     fn parse_simple_var_ref_bare_dollar() {
-        assert_eq!(parse_simple_var_ref("$x"), None);
+        assert_eq!(
+            parse_simple_var_ref("$x", tcl_dialect::BracedVarStyle::default()),
+            None
+        );
     }
 
     #[test]
     fn parse_simple_var_ref_no_close() {
-        assert_eq!(parse_simple_var_ref("${x"), None);
+        assert_eq!(
+            parse_simple_var_ref("${x", tcl_dialect::BracedVarStyle::default()),
+            None
+        );
     }
 
     // -- whole_var_reference (issue #1459) --

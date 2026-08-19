@@ -114,6 +114,19 @@ impl BracedVarStyle {
     pub fn nests(self) -> bool {
         matches!(self, Self::Tcl9Nesting)
     }
+
+    /// The rule of the dialect `name` resolves to, or the 9.x default when
+    /// `name` is [`None`] — the sibling of
+    /// [`NumberSyntax::of_dialect_name`] and
+    /// [`EscapeSyntax::of_dialect_name`], for the same reason: the compiler
+    /// threads a dialect *name* from `IrModule::dialect` and needs one way to
+    /// turn it into this grammar fact (issue #1568).
+    #[must_use]
+    pub fn of_dialect_name(name: Option<&str>) -> Self {
+        name.map_or(Self::default(), |n| {
+            crate::DialectProfile::by_name(n).grammar.braced_var
+        })
+    }
 }
 
 /// Whether `#` starts a comment inside an `[expr]` body — Tcl 9.0 added it

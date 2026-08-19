@@ -523,13 +523,35 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
         return eval_subst(vm, &word[1..end]);
     }
     // Fast path: the whole word is one `${name}`.
+    //
+    // The close rule is the release's, resolved through the one shared owner
+    // (issue #1568). This used to be `find('}')` — the 8.x first-close rule
+    // applied at *every* release — so a compiled word `${a{b}c}` read the
+    // variable `a{b` even when emulating 9.x. `subst`'s own engine was fixed
+    // for #1457 via `parse_var_ref_parts`; this is the compiled-word path,
+    // which had its own copy.
+    //
+    // Do not go hunting for a test that pins the *style* here: there is none,
+    // and that was measured, not assumed. Pinning this call to `FirstClose`
+    // leaves every vector in a ~130-program search unchanged, because the arm is
+    // only ever *reached* when both rules agree. A whole-word `${name}` whose
+    // rules agree is resolved at compile time (`parse_simple_var_ref` →
+    // `load_var`) and never reaches `subst_word` at all; one whose rules
+    // disagree fails this arm's `close == n - 1` test under either style and
+    // falls through to the general scan below, which is the arm the release
+    // rule is observable through (and which is pinned by
+    // `compiled_interpolated_and_switch_paths_follow_the_emulated_release`).
+    // It is written release-aware anyway so the two arms cannot drift apart —
+    // the drift between two such copies is the whole of #1568.
+    let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
         && b[1] == b'{'
-        && let Some(rel) = word[2..].find('}')
-        && 2 + rel == n - 1
+        && let tcl_lexer::BracedVarEnd::Closed(close) =
+            tcl_lexer::braced_var_name_end(b, 2, braced_var)
+        && close == n - 1
     {
-        return read_var(vm, &word[2..2 + rel]);
+        return read_var(vm, &word[2..close]);
     }
     // No substitution triggers: the literal is its own value.
     if !word.contains("${") && !word.contains('[') {
@@ -550,14 +572,33 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             b'\\' => i = (i + 2).min(n),
             b'$' if i + 1 < n && b[i + 1] == b'{' => {
                 out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
-                if let Some(rel) = word[i + 2..].find('}') {
-                    let close = i + 2 + rel;
-                    let v = read_var(vm, &word[i + 2..close])?;
-                    out.push_str(&v.to_str());
-                    i = close + 1;
-                } else {
-                    out.push('$');
-                    i += 1;
+                // Same release-aware close rule as the whole-word fast path
+                // above — the second of this function's two hard-coded 8.x
+                // copies (issue #1568).
+                match tcl_lexer::braced_var_name_end(b, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(close) => {
+                        let v = read_var(vm, &word[i + 2..close])?;
+                        out.push_str(&v.to_str());
+                        i = close + 1;
+                    }
+                    // C raises `missing close-brace for variable name` here,
+                    // and both `subst` engines now do (issue #1457).
+                    //
+                    // Note this is a *parse* error, not an evaluation one, and
+                    // C reports it before the command runs at all: it parses
+                    // every word of a command before evaluating any of them.
+                    // So no earlier `[…]` in the same word has run when this
+                    // fires — `puts "[side]pre${abc"` never calls `side` on
+                    // 8.6.16 or 9.0.4, and does not here either. (An earlier
+                    // revision of this comment claimed the opposite, reasoning
+                    // from left-to-right *evaluation*; the behaviour was right
+                    // and the justification wrong. Pinned by
+                    // `unterminated_braced_var_in_a_compiled_word_is_a_parse_error`,
+                    // which also records why no vector reaches *this* arm: the
+                    // compiler rejects such source before the VM sees it.)
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+                    }
                 }
                 lit = i;
             }

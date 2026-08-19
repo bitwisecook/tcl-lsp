@@ -207,10 +207,26 @@ fn shift_span(span: Span, by: u32) -> Span {
     Span::new(span.start() + by, span.end() + by)
 }
 
+/// The whole written source of `tok`'s word, closing delimiter included, when
+/// the span lies inside `sm`'s source.
+///
+/// Widened through [`tcl_lexer::word_span_at`], the shared owner of the
+/// inner-end convention, so an empty `${}` is not overshot and a name whose
+/// last inner byte is itself a `}` is not left short.
+fn word_span_source<'s>(sm: &SourceMap<'s>, tok: Token) -> Option<&'s str> {
+    let source = sm.source();
+    let span = tcl_lexer::word_span_at(source, tok.span);
+    source.get(span.start() as usize..span.end() as usize)
+}
+
 /// Return the source-level text fragment for a single token.
 ///
 /// Variables are prefixed with `$` and command substitutions are
 /// wrapped in `[...]` so that the result mirrors what the user wrote.
+///
+/// A braced `${…}` variable round-trips **verbatim from source**, because the
+/// lexer already applied the target release's `Tcl_ParseVarName` rule when it
+/// spanned the token — see the `is_braced` arm below (issue #1568).
 ///
 /// Bare `$arr(idx)` whose index contains a `$` or `[` substitution
 /// round-trips verbatim — wrapping in braces would disable array-
@@ -232,6 +248,28 @@ pub fn word_piece(sm: &SourceMap<'_>, tok: Token) -> String {
                 && (text.contains('$') || text.contains('['))
             {
                 return format!("${text}");
+            }
+            // A braced `${…}` word is re-spelt **verbatim from source**.
+            //
+            // Issue #1568: this used to fall back to a bare `$name` spelling
+            // whenever the name contained a `}`, because it could not form an
+            // unambiguous `${…}` from the name alone. Under 9.x the lexer
+            // spans `${a{b}c}` as one `Var` whose name is `a{b}c`, so the bail
+            // produced `$a{b}c` — which no decoder recognises as a reference,
+            // leaving it to be pushed as a literal. That is the "no
+            // substitution at all under 9.x" half of the defect.
+            //
+            // Echoing the source needs no release rule of its own, which is
+            // the point: the **lexer** already applied the target release's
+            // `Tcl_ParseVarName` rule when it decided where this token ends,
+            // so its span encodes the answer. `word_span_at` recovers the
+            // closer from that span and is documented release-blind for
+            // exactly this form. Under 8.x the same source lexes as `${a{b}`
+            // plus an `Esc` `c}`, and concatenating the pieces reproduces
+            // `${a{b}c}` — the identical spelling, which the decoders then
+            // read under *their* release's rule.
+            if is_braced && let Some(src) = word_span_source(sm, tok) {
+                return src.to_owned();
             }
             if text.contains('}') {
                 format!("${text}")
