@@ -83,6 +83,7 @@ object DiagnosticCatalog {
         DiagnosticDef("W146", "warning", "W146: Literal argument violates a registry-declared relati...", true),
         DiagnosticDef("W147", "warning", "W147: Mutually exclusive command options were supplied tog...", true),
         DiagnosticDef("W148", "warning", "W148: Numeral spelling is not accepted by the document's r...", true),
+        DiagnosticDef("W149", "warning", "W149: Argument count matches a different release of the co...", true),
         DiagnosticDef("W200", "warning", "W200: exec result not captured or binary format modifier r...", true),
         DiagnosticDef("W201", "warning", "W201: Manual path concatenation", true),
         DiagnosticDef("W230", "warning", "W230: Constant list index out of range", true),

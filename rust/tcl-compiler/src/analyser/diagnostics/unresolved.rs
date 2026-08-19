@@ -1075,10 +1075,11 @@ impl Analyser {
             if imported.contains(pkg) {
                 continue;
             }
-            // A package the profile ships ambiently (an F5 surface, an EDA
-            // shell's own tool commands) is part of the runtime — no
+            // A package the runtime ships ambiently (an F5 surface, an EDA
+            // shell's own tool commands, or a package a loaded pack declared
+            // with `ambient_package`) is part of the runtime — no
             // `package require` exists for it (§7.1 axis C).
-            if self.profile.is_ambient_package(pkg) {
+            if self.profile_registry().is_ambient_package(pkg) {
                 continue;
             }
             let fix = super::types::CodeFix {

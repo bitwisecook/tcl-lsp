@@ -927,9 +927,7 @@ fn hover_impl(
         {
             return Some(Hover::markdown(text));
         }
-        if let Some(text) =
-            builtin_command_hover_text(registry, &word, analysis, cursor_offset, profile)
-        {
+        if let Some(text) = builtin_command_hover_text(registry, &word, analysis, cursor_offset) {
             return Some(Hover::markdown(text));
         }
     }
@@ -988,7 +986,6 @@ fn builtin_command_hover_text(
     name: &str,
     analysis: &AnalysisResult,
     cursor_offset: u32,
-    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     use std::borrow::Cow;
     use std::fmt::Write;
@@ -1038,7 +1035,7 @@ fn builtin_command_hover_text(
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
     if let Some(pkg) = spec.required_package
-        && !profile.is_ambient_package(pkg)
+        && !registry.is_ambient_package(pkg)
     {
         let pkg_available = registry.get("package").is_some();
         let imported = analysis.package_requires.iter().any(|pr| pr.name == pkg);
@@ -4359,13 +4356,9 @@ mod tests {
     fn irules_command_hover_lists_valid_events() {
         let mut registry = CommandRegistry::build_default();
         registry.load_dialect(tcl_dialect::DialectSet::IRULES);
-        if let Some(text) = builtin_command_hover_text(
-            &registry,
-            "ASM::is_authenticated",
-            &analyse(""),
-            u32::MAX,
-            tcl_dialect::DialectProfile::irules(),
-        ) {
+        if let Some(text) =
+            builtin_command_hover_text(&registry, "ASM::is_authenticated", &analyse(""), u32::MAX)
+        {
             assert!(text.contains("**Valid events**"), "{text}");
             assert!(text.contains("ASM_REQUEST_BLOCKING"), "{text}");
             assert!(text.contains("**Requires**: profile ASM"), "{text}");
@@ -4385,7 +4378,6 @@ mod tests {
             "DIAMETER::retransmission_default",
             &analyse(""),
             u32::MAX,
-            tcl_dialect::DialectProfile::irules(),
         )
         .expect("hover");
         assert!(
@@ -5423,14 +5415,8 @@ mod tests {
     #[test]
     fn builtin_command_hover_surfaces_summary_from_registry() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(
-            &registry,
-            "puts",
-            &analyse(""),
-            u32::MAX,
-            tcl_dialect::DialectProfile::plain_tcl(),
-        )
-        .expect("hover");
+        let t =
+            builtin_command_hover_text(&registry, "puts", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("built-in command"), "{t}");
         assert!(t.contains("`puts`"), "{t}");
     }
@@ -5438,14 +5424,8 @@ mod tests {
     #[test]
     fn builtin_command_hover_lists_subcommands() {
         let registry = tcl_registry::CommandRegistry::build_default();
-        let t = builtin_command_hover_text(
-            &registry,
-            "string",
-            &analyse(""),
-            u32::MAX,
-            tcl_dialect::DialectProfile::plain_tcl(),
-        )
-        .expect("hover");
+        let t =
+            builtin_command_hover_text(&registry, "string", &analyse(""), u32::MAX).expect("hover");
         assert!(t.contains("Subcommands:"), "{t}");
         assert!(t.contains("length"), "{t}");
     }
@@ -5454,14 +5434,8 @@ mod tests {
     fn builtin_command_hover_returns_none_for_unknown() {
         let registry = tcl_registry::CommandRegistry::build_default();
         assert!(
-            builtin_command_hover_text(
-                &registry,
-                "totallyMadeUpCommand",
-                &analyse(""),
-                u32::MAX,
-                tcl_dialect::DialectProfile::plain_tcl(),
-            )
-            .is_none()
+            builtin_command_hover_text(&registry, "totallyMadeUpCommand", &analyse(""), u32::MAX,)
+                .is_none()
         );
     }
 

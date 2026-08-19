@@ -288,6 +288,22 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Argument-count constraint, counted after the command name.",
     ),
     f(
+        "arity_windows",
+        "Arity windows",
+        ARGS,
+        FieldKind::RustExpr {
+            hint: "ARITY_WINDOWS",
+        },
+        "Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.",
+    ),
+    f(
+        "arg_rows",
+        "Versioned argument rows",
+        ARGS,
+        FieldKind::RustExpr { hint: "ARG_ROWS" },
+        "The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.",
+    ),
+    f(
         "arg_roles",
         "Argument roles",
         ARGS,
@@ -1148,6 +1164,22 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         ARGS,
         FieldKind::Arity,
         "Argument-count constraint, counted after the subcommand word.",
+    ),
+    f(
+        "arity_windows",
+        "Arity windows",
+        ARGS,
+        FieldKind::RustExpr {
+            hint: "ARITY_WINDOWS",
+        },
+        "Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.",
+    ),
+    f(
+        "arg_rows",
+        "Versioned argument rows",
+        ARGS,
+        FieldKind::RustExpr { hint: "ARG_ROWS" },
+        "The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.",
     ),
     f(
         "detail",

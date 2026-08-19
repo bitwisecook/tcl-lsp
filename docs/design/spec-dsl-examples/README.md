@@ -48,6 +48,7 @@ speclib <pack-name> <dsl-version> {
     default      <key> <value>…   ;# pack-wide default for one availability key
     display_name {…}              ;# the pack's human-readable name
     file_extension <ext> ?-name {…}? ?-dialect DIALECT?  ;# one extension row
+    ambient_package <name> <version>  ;# a package the dialect provides
     values       <name> { … }     ;# a shared argument-value table
     hook         <name> {params} { … }  ;# a shared hook body
     descriptor   <key> <name> { … }     ;# a shared block-valued descriptor
@@ -69,7 +70,7 @@ is what the `speclib` version word already does. A pack containing
 `pragma` therefore hits the ordinary unknown-property rule below: dropped
 with a logged notice.
 
-The current vocabulary is **1.1**. `1`, `1.0` and `1.1` all name a
+The current vocabulary is **1.2**. `1`, `1.0`, `1.1` and `1.2` all name a
 vocabulary the loader reads in full; any other word still loads the pack,
 with a notice saying which vocabulary the loader knows — a pack is never
 refused for being newer than the server, it only loses the words that
@@ -83,11 +84,21 @@ Additive only, so nothing written against 1.0 has to change.
 |---|---|
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
+| **1.2** | the same three lifecycle flags on an `arity` row (making it a per-release signature *window*) and on an `arg` row (gating a per-argument fact), plus the pack-level `ambient_package NAME VERSION` |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
 axis. On a `value` row they sit *beside* `-min-tcl`, which stays the Tcl
 core axis — the two are independent, exactly as `ArgValue` documents them.
+
+1.2 closes the last axis nothing could gate — the *signature*. An `arity`
+row without the flags is still the command's plain arity; one with them
+is a window, and windows must not overlap, so consecutive windows are
+written closed (`-retired` where the next one's `-introduced` begins).
+An `arg` row's flags gate the whole row, every column at once. And
+`ambient_package` is how a pack states the version of a package its
+dialect provides without a `package require` — a package that comes with
+the dialect is never required, so nothing else could floor it.
 
 **Statement separation is ordinary Tcl.** Statements end at a newline or
 at a `;`, so a short declaration can be written on one line —
@@ -294,6 +305,21 @@ the row and drops only the routing, with a notice. Both statements are
 additive vocabulary: a loader that predates them drops them with the
 ordinary unknown-property notice, exactly per the compatibility policy, so
 declaring them needs no vocabulary bump.
+
+**`ambient_package NAME VERSION`** (1.2) declares that the pack's dialect
+provides `NAME` at `VERSION` without a `package require` — the
+pack-authored twin of an ambient `LibraryPin`. Both words are required;
+a row with no version is dropped with a notice, because an ambient
+package with no version would floor at nothing, which is what the row
+exists to stop.
+
+The version composes with the document's own `package require` lines and
+the profile's library pin by taking the **greatest** — all three are
+lower bounds. When two are equal the diagnostic names the one closest to
+the author: the require in this file, then the pack in this workspace,
+then the profile compiled into the server. Repeat the row across a
+pack's files and the highest version wins, so merge order cannot lower a
+floor.
 
 ### Block statements
 
@@ -1010,7 +1036,9 @@ schema order. "excluded" rows carry the reason.
 | `traits` | `traits {TRAIT …}` | trait words verbatim from the traits vocabulary; repeatable, unioned |
 | `dialects` | `dialects {SET …}` | dialect members verbatim, plus the `tclX.Y+` and `all-tcl` / `tcl8.x` set words |
 | `arity` | `arity N`, `N..M`, `N..`, `..M`, `..` ?-step S? ?-also N? | the `..` range word is the whole `Arity` struct |
+| `arity_windows` | `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` | since 1.2; the same row with a lifecycle. Repeatable, must not overlap; the ungated `arity` row stays the fallback |
 | `arg_roles` | `arg N -role ROLE` |  |
+| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
@@ -1114,10 +1142,12 @@ schema order. "excluded" rows carry the reason.
 | `name` | `subcommand NAME { … }` | the statement's own name word |
 | `traits` | `traits {TRAIT …}` | trait words verbatim from the traits vocabulary; repeatable, unioned |
 | `arity` | `arity N`, `N..M`, `N..`, `..M`, `..` ?-step S? ?-also N? | counted after the subcommand word |
+| `arity_windows` | `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` | since 1.2; same contract as at command scope |
 | `detail` | `detail {…}` |  |
 | `synopsis` | `synopsis {…}` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `arg_roles` | `arg N -role ROLE` |  |
+| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |

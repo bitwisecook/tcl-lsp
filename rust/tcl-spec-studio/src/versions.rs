@@ -77,9 +77,15 @@
 //!    vocabulary's per-value gate exists on a command as well as on a
 //!    subcommand. A command-level gate also leaves the structured note below,
 //!    as the human-readable evidence for the field.
-//! 8. **Arity and role changes** — reported, never invented: the registry
-//!    cannot express a versioned arity, so a change is a note naming both
-//!    releases and both shapes.
+//! 8. **Arity changes** — *derived*. Runs of equal shape across the snapshots
+//!    become `arity_windows`, each closed where the next shape arrives, which
+//!    is the spelling the loader requires (an unclosed window never ends, and
+//!    two would overlap). A signature that never changed yields no windows at
+//!    all — the plain `arity` already says it. The note naming both releases
+//!    and both shapes is kept beside the derived field as its evidence.
+//! 9. **Role changes** — still reported, never invented: a note naming both
+//!    releases and both shapes, because which argument moved is not
+//!    recoverable from a count.
 //!
 //! Any pattern of present → absent → present leaves the lifecycle unbounded
 //! and raises a warning naming the gap: a range cannot describe a hole, and
@@ -421,6 +427,7 @@ impl History<'_> {
         if let Some(note) = self.deprecation_note(name, by_release) {
             evidence.notes.push(note);
         }
+        self.derive_arity_windows(&present, by_release, &mut draft);
         self.shape_notes(&present, by_release, arity_label, "arity", &mut evidence);
         self.shape_notes(
             &present,
@@ -786,9 +793,72 @@ impl History<'_> {
         ))
     }
 
-    /// Report a shape that changed between releases. The merged draft keeps the
-    /// newest shape; the registry has no versioned arity, so the older ones are
-    /// evidence and nothing more.
+    /// Derive `arity_windows` from an arity that changed across releases
+    /// (issue #1627).
+    ///
+    /// Runs of equal shape become windows: each is introduced at the first
+    /// release showing it and retired at the release the *next* shape
+    /// arrives, which is the closed spelling the loader requires — a window
+    /// with no retirement never ends, and two open windows would overlap.
+    /// The newest run stays open, since nothing has replaced it yet.
+    ///
+    /// A signature that never changed yields one run and therefore no
+    /// windows: the plain `arity` already describes it, and emitting a single
+    /// all-releases window would say the same thing less clearly.
+    ///
+    /// The `arity …` note `shape_notes` writes is kept beside this, as the
+    /// human-readable evidence for a derived field — the `VERSION_GATE_NOTE`
+    /// precedent. This is a derivation from observed snapshots, not a
+    /// transcription, so the trail that produced it has to survive.
+    fn derive_arity_windows(
+        &self,
+        present: &[usize],
+        by_release: &BTreeMap<usize, &Inferred>,
+        draft: &mut Draft,
+    ) {
+        let mut runs: Vec<(String, usize)> = Vec::new();
+        for at in present {
+            let shape = arity_label(&by_release[at].draft);
+            match runs.last() {
+                Some((last, _)) if *last == shape => {}
+                _ => runs.push((shape, *at)),
+            }
+        }
+        if runs.len() < 2 {
+            return;
+        }
+        let windows: Vec<Value> = runs
+            .iter()
+            .enumerate()
+            .map(|(i, (_, first))| {
+                let arity = by_release[first]
+                    .draft
+                    .get("arity")
+                    .cloned()
+                    .unwrap_or(Value::Null);
+                let retired = runs
+                    .get(i + 1)
+                    .map_or(Value::Null, |(_, next)| json!(self.versions[*next]));
+                json!({
+                    "arity": arity,
+                    "lifecycle": {
+                        "introduced": json!(self.versions[*first]),
+                        "deprecated": Value::Null,
+                        "retired": retired,
+                    },
+                })
+            })
+            .collect();
+        draft.insert("arity_windows".into(), Value::Array(windows));
+    }
+
+    /// Report a shape that changed between releases, as a human-readable
+    /// note. The merged draft keeps the newest shape.
+    ///
+    /// For arity this note is now *evidence beside* a derived field
+    /// (`derive_arity_windows`) rather than the whole answer; for roles it is
+    /// still the whole answer, because which argument moved cannot be
+    /// recovered from a count.
     fn shape_notes(
         &self,
         present: &[usize],

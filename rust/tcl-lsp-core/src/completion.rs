@@ -2112,7 +2112,7 @@ fn builtin_completions(
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
                 kind: CompletionKind::Function,
-                detail: spec.map(|s| command_detail(s, profile)),
+                detail: spec.map(|s| command_detail(s, registry)),
                 sort_text: Some(builtin_sort_text(name, count)),
                 is_snippet: false,
                 filter_text: None,
@@ -2175,12 +2175,12 @@ fn math_function_completions(
 /// and reads `built-in`, not like a require-gated stdlib package.
 fn command_detail(
     spec: &tcl_registry::CommandSpec,
-    profile: &tcl_dialect::DialectProfile,
+    registry: &tcl_registry::registry::CommandRegistry,
 ) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
     } else if let Some(pkg) = spec.required_package
-        && !profile.is_ambient_package(pkg)
+        && !registry.is_ambient_package(pkg)
     {
         if pkg == "Tk" {
             "Tk".to_string()
@@ -3173,23 +3173,19 @@ mod tests {
 
     #[test]
     fn command_detail_formats_each_provenance() {
-        use tcl_registry::CommandRegistry;
-        let reg = CommandRegistry::build_default();
-        let tcl86 = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let reg = tcl_registry::registry_for_dialect("tcl8.6");
         // built-in: no package.
-        assert_eq!(command_detail(reg.get("puts").unwrap(), tcl86), "built-in");
+        assert_eq!(command_detail(reg.get("puts").unwrap(), reg), "built-in");
         // stdlib: required_package set.
         if let Some(spec) = reg.get("http::geturl") {
-            assert_eq!(command_detail(spec, tcl86), "stdlib (http)");
+            assert_eq!(command_detail(spec, reg), "stdlib (http)");
         }
         // An ambient vendor surface reads as part of the runtime, never as
-        // a require-gated stdlib package (§7.1 axis C).
+        // a require-gated stdlib package (§7.1 axis C). The registry is what
+        // is asked, so a pack's `ambient_package` row would read the same way.
         let ireg = tcl_registry::registry_for_dialect("f5-irules");
         let http2 = ireg.get("HTTP2::header").expect("HTTP2::header spec");
-        assert_eq!(
-            command_detail(http2, tcl_dialect::DialectProfile::irules()),
-            "built-in"
-        );
+        assert_eq!(command_detail(http2, ireg), "built-in");
     }
 
     #[test]

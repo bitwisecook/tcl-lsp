@@ -56,10 +56,11 @@
 use std::collections::BTreeSet;
 
 use tcl_dialect::DialectSet;
-use tcl_registry::arity::Arity;
+use tcl_registry::arity::{Arity, ArityWindow};
 use tcl_registry::bigip::{BigipRegistry, ValueKind, default_registry};
 use tcl_registry::events::EventRegistry;
 use tcl_registry::hover::FormKind;
+use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::TaintColour;
@@ -229,6 +230,134 @@ fn assert_arity_consistent(a: Arity, what: &str) {
     }
 }
 
+/// Assert the invariants of a versioned-arity window list (issue #1627).
+///
+/// Windows are a *shipped-spec hard gate* here, matching every other lifecycle
+/// (`docs/design/spec-packs.md`, "Ordering and containment"): a pack degrades
+/// with a notice, a compiled-in spec fails the suite.
+///
+/// Four properties, each a way a window set can be meaningless rather than
+/// merely unusual:
+///
+/// 1. every window's `Arity` is internally consistent, exactly as the
+///    unversioned one must be;
+/// 2. every window's `Lifecycle` is ordered — an impossible window can never
+///    be selected;
+/// 3. each window sits inside the entity's own lifecycle: a signature shape
+///    cannot be introduced before the command that has it;
+/// 4. no two windows overlap, because two shapes claiming one release makes
+///    selection arbitrary.
+fn assert_arity_windows_consistent(windows: &[ArityWindow], parent: Lifecycle, what: &str) {
+    for (i, window) in windows.iter().enumerate() {
+        assert_arity_consistent(window.arity, &format!("{what} arity window {i}"));
+        assert!(
+            window.lifecycle.validate().is_ok(),
+            "{what}: arity window {i} has an impossible lifecycle"
+        );
+        if !parent.is_unspecified() && !window.lifecycle.is_unspecified() {
+            let merged = window.lifecycle.intersect(parent);
+            assert!(
+                merged.validate().is_ok(),
+                "{what}: arity window {i} narrowed by its own declaration is never available"
+            );
+            for (release, own, narrowed) in [
+                ("introduced", window.lifecycle.introduced, merged.introduced),
+                ("deprecated", window.lifecycle.deprecated, merged.deprecated),
+                ("retired", window.lifecycle.retired, merged.retired),
+            ] {
+                if let Some(own) = own {
+                    assert_eq!(
+                        Some(own),
+                        narrowed,
+                        "{what}: arity window {i} {release} {own} reaches outside the parent"
+                    );
+                }
+            }
+        }
+        for (j, other) in windows.iter().enumerate().skip(i + 1) {
+            assert!(
+                !window.overlaps(*other),
+                "{what}: arity windows {i} and {j} both cover a release"
+            );
+        }
+    }
+}
+
+/// The window gate above is live, not vacuous.
+///
+/// Every shipped spec currently declares an empty `arity_windows`, so
+/// `assert_arity_windows_consistent` passes trivially across the whole sweep
+/// and would keep passing if its body were deleted. This drives it directly
+/// with each malformed shape it exists to reject, so the sweep's silence on
+/// real specs means "nothing is wrong" rather than "nothing is checked".
+#[test]
+fn arity_window_gate_rejects_each_malformed_shape() {
+    fn window(
+        introduced: Option<&'static str>,
+        retired: Option<&'static str>,
+        arity: Arity,
+    ) -> ArityWindow {
+        ArityWindow {
+            lifecycle: Lifecycle {
+                introduced,
+                deprecated: None,
+                retired,
+                deprecation_fix: None,
+            },
+            arity,
+        }
+    }
+    fn rejects(windows: &[ArityWindow], parent: Lifecycle, why: &str) {
+        let caught = std::panic::catch_unwind(|| {
+            assert_arity_windows_consistent(windows, parent, "probe");
+        });
+        assert!(caught.is_err(), "the gate must reject {why}");
+    }
+
+    // A well-formed pair is accepted — the FN guard, so the cases below fail
+    // for their stated reason and not because the helper rejects everything.
+    assert_arity_windows_consistent(
+        &[
+            window(None, Some("3.0"), Arity::exact(2)),
+            window(Some("3.0"), None, Arity::exact(3)),
+        ],
+        Lifecycle::UNSPECIFIED,
+        "probe",
+    );
+
+    rejects(
+        &[window(Some("3.0"), Some("2.0"), Arity::exact(2))],
+        Lifecycle::UNSPECIFIED,
+        "a window retired before it was introduced",
+    );
+    rejects(
+        &[
+            window(None, Some("3.0"), Arity::exact(2)),
+            window(Some("2.0"), None, Arity::exact(3)),
+        ],
+        Lifecycle::UNSPECIFIED,
+        "two windows that both cover release 2.0",
+    );
+    rejects(
+        &[
+            window(None, None, Arity::exact(1)),
+            window(None, None, Arity::exact(2)),
+        ],
+        Lifecycle::UNSPECIFIED,
+        "two unbounded windows",
+    );
+    rejects(
+        &[window(Some("1.0"), None, Arity::exact(2))],
+        Lifecycle::introduced_in("2.0"),
+        "a window introduced before the command that hosts it",
+    );
+    rejects(
+        &[window(None, None, Arity::new(5, 2))],
+        Lifecycle::UNSPECIFIED,
+        "a window whose own arity has min > max",
+    );
+}
+
 // ===========================================================================
 // SWEEP 1 — every command in every dialect, every accessor.
 // ===========================================================================
@@ -255,6 +384,11 @@ fn check_subcommand_accessors(
         sub.name
     );
     assert_arity_consistent(sub.arity, &format!("{dname}/{name} {}", sub.name));
+    assert_arity_windows_consistent(
+        sub.arity_windows,
+        sub.lifecycle,
+        &format!("{dname}/{name} {}", sub.name),
+    );
     // Sub-level switch_names + arg_values + arg_role accessors.
     let sub_sw = sub.switch_names(ds, spec.dialects);
     let sub_declared: BTreeSet<&str> = sub.options.iter().map(|o| o.name).collect();
@@ -305,6 +439,11 @@ fn check_command_accessors(reg: &CommandRegistry, ds: Option<DialectSet>, dname:
 
     // --- arity (command level) ---
     assert_arity_consistent(spec.arity, &format!("{dname}/{name}"));
+    assert_arity_windows_consistent(
+        spec.arity_windows,
+        spec.lifecycle,
+        &format!("{dname}/{name}"),
+    );
 
     // --- switch / option accessors ---
     // `switch_names` walks the flat options + every form's options.

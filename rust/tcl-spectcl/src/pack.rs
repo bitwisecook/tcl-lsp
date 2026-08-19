@@ -109,6 +109,12 @@ pub struct MergedPack {
     /// The file extensions the pack's language is written under, merged
     /// first-declaration-wins across the pack's files.
     pub file_extensions: Vec<crate::loader::FileExtension>,
+    /// The packages the pack declares ambient, merged across its files.
+    ///
+    /// Every row is kept, including two files naming the same package: they
+    /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
+    /// highest. Dropping one here would silently lower the floor instead.
+    pub ambient_packages: Vec<crate::loader::AmbientPackage>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -137,10 +143,19 @@ pub struct PackSet {
 }
 
 impl PackSet {
-    /// `true` when no pack contributed a single command.
+    /// `true` when no pack contributed anything the registry would carry.
+    ///
+    /// Commands are not the only payload: a pack whose whole content is
+    /// `ambient_package` rows still floors those packages for every document
+    /// the pack is active in, so it is *not* empty. Counting only commands
+    /// made [`crate::install::registry_with_packs`] short-circuit on such a
+    /// pack and drop the floor with no notice — the silent-drop class this
+    /// loader exists to make impossible.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.packs.iter().all(|p| p.commands.is_empty())
+        self.packs
+            .iter()
+            .all(|p| p.commands.is_empty() && p.ambient_packages.is_empty())
     }
 
     /// Every file that contributed to, or produced a notice about, this set —
@@ -523,6 +538,7 @@ fn merge_group(
         files: files.iter().map(|(f, _)| f.path.clone()).collect(),
         display_name: None,
         file_extensions: Vec::new(),
+        ambient_packages: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -565,6 +581,7 @@ fn merge_group(
                 merged.file_extensions.push(row);
             }
         }
+        merged.ambient_packages.extend(pack.ambient_packages);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded (issues #1637, #1638).

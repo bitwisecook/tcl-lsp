@@ -218,6 +218,17 @@ fn file_extension_statement() -> CommandSpec {
     )
 }
 
+/// `ambient_package NAME VERSION` — a package the pack's dialect provides
+/// without a `package require`.
+fn ambient_package_statement() -> CommandSpec {
+    super::statement(
+        "ambient_package",
+        Arity::exact(2),
+        "Declare a package the dialect provides with no `package require`.",
+        "One row per package (`ambient_package mylib 2.1`). The version is the one the environment guarantees, and it floors that package for every document the pack is active in — so a call gated on `mylib 2.1` is not reported as needing a require the runtime already satisfies. Both words are required: a row naming no version would floor at nothing, which is the situation the row exists to prevent, so it is dropped with a notice. Two active packs declaring different versions for one package compose by taking the greater.",
+    )
+}
+
 /// One documentation key of a `hover { … }` block, as the analyser sees it:
 /// a command ambient inside that body and nowhere else.
 const fn hover_key(
@@ -314,6 +325,7 @@ pub(super) fn specs() -> Vec<CommandSpec> {
         default_statement(),
         display_name_statement(),
         file_extension_statement(),
+        ambient_package_statement(),
         // --- documentation ---
         CommandSpec {
             body_scope: Some(&SPECTCL_HOVER_ENV),

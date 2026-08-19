@@ -56,7 +56,8 @@
 #   vocabulary-word notices (4, the SpiceGenTcl, apave, ticklecharts and
 #       tclinterp drafts) — not a loader gap but a mis-authored word, and
 #       exactly what the check exists to find. `speclib`'s second word is the
-#       **DSL vocabulary** version (`1`, `1.0`, `1.1` today), not the library's;
+#       **DSL vocabulary** version (`1`, `1.0`, `1.1`, `1.2` today), not the
+#       library's;
 #       those four drafts wrote the library's release there (`0.71`, `4.9`,
 #       `3.2`, `0.15`). A number above the newest vocabulary is noticed as a
 #       possibly-newer vocabulary; anything else gets the not-a-vocabulary

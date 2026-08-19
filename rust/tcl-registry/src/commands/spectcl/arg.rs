@@ -76,6 +76,29 @@ const OPTIONS: &[OptionSpec] = &[
         detail: "callback arity; implies `-role CommandPrefix`",
         ..OptionSpec::DEFAULT
     },
+    // SpecTcl 1.2: an argument is a gateable fact like every other row, so it
+    // carries the same three lifecycle flags. They must be listed here as well
+    // as read by the loader — an option table that is non-empty is scanned for
+    // unknown flags, so a flag the loader accepts and this table omits is
+    // reported against valid syntax.
+    OptionSpec {
+        name: "-introduced",
+        value: OptionValue::value("version"),
+        detail: "the release the argument first appeared in (`Lifecycle.introduced`)",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-deprecated",
+        value: OptionValue::value("version"),
+        detail: "the release the argument was deprecated in (`Lifecycle.deprecated`)",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-retired",
+        value: OptionValue::value("version"),
+        detail: "the release the argument was removed in (`Lifecycle.retired`)",
+        ..OptionSpec::DEFAULT
+    },
 ];
 
 const FORMS: &[FormSpec] = &[FormSpec {
