@@ -44,6 +44,10 @@ name = "tcl_vm"
 tcl-core-types = { path = "../tcl-core-types" }
 tcl-bytecode = { path = "../tcl-bytecode" }
 tcl-dialect = { path = "../tcl-dialect" }
+# The release-aware `${…}` close rule (`ranges::braced_var_name_end`) the
+# `subst` engine resolves brace-form variable references through — already in
+# the tree via `tcl-syntax`; this makes the edge direct.
+tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax", features = ["num-bigint"] }
 tcl-runtime-api = { path = "../tcl-runtime-api" }
 tcl-cmd-core = { path = "../tcl-cmd-core" }
@@ -65,8 +69,6 @@ num-traits = "0.2"
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).
 tcl-compiler = { path = "../tcl-compiler" }
-# `LexerConfig` for the dialect-targeted compile in `cross_version_numerals_e2e`.
-tcl-lexer = { path = "../tcl-lexer" }
 
 [lints]
 workspace = true

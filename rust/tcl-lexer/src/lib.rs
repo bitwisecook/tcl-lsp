@@ -77,8 +77,9 @@ pub use highlight::{
 pub use lexer::{LeadingBom, LexError, LexWarning, Lexer, LexerConfig, UTF8_BOM};
 pub use line_index::{LineIndex, normalise_lone_cr};
 pub use ranges::{
-    close_quote_offset, command_substitution_end, word_append_offset, word_closer_offset,
-    word_closer_offset_at, word_end_position, word_span, word_span_at,
+    BracedVarEnd, MISSING_CLOSE_BRACE_FOR_VAR, braced_var_name_end, close_quote_offset,
+    command_substitution_end, word_append_offset, word_closer_offset, word_closer_offset_at,
+    word_end_position, word_span, word_span_at,
 };
 pub use source_map::SourceMap;
 pub use span::Span;

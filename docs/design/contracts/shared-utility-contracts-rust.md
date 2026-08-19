@@ -33,14 +33,14 @@ entry point, or gate moves without this contract being updated.
 | Surface | Owner source paths | Public entry points | Dialect/release axis | Drift gate |
 | --- | --- | --- | --- | --- |
 | names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail` | invariant; absolute-marker contract from #1493 | `xtask-resolution-drift` |
-| lists | `rust/tcl-syntax/src/list.rs` | `split_list`; `list_element` | invariant | none |
-| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `split_list`; `ValueOps::dict_pairs` | invariant | none |
+| lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
+| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `find_element`; `split_list`; `ValueOps::dict_pairs` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
 | numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
 | backslash escapes | `rust/tcl-lexer/src/substitution.rs`; `rust/tcl-syntax/src/backslash.rs`; `rust/tcl-dialect/src/grammar.rs` | `backslash_subst`; `backslash_subst_in`; `decode_bytes_in`; `EscapeSyntax` | `LexerGrammar::escapes` per release | none |
 | boolean words | `rust/tcl-syntax/src/boolean.rs` | `parse_boolean_word`; `truthiness_with` | fixed boolean vocabulary; number axis per release | none |
-| quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at` | `${...}` close rule per release; tmsh brace mode per dialect | none |
+| quotes / braces / word spans | `rust/tcl-lexer/src/ranges.rs` | `close_quote_offset`; `word_closer_offset`; `word_span_at`; `braced_var_name_end` | `${...}` close rule per release (`BracedVarStyle`); tmsh brace mode per dialect | none |
 | indices | `rust/tcl-cmd-core/src/index.rs` | `resolve_with`; `drill` | grammar-parameterised, inheriting the number axis | none |
 | option words / subcommands | `rust/tcl-cmd-core/src/prefix.rs`; `rust/tcl-registry/src/hover.rs`; `rust/tcl-registry/src/spec.rs` | `OptionTable`; `OptionSpec`; `SubCommand`; `first_positional_index` | option surface per release/dialect | `xtask-option-registry-drift` |
 | sort numeric parsing | `rust/tcl-cmd-core/src/sort.rs` | `parse_wide`; `parse_real` | `NumberSyntax` per release | none |
@@ -56,8 +56,17 @@ entry point, or gate moves without this contract being updated.
 
 ### `tcl-syntax` — the parse grammars and value seam
 
-- `list` — the Tcl list codec (`split_list`, `list_element` /
-  `Tcl_ConvertElement`).
+- `list` — the Tcl list codec. `find_element` is the single grammar
+  primitive every splitter layers over (`split_list`,
+  `split_list_raw`, and the lenient pair), and the **dict** string-rep
+  scan in the WASM runtime walks it too — `SetDictFromAny` uses the
+  same `FindElement` grammar and differs only in the noun it prints,
+  which it composes from `junk_fragment`. On the join side,
+  `append_list_element` is the byte entry point
+  (`TclScanElement` + `TclConvertElement`); `list_element` and
+  `join_list` are its `&str` facades, and the WASM runtime's list and
+  dict string-rep generation binds it directly rather than carrying a
+  second port (#1439).
 - `number` — the `TclParseNumber` port (9.0-first: `0d` radix prefix,
   `_` digit separators, bare leading `0` is decimal), with
   `parse`/`parse_whole`/`parse_whole_with` (`ParseFlags` mirrors
@@ -74,7 +83,14 @@ entry point, or gate moves without this contract being updated.
   `ends_with_separator`, `is_qualified`, `normalise_qualified_name`,
   `qualify`, `command_resolution_candidates` / `resolve_command_with`
   (the `Tcl_FindCommand` order, conformance-pinned), and the variable
-  helpers (`normalise_var_name`, `split_array_name`, …).
+  helpers (`normalise_var_name`, `split_array_name`,
+  `split_element_ref` / `split_element_ref_bytes`, …).
+  `split_element_ref` is `TclObjLookupVarEx`'s rule over an already
+  **resolved** name (no `$` / `${...}` sigil stripping): array element
+  iff longer than one byte, ends in `)`, and contains a `(`. The `(`
+  may sit at offset 0, so a zero-length array name is legal — `set (x) 5`
+  writes element `x` of the array named `""`. Both runtimes' element
+  splitters bind it (#1458).
 - `boolean` — `Tcl_GetBoolean` word recognition (unique prefixes of
   `true`/`yes`/`on`/`false`/`no`/`off`). Its prefix rule is *not* the
   option-table matcher below — boolean words have a fixed six-word
@@ -100,6 +116,35 @@ entry point, or gate moves without this contract being updated.
 - `backslash_subst` (re-exported as `tcl_syntax::backslash::decode`) —
   the one byte-exact `TclParseBackslash` port, shared by the
   LSP/compiler token pipeline and both runtimes.
+- `ranges::braced_var_name_end` — the one release-aware `${...}` close
+  rule (`Tcl_ParseVarName`), selected by `BracedVarStyle`: 9.x counts
+  nested `{...}` and consumes `\X` as an inert pair, the 8.x family ends
+  the name at the first literal `}`. The lexer's own `parse_var` /
+  array-index scans and **both** `subst` engines resolve the form here;
+  an engine that hard-codes one release's rule answers
+  `subst {${a{b}c}}` wrongly on the other (#1457).
+
+  Returns `BracedVarEnd` — `Closed(offset)` or `Unterminated` — **not** an
+  `Option`. "No closer" is an error C names
+  (`MISSING_CLOSE_BRACE_FOR_VAR`, owned here too), not a benign miss, and
+  an `Option` let each consumer invent its own recovery: the VM emitted the
+  whole `${...}` literally and the WASM runtime swallowed the rest of the
+  template. Evaluating engines must raise; only a tokenizer may recover
+  (the lexer runs the name to end-of-input so it can keep tokenizing
+  half-typed source). The 9.x rule also *widens* what is unterminated —
+  `${a\}` and `${a{b}` close under 8.x but not under 9.x.
+
+  Scope — this owns the `subst`/tokenizer surface **only**, and the
+  uncovered remainder is much larger than one path. A centralisation audit
+  found, besides the compiled-word decoders (`segmenter` / `values` /
+  `helpers`, #1568) and the runtime's script-word surface
+  (`runtime/rust/src/parse.rs::build_word`), roughly **20 free-text
+  "first `}` wins" scanners and 15 "strip the trailing `}`" helpers** spread
+  across the compiler optimiser and analyser and `tcl-lsp-core`. Every one
+  of them hard-codes a release rule this owner exists to decide. They are
+  tracked as follow-ups rather than fixed here; do not read this entry as
+  claiming the codebase has one `${...}` decoder — it has one *for the
+  surfaces named above*.
 
 ### `tcl-cmd-core` — portable command logic
 
@@ -292,6 +337,32 @@ helper without reading the rationale:
   texts pinned against tclsh.
 - `rust/tcl-compiler/src/interprocedural.rs` —
   `namespace_parts_from_proc_extracts_segments` (colon-run rows).
+- `rust/tcl-syntax/src/list.rs` — `list_element_matches_tcl9` (the single
+  join parity table, merged from both former ports) and
+  `append_list_element_is_byte_exact_and_agrees_with_the_str_api`.
+- `runtime/rust/src/dict.rs` —
+  `backslash_newline_absorbs_the_following_space_run` and
+  `delimiter_errors_keep_their_dict_wording_and_fragment` (the dict scan
+  riding the shared list codec).
+- `rust/tcl-vm/tests/cmd_collections_e2e.rs` —
+  `duplicate_dict_keys_canonicalise_last_value_wins` (every VM dict path
+  through `ValueOps::dict_pairs`, including the compile-time
+  `dict create` fold) and
+  `dict_parse_errors_use_the_dict_noun_and_error_code` (#1573);
+  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the
+  *foldable* `dict create` availability vector.
+- `rust/tcl-lexer/src/ranges.rs` —
+  `braced_var_name_end_follows_the_release_rule`;
+  `rust/tcl-vm/tests/cross_version_vars_e2e.rs` —
+  `subst_braced_var_close_rule_follows_the_emulated_release`,
+  `unterminated_braced_var_raises_on_both_releases` and their
+  tclsh-pinned sibling; `runtime/rust/src/subst.rs` —
+  `braced_var_close_rule_follows_the_emulated_release`;
+  `runtime/rust/src/builtins.rs` —
+  `unterminated_braced_var_raises_missing_close_brace`.
+- `rust/tcl-vm/tests/language_e2e.rs` —
+  `zero_length_array_name_is_an_array_element` and
+  `link_commands_reject_element_looking_names` (`split_element_ref`).
 
 ## Discoverability
 

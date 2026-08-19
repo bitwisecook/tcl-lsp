@@ -515,3 +515,153 @@ fn foreach_completion_vectors_match_real_tclsh() {
         eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
     }
 }
+
+/// The `${…}` close rule is release-specific, and `subst` must follow it.
+///
+/// `Tcl_ParseVarName` delimits the brace form differently across the supported
+/// range: 8.4–8.6 (`tclParse.c(8.6.16):1398`) end the name at the **first**
+/// literal `}`, while 9.0+ (`tclParse.c(9.0.4):1315`) count nested `{…}` and
+/// consume `\X` as an inert pair. So `subst {${a{b}c}}` reads variable `a{b`
+/// under 8.x — an error, since the variable is named `a{b}c` — and reads
+/// `a{b}c` under 9.x.
+///
+/// The VM's `subst` engine scanned to the first `}` unconditionally, so it gave
+/// the 8.x answer at *every* release (issue #1457). Both engines now resolve
+/// the form through the one owner, `tcl_lexer::braced_var_name_end`.
+const BRACED_VAR_SUBST_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {subst {${a{b}c}}} m]} { puts \"error:$m\" } else { puts \"ok:$m\" }\n",
+);
+
+/// The other half of the same rule: an escaped `}` is inert under the 9.x rule
+/// only, so `${a\}b}` names `a\}b` there and `a\` under 8.x.
+const BRACED_VAR_ESCAPE_SCRIPT: &str = concat!(
+    "set {a\\}b} ESC\n",
+    "if {[catch {subst {${a\\}b}}} m]} { puts \"error:$m\" } else { puts \"ok:$m\" }\n",
+);
+
+#[test]
+fn subst_braced_var_close_rule_follows_the_emulated_release() {
+    // 8.x family: the name is `a{b`, which no variable is called.
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(
+            vm_output(BRACED_VAR_SUBST_SCRIPT, version),
+            "error:can't read \"a{b\": no such variable",
+            "{version:?} must use the 8.x first-close rule"
+        );
+    }
+    // 9.x: nested braces balance, so the whole `a{b}c` is the name.
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(BRACED_VAR_SUBST_SCRIPT, version),
+            "ok:WORLD",
+            "{version:?} must use the 9.x nesting rule"
+        );
+    }
+    assert_eq!(
+        vm_output(BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V9_0),
+        "ok:ESC",
+        "9.x consumes an escaped close-brace as an inert pair"
+    );
+    assert!(
+        vm_output(BRACED_VAR_ESCAPE_SCRIPT, TclVersion::V8_6).starts_with("error:"),
+        "8.x closes the name at the first literal close-brace"
+    );
+}
+
+/// An unterminated `${…}` — the outcome the close rule's `Option` had no
+/// contract for, and where the two engines diverged from C and from each other
+/// (issue #1457).
+///
+/// C raises `missing close-brace for variable name` on **both** releases, but
+/// *which* templates count as unterminated is release-specific: the 9.x nesting
+/// rule widens it, so `${a{b}` and `${a\}` close under 8.x (naming `a{b` and
+/// `a\`) yet run off the end under 9.x.
+///
+/// Every template is built with `binary format H*` so the script parser's own
+/// brace matching cannot reshape the bytes before `subst` sees them.
+const UNTERMINATED_SCRIPT: &str = concat!(
+    "foreach {label hex} {\n",
+    "  plain_unterm    247B616263\n",   // `${abc`
+    "  open_brace      247B617B62\n",   // `${a{b`
+    "  esc_close       247B615C7D\n",   // `${a\}`
+    "  trailing_bslash 247B615C\n",     // `${a\`
+    "  closes_in_8x    247B617B627D\n", // `${a{b}`
+    "} {\n",
+    "  set t [binary format H* $hex]\n",
+    "  if {[catch {subst $t} m]} { puts \"$label:$m\" } else { puts \"$label:ok:$m\" }\n",
+    "}\n",
+);
+
+/// The `[...]` before a bad `${` has already run when the error is raised —
+/// C evaluates the template left to right and keeps the side effect.
+const UNTERMINATED_ORDER_SCRIPT: &str = concat!(
+    "set c 0\n",
+    "catch {subst [binary format H* 5B696E637220635D247B617B62]} m\n",
+    "puts \"$m c=$c\"\n",
+);
+
+#[test]
+fn unterminated_braced_var_raises_on_both_releases() {
+    const MSG: &str = "missing close-brace for variable name";
+    // 8.x: the first literal `}` closes, so only the templates with no `}` at
+    // all are unterminated.
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(
+            vm_output(UNTERMINATED_SCRIPT, version),
+            format!(
+                "plain_unterm:{MSG}\n\
+                 open_brace:{MSG}\n\
+                 esc_close:can't read \"a\\\": no such variable\n\
+                 trailing_bslash:{MSG}\n\
+                 closes_in_8x:can't read \"a{{b\": no such variable"
+            ),
+            "{version:?} must use the 8.x first-close rule"
+        );
+    }
+    // 9.x: nesting and inert `\X` pairs make three more of them unterminated.
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(UNTERMINATED_SCRIPT, version),
+            format!(
+                "plain_unterm:{MSG}\n\
+                 open_brace:{MSG}\n\
+                 esc_close:{MSG}\n\
+                 trailing_bslash:{MSG}\n\
+                 closes_in_8x:{MSG}"
+            ),
+            "{version:?} must use the 9.x nesting rule"
+        );
+    }
+    // Raised in evaluation order, so the earlier `[incr c]` kept its effect.
+    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+        assert_eq!(
+            vm_output(UNTERMINATED_ORDER_SCRIPT, version),
+            format!("{MSG} c=1"),
+            "{version:?} must raise only once the walk reaches the bad `${{`"
+        );
+    }
+}
+
+#[test]
+fn braced_var_close_rule_matches_real_tclsh() {
+    let mut ran = 0;
+    for script in [
+        BRACED_VAR_SUBST_SCRIPT,
+        BRACED_VAR_ESCAPE_SCRIPT,
+        UNTERMINATED_SCRIPT,
+        UNTERMINATED_ORDER_SCRIPT,
+    ] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!("skipping: neither tclsh8.6 nor tclsh9.0 found");
+    }
+}

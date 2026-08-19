@@ -1025,6 +1025,23 @@ impl CommandRegistry {
         }
     }
 
+    /// Whether this registry's **own dialect** has a command spelled `head`.
+    ///
+    /// The public face of [`Self::spec_for_this_registry`], for callers that
+    /// only need the yes/no: a constant-folder deciding whether it may
+    /// pre-compute a call, say. Folding is a rewrite that skips the runtime's
+    /// availability gate entirely, so a fold that does not ask this question
+    /// silently *adds* the command to releases that never had it — a
+    /// `tcl8.4` compile folded `[dict create a 1 a 2]` to a literal instead of
+    /// raising `invalid command name "dict"` (issue #1427).
+    ///
+    /// A profile-less registry (`build_default`) answers dialect-agnostically,
+    /// exactly as [`Self::get`] does.
+    #[must_use]
+    pub fn has_command_in_this_dialect(&self, head: &str) -> bool {
+        self.spec_for_this_registry(head).is_some()
+    }
+
     /// Which `TclOO` method-context keyword `head` is, if it is one.
     ///
     /// The registry-first replacement for the `head == "my"` /

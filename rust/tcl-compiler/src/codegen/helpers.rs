@@ -348,6 +348,23 @@ pub fn regexp_to_glob(pattern: &str) -> Option<String> {
 /// doesn't match or contains substitutions.
 #[must_use]
 pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
+    Some(
+        fold_cmd_arg_values(value, prefix)?
+            .iter()
+            .map(|a| tcl_list_element(a))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+}
+
+/// [`fold_cmd_args`]'s foldability check, stopping at the **argument values**
+/// rather than the rendered list.
+///
+/// Split out because `dict create` cannot simply join its arguments: it has to
+/// collapse duplicate keys first (issue #1427), which is a decision about
+/// values, not about rendered list elements.
+#[must_use]
+fn fold_cmd_arg_values(value: &str, prefix: &str) -> Option<Vec<String>> {
     let full_prefix = format!("[{prefix}");
     let inner = value
         .strip_prefix(&full_prefix)
@@ -382,13 +399,7 @@ pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
     // argument's *value* is what `list` quotes: braced words are verbatim, while
     // quoted and bare words are backslash-decoded first (so `"\x00"` becomes a
     // NUL byte and `"a\tb"` an embedded tab, not the literal escape text).
-    let args = split_list_values(inner);
-    Some(
-        args.iter()
-            .map(|a| tcl_list_element(a))
-            .collect::<Vec<_>>()
-            .join(" "),
-    )
+    Some(split_list_values(inner))
 }
 
 /// Whether `s` contains a `{*}` argument-expansion operator: a `{*}` at a word
@@ -428,9 +439,44 @@ pub fn fold_list_cmd(value: &str) -> Option<String> {
 }
 
 /// Constant-fold `[dict create k v ...]` to the result string.
+///
+/// **Not** a plain list join of the arguments. `dict create` builds a
+/// dictionary, so it canonicalises: a repeated key keeps its
+/// **first-occurrence position** and its **last value**
+/// (`Tcl_DictObjPut` over `DictCreateCmd`'s argument walk), exactly the rule
+/// [`tcl_syntax::value::ValueOps::dict_pairs`] applies at runtime.
+///
+/// Joining instead froze `[dict create a 1 a 2]` into the literal `a 1 a 2`,
+/// whose *string representation* is a dict nothing canonicalises — `dict size`
+/// and `dict get` read it correctly (they re-canonicalise on the way in), but
+/// `puts`/`string length` and every other string consumer saw the duplicate.
+/// The bug was invisible whenever a value was non-literal, because that
+/// defeats the fold and the correct runtime path runs (issue #1427).
+///
+/// An odd argument count is `wrong # args`, which only the runtime should
+/// report, so it declines to fold.
 #[must_use]
 pub fn fold_dict_create_cmd(value: &str) -> Option<String> {
-    fold_cmd_args(value, "dict create ")
+    let args = fold_cmd_arg_values(value, "dict create ")?;
+    if args.len() % 2 != 0 {
+        return None;
+    }
+    let mut pairs: Vec<(&str, &str)> = Vec::with_capacity(args.len() / 2);
+    for pair in args.chunks_exact(2) {
+        let (k, v) = (pair[0].as_str(), pair[1].as_str());
+        if let Some(slot) = pairs.iter_mut().find(|(pk, _)| *pk == k) {
+            slot.1 = v; // last value wins, position preserved
+        } else {
+            pairs.push((k, v));
+        }
+    }
+    Some(
+        pairs
+            .iter()
+            .flat_map(|(k, v)| [tcl_list_element(k), tcl_list_element(v)])
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }
 
 /// Constant-fold `[format "..." arg ...]` → result string.

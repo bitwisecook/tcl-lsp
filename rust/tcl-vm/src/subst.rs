@@ -32,6 +32,8 @@
 
 use tcl_runtime_api::Code;
 
+use tcl_dialect::BracedVarStyle;
+
 use crate::error::TclError;
 use crate::interp::Vm;
 use crate::value::Value;
@@ -324,7 +326,7 @@ enum VarFlow {
 
 /// Substitute one `$name` / `${name}` / `$name(index)` reference at `s[at]`.
 fn subst_var(vm: &mut Vm, s: &str, at: usize) -> Result<VarFlow, TclError> {
-    let Some(vr) = parse_var_ref_parts(s, at) else {
+    let Some(vr) = parse_var_ref_parts(s, at, vm.braced_var_style())? else {
         return Ok(VarFlow::Literal);
     };
     let Some(raw_index) = vr.index else {
@@ -393,7 +395,7 @@ fn subst_index(vm: &mut Vm, idx: &str) -> Result<IndexFlow, TclError> {
                 }
             }
             b'$' if i + 1 < n => {
-                if let Some(vr) = parse_var_ref_parts(idx, i) {
+                if let Some(vr) = parse_var_ref_parts(idx, i, vm.braced_var_style())? {
                     let v = match vr.index {
                         None => read_var(vm, vr.base)?,
                         // A nested array index recurses; control flow from it
@@ -442,22 +444,44 @@ struct VarRef<'a> {
 
 /// Parse a `$`-variable reference starting at `s[at]` (`$name`, `${name}`,
 /// `$name(idx)`).
-fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
+///
+/// `braced_var` is the release's `${…}` close rule, resolved through the one
+/// shared owner: the 8.x family ends the name at the first literal `}` while
+/// 9.x counts nested braces and skips `\X` pairs, so `subst {${a{b}c}}` errors
+/// on `a{b` under 8.6 and reads `a{b}c` under 9.0 (issue #1457). Hard-coding
+/// either rule gives the wrong answer on the other release.
+///
+/// `Ok(None)` means "not a variable reference" — the `$` is literal text. An
+/// **unterminated** `${…}` is different: it is C's
+/// [`MISSING_CLOSE_BRACE_FOR_VAR`] error, not a literal `$`, so it returns
+/// `Err`. Raising it here (rather than at the top of `subst`) reproduces C's
+/// left-to-right evaluation, where earlier command substitutions in the same
+/// template have already run and kept their side effects — verified against
+/// both oracles.
+fn parse_var_ref_parts(
+    s: &str,
+    at: usize,
+    braced_var: BracedVarStyle,
+) -> Result<Option<VarRef<'_>>, TclError> {
     let b = s.as_bytes();
     let n = b.len();
     if b.get(at + 1) == Some(&b'{') {
-        let rel = s[at + 2..].find('}')?;
-        let close = at + 2 + rel;
-        return Some(VarRef {
+        let close = match tcl_lexer::braced_var_name_end(b, at + 2, braced_var) {
+            tcl_lexer::BracedVarEnd::Closed(close) => close,
+            tcl_lexer::BracedVarEnd::Unterminated => {
+                return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+            }
+        };
+        return Ok(Some(VarRef {
             base: &s[at + 2..close],
             index: None,
             next: close + 1,
-        });
+        }));
     }
     let start = at + 1;
     let j = tcl_core_types::naming::scan_var_name_end(b, start);
     if j == start {
-        return None;
+        return Ok(None);
     }
     // Optional array index `(...)`.
     if j < n
@@ -465,17 +489,17 @@ fn parse_var_ref_parts(s: &str, at: usize) -> Option<VarRef<'_>> {
         && let Some(rel) = s[j..].find(')')
     {
         let close = j + rel;
-        return Some(VarRef {
+        return Ok(Some(VarRef {
             base: &s[start..j],
             index: Some(&s[j + 1..close]),
             next: close + 1,
-        });
+        }));
     }
-    Some(VarRef {
+    Ok(Some(VarRef {
         base: &s[start..j],
         index: None,
         next: j,
-    })
+    }))
 }
 
 /// Substitute a literal word, returning its value. Pure single `${…}` / `[…]`
@@ -557,7 +581,7 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{command_end, parse_var_ref_parts, subst_command, whole_braced};
+    use super::{BracedVarStyle, command_end, parse_var_ref_parts, subst_command, whole_braced};
     use crate::interp::Vm;
 
     /// `subst_command` with only backslash substitution enabled.
@@ -596,11 +620,15 @@ mod tests {
             ("$::a:::b", "::a:::b", 8),
             ("$foo:::", "foo:::", 7),
         ] {
-            let parsed = parse_var_ref_parts(source, 0).expect("variable reference");
+            let parsed = parse_var_ref_parts(source, 0, BracedVarStyle::Tcl9Nesting)
+                .expect("parses")
+                .expect("variable reference");
             assert_eq!(parsed.base, base);
             assert_eq!(parsed.next, next);
         }
-        let parsed = parse_var_ref_parts("$a:::b(k)", 0).expect("array reference");
+        let parsed = parse_var_ref_parts("$a:::b(k)", 0, BracedVarStyle::Tcl9Nesting)
+            .expect("parses")
+            .expect("array reference");
         assert_eq!(parsed.base, "a:::b");
         assert_eq!(parsed.index, Some("k"));
     }
