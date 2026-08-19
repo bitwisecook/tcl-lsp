@@ -408,8 +408,11 @@ impl CodegenCtx<'_> {
             self.load_var(var_name);
             return;
         }
-        // Constant-fold [list arg1 arg2 ...]
-        if let Some(folded) = super::helpers::fold_list_cmd(value) {
+        // Constant-fold [list arg1 arg2 ...] — only while `list` still is the
+        // builtin everywhere in this unit (issue #1585).
+        if self.trusts_builtin("list")
+            && let Some(folded) = super::helpers::fold_list_cmd(value)
+        {
             self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
@@ -422,13 +425,16 @@ impl CodegenCtx<'_> {
             return;
         }
         // Constant-fold [format "..." arg ...].
-        if let Some(folded) = super::helpers::try_format_fold(value) {
+        if self.trusts_builtin("format")
+            && let Some(folded) = super::helpers::try_format_fold(value)
+        {
             self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
         // Constant-fold [dict create k v ...] — gated on the emulated release
         // actually having `dict`; see the twin site in `cmd_subst.rs` (#1427).
         if self.registry.has_command_in_this_dialect("dict")
+            && self.trusts_builtin("dict")
             && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
         {
             self.push_lit(&folded);

@@ -1969,3 +1969,111 @@ fn codegen_module_empty_has_top() {
     let asm = codegen_module(&cfg_mod, &ir_mod, &registry());
     assert_eq!(asm.top_level.name, "::top");
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Command-binding trust gate (issue #1585)
+//
+// A fold or a specialised inline emission *is* a builtin's semantics, so it
+// may only fire while the name still denotes that builtin. C Tcl reaches the
+// same answer dynamically: it compiles the specialisation unconditionally but
+// wraps every command in `INST_START_CMD`, which re-dispatches the slow way
+// once `iPtr->compileEpoch` moves (`tclExecute.c`, `instStartCmdFailed`).
+// This compiler emits no epoch guard, so the check is the static
+// whole-unit `command_binding` scan instead.
+//
+// The runtime results below are pinned on tclsh 8.6.16 and 9.0.4 (byte
+// identical): `rename dict {}` then `dict create a 1 b 2` raises
+// `invalid command name "dict"` on both, and `proc format {args} {return z}`
+// then `format "%s!" hi` yields `z` on both — neither is the folded value
+// this codegen used to bake in.
+// ═══════════════════════════════════════════════════════════════════
+
+/// The literal pool of `source`'s top-level function.
+fn top_lits(source: &str) -> Vec<String> {
+    top_asm(source).literals.entries().to_vec()
+}
+
+#[test]
+fn list_fold_bails_when_the_unit_renames_list() {
+    // Untouched: the whole substitution collapses to one literal.
+    assert!(top_lits("puts [list a b c]\n").contains(&"a b c".to_owned()));
+
+    // tclsh 8.6.16 / 9.0.4: `rename list mylist` then `list a b c` errors
+    // through `unknown` — so the words must survive as a real call.
+    let lits = top_lits("rename list mylist\nputs [list a b c]\n");
+    assert!(
+        !lits.contains(&"a b c".to_owned()),
+        "the folded list must not survive a `rename list`: {lits:?}"
+    );
+    for word in ["a", "b", "c"] {
+        assert!(
+            lits.contains(&word.to_owned()),
+            "argument {word:?} must reach the runtime call: {lits:?}"
+        );
+    }
+}
+
+#[test]
+fn format_fold_bails_when_a_proc_shadows_format() {
+    assert!(top_lits("puts [format \"%s!\" hi]\n").contains(&"hi!".to_owned()));
+
+    // tclsh 8.6.16 / 9.0.4: the shadowing proc runs and the script prints `z`.
+    let lits = top_lits("proc format {args} {return z}\nputs [format \"%s!\" hi]\n");
+    assert!(
+        !lits.contains(&"hi!".to_owned()),
+        "the folded result must not survive a shadowing `proc format`: {lits:?}"
+    );
+    assert!(lits.contains(&"%s!".to_owned()) && lits.contains(&"hi".to_owned()));
+}
+
+#[test]
+fn dict_create_fold_bails_when_the_unit_deletes_dict() {
+    let ops = ops_of("puts [dict create a 1 b 2]\n");
+    assert!(ops.contains(&Op::VERIFY_DICT), "baseline folds: {ops:?}");
+
+    // tclsh 8.6.16 / 9.0.4: `invalid command name "dict"`.
+    let src = "rename dict {}\nputs [dict create a 1 b 2]\n";
+    let ops = opcodes(&top_asm(src));
+    assert!(
+        !ops.contains(&Op::VERIFY_DICT),
+        "the folded dict must not survive a `rename dict {{}}`: {ops:?}"
+    );
+    assert!(top_lits(src).contains(&"create".to_owned()));
+}
+
+#[test]
+fn statement_position_hook_bails_when_the_unit_renames_llength() {
+    let ops = ops_of("set l {a b c}\nllength $l\n");
+    assert!(
+        ops.contains(&Op::LIST_LENGTH),
+        "baseline specialises: {ops:?}"
+    );
+
+    let ops = ops_of("rename llength myll\nset l {a b c}\nllength $l\n");
+    assert!(
+        !ops.contains(&Op::LIST_LENGTH),
+        "`llength` must not keep its opcode once renamed away: {ops:?}"
+    );
+}
+
+#[test]
+fn value_position_hook_bails_when_the_unit_renames_string() {
+    let ops = ops_of("set s ab\nset x [string length $s]\n");
+    assert!(ops.contains(&Op::STR_LEN), "baseline specialises: {ops:?}");
+
+    let ops = ops_of("rename string mystring\nset s ab\nset x [string length $s]\n");
+    assert!(
+        !ops.contains(&Op::STR_LEN),
+        "`string length` must not keep its opcode once `string` is renamed: {ops:?}"
+    );
+}
+
+#[test]
+fn the_trust_gate_is_per_name_not_whole_module() {
+    // Shadowing `format` must not cost `list` or `dict` their folds — the gate
+    // asks about one name, not "did this unit touch any command table".
+    let src = "proc format {args} {return z}\nputs [list a b c]\nputs [dict create k v]\n";
+    let lits = top_lits(src);
+    assert!(lits.contains(&"a b c".to_owned()), "{lits:?}");
+    assert!(lits.contains(&"k v".to_owned()), "{lits:?}");
+}

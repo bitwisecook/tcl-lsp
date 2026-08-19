@@ -95,6 +95,10 @@ struct ModuleEmit<'a> {
     numbers: tcl_dialect::NumberSyntax,
     escapes: tcl_dialect::EscapeSyntax,
     braced_var: tcl_dialect::BracedVarStyle,
+    /// The unit's command-binding summary — see
+    /// [`CodegenCtx::command_bindings`](crate::codegen::CodegenCtx::command_bindings).
+    /// Scanned once per module, not once per function.
+    command_bindings: &'a crate::command_binding::ModuleCommandMutations,
 }
 
 /// Like [`codegen_function_with_procs`] but threading the module source text so
@@ -115,6 +119,7 @@ fn codegen_function_src(
     ctx.escapes = module.escapes;
     ctx.braced_var = module.braced_var;
     ctx.dialect = module.dialect;
+    ctx.command_bindings = Some(module.command_bindings);
     ctx.set_source(module.source);
     let mut asm = generate::generate(&mut ctx, cfg, proc_defs);
     asm.body_base_line = base_line;
@@ -171,6 +176,12 @@ pub fn codegen_module(
     let numbers = tcl_dialect::NumberSyntax::of_dialect_name(dialect);
     let escapes = tcl_dialect::EscapeSyntax::of_dialect_name(dialect);
     let braced_var = tcl_dialect::BracedVarStyle::of_dialect_name(dialect);
+    // Which builtins this unit leaves alone (issue #1585). Scanned from the IR
+    // — the top-level script plus every proc / method body — so a `rename` or
+    // shadowing `proc` *anywhere* in the unit is seen before the first
+    // instruction is emitted, whatever order the bodies are lowered in.
+    let command_bindings =
+        crate::command_binding::scan_module_command_mutations(ir_module, registry);
     let module = ModuleEmit {
         registry,
         source: src,
@@ -178,6 +189,7 @@ pub fn codegen_module(
         numbers,
         escapes,
         braced_var,
+        command_bindings: &command_bindings,
     };
     let top = codegen_function_src(&cfg_module.top_level, &[], false, &[], module, 0);
     let mut procs: HashMap<String, FunctionAsm> = HashMap::new();

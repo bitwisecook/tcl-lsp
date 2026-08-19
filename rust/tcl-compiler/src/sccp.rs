@@ -1332,7 +1332,7 @@ pub fn evaluate_def_with_folds<S: std::hash::BuildHasher>(
                     if arg.starts_with('[')
                         && arg.ends_with(']')
                         && let Some(LatticeValue::Const(ConstValue::String(s))) =
-                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy)
+                            try_fold_cmd_subst(arg, &stmt_ssa.uses, values, ssa, policy, folds)
                     {
                         return Some(split_list_values(&s));
                     }
@@ -1709,7 +1709,7 @@ fn fold_assign_value<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     }
     // Command substitution.
     if stripped.starts_with('[') && stripped.ends_with(']') {
-        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy) {
+        if let Some(lv) = try_fold_cmd_subst(stripped, uses, values, ssa, policy, folds) {
             return lv;
         }
         // Registry const-fold fallback (issue #1134): the fold's `$var`
@@ -1824,18 +1824,39 @@ fn try_fold_cmd_subst<S1: std::hash::BuildHasher, S2: std::hash::BuildHasher>(
     values: &HashMap<ValueKey, LatticeValue, S2>,
     ssa: &SsaFunction,
     policy: FoldPolicy,
+    folds: Option<BuiltinFoldInputs<'_>>,
 ) -> Option<LatticeValue> {
+    // Each arm below *is* a builtin's semantics, so it may only run while
+    // that name still denotes the builtin: after `rename list mylist` or a
+    // shadowing `proc format …` anywhere in the unit, `[list a 1 a 2]` is a
+    // call to something else entirely (issue #1585). This is the same trust
+    // fact the registry-driven engine below already consults; the arms here
+    // ran ahead of it and never asked.
+    //
+    // `folds == None` is the mutation-fact-free shared per-unit lattice (see
+    // [`BuiltinFoldInputs`]), which no rewrite lands from: the optimiser
+    // re-runs SCCP *with* the fact before propagating a command-substitution
+    // assignment, and that run is the one whose constants reach codegen.
+    let trusted = |name: &str| folds.is_none_or(|f| f.mutations.trusts(name));
+
     // `[list ...]` — reuse the codegen fold.
-    if let Some(folded) = crate::codegen::helpers::fold_list_cmd(value) {
+    if trusted("list")
+        && let Some(folded) = crate::codegen::helpers::fold_list_cmd(value)
+    {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
     // `[format "..." args…]` with literal args.
-    if let Some(folded) = crate::codegen::helpers::try_format_fold(value) {
+    if trusted("format")
+        && let Some(folded) = crate::codegen::helpers::try_format_fold(value)
+    {
         return Some(LatticeValue::Const(ConstValue::String(folded)));
     }
 
     let inner = value.strip_prefix('[')?.strip_suffix(']')?;
     let (cmd, rest) = split_head(inner);
+    if !trusted(cmd) {
+        return None;
+    }
 
     // `[llength LIST]` with a literal or lattice-resolvable list.
     if cmd == "llength" {
@@ -3108,6 +3129,86 @@ mod tests {
         assert_eq!(
             evaluate_def(&stmt, &HashMap::new(), &ssa, FoldPolicy::default()),
             LatticeValue::Const(ConstValue::Int(5))
+        );
+    }
+
+    // -- the fold arms answer to the command-binding trust fact (issue #1585) --
+
+    /// The whole-module mutation summary for `src`.
+    fn mutations_for(src: &str) -> crate::command_binding::ModuleCommandMutations {
+        let reg = registry();
+        let ir = crate::lowering::lower_to_ir(src, &reg);
+        crate::command_binding::scan_module_command_mutations(&ir, &reg)
+    }
+
+    /// Evaluate `stmt` under the trust fact scanned from `unit_src`.
+    fn evaluate_under_unit(
+        stmt: &SsaStatement,
+        ssa: &SsaFunction,
+        registry: &CommandRegistry,
+        mutations: &crate::command_binding::ModuleCommandMutations,
+    ) -> LatticeValue {
+        evaluate_def_with_folds(
+            stmt,
+            &HashMap::new(),
+            ssa,
+            FoldPolicy::default(),
+            Some(BuiltinFoldInputs {
+                registry,
+                mutations,
+                dialect: None,
+                defining_class: None,
+            }),
+        )
+    }
+
+    /// The `[list …]` / `[format …]` arms run ahead of the registry engine and
+    /// used to skip its trust gate entirely, so a unit that renamed `list`
+    /// still got the builtin's answer (issue #1585).
+    ///
+    /// tclsh 8.6.16 / 9.0.4 (identical): after `rename list mylist`, evaluating
+    /// `list a b c` raises rather than returning `a b c`.
+    #[test]
+    fn list_arm_declines_once_the_unit_renames_list() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let stmt = assign_value_stmt(&mut ssa, "x", "[list a b c]", 1);
+
+        let untouched = mutations_for("set y 1\n");
+        assert_eq!(
+            evaluate_under_unit(&stmt, &ssa, &reg, &untouched),
+            LatticeValue::Const(ConstValue::String("a b c".into())),
+            "an untouched `list` still folds"
+        );
+
+        let renamed = mutations_for("rename list mylist\n");
+        assert_eq!(
+            evaluate_under_unit(&stmt, &ssa, &reg, &renamed),
+            LatticeValue::Overdefined,
+            "a renamed `list` must not fold to the builtin's answer"
+        );
+    }
+
+    /// The same gate, on an arm reached through the head-word check rather
+    /// than through its own early return — and per name: renaming `llength`
+    /// must not cost `list` its fold.
+    #[test]
+    fn head_word_arms_decline_only_for_the_name_the_unit_touched() {
+        let reg = registry();
+        let mut ssa = bare_ssa();
+        let count = assign_value_stmt(&mut ssa, "n", "[llength {a b c d}]", 1);
+        let listing = assign_value_stmt(&mut ssa, "x", "[list a b c]", 2);
+
+        let renamed = mutations_for("rename llength myll\n");
+        assert_eq!(
+            evaluate_under_unit(&count, &ssa, &reg, &renamed),
+            LatticeValue::Overdefined,
+            "a renamed `llength` must not fold to the builtin's answer"
+        );
+        assert_eq!(
+            evaluate_under_unit(&listing, &ssa, &reg, &renamed),
+            LatticeValue::Const(ConstValue::String("a b c".into())),
+            "`list` is untouched by a `rename llength` and keeps its fold"
         );
     }
 

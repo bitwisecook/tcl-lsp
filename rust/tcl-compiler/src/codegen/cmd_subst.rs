@@ -682,8 +682,11 @@ impl CodegenCtx<'_> {
             self.load_var(var_name);
             return;
         }
-        // Constant-fold [list arg1 arg2 ...]
-        if let Some(folded) = super::helpers::fold_list_cmd(value) {
+        // Constant-fold [list arg1 arg2 ...] — only while `list` still is the
+        // builtin everywhere in this unit (issue #1585).
+        if self.trusts_builtin("list")
+            && let Some(folded) = super::helpers::fold_list_cmd(value)
+        {
             self.push_lit_no_dedup(&folded);
             return;
         }
@@ -701,7 +704,9 @@ impl CodegenCtx<'_> {
         }
         // Constant-fold [format "..." arg ...] with literal args.
         // Relies on the existing `helpers::try_format_fold` for %s/%d/%%.
-        if let Some(folded) = super::helpers::try_format_fold(value) {
+        if self.trusts_builtin("format")
+            && let Some(folded) = super::helpers::try_format_fold(value)
+        {
             self.push_lit_no_dedup(&folded);
             return;
         }
@@ -711,6 +716,7 @@ impl CodegenCtx<'_> {
         // *work* under `--tcl-version 8.4` instead of raising `invalid command
         // name "dict"` (issue #1427).
         if self.registry.has_command_in_this_dialect("dict")
+            && self.trusts_builtin("dict")
             && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
         {
             self.push_lit(&folded);
@@ -786,6 +792,13 @@ impl CodegenCtx<'_> {
         cmd: &str,
         args: &[(String, bool)],
     ) -> Option<InlineCodegenHookId> {
+        // A name this unit renames, aliases, or shadows with a proc no longer
+        // denotes the builtin whose emitter the hook names, so there is
+        // nothing to specialise — fall through to the generic invoke and let
+        // the runtime dispatch on whatever the name holds (issue #1585).
+        if !self.trusts_builtin(cmd) {
+            return None;
+        }
         let arg_refs: Vec<&str> = args.iter().map(|(a, _)| a.as_str()).collect();
         // The registry's own availability mask — see
         // `emitter::bytecoded::try_bytecoded` (issues #1462/#1463).
