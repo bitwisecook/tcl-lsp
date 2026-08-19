@@ -16,8 +16,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Generated BIG-IP object-spec data modules (one per kind-name
-//! initial). Aggregated by [`all_specs`].
+//! Hand-maintained BIG-IP object-spec data modules (one per kind-name
+//! initial) — see each module's doc comment for provenance and issue #1404.
+//! Aggregated by [`all_specs`]; `cargo xtask bigip-data-schema --check`
+//! guards their internal consistency.
 use super::BigipObjectSpec;
 
 mod a;
