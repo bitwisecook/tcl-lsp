@@ -519,11 +519,15 @@ fn configuring_an_imported_ensemble_updates_the_origin() {
     assert_eq!(run(&format!("{setup}::S::ens go")), "NEW");
     // Both spellings read back the new config.
     assert_eq!(
-        run(&format!("{setup}namespace ensemble configure ::T::ens -map")),
+        run(&format!(
+            "{setup}namespace ensemble configure ::T::ens -map"
+        )),
         "go ::S::impl2"
     );
     assert_eq!(
-        run(&format!("{setup}namespace ensemble configure ::S::ens -map")),
+        run(&format!(
+            "{setup}namespace ensemble configure ::S::ens -map"
+        )),
         "go ::S::impl2"
     );
     // The alias is still an alias — configuring it did not fork a new ensemble.

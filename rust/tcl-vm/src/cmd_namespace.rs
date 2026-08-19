@@ -675,14 +675,15 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err(message);
         }
     }
-    let updated = crate::command::Command::Ensemble(std::rc::Rc::new(crate::command::EnsembleDef {
-        namespace: def.namespace.clone(),
-        map: opts.map,
-        subcommands: opts.subcommands,
-        prefixes: opts.prefixes,
-        parameters: opts.parameters,
-        unknown: opts.unknown,
-    }));
+    let updated =
+        crate::command::Command::Ensemble(std::rc::Rc::new(crate::command::EnsembleDef {
+            namespace: def.namespace.clone(),
+            map: opts.map,
+            subcommands: opts.subcommands,
+            prefixes: opts.prefixes,
+            parameters: opts.parameters,
+            unknown: opts.unknown,
+        }));
     vm.register_command(&cmd_key, updated.clone());
     // The VM stores each `namespace import` as a cloned dispatcher rather than
     // C's shared command token, so push the new definition to the clones —
