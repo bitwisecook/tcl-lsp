@@ -2319,9 +2319,8 @@ impl Analyser {
     /// poisoning applied at fold time, where the whole document's write
     /// counts are in view.
     fn record_path_constant_candidates(&mut self, commands: &[crate::segmenter::SegmentedCommand]) {
-        let dialect = self.result.dialect.clone();
         self.result.path_constant_assignments.extend(
-            crate::auto_path_eval::constant_path_assignments_from_commands(commands, &dialect),
+            crate::auto_path_eval::constant_path_assignments_from_commands(commands, self.profile),
         );
     }
 
@@ -2617,7 +2616,7 @@ impl Analyser {
             &self.source,
             registry,
             self.lexer_config(),
-            &self.result.dialect,
+            Some(self.profile),
         );
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,

@@ -35,7 +35,7 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
 
 use crate::alias::{CommandAliasMap, expr_alias_names};
-use crate::expr_parser::parse_expr;
+use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{CommandTokens, Statement};
 
 /// Parsed command context passed to lowering hooks.
@@ -63,7 +63,7 @@ pub struct LoweringCommand<'a> {
     /// operator it is rather than falling back to
     /// [`crate::expr_ast::ExprNode::Raw`] — which no downstream fold can
     /// evaluate.
-    pub dialect: Option<&'a str>,
+    pub dialect: Option<&'static tcl_dialect::DialectProfile>,
 }
 
 impl LoweringCommand<'_> {
@@ -367,7 +367,7 @@ fn lower_set(cmd: &LoweringCommand<'_>, aliases: &CommandAliasMap) -> Statement 
                     .unwrap_or(value);
                 let alias_names = expr_alias_names(aliases);
                 if let Some((expr_arg, rel_base)) = extract_single_expr_arg(inner, &alias_names) {
-                    let expr = parse_expr(&expr_arg, cmd.dialect);
+                    let expr = parse_expr_for_profile(&expr_arg, cmd.dialect);
                     // Anchor the expression text absolutely when both the
                     // `[...]` value word's content and the expr word within
                     // it are verbatim slices: absolute = the bracketed
@@ -735,12 +735,12 @@ mod tests {
 
     /// The statement `src` lowers to under `dialect` — the configuration a
     /// real host builds, so the `{*}` grammar matches the document's.
-    fn first_stmt_for_dialect(src: &str, dialect: &str) -> Statement {
-        let registry = tcl_registry::registry_for_dialect(dialect);
+    fn first_stmt_for_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> Statement {
+        let registry = tcl_registry::cache::registry_for_profile(dialect);
         let m = crate::lowering::lower_to_ir_with_config(
             src,
             registry,
-            tcl_lexer::LexerConfig::for_dialect(dialect),
+            tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
         );
         m.top_level.statements[0].clone()
     }
@@ -756,7 +756,7 @@ mod tests {
     fn lower_set_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
             for src in ["set {*}$n 1", "set x$n 1", "set pre[f] 1"] {
-                let stmt = first_stmt_for_dialect(src, dialect);
+                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(&stmt, Statement::Call { command, .. } if command == "set"),
                     "{dialect}: {src:?} must stay a Call, got {stmt:?}",
@@ -772,7 +772,7 @@ mod tests {
     fn lower_set_keeps_the_static_assign_for_a_spelled_out_name() {
         for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
             for src in ["set x 1", "set {$n} 1", "set \\$x 1", "set a($i) 1"] {
-                let stmt = first_stmt_for_dialect(src, dialect);
+                let stmt = first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(
                     matches!(
                         &stmt,
@@ -791,7 +791,7 @@ mod tests {
     #[test]
     fn lower_set_leaves_the_expanded_name_word_on_its_existing_path() {
         for dialect in ["tcl9.0", "tcl8.6"] {
-            let stmt = first_stmt_for_dialect("set {*}$n 1", dialect);
+            let stmt = first_stmt_for_dialect("set {*}$n 1", tcl_dialect::DialectProfile::by_name(dialect));
             let Statement::Call {
                 command, tokens, ..
             } = &stmt

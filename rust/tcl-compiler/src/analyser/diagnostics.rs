@@ -387,7 +387,7 @@ impl Analyser {
                     registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: dialect_opt.map_or("", |profile| profile.name),
+                    dialect: dialect_opt,
                     external_call_sites: None,
                 },
             )

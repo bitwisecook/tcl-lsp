@@ -22,7 +22,6 @@
 //! [`ExprNode`] tree and produces the corresponding bytecode
 //! instructions.
 
-use tcl_dialect::DialectProfile;
 use tcl_lexer::backslash_subst_in;
 use tcl_registry::expr_surface::RuntimeExprSurface;
 
@@ -334,7 +333,7 @@ impl CodegenCtx<'_> {
     /// operator set is unknown, so nothing is gated and a dialect-less compile
     /// keeps exactly the surface it had.
     fn expr_surface(&self) -> Option<RuntimeExprSurface> {
-        DialectProfile::find(self.dialect?).map(RuntimeExprSurface::for_profile)
+        self.dialect.map(RuntimeExprSurface::for_profile)
     }
 
     /// Emit an expression tree, reporting whether the value it leaves on the
@@ -555,7 +554,7 @@ mod tests {
 
     /// A context compiling *for* `dialect`, as `codegen_module` builds one from
     /// the IR module's dialect.
-    fn ctx_for<'r>(registry: &'r CommandRegistry, dialect: &'static str) -> CodegenCtx<'r> {
+    fn ctx_for<'r>(registry: &'r CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> CodegenCtx<'r> {
         let mut ctx = CodegenCtx::new(true, &["x", "y"], registry);
         ctx.dialect = Some(dialect);
         ctx
@@ -1291,12 +1290,12 @@ mod tests {
         ];
         for (op, rendered, before, since, opcode) in vectors {
             // FN: before the floor the operator is not specialised.
-            let mut old = ctx_for(&registry, before);
+            let mut old = ctx_for(&registry, tcl_dialect::DialectProfile::by_name(before));
             old.emit_expr(&binary(op));
             assert_refused(&old, rendered);
 
             // TP: from the floor it compiles to its own opcode.
-            let mut modern = ctx_for(&registry, since);
+            let mut modern = ctx_for(&registry, tcl_dialect::DialectProfile::by_name(since));
             modern.emit_expr(&binary(op));
             assert_eq!(
                 opcodes(&modern),
@@ -1308,7 +1307,7 @@ mod tests {
         // TN: `eq`/`ne` are in 8.4's operator table, so the gate must not
         // sweep them up with the operators that are not.
         for (op, opcode) in [(BinOp::StrEq, Op::STR_EQ), (BinOp::StrNe, Op::STR_NEQ)] {
-            let mut ctx = ctx_for(&registry, "tcl8.4");
+            let mut ctx = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.4"));
             ctx.emit_expr(&binary(op));
             assert_eq!(
                 opcodes(&ctx),
@@ -1338,11 +1337,11 @@ mod tests {
             right: Box::new(lit("3")),
         };
 
-        let mut old = ctx_for(&registry, "tcl8.4");
+        let mut old = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.4"));
         old.emit_expr(&node);
         assert_refused(&old, "2 ** 3");
 
-        let mut modern = ctx_for(&registry, "tcl8.5");
+        let mut modern = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.5"));
         modern.emit_expr(&node);
         assert_eq!(opcodes(&modern), vec![Op::PUSH1]);
         assert_eq!(modern.literals.entries()[0], "8");
@@ -1362,18 +1361,18 @@ mod tests {
         };
 
         // TP: available under the dialect that defines them.
-        let mut irules = ctx_for(&registry, "f5-irules");
+        let mut irules = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("f5-irules"));
         irules.emit_expr(&contains);
         assert!(opcodes(&irules).contains(&Op::IRULE_CONTAINS));
 
         // FN: not part of any plain-Tcl release's grammar.
-        let mut plain = ctx_for(&registry, "tcl8.6");
+        let mut plain = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.6"));
         plain.emit_expr(&contains);
         assert_refused(&plain, "$x contains $y");
 
         // TN: iRules is an 8.4 runtime, so the 8.5 membership operator is
         // absent there too, dialect bit notwithstanding.
-        let mut membership = ctx_for(&registry, "f5-irules");
+        let mut membership = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("f5-irules"));
         membership.emit_expr(&binary(BinOp::In));
         assert_refused(&membership, "$x in $y");
 

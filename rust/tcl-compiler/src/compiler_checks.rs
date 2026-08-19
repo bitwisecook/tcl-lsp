@@ -641,11 +641,11 @@ mod tests {
     /// exists.
     #[test]
     fn proof_gated_o105_is_a_hint_with_no_auto_fix() {
-        let cu = CompilationUnit::build_for_dialect(
+        let cu = CompilationUnit::build_for_profile(
             "llength {a b}\nllength {a b}",
             &registry(),
             false,
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         let diags = run_all_checks(
             &cu,

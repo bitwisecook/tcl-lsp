@@ -88,7 +88,12 @@ fn lowering_parses_a_word_operator_condition_under_the_irules_dialect() {
     let registry = registry_for_dialect(IRULES);
     let config = tcl_lexer::LexerConfig::for_dialect(IRULES);
 
-    let with_dialect = lower_to_ir_with_dialect(CONSTANT_WORD_OP, registry, config, IRULES);
+    let with_dialect = lower_to_ir_with_dialect(
+        CONSTANT_WORD_OP,
+        registry,
+        config,
+        Some(tcl_dialect::DialectProfile::by_name(IRULES)),
+    );
     assert!(
         matches!(
             first_if_condition(&with_dialect),
@@ -117,7 +122,7 @@ fn lowering_leaves_a_word_operator_raw_in_plain_tcl() {
         "set x \"abcdef\"\nif {$x contains \"cd\"} { puts hit }\n",
         registry,
         tcl_lexer::LexerConfig::for_dialect(TCL),
-        TCL,
+        Some(tcl_dialect::DialectProfile::by_name(TCL)),
     );
     let condition = module
         .top_level

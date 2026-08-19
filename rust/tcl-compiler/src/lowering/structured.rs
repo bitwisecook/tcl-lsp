@@ -26,7 +26,7 @@ use std::borrow::Cow;
 
 use tcl_lexer::{Span, Token, TokenType};
 
-use crate::expr_parser::parse_expr;
+use crate::expr_parser::parse_expr_for_profile;
 use crate::ir::{ForeachIterator, IfClause, Script, Statement, SwitchArm, SwitchMode, TryHandler};
 use crate::lowering_hooks::word_content_base;
 use crate::naming::normalise_var_name;
@@ -280,7 +280,7 @@ impl Lowerer<'_> {
             let cond_single = arg_single.get(cond_idx).copied().unwrap_or(false);
             let cond_text = condition_source_text(cond_tok, cond_single, &args[cond_idx]);
             clauses.push(IfClause {
-                condition: parse_expr(&cond_text, self.dialect),
+                condition: parse_expr_for_profile(&cond_text, self.dialect),
                 condition_span: cond_tok.map_or(seg.span, |t| t.span),
                 condition_base: cond_tok
                     .and_then(|t| word_content_base(t.span, cond_single, &cond_text)),
@@ -358,10 +358,9 @@ impl Lowerer<'_> {
             span: seg.span,
             init,
             init_span: arg_tokens[0].span,
-            condition: parse_expr(
+            condition: parse_expr_for_profile(
                 &condition_source_text(arg_tokens.get(1), arg_single[1], &args[1]),
-                self.dialect,
-            ),
+                self.dialect),
             condition_span: arg_tokens[1].span,
             condition_base: word_content_base(
                 arg_tokens[1].span,
@@ -409,10 +408,9 @@ impl Lowerer<'_> {
 
         Statement::While {
             span: seg.span,
-            condition: parse_expr(
+            condition: parse_expr_for_profile(
                 &condition_source_text(arg_tokens.first(), arg_single[0], &args[0]),
-                self.dialect,
-            ),
+                self.dialect),
             condition_span: arg_tokens[0].span,
             condition_base: word_content_base(
                 arg_tokens[0].span,

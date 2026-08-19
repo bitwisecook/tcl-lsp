@@ -819,7 +819,7 @@ pub struct Lowerer<'r> {
     /// evaluate.  Separate from `config`: the lexer config carries the
     /// dialect's *word* tokenisation, this carries its *expression* grammar.
     /// Set by [`Lowerer::with_dialect`] / [`lower_to_ir_with_dialect`].
-    dialect: Option<&'r str>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
@@ -910,8 +910,8 @@ impl<'r> Lowerer<'r> {
     /// empty `dialect` means plain Tcl, matching
     /// [`crate::compilation_unit::UnitBuildOptions::dialect`].
     #[must_use]
-    pub fn with_dialect(mut self, dialect: &'r str) -> Self {
-        self.dialect = (!dialect.is_empty()).then_some(dialect);
+    pub fn with_dialect(mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) -> Self {
+        self.dialect = dialect;
         self
     }
 
@@ -3454,7 +3454,7 @@ pub fn lower_proc_body_isolated(
     namespace: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Script {
     let mut lowerer = Lowerer::with_config(registry, config).with_dialect(dialect);
     lowerer.proc_depth += 1;
@@ -3619,8 +3619,8 @@ mod body_cache_eligible_tests {
         let reg = CommandRegistry::build_default();
         let cfg = tcl_lexer::LexerConfig::default();
         let src = "interp alias {} = {} expr\nproc f {x} { return [= {$x + 1}] }\n";
-        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, "");
-        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, "", &cache);
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, None);
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, None, &cache);
         let fresh = lower_to_ir_with_config(src, &reg, cfg);
         assert_ne!(
             format!("{cached:?}"),
@@ -3657,8 +3657,8 @@ mod body_cache_eligible_tests {
         let reg = CommandRegistry::build_default();
         let cfg = tcl_lexer::LexerConfig::default();
         let src = "rename puts myputs\nproc f {x} { myputs $x }\n";
-        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, "");
-        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, "", &cache);
+        let cache = |body: &str, ns: &str| lower_proc_body_isolated(body, ns, &reg, cfg, None);
+        let cached = lower_to_ir_with_body_cache(src, &reg, cfg, None, &cache);
         let fresh = lower_to_ir_with_config(src, &reg, cfg);
         assert_ne!(
             format!("{cached:?}"),
@@ -3683,7 +3683,7 @@ pub fn lower_to_ir_with_body_cache(
     source: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     body_cache: &dyn Fn(&str, &str) -> Script,
 ) -> Module {
     lower_with(
@@ -3726,7 +3726,7 @@ pub fn lower_to_ir_with_dialect(
     source: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Module {
     lower_with(
         Lowerer::with_config(registry, config).with_dialect(dialect),
@@ -3741,7 +3741,7 @@ pub fn lower_to_ir_with_dialect(
 /// [`lower_to_ir`].
 #[must_use]
 pub fn lower_to_ir_for_bytecode(source: &str, registry: &CommandRegistry) -> Module {
-    lower_to_ir_for_bytecode_with_dialect(source, registry, tcl_lexer::LexerConfig::default(), "")
+    lower_to_ir_for_bytecode_with_dialect(source, registry, tcl_lexer::LexerConfig::default(), None)
 }
 
 /// Like [`lower_to_ir_for_bytecode`] but also naming the document's `dialect`
@@ -3754,7 +3754,7 @@ pub fn lower_to_ir_for_bytecode_with_dialect(
     source: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Module {
     lower_with(
         Lowerer::with_config(registry, config)
@@ -3784,7 +3784,7 @@ pub fn lower_to_ir_traced_with_config(
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
 ) -> Module {
-    lower_to_ir_traced_with_dialect(source, registry, config, "")
+    lower_to_ir_traced_with_dialect(source, registry, config, None)
 }
 
 /// Like [`lower_to_ir_traced_with_config`] but also records the exact dialect
@@ -3796,7 +3796,7 @@ pub fn lower_to_ir_traced_with_dialect(
     source: &str,
     registry: &CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &str,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
 ) -> Module {
     lower_with(
         Lowerer::with_config(registry, config)
@@ -3872,7 +3872,7 @@ fn lower_with(mut lowerer: Lowerer<'_>, source: &str) -> Module {
     // module (cache-independent — see `extract_oo_methods_pass`).
     lowerer.extract_oo_methods_pass();
     let registry = lowerer.registry;
-    let dialect = lowerer.dialect.map(str::to_owned);
+    let dialect = lowerer.dialect.map(|profile| profile.name.to_owned());
     let mut module = lowerer.module;
     module.source = source.to_string();
     module.dialect = dialect;

@@ -96,7 +96,7 @@ pub fn codegen_function_with_procs(
 struct ModuleEmit<'a> {
     registry: &'a CommandRegistry,
     source: &'a str,
-    dialect: Option<&'a str>,
+    dialect: Option<&'static tcl_dialect::DialectProfile>,
     numbers: tcl_dialect::NumberSyntax,
     escapes: tcl_dialect::EscapeSyntax,
 }
@@ -149,7 +149,7 @@ pub fn codegen_module(
     let module = ModuleEmit {
         registry,
         source: src,
-        dialect,
+        dialect: dialect.and_then(tcl_dialect::DialectProfile::find),
         numbers,
         escapes,
     };

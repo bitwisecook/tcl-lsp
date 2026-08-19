@@ -4290,7 +4290,7 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     registry: &registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: "tcl",
+                    dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
                     external_call_sites: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
@@ -4401,7 +4401,7 @@ fn memoized_compilation_unit_shift_correctness() {
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: "tcl",
+                dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
                 external_call_sites: None,
             },
             // Position-independent key: the body is normalised to offset 0

@@ -2309,7 +2309,7 @@ mod tests {
     fn traits_under(prelude: &str, body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
         let identities =
-            crate::head_identity::command_head_identities(prelude, "tcl8.6", &registry);
+            crate::head_identity::command_head_identities(prelude, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry);
         infer_param_traits(
             &["body"],
             body,
@@ -2380,7 +2380,7 @@ mod tests {
     fn caller_frame_scans_follow_the_resolved_head() {
         let registry = CommandRegistry::build_default();
         let env_of = |prelude: &str| {
-            crate::head_identity::command_head_identities(prelude, "tcl8.6", &registry)
+            crate::head_identity::command_head_identities(prelude, tcl_dialect::DialectProfile::by_name("tcl8.6"), &registry)
         };
 
         let aliased = env_of("interp alias {} peek {} upvar\n");
