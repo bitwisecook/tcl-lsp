@@ -283,9 +283,7 @@ fn scan_parts_at_depth(
                     // unterminated where 8.x closes them.
                     tcl_lexer::BracedVarEnd::Unterminated => {
                         i = len;
-                        parts.push(WordPart::ParseError(
-                            tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR,
-                        ));
+                        parts.push(WordPart::ParseError(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
                     }
                 }
             } else {
