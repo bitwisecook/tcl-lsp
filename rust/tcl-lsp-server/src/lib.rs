@@ -9826,12 +9826,9 @@ impl Backend {
     {
         let mut changes: std::collections::HashMap<Uri, Vec<TextEdit>> =
             std::collections::HashMap::new();
-        let Some(cell) = Self::qualified_variable_cell(
-            &doc.text,
-            tcl_lsp_core::profile_for_dialect(&analysis.dialect),
-            analysis,
-            pos,
-        ) else {
+        // Resolved once for the whole rename (issue #1405).
+        let profile = tcl_lsp_core::profile_for_dialect(&analysis.dialect);
+        let Some(cell) = Self::qualified_variable_cell(&doc.text, profile, analysis, pos) else {
             return Ok(changes);
         };
         if !core_rename::is_safe_symbol_name(new_name) {
@@ -12917,6 +12914,9 @@ impl Backend {
         }
         let (disabled, _non_ascii_mode, optimiser_enabled, opt_disabled) =
             self.resolved_analysis_settings(uri).await;
+        // Resolve the document's dialect once for the whole report rather than
+        // at each provider call below (issue #1405).
+        let profile = tcl_lsp_core::profile_for_dialect(&dialect);
         // Match the push worker's exact snapshot contract. A pull can race the
         // debounced push before its cache is primed, so it must carry the same
         // byte evidence itself rather than relying on a prior publish.
@@ -12950,7 +12950,7 @@ impl Backend {
                 f5_dialect_diagnostics(
                     uri,
                     &analysis_text,
-                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    profile,
                     language_id,
                     &disabled,
                     &self.documents,
@@ -12962,7 +12962,7 @@ impl Backend {
                 &text,
                 decode_report.as_ref(),
                 &disabled,
-                tcl_lsp_core::profile_for_dialect(&dialect),
+                profile,
             ));
             finalise_diagnostics(&mut diagnostics, &severity_overrides, encoding_abstains);
             return diagnostics;
@@ -12973,12 +12973,7 @@ impl Backend {
         let registry = self.registry_for_dialect(&dialect).await;
 
         let compiler_diags = self
-            .compiler_diagnostics_for(
-                uri,
-                &analysis_text,
-                tcl_lsp_core::profile_for_dialect(&dialect),
-                &registry,
-            )
+            .compiler_diagnostics_for(uri, &analysis_text, profile, &registry)
             .await;
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
@@ -12989,13 +12984,7 @@ impl Backend {
         // `textDocument/codeAction`, which lifts its quick-fixes from this
         // exact set (see `published_analyser_diagnostics`).
         let analyser_diags = self
-            .published_analyser_diagnostics(
-                uri,
-                &analysis,
-                tcl_lsp_core::profile_for_dialect(&dialect),
-                &registry,
-                &disabled,
-            )
+            .published_analyser_diagnostics(uri, &analysis, profile, &registry, &disabled)
             .await;
         let style_line_length = self.resolved_style_line_length(uri).await;
         crate::rt::spawn_blocking(move || {
@@ -13016,7 +13005,7 @@ impl Backend {
                 &analysis.suppressed_lines,
                 &disabled,
                 style_line_length as usize,
-                tcl_lsp_core::profile_for_dialect(&dialect),
+                profile,
             ));
             // Opt-in: XC100-301 translatability diagnostics for
             // `f5-irules` documents when `xcDiagnostics` is enabled (mirrors
