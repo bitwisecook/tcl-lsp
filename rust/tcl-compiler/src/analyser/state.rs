@@ -2625,7 +2625,13 @@ impl Analyser {
             &self.source,
             registry,
             self.lexer_config(),
-            Some(self.profile),
+            // `None`, not `Some(plain_tcl)`, when the analysis named no
+            // dialect: an unstated dialect is not the same input as an
+            // explicit plain-Tcl one, and `Lowerer::dialect` feeds numeral
+            // source selection. `self.profile` is always populated (it
+            // defaults to the plain fallback), so gate on the recorded
+            // spelling the way the pre-refactor `&str` boundary did.
+            (!self.result.dialect.is_empty()).then_some(self.profile),
         );
         let trust = std::sync::Arc::new(crate::command_binding::scan_module_command_mutations(
             &module, registry,

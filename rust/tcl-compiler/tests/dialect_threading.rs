@@ -196,6 +196,33 @@ fn build_for_dialect_retains_the_tk_set_only_bit() {
     assert_eq!(unit.top_level.semantic_facts.dialect(), DialectSet::TK);
 }
 
+/// The resolved-profile mirror of the case above, and the one that actually
+/// runs for `tcl minify --dialect tk` and for LSP optimise on a `tk` document.
+///
+/// `tk` is the one catalogue name where `by_name(profile.name)` is not the
+/// identity: it has no catalogue entry of its own, so the round trip sinks it
+/// to the plain fallback and the unit loses both the `tk` spelling and the TK
+/// semantic bit. `build_for_profile` must carry the caller's already-resolved
+/// profile through untouched.
+#[test]
+fn build_for_profile_retains_the_tk_set_only_bit() {
+    let registry = registry_for_dialect("tk");
+    let profile = tcl_dialect::DialectProfile::resolve_known("tk")
+        .expect("`tk` is a recognised additive dialect ingress");
+    let unit = CompilationUnit::build_for_profile("button .b\n", registry, false, profile);
+
+    assert_eq!(
+        unit.ir_module.dialect.as_deref(),
+        Some("tk"),
+        "the resolved-profile entry point must not canonicalise `tk` away"
+    );
+    assert_eq!(
+        unit.top_level.semantic_facts.dialect(),
+        DialectSet::TK,
+        "the TK semantic bit must survive the resolved-profile entry point"
+    );
+}
+
 // I230 — TP / TN / FP / FN
 
 /// TP: a constant iRules word-operator condition draws I230 under `f5-irules`.

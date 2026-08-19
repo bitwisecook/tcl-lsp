@@ -93,10 +93,19 @@ pub struct CodegenCtx<'r> {
     /// Defaults to 9.0 for the hand-built contexts in tests.
     pub escapes: tcl_dialect::EscapeSyntax,
     /// The resolved profile of the release being compiled *for*, from the
-    /// name the lowering pass received (`IrModule::dialect`).  `None` covers
-    /// both "the compile named no dialect" and "it named one this build does
-    /// not know" — the two answered alike before this field was typed, since
-    /// the only reader resolved the name through `DialectProfile::find`.
+    /// name the lowering pass received (`IrModule::dialect`).  `None` means
+    /// the compile named *no* dialect, and only that: a named-but-unknown
+    /// dialect still resolves (through `by_name`, to the permissive
+    /// fallback) and stays `Some`.
+    ///
+    /// The distinction matters because the readers branch on `is_some()`, not
+    /// on the profile's identity — `parse_expr_for_profile` in
+    /// [`codegen::control_flow`](crate::codegen::control_flow) and
+    /// [`codegen::cmd_subst`](crate::codegen::cmd_subst) pick the target
+    /// grammar when this is `Some` and the thread-ambient one when it is
+    /// `None`. Resolving the name with `DialectProfile::find` here would
+    /// answer `None` for `tk` and for any unrecognised name and silently move
+    /// those compiles onto the ambient grammar.
     ///
     /// This is the `expr` half of the same fact [`Self::numbers`] and
     /// [`Self::escapes`] carry: it resolves the grammar a re-parsed `expr`

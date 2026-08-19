@@ -9316,11 +9316,14 @@ impl Backend {
         let method_owned = method.to_owned();
         let classmethod_cmd_names = plan.classmethod_cmd_names.clone();
         let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
+            // Resolved once for the whole closure rather than per class in the
+            // family — the profile is a pure function of `dialect`.
+            let profile = tcl_lsp_core::profile_for_dialect(&dialect);
             let mut all: Vec<tcl_lexer::Span> = Vec::new();
             for cq in &family {
                 all.extend(core_references::obj_method_call_sites(
                     &source,
-                    tcl_lsp_core::profile_for_dialect(&dialect),
+                    profile,
                     &analysis,
                     cq,
                     &method_owned,
@@ -10001,11 +10004,15 @@ impl Backend {
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
+                // Resolved once for the whole closure: the profile is a pure
+                // function of `dialect`, so re-resolving it per iteration only
+                // repeats the lookup.
+                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
                     all.extend(core_rename::method_spans_in_document(
                         &src,
-                        tcl_lsp_core::profile_for_dialect(&dialect),
+                        profile,
                         &analysis,
                         cq,
                         &method_owned,
@@ -10015,7 +10022,7 @@ impl Backend {
                 for cq in &inheritors {
                     all.extend(core_rename::inherited_method_spans_in_document(
                         &src,
-                        tcl_lsp_core::profile_for_dialect(&dialect),
+                        profile,
                         &analysis,
                         cq,
                         &method_owned,
@@ -10125,11 +10132,15 @@ impl Backend {
             let method_owned = method.to_owned();
             let classmethod_cmd_names_cl = classmethod_cmd_names.clone();
             let spans: Vec<tcl_lexer::Span> = crate::rt::spawn_blocking(move || {
+                // Resolved once for the whole closure: the profile is a pure
+                // function of `dialect`, so re-resolving it per iteration only
+                // repeats the lookup.
+                let profile = tcl_lsp_core::profile_for_dialect(&dialect);
                 let mut all: Vec<tcl_lexer::Span> = Vec::new();
                 for cq in &definers {
                     all.extend(core_references::method_reference_spans_in_document(
                         &src,
-                        tcl_lsp_core::profile_for_dialect(&dialect),
+                        profile,
                         &analysis,
                         cq,
                         &method_owned,
@@ -10140,7 +10151,7 @@ impl Backend {
                 for cq in &inheritors {
                     all.extend(core_rename::inherited_method_spans_in_document(
                         &src,
-                        tcl_lsp_core::profile_for_dialect(&dialect),
+                        profile,
                         &analysis,
                         cq,
                         &method_owned,
@@ -12186,7 +12197,10 @@ impl Backend {
             .to_owned();
         let dialect = self.session_dialect().await;
         let registry = self.registry_for_dialect(&dialect).await;
-        let profile = tcl_dialect::DialectProfile::by_name(&dialect);
+        // Dialect ingress — see the note on the hover path: `by_name` would
+        // drop a `tk` session onto the plain-Tcl profile and hide every Tk
+        // ensemble's subcommands.
+        let profile = tcl_lsp_core::profile_for_dialect(&dialect);
         let mut subs: Vec<serde_json::Value> = {
             use tcl_registry::ProfileQueries;
             profile.resolve_command(&registry, &name)
@@ -17970,7 +17984,11 @@ impl LanguageServer for Backend {
         let analysis = self
             .analysis_for(&uri, doc.text.clone(), doc.dialect.clone())
             .await;
-        let hover_profile = tcl_dialect::DialectProfile::by_name(&doc.dialect);
+        // `profile_for_dialect`, not `by_name`: this is a dialect ingress, and
+        // `by_name` sinks the additive set-only spelling `tk` to the plain
+        // fallback — so a `tk` document used to hover as plain Tcl and lose
+        // every Tk command's documentation.
+        let hover_profile = tcl_lsp_core::profile_for_dialect(&doc.dialect);
         // The cross-document fallback must only fire on a command head, the
         // same gate `compute_definition` applies — otherwise an argument word
         // that happens to share a sibling proc's name would pop up that proc's

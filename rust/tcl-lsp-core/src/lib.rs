@@ -92,9 +92,21 @@ pub mod workspace_symbols;
 
 /// Resolve a document's dialect *name* to the profile the providers thread.
 ///
-/// This is the LSP layer's one dialect ingress: every provider takes the
-/// resolved [`tcl_dialect::DialectProfile`] from here and never re-derives it
-/// from a string (issue #1405).
+/// This is the LSP layer's dialect ingress: a provider that needs a
+/// [`tcl_dialect::DialectProfile`] resolves it here rather than calling
+/// `by_name` on a dialect string itself (issue #1405).
+///
+/// Two kinds of name lookup deliberately remain, and neither is a provider
+/// re-deriving this function's answer:
+///
+/// - [`registry_for_dialect`](tcl_registry::registry_for_dialect) is keyed by
+///   dialect *name* by design — it is the registry cache's own key, not a
+///   profile resolution. Providers holding a profile use
+///   [`registry_for_dialect_profile`] instead, which routes back through that
+///   name.
+/// - Providers reached from an [`AnalysisResult`](tcl_compiler::analyser::AnalysisResult)
+///   read `analysis.dialect`, the spelling the analyser recorded for the
+///   document, and resolve it through this function.
 ///
 /// [`resolve_known`](tcl_dialect::DialectProfile::resolve_known) first,
 /// `by_name` only as the sink, because of the additive set-only ingress `tk`:

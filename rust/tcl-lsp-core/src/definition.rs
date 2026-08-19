@@ -337,11 +337,9 @@ pub fn definition_with(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if is_next_chain_keyword_in(
-        tcl_dialect::DialectProfile::by_name(&analysis.dialect),
-        &word,
-    ) && let Some(span) =
-        next_dispatch_target(analysis, source, &line_index, line, character, &word)
+    if is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), &word)
+        && let Some(span) =
+            next_dispatch_target(analysis, source, &line_index, line, character, &word)
     {
         return vec![span_to_range(source, &line_index, span)];
     }

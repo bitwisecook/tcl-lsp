@@ -44,9 +44,11 @@ use super::{Optimisation, PassContext};
 
 /// Run the unused-procs pass.
 ///
-/// No-op unless [`PassContext::dialect`] is `Some(tcl_dialect::DialectProfile::irules())`
-/// or `Some(tcl_dialect::DialectProfile::irules())` (the two names `active_dialect()`
-/// accepts interchangeably for iRules).
+/// No-op unless [`PassContext::dialect`] resolves to the iRules profile.  Both
+/// spellings reach it: the canonical `f5-irules` (which
+/// [`tcl_dialect::DialectProfile::irules`] returns directly) and the `irules`
+/// alias, which `DialectProfile::by_name` canonicalises to the same profile —
+/// the two names `active_dialect()` accepts interchangeably for iRules.
 pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     if !is_irules_dialect(ctx.dialect) {
         return;
@@ -256,12 +258,21 @@ mod tests {
 
     #[test]
     fn dialect_gate_rejects_non_irules() {
+        // The canonical spelling, straight from the profile accessor.
         assert!(is_irules_dialect(Some(
             tcl_dialect::DialectProfile::irules()
         )));
+        // And the `irules` *alias*, which only reaches the same profile by
+        // going through `by_name`. Asserting `irules()` twice here would pin
+        // nothing: the alias leg is the half that can actually regress.
         assert!(is_irules_dialect(Some(
-            tcl_dialect::DialectProfile::irules()
+            tcl_dialect::DialectProfile::by_name("irules")
         )));
+        assert_eq!(
+            tcl_dialect::DialectProfile::by_name("irules").name,
+            tcl_dialect::DialectProfile::irules().name,
+            "the `irules` alias must still canonicalise onto the iRules profile"
+        );
         assert!(!is_irules_dialect(Some(
             tcl_dialect::DialectProfile::by_name("tcl")
         )));

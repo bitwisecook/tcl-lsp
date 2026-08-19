@@ -133,6 +133,28 @@ fn line_of(source: &str, off: u32) -> u32 {
     .unwrap_or(0)
 }
 
+/// Resolve the compile's dialect name to the profile [`ModuleEmit`] carries.
+///
+/// `map(by_name)`, deliberately — **not** `and_then(DialectProfile::find)`.
+/// Every *named* dialect must stay `Some` here. `find` answers `None` for any
+/// name without a catalogue entry of its own (`tk`, an additive command
+/// surface, and every unrecognised string), while `by_name` sinks those to the
+/// permissive plain-Tcl profile and stays `Some`.
+///
+/// The distinction is load-bearing because the readers branch on `is_some()`,
+/// not on which profile came back: `parse_expr_for_profile` in
+/// [`control_flow`](crate::codegen::control_flow) and
+/// [`cmd_subst`](crate::codegen::cmd_subst) selects the *target* numeral
+/// grammar when this is `Some` and the *thread-ambient* one when it is `None`.
+/// Resolving with `find` therefore moves a `tk` (or unknown-dialect) compile's
+/// re-parsed `expr` bodies onto whatever grammar the host thread happens to
+/// have installed — a silent, host-dependent change of meaning for a literal
+/// like `010`. `None` here must mean "this compile named no dialect", nothing
+/// else. This reproduces the pre-refactor `parse_expr(&str)` boundary.
+fn emit_profile(dialect: Option<&str>) -> Option<&'static tcl_dialect::DialectProfile> {
+    dialect.map(tcl_dialect::DialectProfile::by_name)
+}
+
 /// Generate bytecode assembly for an entire module.
 #[must_use]
 pub fn codegen_module(
@@ -149,7 +171,7 @@ pub fn codegen_module(
     let module = ModuleEmit {
         registry,
         source: src,
-        dialect: dialect.and_then(tcl_dialect::DialectProfile::find),
+        dialect: emit_profile(dialect),
         numbers,
         escapes,
     };
@@ -178,5 +200,72 @@ pub fn codegen_module(
         profile: tcl_dialect::DialectProfile::by_opt_name(dialect),
         top_level: top,
         procedures: procs,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emit_profile;
+
+    /// Only an *unnamed* compile may reach the readers as `None`.
+    ///
+    /// `None` selects the thread-ambient numeral grammar over the compile's
+    /// target grammar, so any named dialect answering `None` here silently
+    /// re-reads literals like `010` under whatever the host thread installed.
+    #[test]
+    fn every_named_dialect_resolves_to_some_profile() {
+        assert!(
+            emit_profile(None).is_none(),
+            "a compile that named no dialect stays `None`"
+        );
+
+        for name in [
+            "tcl8.4",
+            "tcl8.6",
+            "tcl9.0",
+            "f5-irules",
+            "expect",
+            // The regression cases: `tk` is an additive command surface with
+            // no catalogue entry, and an unrecognised name is not a licence to
+            // fall back to the ambient grammar either. `DialectProfile::find`
+            // answers `None` for both.
+            "tk",
+            "not-a-real-dialect",
+        ] {
+            assert!(
+                emit_profile(Some(name)).is_some(),
+                "named dialect {name:?} must resolve to a profile, not to the \
+                 thread-ambient grammar"
+            );
+        }
+    }
+
+    /// The two names `find` rejects still pick the compile's *target* numeral
+    /// grammar, not the ambient one.
+    ///
+    /// Pinned through the same `numbers_for` decision the `expr` re-parse
+    /// makes: with a non-9.x grammar installed on this thread, a `tk` compile
+    /// must still read `010` under the plain-Tcl 9.x grammar `tk` sinks to,
+    /// rather than the 8.4 grammar that would make it octal.
+    #[test]
+    fn an_uncatalogued_dialect_keeps_the_target_numeral_grammar() {
+        use tcl_dialect::NumberSyntax;
+
+        // Thread-local: scoped to this test's thread only.
+        tcl_syntax::number::set_runtime_syntax(NumberSyntax::Tcl84);
+        assert_eq!(
+            tcl_syntax::number::runtime_syntax(),
+            NumberSyntax::Tcl84,
+            "the ambient grammar must actually be installed for this to pin \
+             anything"
+        );
+
+        let profile = emit_profile(Some("tk")).expect("`tk` resolves to a profile");
+        assert_eq!(
+            NumberSyntax::of_profile(Some(profile)),
+            NumberSyntax::Tcl90,
+            "a `tk` compile reads numerals under its target grammar, not the \
+             thread-ambient one"
+        );
     }
 }

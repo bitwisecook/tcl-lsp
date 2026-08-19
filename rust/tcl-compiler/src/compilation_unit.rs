@@ -1088,7 +1088,6 @@ fn resolve_unit_scope(
     (call_sites, command_mutations, linkage)
 }
 
-/// Module-wide, read-only inputs [`build_procedure_units`] shares across
 /// The semantic-dialect bit a unit is filtered by: the *exact* bit the
 /// profile's own name parses to, deliberately not its `availability_mask`.
 /// The registry rows keyed by this describe the one dialect a document is,
@@ -1101,6 +1100,7 @@ fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> Dialec
         .unwrap_or_else(DialectSet::empty)
 }
 
+/// Module-wide, read-only inputs [`build_procedure_units`] shares across
 /// every procedure in the loop.  Grouped into one struct so the extracted
 /// helper takes two parameters instead of a dozen.
 struct ProcedureBuildContext<'a> {
@@ -1369,15 +1369,21 @@ impl CompilationUnit {
         source: &str,
         registry: &CommandRegistry,
         defer_top_level: bool,
-        profile: &tcl_dialect::DialectProfile,
+        profile: &'static tcl_dialect::DialectProfile,
     ) -> Self {
         Self::build_with(
             source,
             UnitBuildOptions {
                 registry,
                 defer_top_level,
-                config: tcl_lexer::LexerConfig::for_dialect(profile.name),
-                dialect: Some(tcl_dialect::DialectProfile::by_name(profile.name)),
+                config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                // Carry the caller's profile through unchanged. Round-tripping
+                // it through `by_name` is *not* identity: `tk` is an additive
+                // command surface with no catalogue entry of its own, so
+                // `by_name("tk")` sinks to plain Tcl and the unit would lose
+                // both the `tk` spelling and the TK semantic bit. See
+                // `build_for_profile_retains_the_tk_set_only_bit`.
+                dialect: Some(profile),
                 external_call_sites: None,
             },
             None,

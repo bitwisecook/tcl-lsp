@@ -164,3 +164,109 @@ async fn hover_smoke() {
 
     server.abort();
 }
+
+/// A `tk` document hovers under the Tk surface — a characterisation pin.
+///
+/// `tk` is an additive command surface with no catalogue profile of its own,
+/// so `DialectProfile::by_name("tk")` sinks to the plain-Tcl fallback while
+/// `profile_for_dialect("tk")` keeps the `TK` bit. The hover ingress now uses
+/// the latter, for consistency with every other ingress.
+///
+/// It is worth being precise about what that did **not** fix: this test passes
+/// against both resolutions. Hover was never broken for `tk`, because the
+/// registry beside the profile is built from the dialect *name*
+/// (`registry_for_dialect("tk")`, which loads the Tk rows) and the plain-Tcl
+/// fallback profile is permissive enough to resolve them. The ingress change
+/// is therefore behaviour-preserving here; this test exists to keep it that
+/// way, and to catch a future change to either half that would make a `wish`
+/// buffer stop documenting its own widgets.
+#[tokio::test]
+async fn hover_on_a_tk_document_resolves_a_tk_command() {
+    let (client_side, server_side) = tokio::io::duplex(8192);
+    let (server_read, server_write) = tokio::io::split(server_side);
+    let (client_read, mut client_write) = tokio::io::split(client_side);
+
+    let (service, socket) = LspService::new(Backend::new);
+    let server = tokio::spawn(async move {
+        Server::new(server_read, server_write, socket)
+            .serve(service)
+            .await;
+    });
+
+    let mut reader = BufReader::new(client_read);
+
+    let init = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"capabilities":{}}}"#;
+    client_write
+        .write_all(frame(init).as_bytes())
+        .await
+        .unwrap();
+    let resp = read_frame(&mut reader).await;
+    assert!(resp.contains("\"id\":1"), "initialize response: {resp}");
+
+    let initialized = r#"{"jsonrpc":"2.0","method":"initialized","params":{}}"#;
+    client_write
+        .write_all(frame(initialized).as_bytes())
+        .await
+        .unwrap();
+    let _ = tokio::time::timeout(Duration::from_millis(500), read_frame(&mut reader)).await;
+
+    // `languageId: "tk"` is the ingress that resolves to the bare `tk`
+    // dialect spelling — the one `by_name` cannot represent.
+    let did_open = concat!(
+        r#"{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"#,
+        r#""uri":"file:///w.tcl","languageId":"tk","version":1,"#,
+        r#""text":"button .b -text hi\npack .b\n"}}}"#,
+    );
+    client_write
+        .write_all(frame(did_open).as_bytes())
+        .await
+        .unwrap();
+
+    // Hover at line 0, char 2 — inside the `button` command head.
+    let hover_req = r#"{"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"file:///w.tcl"},"position":{"line":0,"character":2}}}"#;
+    client_write
+        .write_all(frame(hover_req).as_bytes())
+        .await
+        .unwrap();
+
+    let mut hover_resp = String::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while tokio::time::Instant::now() < deadline {
+        let Ok(frame_body) = tokio::time::timeout_at(deadline, read_frame(&mut reader)).await
+        else {
+            break;
+        };
+        if frame_body.contains("\"id\":2") {
+            hover_resp = frame_body;
+            break;
+        }
+    }
+    assert!(
+        !hover_resp.is_empty(),
+        "did not receive id=2 hover response within the deadline",
+    );
+    assert!(
+        hover_resp.contains("Create and manipulate a button widget"),
+        "a `tk` document must resolve the Tk command `button` on hover with its \
+         real documentation, not a bare echo of the word: got {hover_resp}",
+    );
+    assert!(
+        hover_resp.contains("package require Tk"),
+        "the hover must carry the Tk requirement line, which only the Tk \
+         command row supplies: got {hover_resp}",
+    );
+
+    let shutdown = r#"{"jsonrpc":"2.0","id":3,"method":"shutdown","params":null}"#;
+    client_write
+        .write_all(frame(shutdown).as_bytes())
+        .await
+        .unwrap();
+    let _ = tokio::time::timeout(Duration::from_millis(500), read_frame(&mut reader)).await;
+    let exit = r#"{"jsonrpc":"2.0","method":"exit","params":null}"#;
+    client_write
+        .write_all(frame(exit).as_bytes())
+        .await
+        .unwrap();
+    drop(client_write);
+    server.abort();
+}

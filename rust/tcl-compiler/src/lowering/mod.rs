@@ -906,8 +906,14 @@ impl<'r> Lowerer<'r> {
         }
     }
 
-    /// Set the document's analysis dialect (see [`Lowerer::dialect`]).  An
-    /// empty `dialect` means plain Tcl, matching
+    /// Set the document's analysis dialect (see [`Lowerer::dialect`]).
+    ///
+    /// `None` means the caller named *no* dialect — deliberately distinct
+    /// from `Some(plain_tcl)`, which is an explicit plain-Tcl document. The
+    /// two select different numeral sources downstream (`None` defers to the
+    /// thread-ambient target; `Some` pins the profile's grammar), so a caller
+    /// holding an optional ingress spelling must map the unstated case to
+    /// `None` rather than defaulting to the plain profile. Matches
     /// [`crate::compilation_unit::UnitBuildOptions::dialect`].
     #[must_use]
     pub fn with_dialect(mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) -> Self {
