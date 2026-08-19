@@ -133,6 +133,11 @@ where
                     out.extend_from_slice(&val);
                 }
             }
+            // This layer is deliberately error-free (see `resolve_with`): an
+            // unresolved var contributes nothing, and so does a parse error.
+            // The eval loop — `Interp::resolve_subst_parts` / `substitute_word`
+            // — is where it becomes C's raised error.
+            WordPart::ParseError(_) => {}
         }
     }
     out
@@ -229,9 +234,30 @@ mod tests {
         // The escaped-brace half of the same rule.
         assert_eq!(name_of(b"${a\\}b}", nine), b"a\\}b");
         assert_eq!(name_of(b"${a\\}b}", eight), b"a\\");
-        // An unterminated `${` consumes to end-of-input under both rules.
-        assert_eq!(name_of(b"${abc", nine), b"abc");
-        assert_eq!(name_of(b"${abc", eight), b"abc");
+
+        // An unterminated `${` is NOT a name that runs to end-of-input — it is
+        // C's `missing close-brace for variable name`, on both releases. The
+        // scanner emits a `ParseError` part and no variable at all, so no name
+        // reaches the resolver.
+        fn parts_of(src: &[u8], config: LexerConfig) -> Vec<WordPart<'_>> {
+            match scan(src, SubstFlags::default(), config) {
+                WordBody::Parts(p) => p,
+                WordBody::Literal(_) => panic!("expected parts"),
+            }
+        }
+        let err_part = WordPart::ParseError(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR);
+        for style in [nine, eight] {
+            assert_eq!(name_of(b"${abc", style), b"");
+            assert_eq!(parts_of(b"${abc", style), vec![err_part.clone()]);
+            assert_eq!(parts_of(b"${a{b", style), vec![err_part.clone()]);
+        }
+        // The nesting rule widens "unterminated": 8.x closes these, 9.x does
+        // not. Matches real tclsh — 8.6.16 reads the names `a{b` / `a\`, while
+        // 9.0.4 raises on both.
+        assert_eq!(parts_of(b"${a{b}", nine), vec![err_part.clone()]);
+        assert_eq!(name_of(b"${a{b}", eight), b"a{b");
+        assert_eq!(parts_of(b"${a\\}", nine), vec![err_part.clone()]);
+        assert_eq!(name_of(b"${a\\}", eight), b"a\\");
     }
 
     #[test]

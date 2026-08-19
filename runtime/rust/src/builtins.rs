@@ -1058,6 +1058,56 @@ mod tests {
         });
     }
 
+    /// An unterminated `${…}` is `Tcl_ParseVarName`'s
+    /// `missing close-brace for variable name` — **not** a name that runs to
+    /// end-of-input, and not a literal `$`.
+    ///
+    /// This engine used to scan the name with `.unwrap_or(len)`, silently
+    /// swallowing the rest of the template (and, for `${a\`, dropping the
+    /// backslash and succeeding where C errors). The scan now reports
+    /// [`tcl_lexer::BracedVarEnd::Unterminated`] and the eval loop raises
+    /// (issue #1457).
+    ///
+    /// The error is raised in evaluation order, so a `[...]` earlier in the
+    /// same template has already run — verified against tclsh 8.6.16 and
+    /// 9.0.4, which both leave the counter at 1.
+    /// Templates are built with `binary format H*` so the *script* parser's own
+    /// brace matching cannot reshape the bytes `subst` is handed — writing
+    /// `subst {${abc}` instead makes the script parser hand over `${abc}`,
+    /// which is a perfectly terminated reference and tests nothing.
+    #[test]
+    fn unterminated_braced_var_raises_missing_close_brace() {
+        const MSG: &[u8] = b"missing close-brace for variable name";
+        leak_free(|i| {
+            for hex in [
+                &b"247B616263"[..],       // `${abc`  — no closer at all
+                &b"7A247B617B62"[..],     // `z${a{b` — unbalanced `{`
+                &b"247B615C"[..],         // `${a\`   — trailing lone backslash
+            ] {
+                let script = [b"subst [binary format H* ".as_ref(), hex, b"]"].concat();
+                assert_eq!(i.eval_str(&script), Code::Error, "{hex:?}");
+                assert_eq!(i.result_bytes(), MSG, "{hex:?}");
+            }
+            // A *closed* form still resolves normally: `${a{b}c}` under the
+            // default 9.x nesting rule names the variable `a{b}c`.
+            ok(i, b"set {a{b}c} WORLD");
+            assert_eq!(
+                ok(i, b"subst [binary format H* 247B617B627D637D]"),
+                b"WORLD"
+            );
+
+            // Side effects before the bad `${` survive, as in C: `[incr c]${a{b`
+            // leaves the counter at 1 on both tclsh 8.6.16 and 9.0.4.
+            ok(i, b"set c 0");
+            assert_eq!(
+                i.eval_str(b"subst [binary format H* 5B696E637220635D247B617B62]"),
+                Code::Error
+            );
+            assert_eq!(i.result_bytes(), MSG);
+            assert_eq!(ok(i, b"set c"), b"1");
+        });
+    }
+
     #[test]
     fn unset_nocomplain_and_dashdash() {
         leak_free(|i| {

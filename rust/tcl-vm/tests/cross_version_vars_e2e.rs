@@ -569,10 +569,89 @@ fn subst_braced_var_close_rule_follows_the_emulated_release() {
     );
 }
 
+/// An unterminated `${…}` — the outcome the close rule's `Option` had no
+/// contract for, and where the two engines diverged from C and from each other
+/// (issue #1457).
+///
+/// C raises `missing close-brace for variable name` on **both** releases, but
+/// *which* templates count as unterminated is release-specific: the 9.x nesting
+/// rule widens it, so `${a{b}` and `${a\}` close under 8.x (naming `a{b` and
+/// `a\`) yet run off the end under 9.x.
+///
+/// Every template is built with `binary format H*` so the script parser's own
+/// brace matching cannot reshape the bytes before `subst` sees them.
+const UNTERMINATED_SCRIPT: &str = concat!(
+    "foreach {label hex} {\n",
+    "  plain_unterm    247B616263\n",       // `${abc`
+    "  open_brace      247B617B62\n",       // `${a{b`
+    "  esc_close       247B615C7D\n",       // `${a\}`
+    "  trailing_bslash 247B615C\n",         // `${a\`
+    "  closes_in_8x    247B617B627D\n",     // `${a{b}`
+    "} {\n",
+    "  set t [binary format H* $hex]\n",
+    "  if {[catch {subst $t} m]} { puts \"$label:$m\" } else { puts \"$label:ok:$m\" }\n",
+    "}\n",
+);
+
+/// The `[...]` before a bad `${` has already run when the error is raised —
+/// C evaluates the template left to right and keeps the side effect.
+const UNTERMINATED_ORDER_SCRIPT: &str = concat!(
+    "set c 0\n",
+    "catch {subst [binary format H* 5B696E637220635D247B617B62]} m\n",
+    "puts \"$m c=$c\"\n",
+);
+
+#[test]
+fn unterminated_braced_var_raises_on_both_releases() {
+    const MSG: &str = "missing close-brace for variable name";
+    // 8.x: the first literal `}` closes, so only the templates with no `}` at
+    // all are unterminated.
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(
+            vm_output(UNTERMINATED_SCRIPT, version),
+            format!(
+                "plain_unterm:{MSG}\n\
+                 open_brace:{MSG}\n\
+                 esc_close:can't read \"a\\\": no such variable\n\
+                 trailing_bslash:{MSG}\n\
+                 closes_in_8x:can't read \"a{{b\": no such variable"
+            ),
+            "{version:?} must use the 8.x first-close rule"
+        );
+    }
+    // 9.x: nesting and inert `\X` pairs make three more of them unterminated.
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        assert_eq!(
+            vm_output(UNTERMINATED_SCRIPT, version),
+            format!(
+                "plain_unterm:{MSG}\n\
+                 open_brace:{MSG}\n\
+                 esc_close:{MSG}\n\
+                 trailing_bslash:{MSG}\n\
+                 closes_in_8x:{MSG}"
+            ),
+            "{version:?} must use the 9.x nesting rule"
+        );
+    }
+    // Raised in evaluation order, so the earlier `[incr c]` kept its effect.
+    for version in [TclVersion::V8_6, TclVersion::V9_0] {
+        assert_eq!(
+            vm_output(UNTERMINATED_ORDER_SCRIPT, version),
+            format!("{MSG} c=1"),
+            "{version:?} must raise only once the walk reaches the bad `${{`"
+        );
+    }
+}
+
 #[test]
 fn braced_var_close_rule_matches_real_tclsh() {
     let mut ran = 0;
-    for script in [BRACED_VAR_SUBST_SCRIPT, BRACED_VAR_ESCAPE_SCRIPT] {
+    for script in [
+        BRACED_VAR_SUBST_SCRIPT,
+        BRACED_VAR_ESCAPE_SCRIPT,
+        UNTERMINATED_SCRIPT,
+        UNTERMINATED_ORDER_SCRIPT,
+    ] {
         if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
             assert_eq!(got, vm_output(script, TclVersion::V8_6));
             ran += 1;

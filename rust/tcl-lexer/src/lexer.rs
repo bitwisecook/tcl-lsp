@@ -1308,13 +1308,20 @@ impl<'src> Lexer<'src> {
     /// The release-aware close rule itself lives in
     /// [`crate::ranges::braced_var_name_end`], the one owner both `subst`
     /// engines resolve `${…}` through as well (issue #1457).
+    ///
+    /// An unterminated form is C's `missing close-brace for variable name`
+    /// error, but this lexer is the *tokenizer* — it must keep producing tokens
+    /// for half-typed source, so it takes the documented lenient recovery and
+    /// runs the name to end-of-input. The evaluating engines raise instead.
     fn skip_braced_var_name_body(&mut self) {
-        let end = crate::ranges::braced_var_name_end(
+        let end = match crate::ranges::braced_var_name_end(
             self.source().as_bytes(),
             self.pos as usize,
             self.config.braced_var,
-        )
-        .unwrap_or_else(|| self.source().len());
+        ) {
+            crate::ranges::BracedVarEnd::Closed(end) => end,
+            crate::ranges::BracedVarEnd::Unterminated => self.source().len(),
+        };
         self.pos = u32::try_from(end).expect("source offset fits u32");
     }
 

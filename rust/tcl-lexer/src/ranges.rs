@@ -67,9 +67,34 @@ const fn closer_for(opener: u8) -> Option<u8> {
     }
 }
 
-/// Byte offset of the `}` that closes a `${…}` variable reference whose **name
-/// starts at `name_start`** (the byte just past the `${`), or `None` when the
-/// form is unterminated.
+/// C's error when a `${…}` reference never closes — `Tcl_ParseVarName`'s
+/// `missing close-brace for variable name`, raised identically by 8.6.16
+/// (`tclParse.c:1410`) and 9.0.4 (`tclParse.c:1327`).
+///
+/// Both `subst` engines report the unterminated form with this exact text, so
+/// the spelling has one owner rather than a copy per engine (issue #1457).
+pub const MISSING_CLOSE_BRACE_FOR_VAR: &str = "missing close-brace for variable name";
+
+/// Where a `${…}` variable name ends — the result of [`braced_var_name_end`].
+///
+/// Modelled as an explicit two-way outcome rather than an `Option<usize>`
+/// because "no closer" is **not** a benign miss: C raises
+/// [`MISSING_CLOSE_BRACE_FOR_VAR`] there. An `Option` invited each consumer to
+/// invent its own recovery — the VM's `?` emitted the whole `${…}` literally
+/// and the runtime's `.unwrap_or(len)` swallowed the rest of the template —
+/// so two engines disagreed with C and with each other (issue #1457).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BracedVarEnd {
+    /// The `}` closing the name sits at this byte offset.
+    Closed(usize),
+    /// No `}` closes the name. Evaluating engines must raise
+    /// [`MISSING_CLOSE_BRACE_FOR_VAR`]; a lenient tokenizer may instead treat
+    /// the name as running to end-of-input.
+    Unterminated,
+}
+
+/// Where the `${…}` variable reference whose **name starts at `name_start`**
+/// (the byte just past the `${`) ends.
 ///
 /// This is the one release-aware `${…}` close rule. `Tcl_ParseVarName` changed
 /// between the 8.x family and 9.x, and the difference is observable:
@@ -81,10 +106,19 @@ const fn closer_for(opener: u8) -> Option<u8> {
 ///   the **first** literal `}` with no nesting and no backslash processing, so
 ///   `${a{b}c}` names `a{b` and `c}` is ordinary word text.
 ///
-/// Every consumer that has to find that `}` — the lexer's own `parse_var` and
-/// array-index scans, both `subst` engines — resolves it here rather than
-/// re-implementing a scan, because an engine that hard-codes one release's rule
-/// answers `subst {${a{b}c}}` wrongly on the other (issue #1457).
+/// The nesting rule also *widens* what counts as unterminated: `${a\}` closes
+/// under 8.x (the name is `a\`) but is unterminated under 9.x, because the
+/// `\}` is inert and no closer remains. Verified against both oracles.
+///
+/// The consumers on the **`subst`/tokenizer** surface all resolve the form
+/// here rather than re-implementing a scan — the lexer's own `parse_var` and
+/// array-index scans, and both `subst` engines — because an engine that
+/// hard-codes one release's rule answers `subst {${a{b}c}}` wrongly on the
+/// other (issue #1457).
+///
+/// The **compiled-word** path (`segmenter`/`values`/`helpers`) has its own
+/// pair of `${…}` decoders that still disagree with each other; consolidating
+/// those onto this owner is issue #1568 and is deliberately not done here.
 ///
 /// `src` need not be valid UTF-8. The scan steps a byte at a time, which is
 /// safe because the only bytes it reacts to — `{`, `}`, `\` — are ASCII, and
@@ -94,7 +128,7 @@ const fn closer_for(opener: u8) -> Option<u8> {
 /// that invents one, and this agrees byte for byte with the lexer's
 /// `char`-based walk.
 #[must_use]
-pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle) -> Option<usize> {
+pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle) -> BracedVarEnd {
     let n = src.len();
     let mut i = name_start;
     if !style.nests() {
@@ -102,12 +136,16 @@ pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle)
         while i < n && src[i] != b'}' {
             i += 1;
         }
-        return (i < n).then_some(i);
+        return if i < n {
+            BracedVarEnd::Closed(i)
+        } else {
+            BracedVarEnd::Unterminated
+        };
     }
     let mut depth: u32 = 0;
     while i < n {
         match src[i] {
-            b'}' if depth == 0 => return Some(i),
+            b'}' if depth == 0 => return BracedVarEnd::Closed(i),
             b'{' => {
                 depth += 1;
                 i += 1;
@@ -118,13 +156,15 @@ pub fn braced_var_name_end(src: &[u8], name_start: usize, style: BracedVarStyle)
             }
             b'\\' => {
                 // The backslash and the byte after it are one inert unit, so an
-                // escaped `}` does not close the reference.
+                // escaped `}` does not close the reference. A trailing lone
+                // backslash therefore runs the scan off the end — unterminated,
+                // exactly as 9.x reports `${a\`.
                 i += 2;
             }
             _ => i += 1,
         }
     }
-    None
+    BracedVarEnd::Unterminated
 }
 
 /// Position of the closing delimiter one byte past *end*.
@@ -561,44 +601,53 @@ mod tests {
     /// `parse_var` resolve the form here.
     #[test]
     fn braced_var_name_end_follows_the_release_rule() {
+        use BracedVarEnd::{Closed, Unterminated};
         use BracedVarStyle::{FirstClose, Tcl9Nesting};
         let end = |src: &str, style| braced_var_name_end(src.as_bytes(), 2, style);
 
         // A plain name closes at the same place under both rules.
-        assert_eq!(end("${abc}", Tcl9Nesting), Some(5));
-        assert_eq!(end("${abc}", FirstClose), Some(5));
+        assert_eq!(end("${abc}", Tcl9Nesting), Closed(5));
+        assert_eq!(end("${abc}", FirstClose), Closed(5));
         // `${}` — the variable literally named "" — closes immediately.
-        assert_eq!(end("${}", Tcl9Nesting), Some(2));
-        assert_eq!(end("${}", FirstClose), Some(2));
+        assert_eq!(end("${}", Tcl9Nesting), Closed(2));
+        assert_eq!(end("${}", FirstClose), Closed(2));
 
         // Nested braces: 9.x balances them, 8.x stops at the first `}`.
-        assert_eq!(end("${a{b}c}", Tcl9Nesting), Some(7)); // name `a{b}c`
-        assert_eq!(end("${a{b}c}", FirstClose), Some(5)); // name `a{b`
+        assert_eq!(end("${a{b}c}", Tcl9Nesting), Closed(7)); // name `a{b}c`
+        assert_eq!(end("${a{b}c}", FirstClose), Closed(5)); // name `a{b`
         // Two levels deep.
-        assert_eq!(end("${a{b{c}d}e}", Tcl9Nesting), Some(11));
-        assert_eq!(end("${a{b{c}d}e}", FirstClose), Some(7));
+        assert_eq!(end("${a{b{c}d}e}", Tcl9Nesting), Closed(11));
+        assert_eq!(end("${a{b{c}d}e}", FirstClose), Closed(7));
 
         // An escaped `}` is inert in 9.x only.
-        assert_eq!(end(r"${a\}b}", Tcl9Nesting), Some(6)); // name `a\}b`
-        assert_eq!(end(r"${a\}b}", FirstClose), Some(4)); // name `a\`
+        assert_eq!(end(r"${a\}b}", Tcl9Nesting), Closed(6)); // name `a\}b`
+        assert_eq!(end(r"${a\}b}", FirstClose), Closed(4)); // name `a\`
 
-        // Unterminated forms have no closer under either rule.
-        assert_eq!(end("${abc", Tcl9Nesting), None);
-        assert_eq!(end("${abc", FirstClose), None);
-        assert_eq!(end("${a{b", Tcl9Nesting), None);
-        // …but 8.x still finds a `}` that 9.x consumes as nesting.
-        assert_eq!(end("${a{b}", Tcl9Nesting), None);
-        assert_eq!(end("${a{b}", FirstClose), Some(5));
-        // A trailing lone backslash swallows nothing further in 9.x.
-        assert_eq!(end(r"${a\", Tcl9Nesting), None);
+        // Unterminated under both rules.
+        assert_eq!(end("${abc", Tcl9Nesting), Unterminated);
+        assert_eq!(end("${abc", FirstClose), Unterminated);
+        assert_eq!(end("${a{b", Tcl9Nesting), Unterminated);
+        assert_eq!(end("${a{b", FirstClose), Unterminated);
+
+        // The nesting rule *widens* "unterminated": each of these closes under
+        // 8.x but runs off the end under 9.x. Both halves match real tclsh —
+        // 8.6.16 reports `can't read "a\"` / `can't read "a{b"` where 9.0.4
+        // reports `missing close-brace for variable name`.
+        assert_eq!(end("${a{b}", Tcl9Nesting), Unterminated);
+        assert_eq!(end("${a{b}", FirstClose), Closed(5));
+        assert_eq!(end(r"${a\}", Tcl9Nesting), Unterminated);
+        assert_eq!(end(r"${a\}", FirstClose), Closed(4)); // name `a\`
+        // A trailing lone backslash swallows the (absent) next byte in 9.x.
+        assert_eq!(end(r"${a\", Tcl9Nesting), Unterminated);
+        assert_eq!(end(r"${a\", FirstClose), Unterminated);
 
         // Multi-byte text is walked a whole character at a time, so a
         // continuation byte can never be mistaken for a delimiter.
-        assert_eq!(end("${aéb}", Tcl9Nesting), Some(6));
-        assert_eq!(end("${aéb}", FirstClose), Some(6));
+        assert_eq!(end("${aéb}", Tcl9Nesting), Closed(6));
+        assert_eq!(end("${aéb}", FirstClose), Closed(6));
         // A backslash before a multi-byte character consumes the whole
         // character, matching the lexer's `char`-based walk.
-        assert_eq!(end("${a\\é}", Tcl9Nesting), Some(6));
+        assert_eq!(end("${a\\é}", Tcl9Nesting), Closed(6));
     }
 
     /// Lex `src` and return the first non-trivia token (the word under test).

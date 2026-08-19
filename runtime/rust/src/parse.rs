@@ -79,6 +79,17 @@ pub enum WordPart<'s> {
     Variable(VarRef<'s>),
     /// `[...]` command substitution — the inner script (brackets stripped).
     Command(&'s [u8]),
+    /// A malformed construct C's parser rejects, carrying the error it raises
+    /// (currently only [`tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR`], from an
+    /// unterminated `${…}`).
+    ///
+    /// The scanner is infallible by design — it is shared with the LSP-facing
+    /// word parser, which must keep tokenizing broken source — so the error
+    /// travels as a *part* and the evaluator raises it when the left-to-right
+    /// walk reaches it. That is exactly C's order: in `subst` a command
+    /// substitution earlier in the same template has already run and kept its
+    /// side effects before the bad `${` is reported (issue #1457).
+    ParseError(&'static str),
 }
 
 /// A variable reference. `name` is the bare/`${}` name (always literal). For an
@@ -259,15 +270,24 @@ fn scan_parts_at_depth(
                 // 9.0 (issue #1457). Resolved through the one shared owner.
                 i += 1;
                 let ns = i;
-                let ne = tcl_lexer::braced_var_name_end(src, ns, config.braced_var).unwrap_or(len);
-                i = ne;
-                if i < len {
-                    i += 1; // consume `}`
+                match tcl_lexer::braced_var_name_end(src, ns, config.braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(ne) => {
+                        i = ne + 1; // consume the `}`
+                        parts.push(WordPart::Variable(VarRef {
+                            name: &src[ns..ne],
+                            index: None,
+                        }));
+                    }
+                    // C raises here rather than reading a name that runs to
+                    // end-of-input; the 9.x rule also calls `${a\}` and `${a{b}`
+                    // unterminated where 8.x closes them.
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        i = len;
+                        parts.push(WordPart::ParseError(
+                            tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR,
+                        ));
+                    }
                 }
-                parts.push(WordPart::Variable(VarRef {
-                    name: &src[ns..ne],
-                    index: None,
-                }));
             } else {
                 // $name  (optionally  $arr(index))
                 let ns = i;
@@ -691,73 +711,29 @@ pub fn split_list(src: &[u8]) -> Result<Vec<Vec<u8>>, ListError> {
 /// The byte-exact `Tcl_SplitList` error message for `src` (the `FindElement`
 /// wording, `tclUtil.c`). For the `…followed by "X" instead of space` cases this
 /// surfaces the offending fragment `X` — up to 20 non-space bytes after the
-/// closing delimiter — which [`ListError::message`] alone cannot, since the
-/// shared splitter discards the position. Other variants render their fixed text.
+/// closing delimiter — which [`ListError::message`] alone cannot, since it has
+/// no access to the position. Other variants render their fixed text.
+///
+/// Both halves come from the shared codec: the fragment walk from
+/// [`tcl_syntax::list::junk_fragment`] and the sentence from
+/// [`tcl_syntax::list::ListError::full_message`]. This function used to carry a
+/// byte-identical re-implementation of that walk (issue #1429).
 #[must_use]
 pub fn list_error_message(src: &[u8], err: ListError) -> Vec<u8> {
-    let (kind, frag) = match err {
-        ListError::BraceFollowedByJunk => (&b"braces"[..], list_junk_fragment(src)),
-        ListError::QuoteFollowedByJunk => (&b"quotes"[..], list_junk_fragment(src)),
-        other => return other.message().to_vec(),
+    let shared = match err {
+        ListError::UnmatchedBrace => tcl_syntax::list::ListError::UnmatchedBrace,
+        ListError::UnmatchedQuote => tcl_syntax::list::ListError::UnmatchedQuote,
+        ListError::BraceFollowedByJunk => tcl_syntax::list::ListError::BraceFollowedByJunk,
+        ListError::QuoteFollowedByJunk => tcl_syntax::list::ListError::QuoteFollowedByJunk,
+        // Not a shared variant: the runtime's own internal-rep invariant.
+        ListError::NotUtf8 => return err.message().to_vec(),
     };
-    let mut m = b"list element in ".to_vec();
-    m.extend_from_slice(kind);
-    m.extend_from_slice(b" followed by \"");
-    m.extend_from_slice(&frag);
-    m.extend_from_slice(b"\" instead of space");
-    m
-}
-
-/// Locate the junk fragment for a `…FollowedByJunk` list error: replay
-/// [`tcl_syntax::list::find_element`] to find the element that fails, then scan
-/// it to the closing delimiter and take up to 20 non-space bytes of the trailing
-/// junk (C's `p2` walk). Returns empty if it cannot be reconstructed.
-fn list_junk_fragment(src: &[u8]) -> Vec<u8> {
-    let Ok(s) = core::str::from_utf8(src) else {
-        return Vec::new();
-    };
-    // The failing element begins where the last successful element left off.
-    let mut start = 0;
-    while let Ok(Some(el)) = tcl_syntax::list::find_element(s, start) {
-        start = el.next;
+    // A non-UTF-8 `src` cannot reach the fragment walk; fall back to the fixed
+    // text rather than lose the error entirely.
+    match core::str::from_utf8(src) {
+        Ok(s) => shared.full_message(s).into_bytes(),
+        Err(_) => shared.message().as_bytes().to_vec(),
     }
-    let len = src.len();
-    let mut pos = start;
-    while pos < len && tcl_syntax::list::is_list_space(src[pos]) {
-        pos += 1;
-    }
-    // Walk to the delimiter that closes this element, honouring `\`-escapes and
-    // brace nesting, then the junk starts at the next byte.
-    let junk = match src.get(pos) {
-        Some(b'{') => {
-            let mut depth = 1usize;
-            pos += 1;
-            while pos < len && depth > 0 {
-                match src[pos] {
-                    b'\\' if pos + 1 < len => pos += 1,
-                    b'{' => depth += 1,
-                    b'}' => depth -= 1,
-                    _ => {}
-                }
-                pos += 1;
-            }
-            pos
-        }
-        Some(b'"') => {
-            pos += 1;
-            while pos < len && src[pos] != b'"' {
-                pos += if src[pos] == b'\\' { 2 } else { 1 };
-            }
-            pos + 1 // past the closing quote
-        }
-        _ => return Vec::new(),
-    };
-    let end = (junk + 20).min(len);
-    let mut p = junk;
-    while p < end && !tcl_syntax::list::is_list_space(src[p]) {
-        p += 1;
-    }
-    src.get(junk..p).map(<[u8]>::to_vec).unwrap_or_default()
 }
 
 #[cfg(test)]

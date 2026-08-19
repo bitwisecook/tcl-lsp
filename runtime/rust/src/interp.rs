@@ -6788,6 +6788,7 @@ impl Interp {
                             }
                             buf.extend_from_slice(&self.result_bytes());
                         }
+                        WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
                     }
                 }
                 let obj = new_string(&buf);
@@ -6904,6 +6905,9 @@ impl Interp {
                         Code::Error => return Err(Code::Error),
                     }
                 }
+                // Reached in evaluation order, so `[...]` parts before it have
+                // already run and kept their side effects — C's behaviour.
+                WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
             }
         }
         Ok(out)
@@ -6953,6 +6957,7 @@ impl Interp {
                     }
                     other => return Ok((buf, other)),
                 },
+                WordPart::ParseError(msg) => return Err(self.error(msg.as_bytes())),
             }
         }
         Ok((buf, Code::Ok))
