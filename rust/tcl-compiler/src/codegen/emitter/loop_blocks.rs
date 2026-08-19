@@ -38,6 +38,18 @@ pub struct ForeachInfo {
     pub end: String,
     /// List arguments to the foreach/lmap command.
     pub list_args: Vec<String>,
+    /// Whether each list argument was written as a **braced literal** word
+    /// (`foreach e {a[b]c x}`), parallel to `list_args`.
+    ///
+    /// A braced word is a literal: `TclFindElement`'s brace semantics mean
+    /// neither the word nor any braced element inside it takes `$` / `[…]`
+    /// substitution. Without this the emitter pushed the list as an ordinary
+    /// literal and the VM's `subst_word` ran the `[…]` at loop entry —
+    /// `foreach e {{a[b]c} x}` raised `invalid command name "b"` (issue
+    /// #1572). The fact is already recorded on the header `Call`'s
+    /// `CommandTokens` by `cfg_lower::foreach_header_tokens` (issue #1260's
+    /// `list_braced`); this carries it through to codegen.
+    pub list_braced: Vec<bool>,
     /// Loop-variable groups (one per iterator), reconstructed from the
     /// header `Call`'s `defs` + `foreach_groups`. Carried onto the
     /// `FOREACH_START` instruction so the VM can bind them (C Tcl `ForeachInfo`).
@@ -93,6 +105,7 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
                 args,
                 defs,
                 foreach_groups,
+                tokens,
                 ..
             } = stmt
                 && (command == "foreach" || command == "lmap")
@@ -111,6 +124,9 @@ pub fn detect_foreach(cfg: &CfgFunction) -> HashMap<String, ForeachInfo> {
                     ForeachInfo {
                         body: cfg.block_name(*true_target).to_owned(),
                         end: cfg.block_name(*false_target).to_owned(),
+                        list_braced: (0..args.len())
+                            .map(|i| tokens.as_ref().is_some_and(|t| t.arg_is_braced_literal(i)))
+                            .collect(),
                         list_args: args.clone(),
                         var_groups,
                         collect: command == "lmap",

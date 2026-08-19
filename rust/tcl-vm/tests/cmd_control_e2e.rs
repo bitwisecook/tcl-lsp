@@ -722,6 +722,70 @@ fn foreach_runtime_variants() {
     );
 }
 
+/// Issue #1572 — a **braced** list word is a literal in every direction.
+/// `TclFindElement`'s brace semantics keep `$` and `[…]` inert both for the
+/// word itself and for any braced element inside it, so the compiled
+/// `foreach` header must push it verbatim. It used to push an ordinary
+/// literal, and the VM's `subst_word` then ran the substitution at loop
+/// entry: `foreach e {{a[b]c} x}` raised `invalid command name "b"`.
+///
+/// Every expectation below is byte-exact against real tclsh 8.6.16 and 9.0.4
+/// (the answers are identical at both, the rule is unchanged across the
+/// releases).
+#[test]
+fn braced_foreach_list_word_is_never_substituted() {
+    // The filed repro: a braced *element* inside the braced list word.
+    assert_eq!(run("foreach e {{a[b]c} x} { puts $e }").2, "a[b]c\nx\n");
+    // Broader than filed: a bare `[…]` directly in the braced list word is
+    // equally inert — braces protect the whole word, not just its elements.
+    assert_eq!(run("foreach e {a[b]c x} { puts $e }").2, "a[b]c\nx\n");
+    // `$` and a literal backslash sequence likewise.
+    assert_eq!(run("foreach e {{a$b c} x} { puts $e }").2, "a$b c\nx\n");
+    // A *braced element* keeps its backslash literal…
+    assert_eq!(run(r"foreach e {{a\nb} x} { puts $e }").2, "a\\nb\nx\n");
+    // …while a bare element still takes `TclFindElement`'s backslash
+    // substitution, which the verbatim push must not suppress.
+    assert_eq!(run(r"foreach e {a\nb x} { puts $e }").2, "a\nb\nx\n");
+    // Multiple variables per group, and `lmap`, take the same header path.
+    assert_eq!(
+        run("foreach {a b} {{p[q]r} 2 s 4} { puts \"$a=$b\" }").2,
+        "p[q]r=2\ns=4\n",
+    );
+    assert_eq!(
+        run("puts [lmap e {{a[b]c} x} { string toupper $e }]").2,
+        "{A[B]C} X\n",
+    );
+    // Inside a proc body (the LVT path) as well as at top level.
+    assert_eq!(
+        run("proc f {} { foreach e {{a[b]c} x} { puts $e } }\nf").2,
+        "a[b]c\nx\n",
+    );
+}
+
+/// The other half of #1572's contract: a list word that is *not* braced must
+/// still substitute. Flipping the new guard on unconditionally would silence
+/// the bug by breaking these, so they are asserted beside it.
+#[test]
+fn unbraced_foreach_list_word_still_substitutes() {
+    // Quoted word: `$b` interpolates.
+    assert_eq!(
+        run("set b B\nforeach e \"a $b c\" { puts $e }").2,
+        "a\nB\nc\n"
+    );
+    // Bare `$L`: the value is iterated, not the spelling.
+    assert_eq!(run("set L \"p q\"\nforeach e $L { puts $e }").2, "p\nq\n");
+    // A command substitution builds the list.
+    assert_eq!(
+        run("proc b {} { return B }\nforeach e [list x [b]] { puts $e }").2,
+        "x\nB\n",
+    );
+    // Mixed iterators: the braced group stays literal, the quoted one does not.
+    assert_eq!(
+        run("set b B\nforeach i {{p[q]r}} j \"s $b\" { puts \"$i/$j\" }").2,
+        "p[q]r/s\n/B\n",
+    );
+}
+
 /// A direct nested iterator routes the outer literal `foreach` through the
 /// runtime command boundary. That gives the inner loop a fresh activation;
 /// inlining both loops into one CFG used to leave only the final outer item.
