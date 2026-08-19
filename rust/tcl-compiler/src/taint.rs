@@ -2298,13 +2298,11 @@ pub fn shadowed_builtin_names<'a>(
     out
 }
 
-/// Run sink detection over a single function.
+/// Emit taint sink warnings (`T100` family) for one function.
 ///
 /// For each SSA use of a tainted variable in a sink statement, emits
 /// one `TaintWarning`. Iterates blocks in `cfg_order` for deterministic
 /// diagnostic ordering (matching the other shimmer/taint passes).
-#[must_use]
-/// Emit taint sink warnings (`T100` family) for one function.
 ///
 /// This is the per-function sink scan; the whole-unit `dataflow` / `diag`
 /// aggregation calls it over the top level and every procedure unit. The
@@ -2315,6 +2313,7 @@ pub fn shadowed_builtin_names<'a>(
 /// command names that resolve to a user proc rather than the registry
 /// builtin from this function's namespace — those are skipped by the
 /// registry-driven sink/source/pattern checks below.
+#[must_use]
 pub fn find_taint_warnings<
     S: std::hash::BuildHasher,
     E: std::hash::BuildHasher,

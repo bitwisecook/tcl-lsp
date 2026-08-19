@@ -581,6 +581,14 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
     CACHE.get_or_init(|| Mutex::new(ExprCache::new()))
 }
 
+/// Cached parse from a compatibility dialect-name boundary.
+///
+/// Typed callers should use [`parse_expr_cached_for_profile`].
+#[must_use]
+pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
+    parse_expr_cached_for_profile(source, dialect.map(DialectProfile::by_name))
+}
+
 /// LRU-cached `parse_expr`.
 ///
 /// Identical semantics to [`parse_expr`] — same `(source, dialect)`
@@ -592,15 +600,6 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Use this from VM-loop hot paths (re-evaluating `expr {$i < N}`
 /// on every iteration); use the un-cached [`parse_expr`] from
 /// once-per-invocation analyser sites.
-#[must_use]
-/// Cached parse from a compatibility dialect-name boundary.
-///
-/// Typed callers should use [`parse_expr_cached_for_profile`].
-pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    parse_expr_cached_for_profile(source, dialect.map(DialectProfile::by_name))
-}
-
-/// Cached expression parse under an already-resolved profile.
 #[must_use]
 pub fn parse_expr_cached_for_profile(
     source: &str,
