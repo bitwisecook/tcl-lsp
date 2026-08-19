@@ -339,8 +339,18 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         first = words.next();
     }
     let patterns: Vec<Vec<u8>> = first.into_iter().chain(words).collect();
+    // `-clear` commits before any pattern is even looked at: C spends a whole
+    // `Tcl_Export(…, "::", 1)` call on it, which resets the list and then
+    // fails its own qualifier check — an error `NamespaceExportCmd` discards
+    // with `Tcl_ResetResult`. So a later invalid pattern cannot undo it.
+    if clear {
+        interp.namespaces_mut().clear_exports(cur);
+    }
     // An export pattern names commands in the *current* namespace only, so it
-    // may not be namespace-qualified (C's `NamespaceExportCmd`).
+    // may not be namespace-qualified (C's `NamespaceExportCmd`). C calls
+    // `Tcl_Export` once per pattern and returns on the first failure, leaving
+    // the earlier patterns committed — this is a per-pattern loop, not a
+    // batch gate.
     for p in &patterns {
         if tcl_syntax::naming::is_qualified(p) {
             let mut m = b"invalid export pattern \"".to_vec();
@@ -348,11 +358,6 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             m.extend_from_slice(b"\": pattern can't specify a namespace");
             return interp.set_error(&m);
         }
-    }
-    if clear {
-        interp.namespaces_mut().clear_exports(cur);
-    }
-    for p in &patterns {
         interp.namespaces_mut().export(cur, p);
     }
     interp.set_result_bytes(b"");
@@ -363,6 +368,15 @@ fn ns_export(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// redirects in the current ns for the exported commands matching each pattern.
 fn ns_import(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let dest = interp.current_ns();
+    // The introspection form is `objc == 1` — literally no words after
+    // `import` — and C tests it *before* looking at `-force`. So a bare
+    // `namespace import -force` is NOT a query: it takes the flag, imports
+    // nothing, and yields "".
+    if argv.len() == 2 {
+        let names = interp.imported_command_tails(dest);
+        set_list_bytes(interp, &names);
+        return Code::Ok;
+    }
     // `-force` is positional in the same way `-clear` is: C reads it from
     // `objv[1]` only, so a trailing `-force` becomes a pattern — and then
     // fails the "the pattern must name a source namespace" check below.
@@ -768,8 +782,11 @@ fn ns_ensemble(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// ?-prefixes bool?` — register an ensemble over the current namespace.
 fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     let ns = interp.current_ns();
-    // Default ensemble command is the namespace's own FQN.
-    let mut command = interp.namespaces().qualified_name(ns);
+    // Default ensemble command is the namespace's own FQN. The same FQN is
+    // what CRT_MAP qualifies relative `-map` targets against, so keep it
+    // separately — `command` is overwritten by an explicit `-command`.
+    let ns_fqn = interp.namespaces().qualified_name(ns);
+    let mut command = ns_fqn.clone();
     let mut cfg = EnsembleConfig {
         ns,
         map: None,
@@ -795,11 +812,14 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
             Err(message) => return interp.set_error(&message),
         };
         let Some(shared) = resolved.shared() else {
-            // `-command` names the command rather than configuring it.
-            command = obj_bytes(pair[1]);
+            // `-command` names the command rather than configuring it. C
+            // creates that command in the ensemble's namespace (`cxtPtr =
+            // nsPtr`) and reports it via `Tcl_GetCommandFullName`, so a
+            // relative name binds — and reads back — fully qualified.
+            command = qualify_in_ns(&ns_fqn, &obj_bytes(pair[1]));
             continue;
         };
-        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1])) {
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1]), &ns_fqn) {
             return interp.set_error(&e);
         }
     }
@@ -813,10 +833,16 @@ fn ens_create(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 /// [`EnsembleConfig`] (`namespace ensemble create` and `configure` both land
 /// here; the option word itself is resolved by the caller's own table).
 /// Returns the C error text on a bad value.
+///
+/// `map_ns` is the namespace unqualified `-map` targets are resolved against.
+/// C uses the ensemble's own namespace on `create` and the namespace current
+/// at the call on `configure`; both are the current namespace at the point
+/// each command runs, which is what every caller passes.
 fn apply_ensemble_option(
     cfg: &mut EnsembleConfig,
     opt: tcl_cmd_core::ensemble::SharedOption,
     val: &[u8],
+    map_ns: &[u8],
 ) -> Result<(), Vec<u8>> {
     use tcl_cmd_core::ensemble::SharedOption;
     match opt {
@@ -826,7 +852,7 @@ fn apply_ensemble_option(
         }
         SharedOption::Map => {
             // An empty `-map` clears it (C: a zero-length dict ⇒ no map).
-            let m = parse_map(val)?;
+            let m = parse_map(val, map_ns)?;
             cfg.map = if m.is_empty() { None } else { Some(m) };
         }
         SharedOption::Parameters => {
@@ -895,6 +921,13 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         return interp
             .wrong_args(b"namespace ensemble configure cmdname ?-option value ...? ?arg ...?");
     }
+    // CONF_MAP qualifies against `TclGetCurrentNamespace(interp)` — the
+    // namespace current at the `configure` call, NOT the ensemble's own
+    // namespace (which CRT_MAP uses at create time). They coincide in the
+    // common `namespace eval M {namespace ensemble configure …}` shape, but
+    // configuring an ensemble from outside its namespace resolves relative
+    // targets against the caller.
+    let map_ns = interp.namespaces().qualified_name(interp.current_ns());
     for pair in rest.chunks_exact(2) {
         let resolved = match tcl_cmd_core::ensemble::ConfigOption::resolve(&obj_bytes(pair[0])) {
             Ok(resolved) => resolved,
@@ -903,7 +936,7 @@ fn ens_configure(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let Some(shared) = resolved.shared() else {
             return interp.set_error(b"option -namespace is read-only");
         };
-        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1])) {
+        if let Err(e) = apply_ensemble_option(&mut cfg, shared, &obj_bytes(pair[1]), &map_ns) {
             return interp.set_error(&e);
         }
     }
@@ -970,7 +1003,7 @@ fn ensemble_config_dict(interp: &Interp, cfg: &EnsembleConfig) -> Vec<u8> {
 /// `namespace ensemble exists command` — 1 if it resolves to an ensemble.
 fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() != 4 {
-        return interp.wrong_args(b"namespace ensemble exists cmd");
+        return interp.wrong_args(b"namespace ensemble exists cmdname");
     }
     let exists = interp.is_ensemble(&obj_bytes(argv[3]));
     interp.set_result_bytes(if exists { b"1" } else { b"0" });
@@ -978,17 +1011,44 @@ fn ens_exists(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// Parse a `-map` dict (`sub {target prefix} …`) into (subcommand, prefix-words).
-fn parse_map(bytes: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
+fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
     let kvs = crate::parse::split_list(bytes).map_err(|e| e.message().to_vec())?;
     if kvs.len() % 2 != 0 {
         return Err(b"missing value to go with key".to_vec());
     }
     let mut map = Vec::with_capacity(kvs.len() / 2);
     for pair in kvs.chunks_exact(2) {
-        let prefix = crate::parse::split_list(&pair[1]).map_err(|e| e.message().to_vec())?;
+        let mut prefix = crate::parse::split_list(&pair[1]).map_err(|e| e.message().to_vec())?;
+        // Only the target word is qualified; the rest of the prefix is fixed
+        // leading arguments. An empty prefix is left alone — the "must be
+        // non-empty lists" check is a separate concern.
+        if let Some(target) = prefix.first_mut() {
+            *target = qualify_in_ns(map_ns, target);
+        }
         map.push((pair[0].clone(), prefix));
     }
     Ok(map)
+}
+
+/// Namespace-qualify one `-map` target the way C does (`tclEnsemble.c` CRT_MAP
+/// / CONF_MAP): a target already starting with `::` is left alone, anything
+/// else is prefixed with `ns` (plus a `::` separator unless `ns` is the global
+/// namespace, whose name already ends in the separator).
+///
+/// This runs at *parse* time, so the qualified form is what the ensemble
+/// stores, what dispatch calls, and what `-map` reads back — a relative target
+/// left raw would be looked up in whatever namespace happened to be current at
+/// call time, and so would usually be uncallable.
+fn qualify_in_ns(ns: &[u8], target: &[u8]) -> Vec<u8> {
+    if target.starts_with(b"::") {
+        return target.to_vec();
+    }
+    let mut out = ns.to_vec();
+    if ns != b"::" {
+        out.extend_from_slice(b"::");
+    }
+    out.extend_from_slice(target);
+    out
 }
 
 /// Tcl boolean literal (`Tcl_GetBoolean`) for `-prefixes`.

@@ -2021,6 +2021,17 @@ impl Vm {
         self.bump_cmd_epoch();
         self.imported_commands.remove(name);
         self.builtin_identities.remove(name);
+        // The TclOO root marking is an identity, not a reservation on the
+        // *name*: it says "the engine installed this entry on the registry's
+        // behalf, so date it by the registry". Overwriting the entry replaces
+        // that identity with a script-created one, which is release-invariant
+        // like any proc — so the marking must not outlive the entry it
+        // described. Leaving it behind makes `oo::class create ::oo::
+        // configurable {…}` at 8.6 (where no such builtin exists, so the name
+        // is the user's to take) create an object the availability gate then
+        // hides forever. The engine's own installs re-declare the root
+        // immediately after registering, so clearing here cannot unmark them.
+        self.registry_object_roots.remove(name);
         self.commands.insert(name.to_owned(), cmd);
     }
 

@@ -1261,6 +1261,24 @@ impl Interp {
             .insert(fqn.to_vec());
     }
 
+    /// Drop `fqn`'s engine-installed root marking. The marking is an identity,
+    /// not a reservation on the *name*: once a script creates its own object
+    /// under that name the entry is release-invariant like any proc, so the
+    /// marking must not outlive the entry it described.
+    pub(crate) fn forget_registry_object_root(&self, fqn: &[u8]) {
+        self.0.registry_object_roots.borrow_mut().remove(fqn);
+    }
+
+    /// Whether `fqn` is an engine-installed TclOO root that this release does
+    /// **not** have (e.g. `::oo::configurable` on an 8.6 surface). Such a root
+    /// is invisible to every dispatch and enumeration path, so for anything
+    /// that asks "is this name taken?" it must read as free — real tclsh 8.6
+    /// has no `::oo::configurable`, and a script may define one.
+    pub(crate) fn is_gate_hidden_object_root(&self, fqn: &[u8]) -> bool {
+        self.0.registry_object_roots.borrow().contains(fqn)
+            && !self.builtin_command_visible_for_surface(fqn)
+    }
+
     /// The availability half of [`Self::builtin_command_visible_for_surface`]:
     /// whether the pinned profile admits registry builtin `name`. Names the
     /// registry does not know are always admitted — they may be engine
@@ -3532,13 +3550,42 @@ impl Interp {
         ns.command_names(id)
             .iter()
             .filter_map(|name| {
-                let is_builtin = matches!(ns.resolve(id, name), Some(Command::Builtin(_)));
+                // Mirror `resolve_dispatchable`'s gate exactly: a command the
+                // release does not have must not be *listed* either, or
+                // `info commands ::oo::*` on an 8.4 surface advertises names
+                // that then fail to dispatch. The TclOO roots the engine
+                // installs on the registry's behalf are gated alongside
+                // builtins; every script-created object stays invariant.
+                let gated = match ns.resolve(id, name) {
+                    Some(Command::Builtin(_)) => true,
+                    Some(Command::OoObject(fqn)) => {
+                        self.0.registry_object_roots.borrow().contains(&fqn)
+                    }
+                    _ => false,
+                };
                 let mut full_name = prefix.clone();
                 full_name.extend_from_slice(name);
-                (!is_builtin || self.builtin_command_visible_for_surface(&full_name))
+                (!gated || self.builtin_command_visible_for_surface(&full_name))
                     .then(|| name.to_vec())
             })
             .collect()
+    }
+
+    /// The unqualified names of `id`'s commands that `namespace import`
+    /// created — C's `NamespaceImportCmd` introspection form (`objc == 1`),
+    /// which walks the namespace's `cmdTable` for entries whose `deleteProc`
+    /// is `DeleteImportedCmd`. Sorted: C yields hash order, which is not
+    /// reproducible, and the VM sorts for the same reason.
+    pub(crate) fn imported_command_tails(&self, id: NsId) -> Vec<Vec<u8>> {
+        let ns = self.namespaces.borrow();
+        let mut names: Vec<Vec<u8>> = ns
+            .command_names(id)
+            .iter()
+            .filter(|name| matches!(ns.resolve(id, name), Some(Command::Imported { .. })))
+            .map(|name| name.to_vec())
+            .collect();
+        names.sort();
+        names
     }
 
     /// The proc definition bound to `name` (for `info body`/`args`/`default`).

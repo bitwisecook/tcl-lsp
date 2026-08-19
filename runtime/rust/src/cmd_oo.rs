@@ -570,6 +570,13 @@ fn install_configurable(interp: &mut Interp) {
     ] {
         interp.declare_registry_object_root(root);
     }
+    // NOTE: `::oo::Slot` and `::oo::SingletonInstance` are engine-installed
+    // too, but marking them roots here would be inert — the release gate dates
+    // a root through the registry, and the registry has no spec for either
+    // name, so `profile_admits_registry_builtin` admits them on every surface.
+    // They are therefore still present (and consistently callable) on an 8.4
+    // surface that should have no TclOO at all. That is a registry-content
+    // gap, not a gate gap; #1463's gate is mirrored correctly without them.
 }
 
 /// TIP-less foundation metaclasses created by `InitFoundation` in C
@@ -4253,8 +4260,12 @@ impl Interp {
 
     /// Create class `fqn` (running its optional definition script).
     fn oo_make_class(&mut self, fqn: &[u8], display: &[u8], script: Option<&[u8]>) -> Code {
-        if self.oo.borrow().classes.contains_key(fqn) || self.oo.borrow().objects.contains_key(fqn)
-        {
+        let taken = self.oo.borrow().classes.contains_key(fqn)
+            || self.oo.borrow().objects.contains_key(fqn);
+        // A root this release does not have is not a collision: the engine
+        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
+        // them, so on an 8.6 surface the name is the script's to take.
+        if taken && !self.is_gate_hidden_object_root(fqn) {
             // C reports `object` (creation funnels through object creation) and
             // the name *as written*, not the resolved FQN.
             let mut m = b"can't create object \"".to_vec();
@@ -4262,6 +4273,9 @@ impl Interp {
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
+        // Replacing a gate-hidden root with a script-created class hands the
+        // name to the script, so the root identity goes with the old entry.
+        self.forget_registry_object_root(fqn);
         self.oo.borrow_mut().classes.insert(
             fqn.to_vec(),
             Class {
@@ -4636,14 +4650,20 @@ impl Interp {
             self.oo.borrow_mut().counter += 1;
             n.into_bytes()
         });
-        if self.oo.borrow().objects.contains_key(&fqn)
-            || self.oo.borrow().classes.contains_key(&fqn)
-        {
+        let taken = self.oo.borrow().objects.contains_key(&fqn)
+            || self.oo.borrow().classes.contains_key(&fqn);
+        // A root this release does not have is not a collision: the engine
+        // seeds the 9.0 metaclasses unconditionally and lets the gate hide
+        // them, so on an 8.6 surface the name is the script's to take.
+        if taken && !self.is_gate_hidden_object_root(&fqn) {
             let mut m = b"can't create object \"".to_vec();
             m.extend_from_slice(display);
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
+        // Replacing a gate-hidden root with a script-created object hands the
+        // name to the script, so the root identity goes with the old entry.
+        self.forget_registry_object_root(&fqn);
         let var_ns = match ns_override {
             Some(ns) => self.ensure_namespace(&ns),
             None => self.ensure_namespace(&fqn),

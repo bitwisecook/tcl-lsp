@@ -370,6 +370,12 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
         first_word = words.next();
     }
     let patterns: Vec<String> = first_word.into_iter().chain(words).collect();
+    // `NamespaceExportCmd` calls `Tcl_Export` once per pattern and returns on
+    // the first failure, so the patterns before an invalid one are already
+    // committed — validation is NOT a batch gate. (`-clear` is committed
+    // earlier still: C spends a whole `Tcl_Export(…, "::", 1)` call on it,
+    // which resets the list and then fails its own qualifier check, an error
+    // `NamespaceExportCmd` deliberately discards with `Tcl_ResetResult`.)
     // An export pattern names commands in the *current* namespace, so it may
     // not carry a namespace qualifier.
     for pattern in &patterns {
@@ -378,8 +384,8 @@ fn ns_export(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
                 "invalid export pattern \"{pattern}\": pattern can't specify a namespace"
             ));
         }
+        vm.add_exports(std::slice::from_ref(pattern));
     }
-    vm.add_exports(&patterns);
     ok(Value::empty())
 }
 
@@ -480,10 +486,16 @@ impl EnsembleOptions {
 /// Apply one `-option value` pair that `create` and `configure` share. The
 /// caller has already resolved the option word against its own table, so this
 /// only owns the value parsing (C's per-`case` bodies).
+///
+/// Relative `-map` targets are qualified against the current namespace, which
+/// is what both C paths use: CRT_MAP against the ensemble's own namespace and
+/// CONF_MAP against `TclGetCurrentNamespace(interp)` — and each is the current
+/// namespace at the point its command runs.
 fn apply_shared_option(
     opts: &mut EnsembleOptions,
     which: tcl_cmd_core::ensemble::SharedOption,
     val: &Value,
+    vm: &Vm,
 ) -> Result<(), String> {
     use tcl_cmd_core::ensemble::SharedOption;
     match which {
@@ -492,7 +504,18 @@ fn apply_shared_option(
             let mut it = elems.iter();
             opts.map.clear();
             while let (Some(k), Some(v)) = (it.next(), it.next()) {
-                let prefix = v.as_list().map_or_else(|_| vec![v.clone()], |l| l.to_vec());
+                let mut prefix = v.as_list().map_or_else(|_| vec![v.clone()], |l| l.to_vec());
+                // C qualifies the target at *parse* time, so the qualified
+                // name is what the ensemble stores, what dispatch calls, and
+                // what `-map` reads back — a target left raw would be looked
+                // up in whatever namespace happened to be current at call
+                // time, and so would usually be uncallable. Only the target
+                // word is qualified; the rest of the prefix is fixed leading
+                // arguments. An empty prefix is left alone — the "must be
+                // non-empty lists" check is a separate concern.
+                if let Some(target) = prefix.first_mut() {
+                    *target = Value::string(vm.qualify_name(&target.to_str()));
+                }
                 opts.map.insert(k.to_str().to_string(), prefix);
             }
         }
@@ -549,7 +572,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             command = Some(pair[1].to_str().to_string());
             continue;
         };
-        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
+        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1], vm) {
             return err(message);
         }
     }
@@ -590,8 +613,15 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err(USAGE);
     }
     let written = cmd_val.to_str().to_string();
-    let Some(crate::command::Command::Ensemble(def)) = vm.lookup_command(&written) else {
-        return err(format!("\"{written}\" is not an ensemble command"));
+    // `Tcl_FindEnsemble` reports the two failures separately: a name that
+    // resolves to no command at all is `unknown command "x"` (the
+    // `Tcl_FindCommand` miss), while a name that *is* a command but carries a
+    // different implementation is `"x" is not an ensemble command`. Collapsing
+    // them into the second message misreports a plain typo.
+    let def = match vm.lookup_command(&written) {
+        Some(crate::command::Command::Ensemble(def)) => def,
+        Some(_) => return err(format!("\"{written}\" is not an ensemble command")),
+        None => return err(format!("unknown command \"{written}\"")),
     };
     let cmd_key = vm
         .resolve_command_fqn(vm.current_ns(), &written)
@@ -611,6 +641,13 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     let mut opts = EnsembleOptions::from_def(&def);
+    // CONF_MAP qualifies against `TclGetCurrentNamespace(interp)` — the
+    // namespace current at the `configure` call, NOT the ensemble's own
+    // namespace (which CRT_MAP uses at create time). They coincide in the
+    // common `namespace eval M {namespace ensemble configure …}` shape, but
+    // configuring an ensemble from outside its namespace resolves relative
+    // targets against the caller.
+    let map_ns = vm.current_ns().to_string();
     for pair in rest.chunks_exact(2) {
         let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
             Ok(resolved) => resolved,
@@ -619,7 +656,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         let Some(shared) = resolved.shared() else {
             return err("option -namespace is read-only");
         };
-        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1]) {
+        if let Err(message) = apply_shared_option(&mut opts, shared, &pair[1], vm) {
             return err(message);
         }
     }
@@ -662,7 +699,15 @@ fn ensemble_option_value(
             let mut flat: Vec<Value> = Vec::with_capacity(keys.len() * 2);
             for key in keys {
                 flat.push(Value::string(key.clone()));
-                flat.push(Value::list(def.map[key].clone()));
+                // Targets are stored as canonical command keys (the VM drops
+                // the leading `::`); C's map holds — and reads back — the
+                // fully-qualified name, so restore the prefix on the target
+                // word. The rest of the prefix is fixed arguments, not names.
+                let mut prefix = def.map[key].clone();
+                if let Some(target) = prefix.first_mut() {
+                    *target = Value::string(display_ns(&target.to_str()));
+                }
+                flat.push(Value::list(prefix));
             }
             Value::list(flat)
         }
