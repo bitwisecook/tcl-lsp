@@ -60,6 +60,7 @@ use std::hash::BuildHasher;
 pub fn subst_nocommands<S: BuildHasher>(
     template: &str,
     const_map: &HashMap<String, String, S>,
+    braced_var: tcl_dialect::BracedVarStyle,
 ) -> Option<String> {
     let bytes = template.as_bytes();
     let n = bytes.len();
@@ -88,7 +89,17 @@ pub fn subst_nocommands<S: BuildHasher>(
             }
             let nxt = bytes[i + 1];
             if nxt == b'{' {
-                let close = template[i + 2..].find('}').map(|p| i + 2 + p)?;
+                // The name starts just past the `${`; the closer comes from
+                // the shared owner under this document's release rule. The old
+                // first-`}` scan answered for 8.x at every release; declining
+                // (this function's failure mode) is safe, but it declined a
+                // reference the 9.x lexer had already spanned as one whole
+                // name (issue #1604).
+                let tcl_lexer::BracedVarEnd::Closed(close) =
+                    tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
+                else {
+                    return None;
+                };
                 let name = &template[i + 2..close];
                 if is_complex_var_name(name) {
                     return None;
@@ -166,6 +177,9 @@ fn is_complex_var_name(name: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// The default document's `${…}` close rule.
+    const STYLE: tcl_dialect::BracedVarStyle = tcl_dialect::BracedVarStyle::Tcl9Nesting;
+
     fn map_of(pairs: &[(&str, &str)]) -> HashMap<String, String> {
         pairs
             .iter()
@@ -177,7 +191,7 @@ mod tests {
     fn simple_var_substitution() {
         let m = map_of(&[("name", "world")]);
         assert_eq!(
-            subst_nocommands("hello $name", &m).as_deref(),
+            subst_nocommands("hello $name", &m, STYLE).as_deref(),
             Some("hello world")
         );
     }
@@ -186,7 +200,7 @@ mod tests {
     fn braced_var_substitution() {
         let m = map_of(&[("name", "world")]);
         assert_eq!(
-            subst_nocommands("hello ${name}", &m).as_deref(),
+            subst_nocommands("hello ${name}", &m, STYLE).as_deref(),
             Some("hello world")
         );
     }
@@ -194,14 +208,14 @@ mod tests {
     #[test]
     fn missing_var_returns_none() {
         let m: HashMap<String, String> = HashMap::new();
-        assert!(subst_nocommands("$missing", &m).is_none());
+        assert!(subst_nocommands("$missing", &m, STYLE).is_none());
     }
 
     #[test]
     fn brackets_kept_literal() {
         let m: HashMap<String, String> = HashMap::new();
         assert_eq!(
-            subst_nocommands("[cmd arg]", &m).as_deref(),
+            subst_nocommands("[cmd arg]", &m, STYLE).as_deref(),
             Some("[cmd arg]")
         );
     }
@@ -213,7 +227,7 @@ mod tests {
         // (matches tclsh: `subst -nocommands {[unbalanced}` → `[unbalanced`).
         let m: HashMap<String, String> = HashMap::new();
         assert_eq!(
-            subst_nocommands("[unbalanced", &m).as_deref(),
+            subst_nocommands("[unbalanced", &m, STYLE).as_deref(),
             Some("[unbalanced")
         );
     }
@@ -226,7 +240,7 @@ mod tests {
         //   subst -nocommands {[dict get \$obj $field]} → [dict get $obj email]
         let m = map_of(&[("field", "email")]);
         assert_eq!(
-            subst_nocommands(r"[dict get \$obj $field]", &m).as_deref(),
+            subst_nocommands(r"[dict get \$obj $field]", &m, STYLE).as_deref(),
             Some("[dict get $obj email]")
         );
     }
@@ -236,7 +250,7 @@ mod tests {
         // A variable miss anywhere (even inside brackets) refuses the whole
         // evaluation so the caller keeps the runtime dispatch path.
         let m: HashMap<String, String> = HashMap::new();
-        assert!(subst_nocommands("[cmd $missing]", &m).is_none());
+        assert!(subst_nocommands("[cmd $missing]", &m, STYLE).is_none());
     }
 
     #[test]
@@ -244,22 +258,22 @@ mod tests {
         // `\é` must not split the 2-byte `é` and panic; the
         // backslash is dropped and the following char is emitted verbatim.
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands(r"\é", &m).as_deref(), Some("é"));
-        assert_eq!(subst_nocommands(r"a\€b", &m).as_deref(), Some("a€b"));
-        assert_eq!(subst_nocommands(r"\🎉", &m).as_deref(), Some("🎉"));
+        assert_eq!(subst_nocommands(r"\é", &m, STYLE).as_deref(), Some("é"));
+        assert_eq!(subst_nocommands(r"a\€b", &m, STYLE).as_deref(), Some("a€b"));
+        assert_eq!(subst_nocommands(r"\🎉", &m, STYLE).as_deref(), Some("🎉"));
     }
 
     #[test]
     fn array_ref_refused() {
         let m = map_of(&[("a", "x")]);
-        assert!(subst_nocommands("$a(idx)", &m).is_none());
+        assert!(subst_nocommands("$a(idx)", &m, STYLE).is_none());
     }
 
     #[test]
     fn namespace_qualified_refused() {
         let m = map_of(&[("a", "x")]);
-        assert!(subst_nocommands("$a::b", &m).is_none());
-        assert!(subst_nocommands("$::name", &m).is_none());
+        assert!(subst_nocommands("$a::b", &m, STYLE).is_none());
+        assert!(subst_nocommands("$::name", &m, STYLE).is_none());
     }
 
     #[test]
@@ -268,19 +282,19 @@ mod tests {
         // The first ``$`` stays literal, then the second ``$`` is
         // also followed by end-of-string, so it stays literal too.
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands("$$", &m).as_deref(), Some("$$"));
+        assert_eq!(subst_nocommands("$$", &m, STYLE).as_deref(), Some("$$"));
     }
 
     #[test]
     fn backslash_n_decoded() {
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands(r"\n", &m).as_deref(), Some("\n"));
+        assert_eq!(subst_nocommands(r"\n", &m, STYLE).as_deref(), Some("\n"));
     }
 
     #[test]
     fn backslash_x_hex() {
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands(r"\x41", &m).as_deref(), Some("A"));
+        assert_eq!(subst_nocommands(r"\x41", &m, STYLE).as_deref(), Some("A"));
     }
 
     #[test]
@@ -288,7 +302,10 @@ mod tests {
         // Tcl 9 caps `\x` at two hex digits (TclParseBackslash): the rest of
         // the digit run is literal text.
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands(r"\x41BC", &m).as_deref(), Some("ABC"));
+        assert_eq!(
+            subst_nocommands(r"\x41BC", &m, STYLE).as_deref(),
+            Some("ABC")
+        );
     }
 
     #[test]
@@ -296,22 +313,31 @@ mod tests {
         // A `\<newline>` continuation (LF, CR, or CRLF) plus the whitespace
         // after it collapses to a single space, matching tclsh.
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands("a\\\n   b", &m).as_deref(), Some("a b"));
-        assert_eq!(subst_nocommands("a\\\r\n\t b", &m).as_deref(), Some("a b"));
-        assert_eq!(subst_nocommands("a\\\rb", &m).as_deref(), Some("a b"));
+        assert_eq!(
+            subst_nocommands("a\\\n   b", &m, STYLE).as_deref(),
+            Some("a b")
+        );
+        assert_eq!(
+            subst_nocommands("a\\\r\n\t b", &m, STYLE).as_deref(),
+            Some("a b")
+        );
+        assert_eq!(
+            subst_nocommands("a\\\rb", &m, STYLE).as_deref(),
+            Some("a b")
+        );
     }
 
     #[test]
     fn empty_template() {
         let m: HashMap<String, String> = HashMap::new();
-        assert_eq!(subst_nocommands("", &m).as_deref(), Some(""));
+        assert_eq!(subst_nocommands("", &m, STYLE).as_deref(), Some(""));
     }
 
     #[test]
     fn mixed_var_and_brackets() {
         let m = map_of(&[("name", "foo")]);
         assert_eq!(
-            subst_nocommands("$name [list a b]", &m).as_deref(),
+            subst_nocommands("$name [list a b]", &m, STYLE).as_deref(),
             Some("foo [list a b]")
         );
     }
@@ -319,6 +345,6 @@ mod tests {
     #[test]
     fn empty_braced_var_refused() {
         let m: HashMap<String, String> = HashMap::new();
-        assert!(subst_nocommands("${}", &m).is_none());
+        assert!(subst_nocommands("${}", &m, STYLE).is_none());
     }
 }

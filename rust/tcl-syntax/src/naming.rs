@@ -631,7 +631,11 @@ pub fn element_var_name_braced_for_style(
 /// ```
 #[must_use]
 pub fn normalise_var_name_braced(name: &str, braced_literal: bool) -> &str {
-    normalise_var_name_braced_for_style(name, braced_literal, tcl_dialect::BracedVarStyle::default())
+    normalise_var_name_braced_for_style(
+        name,
+        braced_literal,
+        tcl_dialect::BracedVarStyle::default(),
+    )
 }
 
 /// [`normalise_var_name_braced`] under an explicitly resolved `${…}` close
@@ -1571,7 +1575,10 @@ mod tests {
         // The nesting rule *widens* what is unterminated: `${a{b}` closes at
         // 8.x but runs off the end at 9.x, and an unterminated reference is an
         // error C names — never a name running to end-of-input.
-        assert_eq!(split_braced_var_ref("${a{b}", FirstClose), Some(("a{b", "")));
+        assert_eq!(
+            split_braced_var_ref("${a{b}", FirstClose),
+            Some(("a{b", ""))
+        );
         assert_eq!(split_braced_var_ref("${a{b}", Tcl9Nesting), None);
         assert_eq!(split_braced_var_ref(r"${a\}", Tcl9Nesting), None);
         assert_eq!(split_braced_var_ref("${a", Tcl9Nesting), None);
@@ -1584,7 +1591,10 @@ mod tests {
                 split_array_name_for_style("${arr(foo)}", style),
                 ("arr", Some("foo"))
             );
-            assert_eq!(split_array_name_for_style("${arr}(foo)", style), ("arr", None));
+            assert_eq!(
+                split_array_name_for_style("${arr}(foo)", style),
+                ("arr", None)
+            );
             assert_eq!(normalise_var_name_for_style("${arr}(foo)", style), "arr");
         }
     }

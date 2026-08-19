@@ -522,6 +522,15 @@ fn scan_deep<'p>(
 /// Extract a bare variable name from ``$var`` or ``${var}``.
 /// Returns `None` when the text isn't a simple variable
 /// reference.
+///
+/// The `${…}` scan here is deliberately **not** threaded through
+/// [`tcl_lexer::braced_var_name_end`], and that is not the #1604 gap it looks
+/// like: the identifier gate below accepts only `[A-Za-z_][A-Za-z0-9_:]*`, and
+/// the two release rules can only disagree about a name containing `{`, `}`,
+/// or `\` — every one of which this rejects, under either rule. The two
+/// spellings therefore answer identically on every input, so threading a style
+/// through the six callers this reaches could not change an answer. Do not
+/// "restore consistency" by adding the parameter; add a counterexample first.
 fn extract_var_name(text: &str) -> Option<&str> {
     let bytes = text.as_bytes();
     if bytes.len() < 2 || bytes[0] != b'$' {
@@ -779,7 +788,7 @@ fn apply_arg_role_traits<'p>(
             Some(ArgRole::VarWrite | ArgRole::VarRead)
                 if !braced.get(idx).copied().unwrap_or(false) =>
             {
-                for var_name in var_substitutions(arg) {
+                for var_name in var_substitutions(arg, ctx.config.braced_var) {
                     if let Some(p) = lookup_param(var_name, param_set, aliases)
                         && let Some(set) = traits.get_mut(p)
                     {
@@ -793,7 +802,7 @@ fn apply_arg_role_traits<'p>(
             // name) flowing there means the param's value is a command name.
             // Braced words are literal — no substitution.
             Some(ArgRole::CommandPrefix) if !braced.get(idx).copied().unwrap_or(false) => {
-                for var_name in var_substitutions(arg) {
+                for var_name in var_substitutions(arg, ctx.config.braced_var) {
                     if let Some(p) = lookup_param(var_name, param_set, aliases)
                         && let Some(set) = traits.get_mut(p)
                     {
@@ -839,7 +848,7 @@ fn lookup_param<'p>(
 /// segmenter's normalised `${gas(idx)}` form (just `gas`).  Best-effort and
 /// highlighting-grade: a leading `\$` is skipped, and a name must start with a
 /// letter or `_` (so `$1` backrefs and `$` alone are ignored).
-fn var_substitutions(text: &str) -> Vec<&str> {
+fn var_substitutions(text: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<&str> {
     let bytes = text.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -854,8 +863,13 @@ fn var_substitutions(text: &str) -> Vec<&str> {
             // the leading identifier as the name.  Advance past `${` (not past
             // the closer) so any `$k` *inside* the braces (`${arr($k)}`) or
             // after them (`${v}($k)`) is still scanned.
-            if let Some(rel) = text[i + 2..].find('}') {
-                push_leading_ident(&text[i + 2..i + 2 + rel], &mut out);
+            // The closer comes from the shared owner under this document's
+            // release rule; a first-`}` scan took the leading identifier of
+            // `a{b` where the lexer spanned `a{b}c` (issue #1604).
+            if let tcl_lexer::BracedVarEnd::Closed(close) =
+                tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var)
+            {
+                push_leading_ident(&text[i + 2..close], &mut out);
             }
             i += 2;
         } else {
@@ -1732,13 +1746,34 @@ mod tests {
 
     #[test]
     fn var_substitutions_finds_compound_components() {
-        assert_eq!(var_substitutions("$v"), vec!["v"]);
-        assert_eq!(var_substitutions("${v}($k)"), vec!["v", "k"]);
-        assert_eq!(var_substitutions("$v($k)"), vec!["v", "k"]);
-        assert_eq!(var_substitutions("arr($k)"), vec!["k"]);
-        assert_eq!(var_substitutions("literal"), Vec::<&str>::new());
-        assert_eq!(var_substitutions("\\$escaped"), Vec::<&str>::new());
-        assert_eq!(var_substitutions("$1backref"), Vec::<&str>::new());
+        assert_eq!(
+            var_substitutions("$v", tcl_dialect::BracedVarStyle::default()),
+            vec!["v"]
+        );
+        assert_eq!(
+            var_substitutions("${v}($k)", tcl_dialect::BracedVarStyle::default()),
+            vec!["v", "k"]
+        );
+        assert_eq!(
+            var_substitutions("$v($k)", tcl_dialect::BracedVarStyle::default()),
+            vec!["v", "k"]
+        );
+        assert_eq!(
+            var_substitutions("arr($k)", tcl_dialect::BracedVarStyle::default()),
+            vec!["k"]
+        );
+        assert_eq!(
+            var_substitutions("literal", tcl_dialect::BracedVarStyle::default()),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            var_substitutions("\\$escaped", tcl_dialect::BracedVarStyle::default()),
+            Vec::<&str>::new()
+        );
+        assert_eq!(
+            var_substitutions("$1backref", tcl_dialect::BracedVarStyle::default()),
+            Vec::<&str>::new()
+        );
     }
 
     #[test]

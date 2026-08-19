@@ -958,7 +958,10 @@ mod tests {
         assert!(!unknown, "8.x closes at the first `}}`");
         assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
         let (tokens, unknown) = tokenise_expr_checked("${a{b}", Some("tcl9.0"));
-        assert!(unknown, "9.x has no closer left, so the expression is inexecutable");
+        assert!(
+            unknown,
+            "9.x has no closer left, so the expression is inexecutable"
+        );
         assert_eq!(tokens.first().map(|t| t.text.as_str()), Some("${a{b}"));
     }
 

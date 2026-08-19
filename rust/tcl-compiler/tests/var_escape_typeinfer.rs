@@ -169,7 +169,11 @@ fn subst(template: &str, pairs: &[(&str, &str)]) -> Option<String> {
 }
 
 fn var_escape_subst(template: &str, m: &HashMap<String, String>) -> Option<String> {
-    tcl_compiler::subst_nocommands::subst_nocommands(template, m)
+    tcl_compiler::subst_nocommands::subst_nocommands(
+        template,
+        m,
+        tcl_dialect::BracedVarStyle::default(),
+    )
 }
 
 // ===========================================================================

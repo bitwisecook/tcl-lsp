@@ -363,7 +363,12 @@ enum StaticScriptOutcome {
 /// backslash escape (whose value this cannot compute), when an interpolation
 /// names something other than a parameter, or when the call site supplied no
 /// argument for the parameter it does name.
-fn substitute_bound_words(word: &str, params: &[String], args: &[String]) -> Option<String> {
+fn substitute_bound_words(
+    word: &str,
+    params: &[String],
+    args: &[String],
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> Option<String> {
     if word.contains('[') || word.contains('\\') {
         return None;
     }
@@ -372,8 +377,16 @@ fn substitute_bound_words(word: &str, params: &[String], args: &[String]) -> Opt
     while let Some(dollar) = rest.find('$') {
         out.push_str(&rest[..dollar]);
         let after = &rest[dollar + 1..];
+        // The `${…}` closer comes from the shared owner under this
+        // document's release rule; a first-`}` scan named a different
+        // parameter than the one the lexer spanned, and the value it binds is
+        // written into the folded word (issue #1604).
         let (name, tail) = if let Some(braced) = after.strip_prefix('{') {
-            let close = braced.find('}')?;
+            let tcl_lexer::BracedVarEnd::Closed(close) =
+                tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
+            else {
+                return None;
+            };
             (&braced[..close], &braced[close + 1..])
         } else {
             let len = after
@@ -650,7 +663,7 @@ enum ProloguePiece<'a> {
 /// per-word reconstruction), which preserves every substitution verbatim.
 /// A single `Opaque` piece is enough for the caller to abstain, so the scan
 /// stops at the first one.
-fn prologue_pieces(word: &str) -> Vec<ProloguePiece<'_>> {
+fn prologue_pieces(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<ProloguePiece<'_>> {
     let mut pieces = Vec::new();
     let mut rest = word;
     while !rest.is_empty() {
@@ -689,7 +702,11 @@ fn prologue_pieces(word: &str) -> Vec<ProloguePiece<'_>> {
         if first == b'$' {
             let after = &rest[1..];
             if let Some(braced) = after.strip_prefix('{') {
-                let Some(close) = braced.find('}') else {
+                // The `${…}` closer comes from the shared owner under this
+                // document's release rule (issue #1604).
+                let tcl_lexer::BracedVarEnd::Closed(close) =
+                    tcl_lexer::braced_var_name_end(braced.as_bytes(), 0, braced_var)
+                else {
                     pieces.push(ProloguePiece::Opaque);
                     break;
                 };
@@ -5154,13 +5171,14 @@ impl Analyser {
             if suffix.is_empty() {
                 return Some(value.to_string());
             }
-            let folded_suffix = crate::text::fold_interpolation_single(suffix, |name| {
-                self.lookup_dominating_const_string(name, scope_path)
-                    .map(str::to_string)
-            })?;
+            let folded_suffix =
+                crate::text::fold_interpolation_single(suffix, self.braced_var(), |name| {
+                    self.lookup_dominating_const_string(name, scope_path)
+                        .map(str::to_string)
+                })?;
             return Some(format!("{value}{folded_suffix}"));
         }
-        crate::text::fold_interpolation_single(text, |name| {
+        crate::text::fold_interpolation_single(text, self.braced_var(), |name| {
             self.lookup_dominating_const_string(name, scope_path)
                 .map(str::to_string)
         })
@@ -7400,7 +7418,7 @@ impl Analyser {
             .iter()
             .filter_map(|name| env.get(name).cloned())
             .collect();
-        substitute_bound_words(unquoted, &names, &values)
+        substitute_bound_words(unquoted, &names, &values, self.braced_var())
     }
 
     /// Evaluate a registry-foldable command or a statically-resolved user
@@ -8164,7 +8182,7 @@ impl Analyser {
             .iter()
             .filter(|tok| tok.kind == TokenType::Cmd && tok.span.start() >= word_start);
         let mut injected: Vec<FactoryMember> = Vec::new();
-        for piece in prologue_pieces(prologue) {
+        for piece in prologue_pieces(prologue, self.braced_var()) {
             match piece {
                 ProloguePiece::Separator => {}
                 ProloguePiece::VarRead(name) if params.contains(&name) => {}

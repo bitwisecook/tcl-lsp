@@ -255,11 +255,34 @@ pub fn names_a_dynamic_variable(word: &str) -> bool {
 /// ```
 #[must_use]
 pub fn dynamic_variable_word_can_spell(word: &str, qualified_cell: &str) -> bool {
+    dynamic_variable_word_can_spell_for_style(
+        word,
+        qualified_cell,
+        tcl_dialect::BracedVarStyle::default(),
+    )
+}
+
+/// [`dynamic_variable_word_can_spell`] under an explicitly resolved `${…}`
+/// close rule.
+///
+/// The wildcard extents come from the shared owner
+/// [`tcl_lexer::braced_var_name_end`]. Where the closer lands decides how much
+/// of the word is *literal*, and the literal characters are the whole bound
+/// this gate rests on: under the default (9.x) rule `${a{b}c}` is one wildcard,
+/// while the old first-`}` scan made it a wildcard followed by the literal
+/// `c}` — a narrower pattern, so a cell the word really can spell is judged
+/// out of reach and rename proceeds unsafely (issue #1604).
+#[must_use]
+pub fn dynamic_variable_word_can_spell_for_style(
+    word: &str,
+    qualified_cell: &str,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> bool {
     // An element suffix names an element of the base array, so the *variable*
     // this word names is the base — the same split `names_a_dynamic_variable`
     // makes.
     let base = word.split_once('(').map_or(word, |(base, _)| base);
-    let pattern = name_word_pattern(base);
+    let pattern = name_word_pattern(base, braced_var);
     cell_spellings(qualified_cell).any(|spelling| pattern_matches(&pattern, spelling))
 }
 
@@ -278,7 +301,7 @@ enum NamePiece {
 /// substitution canonicalised to `${name}`) or as a token's verbatim
 /// spelling, so both are recognised — the same double spelling
 /// [`names_a_dynamic_variable`] documents.
-fn name_word_pattern(word: &str) -> Vec<NamePiece> {
+fn name_word_pattern(word: &str, braced_var: tcl_dialect::BracedVarStyle) -> Vec<NamePiece> {
     let bytes = word.as_bytes();
     let mut pieces: Vec<NamePiece> = Vec::new();
     let mut literal = String::new();
@@ -294,9 +317,12 @@ fn name_word_pattern(word: &str) -> Vec<NamePiece> {
     while i < bytes.len() {
         match bytes[i] {
             b'$' if i + 1 < bytes.len() && bytes[i + 1] == b'{' => {
-                i = match word[i + 2..].find('}') {
-                    Some(off) => i + 2 + off + 1,
-                    None => bytes.len(),
+                // The name starts just past the `${`. An unterminated
+                // reference has no closer, so the wildcard runs to the end of
+                // the word — which is what a lenient tokenizer does with it.
+                i = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(end) => end + 1,
+                    tcl_lexer::BracedVarEnd::Unterminated => bytes.len(),
                 };
                 push_wildcard(&mut pieces, &mut literal);
             }

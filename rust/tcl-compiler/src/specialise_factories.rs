@@ -414,7 +414,15 @@ fn try_specialise_call(
         }
         bindings.insert(param.clone(), arg_text.clone());
     }
-    let materialised = subst_nocommands(&shape.child_body_template, &bindings)?;
+    // `${…}` is delimited by the shared owner
+    // ([`tcl_lexer::braced_var_name_end`]). This pass runs with no dialect
+    // profile in scope, so the *default* release rule applies — the one a
+    // document with no explicit dialect is lexed under (issue #1604).
+    let materialised = subst_nocommands(
+        &shape.child_body_template,
+        &bindings,
+        tcl_dialect::BracedVarStyle::default(),
+    )?;
     // The child proc's name comes from the bound name_param.
     let child_name = bindings.get(&shape.name_param)?.clone();
     if child_name.is_empty() || child_name.contains(' ') {

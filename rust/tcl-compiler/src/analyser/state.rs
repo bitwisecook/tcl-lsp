@@ -1307,6 +1307,20 @@ impl Analyser {
         self.profile.name
     }
 
+    /// The active dialect's `${…}` close rule — the input to the shared owner
+    /// [`tcl_lexer::braced_var_name_end`].
+    ///
+    /// Every analyser scan that recovers a variable name out of free word text
+    /// must resolve the closer through the owner under *this* style. Anything
+    /// else contradicts the spans the document was lexed with: at 9.x the
+    /// lexer makes `${a{b}c}` one `Var` naming `a{b}c`, while a hard-coded
+    /// first-`}` scan reads `a{b` and reports on a variable the source never
+    /// mentions (issue #1604).
+    #[must_use]
+    pub fn braced_var(&self) -> tcl_dialect::BracedVarStyle {
+        self.profile.grammar.braced_var
+    }
+
     /// `true` when `cmd_name`'s registry spec declares its pattern argument
     /// as a regular expression ([`tcl_registry::PatternType::Regex`]) —
     /// `regexp` / `regsub`.  The regex-specific analyses (W303 `ReDoS`, W306
