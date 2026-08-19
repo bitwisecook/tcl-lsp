@@ -520,7 +520,16 @@ fn render_definition(
     params.extend(by_name.iter().map(|var| format!("{var}Name")));
     let mut body = String::new();
     for var in by_name {
-        let _ = writeln!(body, "    upvar 1 ${var}Name {var}");
+        // The `$<var>Name` read is a *reference* and needs the brace form for a
+        // non-bare name; the `upvar` target is a plain word, so it needs list
+        // quoting instead (a name may carry an unbalanced brace — on 8.x
+        // `${a{b}` names `a{b`).
+        let _ = writeln!(
+            body,
+            "    upvar 1 {} {}",
+            var_ref(&format!("{var}Name")),
+            word(var)
+        );
     }
     for line in block.lines() {
         let stripped = line.strip_prefix(block_indent).unwrap_or(line);
@@ -530,17 +539,41 @@ fn render_definition(
             let _ = writeln!(body, "    {}", stripped.trim_end());
         }
     }
-    format!("proc {name} {{{}}} {{\n{body}}}\n\n", params.join(" "))
+    // The parameter list is a Tcl *list*, so each name goes in as a properly
+    // quoted element rather than raw text.
+    let param_list = tcl_syntax::list::join_list(params.iter());
+    format!("proc {name} {{{param_list}}} {{\n{body}}}\n\n")
+}
+
+/// A `$` reference to `name`, braced unless the name can be written bare.
+///
+/// `${…}` is the spelling that survives every name this repository's scanners
+/// can produce, on both release rules: the 9.x scanner ends the name at the
+/// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
+/// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
+/// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
+/// releases — the same mistake the minifier made (issue #1605, fifth site).
+fn var_ref(name: &str) -> String {
+    if tcl_syntax::naming::is_bare_var_name(name) {
+        format!("${name}")
+    } else {
+        format!("${{{name}}}")
+    }
+}
+
+/// `name` as a single command word, list-quoted when it cannot stand raw.
+fn word(name: &str) -> String {
+    tcl_syntax::list::join_list(std::iter::once(name))
 }
 
 /// Render the call that replaces the selection.
 ///
 /// A by-value parameter is passed as `$var`; a by-name one is passed as the
-/// bare *name*, which is what `upvar` in the proc binds against.
+/// *name* itself, which is what `upvar` in the proc binds against.
 fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
     let mut words = vec![name.to_string()];
-    words.extend(by_value.iter().map(|var| format!("${var}")));
-    words.extend(by_name.iter().cloned());
+    words.extend(by_value.iter().map(|var| var_ref(var)));
+    words.extend(by_name.iter().map(|var| word(var)));
     words.join(" ")
 }
 
@@ -714,9 +747,63 @@ mod tests {
         let eight = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl8.6")
             .expect("a selection")
             .apply(src);
+        // `a{b` carries an unbalanced brace, so it reaches the parameter list
+        // as the quoted element tclsh itself writes (`list a{b` → `a\{b`).
+        // Emitting it raw made `proc extracted_proc {a{b} {…}` — an unbalanced
+        // brace that breaks the whole generated command.
         assert!(
-            eight.contains("proc extracted_proc {a{b} {"),
-            "8.x must capture only `a{{b`: {eight}"
+            eight.contains(r"proc extracted_proc {a\{b} {"),
+            "8.x must capture only `a{{b`, quoted: {eight}"
+        );
+    }
+
+    #[test]
+    fn render_call_braces_a_non_bare_captured_name() {
+        // A bare-writable name keeps the bare form…
+        assert_eq!(
+            render_call("p", &["plain".to_string()], &[]),
+            "p $plain",
+            "a bare name needs no braces"
+        );
+        // …and one that cannot be written bare gets the `${…}` spelling.
+        // `$a{b}c` would parse as `$a` followed by the literal `{b}c` on both
+        // 8.6.16 and 9.0.4, so the call passed the wrong value (issue #1636
+        // review).
+        assert_eq!(
+            render_call("p", &["a{b}c".to_string()], &[]),
+            "p ${a{b}c}",
+            "a brace-bearing name must be passed braced"
+        );
+        // A by-name argument is a word, not a reference, so it is list-quoted
+        // rather than braced.
+        assert_eq!(
+            render_call("p", &[], &["a{b".to_string()]),
+            r"p a\{b",
+            "an unbalanced-brace name must reach the call as one word"
+        );
+        assert_eq!(
+            render_call("p", &[], &["plain".to_string()]),
+            "p plain",
+            "a bare by-name argument stays raw"
+        );
+    }
+
+    #[test]
+    fn extracted_call_passes_a_brace_bearing_name_braced() {
+        // End-to-end, with the reference inside a braced body so the command
+        // span is balanced and the segmenter hands over the complete word
+        // (the #1568 cap the PR documents).
+        let src = "if {1} {puts ${a{b}c}}\nputs done\n";
+        let out = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
+            .expect("a selection")
+            .apply(src);
+        assert!(
+            out.contains("extracted_proc ${a{b}c}"),
+            "the generated call must brace the name: {out}"
+        );
+        assert!(
+            !out.contains("extracted_proc $a{b}c"),
+            "the bare form parses as `$a` plus literal text: {out}"
         );
     }
 

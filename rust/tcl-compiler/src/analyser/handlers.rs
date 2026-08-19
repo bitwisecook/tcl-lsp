@@ -2050,6 +2050,7 @@ impl Analyser {
                 // fold candidate (issue #1132).
                 command_trust: None,
                 ensemble_targets: Vec::new(),
+                prefixless_ensembles: Vec::new(),
                 oo_defining_class: None,
                 safe_interp_ctx,
             });
@@ -2218,6 +2219,7 @@ impl Analyser {
                     // with a fold candidate (issue #1132).
                     command_trust: None,
                     ensemble_targets: Vec::new(),
+                    prefixless_ensembles: Vec::new(),
                     oo_defining_class: None,
                     safe_interp_ctx,
                 });
@@ -2606,6 +2608,7 @@ impl Analyser {
                 // fold candidate (issue #1132).
                 command_trust: None,
                 ensemble_targets: Vec::new(),
+                prefixless_ensembles: Vec::new(),
                 oo_defining_class: None,
                 safe_interp_ctx,
             });
