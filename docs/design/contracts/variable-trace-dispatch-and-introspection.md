@@ -95,6 +95,13 @@ Where C commits the operation around the trace, the runtime must too:
   materialised.
 * Removing a variable's traces happens *after* the unset callbacks have fired,
   so a stale trace cannot re-fire on a later variable that reuses the name.
+* **`trace remove` deletes the newest match.** It removes exactly one
+  registration — the first hit walking the list the same way firing does, and
+  that head is the newest. When several registrations are identical the choice
+  is observable twice: in the surviving firing order and in `trace info`. The
+  match is ops-set plus command prefix only; the old-style flag is masked out,
+  so `trace remove variable` and `trace vdelete` each remove what the other
+  installed. The same rule governs command and execution traces.
 
 ## Introspection coherence (info / trace info)
 
@@ -134,6 +141,7 @@ interpreter can't see by name can't be traced.
 | `trace info` op order is C's fixed per-kind order, not the spelled order | **Contract** | `array read write unset` / `rename delete` / `enter leave enterstep leavestep`. |
 | 8.x `trace variable`/`vdelete`/`vinfo` exist ≤8.6 and are `bad option` at 9.0+ | **Contract** | The registry's `DialectSet::TCL8X` gate states the boundary; the option enumeration follows it. |
 | An old-style-installed callback gets the `rwua` letter, not the op word | **Contract** | `TCL_TRACE_OLD_STYLE`; matching still ignores the flag. |
+| `trace remove` deletes the **newest** of several identical registrations | **Contract** | Observable in the survivors' firing order and in `trace info`. |
 | Fire-through-`upvar`/`global` links; re-entrancy terminates | **Contract** | Acts on the target cell. |
 | `info exists/vars/locals`, `trace info` reflect live state | **Contract** | Never compile-time-folded. |
 | `(read trace on "x")` errorInfo frame text | **Contract** | Matches C wording. |

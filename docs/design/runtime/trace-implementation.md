@@ -115,6 +115,12 @@ containing array's traces first, then the element's own (`TclCallVarTraces`
 runs its `arrayPtr` loop before its `varPtr` loop). Registration order does
 not decide which group runs first — only the order within a group.
 
+The same head-first rule decides **which** registration a `trace remove`
+deletes: C breaks at the first match, so among identical duplicates the newest
+goes. Every removal site therefore searches from the newest end (`rposition`
+over our oldest-first Vecs), as do the teardown paths that collect a
+namespace's unset and command-delete traces before firing them.
+
 Re-entrancy is suppressed per scope: a variable trace pushes its scope onto
 `active_var_scopes` for the duration of the callback, so a callback touching
 the same variable does not re-fire itself, and command-trace firing is gated on
