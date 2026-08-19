@@ -523,13 +523,22 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
         return eval_subst(vm, &word[1..end]);
     }
     // Fast path: the whole word is one `${name}`.
+    //
+    // The close rule is the release's, resolved through the one shared owner
+    // (issue #1568). This used to be `find('}')` — the 8.x first-close rule
+    // applied at *every* release — so a compiled word `${a{b}c}` read the
+    // variable `a{b` even when emulating 9.x. `subst`'s own engine was fixed
+    // for #1457 via `parse_var_ref_parts`; this is the compiled-word path,
+    // which had its own copy.
+    let braced_var = vm.braced_var_style();
     if n >= 3
         && b[0] == b'$'
         && b[1] == b'{'
-        && let Some(rel) = word[2..].find('}')
-        && 2 + rel == n - 1
+        && let tcl_lexer::BracedVarEnd::Closed(close) =
+            tcl_lexer::braced_var_name_end(b, 2, braced_var)
+        && close == n - 1
     {
-        return read_var(vm, &word[2..2 + rel]);
+        return read_var(vm, &word[2..close]);
     }
     // No substitution triggers: the literal is its own value.
     if !word.contains("${") && !word.contains('[') {
@@ -550,14 +559,23 @@ pub fn subst_word(word: &str, vm: &mut Vm) -> Result<Value, TclError> {
             b'\\' => i = (i + 2).min(n),
             b'$' if i + 1 < n && b[i + 1] == b'{' => {
                 out.push_str(&tcl_syntax::backslash::decode_in(&word[lit..i], escapes));
-                if let Some(rel) = word[i + 2..].find('}') {
-                    let close = i + 2 + rel;
-                    let v = read_var(vm, &word[i + 2..close])?;
-                    out.push_str(&v.to_str());
-                    i = close + 1;
-                } else {
-                    out.push('$');
-                    i += 1;
+                // Same release-aware close rule as the whole-word fast path
+                // above — the second of this function's two hard-coded 8.x
+                // copies (issue #1568).
+                match tcl_lexer::braced_var_name_end(b, i + 2, braced_var) {
+                    tcl_lexer::BracedVarEnd::Closed(close) => {
+                        let v = read_var(vm, &word[i + 2..close])?;
+                        out.push_str(&v.to_str());
+                        i = close + 1;
+                    }
+                    // C raises `missing close-brace for variable name` here,
+                    // and both `subst` engines now do (issue #1457). Raising
+                    // it after the literal run above has been flushed — and
+                    // after any earlier `[…]` in this word has already run —
+                    // reproduces C's left-to-right evaluation order.
+                    tcl_lexer::BracedVarEnd::Unterminated => {
+                        return Err(TclError::new(tcl_lexer::MISSING_CLOSE_BRACE_FOR_VAR));
+                    }
                 }
                 lit = i;
             }

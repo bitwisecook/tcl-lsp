@@ -809,3 +809,77 @@ fn compiled_braced_var_close_rule_matches_real_tclsh() {
         );
     }
 }
+
+/// An **interpolated** word — `"pre${a{b}c}post"` — reaches neither of the
+/// compiler's two decoders: the codegen declines to decompose it, so the whole
+/// word is interned as one literal and the VM's `subst::subst_word` performs
+/// the substitution at run time. That runtime decoder is a *third* pair of
+/// `${…}` scans, and it hard-coded the 8.x first-close rule at every release
+/// just as the compile-time ones did (issue #1568).
+///
+/// This vector exists because a mutation pass proved the compile-time fix
+/// alone was not observable here: reverting `parse_subst_template` left every
+/// test green. The gap was real — the interpolated path was still wrong at
+/// 9.x — and this is the vector that fails when it is.
+const COMPILED_INTERPOLATED_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {puts \"pre${a{b}c}post\"} m]} { puts \"error:$m\" }\n",
+);
+
+/// A `switch` **subject** takes its own lowering (`switch_subject_operand`
+/// picks a `Raw` operand over a substituted `String`), so it is a distinct
+/// route to the same decoders.
+const COMPILED_SWITCH_SUBJECT_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {switch -- ${a{b}c} { WORLD { puts hit } default { puts miss } }} m]} ",
+    "{ puts \"error:$m\" }\n",
+);
+
+#[test]
+fn compiled_interpolated_and_switch_paths_follow_the_emulated_release() {
+    for (label, script, ok) in [
+        (
+            "interpolated word",
+            COMPILED_INTERPOLATED_SCRIPT,
+            "preWORLDpost",
+        ),
+        ("switch subject", COMPILED_SWITCH_SUBJECT_SCRIPT, "hit"),
+    ] {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                vm_output(script, version),
+                "error:can't read \"a{b\": no such variable",
+                "{label} at {version:?} must use the 8.x first-close rule"
+            );
+        }
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                vm_output(script, version),
+                ok,
+                "{label} at {version:?} must use the 9.x nesting rule"
+            );
+        }
+    }
+}
+
+/// Both new routes pinned against real tclsh.
+#[test]
+fn compiled_interpolated_and_switch_paths_match_real_tclsh() {
+    let mut ran = 0;
+    for script in [COMPILED_INTERPOLATED_SCRIPT, COMPILED_SWITCH_SUBJECT_SCRIPT] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}
