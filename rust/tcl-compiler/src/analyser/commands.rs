@@ -2317,9 +2317,17 @@ impl Analyser {
     /// multi-word `uplevel #0 $cmd [list x y]` yields no analysable script,
     /// but `$cmd` is still a real dispatch whose reference must be recorded.
     ///
-    /// Guarded to a "pure" reference (`var_name == raw`) so a composite word
-    /// like `${cmd}Suffix` — a literal-concatenated value, not `$cmd`'s own —
-    /// is left alone.
+    /// Guarded to a "pure" reference — [`Analyser::split_braced_head`] leaving
+    /// no suffix — so a composite word like `${cmd}Suffix`, a
+    /// literal-concatenated value rather than `$cmd`'s own, is left alone.
+    ///
+    /// The guard used to compare the first-`}` truncation against the whole
+    /// raw text, which also declined a *pure* reference whose name legitimately
+    /// ends in `}`: at 9.x `${a{b}}` names the variable `a{b}`, and
+    /// `token_text` hands that over as `a{b}` with the closer already outside
+    /// the span. Asking the shared owner answers `Unterminated` there — no
+    /// closer inside the text, so all of it is the name — and the dispatch is
+    /// recorded instead of dropped (issue #1604).
     fn record_var_body_const_dispatch(&mut self, body_tok: Token, scope_path: &[usize]) {
         if body_tok.kind != TokenType::Var {
             return;
