@@ -1154,3 +1154,124 @@ fn compiled_backslash_braced_var_names_match_real_tclsh() {
         );
     }
 }
+
+/// A **composite** array key — one carrying literal text alongside the `${…}` —
+/// is what reaches `codegen::helpers::parse_subst_template`'s `${…}` arm.
+///
+/// This distinction is easy to lose. Before `push_array_key` was routed through
+/// the shared decoder, a *whole* `${…}` key reached `parse_subst_template` too,
+/// and the whole-key vectors were what pinned that decoder. Fixing the key arm
+/// re-routed them to `parse_simple_var_ref` and silently un-pinned it — a
+/// mutation that reverts `parse_subst_template` to `find('}')` went from
+/// failing two tests to failing none. These vectors restore the coverage on the
+/// path that still uses it.
+const COMPILED_COMPOSITE_KEY_PREFIX_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "set arr(xWORLD) V\n",
+    "if {[catch {puts $arr(x${a{b}c})} m]} { puts \"error:$m\" }\n",
+);
+
+const COMPILED_COMPOSITE_KEY_SUFFIX_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "set arr(WORLDy) V\n",
+    "if {[catch {puts $arr(${a{b}c}y)} m]} { puts \"error:$m\" }\n",
+);
+
+/// Two references in one key, so the decoder must find both closers.
+const COMPILED_COMPOSITE_KEY_TWICE_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "set arr(WORLDWORLD) V\n",
+    "if {[catch {puts $arr(${a{b}c}${a{b}c})} m]} { puts \"error:$m\" }\n",
+);
+
+/// The same composite shape with a backslash in the name.
+const COMPILED_COMPOSITE_KEY_ESCAPE_SCRIPT: &str = concat!(
+    "set {a\\}b} K\n",
+    "set arr(xK) V\n",
+    "if {[catch {puts $arr(x${a\\}b})} m]} { puts \"error:$m\" }\n",
+);
+
+/// The store direction of a composite key.
+const COMPILED_COMPOSITE_KEY_WRITE_SCRIPT: &str = concat!(
+    "set {a{b}c} WORLD\n",
+    "if {[catch {set arr(x${a{b}c}) V} m]} { puts \"error:$m\" } ",
+    "else { puts [array names arr] }\n",
+);
+
+#[test]
+fn compiled_composite_array_key_follows_the_emulated_release() {
+    for (label, script, err8, ok9) in [
+        (
+            "prefix",
+            COMPILED_COMPOSITE_KEY_PREFIX_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "V",
+        ),
+        (
+            "suffix",
+            COMPILED_COMPOSITE_KEY_SUFFIX_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "V",
+        ),
+        (
+            "two references",
+            COMPILED_COMPOSITE_KEY_TWICE_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "V",
+        ),
+        (
+            "escaped close",
+            COMPILED_COMPOSITE_KEY_ESCAPE_SCRIPT,
+            "error:can't read \"a\\\": no such variable",
+            "V",
+        ),
+        (
+            "store",
+            COMPILED_COMPOSITE_KEY_WRITE_SCRIPT,
+            "error:can't read \"a{b\": no such variable",
+            "xWORLD",
+        ),
+    ] {
+        for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+            assert_eq!(
+                vm_output(script, version),
+                err8,
+                "composite key ({label}) at {version:?} must use the 8.x rule"
+            );
+        }
+        for version in [TclVersion::V9_0, TclVersion::V9_1] {
+            assert_eq!(
+                vm_output(script, version),
+                ok9,
+                "composite key ({label}) at {version:?} must use the 9.x rule"
+            );
+        }
+    }
+}
+
+#[test]
+fn compiled_composite_array_key_matches_real_tclsh() {
+    let mut ran = 0;
+    for script in [
+        COMPILED_COMPOSITE_KEY_PREFIX_SCRIPT,
+        COMPILED_COMPOSITE_KEY_SUFFIX_SCRIPT,
+        COMPILED_COMPOSITE_KEY_TWICE_SCRIPT,
+        COMPILED_COMPOSITE_KEY_ESCAPE_SCRIPT,
+        COMPILED_COMPOSITE_KEY_WRITE_SCRIPT,
+    ] {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}
