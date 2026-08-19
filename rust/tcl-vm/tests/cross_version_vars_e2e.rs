@@ -1087,6 +1087,82 @@ fn compiled_escaped_open_brace_key_resolves_at_every_release() {
     }
 }
 
+/// The complement of the `${a\}b}` switch vector: a subject that is one whole
+/// reference under the **8.x** rule only.
+///
+/// `${a\}` closes at the first `}` under `FirstClose`, naming the variable
+/// `a\`. Under `Tcl9Nesting` the `\}` is an inert pair, so the name never
+/// closes and the reference is unterminated.
+///
+/// Real tclsh: `hit` at 8.6, and at 9.0 a *parse* error (`missing close-brace
+/// for variable name`) that rejects the whole script. Both halves matter — the
+/// switch-subject gate has to keep the 8.x answer without disturbing the 9.x
+/// rejection.
+/// The name is built with `format` rather than written as `set "a\\" K`,
+/// which would be the obvious spelling. Compiled `set` currently stores a
+/// quoted name containing a backslash under its *unsubstituted source
+/// spelling* (`a\\`, 3 bytes) instead of the substituted name (`a\`, 2 bytes),
+/// so the obvious spelling would fail this test for a reason that has nothing
+/// to do with the switch gate. That is a separate defect, filed apart from
+/// #1568; `format` sidesteps it and leaves this vector testing only the gate.
+const SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT: &str = concat!(
+    "set n [format a%c 92]\n",
+    "set $n K\n",
+    "switch -- ${a\\} { K {puts hit} default {puts miss} }\n",
+);
+
+#[test]
+fn switch_subject_whole_under_the_8x_rule_only_follows_the_emulated_release() {
+    for version in [TclVersion::V8_4, TclVersion::V8_5, TclVersion::V8_6] {
+        assert_eq!(
+            vm_output(SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT, version),
+            "hit",
+            "{version:?}: `${{a\\}}` is one whole reference under the 8.x rule, \
+             so the subject must load the variable `a\\` rather than being \
+             re-substituted as text (which would process the backslash)"
+        );
+    }
+
+    // At 9.x the same spelling never closes, so the script is rejected outright
+    // and the gate must not have made it compilable.
+    let service = CompilerSvc {
+        registry: CommandRegistry::build_default(),
+    };
+    for version in [TclVersion::V9_0, TclVersion::V9_1] {
+        let profile = DialectProfile::by_name(version.dialect_name());
+        let err = service
+            .compile_for_profile(SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT, profile)
+            .expect_err("an unterminated ${ must not compile at 9.x");
+        let text = format!("{err:?}");
+        assert!(
+            text.contains("close-brace"),
+            "{version:?}: must be rejected for the close-brace, got {text}"
+        );
+    }
+}
+
+#[test]
+fn switch_subject_whole_under_the_8x_rule_only_matches_real_tclsh() {
+    let mut ran = 0;
+    if let Some(got) = tclsh_output(
+        "TCL_LSP_TCLSH86",
+        &["tclsh8.6"],
+        SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT,
+    ) {
+        assert_eq!(
+            got,
+            vm_output(SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT, TclVersion::V8_6)
+        );
+        ran += 1;
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) was not found"
+        );
+    }
+}
+
 /// An unterminated `${` in a compiled word is a **parse** error: C parses every
 /// word of a command before evaluating any, so an earlier `[…]` in the same
 /// word never runs. Verified against 8.6.16 and 9.0.4, neither of which prints
