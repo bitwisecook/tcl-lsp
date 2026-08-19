@@ -312,6 +312,20 @@ const VECTORS: &[Vector] = &[
         want_86: "1",
         want_90: "1",
     },
+    // The vector above uses `dict get`, whose argument is a runtime value, so
+    // it never reaches the constant folder. An **all-literal** `dict create` in
+    // a value position *is* folded in codegen — and a fold is a rewrite that
+    // bypasses the runtime's availability gate entirely, so the folded form
+    // used to succeed under 8.4 while every unfoldable spelling correctly
+    // raised `invalid command name "dict"` (issue #1427).
+    Vector {
+        name: "a *foldable* dict create is still absent before 8.5",
+        script: "puts [dict create a 1 a 2]\n",
+        want_84: "invalid command name \"dict\"",
+        want_85: "a 2",
+        want_86: "a 2",
+        want_90: "a 2",
+    },
     Vector {
         name: "try arrives in 8.6",
         script: "puts [catch {try { } } m]$m\n",

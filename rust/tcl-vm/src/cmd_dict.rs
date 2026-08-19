@@ -20,7 +20,6 @@
 //! list rep (a typed dict intrep is a later optimisation).
 
 use tcl_runtime_api::{Code, Completion};
-use tcl_syntax::glob::string_match;
 
 use crate::interp::{Vm, err, ok};
 use crate::value::Value;
@@ -50,10 +49,6 @@ fn cmd_dict(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"dict subcommand ?arg ...?\"");
     };
     dict_op(vm, &sub.to_str(), rest)
-}
-
-fn ilen(n: usize) -> i64 {
-    i64::try_from(n).unwrap_or(i64::MAX)
 }
 
 /// The dict's **canonical** ordered `(key-string, value)` pairs, from the one
@@ -215,109 +210,26 @@ fn get_path(vm: &mut Vm, cur: &Value, keys: &[Value]) -> Result<Value, Completio
 
 #[allow(clippy::too_many_lines)] // One subcommand-dispatch match; splitting obscures it.
 fn dict_op(vm: &mut Vm, sub: &str, rest: &[Value]) -> Completion<Value> {
-    // Pure dict subcommands now live in the shared command core; the VM is a
-    // thin adapter. Variable-mutating subcommands fall through to the legacy
+    // Pure dict subcommands live in the shared command core; the VM is a thin
+    // adapter. Only the variable-*mutating* subcommands fall through to the
     // arms below.
+    //
+    // `dispatch_canon` answers `Some` unconditionally for create/get/exists/
+    // keys/values/size/merge, so the VM's own arms for those were unreachable.
+    // They are gone (issue #1427's cleanup) — and not merely as tidying: the
+    // dead `create` arm still built its result with a plain `Value::list` of
+    // the arguments, so had anything ever routed back to it, it would have
+    // re-introduced the duplicate-key bug this issue fixes.
     if let Some(result) = tcl_cmd_core::dict::dispatch_canon(vm, sub, rest) {
         return match result {
             Ok(v) => ok(v),
-            Err(e) => err(e.into_message()),
+            // A *value-parse* failure is re-worded to C's dict spelling and
+            // given its `TCL VALUE DICTIONARY …` code; anything else (wrong #
+            // args, unknown key) passes through unchanged (issue #1573).
+            Err(e) => crate::exec::dict_parse_err(&e.into_message()),
         };
     }
     match sub {
-        "create" => {
-            if !rest.len().is_multiple_of(2) {
-                return err("wrong # args: should be \"dict create ?key value ...?\"");
-            }
-            ok(Value::list(rest.to_vec()))
-        }
-        "get" => {
-            let Some((d, keys)) = rest.split_first() else {
-                return err("wrong # args: should be \"dict get dictionary ?key ...?\"");
-            };
-            let mut cur = d.clone();
-            for k in keys {
-                let ps = match pairs(vm, &cur) {
-                    Ok(p) => p,
-                    Err(c) => return c,
-                };
-                match lookup(&ps, &k.to_str()) {
-                    Some(v) => cur = v.clone(),
-                    None => return err(format!("key \"{}\" not known in dictionary", k.to_str())),
-                }
-            }
-            ok(cur)
-        }
-        "exists" => {
-            let Some((d, keys)) = rest.split_first() else {
-                return err("wrong # args: should be \"dict exists dictionary key ?key ...?\"");
-            };
-            let mut cur = d.clone();
-            for k in keys {
-                let Ok(ps) = pairs(vm, &cur) else {
-                    return ok(Value::bool(false));
-                };
-                match lookup(&ps, &k.to_str()) {
-                    Some(v) => cur = v.clone(),
-                    None => return ok(Value::bool(false)),
-                }
-            }
-            ok(Value::bool(true))
-        }
-        "keys" => match rest {
-            [d] | [d, _] => {
-                let ps = match pairs(vm, d) {
-                    Ok(p) => p,
-                    Err(c) => return c,
-                };
-                let pat = rest.get(1).map(Value::to_str);
-                ok(Value::list(
-                    ps.into_iter()
-                        .filter(|(k, _)| pat.as_deref().is_none_or(|p| string_match(p, k)))
-                        .map(|(k, _)| Value::string(k))
-                        .collect(),
-                ))
-            }
-            _ => err("wrong # args: should be \"dict keys dictionary ?pattern?\""),
-        },
-        "values" => match rest {
-            [d] | [d, _] => {
-                let ps = match pairs(vm, d) {
-                    Ok(p) => p,
-                    Err(c) => return c,
-                };
-                let pat = rest.get(1).map(Value::to_str);
-                ok(Value::list(
-                    ps.into_iter()
-                        .filter(|(_, v)| {
-                            pat.as_deref().is_none_or(|p| string_match(p, &v.to_str()))
-                        })
-                        .map(|(_, v)| v)
-                        .collect(),
-                ))
-            }
-            _ => err("wrong # args: should be \"dict values dictionary ?pattern?\""),
-        },
-        "size" => match rest {
-            [d] => match pairs(vm, d) {
-                Ok(p) => ok(Value::int(ilen(p.len()))),
-                Err(c) => c,
-            },
-            _ => err("wrong # args: should be \"dict size dictionary\""),
-        },
-        "merge" => {
-            let mut acc: Vec<(String, Value)> = Vec::new();
-            for d in rest {
-                let ps = match pairs(vm, d) {
-                    Ok(p) => p,
-                    Err(c) => return c,
-                };
-                for (k, v) in ps {
-                    upsert(&mut acc, &k, v);
-                }
-            }
-            ok(from_pairs(&acc))
-        }
         "set" => {
             // dict set dictVarName key ?key ...? value
             let [varname, keys @ .., value] = rest else {

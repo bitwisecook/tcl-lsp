@@ -558,6 +558,46 @@ fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
     Value::list(v)
 }
 
+/// Re-word a list-parse failure as the **dict** failure C reports, and attach
+/// the matching `-errorcode`.
+///
+/// `SetDictFromAny` (tclDictObj.c) hands `FindElement` the type strings
+/// `dict`/`DICTIONARY`, so the same malformed input that gives
+/// `list element in braces followed by "c" instead of space` /
+/// `TCL VALUE LIST JUNK` from `llength` gives the `dict …` /
+/// `TCL VALUE DICTIONARY JUNK` pair from `dict size`. The shared codec speaks
+/// list, so the noun is swapped back on the dict side (issue #1573).
+///
+/// `missing value to go with key` is already dict-specific, but C still tags it
+/// `TCL VALUE DICTIONARY` where this VM left it `NONE`.
+///
+/// Messages that are not value-parse failures at all — `wrong # args:`, a
+/// missing key — are returned untouched, so they keep the `errorCode` their own
+/// rules give them.
+pub(crate) fn dict_parse_err(message: &str) -> Completion<Value> {
+    let (msg, code) = if let Some(rest) = message.strip_prefix("list element in ") {
+        (
+            format!("dict element in {rest}"),
+            "TCL VALUE DICTIONARY JUNK",
+        )
+    } else if message == "unmatched open brace in list" {
+        (
+            "unmatched open brace in dict".to_owned(),
+            "TCL VALUE DICTIONARY BRACE",
+        )
+    } else if message == "unmatched open quote in list" {
+        (
+            "unmatched open quote in dict".to_owned(),
+            "TCL VALUE DICTIONARY QUOTE",
+        )
+    } else if message == "missing value to go with key" {
+        (message.to_owned(), "TCL VALUE DICTIONARY")
+    } else {
+        return err(message.to_owned());
+    };
+    crate::command::err_with_code(msg, code)
+}
+
 /// The dict decode/rebuild helpers behind the `dict*` opcodes.
 ///
 /// Every one of them starts from [`Vm::dict_pairs`], the VM's binding of the
@@ -571,12 +611,20 @@ fn dict_from_pairs(ps: &[(String, Value)]) -> Value {
 /// rewrites the *first* one (issue #1427).
 impl Vm {
     /// The dict's canonical ordered `(key-string, value)` pairs.
+    ///
+    /// A parse failure is reported as a **dict**, not a list: C's
+    /// `SetDictFromAny` passes the type strings `dict`/`DICTIONARY` down to
+    /// `FindElement`, so `dict size {a 1 {b}c d}` says `dict element in braces
+    /// …` with `errorCode` `TCL VALUE DICTIONARY JUNK`. The shared codec is
+    /// list-worded (it is the *list* element codec), so the noun is restored
+    /// here — the one place every VM dict path now decodes through, which is
+    /// what makes this a single fix rather than eleven (issue #1573).
     pub(crate) fn dict_pairs(
         &mut self,
         v: &Value,
     ) -> Result<Vec<(String, Value)>, Completion<Value>> {
         let pairs = tcl_syntax::value::ValueOps::dict_pairs(self, v)
-            .map_err(|e| err(e.message().clone()))?;
+            .map_err(|e| dict_parse_err(&e.message()))?;
         Ok(pairs
             .into_iter()
             .map(|(k, val)| (k.to_str().to_string(), val))

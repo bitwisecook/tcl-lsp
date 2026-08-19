@@ -426,8 +426,11 @@ impl CodegenCtx<'_> {
             self.push_lit_no_dedup_verbatim(&folded);
             return;
         }
-        // Constant-fold [dict create k v ...]
-        if let Some(folded) = super::helpers::fold_dict_create_cmd(value) {
+        // Constant-fold [dict create k v ...] — gated on the emulated release
+        // actually having `dict`; see the twin site in `cmd_subst.rs` (#1427).
+        if self.registry.has_command_in_this_dialect("dict")
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+        {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);
             self.emit(Op::VERIFY_DICT, vec![]);

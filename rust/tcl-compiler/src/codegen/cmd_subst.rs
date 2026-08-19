@@ -705,8 +705,14 @@ impl CodegenCtx<'_> {
             self.push_lit_no_dedup(&folded);
             return;
         }
-        // Constant-fold [dict create k v ...]
-        if let Some(folded) = super::helpers::fold_dict_create_cmd(value) {
+        // Constant-fold [dict create k v ...], but only for a release that has
+        // `dict` at all — folding is a rewrite that bypasses the runtime's
+        // availability gate, so an ungated fold would make `dict create`
+        // *work* under `--tcl-version 8.4` instead of raising `invalid command
+        // name "dict"` (issue #1427).
+        if self.registry.has_command_in_this_dialect("dict")
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+        {
             self.push_lit(&folded);
             self.emit(Op::DUP, vec![]);
             self.emit(Op::VERIFY_DICT, vec![]);

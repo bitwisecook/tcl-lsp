@@ -1360,4 +1360,81 @@ fn duplicate_dict_keys_canonicalise_last_value_wins() {
     assert_eq!(run("dict exists {a 1 a 2} a").1, "1");
     // Position is first-occurrence, so a later duplicate does not move the key.
     assert_eq!(run("dict replace {a 1 b 2 a 3} c 4").1, "a 3 b 2 c 4");
+
+    // `dict create` — the *compile-time fold*, not the runtime path. An
+    // all-literal `[dict create …]` is constant-folded in codegen, and the fold
+    // used to render its arguments as a plain list join, freezing the duplicate
+    // into the literal. `dict size`/`dict get` still answered correctly (they
+    // re-canonicalise on the way in), so only the **string representation**
+    // showed it — which is exactly what a `puts` or `string length` sees.
+    //
+    // The dynamic spelling defeats the fold and always took the correct path;
+    // the two must agree.
+    assert_eq!(run("string length [dict create a 1 a 2]").1, "3");
+    assert_eq!(run("dict create a 1 a 2").1, "a 2");
+    assert_eq!(run("set n 2\ndict create a 1 a $n").1, "a 2");
+    assert_eq!(run("dict create x 1 x 2 y 3").1, "x 2 y 3");
+    assert_eq!(run("string length [dict create x 1 x 2 y 3]").1, "7");
+    // First-occurrence position holds through the fold too.
+    assert_eq!(run("dict create a 1 b 2 a 3").1, "a 3 b 2");
+    // A non-duplicate fold is unchanged, and an odd arg count still errors.
+    assert_eq!(run("dict create a 1 b 2").1, "a 1 b 2");
+    assert!(!run("dict create a 1 b").0);
+}
+
+/// Issue #1573 — a dict *value-parse* failure is reported as a *dict*, not a
+/// list.
+///
+/// C's `SetDictFromAny` hands `FindElement` the type strings `dict`/
+/// `DICTIONARY`, so the same malformed input that `llength` calls a
+/// `list element …` / `TCL VALUE LIST JUNK` problem, `dict size` calls a
+/// `dict element …` / `TCL VALUE DICTIONARY JUNK` one. The VM decoded dicts
+/// through the (list-worded) shared codec and passed its message straight out,
+/// so every dict path used the list noun and the list `errorCode`.
+///
+/// Byte-checked against `tclsh9.0.4`.
+#[test]
+fn dict_parse_errors_use_the_dict_noun_and_error_code() {
+    let check = |script: &str, msg: &str, code: &str| {
+        let (ok, r, _) = run(script);
+        assert!(!ok, "{script} should fail");
+        assert_eq!(r, msg, "{script}");
+        let (ok, _r, out) = run(&format!(
+            "catch {{{script}}} m\nputs -nonewline $::errorCode"
+        ));
+        assert!(ok);
+        assert_eq!(out, code, "{script} errorCode");
+    };
+    check(
+        "dict size {a 1 {b}c d}",
+        "dict element in braces followed by \"c\" instead of space",
+        "TCL VALUE DICTIONARY JUNK",
+    );
+    check(
+        "dict size {a 1 \"b\"c d}",
+        "dict element in quotes followed by \"c\" instead of space",
+        "TCL VALUE DICTIONARY JUNK",
+    );
+    // Quoted so the *script* parser hands `dict` the unbalanced text verbatim
+    // rather than balancing it itself.
+    check(
+        "dict size \"a 1 \\{b\"",
+        "unmatched open brace in dict",
+        "TCL VALUE DICTIONARY BRACE",
+    );
+    check(
+        "dict size {a 1 b}",
+        "missing value to go with key",
+        "TCL VALUE DICTIONARY",
+    );
+    // The *list* noun is untouched — the two must stay distinguishable.
+    check(
+        "llength {a 1 {b}c d}",
+        "list element in braces followed by \"c\" instead of space",
+        "TCL VALUE LIST JUNK",
+    );
+    // A non-parse dict error must NOT be reclassified as a dict-value error.
+    let (ok, r, _) = run("dict get {a 1} zz");
+    assert!(!ok);
+    assert_eq!(r, "key \"zz\" not known in dictionary");
 }
