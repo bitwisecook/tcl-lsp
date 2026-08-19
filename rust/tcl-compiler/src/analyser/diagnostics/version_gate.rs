@@ -1017,6 +1017,18 @@ impl Analyser {
                 )
             },
         );
+        // The same fact as `now`, but as a *noun phrase*: the tail says "write
+        // the call for …", which needs the shape named, not the whole clause
+        // about which floor selected it.
+        let shape = selected.map_or_else(
+            || "the command's default shape".to_owned(),
+            |current| {
+                current.lifecycle.introduced.map_or_else(
+                    || format!("the shape at the resolved floor {floor}"),
+                    |at| format!("the {package} {at} shape"),
+                )
+            },
+        );
         // Later-release window ⇒ the file could adopt it; earlier-release
         // window ⇒ the call is left over from one.
         let forward = window
@@ -1025,12 +1037,12 @@ impl Analyser {
             .is_some_and(|at| tcl_registry::version::compare(at, floor).is_gt());
         let tail = if forward {
             format!(
-                "raise the floor with `package require {package} {}`, or write the call for {now}",
+                "raise the floor with `package require {package} {}`, or write the call for {shape}",
                 window.lifecycle.introduced.unwrap_or(floor)
             )
         } else {
             format!(
-                "that shape was valid until {}; write the call for {now}",
+                "that shape was valid until {}; write the call for {shape}",
                 window.lifecycle.retired.unwrap_or(floor)
             )
         };

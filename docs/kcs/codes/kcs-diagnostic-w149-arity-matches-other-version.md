@@ -28,8 +28,7 @@ A yellow squiggle under the call, with a message naming both releases:
 
 - "3 arguments to 'probe::grew' matches Probe 5.0, but the resolved floor
   3.0 selects the Probe 3.0 shape — raise the floor with `package require
-  Probe 5.0`, or write the call for the resolved floor 3.0 selects the
-  Probe 3.0 shape"
+  Probe 5.0`, or write the call for the Probe 3.0 shape"
 - "2 arguments to 'probe::grew' matches Probe 3.0, but the resolved floor
   5.0 selects the Probe 5.0 shape — that shape was valid until 5.0; write
   the call for the Probe 5.0 shape"

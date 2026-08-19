@@ -790,11 +790,6 @@ pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2"];
 /// The newest vocabulary this loader speaks, for the notice below.
 pub const NEWEST_VOCABULARY_VERSION: &str = "1.2";
 
-/// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
-/// pack's language is written under. The extension is normalised to
-/// lower-case without a leading dot; `-dialect` must name a canonical
-/// profile (the routing consumer needs an interned name), and a typo drops
-/// only the routing, not the row.
 /// `ambient_package NAME VERSION` — one package the pack's dialect provides
 /// without a `package require`.
 ///
@@ -825,6 +820,11 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
     })
 }
 
+/// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
+/// pack's language is written under. The extension is normalised to
+/// lower-case without a leading dot; `-dialect` must name a canonical
+/// profile (the routing consumer needs an interned name), and a typo drops
+/// only the routing, not the row.
 fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
     let raw = stmt.word_text(1);
     if raw.is_empty() {
