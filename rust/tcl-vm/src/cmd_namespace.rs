@@ -464,7 +464,7 @@ fn ns_ensemble(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 /// `configure` share. `-command` is create-only and `-namespace` is
 /// configure-read-only, so neither lives here.
 struct EnsembleOptions {
-    map: std::collections::HashMap<String, Vec<Value>>,
+    map: Vec<(String, Vec<Value>)>,
     subcommands: Option<Vec<String>>,
     prefixes: bool,
     parameters: Vec<String>,
@@ -488,8 +488,8 @@ impl EnsembleOptions {
 /// only owns the value parsing (C's per-`case` bodies).
 ///
 /// Relative `-map` targets are qualified against the current namespace, which
-/// is what both C paths use: CRT_MAP against the ensemble's own namespace and
-/// CONF_MAP against `TclGetCurrentNamespace(interp)` — and each is the current
+/// is what both C paths use: `CRT_MAP` against the ensemble's own namespace and
+/// `CONF_MAP` against `TclGetCurrentNamespace(interp)` — and each is the current
 /// namespace at the point its command runs.
 fn apply_shared_option(
     opts: &mut EnsembleOptions,
@@ -516,7 +516,14 @@ fn apply_shared_option(
                 if let Some(target) = prefix.first_mut() {
                     *target = Value::string(vm.qualify_name(&target.to_str()));
                 }
-                opts.map.insert(k.to_str().to_string(), prefix);
+                // Dict semantics for a repeated key: the last value wins but
+                // keeps the first occurrence's position, so `-map` reads back
+                // in the order the keys first appeared.
+                let key = k.to_str().to_string();
+                match opts.map.iter_mut().find(|(existing, _)| *existing == key) {
+                    Some((_, slot)) => *slot = prefix,
+                    None => opts.map.push((key, prefix)),
+                }
             }
         }
         SharedOption::Subcommands => {
@@ -555,7 +562,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let ns = vm.current_ns().to_string();
     let mut command: Option<String> = None;
     let mut opts = EnsembleOptions {
-        map: std::collections::HashMap::new(),
+        map: Vec::new(),
         subcommands: None,
         prefixes: true,
         parameters: Vec::new(),
@@ -641,13 +648,14 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         };
     }
     let mut opts = EnsembleOptions::from_def(&def);
-    // CONF_MAP qualifies against `TclGetCurrentNamespace(interp)` — the
-    // namespace current at the `configure` call, NOT the ensemble's own
-    // namespace (which CRT_MAP uses at create time). They coincide in the
-    // common `namespace eval M {namespace ensemble configure …}` shape, but
+    // `apply_shared_option` qualifies relative `-map` targets against `vm`'s
+    // current namespace, which is what CONF_MAP wants here: it uses
+    // `TclGetCurrentNamespace(interp)` — the namespace current at the
+    // `configure` call, NOT the ensemble's own namespace (which CRT_MAP uses
+    // at create time). They coincide in the common
+    // `namespace eval M {namespace ensemble configure …}` shape, but
     // configuring an ensemble from outside its namespace resolves relative
     // targets against the caller.
-    let map_ns = vm.current_ns().to_string();
     for pair in rest.chunks_exact(2) {
         let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
             Ok(resolved) => resolved,
@@ -694,16 +702,16 @@ fn ensemble_option_value(
             Value::list(subs.iter().map(|s| Value::string(s.clone())).collect())
         }),
         ConfigOption::Map => {
-            let mut keys: Vec<&String> = def.map.keys().collect();
-            keys.sort();
-            let mut flat: Vec<Value> = Vec::with_capacity(keys.len() * 2);
-            for key in keys {
+            // Insertion order, not sorted: C reads the map back out of a Tcl
+            // dict, so the order the `-map` pairs were given round-trips.
+            let mut flat: Vec<Value> = Vec::with_capacity(def.map.len() * 2);
+            for (key, words) in &def.map {
                 flat.push(Value::string(key.clone()));
                 // Targets are stored as canonical command keys (the VM drops
                 // the leading `::`); C's map holds — and reads back — the
                 // fully-qualified name, so restore the prefix on the target
                 // word. The rest of the prefix is fixed arguments, not names.
-                let mut prefix = def.map[key].clone();
+                let mut prefix = words.clone();
                 if let Some(target) = prefix.first_mut() {
                     *target = Value::string(display_ns(&target.to_str()));
                 }

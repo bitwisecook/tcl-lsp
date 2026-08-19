@@ -5354,6 +5354,21 @@ impl Interp {
     /// Register `cmd` under the (possibly qualified) name `name` — for the OO
     /// object/class commands.
     pub(crate) fn ns_register(&mut self, name: &[u8], cmd: Command) {
+        // The TclOO root marking is an identity, not a reservation on the
+        // *name*: it says "the engine installed this entry on the registry's
+        // behalf, so date it by the registry". Registering over that name
+        // replaces the identity with a script-created one, which is
+        // release-invariant like any proc, so the marking must not outlive the
+        // entry it described — otherwise the availability gate hides the new
+        // command forever.
+        //
+        // This lives in the single registration funnel rather than at the
+        // individual creation verbs so that every path is covered: `create`,
+        // `new`, `oo::copy`, `rename` onto the name, and any funnel added
+        // later. (The VM is immune for the same structural reason — its clear
+        // lives in `register_command`.) Safe against the engine's own installs
+        // because each declares its root *after* registering it.
+        self.forget_registry_object_root(name);
         self.namespaces.borrow_mut().register(name, cmd);
         self.invalidate_command_environment();
     }

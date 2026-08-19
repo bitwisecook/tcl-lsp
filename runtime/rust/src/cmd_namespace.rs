@@ -1025,7 +1025,14 @@ fn parse_map(bytes: &[u8], map_ns: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
         if let Some(target) = prefix.first_mut() {
             *target = qualify_in_ns(map_ns, target);
         }
-        map.push((pair[0].clone(), prefix));
+        // The `-map` value is a *dict*, so a repeated key collapses: the last
+        // value wins but keeps the first occurrence's position. Pushing blindly
+        // would leave both copies, making the read-back disagree with tclsh and
+        // dispatch pick the stale first target.
+        match map.iter_mut().find(|(k, _)| *k == pair[0]) {
+            Some((_, slot)) => *slot = prefix,
+            None => map.push((pair[0].clone(), prefix)),
+        }
     }
     Ok(map)
 }
@@ -2020,6 +2027,73 @@ mod tests {
             assert_eq!(i.result_bytes(), b"M");
             i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
             i.eval_str(b"unset -nocomplain m");
+        });
+    }
+
+    /// Taking a gate-hidden root's name must work through *every* registration
+    /// verb, not just `create`. The root marking is an identity on the entry,
+    /// so it is cleared in the one registration funnel (`ns_register`); these
+    /// two vectors are the funnels that do not go through `create`.
+    #[test]
+    fn taking_a_hidden_root_name_works_through_copy_and_rename() {
+        // `oo::copy` onto the hidden name: the copy must be callable and listed.
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                i.eval_str(b"oo::class create Src {method m {} {return SRC}}"),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"oo::copy ::Src ::oo::configurable"), Code::Ok);
+            assert_eq!(i.eval_str(b"[oo::configurable new] m"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"SRC");
+            assert_eq!(i.eval_str(b"info commands ::oo::configurable"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::oo::configurable");
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        });
+        // `rename` onto the hidden name: same contract.
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(i.eval_str(b"oo::object create ::mysrc"), Code::Ok);
+            assert_eq!(i.eval_str(b"rename ::mysrc ::oo::configurable"), Code::Ok);
+            assert_eq!(i.eval_str(b"info commands ::oo::configurable"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"::oo::configurable");
+            assert_eq!(i.eval_str(b"::oo::configurable destroy"), Code::Ok);
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+        });
+    }
+
+    /// `-map` is a dict: insertion order round-trips through the read-back and
+    /// a repeated key keeps its first position while taking the last value
+    /// (tclsh 9.0.4-pinned).
+    #[test]
+    fn ensemble_map_preserves_dict_order_and_collapses_repeats() {
+        leak_free(|i| {
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval M {namespace export *\n\
+                       proc zeta {} {return Z}\n\
+                       proc alpha {} {return A}\n\
+                       proc mid {} {return M}\n\
+                       namespace ensemble create -command ::E -map {zz zeta aa alpha}}"
+                ),
+                Code::Ok
+            );
+            // Insertion order, not sorted (`aa` would sort first).
+            assert_eq!(i.eval_str(b"namespace ensemble configure ::E -map"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"zz ::M::zeta aa ::M::alpha");
+            // A repeated key: last value wins, first position kept.
+            assert_eq!(
+                i.eval_str(
+                    b"namespace eval M {namespace ensemble configure ::E \
+                       -map {zz zeta aa alpha zz mid}}"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.eval_str(b"namespace ensemble configure ::E -map"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"zz ::M::mid aa ::M::alpha");
+            // Dispatch follows the collapsed entry, not the stale first one.
+            assert_eq!(i.eval_str(b"::E zz"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"M");
         });
     }
 }

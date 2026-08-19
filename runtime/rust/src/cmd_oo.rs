@@ -4273,9 +4273,6 @@ impl Interp {
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
-        // Replacing a gate-hidden root with a script-created class hands the
-        // name to the script, so the root identity goes with the old entry.
-        self.forget_registry_object_root(fqn);
         self.oo.borrow_mut().classes.insert(
             fqn.to_vec(),
             Class {
@@ -4661,9 +4658,6 @@ impl Interp {
             m.extend_from_slice(b"\": command already exists with that name");
             return self.error(&m);
         }
-        // Replacing a gate-hidden root with a script-created object hands the
-        // name to the script, so the root identity goes with the old entry.
-        self.forget_registry_object_root(&fqn);
         let var_ns = match ns_override {
             Some(ns) => self.ensure_namespace(&ns),
             None => self.ensure_namespace(&fqn),

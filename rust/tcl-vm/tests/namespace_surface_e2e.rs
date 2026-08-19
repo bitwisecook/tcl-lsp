@@ -503,6 +503,50 @@ fn ensemble_create_checks_pair_arity_before_option_words() {
     );
 }
 
+/// `-map` is a dict, so the read-back preserves the order the pairs were given
+/// (never sorted) and a repeated key keeps its first position while taking the
+/// last value. All three expectations are tclsh 9.0.4-pinned.
+#[test]
+fn ensemble_map_preserves_dict_order_and_collapses_repeats() {
+    let setup = "namespace eval M {namespace export *\n\
+                 proc zeta {} {return Z}\n\
+                 proc alpha {} {return A}\n\
+                 proc mid {} {return M}\n\
+                 namespace ensemble create -command ::E -map {zz zeta aa alpha}}\n";
+    // Insertion order, not sorted — `aa` would sort first.
+    assert_eq!(
+        run(&format!("{setup}namespace ensemble configure ::E -map")),
+        "zz ::M::zeta aa ::M::alpha"
+    );
+    // A later `configure` replaces the map wholesale, in its own order.
+    assert_eq!(
+        run(&format!(
+            "{setup}namespace eval M {{namespace ensemble configure ::E \
+             -map {{mm mid zz zeta aa alpha}}}}\n\
+             namespace ensemble configure ::E -map"
+        )),
+        "mm ::M::mid zz ::M::zeta aa ::M::alpha"
+    );
+    // A repeated key: last value wins, first position kept.
+    assert_eq!(
+        run(&format!(
+            "{setup}namespace eval M {{namespace ensemble configure ::E \
+             -map {{zz zeta aa alpha zz mid}}}}\n\
+             namespace ensemble configure ::E -map"
+        )),
+        "zz ::M::mid aa ::M::alpha"
+    );
+    // Dispatch follows the collapsed entry, not the stale first one.
+    assert_eq!(
+        run(&format!(
+            "{setup}namespace eval M {{namespace ensemble configure ::E \
+             -map {{zz zeta aa alpha zz mid}}}}\n\
+             ::E zz"
+        )),
+        "M"
+    );
+}
+
 #[test]
 fn ensemble_configure_reads_and_writes_the_config_table() {
     let setup = "namespace eval e5 {namespace export *; proc go {} {return G}\n\

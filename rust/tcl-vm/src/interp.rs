@@ -3264,7 +3264,7 @@ impl Vm {
             Some(list) => list.clone(),
             None => self.exported_command_tails(&e.namespace),
         };
-        for k in e.map.keys() {
+        for (k, _) in &e.map {
             if !subs.contains(k) {
                 subs.push(k.clone());
             }
@@ -3274,7 +3274,12 @@ impl Vm {
         match tcl_cmd_core::ensemble::resolve_subcommand(&subs, sub.as_bytes(), e.prefixes) {
             Some(index) => {
                 let resolved = &subs[index];
-                let mut full: Vec<Value> = match e.map.get(resolved) {
+                let mut full: Vec<Value> = match e
+                    .map
+                    .iter()
+                    .find(|(k, _)| k == resolved)
+                    .map(|(_, words)| words)
+                {
                     Some(words) => words.clone(),
                     None => vec![Value::string(if e.namespace.is_empty() {
                         resolved.clone()
