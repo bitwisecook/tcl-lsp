@@ -124,6 +124,20 @@ entry point, or gate moves without this contract being updated.
   an engine that hard-codes one release's rule answers
   `subst {${a{b}c}}` wrongly on the other (#1457).
 
+  Returns `BracedVarEnd` — `Closed(offset)` or `Unterminated` — **not** an
+  `Option`. "No closer" is an error C names
+  (`MISSING_CLOSE_BRACE_FOR_VAR`, owned here too), not a benign miss, and
+  an `Option` let each consumer invent its own recovery: the VM emitted the
+  whole `${...}` literally and the WASM runtime swallowed the rest of the
+  template. Evaluating engines must raise; only a tokenizer may recover
+  (the lexer runs the name to end-of-input so it can keep tokenizing
+  half-typed source). The 9.x rule also *widens* what is unterminated —
+  `${a\}` and `${a{b}` close under 8.x but not under 9.x.
+
+  Scope: this owns the `subst`/tokenizer surface. The compiled-word path
+  (`segmenter` / `values` / `helpers`) still carries its own disagreeing
+  pair of `${...}` decoders; consolidating them is #1568.
+
 ### `tcl-cmd-core` — portable command logic
 
 - `namespace` — the pure `::` byte-ops `tail` / `qualifiers`
@@ -324,15 +338,23 @@ helper without reading the rationale:
   riding the shared list codec).
 - `rust/tcl-vm/tests/cmd_collections_e2e.rs` —
   `duplicate_dict_keys_canonicalise_last_value_wins` (every VM dict path
-  through `ValueOps::dict_pairs`).
+  through `ValueOps::dict_pairs`, including the compile-time
+  `dict create` fold) and
+  `dict_parse_errors_use_the_dict_noun_and_error_code` (#1573);
+  `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the
+  *foldable* `dict create` availability vector.
 - `rust/tcl-lexer/src/ranges.rs` —
   `braced_var_name_end_follows_the_release_rule`;
   `rust/tcl-vm/tests/cross_version_vars_e2e.rs` —
-  `subst_braced_var_close_rule_follows_the_emulated_release` and its
+  `subst_braced_var_close_rule_follows_the_emulated_release`,
+  `unterminated_braced_var_raises_on_both_releases` and their
   tclsh-pinned sibling; `runtime/rust/src/subst.rs` —
-  `braced_var_close_rule_follows_the_emulated_release`.
+  `braced_var_close_rule_follows_the_emulated_release`;
+  `runtime/rust/src/builtins.rs` —
+  `unterminated_braced_var_raises_missing_close_brace`.
 - `rust/tcl-vm/tests/language_e2e.rs` —
-  `zero_length_array_name_is_an_array_element` (`split_element_ref`).
+  `zero_length_array_name_is_an_array_element` and
+  `link_commands_reject_element_looking_names` (`split_element_ref`).
 
 ## Discoverability
 
