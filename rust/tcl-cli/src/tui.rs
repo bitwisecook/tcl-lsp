@@ -191,7 +191,11 @@ impl App {
 
 /// Run the interactive explorer over `source`/`dialect`.
 pub fn run(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> anyhow::Result<()> {
-    let data = tcl_explorer::serialise_result(&tcl_explorer::run_pipeline(source, dialect));
+    // `dialect.name`: `tcl_explorer::run_pipeline` is a documented by-name
+    // boundary (it keys the registry cache off the spelling), so the resolved
+    // profile is projected back to its canonical name here rather than the
+    // explorer API being widened. Matches `commands::explore`.
+    let data = tcl_explorer::serialise_result(&tcl_explorer::run_pipeline(source, dialect.name));
     let mut app = App::new(data);
 
     let (mut terminal, events) = init_terminal()?;

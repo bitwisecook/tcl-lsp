@@ -175,10 +175,19 @@ pub fn run_import(args: &SpecImportArgs) -> anyhow::Result<u8> {
         (local_snapshots(&args.snapshot)?, false)
     };
 
+    // The CLI dialect ingest boundary, not `by_name`: an unrecognised spelling
+    // must be an input error rather than an accidental fallback to plain Tcl.
+    // `by_name` never fails, so `--dialect klingon` would be analysed as plain
+    // Tcl *and* stamped into the generated pack's provenance line as whichever
+    // name the fallback resolved to — a pack that misreports how it was built.
+    // Matches every other dialect-taking `tcl` subcommand.
+    let dialect = tcl_cli_support::resolve_dialect(Some(&args.dialect))?
+        .expect("`Some` input resolves to `Some` or errors");
+
     let import = import_snapshots(
         &snapshots,
         &SpecImportOptions {
-            dialect: tcl_dialect::DialectProfile::by_name(&args.dialect),
+            dialect,
             package: args.package.as_deref(),
             complete_history,
         },
@@ -567,6 +576,37 @@ fn summarise(import: &SpecImport, fetched: bool) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `tcl spec import --dialect <unknown>` is an input error.
+    ///
+    /// It must not fall back to plain Tcl: the dialect both selects the
+    /// registry every snapshot is analysed against and is stamped into the
+    /// generated pack's provenance line, so a silent fallback ships a pack
+    /// that misreports how it was built. `DialectProfile::by_name` cannot
+    /// express this — it never fails — which is why this goes through the
+    /// shared CLI ingest boundary.
+    #[test]
+    fn an_unknown_import_dialect_is_rejected_rather_than_defaulted() {
+        let err = tcl_cli_support::resolve_dialect(Some("klingon"))
+            .expect_err("an unregistered dialect name must not resolve");
+        let message = err.to_string();
+        assert!(
+            message.contains("klingon"),
+            "the error must name the rejected spelling: {message}"
+        );
+
+        // FN guard: the names this command legitimately accepts still resolve,
+        // including a registered alias and the additive `tk` ingress that has
+        // no catalogue profile of its own.
+        for name in ["tcl8.6", "f5-irules", "irules", "tk"] {
+            assert!(
+                tcl_cli_support::resolve_dialect(Some(name))
+                    .expect("registered spelling resolves")
+                    .is_some(),
+                "`{name}` must still be accepted"
+            );
+        }
+    }
 
     #[test]
     fn a_tag_maps_to_the_version_it_names() {
