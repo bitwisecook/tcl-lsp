@@ -68,7 +68,7 @@ fn pack_with_a_full_hover_block() -> String {
 /// because a `hover` body is walked as an ordinary script and only the two
 /// keys that happen to name something else (`synopsis`, a scalar property;
 /// `source`, a real Tcl command) resolved. The shipped `specs/` packs write
-/// 346 of these blocks.
+/// hundreds of these blocks.
 #[test]
 fn a_hover_block_draws_no_unknown_command_diagnostics() {
     let source = pack_with_a_full_hover_block();

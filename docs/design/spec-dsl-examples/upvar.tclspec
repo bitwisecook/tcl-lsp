@@ -11,7 +11,7 @@
 # instead of carrying code, and declares the surrounding plain-data knobs
 # (composition, widening, effect coverage, commit) directly.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 command upvar {
     # A pure variable-scoping primitive — no filesystem, process, or network

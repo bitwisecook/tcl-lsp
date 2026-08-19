@@ -5,7 +5,7 @@
 # hint used as a uniform key rather than a source index, var_write_typing,
 # and named native lowering/analyser hooks.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 command foreach {
     dialects {all-tcl f5-irules}

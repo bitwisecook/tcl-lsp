@@ -17,7 +17,9 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib eda_cadence 1.0 {
+speclib eda_cadence 1.1 {
+
+display_name {Cadence EDA Shells}
 
 command add_endcap {
     dialects tcl8.4
@@ -45,6 +47,34 @@ command add_filler {
     }
 }
 
+command add_stripes {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {add_stripes}
+
+    hover {
+        summary {Add power/ground stripes to the power grid.}
+        synopsis {add_stripes}
+        description {Common-UI power-planning command; the legacy spelling is the singular camelCase addStripe. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command add_tieoffs {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {add_tieoffs}
+
+    hover {
+        summary {Tie off unused or floating pins to logic constants.}
+        synopsis {add_tieoffs}
+        description {Connects floating/constant pins to tie-high and tie-low cells (or directly to the power and ground nets). Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command add_well_tap {
     dialects tcl8.4
     required_package cadence-innovus
@@ -55,6 +85,20 @@ command add_well_tap {
         summary {Add well-tap cells.}
         synopsis {add_well_tap ?-cell cell? ?-cell_interval interval?}
         source {F5}
+    }
+}
+
+command assign_clock_tree_source_groups {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {assign_clock_tree_source_groups}
+
+    hover {
+        summary {Assign clock tree source groups.}
+        synopsis {assign_clock_tree_source_groups}
+        description {CTS setup command that groups clock sources so they are balanced together. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -71,6 +115,20 @@ command ccopt_design {
     }
 }
 
+command check_connectivity {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {check_connectivity}
+
+    hover {
+        summary {Check design connectivity.}
+        synopsis {check_connectivity}
+        description {The common-UI connectivity checker, and the real modern counterpart of the legacy verifyConnectivity. Distinct from check_drc and from verify_drc. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command check_design {
     dialects tcl8.4
     required_package cadence-innovus
@@ -81,6 +139,34 @@ command check_design {
         summary {Check the design for issues.}
         synopsis {check_design ?-all? ?-type type?}
         source {F5}
+    }
+}
+
+command check_drc {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {check_drc}
+
+    hover {
+        summary {Check the design for geometry (DRC) violations.}
+        synopsis {check_drc}
+        description {The common-UI geometry checker, and the real modern counterpart of the legacy verifyGeometry / setVerifyGeometryMode. Distinct from both check_connectivity and verify_drc. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command check_pin_assignment {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {check_pin_assignment}
+
+    hover {
+        summary {Check pin assignment for violations.}
+        synopsis {check_pin_assignment}
+        description {Common-UI pin-assignment checker; the legacy spelling is checkPinAssignment, confirmed as a separate command in the same Cadence release notes. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -97,6 +183,48 @@ command check_timing_intent {
     }
 }
 
+command clock_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {clock_design}
+
+    hover {
+        summary {Build the clock tree.}
+        synopsis {clock_design}
+        description {Clock-tree-synthesis command, distinct from ccopt_design (the CCOpt concurrent clock-and-datapath optimiser). Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command commit_power_intent {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {commit_power_intent}
+
+    hover {
+        summary {Commit the CPF/UPF power intent into the design.}
+        synopsis {commit_power_intent}
+        description {Realises the low-power intent in the netlist: tie cells, isolation cells, level shifters and retention flops. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command connect_global_net {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {connect_global_net}
+
+    hover {
+        summary {Connect power/ground pins to global nets.}
+        synopsis {connect_global_net}
+        description {The common-UI replacement for the legacy globalNetConnect (whose confirmed legacy form is globalNetConnect VDD -type pgpin -pin VDD -inst * -verbose). Cadence's convert_legacy_to_common_ui utility exists specifically to translate calls like this. Option literals for the common-UI form are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command create_analysis_view {
     dialects tcl8.4
     arity 1..
@@ -108,6 +236,34 @@ command create_analysis_view {
         summary {Create an analysis view combining mode and corner.}
         synopsis {create_analysis_view -name name -constraint_mode mode -delay_corner corner}
         source {F5}
+    }
+}
+
+command create_ccopt_clock_tree_spec {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {create_ccopt_clock_tree_spec}
+
+    hover {
+        summary {Create a CCOpt clock tree specification.}
+        synopsis {create_ccopt_clock_tree_spec}
+        description {The CCOpt-specific clock-tree spec builder, newer than and distinct from create_clock_tree_spec. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command create_clock_tree_spec {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {create_clock_tree_spec}
+
+    hover {
+        summary {Create a clock tree specification.}
+        synopsis {create_clock_tree_spec}
+        description {Builds the CTS spec from the design's clocks; see create_ccopt_clock_tree_spec for the CCOpt-specific variant. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -147,7 +303,7 @@ command create_floorplan {
 
     hover {
         summary {Create a floorplan.}
-        synopsis {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-core_margins_by die|core? mar}
+        synopsis {create_floorplan ?-core_utilization util? ?-core_aspect_ratio ratio? ?-core_margins_by die|core? margins}
         source {F5}
     }
 }
@@ -173,8 +329,9 @@ command dbGet {
     form Default {dbGet object_spec.attribute ?-regexp pattern? ?-e?}
 
     hover {
-        summary {Get a design database object attribute (legacy).}
+        summary {Get a design database object attribute (legacy UI).}
         synopsis {dbGet object_spec.attribute ?-regexp pattern? ?-e?}
+        description {"Legacy UI" here names the pre-common-UI command set, not an obsolete command: dbGet, dbQuery and dbShape are still serviced in current releases (all three appear by exact name in Cadence's Innovus 19.1 CCR fixed-bug list, alongside get_db/set_db) and remain the primary low-level object-model accessors. They coexist with the common-UI get_db/set_db rather than being superseded by them.}
         source {F5}
     }
 }
@@ -186,8 +343,9 @@ command dbQuery {
     form Default {dbQuery ?-area box? ?-objType type?}
 
     hover {
-        summary {Query design database objects (legacy).}
+        summary {Query design database objects (legacy UI).}
         synopsis {dbQuery ?-area box? ?-objType type?}
+        description {Legacy-UI naming, not an obsolete command — see dbGet. Confirmed by exact name in Cadence's Innovus 19.1 CCR fixed-bug list.}
         source {F5}
     }
 }
@@ -199,8 +357,9 @@ command dbSet {
     form Default {dbSet object_spec.attribute value}
 
     hover {
-        summary {Set a design database object attribute (legacy).}
+        summary {Set a design database object attribute (legacy UI).}
         synopsis {dbSet object_spec.attribute value}
+        description {Legacy-UI naming, not an obsolete command — see dbGet. The write half of the dbGet family; it coexists with the common-UI set_db.}
         source {F5}
     }
 }
@@ -212,9 +371,38 @@ command dbShape {
     form Default {dbShape ?-shape type? ?-net net_name?}
 
     hover {
-        summary {Access shape data from the design database (legacy).}
+        summary {Access shape data from the design database (legacy UI).}
         synopsis {dbShape ?-shape type? ?-net net_name?}
+        description {Legacy-UI naming, not an obsolete command — see dbGet. Confirmed by exact name in Cadence's Innovus 19.1 CCR fixed-bug list.}
         source {F5}
+    }
+}
+
+command delete_constant_nets {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {delete_constant_nets}
+
+    hover {
+        summary {Delete constant (tied 1'b1 / 1'b0) nets.}
+        synopsis {delete_constant_nets}
+        description {The common-UI replacement for the legacy deleteDangling1b1Or0s — Cadence gives both names together in its own release notes. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command eco_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {eco_design}
+
+    hover {
+        summary {Run the ECO implementation flow.}
+        synopsis {eco_design}
+        description {ECO-flow entry point, distinct from place_opt_design. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -244,6 +432,20 @@ command elaborate {
     }
 }
 
+command fcroute {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {fcroute}
+
+    hover {
+        summary {Route flip-chip bumps and RDL (legacy UI).}
+        synopsis {fcroute}
+        description {Flip-chip router. Like sroute, no common-UI (underscored) equivalent was found — it keeps its legacy spelling in current flows; it appears by exact name in Cadence's Innovus 19.1 CCR fixed-bug list. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command get_db {
     dialects tcl8.4
     required_package cadence-common
@@ -270,6 +472,12 @@ command init_design {
     }
 }
 
+;# NOTE(eda): this bare underscored spelling is UNCONFIRMED. It appears in no
+;# Cadence-authored source checked: ~350 Innovus 19.1 CCR bug titles carry the
+;# legacy optDesign (-postRoute, -postCTS -hold, -drv) and the common-UI
+;# place_opt_design instead, and no tutorial uses opt_design. Kept because
+;# absence of evidence is not proof of non-existence; re-check against a
+;# primary source (Innovus Stylus Common UI Text Command Reference).
 command opt_design {
     dialects tcl8.4
     required_package cadence-innovus
@@ -283,6 +491,20 @@ command opt_design {
     }
 }
 
+command place_design {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {place_design ?-concurrent_macros?}
+
+    hover {
+        summary {Place the design.}
+        synopsis {place_design ?-concurrent_macros?}
+        description {Placement only, without the optimisation that place_opt_design folds in. The legacy placeDesign (confirmed in Cadence's own release notes as placeDesign -noPrePlaceOpt) was split across these two common-UI commands.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command place_opt_design {
     dialects tcl8.4
     required_package cadence-innovus
@@ -293,6 +515,20 @@ command place_opt_design {
         summary {Perform placement and optimization.}
         synopsis {place_opt_design ?-effort effort? ?-incremental?}
         source {F5}
+    }
+}
+
+command read_db {
+    dialects tcl8.4
+    required_package cadence-common
+
+    form Default {read_db file_name}
+
+    hover {
+        summary {Restore a design from a common-UI database.}
+        synopsis {read_db file_name}
+        description {The common-UI database reader, paired with write_db; together they replace the legacy restoreDesign / saveDesign. Available across the common-UI tools (Innovus, Genus, Tempus).}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -480,6 +716,20 @@ command route_design {
     }
 }
 
+command route_fix_signoff_drc {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {route_fix_signoff_drc}
+
+    hover {
+        summary {Fix signoff DRC violations by rerouting.}
+        synopsis {route_fix_signoff_drc}
+        description {Post-route command that drives the router from signoff-DRC results. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
+    }
+}
+
 command set_analysis_view {
     dialects tcl8.4
     required_package cadence-innovus
@@ -507,16 +757,31 @@ command set_db {
     }
 }
 
-command stream_out {
+command sroute {
     dialects tcl8.4
     required_package cadence-innovus
 
-    form Default {stream_out file_name ?-mapFile map?}
+    form Default {sroute ?-nets net_list?}
 
     hover {
-        summary {Stream out a GDSII file (legacy).}
-        synopsis {stream_out file_name ?-mapFile map?}
-        source {F5}
+        summary {Route special (power/ground) nets (legacy UI).}
+        synopsis {sroute ?-nets net_list?}
+        description {Special routing: connects power/ground nets to followpins, stripes, rings and block pins. No common-UI (underscored) equivalent was found — sroute keeps its legacy spelling even in current common-UI flows; it appears by exact name in Cadence's Innovus 19.1 CCR fixed-bug list.}
+        source {Cadence release notes / RAK}
+    }
+}
+
+command streamOut {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {streamOut file_name ?-merge gds_files? ?-mapFile map?}
+
+    hover {
+        summary {Stream out a GDSII file (legacy UI).}
+        synopsis {streamOut file_name ?-merge gds_files? ?-mapFile map?}
+        description {The GDSII writer of the legacy (pre-common-UI) Innovus/Encounter command set, spelled as one camelCase word — there is no underscored stream_out. It belongs to the same legacy camelCase family as oasisOut, defIn/defOut, floorPlan, globalNetConnect, placeDesign, optDesign, verifyGeometry and saveDesign/restoreDesign. The common-UI GDSII writer is believed to be write_gds, but that pairing is not confirmed by Cadence-authored material.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -585,6 +850,12 @@ command update_timing {
     }
 }
 
+;# NOTE(eda): this underscored spelling is UNCONFIRMED — it looks like a guess
+;# at an underscored form of the legacy verb. Cadence's own 19.1 CCR text
+;# carries the legacy verifyConnectivity and, separately, the common-UI
+;# check_connectivity (added below) as the real modern command. Kept because
+;# absence of evidence is not proof of non-existence; re-check against a
+;# primary source before removing.
 command verify_connectivity {
     dialects tcl8.4
     required_package cadence-innovus
@@ -611,6 +882,12 @@ command verify_drc {
     }
 }
 
+;# NOTE(eda): this underscored spelling is UNCONFIRMED — it looks like a guess
+;# at an underscored form of the legacy verb. Cadence's own 19.1 CCR text
+;# carries the legacy verifyGeometry / setVerifyGeometryMode and, separately,
+;# the common-UI check_drc (added above) as the real modern command. Kept
+;# because absence of evidence is not proof of non-existence; re-check against
+;# a primary source before removing.
 command verify_geometry {
     dialects tcl8.4
     required_package cadence-innovus
@@ -621,6 +898,20 @@ command verify_geometry {
         summary {Verify design geometry (DRC).}
         synopsis {verify_geometry ?-error n?}
         source {F5}
+    }
+}
+
+command write_db {
+    dialects tcl8.4
+    required_package cadence-common
+
+    form Default {write_db file_name}
+
+    hover {
+        summary {Save the design to a common-UI database.}
+        synopsis {write_db file_name}
+        description {The common-UI database writer, paired with read_db; together they replace the legacy saveDesign / restoreDesign (saveDesign -relativePath is a confirmed legacy flag). Available across the common-UI tools (Innovus, Genus, Tempus).}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -660,6 +951,20 @@ command write_do_lec {
         summary {Write a Conformal LEC do file.}
         synopsis {write_do_lec ?-revised_design design? ?-logicEquivalence? > file}
         source {F5}
+    }
+}
+
+command write_extraction_spec {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_extraction_spec ?-rc_corners rc_corner_list?}
+
+    hover {
+        summary {Write the RC-extraction (QRC) specification file.}
+        synopsis {write_extraction_spec ?-rc_corners rc_corner_list?}
+        description {Emits the extraction spec consumed by the signoff extractor. -rc_corners is the one option confirmed by Cadence-authored material; other option literals are not carried here.}
+        source {Cadence release notes / RAK}
     }
 }
 
@@ -712,6 +1017,20 @@ command write_sdc {
         summary {Write SDC constraints.}
         synopsis {write_sdc > file}
         source {F5}
+    }
+}
+
+command write_timing_model {
+    dialects tcl8.4
+    required_package cadence-innovus
+
+    form Default {write_timing_model}
+
+    hover {
+        summary {Write an abstracted timing model (ILM/ETM) for the block.}
+        synopsis {write_timing_model}
+        description {Emits the block-level timing abstraction used when the block is instantiated at the next level up. Option literals are not carried here because no Cadence-authored source confirmed them.}
+        source {Cadence release notes / RAK}
     }
 }
 

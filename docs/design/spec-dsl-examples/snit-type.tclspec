@@ -31,7 +31,7 @@
 # `DefinitionBodyGrammar` (14) is either written below or is at its Rust
 # default; see README's fidelity table.
 
-speclib tcllib 1.0 {
+speclib tcllib 1.1 {
 
 command snit::type {
     # snit::type carries `dialects: None` in the .rs — deliberately

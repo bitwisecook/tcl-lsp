@@ -1247,41 +1247,30 @@ function scheduleCompile() {
 
 // Replace the dropdown's <option> list from data.meta.dialects on the
 // first compile result.  Preserves the current selection if it's still
-// valid; otherwise falls back to tcl8.6.  Avoids hardcoding the dialect
-// list in HTML — adding a dialect is a one-line backend change.
-const DIALECT_LABELS = {
-  'cadence-eda-tcl': 'Cadence EDA',
-  'expect': 'Expect',
-  'f5-bigip': 'F5 BIG-IP',
-  'f5-iapps': 'F5 iApps',
-  'f5-irules': 'F5 iRules',
-  'f5-tmsh': 'F5 TMSH',
-  'intel-quartus-eda-tcl': 'Intel Quartus',
-  'mentor-eda-tcl': 'Mentor EDA',
-  'synopsys-eda-tcl': 'Synopsys EDA',
-  'tcl8.4': 'Tcl 8.4',
-  'tcl8.5': 'Tcl 8.5',
-  'tcl8.6': 'Tcl 8.6',
-  'tcl9.0': 'Tcl 9.0',
-  'tcl9.1': 'Tcl 9.1',
-  'xilinx-eda-tcl': 'Xilinx EDA',
-};
+// valid; otherwise falls back to tcl8.6.  Entries arrive from the backend
+// as {name, displayName, shortName} — the catalog's own labels — so no
+// name table lives in this file; a bare-string entry (an older backend)
+// labels itself.
 function populateDialectOptions(dialects) {
   if (!Array.isArray(dialects) || dialects.length === 0) return;
   const sel = $('#dialect');
   if (!sel) return;
+  const entries = dialects.map(d =>
+    typeof d === 'string' ? { name: d, shortName: d } : d);
   // Skip when the option list already matches (every compile after the
   // first would otherwise rebuild the dropdown).
+  const names = entries.map(e => e.name);
   const have = Array.from(sel.options).map(o => o.value).join(',');
-  const want = dialects.slice().sort().join(',');
+  const want = names.slice().sort().join(',');
   if (have === want) return;
   const current = sel.value;
   sel.innerHTML = '';
-  for (const id of [...dialects].sort()) {
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
     const opt = document.createElement('option');
-    opt.value = id;
-    opt.textContent = DIALECT_LABELS[id] || id;
-    if (id === current || (dialects.indexOf(current) < 0 && id === 'tcl8.6')) {
+    opt.value = entry.name;
+    opt.textContent = entry.shortName || entry.name;
+    if (entry.name === current || (names.indexOf(current) < 0 && entry.name === 'tcl8.6')) {
       opt.selected = true;
     }
     sel.appendChild(opt);
