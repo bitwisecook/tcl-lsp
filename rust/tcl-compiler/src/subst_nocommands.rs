@@ -196,6 +196,33 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so which
+    /// name is looked up moves with the release rather than being pinned to
+    /// 8.x at every release.
+    #[test]
+    fn braced_var_close_rule_follows_the_release() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let m = map_of(&[("a{b}c", "NESTED"), ("a{b", "FIRST")]);
+        // Both names are rejected by `is_complex_var_name` (a `{` is not a
+        // name byte), so the fold declines either way — but it must decline
+        // for the *right* reason: with a plain name after the nested pair the
+        // two rules pick different bytes.
+        assert!(subst_nocommands("${a{b}c}", &m, Tcl9Nesting).is_none());
+        assert!(subst_nocommands("${a{b}c}", &m, FirstClose).is_none());
+
+        // `${x}}` — 9.x ends the name at the first `}` (depth 0), leaving a
+        // literal `}`; so does 8.x. The rules agree here, and the trailing
+        // brace is preserved rather than eaten.
+        let m2 = map_of(&[("x", "V")]);
+        assert_eq!(
+            subst_nocommands("${x}}", &m2, Tcl9Nesting).as_deref(),
+            Some("V}")
+        );
+        // An unterminated reference is an error C names, so the fold declines
+        // rather than running the name to end-of-input.
+        assert!(subst_nocommands("${x", &m2, Tcl9Nesting).is_none());
+    }
+
     #[test]
     fn braced_var_substitution() {
         let m = map_of(&[("name", "world")]);

@@ -1117,6 +1117,25 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the textual use scan reads `${…}` through the shared
+    /// owner, so a nested-brace name is recognised as a use.
+    ///
+    /// `false` here *permits* the sink, so a name this scan misses moves the
+    /// definition past a real read — a miscompile, not a lost optimisation.
+    /// Under the default (9.x) rule `${a{b}c}` names `a{b}c`; under 8.x it
+    /// names `a{b` and `c}` is ordinary word text.
+    #[test]
+    fn text_references_var_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        assert!(text_references_var("puts ${a{b}c}", "a{b}c", Tcl9Nesting));
+        assert!(!text_references_var("puts ${a{b}c}", "a{b", Tcl9Nesting));
+        assert!(text_references_var("puts ${a{b}c}", "a{b", FirstClose));
+        assert!(!text_references_var("puts ${a{b}c}", "a{b}c", FirstClose));
+        // An unterminated reference names nothing, but must not hide a later
+        // ordinary reference in the same word.
+        assert!(text_references_var("${a{b $x", "x", Tcl9Nesting));
+    }
+
     /// Issue #1402 — the conservative direction directly: a `Barrier` (and
     /// an `UpFrame`) answers "uses every variable", matching
     /// `propagation`'s `has_intervening_barrier`.

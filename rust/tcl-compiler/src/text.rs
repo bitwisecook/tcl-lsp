@@ -603,6 +603,32 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// variable the fold resolves is the one the lexer spanned.
+    #[test]
+    fn fold_interpolation_braced_close_rule_follows_the_release() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let vars = |name: &str| match name {
+            "a{b}c" => Some("NESTED".to_owned()),
+            "a{b" => Some("FIRST".to_owned()),
+            _ => None,
+        };
+        assert_eq!(
+            fold_interpolation_single("x=${a{b}c}", Tcl9Nesting, vars),
+            Some("x=NESTED".to_owned())
+        );
+        assert_eq!(
+            fold_interpolation_single("x=${a{b}c}", FirstClose, vars),
+            Some("x=FIRSTc}".to_owned())
+        );
+        // An unterminated reference abstains — the module-wide rule is that we
+        // never guess.
+        assert_eq!(
+            fold_interpolation_single("x=${a{b", Tcl9Nesting, vars),
+            None
+        );
+    }
+
     #[test]
     fn fold_interpolation_single_resolves_braced_form() {
         assert_eq!(

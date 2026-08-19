@@ -6239,6 +6239,34 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// name taint is keyed on is the one the lexer spanned.
+    ///
+    /// Taint is name-keyed: a scan that recovers `a{b` where the document's
+    /// lexer spanned `a{b}c` looks up a cell nothing ever writes, so the
+    /// tainted value's colour is lost and the sink diagnostics that depend on
+    /// it (T1xx, W313) go quiet on a flow they should flag. Oracle:
+    /// `set {a{b}c} 7; subst {${a{b}c}}` is `7` on tclsh 9.0.4 and
+    /// `can't read "a{b"` on 8.6.16.
+    #[test]
+    fn arg_var_names_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        assert_eq!(
+            arg_var_names("/tmp/${a{b}c}", Tcl9Nesting),
+            HashSet::from(["a{b}c".to_owned()])
+        );
+        assert_eq!(
+            arg_var_names("/tmp/${a{b}c}", FirstClose),
+            HashSet::from(["a{b".to_owned()])
+        );
+        // The scan resumes past the reference under either rule, so a second
+        // ordinary reference in the same word is still collected.
+        assert_eq!(
+            arg_var_names("${a{b}c}/$tail", Tcl9Nesting),
+            HashSet::from(["a{b}c".to_owned(), "tail".to_owned()])
+        );
+    }
+
     /// `arg_var_names` vs. `crate::var_refs::vars_in_word` on the tricky
     /// shapes the centralisation question
     /// turns on. The two are **not** interchangeable — each is right where

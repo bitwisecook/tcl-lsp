@@ -3259,6 +3259,34 @@ mod tests {
 
     // internal helpers
 
+    /// Issue #1604 — the `${…}` closer comes from the shared owner, so the
+    /// constant this rewrite inlines belongs to the name the lexer spanned.
+    ///
+    /// The rewritten text is written back into the document as an O100 fix, so
+    /// resolving the wrong name substitutes some other variable's value into
+    /// the user's string.
+    #[test]
+    fn substitute_dollar_refs_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let mut c = std::collections::HashMap::new();
+        c.insert("a{b}c".to_owned(), "NESTED".to_owned());
+        c.insert("a{b".to_owned(), "FIRST".to_owned());
+
+        // 9.x names `a{b}c`; the whole reference is consumed.
+        assert_eq!(
+            substitute_dollar_refs("v=${a{b}c}", &c, Tcl9Nesting).as_deref(),
+            Some("v=NESTED")
+        );
+        // 8.x names `a{b`, and `c}` stays as literal word text.
+        assert_eq!(
+            substitute_dollar_refs("v=${a{b}c}", &c, FirstClose).as_deref(),
+            Some("v=FIRSTc}")
+        );
+        // An unterminated reference declines the whole rewrite rather than
+        // inventing a name that runs to end-of-input.
+        assert!(substitute_dollar_refs("v=${a{b", &c, Tcl9Nesting).is_none());
+    }
+
     #[test]
     fn simple_var_ref_parses_bare_and_braced() {
         assert_eq!(simple_var_ref("$foo"), Some("foo"));

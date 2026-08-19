@@ -822,6 +822,30 @@ fn scan_command(
 }
 
 #[cfg(test)]
+mod braced_var_close_rule_tests {
+    use super::dynamic_variable_word_can_spell_for_style as can_spell;
+    use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+
+    /// Issue #1604 — the wildcard extents come from the shared owner, so the
+    /// *literal* characters that bound what a dynamic word can spell move with
+    /// the release.
+    ///
+    /// Under the default (9.x) rule `${a{b}c}` is one wildcard and can spell
+    /// any cell; under 8.x the name ends at the first `}` and the literal `c}`
+    /// remains, which no ordinary cell name ends with. A narrower pattern is
+    /// the unsafe direction: it judges a cell the word really can reach as out
+    /// of reach, and rename proceeds.
+    #[test]
+    fn wildcard_extent_follows_the_release_close_rule() {
+        assert!(can_spell("${a{b}c}", "::v", Tcl9Nesting));
+        assert!(!can_spell("${a{b}c}", "::v", FirstClose));
+        // With the 8.x remainder actually present in the cell name, the
+        // narrower pattern does match — the literal run is the whole bound.
+        assert!(can_spell("${a{b}c}", "::xc}", FirstClose));
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

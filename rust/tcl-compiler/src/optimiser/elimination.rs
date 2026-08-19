@@ -1755,6 +1755,36 @@ mod tests {
         );
     }
 
+    /// Issue #1604 — the textual liveness harvest reads `${…}` through the
+    /// shared owner, so the name it keeps alive is the one the lexer spanned.
+    ///
+    /// This scan is *suppress-only*: a name it fails to see lets O109 delete a
+    /// live store and W211 call a read variable unused. Under the default (9.x)
+    /// rule the reference names `a{b}c`; under 8.x it names `a{b` and `c}` is
+    /// ordinary word text. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7` on
+    /// tclsh 9.0.4 and `can't read "a{b"` on 8.6.16 (`Tcl_ParseVarName`,
+    /// `tclParse.c:1315` vs `:1398`).
+    #[test]
+    fn scan_dollar_refs_follows_the_release_close_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let names = |slice: &str, style| {
+            let mut out = HashSet::new();
+            scan_dollar_refs(slice, style, &mut out);
+            let mut v: Vec<String> = out.into_iter().collect();
+            v.sort();
+            v
+        };
+
+        assert_eq!(names("puts ${a{b}c}", Tcl9Nesting), vec!["a{b}c".to_owned()]);
+        assert_eq!(names("puts ${a{b}c}", FirstClose), vec!["a{b".to_owned()]);
+        assert_eq!(names(r"puts ${a\}b}", Tcl9Nesting), vec![r"a\}b".to_owned()]);
+        assert_eq!(names(r"puts ${a\}b}", FirstClose), vec![r"a\".to_owned()]);
+
+        // A `${…}` that never closes yields no name, and must not swallow the
+        // rest of the slice: the following `$tail` is still harvested.
+        assert_eq!(names("${a{b $tail", Tcl9Nesting), vec!["tail".to_owned()]);
+    }
+
     #[test]
     fn collect_textual_var_references_detects_set_one_arg_read() {
         // ``[set varname]`` (1-arg form) is a variable read; without

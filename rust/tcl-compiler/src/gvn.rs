@@ -2564,6 +2564,45 @@ mod tests {
         assert_eq!(canonicalise_word("${x}", &uses, &ssa, STYLE), "$x@3");
     }
 
+    /// Issue #1604 — the `${…}` closer follows the release rule, so a
+    /// nested-brace name is *versioned* rather than copied through verbatim.
+    ///
+    /// The verbatim copy is the unsound half: two occurrences of `${a{b}c}` at
+    /// different SSA versions both render to the same literal text, so their
+    /// `ExprKey`s match and GVN reports the second as redundant — a CSE that
+    /// reuses a stale value. Oracle: `set {a{b}c} 7; subst {${a{b}c}}` is `7`
+    /// on tclsh 9.0.4 and `can't read "a{b"` on 8.6.16.
+    #[test]
+    fn canonicalise_braced_var_follows_the_release_rule() {
+        use tcl_dialect::BracedVarStyle::{FirstClose, Tcl9Nesting};
+        let mut ssa = bare_ssa();
+        let mut uses = HashMap::new();
+        let nested = ssa.intern_var("a{b}c");
+        let first = ssa.intern_var("a{b");
+        uses.insert(nested, 4);
+        uses.insert(first, 9);
+
+        // 9.x: the whole name is `a{b}c`, so the reference carries its version.
+        assert_eq!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
+            "$a{b}c@4"
+        );
+        // 8.x: the name ends at the first `}` and `c}` is ordinary word text.
+        assert_eq!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, FirstClose),
+            "$a{b@9c}"
+        );
+
+        // Two versions of the same nested name must not canonicalise alike —
+        // the property the unsound CSE turned on.
+        let mut other = HashMap::new();
+        other.insert(nested, 5);
+        assert_ne!(
+            canonicalise_word("${a{b}c}", &uses, &ssa, Tcl9Nesting),
+            canonicalise_word("${a{b}c}", &other, &ssa, Tcl9Nesting),
+        );
+    }
+
     #[test]
     fn canonicalise_sorts_by_name_length_desc() {
         // `$longname` must be replaced before `$long` so the
