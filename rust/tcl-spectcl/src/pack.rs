@@ -289,6 +289,11 @@ pub(crate) fn load_sources(
         packs.push(merge_group(&name, winning_tier, winners, &mut notices));
     }
 
+    // Cross-pack collisions, once every pack is merged — the only point where
+    // all of them are known at once (issue #1637).
+    notices.extend(cross_pack_command_notices(&packs));
+    notices.extend(cross_pack_extension_notices(&packs));
+
     notices.sort_by(|a, b| {
         (&a.path, a.line, &a.context, &a.message).cmp(&(&b.path, b.line, &b.context, &b.message))
     });
@@ -305,6 +310,179 @@ pub(crate) fn load_sources(
     // source of truth for its own extensions.
     tcl_registry::dialects::register_pack_extension_dialects(set.extension_dialects());
     set
+}
+
+/// Report every command name two *different* packs both claim.
+///
+/// The in-pack duplicate is caught by [`merge_group`] and the shipped-command
+/// clash by [`collision_notices`]; between two packs there was nothing at all
+/// before issue #1637 — the loser was dropped by [`installs_over`] and the
+/// winner decided by pack-name sort order, in silence.
+///
+/// This walks the packs in exactly the order [`crate::install::install_into`]
+/// does and applies the same rule, so the notice can never disagree with what
+/// actually reached the registry: a later claim wins only if it says
+/// `-override`, and either way the losing declaration is named.
+///
+/// # The vendor gate applies here too
+///
+/// [`crate::install::install_into`] skips a command whose `required_package`
+/// names a closed-world vendor package the profile does not ship, which is
+/// what lets the bundled tier carry all six EDA libraries at once: four of
+/// them declare a `report_timing`, and they never meet because no profile
+/// admits two vendors. A collision check that ignored that gate would report
+/// every one of those as a clash — a dozen warnings on the *shipped* packs, in
+/// every user's Problems panel, for something that cannot happen.
+///
+/// So two claims collide only when some profile would install both, which
+/// [`could_collide`] asks exactly.
+///
+/// # Two shipped packs layering on purpose is not a collision either
+///
+/// `sdc_base` declares the SDC commands every EDA vendor implements, and each
+/// vendor pack then declares its own richer spec for the same name. On a
+/// Cadence profile both are admitted and `eda_cadence` wins on pack-name
+/// order — which is the intended layering, not an accident. Reporting it would
+/// put six warnings on the shipped packs that no user can act on.
+///
+/// So a collision between two **bundled** packs is left alone. Every other
+/// combination is reported, including a workspace pack shadowing a bundled
+/// one, which is exactly the case a user can do something about.
+fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
+    /// The claim currently holding a name.
+    struct Claim {
+        pack: String,
+        file: PathBuf,
+        line: u32,
+        package: Option<&'static str>,
+        tier: Tier,
+    }
+
+    let mut out = Vec::new();
+    let mut claimed: BTreeMap<&'static str, Claim> = BTreeMap::new();
+
+    for pack in packs {
+        for command in &pack.commands {
+            let claim = Claim {
+                pack: pack.name.clone(),
+                file: command.file.clone(),
+                line: command.line,
+                package: command.spec.required_package,
+                tier: pack.tier,
+            };
+            let Some(prior) = claimed.get(command.spec.name) else {
+                claimed.insert(command.spec.name, claim);
+                continue;
+            };
+            let (prior_pack, prior_file, prior_line) = (&prior.pack, &prior.file, prior.line);
+            if !could_collide(prior.package, command.spec.required_package) {
+                // Different vendors: no profile admits both, so neither is
+                // shadowing the other. Leave the standing claim in place.
+                continue;
+            }
+            if prior.tier == Tier::Bundled && pack.tier == Tier::Bundled {
+                // Shipped layering — see the note above.
+                continue;
+            }
+            if command.overrides_shipped {
+                // This one replaces the standing claim; the notice belongs on
+                // the declaration that just lost its place.
+                out.push(PackNotice {
+                    path: prior_file.clone(),
+                    line: prior_line,
+                    context: format!("command {}", command.spec.name),
+                    message: format!(
+                        "`{}` is also declared by pack `{}` ({}:{}) with `-override`, \
+                         which replaces this one",
+                        command.spec.name,
+                        pack.name,
+                        command.file.display(),
+                        command.line
+                    ),
+                    severity: Severity::Warning,
+                });
+                claimed.insert(command.spec.name, claim);
+            } else {
+                out.push(PackNotice {
+                    path: command.file.clone(),
+                    line: command.line,
+                    context: format!("command {}", command.spec.name),
+                    message: format!(
+                        "`{}` is already declared by pack `{prior_pack}` ({}:{prior_line}); \
+                         that declaration wins and this one is not installed \
+                         (declare it `-override` to replace it)",
+                        command.spec.name,
+                        prior_file.display()
+                    ),
+                    severity: Severity::Warning,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// Whether two commands' `required_package`s can ever be live in one registry.
+///
+/// The exact question [`crate::install::install_into`]'s vendor gate answers,
+/// asked across every profile rather than for one: two declarations collide
+/// only if some profile would admit both. Two different closed-world EDA
+/// vendors never do, which is why the six shipped loadables can all declare a
+/// `report_timing` without shadowing each other.
+///
+/// Identical requirements short-circuit to `true` — the common case, and one
+/// no profile sweep could disagree with.
+fn could_collide(a: Option<&'static str>, b: Option<&'static str>) -> bool {
+    use tcl_registry::profile_queries::ProfileQueries as _;
+
+    if a == b {
+        return true;
+    }
+    tcl_dialect::DialectProfile::all()
+        .iter()
+        .any(|profile| profile.package_available(a) && profile.package_available(b))
+}
+
+/// Report every `file_extension` two different packs both claim.
+///
+/// One owner per extension is the invariant, and [`PackSet::extension_dialects`]
+/// enforces it by dropping all but the first — silently, before issue #1637.
+/// The loser matters more here than for a command: an extension routed to the
+/// wrong dialect mis-lexes every file of that type.
+///
+/// Only rows carrying a `-dialect` can collide in the sense that matters, since
+/// those are the ones `extension_dialects` publishes for routing.
+fn cross_pack_extension_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
+    let mut out = Vec::new();
+    // extension -> (pack name, dialect) of the row that owns the routing.
+    let mut owner: BTreeMap<String, (String, &'static str)> = BTreeMap::new();
+
+    for pack in packs {
+        for row in &pack.file_extensions {
+            let Some(dialect) = row.dialect else {
+                continue;
+            };
+            let file = pack.files.first().cloned().unwrap_or_default();
+            match owner.get(&row.extension) {
+                Some((prior_pack, prior_dialect)) => out.push(PackNotice {
+                    path: file,
+                    line: row.line,
+                    context: format!("file_extension {}", row.extension),
+                    message: format!(
+                        "`.{}` is already claimed by pack `{prior_pack}` (routing to \
+                         `{prior_dialect}`); one extension has one owner, so this row's \
+                         `-dialect {dialect}` is not used",
+                        row.extension
+                    ),
+                    severity: Severity::Warning,
+                }),
+                None => {
+                    owner.insert(row.extension.clone(), (pack.name.clone(), dialect));
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Merge one tier's files for one pack name, first-definition-wins.
@@ -325,7 +503,7 @@ fn merge_group(
     };
     // Where each command name was first defined, so the duplicate notice can
     // name the file that won rather than just saying "somewhere else".
-    let mut first_seen: BTreeMap<&'static str, PathBuf> = BTreeMap::new();
+    let mut first_seen: BTreeMap<&'static str, (PathBuf, u32)> = BTreeMap::new();
     let first_file = merged.files.first().cloned().unwrap_or_default();
 
     for (file, pack) in files {
@@ -359,23 +537,39 @@ fn merge_group(
                 merged.file_extensions.push(row);
             }
         }
-        for command in pack.commands {
-            if let Some(first) = first_seen.get(command.spec.name) {
+        for mut command in pack.commands {
+            // The merge is the only layer that knows which file a command came
+            // from, so this is where that gets recorded (issues #1637, #1638).
+            command.file.clone_from(&file.path);
+            if let Some((first_path, first_line)) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
                     path: file.path.clone(),
-                    line: 1,
+                    // The *ignored* declaration's own line, not line 1. The
+                    // squiggle belongs on the duplicate the author can delete,
+                    // not on the `speclib` header (issue #1638).
+                    line: command.line,
                     context: format!("command {}", command.spec.name),
-                    message: format!(
-                        "`{}` is already defined in pack `{name}` by {}; \
-                         this definition is ignored",
-                        command.spec.name,
-                        first.display()
-                    ),
+                    message: if *first_path == file.path {
+                        // Same file: naming the path the reader already has
+                        // open tells them nothing — the line does.
+                        format!(
+                            "`{}` is already defined on line {first_line} of this file; \
+                             this definition is ignored",
+                            command.spec.name
+                        )
+                    } else {
+                        format!(
+                            "`{}` is already defined in pack `{name}` by {}:{first_line}; \
+                             this definition is ignored",
+                            command.spec.name,
+                            first_path.display()
+                        )
+                    },
                     severity: Severity::Warning,
                 });
                 continue;
             }
-            first_seen.insert(command.spec.name, file.path.clone());
+            first_seen.insert(command.spec.name, (file.path.clone(), command.line));
             merged.commands.push(command);
         }
     }

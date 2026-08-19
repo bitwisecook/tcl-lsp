@@ -710,10 +710,23 @@ fn duplicate_command_declarations_are_reported_and_the_first_wins() {
         1,
         "the duplicate must not be installed twice"
     );
+    // The notice lands on the *ignored* declaration (line 3 here), not on the
+    // file's first line, and does not send the reader to the path they already
+    // have open (issue #1638).
+    let in_file = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("already defined"))
+        .expect("the in-file duplicate must be reported");
+    assert_eq!(
+        in_file.line, 3,
+        "the squiggle belongs on the duplicate the author can delete, got line {}",
+        in_file.line
+    );
     assert!(
-        notice_text(&set).contains("already defined"),
-        "the in-file duplicate must be reported: {}",
-        notice_text(&set)
+        in_file.message.contains("on line 2 of this file"),
+        "an in-file duplicate must name the winning line, not the path: {}",
+        in_file.message
     );
 
     // Across two files of one pack.
@@ -752,10 +765,15 @@ fn duplicate_command_declarations_are_reported_and_the_first_wins() {
         1,
         "merge order is sorted path order, so `a-first` wins"
     );
+    let cross_file = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("already defined in pack"))
+        .expect("the cross-file duplicate must be reported");
     assert!(
-        notice_text(&set).contains("already defined"),
-        "the cross-file duplicate must be reported: {}",
-        notice_text(&set)
+        cross_file.message.contains("a-first.tclspec:2"),
+        "a cross-file duplicate names the winning file *and* line: {}",
+        cross_file.message
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -801,6 +819,115 @@ fn two_packs_claiming_one_command_install_deterministically() {
         "which pack wins a contested command must be deterministic"
     );
 
+    // Deterministic is not enough on its own — the losing author has to be
+    // told, on their own declaration, which is what issue #1637 was about.
+    let notice = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("is already declared by pack"))
+        .expect("a cross-pack command collision must be reported");
+    assert!(
+        notice.path.ends_with("beta.tclspec") && notice.line == 2,
+        "the notice belongs on the declaration that lost, got {}:{}",
+        notice.path.display(),
+        notice.line
+    );
+    assert!(
+        notice.message.contains("`alpha`") && notice.message.contains("-override"),
+        "and must name the winner and the way out: {}",
+        notice.message
+    );
+    assert_eq!(spec.arity.min, 1, "`alpha` is the winner the notice names");
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The `-override` direction of the same collision: the later pack wins, and
+/// the notice moves to the declaration it displaced (#1637).
+///
+/// The notice must track the install, not a fixed idea of who wins — otherwise
+/// it would tell the author the opposite of what the registry did.
+#[test]
+fn a_cross_pack_override_reports_on_the_declaration_it_replaces() {
+    let root = scratch("cross-pack-override");
+    let a = write_pack(
+        &root,
+        "alpha.tclspec",
+        "speclib alpha 1.1 {\n  command shared::cmd { arity 1 }\n}\n",
+    );
+    let b = write_pack(
+        &root,
+        "beta.tclspec",
+        "speclib beta 1.1 {\n  command shared::cmd -override { arity 4 }\n}\n",
+    );
+    let set = load_files(&[a, b]);
+
+    let installed = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
+    assert_eq!(
+        installed.get("shared::cmd").expect("installed").arity.min,
+        4,
+        "`-override` makes the later pack win"
+    );
+
+    let notice = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("with `-override`"))
+        .expect("the replacement must be reported");
+    assert!(
+        notice.path.ends_with("alpha.tclspec"),
+        "the notice belongs on the declaration that was replaced, got {}",
+        notice.path.display()
+    );
+    assert!(
+        notice.message.contains("`beta`"),
+        "and must name who replaced it: {}",
+        notice.message
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Two packs declaring the same name for **different vendor packages** are not
+/// a collision, and must not be reported (#1637).
+///
+/// This is the false positive that matters: the six shipped EDA loadables all
+/// declare `report_timing`, and `install_into`'s vendor gate means no profile
+/// ever admits two of them. A collision check that ignored the gate would put
+/// a dozen warnings on the packs tcl-lsp itself ships.
+#[test]
+fn different_vendor_packages_declaring_one_name_is_not_a_collision() {
+    let root = scratch("vendor-gate");
+    let a = write_pack(
+        &root,
+        "vendor-a.tclspec",
+        "speclib vendora 1.1 {\n\
+        \x20 command vendor::report_timing {\n\
+        \x20   arity 1\n\
+        \x20   required_package cadence-genus\n\
+        \x20 }\n\
+        }\n",
+    );
+    let b = write_pack(
+        &root,
+        "vendor-b.tclspec",
+        "speclib vendorb 1.1 {\n\
+        \x20 command vendor::report_timing {\n\
+        \x20   arity 4\n\
+        \x20   required_package synopsys\n\
+        \x20 }\n\
+        }\n",
+    );
+    let set = load_files(&[a, b]);
+
+    assert!(
+        !set.notices
+            .iter()
+            .any(|n| n.message.contains("is already declared by pack")),
+        "two vendors that never share a profile do not collide: {:#?}",
+        set.notices
+    );
+
     let _ = std::fs::remove_dir_all(&root);
 }
 
@@ -829,10 +956,31 @@ fn one_owner_per_file_extension_across_packs() {
 
     let owners: Vec<(String, &'static str)> = set.extension_dialects();
     let shr: Vec<_> = owners.iter().filter(|(ext, _)| ext == "shr").collect();
+    assert_eq!(
+        shr.len(),
+        1,
+        "one extension has exactly one owner: {owners:?}"
+    );
+    assert_eq!(shr[0].1, "tcl9.0", "the first pack in name order owns it");
+
+    // And the pack that lost the extension is told, on the row it declared
+    // (issue #1637). This matters more than the command case: an extension
+    // routed to the wrong dialect mis-lexes every file of that type.
+    let notice = set
+        .notices
+        .iter()
+        .find(|n| n.message.contains("is already claimed by pack"))
+        .expect("the extension collision must be reported");
     assert!(
-        shr.len() <= 1,
-        "an extension routed to two dialects has no defined answer — the \
-         consumer picks by iteration order: {owners:?}"
+        notice.path.ends_with("beta.tclspec") && notice.line == 2,
+        "the notice belongs on the losing `file_extension` row, got {}:{}",
+        notice.path.display(),
+        notice.line
+    );
+    assert!(
+        notice.message.contains("`alpha`") && notice.message.contains("tcl9.0"),
+        "and must name the owner and the routing that won: {}",
+        notice.message
     );
 
     let _ = std::fs::remove_dir_all(&root);
@@ -1315,4 +1463,257 @@ fn editing_a_lifecycle_stamp_changes_the_verdict_on_reload() {
     );
 
     let _ = std::fs::remove_dir_all(&root);
+}
+
+// ---------------------------------------------------------------------------
+// Regressions for the notice gaps this sweep found (#1634, #1635, #1637, #1638)
+// ---------------------------------------------------------------------------
+
+/// A `.tclspec` saved with a UTF-8 BOM loads normally (#1635).
+///
+/// The mark is a file prologue, exactly as Tcl 9's `source` treats it — so the
+/// `speclib` word is `speclib`, not `\u{feff}speclib`, and the pack is not
+/// lost to an editor that defaults to "UTF-8 with BOM".
+#[test]
+fn a_bom_prefixed_pack_loads_like_any_other() {
+    let pack = load_pack("\u{feff}speclib demo 1.1 {\n  command demo::a { arity 1 }\n}\n");
+
+    assert_eq!(
+        pack.name, "demo",
+        "the BOM must not hide the `speclib` word"
+    );
+    assert_eq!(pack.dsl_version, "1.1");
+    assert!(pack.command("demo::a").is_some());
+    assert!(
+        pack.notices.is_empty(),
+        "a BOM is not a defect to report: {:#?}",
+        pack.notices
+    );
+}
+
+/// …but a BOM *inside* a block is ordinary data (#1635).
+///
+/// The half of the fix that is easy to get wrong: flipping the disposition for
+/// every segmentation, rather than only the file entry, would silently edit
+/// pack content — a `hover` summary an author deliberately began with U+FEFF
+/// would reach the registry a character short.
+#[test]
+fn a_bom_inside_a_block_is_content_not_a_prologue() {
+    let pack = load_pack(
+        "speclib demo 1.1 {\n\
+        \x20 command demo::a {\n\
+        \x20   arity 1\n\
+        \x20   hover { summary {\u{feff}leading mark} }\n\
+        \x20 }\n\
+        }\n",
+    );
+    let summary = pack
+        .command("demo::a")
+        .expect("the command must load")
+        .spec
+        .hover
+        .map(|h| h.summary)
+        .unwrap_or_default();
+    assert!(
+        summary.starts_with('\u{feff}'),
+        "a mark inside a block is the author's character, got {summary:?}"
+    );
+}
+
+/// A BOM'd pack survives the compiled-pack cache round trip (#1635).
+///
+/// The fix bumped the on-disk `FORMAT`, so a cold load, a warm load, and a load
+/// with the cache thrown away mid-flight must all produce the same pack — both
+/// for the file's leading mark and for a mark inside a block, which are read
+/// under opposite dispositions.
+///
+/// # What this does *not* claim
+///
+/// It does not pin the BOM disposition's presence in the memo key. That is
+/// deliberate: a memo is installed per file (`load_pack_cached` seeds one
+/// `load_pack` call from that file's own entry), and within a file the
+/// file-entry text and any block's text can never be equal, so the two
+/// dispositions cannot meet in one memo and no test can force them to. The key
+/// still carries the disposition because a key that omits something affecting
+/// the answer is wrong on its face — but an assertion here would pass whether
+/// or not it were there, and a test that cannot fail is worse than none.
+#[test]
+fn a_bom_prefixed_pack_survives_the_cache_round_trip() {
+    let root = scratch("bom-cache");
+    let cache = root.join("cache");
+    tcl_spectcl::cache::redirect_for_test(Some((cache.clone(), false)));
+
+    let path = write_pack(
+        &root,
+        "bom.tclspec",
+        "\u{feff}speclib bomdemo 1.1 {\n\
+        \x20 command bomdemo::a {\n\
+        \x20   arity 1\n\
+        \x20   hover { summary {\u{feff}kept} }\n\
+        \x20 }\n\
+        }\n",
+    );
+
+    let shape = |set: &PackSet| {
+        let pack = set
+            .packs
+            .iter()
+            .find(|p| p.name == "bomdemo")
+            .expect("the BOM'd pack must load");
+        let summary = pack
+            .command("bomdemo::a")
+            .expect("bomdemo::a")
+            .spec
+            .hover
+            .map(|h| h.summary)
+            .unwrap_or_default();
+        (pack.name.clone(), pack.commands.len(), summary.to_owned())
+    };
+
+    let cold = load_files(std::slice::from_ref(&path));
+    assert!(
+        std::fs::read_dir(&cache).is_ok(),
+        "a cold load populated the cache directory"
+    );
+    let warm = load_files(std::slice::from_ref(&path));
+    assert_eq!(shape(&cold), shape(&warm), "a warm load is the same load");
+
+    // And with the cache thrown away, still the same — the disposability
+    // contract, with a BOM in play.
+    let _ = std::fs::remove_dir_all(&cache);
+    assert_eq!(
+        shape(&cold),
+        shape(&load_files(std::slice::from_ref(&path)))
+    );
+
+    let (name, commands, summary) = shape(&cold);
+    assert_eq!(name, "bomdemo", "the file's leading mark is a prologue");
+    assert_eq!(commands, 1);
+    assert_eq!(summary, "\u{feff}kept", "the mark inside a block is data");
+
+    tcl_spectcl::cache::redirect_for_test(None);
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A `command` with no body block is named in a notice (#1634).
+///
+/// The shape is the brace-on-the-next-line mistake, which is valid Tcl and so
+/// reaches the loader as two statements. Before the fix the command vanished
+/// with nothing naming it.
+#[test]
+fn a_command_with_no_body_is_named_in_a_notice() {
+    let pack = load_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
+
+    assert!(pack.command("demo::bar").is_none(), "it cannot load");
+    let naming = pack
+        .notices
+        .iter()
+        .find(|n| n.message.contains("demo::bar"))
+        .expect("some notice must name the dropped command");
+    assert_eq!(naming.line, 2, "the notice belongs on the declaration");
+    assert!(
+        naming.message.contains("no `{ … }` body block"),
+        "and must say why: {}",
+        naming.message
+    );
+}
+
+/// The orphaned block left over by that mistake gets a readable one-line
+/// notice, not its own body quoted back (#1634).
+#[test]
+fn an_orphaned_block_notice_is_one_readable_line() {
+    let pack = load_pack("speclib demo 1.1 {\n  command demo::bar\n  {\n    arity 1\n  }\n}\n");
+
+    let orphan = pack
+        .notices
+        .iter()
+        .find(|n| n.message.contains("with no preceding declaration"))
+        .expect("the orphaned block must be reported");
+    assert!(
+        !orphan.message.contains('\n'),
+        "a diagnostic message must stay one line, got {:?}",
+        orphan.message
+    );
+    assert!(
+        !orphan.message.contains("arity 1"),
+        "the block's own body must not be quoted into the message, got {:?}",
+        orphan.message
+    );
+}
+
+/// A second `speclib` block in one file is reported, with what it costs (#1634).
+#[test]
+fn a_second_speclib_block_is_reported_with_its_command_count() {
+    let pack = load_pack(
+        "speclib one 1.1 {\n\
+        \x20 command one::a { arity 1 }\n\
+        }\n\
+        speclib two 1.1 {\n\
+        \x20 command two::b { arity 1 }\n\
+        \x20 command two::c { arity 1 }\n\
+        }\n",
+    );
+
+    assert_eq!(
+        pack.name, "one",
+        "the first pack is still the one that loads"
+    );
+    assert!(pack.command("one::a").is_some());
+    let notice = pack
+        .notices
+        .iter()
+        .find(|n| n.message.contains("second `speclib` block"))
+        .expect("the discarded block must be reported");
+    assert!(
+        notice.message.contains("`two`") && notice.message.contains("2 command(s)"),
+        "naming the block and its cost is the actionable part: {}",
+        notice.message
+    );
+}
+
+/// A command name carrying whitespace can never be invoked, so it is dropped
+/// with a notice rather than reaching completion (#1638).
+#[test]
+fn a_whitespace_bearing_command_name_is_dropped_with_a_notice() {
+    for source in [
+        "speclib demo 1.1 {\n command { } { arity 1 }\n}\n",
+        "speclib demo 1.1 {\n command {evil name} { arity 1 }\n}\n",
+    ] {
+        let pack = load_pack(source);
+        assert!(
+            pack.commands.is_empty(),
+            "an uninvocable name must not reach the registry: {:?}",
+            pack.commands
+                .iter()
+                .map(|c| c.spec.name)
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("contains whitespace")),
+            "and must be reported: {:#?}",
+            pack.notices
+        );
+    }
+}
+
+/// `speclib` with no version word is refused rather than taking the body as
+/// the pack name (#1638).
+///
+/// The name is the merge key and the `name` field every editor is handed in
+/// `spec_packs_loaded`, so a multi-line blob there is not a cosmetic problem.
+#[test]
+fn a_speclib_without_a_version_does_not_become_a_pack_name() {
+    let pack = load_pack("speclib {\n command x { arity 1 }\n}\n");
+
+    assert_eq!(pack.name, "", "a braced word is not a pack name");
+    assert!(pack.commands.is_empty());
+    assert!(
+        pack.notices
+            .iter()
+            .any(|n| n.message.contains("needs a name and a vocabulary version")),
+        "and the author is told the shape: {:#?}",
+        pack.notices
+    );
 }

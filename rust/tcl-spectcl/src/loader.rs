@@ -70,7 +70,7 @@ use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_core_types::DiagCode;
 use tcl_dialect::{DialectSet, TclVersion};
-use tcl_lexer::{LexerConfig, SourceMap, TokenType};
+use tcl_lexer::{LeadingBom, LexerConfig, SourceMap, TokenType};
 use tcl_registry::abbrev::PrefixMatching;
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::arity::Arity;
@@ -180,7 +180,26 @@ impl Log {
     }
 
     fn unknown_property(&mut self, stmt: &Stmt) {
-        let word = stmt.word_text(0);
+        // `word_text(0)` on a braced word is *every byte between the braces*,
+        // so interpolating it raw put whole multi-line bodies into a
+        // Problems-panel message (issue #1634). A diagnostic has to stay one
+        // readable line, and a block that reached here is an orphan — the
+        // useful thing to say is that it has no preceding declaration, not to
+        // quote it back.
+        let stmt_is_block = stmt.words.first().is_some_and(|w| w.braced);
+        if stmt_is_block {
+            self.say(
+                stmt.line,
+                "a `{ … }` block with no preceding declaration was dropped \
+                 (an opening brace must be on the same line as the word it \
+                 belongs to)",
+            );
+            return;
+        }
+        // `quotable` is the existing helper for exactly this — `unknown_flag`
+        // has always used it; `unknown_property` simply never did, which is
+        // the whole of the defect.
+        let word = quotable(stmt.word_text(0));
         self.say(stmt.line, format!("unknown property `{word}` dropped"));
     }
 
@@ -266,31 +285,82 @@ impl Stmt {
     }
 }
 
+/// What a U+FEFF at byte 0 of the buffer being segmented *is*.
+///
+/// A `.tclspec` is a file, and a byte-order mark at the head of a file is a
+/// prologue rather than the first character of the first command word — which
+/// is exactly the distinction `tcl_dialect::LexerGrammar::script_skips_leading_bom`
+/// draws for Tcl 9's `source` (issue #1218). Nested blocks are *not* files:
+/// a U+FEFF at the start of a `hover` summary is a character the author typed,
+/// so only [`pack_statements`] and [`speclib_version_span`] may ask to skip it.
+///
+/// It is a parameter rather than a constant inside [`segment`] because
+/// [`block`] re-enters the same function for every braced word, and flipping
+/// the flag there would silently edit pack *content*.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FileBom {
+    /// This buffer is a whole pack file: a leading mark is a prologue.
+    Skip,
+    /// This buffer is a nested block: a leading mark is data.
+    Content,
+}
+
+impl FileBom {
+    /// The lexer's own spelling of the same question.
+    fn leading(self) -> LeadingBom {
+        match self {
+            FileBom::Skip => LeadingBom::Skip,
+            FileBom::Content => LeadingBom::Content,
+        }
+    }
+
+    /// A discriminator for the memo key. Two segmentations of the same bytes
+    /// under different dispositions are different answers, so they cannot
+    /// share a cache slot.
+    pub(crate) fn key(self) -> u8 {
+        match self {
+            FileBom::Skip => 1,
+            FileBom::Content => 0,
+        }
+    }
+}
+
 /// Segment `source` into statements, numbering lines from `base_line`.
 ///
 /// Comments, `;` separators, and line continuations are handled by the lexer,
 /// so the loader inherits exactly the Tcl an author already knows — including
 /// the trap that `#` only starts a comment where a command word would start.
 ///
-/// Segmentation is a **pure function of `(source, base_line)`**, which is what
-/// lets [`crate::cache`] memoise it: every level of a pack — the file, the
+/// Segmentation is a **pure function of `(source, base_line, bom)`**, which is
+/// what lets [`crate::cache`] memoise it: every level of a pack — the file, the
 /// `speclib` body, each `command` body, each descriptor block — reaches the
 /// CST through this one door, so memoising here captures the whole tree
 /// without the loader's readers knowing a cache exists. The memo is a no-op
 /// unless a caller installed one.
-fn statements(source: &str, base_line: u32) -> Vec<Stmt> {
-    if let Some(hit) = crate::cache::memo_get(source, base_line) {
+///
+/// `bom` joins the memo key as well as the signature, because it changes the
+/// answer rather than merely the question. That is a correctness measure, not
+/// a fix for a reachable bug — see [`crate::cache`]'s `Memo` for why the two
+/// dispositions cannot currently meet in one memo.
+fn statements(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
+    if let Some(hit) = crate::cache::memo_get(source, base_line, bom) {
         return hit;
     }
-    let parsed = segment(source, base_line);
-    crate::cache::memo_put(source, base_line, &parsed);
+    let parsed = segment(source, base_line, bom);
+    crate::cache::memo_put(source, base_line, bom, &parsed);
     parsed
 }
 
 /// The uncached segmentation — [`statements`] minus the memo.
-fn segment(source: &str, base_line: u32) -> Vec<Stmt> {
+fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let (document, _warnings) = build_document(
+        source,
+        LexerConfig {
+            leading_bom: bom.leading(),
+            ..LexerConfig::default()
+        },
+    );
     let mut line_starts: Vec<usize> = vec![0];
     for (offset, byte) in source.bytes().enumerate() {
         if byte == b'\n' {
@@ -325,14 +395,24 @@ fn segment(source: &str, base_line: u32) -> Vec<Stmt> {
 }
 
 /// The statements inside a braced block word.
+///
+/// [`FileBom::Content`], always: a block is not a file, so a U+FEFF at the head
+/// of a `hover` summary is a character the author typed and must survive into
+/// the string the registry gets.
 fn block(word: &Word) -> Vec<Stmt> {
-    statements(&word.text, word.line)
+    statements(&word.text, word.line, FileBom::Content)
 }
 
 /// Segment a whole pack source — the loader's entry into [`statements`], and
 /// the one [`crate::cache`] keys its on-disk entry from.
+///
+/// The one place [`FileBom::Skip`] is right: this is the file entry point, so a
+/// leading byte-order mark is a prologue. A `.tclspec` saved by an editor that
+/// writes "UTF-8 with BOM" otherwise loses its entire `speclib` declaration —
+/// the first word decodes as `\u{feff}speclib`, which matches nothing
+/// (issue #1635).
 pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
-    statements(source, 1)
+    statements(source, 1, FileBom::Skip)
 }
 
 /// Locate the top-level `speclib` statement's version word: the byte range
@@ -343,10 +423,22 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
 /// exactly the way [`load_pack`] does — same lexer, same segmentation — so
 /// `speclib demo {1.0} { … }` and `speclib demo "1.0" { … }` decode to
 /// `1.0` here just as they do at load.
+///
+/// Same [`FileBom::Skip`] as [`pack_statements`], and for the same reason: this
+/// reads a whole file. If it disagreed with the loader about whether a leading
+/// mark is a prologue, `tcl spec upgrade` would compute its byte range against
+/// a different tokenisation than the one `load_pack` used, and rewrite the
+/// wrong span.
 #[must_use]
 pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
     let source_map = SourceMap::new(source);
-    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let (document, _warnings) = build_document(
+        source,
+        LexerConfig {
+            leading_bom: FileBom::Skip.leading(),
+            ..LexerConfig::default()
+        },
+    );
     for segment in segments_from_document(document, &source_map) {
         if segment.texts.first().map(String::as_str) != Some("speclib") {
             continue;
@@ -566,6 +658,20 @@ pub struct PackCommand {
     /// The `clause_grammar` the command declares, when it has one. Both hook
     /// behaviours are derived from it by [`ClauseGrammar::walk`].
     pub clause_grammar: Option<ClauseGrammar>,
+    /// The line the `command` statement was declared on.
+    ///
+    /// Carried so a collision notice can point at the declaration that lost
+    /// rather than at the file's first line (issues #1637, #1638). The loader
+    /// knows the line; the *file* is added later by the merge, which is the
+    /// only layer that knows which file a command came from.
+    pub line: u32,
+    /// The file this command was declared in.
+    ///
+    /// Empty as the loader builds it — [`crate::loader`] parses one source at a
+    /// time and is never told its path. [`crate::pack::load`] fills it in
+    /// during the merge, so every command in a [`crate::MergedPack`] carries
+    /// exact `(file, line)` attribution even when the pack spans many files.
+    pub file: std::path::PathBuf,
 }
 
 /// A loaded `.tclspec` pack.
@@ -640,6 +746,22 @@ pub fn load_pack(source: &str) -> Pack {
     };
     for stray in top.iter().filter(|s| s.word_text(0) != "speclib") {
         log.unknown_property(stray);
+    }
+    report_extra_speclib_blocks(&top, &mut log);
+    // `speclib NAME VERSION { … }`. A file that omits the version puts the body
+    // block in the name's slot, and before issue #1638 that whole multi-line
+    // blob became `pack.name` — which is the merge key, is interpolated into
+    // every notice, and is reported to every editor as the `name` field of
+    // `spec_packs_loaded`. Refuse it instead: a braced word cannot be a pack
+    // name.
+    if speclib.arg(1).is_some_and(|w| w.braced) {
+        log.say(
+            speclib.line,
+            "`speclib` needs a name and a vocabulary version before its body \
+             block (`speclib NAME 1.1 { … }`); nothing loaded",
+        );
+        pack.notices = log.notices;
+        return pack;
     }
     speclib.word_text(1).clone_into(&mut pack.name);
     speclib.word_text(2).clone_into(&mut pack.dsl_version);
@@ -721,6 +843,35 @@ pub fn load_pack(source: &str) -> Pack {
 
     pack.notices = log.notices;
     pack
+}
+
+/// Report every `speclib` block after the first — none of them is loaded.
+///
+/// Only the first pack in a file is read, and before issue #1634 the rest went
+/// in total silence: `load_pack`'s `find` takes the first, and the stray-word
+/// loop beside it filters every `speclib` back out, so
+/// `cat a.tclspec b.tclspec > merged.tclspec` lost half its commands with
+/// nothing said. One notice per extra block, carrying the count it would have
+/// declared, because that number is what tells the author whether they have a
+/// problem.
+fn report_extra_speclib_blocks(top: &[Stmt], log: &mut Log) {
+    for extra in top.iter().filter(|s| s.word_text(0) == "speclib").skip(1) {
+        let extra_name = extra.word_text(1);
+        let commands = extra.arg(3).map_or(0, |body| {
+            block(body)
+                .iter()
+                .filter(|s| s.word_text(0) == "command")
+                .count()
+        });
+        log.say(
+            extra.line,
+            format!(
+                "a second `speclib` block (`{extra_name}`) in one file is not loaded; \
+                 only the first pack in a file is read, so its {commands} command(s) \
+                 are dropped — move it to its own `.tclspec`"
+            ),
+        );
+    }
 }
 
 /// The `SpecTcl` **vocabulary** versions this loader reads, newest last.
@@ -2975,14 +3126,54 @@ struct CommandAcc {
     clause_grammar: Option<ClauseGrammar>,
 }
 
-fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
+/// The declared command name, if it is one a call site could ever match.
+///
+/// Two ways it is not. Empty is the obvious one. The other is a name carrying
+/// whitespace: Tcl dispatches on a single command word, so `command {evil name}`
+/// declares something no document can invoke — and before issue #1638 it loaded
+/// silently, was interned for the life of the process, and appeared in
+/// completion as an entry the user could not use. `command { }`, a name that is
+/// *only* whitespace, takes that branch too, which is why the empty check alone
+/// was not enough.
+fn command_name<'s>(stmt: &'s Stmt, log: &mut Log) -> Option<&'s str> {
     let name = stmt.word_text(1);
     if name.is_empty() {
         log.say(stmt.line, "`command` with no name dropped");
         return None;
     }
+    if name.chars().any(char::is_whitespace) {
+        log.say(
+            stmt.line,
+            format!(
+                "`command {}` contains whitespace; a command word cannot, so \
+                 nothing could ever invoke it — dropped",
+                quotable(name)
+            ),
+        );
+        return None;
+    }
+    Some(name)
+}
+
+fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
+    let name = command_name(stmt, log)?;
     let overrides_shipped = stmt.words.iter().any(|w| w.text == "-override");
-    let body = stmt.words.iter().skip(2).find(|w| w.braced)?;
+    // Naming the command matters more here than anywhere else in the loader:
+    // the shape that reaches this branch is almost always the brace-on-the-
+    // next-line mistake, where the author's `{ … }` became a separate
+    // statement. Before issue #1634 this was a bare `?` — the command vanished
+    // and nothing in the Problems panel mentioned it, so the only clue was the
+    // orphaned block's own notice, which does not name the command at all.
+    let Some(body) = stmt.words.iter().skip(2).find(|w| w.braced) else {
+        log.say(
+            stmt.line,
+            format!(
+                "`command {name}` has no `{{ … }}` body block; dropped \
+                 (an opening brace must be on the same line as the command name)"
+            ),
+        );
+        return None;
+    };
 
     log.scoped(format!("command {name}"), |log| {
         let mut spec = CommandSpec {
@@ -3069,6 +3260,8 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             overrides_shipped,
             hooks: acc.hooks,
             clause_grammar: acc.clause_grammar,
+            line: stmt.line,
+            file: std::path::PathBuf::new(),
         })
     })
 }

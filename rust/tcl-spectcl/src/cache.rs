@@ -71,7 +71,7 @@ use rustc_hash::FxHashMap;
 use xxhash_rust::xxh3::Xxh3;
 
 use crate::VOCABULARY_VERSION;
-use crate::loader::{Pack, Stmt, Word};
+use crate::loader::{FileBom, Pack, Stmt, Word};
 
 /// Set to `1` to bypass the on-disk cache entirely (still correct, just
 /// slower). For bisecting a suspected cache bug without deleting a user's
@@ -116,7 +116,12 @@ fn override_of<T>(read: impl Fn(&(PathBuf, bool)) -> T) -> Option<T> {
 
 /// The on-disk format version. Bumped when the byte layout below changes; an
 /// entry written by any other version is simply not read.
-const FORMAT: u8 = 1;
+///
+/// Bumped to 2 when the memo key gained its BOM-disposition byte (issue
+/// #1635): a version-1 entry's per-entry records are one byte shorter, so
+/// reading one as version 2 would misalign every field after the first. The
+/// cache is disposable by contract, so an unread entry costs one reparse.
+const FORMAT: u8 = 2;
 
 /// File magic, so a stray file in the directory is never mistaken for an entry.
 const MAGIC: &[u8; 7] = b"TCLSPKC";
@@ -239,16 +244,33 @@ pub fn clear() -> std::io::Result<()> {
 
 /// A memoised segmentation table.
 ///
-/// Keyed by `(base_line, byte length, xxh3 of the text)`. The length is in the
-/// key alongside the digest because a memo hit returns statements *without*
-/// re-comparing the text: two different sources colliding would be a silent
-/// wrong parse, so the key carries a second, independent discriminator.
+/// Keyed by `(base_line, BOM disposition, byte length, xxh3 of the text)`. The
+/// length is in the key alongside the digest because a memo hit returns
+/// statements *without* re-comparing the text: two different sources colliding
+/// would be a silent wrong parse, so the key carries a second, independent
+/// discriminator.
+///
+/// The BOM disposition is in the key because it changes the answer, not just
+/// the input: the same bytes segment differently as a file (a leading U+FEFF is
+/// a prologue) and as a nested block (it is data), so a key without it would
+/// describe two different results identically (issue #1635).
+///
+/// **Defensive rather than load-bearing today**, which is worth saying plainly
+/// so nobody trims it believing it is covered. A memo is installed per *file* —
+/// [`load_pack_cached`] wraps one `load_pack` call and seeds it from that
+/// file's own entry — so two files never share one. Within a single file the
+/// two dispositions cannot meet either: the file entry is keyed on the whole
+/// source, and every block's text is strictly inside it, so the two can never
+/// be equal. The key is still right, because one that omits something
+/// affecting the answer is a silent wrong parse waiting for the first caller
+/// that shares a memo more widely — but no test can reach it today, and none
+/// pretends to.
 #[derive(Debug, Default)]
 struct Memo {
-    entries: FxHashMap<(u32, u32, u64), Vec<Stmt>>,
+    entries: FxHashMap<MemoKey, Vec<Stmt>>,
     /// Insertion order, so a written entry replays in the order the loader
     /// asked for it — a rewrite of an unchanged pack is then byte-identical.
-    order: Vec<(u32, u32, u64)>,
+    order: Vec<MemoKey>,
     /// Whether anything was segmented for real during this load.
     parsed_something_new: bool,
 }
@@ -266,33 +288,37 @@ thread_local! {
     static MEMO: RefCell<Option<Memo>> = const { RefCell::new(None) };
 }
 
-fn memo_key(source: &str, base_line: u32) -> (u32, u32, u64) {
+/// `(base_line, BOM disposition, byte length, xxh3)` — see [`Memo`].
+type MemoKey = (u32, u8, u32, u64);
+
+fn memo_key(source: &str, base_line: u32, bom: FileBom) -> MemoKey {
     (
         base_line,
+        bom.key(),
         u32::try_from(source.len()).unwrap_or(u32::MAX),
         xxhash_rust::xxh3::xxh3_64(source.as_bytes()),
     )
 }
 
 /// Look up a segmentation. `None` whenever no memo is installed.
-pub(crate) fn memo_get(source: &str, base_line: u32) -> Option<Vec<Stmt>> {
+pub(crate) fn memo_get(source: &str, base_line: u32, bom: FileBom) -> Option<Vec<Stmt>> {
     MEMO.with(|cell| {
         let memo = cell.borrow();
         memo.as_ref()?
             .entries
-            .get(&memo_key(source, base_line))
+            .get(&memo_key(source, base_line, bom))
             .cloned()
     })
 }
 
 /// Record a segmentation. A no-op whenever no memo is installed.
-pub(crate) fn memo_put(source: &str, base_line: u32, stmts: &[Stmt]) {
+pub(crate) fn memo_put(source: &str, base_line: u32, bom: FileBom, stmts: &[Stmt]) {
     MEMO.with(|cell| {
         let mut guard = cell.borrow_mut();
         let Some(memo) = guard.as_mut() else {
             return;
         };
-        let key = memo_key(source, base_line);
+        let key = memo_key(source, base_line, bom);
         memo.parsed_something_new = true;
         if memo.entries.insert(key, stmts.to_vec()).is_none() {
             memo.order.push(key);
@@ -346,8 +372,9 @@ fn write_entry(path: &Path, key: u64, memo: &Memo) {
         let Some(stmts) = memo.entries.get(entry_key) else {
             continue;
         };
-        let (base_line, text_len, text_hash) = *entry_key;
+        let (base_line, bom, text_len, text_hash) = *entry_key;
         buf.extend_from_slice(&base_line.to_le_bytes());
+        buf.push(bom);
         buf.extend_from_slice(&text_len.to_le_bytes());
         buf.extend_from_slice(&text_hash.to_le_bytes());
         put_stmts(&mut buf, stmts);
@@ -461,14 +488,15 @@ fn read_entry(path: &Path, key: u64) -> Option<Memo> {
     if reader.u64()? != key {
         return None;
     }
-    let entries = reader.count(16)?;
+    let entries = reader.count(17)?;
     let mut memo = Memo::default();
     for _ in 0..entries {
         let base_line = reader.u32()?;
+        let bom = reader.u8()?;
         let text_len = reader.u32()?;
         let text_hash = reader.u64()?;
         let stmts = get_stmts(&mut reader)?;
-        let entry_key = (base_line, text_len, text_hash);
+        let entry_key = (base_line, bom, text_len, text_hash);
         if memo.entries.insert(entry_key, stmts).is_none() {
             memo.order.push(entry_key);
         }
