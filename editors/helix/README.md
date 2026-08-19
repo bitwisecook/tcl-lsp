@@ -32,7 +32,7 @@ args = []
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm", "tclspec"]
+file-types = ["tcl", "tk", "itcl", "tm"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
@@ -47,7 +47,7 @@ auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 name = "f5-irules"
 language-id = "f5-irules"
 scope = "source.tcl"
-file-types = ["irul", "irule"]
+file-types = ["irul", "irule", "irules"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
@@ -67,12 +67,92 @@ auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 name = "expect"
 language-id = "expect"
 scope = "source.tcl"
-file-types = ["exp"]
+file-types = ["exp", "expect"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "f5-tmsh"
+language-id = "f5-tmsh"
+scope = "source.tcl"
+file-types = ["tmsh"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# SpecTcl command packs — the `.tclspec` files that declare commands for a
+# private library. They are Tcl, so they route through the same server.
+[[language]]
+name = "spectcl"
+language-id = "spectcl"
+scope = "source.tcl"
+file-types = ["tclspec"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# EDA tooling. The file types are the ones the dialect catalog owns; a vendor
+# script saved as plain `.tcl` still needs a `# tcl-dialect:` comment or the
+# `dialect` setting, since `.tcl` itself names no vendor.
+[[language]]
+name = "cadence-eda-tcl"
+language-id = "cadence-eda-tcl"
+scope = "source.tcl"
+file-types = ["globals"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "intel-quartus-eda-tcl"
+language-id = "intel-quartus-eda-tcl"
+scope = "source.tcl"
+file-types = ["qsf", "qpf", "qip"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "mentor-eda-tcl"
+language-id = "mentor-eda-tcl"
+scope = "source.tcl"
+file-types = ["do"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "synopsys-eda-tcl"
+language-id = "synopsys-eda-tcl"
+scope = "source.tcl"
+file-types = ["sdc", "upf"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+[[language]]
+name = "xilinx-eda-tcl"
+language-id = "xilinx-eda-tcl"
+scope = "source.tcl"
+file-types = ["xdc"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 ```
+
+`bpf` and `microchip-libero-eda-tcl` own no file extension, and `f5-bigip`
+owns `.scf` — a BIG-IP configuration rather than a Tcl script, so it gets no
+`source.tcl` entry here. Select those three per file with a
+`# tcl-dialect:` comment or per workspace with the `dialect` setting below.
 
 ## Settings
 
@@ -81,8 +161,9 @@ Pass workspace settings via the `config` key:
 ```toml
 [language-server.tcl-lsp.config.tclLsp]
 # Valid dialects: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps,
-# f5-bigip, f5-tmsh, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl,
-# intel-quartus-eda-tcl, mentor-eda-tcl, expect
+# f5-tmsh, f5-bigip, bpf, expect, spectcl, cadence-eda-tcl,
+# intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl,
+# synopsys-eda-tcl, xilinx-eda-tcl
 dialect = "tcl8.6"
 
 [language-server.tcl-lsp.config.tclLsp.formatting]

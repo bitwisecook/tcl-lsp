@@ -45,11 +45,13 @@ around them.
 
 ```tcl
 speclib <pack-name> <dsl-version> {
-    default     <key> <value>…    ;# pack-wide default for one availability key
-    values      <name> { … }      ;# a shared argument-value table
-    hook        <name> {params} { … }   ;# a shared hook body
-    descriptor  <key> <name> { … }      ;# a shared block-valued descriptor
-    command     <name> ?-override? { … }
+    default      <key> <value>…   ;# pack-wide default for one availability key
+    display_name {…}              ;# the pack's human-readable name
+    file_extension <ext> ?-name {…}? ?-dialect DIALECT?  ;# one extension row
+    values       <name> { … }     ;# a shared argument-value table
+    hook         <name> {params} { … }  ;# a shared hook body
+    descriptor   <key> <name> { … }     ;# a shared block-valued descriptor
+    command      <name> ?-override? { … }
 }
 ```
 
@@ -269,6 +271,29 @@ kind, and the loader says so. `default` takes only availability/identity
 keys (`dialects`, `required_package`, `tcllib_package`, the three
 versions, `warn_missing_import`, `is_namespace_exported`); a command
 stating the key itself wins.
+
+**`display_name {…}`** is the pack's human-readable name (`display_name
+{IEEE 1801 UPF}`), for editor surfaces that show a library rather than a
+file. One per pack; a redeclaration keeps the last and draws a notice.
+
+**`file_extension EXT ?-name {…}? ?-dialect DIALECT?`** declares one file
+extension the pack's language is written under — the singular-row rule, one
+row per extension. The extension is normalised to lower case without its
+leading dot. `-name` is the extension's human-readable name for editor
+pickers (`Unified Power Format`); `-dialect` must name a canonical dialect
+profile, and routes files of that extension to the profile in dialect
+detection's extension tier — a loaded pack is the source of truth for its
+own extensions, consulted ahead of the `DialectProfile` catalog's own
+per-profile extension declarations, which remain as the no-packs
+fallback. Bundled packs' rows also feed `cargo xtask
+gen-editor-extensions`, which generates the editors' registered
+extension/language lists from the catalog plus the packs — so a bundled
+pack's extension ships in every editor without hand-editing a manifest.
+A `-dialect` that names no profile keeps
+the row and drops only the routing, with a notice. Both statements are
+additive vocabulary: a loader that predates them drops them with the
+ordinary unknown-property notice, exactly per the compatibility policy, so
+declaring them needs no vocabulary bump.
 
 ### Block statements
 

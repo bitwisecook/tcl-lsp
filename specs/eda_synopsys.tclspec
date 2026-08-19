@@ -17,7 +17,9 @@
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
 
-speclib eda_synopsys 1.0 {
+speclib eda_synopsys 1.1 {
+
+display_name {Synopsys EDA Shells}
 
 command analyze {
     dialects tcl8.6
@@ -62,11 +64,11 @@ command check_library {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {check_library ?library_list?}
+    form Default {check_library ?-mw_library_name phys_library_name_list? ?-logic_library_name logic_library_name_list? ?-cells cell_list?}
 
     hover {
         summary {Check libraries for consistency issues.}
-        synopsis {check_library ?library_list?}
+        synopsis {check_library ?-mw_library_name phys_library_name_list? ?-logic_library_name logic_library_name_list? ?-cells cell_list?}
         source {F5}
     }
 }
@@ -170,11 +172,11 @@ command create_port {
     arity 1..
     required_package synopsys-dc
 
-    form Default {create_port port_name ?-direction direction?}
+    form Default {create_port port_list ?-direction in|out|inout?}
 
     hover {
         summary {Create a new port in the design.}
-        synopsis {create_port port_name ?-direction direction?}
+        synopsis {create_port port_list ?-direction in|out|inout?}
         source {F5}
     }
 }
@@ -197,11 +199,11 @@ command disconnect_net {
     arity 2..
     required_package synopsys-dc
 
-    form Default {disconnect_net net_name port_pin_list}
+    form Default {disconnect_net net_name object_list|-all}
 
     hover {
         summary {Disconnect a net from pins/ports.}
-        synopsis {disconnect_net net_name port_pin_list}
+        synopsis {disconnect_net net_name object_list|-all}
         source {F5}
     }
 }
@@ -224,11 +226,11 @@ command get_timing_paths {
     dialects tcl8.6
     required_package synopsys-pt
 
-    form Default {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value?}
+    form Default {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type max|min|min_max|max_rise|max_fall|min_rise|min_fall? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value?}
 
     hover {
         summary {Get timing paths as a collection.}
-        synopsis {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type type? ?-max_pa}
+        synopsis {get_timing_paths ?-from from_list? ?-through through_list? ?-to to_list? ?-delay_type max|min|min_max|max_rise|max_fall|min_rise|min_fall? ?-max_paths n? ?-nworst n? ?-slack_lesser_than value?}
         source {F5}
     }
 }
@@ -263,11 +265,11 @@ command insert_clock_gating {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {insert_clock_gating ?-global?}
+    form Default {insert_clock_gating ?-regular_only? ?-global? ?-no_hier?}
 
     hover {
         summary {Insert clock gating logic.}
-        synopsis {insert_clock_gating ?-global?}
+        synopsis {insert_clock_gating ?-regular_only? ?-global? ?-no_hier?}
         source {F5}
     }
 }
@@ -289,12 +291,25 @@ command link {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {link ?-force?}
+    form Default {link ?-remove_sub_design?}
 
     hover {
         summary {Link the current design to library cells.}
-        synopsis {link ?-force?}
+        synopsis {link ?-remove_sub_design?}
         source {F5}
+    }
+}
+
+command list_designs {
+    dialects tcl8.6
+    required_package synopsys-dc
+
+    form Default {list_designs ?design_list? ?-show_file?}
+
+    hover {
+        summary {List the designs currently loaded in memory.}
+        synopsis {list_designs ?design_list? ?-show_file?}
+        source {Synopsys DC syn_commands manual}
     }
 }
 
@@ -341,39 +356,39 @@ command printvar {
     dialects tcl8.6
     required_package synopsys
 
-    form Default {printvar ?variable_name?}
+    form Default {printvar ?pattern? ?-user_defined? ?-application?}
 
     hover {
         summary {Print the value of an application variable.}
-        synopsis {printvar ?variable_name?}
+        synopsis {printvar ?pattern? ?-user_defined? ?-application?}
         source {F5}
     }
 }
 
 command read_db {
     dialects tcl8.6
-    arity 1
+    arity 1..
     required_package synopsys-dc
 
-    form Default {read_db file_name}
+    form Default {read_db file_names}
 
     hover {
         summary {Read a .db technology library.}
-        synopsis {read_db file_name}
+        synopsis {read_db file_names}
         source {F5}
     }
 }
 
 command read_ddc {
     dialects tcl8.6
-    arity 1
+    arity 1..
     required_package synopsys-dc
 
-    form Default {read_ddc file_name}
+    form Default {read_ddc file_names ?-scenarios scenario_list? ?-active_scenarios active_scenario_list?}
 
     hover {
         summary {Read a Synopsys DDC database.}
-        synopsis {read_ddc file_name}
+        synopsis {read_ddc file_names ?-scenarios scenario_list? ?-active_scenarios active_scenario_list?}
         source {F5}
     }
 }
@@ -396,11 +411,11 @@ command read_file {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {read_file ?-format format? file_list}
+    form Default {read_file file_list ?-define macro_names? ?-format format_name? ?-ilm? ?-library library_name? ?-rtl? ?-single_file single_file_name? ?-work library_name? ?-scenarios scenario_list? ?-active_scenarios active_scenario_list? ?-names_file file_list?}
 
     hover {
         summary {Read a design file into memory.}
-        synopsis {read_file ?-format format? file_list}
+        synopsis {read_file file_list ?-define macro_names? ?-format format_name? ?-ilm? ?-library library_name? ?-rtl? ?-single_file single_file_name? ?-work library_name? ?-scenarios scenario_list? ?-active_scenarios active_scenario_list? ?-names_file file_list?}
         source {F5}
     }
 }
@@ -424,11 +439,11 @@ command read_sdc {
     arity 1..
     required_package synopsys
 
-    form Default {read_sdc ?-echo? file_name}
+    form Default {read_sdc file_name ?-echo? ?-syntax_only? ?-version sdc_version?}
 
     hover {
         summary {Read SDC constraint file.}
-        synopsis {read_sdc ?-echo? file_name}
+        synopsis {read_sdc file_name ?-echo? ?-syntax_only? ?-version sdc_version?}
         source {F5}
     }
 }
@@ -437,11 +452,11 @@ command read_verilog {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {read_verilog ?-define define_list? file_list}
+    form Default {read_verilog ?-netlist|-rtl? verilog_files}
 
     hover {
         summary {Read Verilog source files.}
-        synopsis {read_verilog ?-define define_list? file_list}
+        synopsis {read_verilog ?-netlist|-rtl? verilog_files}
         source {F5}
     }
 }
@@ -450,11 +465,11 @@ command read_vhdl {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {read_vhdl ?-library lib? file_list}
+    form Default {read_vhdl ?-netlist? file_names}
 
     hover {
         summary {Read VHDL source files.}
-        synopsis {read_vhdl ?-library lib? file_list}
+        synopsis {read_vhdl ?-netlist? file_names}
         source {F5}
     }
 }
@@ -463,11 +478,11 @@ command remove_cell {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {remove_cell cell_list}
+    form Default {remove_cell cell_list|-all}
 
     hover {
         summary {Remove a cell from the design.}
-        synopsis {remove_cell cell_list}
+        synopsis {remove_cell cell_list|-all}
         source {F5}
     }
 }
@@ -489,24 +504,24 @@ command report_analysis_coverage {
     dialects tcl8.6
     required_package synopsys-pt
 
-    form Default {report_analysis_coverage ?-nosplit? ?-status_details untested?}
+    form Default {report_analysis_coverage ?-status_details status_list? ?-check_type check_type_list? ?-exclude_untested? ?-sort_by sort_field? ?-significant_digits digits? ?-nosplit? ?-pre_commands command_list? ?-post_commands command_list?}
 
     hover {
         summary {Report timing analysis coverage.}
-        synopsis {report_analysis_coverage ?-nosplit? ?-status_details untested?}
+        synopsis {report_analysis_coverage ?-status_details status_list? ?-check_type check_type_list? ?-exclude_untested? ?-sort_by sort_field? ?-significant_digits digits? ?-nosplit? ?-pre_commands command_list? ?-post_commands command_list?}
         source {F5}
     }
 }
 
 command report_bottleneck {
     dialects tcl8.6
-    required_package synopsys-dc
+    required_package synopsys-pt
 
-    form Default {report_bottleneck ?-nosplit? ?-max_cells n?}
+    form Default {report_bottleneck ?-cost_type cost_type? ?-delay_type delay_type? ?-slack_lesser_than slack_limit? ?-from from_list|-rise_from from_list|-fall_from from_list? ?-to to_list|-rise_to to_list|-fall_to to_list? ?-through through_list? ?-rise_through through_list? ?-fall_through through_list? ?-max_cells cell_count? ?-max_paths path_count? ?-nworst_paths paths_per_endpoint? ?-group group_name? ?-significant_digits digits? ?-nosplit?}
 
     hover {
         summary {Report timing bottleneck analysis.}
-        synopsis {report_bottleneck ?-nosplit? ?-max_cells n?}
+        synopsis {report_bottleneck ?-cost_type cost_type? ?-delay_type delay_type? ?-slack_lesser_than slack_limit? ?-from from_list|-rise_from from_list|-fall_from from_list? ?-to to_list|-rise_to to_list|-fall_to to_list? ?-through through_list? ?-rise_through through_list? ?-fall_through through_list? ?-max_cells cell_count? ?-max_paths path_count? ?-nworst_paths paths_per_endpoint? ?-group group_name? ?-significant_digits digits? ?-nosplit?}
         source {F5}
     }
 }
@@ -515,11 +530,11 @@ command report_cell {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {report_cell ?-nosplit? ?-connections? ?cell_list?}
+    form Default {report_cell ?-connections? ?-verbose? ?-physical? ?-only_physical? ?-nosplit? ?-significant_digits digits? ?cell_list?}
 
     hover {
         summary {Report cell-level information.}
-        synopsis {report_cell ?-nosplit? ?-connections? ?cell_list?}
+        synopsis {report_cell ?-connections? ?-verbose? ?-physical? ?-only_physical? ?-nosplit? ?-significant_digits digits? ?cell_list?}
         source {F5}
     }
 }
@@ -528,11 +543,11 @@ command report_clock_gating {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {report_clock_gating ?-nosplit? ?-verbose?}
+    form Default {report_clock_gating ?-no_hier? ?-verbose? ?-gated? ?-ungated? ?-gating_elements? ?-only cell_list? ?-nosplit? ?-physical? ?-multi_stage? ?-style? ?-structure? ?-scenario scenario_list?}
 
     hover {
         summary {Report clock gating statistics.}
-        synopsis {report_clock_gating ?-nosplit? ?-verbose?}
+        synopsis {report_clock_gating ?-no_hier? ?-verbose? ?-gated? ?-ungated? ?-gating_elements? ?-only cell_list? ?-nosplit? ?-physical? ?-multi_stage? ?-style? ?-structure? ?-scenario scenario_list?}
         source {F5}
     }
 }
@@ -541,11 +556,11 @@ command report_congestion {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {report_congestion ?-nosplit?}
+    form Default {report_congestion}
 
     hover {
         summary {Report routing congestion.}
-        synopsis {report_congestion ?-nosplit?}
+        synopsis {report_congestion}
         source {F5}
     }
 }
@@ -554,11 +569,11 @@ command report_delay_calculation {
     dialects tcl8.6
     required_package synopsys-pt
 
-    form Default {report_delay_calculation ?-from from_pin? ?-to to_pin?}
+    form Default {report_delay_calculation ?-min|-max? ?-from_rise_transition value? ?-from_fall_transition value? -from from_pin -to to_pin|-of_objects objects ?-nosplit? ?-thresholds? ?-crosstalk?}
 
     hover {
         summary {Report delay calculation details.}
-        synopsis {report_delay_calculation ?-from from_pin? ?-to to_pin?}
+        synopsis {report_delay_calculation ?-min|-max? ?-from_rise_transition value? ?-from_fall_transition value? -from from_pin -to to_pin|-of_objects objects ?-nosplit? ?-thresholds? ?-crosstalk?}
         source {F5}
     }
 }
@@ -580,11 +595,11 @@ command report_hierarchy {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {report_hierarchy ?-nosplit? ?-full?}
+    form Default {report_hierarchy ?-nosplit? ?-full? ?-noleaf?}
 
     hover {
         summary {Report design hierarchy.}
-        synopsis {report_hierarchy ?-nosplit? ?-full?}
+        synopsis {report_hierarchy ?-nosplit? ?-full? ?-noleaf?}
         source {F5}
     }
 }
@@ -593,11 +608,11 @@ command report_net {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?}
+    form Default {report_net ?-connections? ?-verbose? ?-noflat? ?-transition_times? ?-only_physical? ?-cell_degradation? ?-min? ?-physical? ?-nosplit? ?-significant_digits digits? ?-max_toggle_rate? ?-scenario scenario_list? ?net_list?}
 
     hover {
         summary {Report net information.}
-        synopsis {report_net ?-nosplit? ?-connections? ?-verbose? ?net_list?}
+        synopsis {report_net ?-connections? ?-verbose? ?-noflat? ?-transition_times? ?-only_physical? ?-cell_degradation? ?-min? ?-physical? ?-nosplit? ?-significant_digits digits? ?-max_toggle_rate? ?-scenario scenario_list? ?net_list?}
         source {F5}
     }
 }
@@ -685,11 +700,11 @@ command set_clock_gating_style {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {set_clock_gating_style ?-sequential_cell cell_type? ?-positive_edge_logic gate_type? ?-negative_edge_logic gate_type? ?-control_point before|after? ?-control_signal scan_enable? ?-minimum_bitwidth n? ?-max_fanout n?}
+    form Default {set_clock_gating_style ?-sequential_cell none|latch? ?-minimum_bitwidth minsize_value? ?-setup setup_value? ?-hold hold_value? ?-positive_edge_logic logic_spec? ?-negative_edge_logic logic_spec? ?-control_point none|before|after? ?-control_signal scan_enable|test_mode? ?-observation_point true|false? ?-observation_logic_depth depth_value? ?-max_fanout max_fanout_count? ?-num_stages num_stages_count? ?-no_sharing? ?-gicg_pos_cell cell_name? ?-gicg_neg_cell cell_name?}
 
     hover {
         summary {Specify clock gating implementation style.}
-        synopsis {set_clock_gating_style ?-sequential_cell cell_type? ?-positive_edge_logic gate_type? ?-negative_edge}
+        synopsis {set_clock_gating_style ?-sequential_cell none|latch? ?-minimum_bitwidth minsize_value? ?-setup setup_value? ?-hold hold_value? ?-positive_edge_logic logic_spec? ?-negative_edge_logic logic_spec? ?-control_point none|before|after? ?-control_signal scan_enable|test_mode? ?-observation_point true|false? ?-observation_logic_depth depth_value? ?-max_fanout max_fanout_count? ?-num_stages num_stages_count? ?-no_sharing? ?-gicg_pos_cell cell_name? ?-gicg_neg_cell cell_name?}
         source {F5}
     }
 }
@@ -721,19 +736,6 @@ command set_implementation_design {
     }
 }
 
-command set_operating_conditions {
-    dialects tcl8.6
-    required_package synopsys-dc
-
-    form Default {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
-
-    hover {
-        summary {Set operating conditions for timing.}
-        synopsis {set_operating_conditions ?-library lib? ?-min min_cond? ?-max max_cond? ?condition_name?}
-        source {F5}
-    }
-}
-
 command set_reference_design {
     dialects tcl8.6
     arity 1
@@ -752,11 +754,11 @@ command set_scan_configuration {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?}
+    form Default {set_scan_configuration ?-add_lockup true|false? ?-chain_count integer|-max_length integer|-exact_length integer|-count_per_domain integer? ?-clock_mixing no_mix|mix_edges|mix_clocks|mix_clocks_not_edges? ?-create_dedicated_scan_out_ports true|false? ?-internal_clocks single|none|multi? ?-insert_terminal_lockup true|false? ?-lockup_type latch|flip_flop? ?-mix_internal_clock_driver true|false? ?-partition vertical|horizontal? ?-style multiplexed_flip_flop|clocked_scan|lssd|aux_clock_lssd|combinational|none?}
 
     hover {
         summary {Configure scan chain parameters.}
-        synopsis {set_scan_configuration ?-chain_count n? ?-clock_mixing mix_type? ?-style style?}
+        synopsis {set_scan_configuration ?-add_lockup true|false? ?-chain_count integer|-max_length integer|-exact_length integer|-count_per_domain integer? ?-clock_mixing no_mix|mix_edges|mix_clocks|mix_clocks_not_edges? ?-create_dedicated_scan_out_ports true|false? ?-internal_clocks single|none|multi? ?-insert_terminal_lockup true|false? ?-lockup_type latch|flip_flop? ?-mix_internal_clock_driver true|false? ?-partition vertical|horizontal? ?-style multiplexed_flip_flop|clocked_scan|lssd|aux_clock_lssd|combinational|none?}
         source {F5}
     }
 }
@@ -790,13 +792,13 @@ command size_cell {
 
 command swap_cell {
     dialects tcl8.6
-    required_package synopsys-dc
+    required_package synopsys-pt
 
-    form Default {swap_cell cell_list lib_cell}
+    form Default {swap_cell cell_list swap_in ?-dont_preserve_constraints? ?-file file_name? ?-format db|Verilog|EDIF|VHDL?}
 
     hover {
         summary {Swap a cell with a different library cell.}
-        synopsis {swap_cell cell_list lib_cell}
+        synopsis {swap_cell cell_list swap_in ?-dont_preserve_constraints? ?-file file_name? ?-format db|Verilog|EDIF|VHDL?}
         source {F5}
     }
 }
@@ -857,11 +859,11 @@ command write {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {write ?-format format? ?-hierarchy? ?-output file? ?design_list?}
+    form Default {write ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
 
     hover {
         summary {Write design data to a file.}
-        synopsis {write ?-format format? ?-hierarchy? ?-output file? ?design_list?}
+        synopsis {write ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
         source {F5}
     }
 }
@@ -883,11 +885,11 @@ command write_file {
     dialects tcl8.6
     required_package synopsys-dc
 
-    form Default {write_file ?-format format? ?-hierarchy? ?-output file?}
+    form Default {write_file ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
 
     hover {
         summary {Write design to file in specified format.}
-        synopsis {write_file ?-format format? ?-hierarchy? ?-output file?}
+        synopsis {write_file ?-format ddc|verilog|svsim|vhdl? ?-hierarchy? ?-no_implicit? ?-modified? ?-output output_file_name? ?-names_file name_mapping_files? ?-donot_expand_dw? ?-scenarios scenario_list? ?design_list? ?-library library_name?}
         source {F5}
     }
 }
@@ -909,11 +911,11 @@ command write_sdc {
     dialects tcl8.6
     required_package synopsys
 
-    form Default {write_sdc ?-nosplit? ?-version version? ?file_name?}
+    form Default {write_sdc file_name ?-version sdc_version? ?-compress compression? ?-include categories_list? ?-nosplit?}
 
     hover {
         summary {Write SDC constraints to a file.}
-        synopsis {write_sdc ?-nosplit? ?-version version? ?file_name?}
+        synopsis {write_sdc file_name ?-version sdc_version? ?-compress compression? ?-include categories_list? ?-nosplit?}
         source {F5}
     }
 }

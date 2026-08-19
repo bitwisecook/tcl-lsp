@@ -52,7 +52,7 @@ use std::fmt::Write as _;
 
 use serde_json::Value;
 use tcl_spec_studio::render_spectcl::{self, GapKind};
-use tcl_spec_studio::{BROWSABLE_DIALECTS, command_names, draft, load_command, schema, spectcl};
+use tcl_spec_studio::{browsable_dialects, command_names, draft, load_command, schema, spectcl};
 
 /// One field that did not survive the round trip.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -302,7 +302,7 @@ fn every_command_in_every_dialect_round_trips_through_spectcl() {
     let mut lossy: BTreeMap<String, (usize, String)> = BTreeMap::new();
     let mut noticed: BTreeMap<String, (usize, String)> = BTreeMap::new();
 
-    for (dialect, _) in BROWSABLE_DIALECTS {
+    for (dialect, _) in browsable_dialects() {
         let mut dialect_total = 0usize;
         let mut dialect_clean = 0usize;
         for name in command_names(dialect) {

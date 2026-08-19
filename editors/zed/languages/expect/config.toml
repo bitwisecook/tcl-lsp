@@ -18,7 +18,7 @@
 
 name = "Expect"
 grammar = "tcl"
-path_suffixes = ["exp"]
+path_suffixes = ["exp", "expect"]
 line_comments = ["#"]
 tab_size = 4
 hard_tabs = false

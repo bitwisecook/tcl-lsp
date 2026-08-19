@@ -31,7 +31,9 @@
 //! update alongside, so a new `ArgRole` / hook / side-effect target cannot
 //! silently go missing from the studio's picker.
 
-use tcl_dialect::DialectSet;
+use std::sync::LazyLock;
+
+use tcl_dialect::{DialectProfile, DialectSet};
 use tcl_registry::taint::TaintColour;
 use tcl_registry::traits::{Trait, Traits};
 
@@ -605,47 +607,65 @@ pub const TAINT_COLOURS: &[Variant] = &[
     v("CHANNEL", "a channel handle"),
 ];
 
+/// Canonical dialect name ↔ primitive [`DialectSet`] bit — the vocabulary
+/// [`DIALECTS`] and [`dialect_bit`] both read.
+///
+/// The names are the ones `DialectSet::parse` accepts and `member_names`
+/// emits, so a draft round-trips through the registry's own vocabulary rather
+/// than a parallel spelling. Every bit the type declares appears here; the EDA
+/// shells are deliberately absent, being a base Tcl version plus
+/// package-gated command libraries rather than dialect bits.
+const DIALECT_BITS: &[(&str, DialectSet)] = &[
+    ("tcl8.4", DialectSet::TCL84),
+    ("tcl8.5", DialectSet::TCL85),
+    ("tcl8.6", DialectSet::TCL86),
+    ("tcl9.0", DialectSet::TCL90),
+    ("tcl9.1", DialectSet::TCL91),
+    ("f5-irules", DialectSet::IRULES),
+    ("f5-iapps", DialectSet::IAPPS),
+    ("tk", DialectSet::TK),
+    ("expect", DialectSet::EXPECT),
+    ("bpf", DialectSet::BPF),
+    ("f5-tmsh", DialectSet::TMSH),
+    ("f5-bigip", DialectSet::BIGIP),
+    ("spectcl", DialectSet::SPECTCL),
+];
+
+/// Labels for the bits with no profile in the dialect catalogue. `tk` is the
+/// only one: it is a library pin rather than a selectable profile, so
+/// `DialectProfile::find` never resolves it.
+const BIT_ONLY_LABELS: &[(&str, &str)] = &[("tk", "Tk")];
+
 /// Primitive [`DialectSet`] bits, by canonical dialect name.
 ///
-/// The keys are the canonical names `DialectSet::parse` accepts and
-/// `member_names` emits, so a draft round-trips through the registry's own
-/// vocabulary rather than a parallel spelling.
-pub const DIALECTS: &[Variant] = &[
-    v("tcl8.4", "Tcl 8.4"),
-    v("tcl8.5", "Tcl 8.5"),
-    v("tcl8.6", "Tcl 8.6"),
-    v("tcl9.0", "Tcl 9.0"),
-    v("tcl9.1", "Tcl 9.1"),
-    v("f5-irules", "F5 iRules"),
-    v("f5-iapps", "F5 iApps"),
-    v("tk", "Tk"),
-    v("expect", "Expect"),
-    v("bpf", "BPF"),
-    v("f5-tmsh", "F5 tmsh"),
-    v("f5-bigip", "F5 BIG-IP config"),
-    v("spectcl", "SpecTcl spec packs"),
-];
+/// Labelled from the dialect catalogue, so a profile's display name is the one
+/// the studio's picker shows and renaming a dialect renames it here too.
+pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
+    DIALECT_BITS
+        .iter()
+        .map(|(name, _)| {
+            let label = DialectProfile::find(name).map_or_else(
+                || {
+                    BIT_ONLY_LABELS
+                        .iter()
+                        .find(|(bit, _)| bit == name)
+                        .map_or(*name, |(_, label)| *label)
+                },
+                |profile| profile.display_name,
+            );
+            v(name, label)
+        })
+        .collect()
+});
 
 /// The primitive [`DialectSet`] bit for a canonical dialect name from
 /// [`DIALECTS`].
 #[must_use]
 pub fn dialect_bit(name: &str) -> Option<DialectSet> {
-    const BITS: &[(&str, DialectSet)] = &[
-        ("tcl8.4", DialectSet::TCL84),
-        ("tcl8.5", DialectSet::TCL85),
-        ("tcl8.6", DialectSet::TCL86),
-        ("tcl9.0", DialectSet::TCL90),
-        ("tcl9.1", DialectSet::TCL91),
-        ("f5-irules", DialectSet::IRULES),
-        ("f5-iapps", DialectSet::IAPPS),
-        ("tk", DialectSet::TK),
-        ("expect", DialectSet::EXPECT),
-        ("bpf", DialectSet::BPF),
-        ("f5-tmsh", DialectSet::TMSH),
-        ("f5-bigip", DialectSet::BIGIP),
-        ("spectcl", DialectSet::SPECTCL),
-    ];
-    BITS.iter().find(|(n, _)| *n == name).map(|(_, b)| *b)
+    DIALECT_BITS
+        .iter()
+        .find(|(n, _)| *n == name)
+        .map(|(_, b)| *b)
 }
 
 /// The [`Traits`] bit for a catalogue key from [`TRAITS`].
@@ -1094,7 +1114,7 @@ mod tests {
             ANALYSER_HOOKS,
             TRAITS,
             TAINT_COLOURS,
-            DIALECTS,
+            DIALECTS.as_slice(),
         ] {
             let mut seen: Vec<&str> = Vec::new();
             for entry in cat {
@@ -1156,7 +1176,7 @@ mod tests {
 
     #[test]
     fn dialect_catalogue_round_trips_through_member_names() {
-        for entry in DIALECTS {
+        for entry in DIALECTS.iter() {
             let bit = dialect_bit(entry.key).expect("catalogued dialect has a bit");
             assert_eq!(
                 bit.member_names(),
@@ -1164,6 +1184,25 @@ mod tests {
                 "{} must be a primitive bit whose canonical name matches",
                 entry.key
             );
+        }
+    }
+
+    #[test]
+    fn dialect_labels_come_from_the_profile_catalogue() {
+        for entry in DIALECTS.iter() {
+            let expected = DialectProfile::find(entry.key).map_or_else(
+                || {
+                    BIT_ONLY_LABELS
+                        .iter()
+                        .find(|(bit, _)| *bit == entry.key)
+                        .unwrap_or_else(|| {
+                            panic!("{} has neither a profile nor a label", entry.key)
+                        })
+                        .1
+                },
+                |profile| profile.display_name,
+            );
+            assert_eq!(entry.doc, expected, "{} is mislabelled", entry.key);
         }
     }
 

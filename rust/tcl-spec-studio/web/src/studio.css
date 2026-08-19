@@ -265,6 +265,8 @@ input[type=file] { display: none; }
    push the registry browser off the bottom of the sidebar. */
 .packpanel { padding-bottom: .6rem; margin-bottom: .5rem; border-bottom: 1px solid var(--border); }
 .packpanel .packname { font-family: var(--mono); font-weight: 400; font-size: .8rem; color: var(--accent); }
+.packpanel .packmeta { color: var(--muted); font-size: .78rem; margin-top: .25rem; overflow-wrap: anywhere; }
+.packpanel .packmeta[hidden] { display: none; }
 .packlist { max-height: 15rem; flex: 0 0 auto; }
 .packlist .state { display: flex; gap: .3rem; flex-wrap: wrap; margin-top: .15rem; }
 .packlist .tag {

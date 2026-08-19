@@ -85,8 +85,13 @@ KCS tag: `lexing`.
 ### dialect
 
 The Tcl language-variant selector that picks which syntax and command
-set apply: `tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, the `f5-irules`
-flavour, and related profiles. It is threaded from the workspace's
+set apply. The catalog holds eighteen profiles: the core versions
+`tcl8.4`, `tcl8.5`, `tcl8.6`, `tcl9.0`, `tcl9.1`; the F5 flavours
+`f5-irules`, `f5-iapps`, `f5-tmsh`, `f5-bigip`; `bpf`, `expect`,
+`spectcl`; and the EDA vendors `cadence-eda-tcl`,
+`intel-quartus-eda-tcl`, `mentor-eda-tcl`,
+`microchip-libero-eda-tcl`, `synopsys-eda-tcl`, `xilinx-eda-tcl`.
+It is threaded from the workspace's
 language id all the way through the pipeline. On the lexer side,
 `LexerConfig::for_dialect` (`tcl_lexer::lexer`) turns a dialect name
 into the right flags — for example `tcl8.4` disables `{*}` word

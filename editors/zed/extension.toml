@@ -39,6 +39,16 @@ languages = ["Tcl", "iRules", "iApps", "APL", "TMSH", "Expect"]
 # back to the default `tcl8.6` dialect. The right-hand ids match the VS Code
 # extension's contributions (`tcl-irule`, `tcl-iapp`, `tcl-apl`, `tcl-bigip`,
 # `tcl-expect`).
+#
+# `TMSH` maps to `tcl-bigip`, not to the `f5-tmsh` profile's `tcl-tmsh`, and
+# that is deliberate: this language is backed by the *BIG-IP configuration*
+# grammar (`grammars/tree-sitter-bigip`, with `languages/tmsh/injections.scm`
+# re-parsing an `ltm rule` body as Tcl), which is the `f5-bigip` language, not
+# the Tcl-script dialect the dialect catalog attaches to `.tmsh`. Routing this
+# language to `tcl-tmsh` would analyse config files as tmsh scripts. Splitting
+# it — a `BIG-IP` language on `.scf` plus a Tcl-grammar `tmsh` language on
+# `.tmsh` — is the real fix and needs the query generator to grow a target, so
+# the mapping stays as-is for now.
 [language_servers.tcl-lsp.language_ids]
 "Tcl" = "tcl"
 "iRules" = "tcl-irule"

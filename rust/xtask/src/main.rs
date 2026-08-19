@@ -64,6 +64,7 @@ mod bigip_data_schema;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
+mod editor_extensions;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;
@@ -178,6 +179,16 @@ enum Command {
     GenEditorCatalogs {
         /// Verify the committed catalogs are in sync instead of rewriting them;
         /// exit non-zero on drift.
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the editors' registered file-extension / language lists from
+    /// the `DialectProfile` catalog plus the bundled packs' `file_extension`
+    /// rows.
+    GenEditorExtensions {
+        /// Verify the committed manifests are in sync instead of rewriting
+        /// them; exit non-zero on drift.
         #[arg(long)]
         check: bool,
     },
@@ -357,6 +368,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::DiagTables { check } => diag_tables::run(check),
         Command::DiagEmissionCheck => Ok(diag_emission::run()),
         Command::GenEditorCatalogs { check } => gen_editor_catalogs::run(check),
+        Command::GenEditorExtensions { check } => editor_extensions::run(check),
         Command::GenEditorDialects { check } => gen_editor_dialects::run(check),
         Command::GenIruleTestData { check } => gen_irule_test_data::run(check),
         Command::GenZedQueries { check } => gen_zed_queries::run(check),

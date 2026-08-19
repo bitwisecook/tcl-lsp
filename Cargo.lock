@@ -4162,6 +4162,7 @@ dependencies = [
  "tcl-registry",
  "tcl-sandbox",
  "tcl-spec-studio",
+ "tcl-spectcl",
  "tcl-version",
  "zip",
 ]
@@ -5883,6 +5884,7 @@ dependencies = [
  "tcl-lexer",
  "tcl-lsp-core",
  "tcl-registry",
+ "tcl-spectcl",
  "tcl-syntax",
 ]
 

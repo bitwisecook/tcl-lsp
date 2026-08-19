@@ -14,7 +14,7 @@
 # set, per-value completion codes, and three dialect-gated `form` rows for
 # one command.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 # `-code`'s five symbolic completion codes, each paired with its canonical
 # integer equivalent (`return -code error …` ≡ `return -code 1 …`).  A

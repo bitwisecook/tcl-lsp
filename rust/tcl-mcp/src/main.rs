@@ -34,6 +34,7 @@ use rmcp::model::{
 use rmcp::service::{RequestContext, RoleServer};
 use rmcp::transport::stdio;
 use serde_json::{Value, json};
+use tcl_dialect::DialectProfile;
 
 mod bigip;
 mod datagroup;
@@ -53,10 +54,7 @@ struct TclMcp;
 impl ServerHandler for TclMcp {
     fn get_info(&self) -> ServerInfo {
         let mut info = ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
-            .with_instructions(
-                "Tcl/iRules static analysis: graphs, dataflow/SSA, refactors, optimiser, \
-                 WASM, dialect detection — served natively over the Rust engine.",
-            );
+            .with_instructions(instructions());
         // Keep a stable server identity so existing MCP clients see no change.
         "tcl-lsp".clone_into(&mut info.server_info.name);
         // The release version from the tag, not the manifest's 0.1.0.
@@ -110,6 +108,21 @@ impl ServerHandler for TclMcp {
     }
 }
 
+/// The server blurb clients show before any tool call — the dialect families
+/// named from [`DialectProfile::all`] (compact `short_name` labels) so a new
+/// profile advertises itself here without an edit.
+fn instructions() -> String {
+    let families: Vec<&str> = DialectProfile::all()
+        .iter()
+        .map(|profile| profile.short_name)
+        .collect();
+    format!(
+        "Static analysis of every catalogued Tcl dialect ({}): graphs, dataflow/SSA, \
+         refactors, optimiser, WASM, dialect detection — served natively over the Rust engine.",
+        families.join(", ")
+    )
+}
+
 fn tool_list_result(tools: Vec<Tool>, supports_cache_hints: bool) -> ListToolsResult {
     let mut result = ListToolsResult::with_all_items(tools);
     if supports_cache_hints {
@@ -148,6 +161,14 @@ async fn serve() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod protocol_tests {
     use super::*;
+
+    #[test]
+    fn instructions_name_every_catalogued_dialect_family() {
+        let text = instructions();
+        for profile in DialectProfile::all() {
+            assert!(text.contains(profile.short_name), "{text}");
+        }
+    }
 
     #[test]
     fn tool_list_cache_hints_follow_the_negotiated_protocol() {
