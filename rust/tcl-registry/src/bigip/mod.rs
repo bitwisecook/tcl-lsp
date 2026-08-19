@@ -23,7 +23,8 @@
 //! header keys) and the schema of its properties (value kind, enum
 //! values, references to other kinds, list operators, defaults, …).
 //!
-//! The spec data (`data::a` .. `data::w`) is hand-maintained `&'static` const
+//! The spec data (`data::ltm`, `data::apm`, `data::gtm`, … — one file per
+//! tmsh module word) is hand-maintained `&'static` const
 //! data; see `data/mod.rs` and issue #1404 for provenance and the
 //! `cargo xtask bigip-data-schema --check` consistency gate.
 

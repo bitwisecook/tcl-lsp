@@ -23,12 +23,19 @@ function with no row at all — needs the actual Tcl C headers to check
 against, which this checkout does not carry (fetching them is a separate,
 network-capable, disk-heavy step: see the `fetch-tcl-source` skill / the
 `tmp/tclX.Y.Z` layout `c-api-ownership-contract.md`'s "Sources transcribed"
-line names). This script does that comparison too, but only when it finds a
-local Tcl source tree to check against (`--tcl-source PATH`, or
-`tmp/tcl*/generic` auto-detected); otherwise it prints that the check was
-skipped rather than silently pretending to have covered it. Wire
-`--tcl-source` in manually once a source tree is fetched, for the fuller
-guarantee.
+line names). This script does that comparison too, but **only when explicitly
+asked** — `--tcl-source PATH`, or the `CHECK_C_API_OWNERSHIP_TCL_SOURCE`
+environment variable — never by scanning `tmp/` on its own. A checkout
+provisioned with the documented multi-version dev sources (several
+`tmp/tclX.Y.Z` trees, exactly what a normal dev setup fetches) previously had
+this half auto-enabled by the mere *presence* of any such directory, picking
+whichever sorted first lexicographically (`tcl8.4.20` before `tcl9.0.3`) —
+silently scanning an 8.4 header surface against this repo's Tcl-9.0-era
+contract and reporting ~200 real 8.x-only functions as "missing rows" on an
+otherwise clean tree. A tree being present is not the same as a tree being
+*selected*; selection is now always a deliberate, explicit choice (point it
+at a `tcl9.0.x` tree, matching the contract doc's own "Sources transcribed"
+note, for a meaningful comparison).
 
 `capi.rs` also exports a handful of internal bootstrap/test helpers
 (`tcl_runtime_create_interp`, `tcl_test_reset_counters`, …) that are not part
@@ -53,6 +60,7 @@ this script's own regression tests against synthetic fixtures instead
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 import tempfile
@@ -198,15 +206,32 @@ def find_header_declarations(source_root: Path) -> dict[str, list[str]]:
     return out
 
 
+#: Opt-in-only env var for the header cross-check (see `find_tcl_source`).
+#: No directory-globbing auto-detection exists any more — a `tmp/tclX.Y.Z`
+#: tree being present must never, by itself, enable this half of the check.
+TCL_SOURCE_ENV_VAR = "CHECK_C_API_OWNERSHIP_TCL_SOURCE"
+
+
 def find_tcl_source(explicit: Path | None) -> Path | None:
+    """Resolve the Tcl source tree for the optional header cross-check.
+
+    Deliberately opt-in only: `--tcl-source` or `CHECK_C_API_OWNERSHIP_TCL_SOURCE`
+    must name a tree explicitly. There is no fallback that scans `tmp/` for
+    *any* `tcl*` directory and picks one — that used to pick whichever name
+    sorted first (`tcl8.4.20` before `tcl9.0.3`), silently comparing the
+    wrong Tcl version's header surface against this repo's Tcl-9.0-era
+    ownership contract on any checkout that happened to have multiple Tcl
+    source trees fetched (the normal, documented dev setup), reporting
+    genuine 8.x-only functions as "missing rows" on an otherwise clean tree.
+    A tree merely existing under `tmp/` must never activate this check;
+    only a deliberate, explicit selection may.
+    """
     if explicit is not None:
         return explicit if explicit.is_dir() else None
-    tmp = REPO_ROOT / "tmp"
-    if not tmp.is_dir():
-        return None
-    for candidate in sorted(tmp.glob("tcl*")):
-        if (candidate / "generic").is_dir():
-            return candidate
+    env_value = os.environ.get(TCL_SOURCE_ENV_VAR)
+    if env_value:
+        p = Path(env_value)
+        return p if p.is_dir() else None
     return None
 
 
@@ -321,6 +346,63 @@ def _self_test_doc_rows_ignore_tables_before_subsystems(tmp_dir: Path) -> None:
     assert find_doc_rows(p) == ["Tcl_NewObj"], find_doc_rows(p)
 
 
+class _EnvVarGuard:
+    """Save/restore one environment variable around a self-test body, so a
+    test that sets `CHECK_C_API_OWNERSHIP_TCL_SOURCE` can never leak that
+    setting into the tests that run after it (or into the caller's shell)."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.had_value = name in os.environ
+        self.old_value = os.environ.get(name)
+
+    def __enter__(self) -> "_EnvVarGuard":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        if self.had_value:
+            os.environ[self.name] = self.old_value  # type: ignore[assignment]
+        else:
+            os.environ.pop(self.name, None)
+
+
+def _self_test_tcl_source_stays_unconfigured_when_trees_are_present(
+    tmp_dir: Path,
+) -> None:
+    """Regression test for the exact gap an adversarial review found: real
+    `tmp/tclX.Y.Z`-shaped trees existing on disk — including one that would
+    have sorted first alphabetically under the old auto-detection — must
+    never, by themselves, activate the header cross-check. Only an explicit
+    `--tcl-source` / `CHECK_C_API_OWNERSHIP_TCL_SOURCE` selects a tree."""
+    trees_dir = tmp_dir / "trees_present_but_unconfigured"
+    for name in ("tcl8.4.20", "tcl8.6.16", "tcl9.0.3"):
+        (trees_dir / name / "generic").mkdir(parents=True)
+    with _EnvVarGuard(TCL_SOURCE_ENV_VAR):
+        os.environ.pop(TCL_SOURCE_ENV_VAR, None)
+        assert find_tcl_source(None) is None, (
+            "a present-but-unconfigured tcl* tree must not auto-activate "
+            "the header cross-check"
+        )
+
+
+def _self_test_tcl_source_env_var_opts_in_explicitly(tmp_dir: Path) -> None:
+    tree = tmp_dir / "explicit_env_choice" / "tcl9.0.3"
+    (tree / "generic").mkdir(parents=True)
+    with _EnvVarGuard(TCL_SOURCE_ENV_VAR):
+        os.environ[TCL_SOURCE_ENV_VAR] = str(tree)
+        assert find_tcl_source(None) == tree, find_tcl_source(None)
+
+
+def _self_test_tcl_source_explicit_flag_wins_over_env_var(tmp_dir: Path) -> None:
+    flag_tree = tmp_dir / "flag_choice" / "tcl9.0.3"
+    (flag_tree / "generic").mkdir(parents=True)
+    env_tree = tmp_dir / "env_choice" / "tcl8.4.20"
+    (env_tree / "generic").mkdir(parents=True)
+    with _EnvVarGuard(TCL_SOURCE_ENV_VAR):
+        os.environ[TCL_SOURCE_ENV_VAR] = str(env_tree)
+        assert find_tcl_source(flag_tree) == flag_tree, find_tcl_source(flag_tree)
+
+
 _SELF_TESTS = (
     _self_test_finds_a_plain_export,
     _self_test_finds_an_unsafe_export,
@@ -329,6 +411,9 @@ _SELF_TESTS = (
     _self_test_does_not_attach_no_mangle_across_real_code,
     _self_test_doc_rows_handle_a_combined_heading_cell,
     _self_test_doc_rows_ignore_tables_before_subsystems,
+    _self_test_tcl_source_stays_unconfigured_when_trees_are_present,
+    _self_test_tcl_source_env_var_opts_in_explicitly,
+    _self_test_tcl_source_explicit_flag_wins_over_env_var,
 )
 
 
@@ -360,8 +445,11 @@ def main() -> int:
         "--tcl-source",
         type=Path,
         default=None,
-        help="a fetched Tcl source tree (containing generic/tcl.h etc.) to also "
-        "check header declarations against; auto-detected under tmp/ if omitted",
+        help="a fetched Tcl source tree (containing generic/tcl.h etc., ideally "
+        "tcl9.0.x to match the contract's transcription source) to also check "
+        "header declarations against. Opt-in only: omitting this never scans "
+        f"tmp/ on its own; set {TCL_SOURCE_ENV_VAR} instead for a persistent "
+        "choice",
     )
     ap.add_argument(
         "-v", "--verbose", action="store_true", help="list excluded/matched names too"
@@ -435,9 +523,12 @@ def main() -> int:
     source_root = find_tcl_source(args.tcl_source)
     if source_root is None:
         print(
-            "note: no local Tcl source tree found (pass --tcl-source, or fetch one under "
-            "tmp/ via the fetch-tcl-source skill) — skipping the header-declaration cross-check; "
-            "the capi.rs <-> doc check above still ran and is the enforced half."
+            "note: header-declaration cross-check skipped (opt-in only — pass "
+            f"--tcl-source PATH, or set {TCL_SOURCE_ENV_VAR}, to a fetched Tcl "
+            "source tree, ideally tcl9.0.x to match the contract's transcription "
+            "source; a tmp/tclX.Y.Z tree existing is not enough on its own, by "
+            "design — see the module docstring); the capi.rs <-> doc check above "
+            "still ran and is the enforced half."
         )
     else:
         declared = find_header_declarations(source_root)

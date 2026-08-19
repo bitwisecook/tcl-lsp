@@ -19,42 +19,59 @@
 //! `bigip-data-schema` — the BIG-IP object-spec data consistency gate
 //! (issue #1404 item 2).
 //!
-//! `rust/tcl-registry/src/bigip/data/{a,c,g,i,l,m,n,p,s,u,v,w}.rs` (798
-//! object kinds, bucketed by the first letter of `kind`) carried a
-//! `Generated ... DO NOT EDIT` header naming a
-//! `scripts/registry-audit/gen_bigip_rust.py` generator that no longer
-//! exists in this branch's tree, and its own history — the commits that
-//! actually ran it against the pre-rewrite Python registry
-//! (`dialects/f5/bigip/registry/specs/`, still present on `main`) — was
-//! intentionally squashed away by the `rust` branch's rebase-onto-main
-//! commit. There is nothing left in this branch's git history to replay,
-//! so the header now says what these files actually are: hand-maintained.
+//! `rust/tcl-registry/src/bigip/data/{analytics,apm,ltm,...}.rs` (798 object
+//! kinds, one file per tmsh module word — `analytics`, `apm`, `ltm`, `gtm`,
+//! …, derived from each spec's own `module: Some("...")` field, which every
+//! one of the 798 specs already carries) carried a `Generated ... DO NOT
+//! EDIT` header naming a `scripts/registry-audit/gen_bigip_rust.py`
+//! generator that no longer exists in this branch's tree, and its own
+//! history — the commits that actually ran it against the pre-rewrite
+//! Python registry (`dialects/f5/bigip/registry/specs/`, still present on
+//! `main`) — was intentionally squashed away by the `rust` branch's
+//! rebase-onto-main commit. There is nothing left in this branch's git
+//! history to replay, so the header now says what these files actually are:
+//! hand-maintained. (Originally organised by the first letter of `kind`;
+//! reorganised by tmsh module name per maintainer review on the PR that
+//! introduced this gate — a module word groups related objects far more
+//! usefully than an arbitrary initial letter does.)
 //!
 //! What a generator would otherwise have guaranteed for free is instead
 //! enforced here as a structural drift gate:
 //!
+//! - **module-list agreement, from three independent sources** — the `.rs`
+//!   files physically present in `data/` (the filesystem), the `mod x;`
+//!   declarations in `data/mod.rs` (what the crate actually compiles), and
+//!   the module names the source-text scan (below) finds. No source is a
+//!   hand-kept constant this xtask maintains itself: a module file added to
+//!   the directory but never wired into `data/mod.rs` at all — not even
+//!   half-wired, the shape a `mod x;`-vs-`BUCKETS` diff alone cannot see
+//!   either, since an omission from *both* sides of a two-way comparison
+//!   agrees with itself — is still caught, because the directory listing
+//!   doesn't depend on `data/mod.rs` knowing about the file in the first
+//!   place;
 //! - **uniqueness** — no `kind` name appears in more than one spec;
-//! - **filing** — every spec lives in the bucket file matching the first
-//!   letter of its `kind` (a spec pasted into the wrong letter file, or a
-//!   renamed kind left in its old bucket, both show up here);
+//! - **filing** — every spec lives in the module file matching its own
+//!   `module` field (a spec pasted into the wrong module file, or a
+//!   `module` field changed without moving the spec, both show up here);
 //! - **scan/registry agreement** — the source-text scan this module does
-//!   (regex over `kind: "..."` — the per-letter data modules are private to
+//!   (regex over `kind: "..."` — the per-module data modules are private to
 //!   `tcl-registry`, so an xtask outside that crate cannot enumerate them
 //!   per-file through the public API) must find exactly the same kind set
 //!   the compiled registry ([`tcl_registry::bigip::data::all_specs`])
-//!   reports, catching both a scan/format mismatch and a `data/mod.rs`
-//!   wiring gap (a bucket module added but never aggregated into
-//!   `all_specs`, mirrored here as never added to `BUCKETS`);
+//!   reports — catching a module declared in `data/mod.rs` (`mod x;`) but
+//!   never aggregated into `all_specs()`'s `v.extend(...)` chain (the
+//!   "half-wired" case);
 //! - **reference integrity** — every `BigipPropertySpec::references` entry
 //!   either names a real `kind`, or is on [`KNOWN_UNRESOLVED_REFERENCES`],
 //!   the documented pre-existing gap list discovered when this gate was
 //!   introduced (tmsh action verbs like `start`/`stop`/`save` captured
 //!   alongside real object-kind references, and object kinds the dataset
 //!   never carried a spec for). A *new* unresolved reference — not on that
-//!   list — fails the gate; entries can be researched and removed from the
-//!   list over time as they're confirmed real or fixed.
+//!   list — fails the gate; a list entry that is no longer a gap (the name
+//!   now resolves, or nothing references it anymore) also fails the gate,
+//!   so the list cannot silently drift stale in either direction.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use std::fs;
 use std::process::ExitCode;
 
@@ -62,12 +79,6 @@ use anyhow::{Context, Result};
 use regex::Regex;
 
 use crate::util::repo_root;
-
-/// The letter-bucket data files, relative to the repo root — must match
-/// `rust/tcl-registry/src/bigip/data/mod.rs`'s `mod` list exactly (that
-/// agreement is itself checked: see the module doc's "scan/registry
-/// agreement" bullet).
-const BUCKETS: &[&str] = &["a", "c", "g", "i", "l", "m", "n", "p", "s", "u", "v", "w"];
 
 const DATA_DIR: &str = "rust/tcl-registry/src/bigip/data";
 
@@ -164,17 +175,69 @@ const KNOWN_UNRESOLVED_REFERENCES: &[&str] = &[
     "wom_remote_route",
 ];
 
-/// One bucket file's `kind` names, source-text order.
-fn scan_bucket(path: &std::path::Path) -> Result<Vec<String>> {
-    let text = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
-    let kind_re = Regex::new(r#"kind:\s*"([^"]+)""#).expect("static regex");
-    Ok(kind_re
-        .captures_iter(&text)
+/// Every `.rs` file physically present in `data/`, minus `mod.rs` itself —
+/// the filesystem's own answer to "what module files exist", independent of
+/// whether anything in `data/mod.rs` actually references them. This is the
+/// only one of the three module-list sources that can catch a file that was
+/// added to the directory but never wired into `mod.rs` in any way (not
+/// even a bare `mod x;` with no `extend` call) — a `mod x;`-vs-hand-kept-
+/// constant diff cannot see that shape, because both sides omit the new
+/// file identically and agree with each other.
+fn scan_directory_modules(dir: &std::path::Path) -> Result<BTreeSet<String>> {
+    let mut out = BTreeSet::new();
+    for entry in
+        fs::read_dir(dir).with_context(|| format!("reading directory {}", dir.display()))?
+    {
+        let entry = entry.with_context(|| format!("reading directory {}", dir.display()))?;
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "rs")
+            && let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+            && stem != "mod"
+        {
+            out.insert(stem.to_owned());
+        }
+    }
+    Ok(out)
+}
+
+/// The `mod x;` declarations in `data/mod.rs`, source-text order.
+fn scan_declared_modules(mod_rs: &std::path::Path) -> Result<BTreeSet<String>> {
+    let text =
+        fs::read_to_string(mod_rs).with_context(|| format!("reading {}", mod_rs.display()))?;
+    let decl_re = Regex::new(r"^mod ([a-z_]+);").expect("static regex");
+    Ok(text
+        .lines()
+        .filter_map(|line| decl_re.captures(line))
         .map(|c| c[1].to_owned())
         .collect())
 }
 
-/// Every `references: &[...]` target across a bucket file's text, including
+/// One module file's `(kind, module_field)` pairs, source-text order. The
+/// `module_field` is the spec's own `module: Some("...")` value (tmsh's
+/// original word, which may contain a hyphen — `api-protection` — where the
+/// file/identifier form uses an underscore instead, since Rust module names
+/// cannot contain hyphens); see [`module_ident`].
+fn scan_module_file(path: &std::path::Path) -> Result<Vec<(String, String)>> {
+    let text = fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+    let kind_spec_re =
+        Regex::new(r"kind_spec:\s*BigipObjectKindSpec\s*\{([^}]*)\}").expect("static regex");
+    let kind_re = Regex::new(r#"kind:\s*"([^"]+)""#).expect("static regex");
+    let module_re = Regex::new(r#"module:\s*Some\("([^"]+)"\)"#).expect("static regex");
+    let mut out = Vec::new();
+    for caps in kind_spec_re.captures_iter(&text) {
+        let block = &caps[1];
+        let Some(kind) = kind_re.captures(block).map(|c| c[1].to_owned()) else {
+            continue;
+        };
+        let Some(module) = module_re.captures(block).map(|c| c[1].to_owned()) else {
+            continue;
+        };
+        out.push((kind, module));
+    }
+    Ok(out)
+}
+
+/// Every `references: &[...]` target across a module file's text, including
 /// ones nested inside a `block: &[BigipPropertySpec { ... }]` — a plain text
 /// scan sees those too, unlike a walk that only visits top-level specs.
 fn scan_references(path: &std::path::Path) -> Result<BTreeSet<String>> {
@@ -190,19 +253,57 @@ fn scan_references(path: &std::path::Path) -> Result<BTreeSet<String>> {
     Ok(out)
 }
 
+/// tmsh module word -> the Rust module/file identifier it is filed under
+/// (hyphens, the only character tmsh module words use that Rust identifiers
+/// cannot, become underscores — `api-protection` files under
+/// `api_protection.rs`).
+fn module_ident(module_field: &str) -> String {
+    module_field.replace('-', "_")
+}
+
+/// Which entries of a known-reference-gap allow-list are no longer a gap.
+///
+/// An entry is stale in either of two independent ways: the name now
+/// resolves to a real `kind` (the gap was fixed by adding the missing
+/// spec), *or* nothing references it anymore (the gap was fixed by
+/// removing or correcting the reference itself, not the kind). The second
+/// case is not implied by the first: a reference that has been deleted
+/// trivially still fails `scanned_kinds.contains`, so checking only "does
+/// it resolve now" leaves a gap that was fixed by removing the reference
+/// classified as an active gap forever.
+fn find_stale_known_gaps(
+    known_gaps: &[&'static str],
+    scanned_kinds: &BTreeSet<String>,
+    all_references: &BTreeSet<String>,
+) -> Vec<&'static str> {
+    known_gaps
+        .iter()
+        .copied()
+        .filter(|g| scanned_kinds.contains(*g) || !all_references.contains(*g))
+        .collect()
+}
+
 struct Findings {
-    /// `kind` name -> bucket files it appears in (>1 entry means duplicate).
-    kind_locations: BTreeMap<String, Vec<&'static str>>,
-    /// `(kind, wrong_bucket)` for a spec filed under a letter that doesn't
-    /// match its first character.
-    misfiled: Vec<(String, &'static str)>,
+    /// `.rs` files in `data/` not declared via `mod x;` in `data/mod.rs` —
+    /// a module file that was never wired in at all.
+    files_not_declared: Vec<String>,
+    /// `mod x;` declarations in `data/mod.rs` with no matching `.rs` file.
+    declared_files_missing: Vec<String>,
+    /// `kind` name -> module files it appears in (>1 entry means duplicate).
+    kind_locations: std::collections::BTreeMap<String, Vec<String>>,
+    /// `(kind, declared_module_field, filed_under)` for a spec whose own
+    /// `module` field doesn't match the file it's filed under.
+    misfiled: Vec<(String, String, String)>,
     /// Kinds the source-text scan found that the compiled registry didn't
     /// (or vice versa — see `registry_only`).
     scan_only: BTreeSet<String>,
     registry_only: BTreeSet<String>,
     /// Reference targets with no matching `kind`, minus the known-gap list.
     new_unresolved: BTreeSet<String>,
-    /// `KNOWN_UNRESOLVED_REFERENCES` entries that resolve now (stale).
+    /// `KNOWN_UNRESOLVED_REFERENCES` entries that are no longer a gap —
+    /// either because the name now resolves to a real `kind`, or because
+    /// nothing references it anymore (the reference itself was removed or
+    /// fixed, not just the missing kind added).
     stale_known_gaps: Vec<&'static str>,
 }
 
@@ -210,19 +311,39 @@ fn analyse() -> Result<Findings> {
     let root = repo_root();
     let dir = root.join(DATA_DIR);
 
-    let mut kind_locations: BTreeMap<String, Vec<&'static str>> = BTreeMap::new();
+    let directory_modules = scan_directory_modules(&dir)?;
+    let declared_modules = scan_declared_modules(&dir.join("mod.rs"))?;
+    let files_not_declared: Vec<String> = directory_modules
+        .difference(&declared_modules)
+        .cloned()
+        .collect();
+    let declared_files_missing: Vec<String> = declared_modules
+        .difference(&directory_modules)
+        .cloned()
+        .collect();
+
+    let mut kind_locations: std::collections::BTreeMap<String, Vec<String>> =
+        std::collections::BTreeMap::new();
     let mut misfiled = Vec::new();
     let mut scanned_kinds = BTreeSet::new();
     let mut all_references = BTreeSet::new();
 
-    for &bucket in BUCKETS {
-        let path = dir.join(format!("{bucket}.rs"));
-        for kind in scan_bucket(&path)? {
+    // Scan every module actually declared (the modules the crate compiles);
+    // a file present but not declared is already reported above and would
+    // not compile into the crate anyway, so it is not double-scanned here.
+    for module in &declared_modules {
+        let path = dir.join(format!("{module}.rs"));
+        if !path.is_file() {
+            continue; // reported as declared_files_missing above
+        }
+        for (kind, module_field) in scan_module_file(&path)? {
             scanned_kinds.insert(kind.clone());
-            kind_locations.entry(kind.clone()).or_default().push(bucket);
-            let first = kind.chars().next().map(|c| c.to_ascii_lowercase());
-            if first != bucket.chars().next() {
-                misfiled.push((kind, bucket));
+            kind_locations
+                .entry(kind.clone())
+                .or_default()
+                .push(module.clone());
+            if module_ident(&module_field) != *module {
+                misfiled.push((kind, module_field, module.clone()));
             }
         }
         all_references.extend(scan_references(&path)?);
@@ -243,13 +364,12 @@ fn analyse() -> Result<Findings> {
         .filter(|r| !scanned_kinds.contains(r.as_str()) && !known_gaps.contains(r.as_str()))
         .cloned()
         .collect();
-    let stale_known_gaps: Vec<&'static str> = KNOWN_UNRESOLVED_REFERENCES
-        .iter()
-        .copied()
-        .filter(|g| scanned_kinds.contains(*g))
-        .collect();
+    let stale_known_gaps =
+        find_stale_known_gaps(KNOWN_UNRESOLVED_REFERENCES, &scanned_kinds, &all_references);
 
     Ok(Findings {
+        files_not_declared,
+        declared_files_missing,
         kind_locations,
         misfiled,
         scan_only,
@@ -260,7 +380,9 @@ fn analyse() -> Result<Findings> {
 }
 
 fn is_clean(f: &Findings) -> bool {
-    f.kind_locations.values().all(|locs| locs.len() == 1)
+    f.files_not_declared.is_empty()
+        && f.declared_files_missing.is_empty()
+        && f.kind_locations.values().all(|locs| locs.len() == 1)
         && f.misfiled.is_empty()
         && f.scan_only.is_empty()
         && f.registry_only.is_empty()
@@ -268,9 +390,10 @@ fn is_clean(f: &Findings) -> bool {
         && f.stale_known_gaps.is_empty()
 }
 
-/// Verify the BIG-IP object-spec data's internal consistency: unique,
-/// correctly-filed `kind` names, scan/registry agreement, and reference
-/// integrity against the documented known-gap list.
+/// Verify the BIG-IP object-spec data's internal consistency: a module-list
+/// that agrees across the filesystem/`mod.rs`/registry, unique correctly-
+/// filed `kind` names, and reference integrity against the documented
+/// known-gap list.
 ///
 /// `check` is accepted for command-line symmetry with the other drift gates;
 /// there is no generated form to write (see the module doc comment), so this
@@ -288,23 +411,38 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(ExitCode::SUCCESS);
     }
 
+    if !f.files_not_declared.is_empty() {
+        eprintln!(
+            "{} module file(s) exist in {DATA_DIR} but are never declared in {DATA_DIR}/mod.rs \
+             (add `mod x;` and `v.extend(x::SPECS.iter());`): {:?}",
+            f.files_not_declared.len(),
+            f.files_not_declared
+        );
+    }
+    if !f.declared_files_missing.is_empty() {
+        eprintln!(
+            "{} `mod x;` declaration(s) in {DATA_DIR}/mod.rs have no matching .rs file: {:?}",
+            f.declared_files_missing.len(),
+            f.declared_files_missing
+        );
+    }
     for (kind, locs) in f.kind_locations.iter().filter(|(_, v)| v.len() > 1) {
         eprintln!("duplicate kind {kind:?} appears in: {locs:?}");
     }
-    for (kind, bucket) in &f.misfiled {
-        eprintln!("{kind:?} is filed in {bucket}.rs but its first letter doesn't match");
+    for (kind, declared_module, filed_under) in &f.misfiled {
+        eprintln!("{kind:?} declares module {declared_module:?} but is filed in {filed_under}.rs");
     }
     if !f.scan_only.is_empty() {
         eprintln!(
             "kind(s) found by the source scan but not in the compiled registry \
-             (scan/registry mismatch — check the `kind: \"...\"` pattern still matches): {:?}",
+             (a module declared in mod.rs but never added to all_specs()'s extend chain): {:?}",
             f.scan_only
         );
     }
     if !f.registry_only.is_empty() {
         eprintln!(
             "kind(s) in the compiled registry but not found by the source scan \
-             (a bucket file the scan didn't read — check BUCKETS matches data/mod.rs): {:?}",
+             (check mod.rs's `mod x;` declarations match its extend chain): {:?}",
             f.registry_only
         );
     }
@@ -318,8 +456,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
     if !f.stale_known_gaps.is_empty() {
         eprintln!(
-            "{} entr(y/ies) in KNOWN_UNRESOLVED_REFERENCES now resolve to a real kind \
-             — remove them from the list: {:?}",
+            "{} entr(y/ies) in KNOWN_UNRESOLVED_REFERENCES are no longer a gap — either the \
+             name now resolves to a real kind, or nothing references it anymore — \
+             remove them from the list: {:?}",
             f.stale_known_gaps.len(),
             f.stale_known_gaps
         );
@@ -333,12 +472,22 @@ mod tests {
 
     /// The gate this module exists to provide: the committed BIG-IP data
     /// files must be internally consistent right now. A failure here means
-    /// the data changed in a way that broke uniqueness, filing, scan/registry
-    /// agreement, or reference integrity — the same finding
-    /// `cargo xtask bigip-data-schema --check` would report.
+    /// the data changed in a way that broke module-list agreement,
+    /// uniqueness, filing, scan/registry agreement, or reference integrity —
+    /// the same finding `cargo xtask bigip-data-schema --check` would report.
     #[test]
     fn committed_bigip_data_is_internally_consistent() {
         let f = analyse().expect("analyse committed BIG-IP data");
+        assert!(
+            f.files_not_declared.is_empty(),
+            "module file(s) not declared in mod.rs: {:?}",
+            f.files_not_declared
+        );
+        assert!(
+            f.declared_files_missing.is_empty(),
+            "mod.rs declares module(s) with no file: {:?}",
+            f.declared_files_missing
+        );
         let dups: Vec<_> = f
             .kind_locations
             .iter()
@@ -363,27 +512,117 @@ mod tests {
         );
         assert!(
             f.stale_known_gaps.is_empty(),
-            "known-gap entries that now resolve — remove from the list: {:?}",
+            "known-gap entries that are no longer a gap — remove from the list: {:?}",
             f.stale_known_gaps
         );
     }
 
+    /// A known-gap entry that now resolves to a real `kind` is stale (the
+    /// original, already-covered direction).
     #[test]
-    fn scan_bucket_extracts_kind_names() {
-        let dir =
-            std::env::temp_dir().join(format!("bigip-data-schema-test-{}", std::process::id()));
+    fn stale_known_gaps_flags_an_entry_that_now_resolves() {
+        let scanned: BTreeSet<String> = ["now_a_real_kind".to_owned()].into_iter().collect();
+        let refs: BTreeSet<String> = ["now_a_real_kind".to_owned()].into_iter().collect();
+        let stale = find_stale_known_gaps(&["now_a_real_kind"], &scanned, &refs);
+        assert_eq!(stale, vec!["now_a_real_kind"]);
+    }
+
+    /// Regression test for the exact gap an adversarial review found: a
+    /// known-gap entry whose *reference was removed entirely* — nobody
+    /// names it anymore, so there is nothing left to resolve — must also be
+    /// flagged stale. The original implementation only checked "does it
+    /// resolve now", so a gap fixed by deleting the bad reference (rather
+    /// than by adding the missing kind) stayed on the list forever.
+    #[test]
+    fn stale_known_gaps_flags_an_entry_whose_reference_was_removed() {
+        let scanned: BTreeSet<String> = BTreeSet::new();
+        let refs: BTreeSet<String> = BTreeSet::new(); // nobody references it anymore
+        let stale = find_stale_known_gaps(&["nobody_references_this_anymore"], &scanned, &refs);
+        assert_eq!(stale, vec!["nobody_references_this_anymore"]);
+    }
+
+    /// A genuine, still-open gap — referenced, unresolved — is not flagged.
+    #[test]
+    fn stale_known_gaps_does_not_flag_a_genuine_open_gap() {
+        let scanned: BTreeSet<String> = BTreeSet::new();
+        let refs: BTreeSet<String> = ["still_a_real_gap".to_owned()].into_iter().collect();
+        let stale = find_stale_known_gaps(&["still_a_real_gap"], &scanned, &refs);
+        assert!(stale.is_empty());
+    }
+
+    #[test]
+    fn module_ident_converts_hyphens_to_underscores() {
+        assert_eq!(module_ident("api-protection"), "api_protection");
+        assert_eq!(module_ident("ltm"), "ltm");
+    }
+
+    /// Regression test for the exact gap an adversarial review found: a
+    /// module file physically added to `data/` but never declared via
+    /// `mod x;` in `data/mod.rs` at all (not even half-wired — no `mod x;`
+    /// and no `extend` call) is invisible to a `mod x;`-vs-hand-kept-
+    /// constant comparison, because a constant that also never learns about
+    /// the new file agrees with `mod.rs`'s omission. Reading the directory
+    /// itself as an independent third source of truth catches it.
+    #[test]
+    fn directory_vs_declared_flags_a_file_never_wired_into_mod_rs() {
+        let dir = std::env::temp_dir().join(format!(
+            "bigip-data-schema-test-orphan-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).expect("create temp dir");
-        let path = dir.join("x.rs");
+        std::fs::write(dir.join("mod.rs"), "mod ltm;\nmod apm;\n").expect("write mod.rs");
+        std::fs::write(dir.join("ltm.rs"), "// ltm\n").expect("write ltm.rs");
+        std::fs::write(dir.join("apm.rs"), "// apm\n").expect("write apm.rs");
+        // `orphan.rs` exists on disk but mod.rs never mentions it.
+        std::fs::write(dir.join("orphan.rs"), "// never wired in\n").expect("write orphan.rs");
+
+        let directory = scan_directory_modules(&dir).expect("scan directory");
+        let declared = scan_declared_modules(&dir.join("mod.rs")).expect("scan mod.rs");
+        let not_declared: Vec<&String> = directory.difference(&declared).collect();
+        assert_eq!(not_declared, vec![&"orphan".to_owned()]);
+        let missing_files: Vec<&String> = declared.difference(&directory).collect();
+        assert!(missing_files.is_empty());
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The reverse omission: `mod.rs` still declares a module whose file
+    /// was deleted (or renamed) without updating `mod.rs`.
+    #[test]
+    fn directory_vs_declared_flags_a_declared_module_with_no_file() {
+        let dir = std::env::temp_dir().join(format!(
+            "bigip-data-schema-test-missingfile-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        std::fs::write(dir.join("mod.rs"), "mod ltm;\nmod gone;\n").expect("write mod.rs");
+        std::fs::write(dir.join("ltm.rs"), "// ltm\n").expect("write ltm.rs");
+
+        let directory = scan_directory_modules(&dir).expect("scan directory");
+        let declared = scan_declared_modules(&dir.join("mod.rs")).expect("scan mod.rs");
+        let missing_files: Vec<&String> = declared.difference(&directory).collect();
+        assert_eq!(missing_files, vec![&"gone".to_owned()]);
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scan_module_file_extracts_kind_and_module() {
+        let dir = std::env::temp_dir().join(format!(
+            "bigip-data-schema-test-scanmod-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let path = dir.join("ltm.rs");
         std::fs::write(
             &path,
             "pub static SPECS: &[BigipObjectSpec] = &[\n\
-             BigipObjectSpec { kind_spec: BigipObjectKindSpec { kind: \"x_one\", .. }, .. },\n\
-             BigipObjectSpec { kind_spec: BigipObjectKindSpec { kind: \"x_two\", .. }, .. },\n\
+             BigipObjectSpec { kind_spec: BigipObjectKindSpec { kind: \"ltm_pool\", module: Some(\"ltm\"), .. }, .. },\n\
              ];\n",
         )
         .expect("write fixture");
-        let kinds = scan_bucket(&path).expect("scan fixture");
-        assert_eq!(kinds, vec!["x_one".to_owned(), "x_two".to_owned()]);
+        let pairs = scan_module_file(&path).expect("scan fixture");
+        assert_eq!(pairs, vec![("ltm_pool".to_owned(), "ltm".to_owned())]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 
