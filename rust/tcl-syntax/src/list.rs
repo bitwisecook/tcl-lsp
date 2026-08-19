@@ -154,6 +154,19 @@ pub fn junk_fragment(src: &str) -> String {
     while p < end && !is_list_space(bytes[p]) {
         p += 1;
     }
+    // C's cap counts **bytes** (`p2 < p+20`), so it can stop part-way through a
+    // multi-byte character — `{b}` + 19 ASCII + `é` puts the limit between the
+    // `é`'s two bytes. A `&str` slice must end on a character boundary, so back
+    // off to the previous one; the partial character is dropped, which is what
+    // tclsh renders (verified byte-for-byte on 8.6.16 and 9.0.4: the fragment
+    // is the 19 ASCII characters, *not* a replacement character and not empty).
+    //
+    // Backing off matters more than it looks: `src.get(junk..p)` returns `None`
+    // on a mid-character index, so without this the whole fragment silently
+    // became the empty string and the message lost its offending text entirely.
+    while p > junk && !src.is_char_boundary(p) {
+        p -= 1;
+    }
     src.get(junk..p).unwrap_or("").to_string()
 }
 
@@ -675,6 +688,46 @@ mod tests {
             .into_iter()
             .map(Cow::into_owned)
             .collect()
+    }
+
+    /// The junk-fragment cap counts **bytes**, so it can land inside a
+    /// multi-byte character. C copies raw bytes there; a `&str` slice cannot,
+    /// and `str::get` on a mid-character index returns `None` — which silently
+    /// emptied the whole fragment. The scan now backs off to the previous
+    /// character boundary, dropping the partial character exactly as tclsh
+    /// renders it.
+    ///
+    /// Every expectation is the byte-exact fragment from `tclsh8.6.16` and
+    /// `tclsh9.0.4`, which agree.
+    #[test]
+    fn junk_fragment_cap_backs_off_to_a_character_boundary() {
+        // `{b}` + 19 ASCII + `é`: the 20-byte cap falls between the `é`'s two
+        // bytes. tclsh reports the 19 ASCII characters, not an empty fragment.
+        let mid = "{b}abcdefghijklmnopqrs\u{e9}";
+        assert_eq!(junk_fragment(mid), "abcdefghijklmnopqrs");
+        assert_eq!(
+            ListError::BraceFollowedByJunk.full_message(mid),
+            "list element in braces followed by \"abcdefghijklmnopqrs\" instead of space"
+        );
+
+        // Boundary controls: 19 ASCII never reaches the cap; 21 ASCII hits it
+        // on a clean boundary and keeps a full 20 characters.
+        assert_eq!(
+            junk_fragment("{b}abcdefghijklmnopqrs"),
+            "abcdefghijklmnopqrs"
+        );
+        assert_eq!(
+            junk_fragment("{b}abcdefghijklmnopqrstuvw"),
+            "abcdefghijklmnopqrst"
+        );
+
+        // A multi-byte character wholly inside the cap is kept intact.
+        assert_eq!(junk_fragment("{b}a\u{e9}b"), "a\u{e9}b");
+        // The quote-delimited form takes the same path.
+        assert_eq!(
+            junk_fragment("\"b\"abcdefghijklmnopqrs\u{e9}"),
+            "abcdefghijklmnopqrs"
+        );
     }
 
     #[test]
