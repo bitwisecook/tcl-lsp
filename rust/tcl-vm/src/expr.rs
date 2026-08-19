@@ -218,11 +218,22 @@ fn big_pow(x: &BigInt, y: &BigInt) -> Result<Value, TclError> {
     match number_tower::int_pow(x, exponent) {
         Some(r) => Ok(big_value(&r)),
         // `int_pow` declines exactly two cases: a zero base with a negative
-        // exponent (the domain error) and an exponent past the C limit.
-        None if x.is_zero() => Err(TclError::new("exponentiation of zero by negative power")),
+        // exponent (the domain error) and an exponent past the C limit. The
+        // first carries `-errorcode ARITH DOMAIN` (`tcl9.0.4`
+        // `tclExecute.c:7541`, `:8021`); the second sets no code at all
+        // (`GENERAL_ARITHMETIC_ERROR`, `tclExecute.c:8380`) — tclsh 8.6.16 and
+        // 9.0.4 both report `errorCode` `NONE` there.
+        None if x.is_zero() => Err(TclError::with_error_code(
+            ZERO_POWER_MSG,
+            format!("ARITH DOMAIN {{{ZERO_POWER_MSG}}}"),
+        )),
         None => Err(TclError::new("exponent too large")),
     }
 }
+
+/// C's message for a zero base raised to a negative power — a *domain* error,
+/// not a division by zero (`tcl9.0.4/generic/tclExecute.c:8021`).
+pub(crate) const ZERO_POWER_MSG: &str = "exponentiation of zero by negative power";
 
 fn to_num(v: &Value) -> Result<Num, TclError> {
     if let Ok(n) = v.as_int() {
@@ -328,8 +339,12 @@ fn is_list_operand(s: &str) -> bool {
 }
 
 fn divzero() -> TclError {
-    TclError::new("divide by zero")
+    TclError::with_error_code(DIVZERO_MSG, format!("ARITH DIVZERO {{{DIVZERO_MSG}}}"))
 }
+
+/// C's integer divide-by-zero message and `-errorcode`
+/// (`tcl9.0.4/generic/tclExecute.c`'s `divideByZero` label).
+const DIVZERO_MSG: &str = "divide by zero";
 
 /// The C `IllegalExprOperandType` message for a *unary* operator whose operand
 /// cannot be used: `cannot use <desc> "<v>" as operand of "<op>"`. `<desc>` is
@@ -460,7 +475,10 @@ fn dbl_arith(op: BinOp, x: f64, y: f64) -> Result<Value, TclError> {
             // C raises the domain error before computing (`tclExecute.c`
             // EXPONENT_OF_ZERO): `0.0 ** -1` is an error, never Inf.
             if x == 0.0 && y < 0.0 {
-                return Err(TclError::new("exponentiation of zero by negative power"));
+                return Err(TclError::with_error_code(
+                    ZERO_POWER_MSG,
+                    format!("ARITH DOMAIN {{{ZERO_POWER_MSG}}}"),
+                ));
             }
             x.powf(y)
         }

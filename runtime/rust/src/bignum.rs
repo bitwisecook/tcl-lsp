@@ -242,8 +242,15 @@ pub enum ArithError {
     /// An integer-only op (bit-op, `<<`, `>>`) got a float operand
     /// (`can't use floating-point value as operand of …`).
     NonInteger,
-    /// Integer `/` or `%` by zero, or `0 ** negative` (`divide by zero`).
+    /// Integer `/` or `%` by zero (`divide by zero`, `-errorcode ARITH
+    /// DIVZERO`).
     DivideByZero,
+    /// `0 ** negative` — a **domain** error, not a division by zero
+    /// (`exponentiation of zero by negative power`, `-errorcode ARITH
+    /// DOMAIN`; `tcl9.0.4/generic/tclExecute.c:8021`, `:7541`). The two used
+    /// to share `DivideByZero`, so a script branching on `-errorcode` took the
+    /// wrong arm here (issue #1428).
+    ZeroToNegativePower,
     /// A negative shift count (`negative shift argument`).
     NegativeShift,
     /// An exponent too large to compute (`exponent too large`).
@@ -406,15 +413,17 @@ fn divmod(a: *mut TclObj, b: *mut TclObj, want_quotient: bool) -> Result<*mut Tc
             }));
         }
     }
-    // Bignum path.
-    let pm = into_mp(x).ok_or(ArithError::Alloc)?;
-    let qm = into_mp(y).ok_or(ArithError::Alloc)?;
-    // SAFETY: `qm` is live; a zero divisor is `used == 0`.
-    if qm.0.used == 0 {
-        return Err(ArithError::DivideByZero);
-    }
-    let (quot, rem) = mp_floor_divmod(&pm, &qm)?;
-    Ok(store((if want_quotient { quot } else { rem }).into_inner()))
+    // Bignum tier — the shared tower's floor semantics
+    // ([`tcl_syntax::number_tower::int_div`] / `int_mod`) over the `TowerMp`
+    // adapter, which is what the tower conformance suite pins (issue #1428).
+    let pm = TowerMp(into_mp(x).ok_or(ArithError::Alloc)?);
+    let qm = TowerMp(into_mp(y).ok_or(ArithError::Alloc)?);
+    let r = if want_quotient {
+        tcl_syntax::number_tower::int_div(&pm, &qm)
+    } else {
+        tcl_syntax::number_tower::int_mod(&pm, &qm)
+    };
+    Ok(store(r.ok_or(ArithError::DivideByZero)?.0.into_inner()))
 }
 
 /// Floor division for wides: quotient toward −∞, remainder with the divisor's
@@ -696,20 +705,14 @@ fn mp_is_even(m: &Mp) -> bool {
     m.0.used == 0 || unsafe { *m.0.dp & 1 == 0 }
 }
 
-/// `out = base ** e` (e ≥ 2), via libtommath; guards an absurd exponent.
-fn mp_expt(base: &Mp, e: i64) -> Result<NumVal, ArithError> {
-    if e > i64::from(i32::MAX) {
-        return Err(ArithError::ExponentTooLarge);
-    }
-    let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
-    // SAFETY: live mp_ints; `e` fits c_int.
-    if unsafe { mp_expt_n(base.ptr(), e as c_int, &mut out.0) } != MP_OKAY {
-        return Err(ArithError::Alloc);
-    }
-    Ok(NumVal::Big(out))
-}
-
 /// `a ** b` over the tower (TIP 123 integer rules + float `pow`).
+///
+/// The integer tier is [`tcl_syntax::number_tower::int_pow`] over the
+/// [`TowerMp`] adapter — the shared owner of the `**` collapses **and** of C's
+/// `exponent < 2^28` ceiling (`tclExecute.c:8380`). The hand-written path this
+/// replaced guarded only `e > i32::MAX`, so `expr {3 ** 268435456}` attempted
+/// a multi-hundred-megabit allocation where tclsh errors instantly (issue
+/// #1428).
 pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     let base = num(a)?;
     let exp = num(b)?;
@@ -717,67 +720,34 @@ pub fn pow(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     if matches!(base, NumVal::Float(_)) || matches!(exp, NumVal::Float(_)) {
         let (p, q) = (as_f64(base), as_f64(exp));
         if p == 0.0 && q < 0.0 {
-            return Err(ArithError::DivideByZero);
+            return Err(ArithError::ZeroToNegativePower);
         }
         return Ok(obj::new_double_obj(p.powf(q)));
     }
-    let v = match exp {
-        NumVal::Wide(e) => pow_wide_exp(base, e)?,
-        NumVal::Big(eb) => pow_big_exp(base, &eb)?,
-        NumVal::Float(_) => unreachable!(),
+    let exponent = match &exp {
+        NumVal::Wide(e) => *e,
+        // Past `i64` only the `0`/`±1` collapses stay computable, and those
+        // depend on nothing but the exponent's sign and parity — fold to a
+        // stand-in that preserves both (the same trick `tcl-vm`'s `big_pow`
+        // uses), so the tower still decides.
+        NumVal::Big(m) => match (mp_is_neg(m), mp_is_even(m)) {
+            (true, true) => -2,
+            (true, false) => -1,
+            (false, true) => tcl_syntax::number_tower::MAX_EXPONENT + 1,
+            (false, false) => tcl_syntax::number_tower::MAX_EXPONENT + 2,
+        },
+        NumVal::Float(_) => unreachable!("float operands took the branch above"),
     };
-    Ok(to_obj(v))
-}
-
-/// `base ** e` with a normal (wide) exponent. A bignum `base` always has
-/// magnitude ≥ 2 (smaller values demote to a wide), so the `0`/`±1` special
-/// cases only apply to a wide base.
-fn pow_wide_exp(base: NumVal, e: i64) -> Result<NumVal, ArithError> {
-    if e == 0 {
-        return Ok(NumVal::Wide(1));
-    }
-    if e == 1 {
-        return Ok(base);
-    }
-    match base {
-        NumVal::Wide(0) => {
-            if e < 0 {
-                Err(ArithError::DivideByZero) // 0 ** negative
-            } else {
-                Ok(NumVal::Wide(0))
-            }
+    let base = TowerMp(into_mp(base).ok_or(ArithError::Alloc)?);
+    match tcl_syntax::number_tower::int_pow(&base, exponent) {
+        Some(r) => Ok(store(r.0.into_inner())),
+        // `int_pow` declines exactly two cases, and they are different errors:
+        // a zero base with a negative exponent is `ARITH DOMAIN`, an exponent
+        // past the ceiling is the plain "exponent too large".
+        None if tcl_syntax::number_tower::BigIntOps::is_zero(&base) => {
+            Err(ArithError::ZeroToNegativePower)
         }
-        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
-        NumVal::Wide(-1) => Ok(NumVal::Wide(if e % 2 == 0 { 1 } else { -1 })),
-        // |base| ≥ 2: a negative exponent floors to 0 (TIP 123); else compute.
-        b if e < 0 => {
-            drop(b);
-            Ok(NumVal::Wide(0))
-        }
-        b => mp_expt(&into_mp(b).ok_or(ArithError::Alloc)?, e),
-    }
-}
-
-/// `base ** e` with a huge (bignum) exponent — only `0`/`±1` bases have a
-/// representable result; any other base with a positive huge exponent is
-/// `ExponentTooLarge`, with a negative one floors to 0.
-fn pow_big_exp(base: NumVal, eb: &Mp) -> Result<NumVal, ArithError> {
-    let neg = mp_is_neg(eb);
-    match base {
-        NumVal::Wide(0) => {
-            if neg {
-                Err(ArithError::DivideByZero)
-            } else {
-                Ok(NumVal::Wide(0))
-            }
-        }
-        NumVal::Wide(1) => Ok(NumVal::Wide(1)),
-        NumVal::Wide(-1) => Ok(NumVal::Wide(if mp_is_even(eb) { 1 } else { -1 })),
-        b if neg => {
-            drop(b);
-            Ok(NumVal::Wide(0))
-        }
-        _ => Err(ArithError::ExponentTooLarge),
+        None => Err(ArithError::ExponentTooLarge),
     }
 }
 
@@ -899,26 +869,24 @@ pub fn shr(a: *mut TclObj, b: *mut TclObj) -> Result<*mut TclObj, ArithError> {
     };
     match read_int(a)? {
         IntVal::Wide(w) => {
-            // Shifting a wide past its width saturates to 0 / -1 (sign).
+            // Shifting a wide past its width saturates to 0 / -1 (sign) — the
+            // same collapse `number_tower::int_shr` performs, kept native here
+            // so an ordinary `>>` costs no bignum allocation. The
+            // `wide_and_tower_shifts_agree` test pins the two together.
             let r = if count >= 64 {
-                if w < 0 {
-                    -1
-                } else {
-                    0
-                }
+                if w < 0 { -1 } else { 0 }
             } else {
                 w >> count
             };
             Ok(obj::new_wide_int_obj(r))
         }
+        // Bignum tier via the shared tower (the width collapse and the
+        // negative-count refusal are its rules, not ours).
         IntVal::Big(m) => {
-            let n = count.min(i64::from(i32::MAX)) as c_int;
-            let mut out = Mp::zero().ok_or(ArithError::Alloc)?;
-            // SAFETY: live mp_ints.
-            if unsafe { mp_signed_rsh(m.ptr(), n, &mut out.0) } != MP_OKAY {
-                return Err(ArithError::Alloc);
-            }
-            Ok(store(out.into_inner()))
+            let v = TowerMp(m);
+            let r = tcl_syntax::number_tower::int_shr(&v, count)
+                .ok_or(ArithError::NegativeShift)?;
+            Ok(store(r.0.into_inner()))
         }
     }
 }
@@ -1504,12 +1472,26 @@ mod tests {
             binop(pow, int_obj(2), int_obj(128)).0,
             b"340282366920938463463374607431768211456"
         );
-        // 0 ** -1 → divide by zero
+        // `0 ** -1` is a *domain* error, not a division by zero — tclsh
+        // 8.6.16/9.0.4: "exponentiation of zero by negative power" with
+        // `-errorcode ARITH DOMAIN` (issue #1428).
         let z = int_obj(0);
         let m1 = int_obj(-1);
-        assert_eq!(pow(z, m1), Err(ArithError::DivideByZero));
+        assert_eq!(pow(z, m1), Err(ArithError::ZeroToNegativePower));
         drop1(z);
         drop1(m1);
+        // The 2^28 exponent ceiling comes from the shared tower, so an absurd
+        // exponent errors instantly instead of attempting the allocation
+        // (tclsh: `expr {3 ** 268435456}` is "exponent too large").
+        let three = int_obj(3);
+        let huge = int_obj(tcl_syntax::number_tower::MAX_EXPONENT + 1);
+        assert_eq!(pow(three, huge), Err(ArithError::ExponentTooLarge));
+        drop1(three);
+        drop1(huge);
+        // A negative exponent past `i64` still collapses by sign and parity.
+        let neg_one = int_obj(-1);
+        let big_even = rc1(from_big_digits(false, Radix::Dec, "100000000000000000000"));
+        assert_eq!(binop(pow, neg_one, big_even).0, b"1");
         assert_eq!(crate::counters::finalize(), 0);
     }
 

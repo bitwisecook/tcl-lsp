@@ -141,22 +141,14 @@ impl ValueOps for Interp {
         }
     }
 
+    /// `Tcl_GetBooleanFromObj`'s boolean-context acceptor, over the shared
+    /// [`tcl_syntax::boolean`] owner — a boolean word by unique prefix
+    /// (`tru`, `ye`, `of`), else any number compared against zero. The local
+    /// six-spelling table this replaced had no prefix rule (issue #1425).
     fn as_bool(&mut self, v: &*mut TclObj) -> Result<bool, ValueError> {
         let bytes = obj_bytes(*v);
         let s = String::from_utf8_lossy(&bytes);
-        let t = s.trim();
-        if let Some(num) = number::parse_whole(t) {
-            return Ok(match num {
-                Number::Int(n) => n != 0,
-                Number::Double(f) => f != 0.0,
-                _ => true,
-            });
-        }
-        match t.to_ascii_lowercase().as_str() {
-            "true" | "yes" | "on" => Ok(true),
-            "false" | "no" | "off" => Ok(false),
-            _ => Err(ValueError::NotBoolean(s.into_owned())),
-        }
+        tcl_syntax::boolean::truthiness(&s).ok_or_else(|| ValueError::NotBoolean(s.into_owned()))
     }
 
     /// Bignum-aware integer addition (the `incr` step) — overrides the default's

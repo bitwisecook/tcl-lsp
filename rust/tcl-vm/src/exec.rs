@@ -864,7 +864,11 @@ fn bin(f: &mut Frame, op: BinOp) -> Result<(), Completion<Value>> {
             f.stack.push(v);
             Ok(())
         }
-        Err(e) => Err(err(e.message)),
+        // Through `completion_from_tcl_error`, not `err`: the arithmetic
+        // errors carry C's `-errorcode` (`ARITH DIVZERO`, `ARITH DOMAIN`), and
+        // dropping the message's structured code left `expr {0 ** -1}`
+        // reporting `errorCode` `NONE` on the bytecode path (issue #1428).
+        Err(e) => Err(crate::command::completion_from_tcl_error(e)),
     }
 }
 

@@ -111,7 +111,7 @@ fn domain_err() -> Completion<Value> {
     err_with_code(DOMAIN_MSG, DOMAIN_CODE)
 }
 
-fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
+fn shared_math(vm: &Vm, name: &str, args: &[Value]) -> Completion<Value> {
     let Some(spec) = tcl_syntax::expr::mathfunc::spec(name) else {
         return err(format!("invalid command name \"tcl::mathfunc::{name}\""));
     };
@@ -157,7 +157,9 @@ fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
         Ok(nums) => nums,
         Err(e) => return e,
     };
-    match dispatch_with_backend(name, &nums) {
+    let int_func =
+        tcl_syntax::expr::mathfunc::IntFuncWidth::for_tcl_version(vm.runtime_version());
+    match dispatch_with_backend(name, &nums, int_func) {
         Some(NumValue::Int(i)) => ok(Value::int(i)),
         Some(NumValue::Big(b)) => ok(crate::expr::big_value(&b)),
         Some(NumValue::Float(f)) => ok(Value::double(f)),
@@ -167,8 +169,8 @@ fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
 
 macro_rules! shared_wrapper {
     ($fn_name:ident, $math_name:literal) => {
-        fn $fn_name(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-            shared_math($math_name, args)
+        fn $fn_name(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+            shared_math(vm, $math_name, args)
         }
     };
 }
@@ -208,10 +210,11 @@ pub(crate) fn register(vm: &mut Vm) {
     // registrations (which only create flat command-table keys).
     vm.declare_namespace("tcl::mathfunc");
     vm.register("tcl::mathfunc::abs", m_abs);
-    // These conversions retain the VM's exact finite-double-to-bignum path;
-    // the shared value seam deliberately has no float-to-arbitrary-integer
-    // operation, so routing them through it would turn `int(1e300)` and
-    // `round(1e300)` into a spurious domain error.
+    // These conversions keep a VM-local path for the *object* handling C does
+    // (an integer operand is its own `int`/`entier`/`round`) and for Tcl's
+    // specialised diagnostics; the value semantics they implement are the
+    // shared seam's, which now carries the float-to-arbitrary-integer rung
+    // (`BigIntOps::from_f64_trunc`) and the `int()` release axis.
     vm.register("tcl::mathfunc::int", m_int);
     vm.register("tcl::mathfunc::wide", m_wide);
     vm.register("tcl::mathfunc::entier", m_entier);
@@ -293,21 +296,31 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    int_window(args, "int")
+/// `int(x)` — the 64-bit window up to Tcl 8.6, and `entier(x)` from Tcl 9.0.
+///
+/// 9.0's builtin table binds `int` to the *unbounded* `ExprIntFunc`, the very
+/// same C function as `entier` (`tcl9.0.4/generic/tclBasic.c:552`, `:557`),
+/// while 8.6's `ExprIntFunc` folds `ExprEntierFunc`'s result into a machine
+/// word. The VM had no dialect axis here at all and always gave the 8.6 answer
+/// (issue #1382): `int(1e20)` is `7766279631452241920` on tclsh 8.6.16 but
+/// `100000000000000000000` on tclsh 9.0.4.
+fn m_int(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    match tcl_syntax::expr::mathfunc::IntFuncWidth::for_tcl_version(vm.runtime_version()) {
+        tcl_syntax::expr::mathfunc::IntFuncWidth::Unbounded => entier_value(args, "int"),
+        tcl_syntax::expr::mathfunc::IntFuncWidth::Narrowing => int_window(args, "int"),
+    }
 }
 
 fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     int_window(args, "wide")
 }
 
-/// `int(x)` / `wide(x)` — one conversion since 8.6 (`int` is no longer the
-/// narrower "long"): an integer of any magnitude is taken modulo 2^64,
-/// two's-complement folded (`int(2**64 + 1)` is `1`, `int(-(2**64 + 1))` is
-/// `-1`); a double truncates toward zero first, then wraps the same way
-/// (`int(1e300)` is `0` — 10^300 divides by 2^64). The integer path is exact —
-/// never round-tripped through `f64`, which would lose precision above 2^53
-/// (`int(9007199254740993)` must stay `…993`).
+/// `wide(x)` (and `int(x)` up to 8.6) — an integer of any magnitude is taken
+/// modulo 2^64, two's-complement folded (`wide(2**64 + 1)` is `1`,
+/// `wide(-(2**64 + 1))` is `-1`); a double truncates toward zero first, then
+/// wraps the same way (`wide(1e300)` is `0` — 10^300 divides by 2^64). The
+/// integer path is exact — never round-tripped through `f64`, which would lose
+/// precision above 2^53 (`wide(9007199254740993)` must stay `…993`).
 fn int_window(args: &[Value], name: &str) -> Completion<Value> {
     let x = match one(args, name) {
         Ok(v) => v,
@@ -419,7 +432,13 @@ fn isqrt_i64(n: i64) -> i64 {
 /// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
 /// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
 fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    let x = match one(args, "entier") {
+    entier_value(args, "entier")
+}
+
+/// `entier`'s body, shared with `int` on the releases where the two are the
+/// same C function. `name` only picks the arity diagnostic.
+fn entier_value(args: &[Value], name: &str) -> Completion<Value> {
+    let x = match one(args, name) {
         Ok(v) => v,
         Err(c) => return c,
     };
@@ -447,21 +466,32 @@ fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 }
 
 /// `srand(seed)` — reseed the `expr rand()` generator and return its first draw.
-/// C (`ExprSrandFunc`) coerces the argument to a wide integer (falling back to
-/// truncating a double), installs it as the seed, then tail-calls `rand()`; so
-/// `srand` is deterministic and itself yields a number in `[0, 1)`.
+///
+/// C (`ExprSrandFunc`) reads the operand as an **integer** — the low 64 bits of
+/// a wide or a bignum — installs it as the seed, then tail-calls `rand()`, so
+/// `srand` is deterministic and itself yields a number in `[0, 1)`. A float
+/// operand is rejected, not truncated: this VM used to truncate it silently
+/// (issue #1432), disagreeing with both reference releases. The rejection's
+/// message and `-errorcode` are release-shaped — see
+/// [`tcl_syntax::expr::rand::srand_operand_error`].
 fn m_srand(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let x = match one(args, "srand") {
         Ok(v) => v,
         Err(c) => return c,
     };
-    let seed = if let Ok(n) = x.as_wide() {
-        n
-    } else {
-        match num_arg(x) {
-            Ok(f) => f.trunc() as i64,
-            Err(m) => return err(m),
-        }
+    let Ok(seed) = x.as_wide() else {
+        let text = x.to_str();
+        let operand_is_number = number::parse_whole(text.trim()).is_some();
+        let e = tcl_syntax::expr::rand::srand_operand_error(
+            &text,
+            operand_is_number,
+            vm.runtime_version(),
+        );
+        return if e.error_code.is_empty() {
+            err(e.message)
+        } else {
+            err_with_code(e.message, &e.error_code)
+        };
     };
     vm.rand_seed_set(seed);
     ok(Value::double(vm.rand_next()))

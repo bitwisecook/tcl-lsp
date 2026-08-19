@@ -85,6 +85,12 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
         ArithError::DivideByZero => {
             ExprError::with_code(b"divide by zero", b"ARITH DIVZERO {divide by zero}")
         }
+        // `0 ** negative` is a *domain* error, not a division by zero
+        // (`tcl9.0.4/generic/tclExecute.c:8021`, `:7541`).
+        ArithError::ZeroToNegativePower => ExprError::with_code(
+            b"exponentiation of zero by negative power",
+            b"ARITH DOMAIN {exponentiation of zero by negative power}",
+        ),
         ArithError::NegativeShift => ExprError::msg(b"negative shift argument"),
         ArithError::ExponentTooLarge => ExprError::msg(b"exponent too large"),
         ArithError::TooLargeToRepresent => ExprError::msg(b"integer value too large to represent"),
@@ -92,16 +98,14 @@ pub(crate) fn arith_err(e: ArithError) -> ExprError {
     }
 }
 
-/// `cannot use {floating-point value|non-numeric string} "VALUE" as
-/// SIDEoperand of "OP"` — C's `IllegalExprOperandType` (`tclExecute.c`). `side`
-/// is `""` for a unary op, `"left "`/`"right "` for a binary one.
-fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
+/// `cannot use DESC "VALUE" as SIDEoperand of "OP"` — C's
+/// `IllegalExprOperandType` (`tclExecute.c`). `side` is `""` for a unary op,
+/// `"left "`/`"right "` for a binary one; `desc` comes from
+/// [`operand_desc`] / [`float_operand_desc`].
+fn operand_type_err_desc(desc: &[u8], value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
     let mut m = b"cannot use ".to_vec();
-    m.extend_from_slice(if float {
-        b"floating-point value \""
-    } else {
-        b"non-numeric string \""
-    });
+    m.extend_from_slice(desc);
+    m.extend_from_slice(b" \"");
     m.extend_from_slice(value);
     m.extend_from_slice(b"\" as ");
     m.extend_from_slice(side);
@@ -109,6 +113,37 @@ fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprEr
     m.extend_from_slice(op);
     m.push(b'"');
     ExprError::from_bytes(m)
+}
+
+/// The two descriptors an *integer-only* operator picks between: a real double
+/// is a `floating-point value`, anything else a `non-numeric string`.
+fn float_operand_desc(float: bool) -> &'static [u8] {
+    if float {
+        b"floating-point value"
+    } else {
+        b"non-numeric string"
+    }
+}
+
+/// C's `IllegalExprOperandType` descriptor for a value that cannot be used at
+/// all: `NaN` is a **non-numeric floating-point value**, everything else a
+/// `non-numeric string` (`tclExecute.c`). The bytecode VM classifies the same
+/// way (`tcl_vm::expr::unary_operand_err`).
+fn operand_desc(o: *mut TclObj) -> &'static [u8] {
+    if matches!(
+        bignum::compare(o, o),
+        Some(tcl_syntax::expr::NumericCompare::Unordered)
+    ) {
+        b"non-numeric floating-point value"
+    } else {
+        b"non-numeric string"
+    }
+}
+
+/// `cannot use {floating-point value|non-numeric string} "VALUE" as
+/// SIDEoperand of "OP"` — the integer-only-operator spelling.
+fn operand_type_err(float: bool, value: &[u8], side: &[u8], op: &[u8]) -> ExprError {
+    operand_type_err_desc(float_operand_desc(float), value, side, op)
 }
 
 /// Map a binary operator to its source symbol (for operand-type errors).
@@ -227,15 +262,20 @@ pub trait ExprCtx {
 /// The shared built-in math-function dispatch over the tower
 /// ([`tcl_syntax::expr::mathfunc`]) — the fallback when a function isn't an
 /// overridable command. `args` are the already-evaluated operands.
-pub fn dispatch_shared(name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
-    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+pub fn dispatch_shared(
+    name: &str,
+    args: &[Owned],
+    release: tcl_dialect::TclVersion,
+) -> Result<Owned, ExprError> {
+    use tcl_syntax::expr::mathfunc::{dispatch_with_backend, IntFuncWidth, NumValue};
     let nums: Option<Vec<NumValue<crate::bignum::TowerMp>>> = args
         .iter()
         .map(|o| crate::bignum::as_math_num(o.ptr()))
         .collect();
     let nums =
         nums.ok_or_else(|| ExprError::msg(b"argument to math function didn't have numeric value"))?;
-    match dispatch_with_backend(&name.to_ascii_lowercase(), &nums) {
+    let int_func = IntFuncWidth::for_tcl_version(release);
+    match dispatch_with_backend(&name.to_ascii_lowercase(), &nums, int_func) {
         Some(num) => Ok(Owned::fresh(crate::bignum::math_num_to_obj(num))),
         None => {
             let mut m = b"unknown math function \"".to_vec();
@@ -336,8 +376,11 @@ impl ExprOps for TowerOps<'_> {
                 Ok(b) => Ok(bool_obj(!b)),
                 // A `!` operand that is neither boolean nor numeric is an
                 // operand-type error (not the generic "expected boolean").
-                Err(_) => Err(operand_type_err(
-                    false,
+                // A NaN operand gets its own descriptor — tclsh 9.0.4:
+                // `cannot use non-numeric floating-point value "NaN" as
+                // operand of "!"`.
+                Err(_) => Err(operand_type_err_desc(
+                    operand_desc(value.ptr()),
                     &obj::bytes_of(value.ptr()),
                     b"",
                     b"!",
@@ -393,14 +436,22 @@ pub fn eval_mathop(
 
 // ---- value helpers ---------------------------------------------------------
 
-/// Tcl boolean coercion (`Tcl_GetBoolean`): the keywords or any non-zero number.
+/// Tcl boolean coercion (`Tcl_GetBooleanFromObj`): a boolean word or any
+/// non-zero number.
+///
+/// The word half is [`tcl_syntax::boolean::parse_boolean_word`], the
+/// contract's owner: C's `ParseBoolean` (`tcl9.0.4/generic/tclObj.c:2133`)
+/// accepts a boolean word by **unique case-insensitive prefix**, so `tru`,
+/// `ye`, and `of` are boolean values. This function used to carry a private
+/// six-spelling table with no prefix rule, which made `expr {$x ? 1 : 0}` with
+/// `x` = `tru` an error here while tclsh and the bytecode VM returned 1
+/// (issue #1425). It also trimmed the word, which C does not: `" true"` is
+/// `expected boolean value but got " true"` on both reference releases.
 pub(crate) fn to_bool(o: *mut TclObj) -> Result<bool, ExprError> {
     let bytes = obj::bytes_of(o);
     let s = core::str::from_utf8(&bytes).unwrap_or("");
-    match s.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => return Ok(true),
-        "0" | "false" | "no" | "off" => return Ok(false),
-        _ => {}
+    if let Some(b) = tcl_syntax::boolean::parse_boolean_word(s) {
+        return Ok(b);
     }
     // Any number: non-zero ⇒ true. NaN is numeric but not a boolean —
     // tclsh: `expr {NaN ? 1 : 0}` → "floating point value is Not a Number".
@@ -425,8 +476,16 @@ fn bool_obj(b: bool) -> Owned {
     Owned::fresh(obj::new_wide_int_obj(i64::from(b)))
 }
 
-/// Build an object from a literal token: a number (via the shared grammar), a
-/// boolean keyword, else a plain string.
+/// Build an object from a literal token: a number (via the shared grammar),
+/// else a plain string.
+///
+/// A bareword boolean is **not** folded to `0`/`1` here. C keeps the word's
+/// own string: `expr {true}` is `true` and `expr {true == 1}` is `0` on tclsh
+/// 8.6.16 and 9.0.4, because `Tcl_GetBooleanFromObj` only ever runs when a
+/// boolean *context* asks for it — which is [`to_bool`]'s job, over the shared
+/// [`tcl_syntax::boolean`] acceptor. This function used to carry a third copy
+/// of the six-spelling word table (issue #1425) and returned `1` for
+/// `expr {true}`.
 fn make_literal(text: &str) -> Owned {
     use tcl_syntax::number::{parse_whole, Number};
     if let Some(n) = parse_whole(text) {
@@ -440,11 +499,6 @@ fn make_literal(text: &str) -> Owned {
             } => bignum::from_big_digits(negative, radix, &digits),
             Number::Nan { .. } => obj::new_double_obj(f64::NAN),
         });
-    }
-    match text.to_ascii_lowercase().as_str() {
-        "true" | "yes" | "on" => return bool_obj(true),
-        "false" | "no" | "off" => return bool_obj(false),
-        _ => {}
     }
     Owned::fresh(obj::new_string_bytes(text.as_bytes()))
 }
@@ -468,7 +522,7 @@ mod tests {
         }
         fn call_function(&mut self, name: &str, args: &[Owned]) -> Result<Owned, ExprError> {
             // No command table in the mock — use the shared built-in dispatch.
-            dispatch_shared(name, args)
+            dispatch_shared(name, args, tcl_dialect::TclVersion::V9_0)
         }
     }
 

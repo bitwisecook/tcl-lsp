@@ -987,13 +987,13 @@ fn parse_map(bytes: &[u8]) -> Result<EnsembleMap, Vec<u8>> {
     Ok(map)
 }
 
-/// Tcl boolean literal (`Tcl_GetBoolean`) for `-prefixes`.
+/// Tcl boolean coercion (`Tcl_GetBooleanFromObj`) for `-prefixes`, over the
+/// shared [`tcl_syntax::boolean`] owner — a boolean word by unique prefix
+/// (`namespace ensemble create -prefixes tru` is accepted by tclsh 8.6.16 and
+/// 9.0.4), else any number compared against zero. The byte-string word table
+/// this replaced had neither rule (issue #1425).
 fn parse_bool(bytes: &[u8]) -> Option<bool> {
-    match bytes.to_ascii_lowercase().as_slice() {
-        b"1" | b"true" | b"yes" | b"on" => Some(true),
-        b"0" | b"false" | b"no" | b"off" => Some(false),
-        _ => None,
-    }
+    tcl_syntax::boolean::truthiness(core::str::from_utf8(bytes).ok()?)
 }
 
 #[cfg(test)]

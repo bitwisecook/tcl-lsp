@@ -32,7 +32,7 @@
 //! like `expr` itself. `rand`/`srand` carry PRNG state on the interp, so they
 //! are handled here directly rather than via the pure shared dispatch.
 
-use tcl_syntax::expr::mathfunc::{dispatch_with_backend, NumValue};
+use tcl_syntax::expr::mathfunc::{dispatch_with_backend, IntFuncWidth, NumValue};
 use tcl_syntax::naming::qualifier_segments;
 
 use crate::interp::{obj_bytes, Code, Interp};
@@ -116,9 +116,18 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         }
         "srand" => {
             // The seed is the operand's low 64 bits (C's `TclGetWideBitsFromObj`);
-            // a non-integer operand is an error.
+            // a non-integer operand is an error whose message and `-errorcode`
+            // are release-shaped (issue #1432) — 8.x reports through a real
+            // interpreter, 9.x passes a NULL one and sets nothing at all.
             if !crate::bignum::is_integer(argv[1]) {
-                return interp.set_error(b"argument to math function didn't have numeric value");
+                let operand = obj_bytes(argv[1]);
+                let text = String::from_utf8_lossy(&operand);
+                let e = tcl_syntax::expr::rand::srand_operand_error(
+                    &text,
+                    crate::bignum::is_numeric(argv[1]),
+                    interp.runtime_version(),
+                );
+                return interp.error_with_code(e.message.as_bytes(), e.error_code.as_bytes());
             }
             let seed = crate::bignum::truncate_to_wide(argv[1]);
             interp.set_result(obj::new_double_obj(interp.srand(seed)));
@@ -127,18 +136,29 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         _ => {}
     }
 
-    // `wide`/`int`/`entier` on an *integer* operand work on the tower directly,
-    // not via the f64-limited shared dispatch: `wide` wraps a too-big integer to
-    // a 64-bit signed value (C's truncation), and `int`/`entier` keep the
-    // (possibly bignum) integer exactly. (A *float* operand falls through to the
-    // shared dispatch.)
-    if matches!(lname.as_str(), "wide" | "int" | "entier") && crate::bignum::is_integer(argv[1]) {
-        if lname == "wide" {
+    let int_func = IntFuncWidth::for_tcl_version(interp.runtime_version());
+
+    // `wide`/`int`/`entier`/`round` on an *integer* operand short-circuit to
+    // C's own object handling: `ExprIntFunc` / `ExprEntierFunc` /
+    // `ExprRoundFunc` return `objv[1]` itself for an integer ("all integers
+    // are already rounded"), so its string rep survives
+    // (`::tcl::mathfunc::entier 0x10` is `0x10`, not `16` — tclsh
+    // 8.6.16/9.0.4). `wide` always folds into the 64-bit window; `int` only
+    // does so up to 8.6 (issue #1382 — 9.0 binds `int` to the unbounded
+    // `ExprIntFunc`, so `::tcl::mathfunc::int 0x10` is `0x10` there and `16` on
+    // 8.6). A *float* operand falls through to the shared dispatch, which now
+    // carries the bignum rung.
+    if matches!(lname.as_str(), "wide" | "int" | "entier" | "round")
+        && crate::bignum::is_integer(argv[1])
+    {
+        let narrows =
+            lname == "wide" || (lname == "int" && int_func == IntFuncWidth::Narrowing);
+        if narrows {
             interp.set_result(obj::new_wide_int_obj(crate::bignum::truncate_to_wide(
                 argv[1],
             )));
         } else {
-            interp.set_result(argv[1]); // integer is its own int/entier
+            interp.set_result(argv[1]); // an integer is its own int/entier/round
         }
         return Code::Ok;
     }
@@ -153,7 +173,7 @@ pub(crate) fn mathfunc(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     };
 
     // `set_result` adopts a fresh rc-0 obj (retains it; no extra drop needed).
-    match dispatch_with_backend(&lname, &nums) {
+    match dispatch_with_backend(&lname, &nums, int_func) {
         Some(num) => {
             interp.set_result(crate::bignum::math_num_to_obj(num));
             Code::Ok

@@ -5289,11 +5289,8 @@ impl Interp {
     /// `rand()` of the new sequence.
     #[cfg(have_tommath)]
     pub(crate) fn srand(&self, n: i64) -> f64 {
-        let mut seed = n & 0x7FFF_FFFF;
-        if seed == 0 || seed == 0x7FFF_FFFF {
-            seed ^= 123_459_876;
-        }
-        self.rand_seed.set(Some(seed));
+        self.rand_seed
+            .set(Some(tcl_syntax::expr::rand::seed_from_wide(n)));
         self.rand_next()
     }
 
@@ -5302,28 +5299,17 @@ impl Interp {
     /// first use if `srand` hasn't run.
     #[cfg(have_tommath)]
     pub(crate) fn rand_next(&self) -> f64 {
-        // Constants from `ExprRandFunc`: IA=16807, IM=2^31-1, IQ=127773, IR=2836.
-        const RAND_IA: i64 = 16807;
-        const RAND_IM: i64 = 2_147_483_647;
-        const RAND_IQ: i64 = 127_773;
-        const RAND_IR: i64 = 2836;
-        let mut seed = self.rand_seed.get().unwrap_or_else(|| {
+        let seed = self.rand_seed.get().unwrap_or_else(|| {
             // Nondeterministic first seed, kept in [1, 2^31-2]. The wall clock
-            // comes from the host (so the browser/WASI hosts seed it too).
-            let t = self.host().clock().now_millis() as i64;
-            let mut s = t & 0x7FFF_FFFF;
-            if s == 0 || s == 0x7FFF_FFFF {
-                s ^= 123_459_876;
-            }
-            s
+            // comes from the host (so the browser/WASI hosts seed it too). Only
+            // this policy is per-engine; the recurrence and scaling are the
+            // shared owner's.
+            let now = self.host().clock().now_millis() as i64;
+            tcl_syntax::expr::rand::seed_from_wide(now)
         });
-        let tmp = seed / RAND_IQ;
-        seed = RAND_IA * (seed - tmp * RAND_IQ) - RAND_IR * tmp;
-        if seed < 0 {
-            seed += RAND_IM;
-        }
-        self.rand_seed.set(Some(seed));
-        seed as f64 * (1.0 / RAND_IM as f64)
+        let (next_seed, draw) = tcl_syntax::expr::rand::next(seed);
+        self.rand_seed.set(Some(next_seed));
+        draw
     }
 
     /// The `info cmdtype` classification of `name`, or `None` if no such command.

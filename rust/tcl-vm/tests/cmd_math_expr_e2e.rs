@@ -79,13 +79,42 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run(src: &str) -> (bool, String, String) {
-    let registry = CommandRegistry::build_default();
-    let ir = lower_to_ir(src, &registry);
-    let cfg = build_cfg_codegen(&ir, false);
-    let asm = codegen_module(&cfg, &ir, &registry);
+    run_at(None, src)
+}
+
+/// [`run`] with the VM emulating a named release — for the handful of `expr`
+/// facts that moved (`int()`'s width, issue #1382).
+///
+/// The release is a **compile** target as well as a runtime one: constant
+/// folding happens at codegen, so a dialect-blind compile would bake in the
+/// default grammar's answer and `set_runtime_version` could not undo it.
+fn run_at(release: Option<tcl_dialect::TclVersion>, src: &str) -> (bool, String, String) {
+    let asm = match release {
+        Some(release) => {
+            let profile = tcl_dialect::DialectProfile::by_name(release.dialect_name());
+            let registry = tcl_registry::registry_for_profile(profile);
+            let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
+                src,
+                registry,
+                tcl_lexer::LexerConfig::from_grammar(profile.grammar),
+                profile.name,
+            );
+            let cfg = build_cfg_codegen(&ir, false);
+            codegen_module(&cfg, &ir, registry)
+        }
+        None => {
+            let registry = CommandRegistry::build_default();
+            let ir = lower_to_ir(src, &registry);
+            let cfg = build_cfg_codegen(&ir, false);
+            codegen_module(&cfg, &ir, &registry)
+        }
+    };
 
     let buf = Rc::new(RefCell::new(Vec::new()));
     let mut vm = Vm::with_output(Box::new(Capture(Rc::clone(&buf))));
+    if let Some(release) = release {
+        vm.set_runtime_version(release);
+    }
     vm.set_compiler(Box::new(CompilerSvc {
         registry: CommandRegistry::build_default(),
     }));
@@ -1149,30 +1178,110 @@ fn mathfunc_wide_truncates_out_of_range_literal() {
 }
 
 #[test]
-fn mathfunc_int_wide_are_the_64bit_window() {
-    // int() and wide() are the same mod-2^64 window in 8.6+: an integer of
-    // any magnitude folds two's-complement; a double truncates toward zero
-    // first, then wraps the same way (variable args defeat const folding).
-    // tclsh 8.6/9.0:
-    cmd_eq("set x 18446744073709551617; expr {int($x)}", "1");
-    cmd_eq("set x 18446744073709551617; expr {wide($x)}", "1");
-    cmd_eq("set x -18446744073709551617; expr {int($x)}", "-1");
-    cmd_eq("set x 1e300; expr {int($x)}", "0"); // 10^300 divides by 2^64
-    cmd_eq("set x 1e300; expr {wide($x)}", "0");
-    cmd_eq("set x -1e300; expr {int($x)}", "0");
-    cmd_eq("set x 1.5e19; expr {int($x)}", "-3446744073709551616");
-    cmd_eq("set x 2.5e19; expr {int($x)}", "6553255926290448384");
-    cmd_eq(
-        "set x 9223372036854775808.0; expr {int($x)}",
-        "-9223372036854775808",
-    );
+fn mathfunc_wide_is_the_64bit_window_in_every_release() {
+    // wide() is the mod-2^64 window in every release: an integer of any
+    // magnitude folds two's-complement; a double truncates toward zero first,
+    // then wraps the same way (variable args defeat const folding).
+    // tclsh 8.6.16 / 9.0.4 agree row for row:
+    for release in [tcl_dialect::TclVersion::V8_6, tcl_dialect::TclVersion::V9_0] {
+        let eq = |cmd: &str, want: &str| {
+            let (ok, result, _) = run_at(Some(release), cmd);
+            assert!(ok, "`{cmd}` at {release:?} should run, got error: {result}");
+            assert_eq!(result, want, "{cmd} at {release:?}");
+        };
+        eq("set x 18446744073709551617; expr {wide($x)}", "1");
+        eq("set x -18446744073709551617; expr {wide($x)}", "-1");
+        eq("set x 1e300; expr {wide($x)}", "0"); // 10^300 divides by 2^64
+        eq("set x 1.5e19; expr {wide($x)}", "-3446744073709551616");
+        eq("set x 2.5e19; expr {wide($x)}", "6553255926290448384");
+        eq(
+            "set x 9223372036854775808.0; expr {wide($x)}",
+            "-9223372036854775808",
+        );
+    }
     // Inf cannot wrap; NaN is not a number at all.  tclsh 8.6/9.0:
     cmd_err(
-        "set x Inf; expr {int($x)}",
+        "set x Inf; expr {wide($x)}",
         "integer value too large to represent",
     );
     cmd_err(
-        "set x Inf; expr {wide($x)}",
+        "set x NaN; expr {wide($x)}",
+        "floating point value is Not a Number",
+    );
+}
+
+/// Issue #1382: `int()` is the one integer conversion whose width moved. Up to
+/// 8.6 it narrows like `wide()`; from 9.0 the builtin table binds it to the
+/// unbounded `ExprIntFunc`, the same C function as `entier`
+/// (`tcl9.0.4/generic/tclBasic.c:552`, `:557`). The VM had no dialect axis
+/// here and always gave the 8.6 answer. Every row is a measured
+/// tclsh 8.6.16 / 9.0.4 pair.
+#[test]
+fn mathfunc_int_width_follows_the_emulated_release() {
+    const E300: &str = "1000000000000000052504760255204420248704468581108159154915854115511802457988908195786371375080447864043704443832883878176942523235360430575644792184786706982848387200926575803737830233794788090059368953234970799945081119038967640880074652742780142494579258788820056842838115669472196386865459400540160";
+    for (release, rows) in [
+        (
+            tcl_dialect::TclVersion::V8_6,
+            [
+                ("set x 18446744073709551617; expr {int($x)}", "1"),
+                ("set x -18446744073709551617; expr {int($x)}", "-1"),
+                ("set x 1e300; expr {int($x)}", "0"),
+                ("set x -1e300; expr {int($x)}", "0"),
+                ("set x 1.5e19; expr {int($x)}", "-3446744073709551616"),
+                ("set x 2.5e19; expr {int($x)}", "6553255926290448384"),
+                (
+                    "set x 9223372036854775808.0; expr {int($x)}",
+                    "-9223372036854775808",
+                ),
+            ],
+        ),
+        (
+            tcl_dialect::TclVersion::V9_0,
+            [
+                (
+                    "set x 18446744073709551617; expr {int($x)}",
+                    "18446744073709551617",
+                ),
+                (
+                    "set x -18446744073709551617; expr {int($x)}",
+                    "-18446744073709551617",
+                ),
+                ("set x 1e300; expr {int($x)}", E300),
+                ("set x -1e300; expr {int($x)}", "-<E300>"),
+                ("set x 1.5e19; expr {int($x)}", "15000000000000000000"),
+                ("set x 2.5e19; expr {int($x)}", "25000000000000000000"),
+                (
+                    "set x 9223372036854775808.0; expr {int($x)}",
+                    "9223372036854775808",
+                ),
+            ],
+        ),
+    ] {
+        for (cmd, want) in rows {
+            let want = if want == "-<E300>" {
+                format!("-{E300}")
+            } else {
+                want.to_owned()
+            };
+            let (ok, result, _) = run_at(Some(release), cmd);
+            assert!(ok, "`{cmd}` at {release:?} should run, got error: {result}");
+            assert_eq!(result, want, "{cmd} at {release:?}");
+        }
+    }
+    // 8.5 narrows like 8.6; 9.1 is unbounded like 9.0. (8.4 is omitted here
+    // only because `expr` reaches its fixed C table rather than a
+    // `tcl::mathfunc` command there, which this compiled-module harness does
+    // not model; `tclvm --tcl-version 8.4` gives the narrowing answer.)
+    for (release, want) in [
+        (tcl_dialect::TclVersion::V8_5, "1"),
+        (tcl_dialect::TclVersion::V9_1, "18446744073709551617"),
+    ] {
+        let (_, result, _) = run_at(Some(release), "set x 18446744073709551617; expr {int($x)}");
+        assert_eq!(result, want, "int() at {release:?}");
+    }
+    // Inf cannot convert; NaN is not a number at all.  tclsh 8.6/9.0:
+    cmd_err(
+        "set x Inf; expr {int($x)}",
         "integer value too large to represent",
     );
     cmd_err(

@@ -1577,30 +1577,23 @@ impl Vm {
             .retain(|b| !(b.source == source && b.key.eq(key)));
     }
 
-    /// Reseed the `rand()` generator (`srand(n)`): mask to 31 bits, and nudge a
-    /// 0 / `2^31-1` seed off the generator's two fixed points (Tcl's
-    /// `srand`).
+    /// Reseed the `rand()` generator (`srand(n)`) through the shared
+    /// [`tcl_syntax::expr::rand`] owner: only the seed *storage* is per-engine.
     pub(crate) fn rand_seed_set(&mut self, value: i64) {
-        let mut s = value & 0x7fff_ffff;
-        if s == 0 || s == 2_147_483_647 {
-            s ^= 0x075b_d924;
-        }
-        self.rand_seed = s;
+        self.rand_seed = tcl_syntax::expr::rand::seed_from_wide(value);
     }
 
     /// Advance the Park–Miller minimal-standard generator one step and return a
-    /// double in `[0, 1)` (`expr rand()`), using Schrage's overflow-safe form.
-    // `rand_seed` is kept in `[1, 2^31 - 1]` and `IP` is `2^31 - 1`; both are
-    // well under `f64`'s 2^53 exact-integer range, so the casts are lossless.
-    #[allow(clippy::cast_precision_loss)]
+    /// double in `[0, 1)` (`expr rand()`).
+    ///
+    /// The step *and* the final scaling are the shared owner's: this VM used to
+    /// transcribe them locally and divided by `RAND_IM` where C
+    /// reciprocal-multiplies, which made `expr {srand(251)}` one ulp away from
+    /// tclsh and from `runtime/rust` (issue #1432).
     pub(crate) fn rand_next(&mut self) -> f64 {
-        const IA: i64 = 16807;
-        const IP: i64 = 2_147_483_647;
-        const IQ: i64 = 127_773;
-        const IR: i64 = 2_836;
-        let test = IA * (self.rand_seed % IQ) - IR * (self.rand_seed / IQ);
-        self.rand_seed = if test > 0 { test } else { test + IP };
-        self.rand_seed as f64 / IP as f64
+        let (seed, draw) = tcl_syntax::expr::rand::next(self.rand_seed);
+        self.rand_seed = seed;
+        draw
     }
 
     /// Write the release-reporting globals derived from the threaded

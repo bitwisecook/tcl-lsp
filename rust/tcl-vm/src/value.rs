@@ -311,8 +311,11 @@ impl Value {
         }
         // The canonical word acceptor (`ParseBoolean`, tclObj.c): any
         // unambiguous case-insensitive prefix of the six boolean words —
-        // one home in `tcl_syntax::boolean`, oracle-table-pinned.
-        match tcl_syntax::boolean::parse_boolean_word(t) {
+        // one home in `tcl_syntax::boolean`, oracle-table-pinned. The word is
+        // matched **untrimmed**: unlike the numeric branch above, C's
+        // `ParseBoolean` does no whitespace stripping, so `" true"` is
+        // `expected boolean value but got " true"` on tclsh 8.6.16 / 9.0.4.
+        match tcl_syntax::boolean::parse_boolean_word(&s) {
             Some(b) => Ok(b),
             None => Err(TclError::new(format!(
                 "expected boolean value but got {}",

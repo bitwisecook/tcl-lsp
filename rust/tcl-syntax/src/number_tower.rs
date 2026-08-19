@@ -130,6 +130,51 @@ pub trait BigIntOps: Sized + Clone + Ord {
             self.clone()
         }
     }
+
+    /// The exact integer part of a double, truncated toward zero — C's
+    /// `Tcl_InitBignumFromDouble`, the conversion `entier()` / `int()` /
+    /// `round()` reach for a double outside the wide window
+    /// (`tcl9.0.4/generic/tclBasic.c:7670`).
+    ///
+    /// `None` for a non-finite value (C reports "integer value too large to
+    /// represent" there) **and** for a backend with no arbitrary-precision
+    /// rung at all — the uninhabited placeholder a const-folder uses — which
+    /// is that caller's signal to decline rather than approximate.
+    ///
+    /// The default is exact and backend-agnostic: a finite double is
+    /// `mantissa × 2^exponent` with a 53-bit mantissa, so the conversion needs
+    /// only [`Self::from_i64`], [`Self::shl`], [`Self::shr`], and
+    /// [`Self::neg`]. Truncation happens on the double first, so for a
+    /// negative exponent the shifted-out bits are provably zero and the right
+    /// shift cannot round.
+    #[must_use]
+    fn from_f64_trunc(value: f64) -> Option<Self> {
+        if !value.is_finite() {
+            return None;
+        }
+        let truncated = value.trunc();
+        let bits = truncated.abs().to_bits();
+        let biased_exponent = i32::try_from((bits >> 52) & 0x7ff).ok()?;
+        let fraction = bits & ((1u64 << 52) - 1);
+        // A biased exponent of 0 is zero or a subnormal; both truncate to 0,
+        // and neither carries the implicit leading mantissa bit.
+        let (mantissa, exponent) = if biased_exponent == 0 {
+            (0u64, 0i32)
+        } else {
+            (fraction | (1u64 << 52), biased_exponent - 1075)
+        };
+        let mut magnitude = Self::from_i64(i64::try_from(mantissa).ok()?);
+        if exponent > 0 {
+            magnitude = magnitude.shl(u32::try_from(exponent).ok()?);
+        } else if exponent < 0 {
+            magnitude = magnitude.shr(usize::try_from(-exponent).ok()?);
+        }
+        Some(if truncated < 0.0 {
+            magnitude.neg()
+        } else {
+            magnitude
+        })
+    }
 }
 
 /// A generic floor square root for backends that provide only exact integer
@@ -340,6 +385,33 @@ pub mod conformance {
         // bit_len feeds the shift collapse: 2^64 needs 65 bits.
         assert_eq!(two64.bit_len(), 65);
         assert_eq!(v(0).bit_len(), 0);
+
+        // Tcl's low-64-bit fold — `wide()`'s window, and `int()`'s below 9.0.
+        // The negative rows matter: two's-complement folding and libtommath's
+        // sign-magnitude `mp_get_i64` must agree, since the two backends use
+        // opposite internal representations.
+        assert_eq!(v(-100).to_i64_wrapping(), -100);
+        assert_eq!(two64.add(&v(5)).to_i64_wrapping(), 5);
+        assert_eq!(two64.neg().sub(&v(5)).to_i64_wrapping(), -5);
+        assert_eq!(two64.to_i64_wrapping(), 0, "2^64 folds to 0");
+
+        // Exact double truncation (`Tcl_InitBignumFromDouble`). Values stay
+        // inside ~2^63 so a narrow toy backend can conform too; the beyond-
+        // double-precision rows live in each adopter's own suite.
+        assert_eq!(B::from_f64_trunc(f64::INFINITY), None, "Inf has no integer");
+        assert_eq!(B::from_f64_trunc(f64::NAN), None);
+        assert_eq!(B::from_f64_trunc(0.0).and_then(|b| b.to_i64()), Some(0));
+        assert_eq!(B::from_f64_trunc(0.5).and_then(|b| b.to_i64()), Some(0));
+        assert_eq!(B::from_f64_trunc(-0.5).and_then(|b| b.to_i64()), Some(0));
+        assert_eq!(B::from_f64_trunc(-2.9).and_then(|b| b.to_i64()), Some(-2));
+        assert_eq!(
+            B::from_f64_trunc(1e18).and_then(|b| b.to_i64()),
+            Some(1_000_000_000_000_000_000)
+        );
+        assert_eq!(
+            B::from_f64_trunc(-9.2e18).and_then(|b| b.to_i64()),
+            Some(-9_200_000_000_000_000_000)
+        );
 
         // Total order (drives numeric comparisons).
         assert!(v(-1) < v(0) && v(0) < v(1));
