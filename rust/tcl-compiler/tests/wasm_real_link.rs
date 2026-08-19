@@ -56,9 +56,33 @@
 //! balances its allocations in the real runtime, including when it leaves
 //! part-way through argv construction.
 //!
-//! Heavy + gated: it builds `runtime/rust` to wasm (cached after the first run)
-//! and shells out to the `wasmtime` CLI. It skips cleanly when either is
-//! unavailable, mirroring the other wasm tests.
+//! # Running it — and why the skip is loud
+//!
+//! Heavy + gated: it builds `runtime/rust` to wasm (cached after the first
+//! run) and shells out to the `wasmtime` CLI. Four things must be present:
+//! the `wasmtime` CLI, the `wasm32-wasip1` Rust target, wasi-sdk, and the
+//! libtommath source. [`missing_requirements`] enumerates **all** of them that
+//! are absent, each with its install command.
+//!
+//! Set **`TCL_REQUIRE_WASM_LINK=1`** in any environment that is supposed to
+//! have the whole toolchain — above all CI — and a missing dimension becomes a
+//! failure instead of a skip. This is not optional ceremony: until issue #1542
+//! no CI job installed any of the four, so all eight tests here reported green
+//! while linking nothing at all, for as long as the file has existed. A test
+//! that cannot fail is worse than no test, because it is counted.
+//!
+//! The libtommath dimension is the subtle one. `runtime/rust`'s `build.rs`
+//! does not fail without it; it prints a `cargo:warning` and builds with the
+//! bignum backend disabled. `expr {$b + $c}` then fails *inside* the linked
+//! module, `puts` prints nothing, and the assertion reads `"2"` against
+//! `"6\n2"` — indistinguishable from a codegen regression. So it is checked
+//! up front and passed explicitly, never left to the build script's fallback.
+//!
+//! Every scratch path — including the reserved runtime's cargo `--target-dir`
+//! — lives under [`scratch_root`], which is unique per checkout (worktrees
+//! must never share a target dir; see AGENTS.md and issue #1052) and short
+//! (a deep scratch root breaks `make test-ext`'s VS Code IPC socket against
+//! the 103-byte `AF_UNIX` limit).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -275,12 +299,11 @@ fn leak_bootstrap_wat() -> String {
     .to_owned()
 }
 
-fn have_wasmtime() -> bool {
-    Command::new("wasmtime")
-        .arg("--version")
-        .output()
-        .is_ok_and(|o| o.status.success())
-}
+/// The environment variable that turns every skip in this file into a
+/// failure. Set it in any environment that is *supposed* to have the whole
+/// toolchain — above all CI, where a silent skip is indistinguishable from a
+/// pass and made this entire file vacuous (issue #1542).
+const REQUIRE_VAR: &str = "TCL_REQUIRE_WASM_LINK";
 
 /// The workspace root (`CARGO_MANIFEST_DIR` is `…/rust/tcl-compiler`).
 fn workspace_root() -> PathBuf {
@@ -290,29 +313,195 @@ fn workspace_root() -> PathBuf {
         .expect("workspace root")
 }
 
-/// Build `runtime/rust` to `wasm32-wasip1` with the reserved-region
-/// linker flag, into an isolated target dir. Returns the artifact path, or `None`
-/// if the build can't run (e.g. the wasm32 target is missing) so the test skips.
-fn build_reserved_runtime() -> Option<PathBuf> {
-    let root = workspace_root();
-    let target_dir = std::env::temp_dir().join("tcl_reserved_runtime");
-    let mut command = Command::new("cargo");
-    let wasi_sdk = std::env::var_os("WASI_SDK_PATH")
+/// A short, stable, **per-checkout** scratch directory for everything this
+/// file writes: the reserved-runtime cargo target dir and every `.wasm` /
+/// `.wat` the bootstraps are composed from.
+///
+/// *Per-checkout* because the target dir must never be shared across
+/// worktrees — cargo's unit hashing does not disambiguate workspace members
+/// built from different worktree paths of the same workspace, so concurrent
+/// checkouts serve each other stale rlibs and the greens stop meaning
+/// anything (AGENTS.md "Parallel worktrees and agent build isolation", issue
+/// #1052). It also removes the cross-worktree collision on the scratch module
+/// files, the most plausible mechanism for #1542's original one-off, which was
+/// first seen during a broad `make test`.
+///
+/// *Short* because "unique" must not mean "deep": `make test-ext` puts a VS
+/// Code IPC socket under the scratch root, and an `AF_UNIX` `sun_path` is
+/// capped at 103 bytes. `/tmp/tclwl-XXXXXXXX` is 19.
+///
+/// The id is an FNV-1a hash of the canonical workspace root — deterministic
+/// across runs and toolchain upgrades, so the expensive runtime build stays
+/// cached for a given checkout.
+fn scratch_root() -> PathBuf {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in workspace_root().as_os_str().as_encoded_bytes() {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    // Deliberately truncating: 32 bits of an FNV-1a digest is plenty to keep
+    // concurrent checkouts apart, and eight hex digits keep the path short.
+    let dir = std::env::temp_dir().join(format!("tclwl-{:08x}", hash & 0xffff_ffff));
+    std::fs::create_dir_all(&dir).expect("create the real-link scratch root");
+    dir
+}
+
+/// One dimension of the real-link toolchain, with the remedy for it.
+struct MissingRequirement {
+    what: &'static str,
+    remedy: String,
+}
+
+/// Whether `rustc` can see the `wasm32-wasip1` standard library. Asking rustc
+/// rather than rustup keeps this working on a toolchain installed any other
+/// way.
+fn have_wasip1_target() -> bool {
+    Command::new("rustc")
+        .args(["--print", "target-libdir", "--target", "wasm32-wasip1"])
+        .output()
+        .is_ok_and(|out| {
+            out.status.success() && Path::new(String::from_utf8_lossy(&out.stdout).trim()).is_dir()
+        })
+}
+
+/// The wasi-sdk root whose `bin/clang` compiles libtommath to wasm, if present.
+fn wasi_sdk_root() -> Option<PathBuf> {
+    std::env::var_os("WASI_SDK_PATH")
         .map(PathBuf::from)
-        .or(Some(PathBuf::from("/opt/wasi-sdk")))
-        .filter(|path| path.join("bin/clang").is_file())?;
-    command.env("WASI_SDK_PATH", wasi_sdk);
-    if let Some(tommath) = [
+        .or_else(|| Some(PathBuf::from("/opt/wasi-sdk")))
+        .filter(|path| path.join("bin/clang").is_file())
+}
+
+/// The pristine libtommath source tree the runtime's bignum backend is built
+/// from, if present.
+///
+/// This is a **hard requirement**, not an optimisation. `runtime/rust`'s
+/// `build.rs` degrades silently when it cannot find the source — it prints a
+/// `cargo:warning` and builds with the bignum backend disabled — and the
+/// resulting module then fails `expr {$b + $c}` inside the link, so `puts`
+/// prints nothing and the assertion reads `"2"` against `"6\n2"`. That looks
+/// exactly like a codegen regression and has cost at least one lane a
+/// diagnosis (issue #1542). Every worktree hits it, because `tmp/` is
+/// gitignored and so is empty in a fresh checkout.
+fn libtommath_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("TCL_TOMMATH_DIR").map(PathBuf::from)
+        && dir.join("tommath.h").is_file()
+    {
+        return Some(dir);
+    }
+    let root = workspace_root();
+    [
         root.join("tmp/tcl9.0.4/libtommath"),
         root.join("tmp/tcl9.0.3-src/libtommath"),
         root.join("tmp/tcl8.6.16/libtommath"),
     ]
     .into_iter()
     .find(|path| path.join("tommath.h").is_file())
+}
+
+/// Every dimension of the toolchain this file needs that is currently absent,
+/// each with the command that installs it. Empty means the real link can run.
+///
+/// Enumerating *all* of them (rather than returning at the first) matters:
+/// a contributor who installs wasmtime, re-runs, and is then told about
+/// wasi-sdk, re-runs, and is then told about the wasip1 target has paid three
+/// slow round trips for one answer.
+fn missing_requirements() -> Vec<MissingRequirement> {
+    let mut missing = Vec::new();
+    if !Command::new("wasmtime")
+        .arg("--version")
+        .output()
+        .is_ok_and(|o| o.status.success())
     {
-        command.env("TCL_TOMMATH_DIR", tommath);
+        missing.push(MissingRequirement {
+            what: "the `wasmtime` CLI",
+            remedy: "install it (https://wasmtime.dev), e.g. \
+                     `curl https://wasmtime.dev/install.sh -sSf | bash`"
+                .to_owned(),
+        });
     }
-    let ok = command
+    if !have_wasip1_target() {
+        missing.push(MissingRequirement {
+            what: "the `wasm32-wasip1` Rust target",
+            remedy: "`rustup target add wasm32-wasip1`".to_owned(),
+        });
+    }
+    if wasi_sdk_root().is_none() {
+        missing.push(MissingRequirement {
+            what: "wasi-sdk (`bin/clang`, to compile libtommath to wasm)",
+            remedy: "install wasi-sdk to /opt/wasi-sdk, or point WASI_SDK_PATH at it \
+                     (https://github.com/WebAssembly/wasi-sdk/releases)"
+                .to_owned(),
+        });
+    }
+    if libtommath_dir().is_none() {
+        missing.push(MissingRequirement {
+            what: "the libtommath source (the runtime's bignum backend)",
+            remedy: format!(
+                "fetch the Tcl 9.0.4 source into `{}/tmp` (the fetch-tcl-source helper), \
+                 or export TCL_TOMMATH_DIR=<dir containing tommath.h>. \
+                 Without it the runtime builds with bignums DISABLED and the link \
+                 fails with a missing-output diff that looks like a codegen bug.",
+                workspace_root().display()
+            ),
+        });
+    }
+    missing
+}
+
+/// The gate every real-link test opens with: `Some(runtime)` when the whole
+/// toolchain is present and the reserved runtime built, otherwise a skip.
+///
+/// Under `TCL_REQUIRE_WASM_LINK=1` there is no skip — a missing dimension is a
+/// panic naming every one of them and how to install it. That is the point of
+/// issue #1542: without an assertive mode these eight tests reported green in
+/// CI while linking nothing at all, and the issue's own acceptance criterion
+/// would have passed vacuously.
+///
+/// Without the variable the skip is still **loud and specific** — it names the
+/// dimension, not just "skipping".
+#[must_use]
+fn real_link_runtime() -> Option<PathBuf> {
+    let required = std::env::var(REQUIRE_VAR).is_ok_and(|v| v != "0" && !v.is_empty());
+    let missing = missing_requirements();
+    if !missing.is_empty() {
+        let mut report = String::new();
+        for item in &missing {
+            let _ = writeln!(
+                report,
+                "  - missing {}\n    remedy: {}",
+                item.what, item.remedy
+            );
+        }
+        assert!(
+            !required,
+            "{REQUIRE_VAR} is set, so the real WASM link must actually run, but:\n{report}"
+        );
+        eprintln!(
+            "SKIPPING the real WASM link — the toolchain is incomplete:\n{report}\
+             Set {REQUIRE_VAR}=1 to turn this skip into a failure."
+        );
+        return None;
+    }
+    Some(build_reserved_runtime())
+}
+
+/// Build `runtime/rust` to `wasm32-wasip1` with the reserved-region linker
+/// flag, into this checkout's own target dir.
+///
+/// Every precondition is checked by [`missing_requirements`] before this runs,
+/// so a failure here is a *real* failure and panics with cargo's own output —
+/// it never degrades to a skip, and the bignum backend is never silently
+/// disabled (`TCL_TOMMATH_DIR` is always passed explicitly).
+fn build_reserved_runtime() -> PathBuf {
+    let root = workspace_root();
+    let target_dir = scratch_root().join("rt");
+    let out = Command::new("cargo")
+        .env("WASI_SDK_PATH", wasi_sdk_root().expect("wasi-sdk checked"))
+        .env(
+            "TCL_TOMMATH_DIR",
+            libtommath_dir().expect("libtommath checked"),
+        )
         .arg("build")
         .arg("--manifest-path")
         .arg(root.join("runtime/rust/Cargo.toml"))
@@ -323,9 +512,23 @@ fn build_reserved_runtime() -> Option<PathBuf> {
         // [0, 0x100000), data/heap move to >= 0x200000, leaving the gap free for
         // the emitted constant pool.
         .env("RUSTFLAGS", "-C link-arg=--global-base=2097152")
-        .status()
-        .is_ok_and(|s| s.success());
-    ok.then(|| target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm"))
+        .output()
+        .expect("run cargo for the wasm32-wasip1 runtime");
+    assert!(
+        out.status.success(),
+        "building the wasm32-wasip1 reserved runtime failed \
+         (every toolchain precondition was present, so this is a real failure, \
+         not a missing tool):\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let artifact = target_dir.join("wasm32-wasip1/debug/tcl_runtime.wasm");
+    assert!(
+        artifact.is_file(),
+        "cargo reported success but {} does not exist",
+        artifact.display(),
+    );
+    artifact
 }
 
 /// Emit `program`, link it against the real `runtime`, run its `::top`, then
@@ -439,7 +642,7 @@ fn run_link_bytes(
     program: &str,
     query: &str,
 ) -> String {
-    let tmp = std::env::temp_dir();
+    let tmp = scratch_root();
     let user = tmp.join(format!("tcl_real_link_user_{tag}.wasm"));
     let boot = tmp.join(format!("tcl_real_link_boot_{tag}.wat"));
     std::fs::write(&user, user_bytes).expect("write user module");
@@ -510,7 +713,7 @@ fn run_real_native_i64_add(runtime: &Path, program: &str) -> String {
         "native proof did not select: {:?}",
         output.plan
     );
-    let tmp = std::env::temp_dir();
+    let tmp = scratch_root();
     let user = tmp.join("tcl_real_native_i64_user.wasm");
     let boot = tmp.join("tcl_real_native_i64_boot.wat");
     std::fs::write(&user, output.to_bytes()).expect("write native i64 user module");
@@ -547,7 +750,7 @@ fn run_real_generic_invoke(runtime: &Path, program: &str, expected_code: i32) ->
     );
     let user_bytes = output.to_bytes();
 
-    let tmp = std::env::temp_dir();
+    let tmp = scratch_root();
     let user = tmp.join("tcl_real_generic_user.wasm");
     let boot = tmp.join("tcl_real_generic_boot.wat");
     std::fs::write(&user, user_bytes).expect("write generic user module");
@@ -595,7 +798,7 @@ fn run_real_guarded_intrinsic_invoke(
     assert!(wat.contains("tcl_intrinsic_invoke_argv"), "{wat}");
     let user_bytes = output.to_bytes();
 
-    let tmp = std::env::temp_dir();
+    let tmp = scratch_root();
     let user = tmp.join("tcl_real_guarded_user.wasm");
     let boot = tmp.join("tcl_real_guarded_boot.wat");
     std::fs::write(&user, user_bytes).expect("write guarded user module");
@@ -622,7 +825,7 @@ fn run_real_guarded_intrinsic_invoke(
 }
 
 fn run_real_native_wide_int_abi(runtime: &Path, value: i64) -> String {
-    let tmp = std::env::temp_dir();
+    let tmp = scratch_root();
     let boot = tmp.join("tcl_real_native_wide_int_boot.wat");
     std::fs::write(&boot, native_wide_int_bootstrap_wat(value))
         .expect("write native wide-int bootstrap");
@@ -647,12 +850,7 @@ fn run_real_native_wide_int_abi(runtime: &Path, value: i64) -> String {
 /// the live interpreter — observed by reading state back through the same interp.
 #[test]
 fn emitted_modules_run_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
 
@@ -689,12 +887,7 @@ fn emitted_modules_run_against_the_real_runtime() {
 /// effect is read back through the same interpreter afterwards.
 #[test]
 fn compiled_argv_invocations_run_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
 
@@ -762,12 +955,7 @@ fn compiled_argv_invocations_run_against_the_real_runtime() {
 /// through the abrupt-completion branch.
 #[test]
 fn compiled_argv_balances_allocations_in_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
 
@@ -792,7 +980,7 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
             "set go 1\nwhile {$go} {string index\nlappend never x}\nstring length abc\n",
         ),
     ] {
-        let tmp = std::env::temp_dir();
+        let tmp = scratch_root();
         let user = tmp.join(format!("tcl_real_leak_user_{tag}.wasm"));
         let boot = tmp.join(format!("tcl_real_leak_boot_{tag}.wat"));
         // The frame-alloc requirement is what keeps this honest: under source
@@ -831,12 +1019,7 @@ fn compiled_argv_balances_allocations_in_the_real_runtime() {
 /// The canonical semantic plan invokes prebuilt argv in the real runtime.
 #[test]
 fn canonical_generic_argv_runs_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
     for (program, code, expected) in [("string length abc\n", 0, "3"), ("error boom\n", 1, "boom")]
@@ -854,12 +1037,7 @@ fn canonical_generic_argv_runs_against_the_real_runtime() {
 /// execution-trace mutations invalidate its guard admission.
 #[test]
 fn guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
     let cases = [
@@ -890,12 +1068,7 @@ fn guarded_boxed_intrinsic_runs_and_falls_back_against_the_real_runtime() {
 /// whose normal Tcl string result remains exact at the signed range boundary.
 #[test]
 fn native_wide_int_codegen_abi_links_against_the_real_runtime() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
     assert_eq!(
@@ -910,12 +1083,7 @@ fn native_wide_int_codegen_abi_links_against_the_real_runtime() {
 /// the unchanged general interpreter path produces the same Tcl output.
 #[test]
 fn sealed_native_i64_add_runs_and_trace_registration_falls_back() {
-    if !have_wasmtime() {
-        eprintln!("wasmtime CLI unavailable; skipping the real link");
-        return;
-    }
-    let Some(runtime) = build_reserved_runtime() else {
-        eprintln!("could not build the wasm32 runtime; skipping the real link");
+    let Some(runtime) = real_link_runtime() else {
         return;
     };
     let program = "proc add {b c} {return [expr {$b + $c}]}\nset d 2\nset e 4\nputs [add $d $e]\n";

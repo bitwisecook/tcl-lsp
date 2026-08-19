@@ -465,9 +465,9 @@ jobs:
   # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
   # toolchain resolved from rust-toolchain.toml.
   #
-  # The cargo surface is split across FOUR concurrent jobs so the CPU-bound
+  # The cargo surface is split across FIVE concurrent jobs so the CPU-bound
   # suites don't serialise behind each other.  Wall-clock is the max of the
-  # four, not their sum.  All four are required status checks on `rust`:
+  # five, not their sum.  The first four are required status checks on `rust`:
   #
   #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
   #                     plus ALL workspace doctests (cheap; nextest can't run
@@ -484,6 +484,18 @@ jobs:
   #                     over stdio (rust/tcl-lsp-server/tests/*_e2e.rs)
   #   cargo-deny        supply-chain audit, isolated so a denial is attributable
   #                     independently of the test surface
+  #   wasm-real-link    the real whole-program WASM link, with the only CI
+  #                     install of wasmtime / wasm32-wasip1 / wasi-sdk /
+  #                     libtommath and `TCL_REQUIRE_WASM_LINK=1` so a missing
+  #                     one fails instead of skipping (issue #1542).  NOT yet
+  #                     wired into `create-release`'s `needs`, deliberately: it
+  #                     downloads a wasi-sdk release asset, and a transient
+  #                     404/timeout there must not be able to block a release.
+  #                     Promote it (and to a required check) once it has proved
+  #                     stable over a few weeks.  `tcl-compiler` is in
+  #                     `rust-tests`' workspace run too, so `wasm_real_link.rs`
+  #                     also executes there — without the toolchain, where it
+  #                     skips loudly by naming what is missing.
   #
   # nextest runs every test binary's tests in ONE global parallel pool, so the
   # VM-sim suites overlap instead of running one binary at a time — a large
@@ -605,6 +617,82 @@ jobs:
             extra="--no-run"
           fi
           cargo nextest run $extra -p tcl-irule-test -p f5-cli -p tcl-fuzz --all-features
+
+  # The real whole-program WASM link (`tcl-compiler`'s `wasm_real_link.rs`):
+  # an emitted module linked against the real `runtime/rust` compiled to
+  # `wasm32-wasip1`, composed and executed by the wasmtime CLI.
+  #
+  # Its own job because it is the ONLY job that installs this toolchain, and
+  # because before it existed the suite was permanently vacuous: every one of
+  # those tests skipped-and-passed when the toolchain was absent, and no CI job
+  # installed the wasmtime CLI, the `wasm32-wasip1` target, or wasi-sdk.  Eight
+  # green tests, zero real links, for the whole life of the file (issue #1542).
+  # `TCL_REQUIRE_WASM_LINK=1` is what makes this job meaningful: with it set, a
+  # missing dimension of the toolchain is a hard failure instead of a skip, so
+  # the job cannot silently revert to reporting green for nothing.
+  #
+  # The Tcl 9.0.4 source is fetched for libtommath: `runtime/rust`'s build
+  # script degrades *silently* to a bignum-less runtime without it, and the
+  # link then fails with a missing-output diff that reads like a codegen
+  # regression rather than a missing dependency.
+  wasm-real-link:
+    # Deliberately hosted -- see `rust-tests-heavy`.
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          # The wasm32 std is a job-specific dependency, so this job keeps its
+          # own cache rather than racing the other cargo jobs on save.
+          target: wasm32-wasip1
+          cache-key: wasm-real-link
+
+      - name: Install the wasmtime CLI
+        uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
+        with:
+          tool: wasmtime
+
+      # wasi-sdk supplies the `clang` that compiles libtommath's C sources to
+      # wasm objects.  Pinned by version + checksum-bearing release asset; the
+      # test finds it at the default /opt/wasi-sdk, so no env var is needed.
+      - name: Install wasi-sdk
+        if: needs.channel.outputs.docs_only != 'true'
+        env:
+          WASI_SDK_VERSION: '33'
+          WASI_SDK_RELEASE: '33.0'
+        run: |
+          set -euo pipefail
+          asset="wasi-sdk-${WASI_SDK_RELEASE}-x86_64-linux.tar.gz"
+          url="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-${WASI_SDK_VERSION}/${asset}"
+          curl -fsSL --retry 3 -o /tmp/wasi-sdk.tar.gz "$url"
+          sudo mkdir -p /opt/wasi-sdk
+          sudo tar -xzf /tmp/wasi-sdk.tar.gz -C /opt/wasi-sdk --strip-components=1
+          test -x /opt/wasi-sdk/bin/clang
+
+      # libtommath.  Fetched through the same helper contributors use, so CI
+      # and a developer checkout resolve the identical tree.
+      - name: Fetch the Tcl 9.0.4 source (libtommath)
+        if: needs.channel.outputs.docs_only != 'true'
+        run: |
+          set -euo pipefail
+          .claude/skills/fetch-tcl-source/fetch_tcl_source.sh 9.0
+          test -f tmp/tcl9.0.4/libtommath/tommath.h
+
+      # Same skip/downgrade contract as rust-tests — see the channel job header.
+      # No `--no-run` downgrade: the point of this job is that the link really
+      # executes, and building the test binary without running it would be
+      # exactly the vacuity #1542 is about.
+      - name: cargo test --test wasm_real_link (toolchain required)
+        if: needs.channel.outputs.docs_only != 'true' && !(startsWith(github.ref, 'refs/tags/') && needs.channel.outputs.already_green == 'true')
+        env:
+          TCL_REQUIRE_WASM_LINK: '1'
+        run: cargo test -p tcl-compiler --test wasm_real_link -- --test-threads=1
 
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
