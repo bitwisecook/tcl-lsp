@@ -299,6 +299,100 @@ fn analysed_direct_call_preserves_static_and_dynamic_execution_traces() {
     }
 }
 
+/// Issue #1376 — a clause word's token span already *excludes* its closing
+/// brace, so stripping a trailing `}` off the slice could only ever delete a
+/// byte of real content. Every clause whose last inner character is `}` was
+/// truncated: `${name}`, a trailing braced word, a nested dict/list literal.
+/// The truncated text then reaches `tcl_expr_bool` / `tcl_eval_code`, which
+/// raises an unbalanced-brace parse error on code the user wrote correctly.
+///
+/// Each vector below asserts the *exact* interned clause text, so a
+/// reintroduced strip (or an over-eager one, e.g. dropping the opener twice)
+/// fails by name rather than by a downstream runtime error.
+#[test]
+fn clause_text_keeps_a_trailing_brace_in_a_while_condition() {
+    let mut module = compile_wasm("while {${x}} {puts hi}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""${x}""#),
+        "the `while` condition must be interned whole, not truncated to `${{x`:\n{wat}"
+    );
+    assert!(
+        !wat.contains(r#""${x""#),
+        "the truncated form must not appear at all:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+#[test]
+fn clause_text_keeps_a_trailing_brace_in_an_if_condition() {
+    let mut module = compile_wasm("if {$x eq {a}} {puts a}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""$x eq {a}""#),
+        "the `if` condition must keep its nested braced word:\n{wat}"
+    );
+    assert!(
+        !wat.contains(r#""$x eq {a""#),
+        "the truncated form must not appear at all:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// The `for`-*next* clause is the residual half of #1376: `Statement::For`
+/// carries `condition_base` but no `next_base`, so this site is driven from
+/// the lowerer's `raw_args[2]` instead.
+#[test]
+fn clause_text_keeps_a_trailing_brace_in_a_for_step() {
+    let mut module = compile_wasm("for {set i 0} {$i<2} {set x ${i}} {puts a}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""set x ${i}""#),
+        "the `for` step clause must be interned whole:\n{wat}"
+    );
+    assert!(
+        !wat.contains(r#""set x ${i""#),
+        "the truncated form must not appear at all:\n{wat}"
+    );
+    // The init and condition clauses stay intact alongside it.
+    assert!(wat.contains(r#""set i 0""#), "{wat}");
+    assert!(wat.contains(r#""$i<2""#), "{wat}");
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// Control: a condition whose last inner character is `]`, not `}`, was never
+/// affected — it must stay byte-identical, proving the fix did not start
+/// mangling the unaffected majority.
+#[test]
+fn clause_text_leaves_a_bracket_terminated_condition_alone() {
+    let mut module = compile_wasm("while {[string match {a} $x]} {puts hi}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""[string match {a} $x]""#),
+        "an unaffected condition must round-trip byte-for-byte:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// A nested *dict/list* literal is the third shape #1376 named. Distinct from
+/// the `${x}` and trailing-braced-word vectors above because the trailing `}`
+/// closes a word the condition itself opened.
+#[test]
+fn clause_text_keeps_a_trailing_brace_from_a_nested_list_literal() {
+    let mut module = compile_wasm("while {[llength {a b}]} {puts hi}\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""[llength {a b}]""#),
+        "the nested list literal must keep its closing brace:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
 /// A braced word is one unsubstituted literal argv value: it is materialised
 /// straight from the constant pool, never evaluated as a command.
 #[test]

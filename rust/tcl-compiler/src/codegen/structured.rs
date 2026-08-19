@@ -46,16 +46,18 @@ use crate::ir::{IfClause, Script, Statement};
 /// issue #996. Unlike `loop_depth` (which tracks *loop* nesting only, for
 /// `break`/`continue` validity, and never increments for `if`), this counts
 /// **every** structurally-recursive level so purely `if`-nested input is
-/// bounded too. Not currently reachable from any wired-up production path
-/// (`structured::walk` has no caller yet — this module is WASM-backend
-/// infrastructure ahead of its integration), but guarded the same way as
-/// every other recursive-descent walker in this crate rather than left
-/// unaudited. 256 matches the convention used elsewhere in this crate
-/// (`analyser::commands::MAX_BODY_DEPTH`,
-/// `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`)
-/// since, when wired up, this runs on the native compiler's side (emitting
-/// WASM, not executing inside it) — the same big-stack entry points already
-/// fixed for issue #996 apply.
+/// bounded too. This walk **is** on a wired-up production path — the WASM
+/// backend drives it for the top level and for every proc body
+/// (`codegen::wasm::backend::codegen`, `backend.rs:1919` and `:1961`) — and it
+/// is guarded the same way as every other recursive-descent walker in this
+/// crate. (A stale claim that `structured::walk` "has no caller yet" stood
+/// here until issue #1376; it is plausibly why neither `slice` nor the clause
+/// text helper was hardened.) 256 matches the convention used elsewhere in
+/// this crate (`analyser::commands::MAX_BODY_DEPTH`,
+/// `lowering::MAX_LOWER_NEST_DEPTH`, `optimiser::MAX_OPTIMISER_WALK_DEPTH`):
+/// this runs on the native compiler's side (emitting WASM, not executing
+/// inside it) — the same big-stack entry points already fixed for issue #996
+/// apply.
 const MAX_STRUCTURED_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 /// Whether straight-line control falls through to the next statement, or the
@@ -150,10 +152,11 @@ fn walk_stmt<E: Emit>(
 
         Statement::While {
             condition_span,
+            condition_base,
             body,
             ..
         } => {
-            let cond = condition_text(source, *condition_span);
+            let cond = clause_text(source, *condition_span, *condition_base);
             emit_loop(emit, opt(cond), body, None, source, loop_depth, depth);
             Flow::Normal
         }
@@ -161,14 +164,26 @@ fn walk_stmt<E: Emit>(
         Statement::For {
             init,
             condition_span,
+            condition_base,
             next_span,
             body,
+            raw_args,
             ..
         } => {
             // The init clause runs once, in the enclosing scope.
             walk_script(emit, init, source, loop_depth, depth);
-            let cond = condition_text(source, *condition_span);
-            let step = condition_text(source, *next_span);
+            let cond = clause_text(source, *condition_span, *condition_base);
+            // Issue #1376 residual: `Statement::For` carries `condition_base`
+            // but no `next_base`, so the step clause takes the lowerer's own
+            // de-braced word text (`raw_args[2]` — `for init cond next body`)
+            // when it is present, which is the IR fact that corresponds to
+            // `condition_base` for this word. Synthetically built loops (GVN,
+            // static-loop unrolling, inlining) carry no `raw_args`, so those
+            // fall back to the span-derived content.
+            let step = match raw_args.get(2) {
+                Some(text) => text.trim(),
+                None => clause_text(source, *next_span, None),
+            };
             emit_loop(emit, opt(cond), body, opt(step), source, loop_depth, depth);
             Flow::Normal
         }
@@ -224,7 +239,11 @@ fn emit_if<E: Emit>(
         return; // malformed `if` with no clauses — nothing to emit.
     };
 
-    emit.begin_if(condition_text(source, first.condition_span));
+    emit.begin_if(clause_text(
+        source,
+        first.condition_span,
+        first.condition_base,
+    ));
     walk_script(emit, &first.body, source, loop_depth, depth + 1);
 
     if !rest.is_empty() {
@@ -298,22 +317,60 @@ fn slice(source: &str, span: Span) -> &str {
         .unwrap_or_default()
 }
 
-/// The expression / clause source text for `span`, stripping a wrapping
-/// `{…}` / `"…"` that the lexer's token span includes.
+/// The expression / clause source text a condition or `for`-*next* word
+/// spans, driven by the anchors the CST already produced.
 ///
-/// Condition and `for`-*next* token spans start at the opening brace and (per
-/// the lexer) exclude the closing brace, so `source[span]` is `"{1"` for
-/// `{1}` — we strip a leading `{`/`"` and an optional matching trailer to
-/// recover the bare `1` an expression / script evaluator expects.
-fn condition_text(source: &str, span: Span) -> &str {
-    let s = slice(source, span).trim();
-    if let Some(inner) = s.strip_prefix('{') {
-        return inner.strip_suffix('}').unwrap_or(inner).trim();
-    }
-    if let Some(inner) = s.strip_prefix('"') {
-        return inner.strip_suffix('"').unwrap_or(inner).trim();
-    }
-    s
+/// Issue #1376: a clause word's token span starts at the **opening**
+/// delimiter and ends *exclusively at the closing* one, so `source[span]` is
+/// `"{1"` for `{1}`. The content is therefore `source[content_start..span.end()]`
+/// with nothing to strip off the tail — an earlier `strip_suffix('}')` here
+/// could only ever delete a byte of real content, truncating every clause
+/// whose last inner character is `}` (`${name}`, a trailing braced word, a
+/// nested dict/list literal) or `"`.
+///
+/// `base` is the lowerer's [`crate::ir::IfClause::condition_base`] — the
+/// absolute offset of the content's first byte, computed once by
+/// [`crate::lowering_hooks::word_content_base`], which is the one place the
+/// opening-delimiter width is recovered without guessing. When it is absent
+/// (a reconstructed / multi-token word, an empty `{}`, or a synthetically
+/// built statement) the opener width is recovered from the opener byte the
+/// span points at — directly observable, not inferred, since a Tcl word that
+/// begins with `{` or `"` is a braced / quoted word and no other word may.
+///
+/// The *end* is never guessed at all: it comes from
+/// [`tcl_lexer::word_closer_offset_at`], the shared owner of the inner-end
+/// convention. That matters because the convention has one exception — an
+/// empty `{}` / `""` span already covers its closer — which a plain
+/// `span.end()` would render as the literal text `"}"` (issue #1423 is the
+/// same trap in `branch_folding`). A bare or unterminated word has no closer,
+/// and the span's exclusive end is already the content end.
+fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
+    let start = span.start();
+    // For a delimited word this is the closer's offset, i.e. the exclusive
+    // end of the content — which is *not* `span.end()` for an empty `{}`.
+    let end = tcl_lexer::word_closer_offset_at(source, span).unwrap_or_else(|| span.end());
+    let content_start = match base {
+        // Trust the lowerer's anchor only when it lands inside this word; a
+        // rebased or mismatched base degrades to the span-derived form rather
+        // than slicing somewhere unrelated.
+        Some(b) if b >= start && b <= end => b,
+        _ => {
+            let opener = source
+                .as_bytes()
+                .get(start as usize)
+                .copied()
+                .unwrap_or(b'\0');
+            if matches!(opener, b'{' | b'"') {
+                start.saturating_add(1).min(end)
+            } else {
+                start
+            }
+        }
+    };
+    source
+        .get(content_start as usize..end as usize)
+        .unwrap_or_default()
+        .trim()
 }
 
 /// `Some(text)` unless `text` is empty — an empty condition / step clause maps
@@ -371,6 +428,83 @@ mod tests {
         fn emit_return(&mut self) {
             self.0.push("return".into());
         }
+    }
+
+    /// Issue #1376 — [`clause_text`] unit contract. The token span starts at
+    /// the opener and ends *exclusively at* the closer, so nothing may ever be
+    /// stripped off the tail. Each vector below is a byte range constructed
+    /// the way the lexer builds one, so a reintroduced `strip_suffix` fails
+    /// here even if no lowering path currently produces the shape.
+    #[test]
+    fn clause_text_never_strips_a_closer_the_span_already_excludes() {
+        // (source, span, base, expected)
+        let cases: &[(&str, u32, u32, Option<u32>, &str)] = &[
+            // Braced, trailing `}` is real content — the #1376 repro.
+            ("while {${x}} {b}", 6, 11, None, "${x}"),
+            // …and with the lowerer's own anchor supplied.
+            ("while {${x}} {b}", 6, 11, Some(7), "${x}"),
+            // Braced, nested braced word at the tail.
+            ("if {$x eq {a}} {b}", 3, 13, None, "$x eq {a}"),
+            // Quoted: the opener is `"`, the closer is likewise excluded, and
+            // a trailing `\"` in the content must survive.
+            (r#"while "$x eq \"a\"" {b}"#, 6, 18, None, r#"$x eq \"a\""#),
+            // Bare word: no delimiter at all, content is the whole span.
+            ("while $c {b}", 6, 8, None, "$c"),
+            // Empty braced clause — the one exception to the inner-end span
+            // convention: the span already covers its closer, so a naive
+            // `span.end()` would yield the literal text `}`.
+            ("while {} {b}", 6, 8, None, ""),
+            // …likewise an empty quoted clause.
+            (r#"while "" {b}"#, 6, 8, None, ""),
+            // A *nested* empty pair at the tail is not the empty-word case —
+            // the outer word's own closer still sits one byte past the span
+            // (issue #1423's shape).
+            ("while {$x eq {}} {b}", 6, 15, None, "$x eq {}"),
+            // Surrounding whitespace inside the braces is trimmed, as before.
+            ("while { $x } {b}", 6, 11, None, "$x"),
+            // An out-of-range base is ignored in favour of the span-derived
+            // opener rather than slicing somewhere unrelated.
+            ("while {${x}} {b}", 6, 11, Some(99), "${x}"),
+        ];
+        for &(source, start, end, base, expected) in cases {
+            let span = Span::new(start, end);
+            assert_eq!(
+                clause_text(source, span, base),
+                expected,
+                "clause_text({source:?}, {start}..{end}, {base:?})"
+            );
+        }
+    }
+
+    /// The `for`-*next* clause has no `next_base`, so `walk_stmt` drives it
+    /// from the lowerer's `raw_args[2]`. Proven end-to-end through the real
+    /// lowering so the argument index is checked against the IR, not assumed.
+    #[test]
+    fn for_step_clause_is_emitted_whole() {
+        let ev = events("for {set i 0} {$i<2} {set x ${i}} {puts a}\n");
+        assert!(
+            ev.iter().any(|e| e == "cmd(set x ${i})"),
+            "the `for` step must be emitted whole: {ev:?}"
+        );
+        assert!(
+            ev.iter().any(|e| e == "test($i<2)"),
+            "the `for` condition must be emitted whole: {ev:?}"
+        );
+    }
+
+    /// The `while` and `if` clause sites, through the real lowering.
+    #[test]
+    fn while_and_if_conditions_are_emitted_whole() {
+        let ev = events("while {${x}} {puts hi}\n");
+        assert!(
+            ev.iter().any(|e| e == "test(${x})"),
+            "the `while` condition must be emitted whole: {ev:?}"
+        );
+        let ev = events("if {$x eq {a}} {puts a}\n");
+        assert!(
+            ev.iter().any(|e| e == "if($x eq {a})"),
+            "the `if` condition must be emitted whole: {ev:?}"
+        );
     }
 
     /// Lower `src` and record the structured-walk event sequence.
