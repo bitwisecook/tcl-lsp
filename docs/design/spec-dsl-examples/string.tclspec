@@ -8,7 +8,7 @@
 # prefix acceptance, per-value Tcl-version floors, and constant folders
 # written as Tcl hook bodies.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 # The `string is` character classes.  A named table because the shipped spec
 # has the same shape: one `static IS_CLASSES` read both by `arg_values` and by

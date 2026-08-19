@@ -5,7 +5,7 @@
 # as code, subcommand-level world-effect and state-transition descriptors, a
 # non-closed argument-value table, and allow_unknown_subcommands.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 # The three class-manufacturing methods class.n documents — completion/hover
 # data only, deliberately NOT a closed value set: oo::class is itself an

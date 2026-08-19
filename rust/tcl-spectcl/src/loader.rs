@@ -148,9 +148,21 @@ impl fmt::Display for Notice {
 struct Log {
     context: String,
     notices: Vec<Notice>,
+    /// Sites that used `SpecTcl` 1.1-only vocabulary: `(context, line, word)`.
+    /// Drained by [`load_pack`] into per-site notices when the pack's
+    /// `speclib` line declares an older vocabulary — the words still load
+    /// (additions never gate), but a genuinely-1.0 loader drops them
+    /// silently, and the declaration is the pack's only way to say it needs
+    /// them.
+    v11_uses: Vec<(String, u32, String)>,
 }
 
 impl Log {
+    fn v11(&mut self, line: u32, word: &str) {
+        self.v11_uses
+            .push((self.context.clone(), line, word.to_owned()));
+    }
+
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
             context: self.context.clone(),
@@ -321,6 +333,34 @@ fn block(word: &Word) -> Vec<Stmt> {
 /// the one [`crate::cache`] keys its on-disk entry from.
 pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
     statements(source, 1)
+}
+
+/// Locate the top-level `speclib` statement's version word: the byte range
+/// of the word's *content* (inside any braces/quotes, so a rewrite keeps
+/// the author's delimiters) and its decoded text.
+///
+/// This is the hook `tcl spec upgrade` rewrites through. It must read words
+/// exactly the way [`load_pack`] does — same lexer, same segmentation — so
+/// `speclib demo {1.0} { … }` and `speclib demo "1.0" { … }` decode to
+/// `1.0` here just as they do at load.
+#[must_use]
+pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
+    let source_map = SourceMap::new(source);
+    let (document, _warnings) = build_document(source, LexerConfig::default());
+    for segment in segments_from_document(document, &source_map) {
+        if segment.texts.first().map(String::as_str) != Some("speclib") {
+            continue;
+        }
+        let text = segment.texts.get(2)?.clone();
+        let token = segment.argv.get(2)?;
+        // Word tokens exclude the closing delimiter from `span.end` and
+        // carry the opening one via `content_offset`, so
+        // `start + content_offset .. end` is exactly the content range for
+        // wrapped and bare words alike.
+        let start = token.span.start() as usize + usize::from(token.content_offset);
+        return Some((start..token.span.end() as usize, text));
+    }
+    None
 }
 
 // ---------------------------------------------------------------------------
@@ -535,10 +575,33 @@ pub struct Pack {
     pub name: String,
     /// The **DSL vocabulary** version, not the library's.
     pub dsl_version: String,
+    /// The pack's human-readable name (`display_name {IEEE 1801 UPF}`),
+    /// for editor surfaces that show a library rather than a file.
+    pub display_name: Option<String>,
+    /// The file extensions this pack's language is written under
+    /// (`file_extension upf -name {Unified Power Format} -dialect …`),
+    /// in declaration order.
+    pub file_extensions: Vec<FileExtension>,
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
+}
+
+/// One `file_extension` row: an extension the pack's language is written
+/// under, with an optional human-readable name and an optional dialect the
+/// server routes files of this extension to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FileExtension {
+    /// The extension, lower-case, without the leading dot (`upf`).
+    pub extension: String,
+    /// Human-readable name for editor pickers (`Unified Power Format`).
+    pub display_name: Option<String>,
+    /// The canonical dialect-profile name files of this extension detect
+    /// as; validated against the profile catalogue at load.
+    pub dialect: Option<&'static str>,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
 }
 
 impl Pack {
@@ -558,10 +621,12 @@ impl Pack {
 pub fn load_pack(source: &str) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
-        notices: Vec::new(),
+        ..Log::default()
     };
     let mut pack = Pack {
         name: String::new(),
+        display_name: None,
+        file_extensions: Vec::new(),
         dsl_version: String::new(),
         commands: Vec::new(),
         notices: Vec::new(),
@@ -595,6 +660,33 @@ pub fn load_pack(source: &str) -> Pack {
             "descriptor" => tables.add_descriptor(&stmt, &mut log),
             "hook" => tables.add_hook(&stmt, &mut log),
             "default" => tables.add_default(&stmt, &mut log),
+            "display_name" => {
+                let name = stmt.word_text(1);
+                if name.is_empty() {
+                    log.say(stmt.line, "`display_name` needs a name");
+                } else {
+                    if pack.display_name.is_some() {
+                        log.say(stmt.line, "`display_name` redeclared; last wins");
+                    }
+                    pack.display_name = Some(name.to_owned());
+                }
+            }
+            "file_extension" => {
+                if let Some(row) = file_extension_row(&stmt, &mut log) {
+                    if pack
+                        .file_extensions
+                        .iter()
+                        .any(|prior| prior.extension == row.extension)
+                    {
+                        log.say(
+                            stmt.line,
+                            format!("`file_extension {}` redeclared; first wins", row.extension),
+                        );
+                    } else {
+                        pack.file_extensions.push(row);
+                    }
+                }
+            }
             "command" => declarations.push(stmt),
             _ => log.unknown_property(&stmt),
         }
@@ -603,6 +695,27 @@ pub fn load_pack(source: &str) -> Pack {
     for stmt in declarations {
         if let Some(command) = load_command(&stmt, &tables, &mut log) {
             pack.commands.push(command);
+        }
+    }
+
+    // Vocabulary consistency: 1.1-only words under an older declaration.
+    // Additions never gate, so THIS loader read them fine — but a genuinely
+    // 1.0 loader drops each one silently, and declaring 1.1 is how a pack
+    // says it needs them. One notice per site, so an editor can mark every
+    // offending row.
+    if matches!(pack.dsl_version.as_str(), "1" | "1.0") {
+        let declared = pack.dsl_version.clone();
+        let name = pack.name.clone();
+        for (context, line, word) in std::mem::take(&mut log.v11_uses) {
+            log.notices.push(Notice {
+                context,
+                line,
+                message: format!(
+                    "`{word}` is SpecTcl 1.1 vocabulary, but this pack declares \
+                     vocabulary {declared}; a 1.0 loader drops the word — declare \
+                     `speclib {name} 1.1`"
+                ),
+            });
         }
     }
 
@@ -617,10 +730,67 @@ pub fn load_pack(source: &str) -> Pack {
 /// `1.1` all name a vocabulary this build understands in full. A pack naming
 /// anything else still loads: the words it uses that this build knows are read,
 /// and the rest hit the ordinary unknown-property rule.
-const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+pub const NEWEST_VOCABULARY_VERSION: &str = "1.1";
+
+/// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
+/// pack's language is written under. The extension is normalised to
+/// lower-case without a leading dot; `-dialect` must name a canonical
+/// profile (the routing consumer needs an interned name), and a typo drops
+/// only the routing, not the row.
+fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
+    let raw = stmt.word_text(1);
+    if raw.is_empty() {
+        log.say(stmt.line, "`file_extension` needs an extension");
+        return None;
+    }
+    let extension = raw.trim_start_matches('.').to_ascii_lowercase();
+    if extension.is_empty() || extension.contains('.') || extension.contains(char::is_whitespace) {
+        log.say(
+            stmt.line,
+            format!("`file_extension {raw}` is not a single extension"),
+        );
+        return None;
+    }
+    let mut row = FileExtension {
+        extension,
+        display_name: None,
+        dialect: None,
+        line: stmt.line,
+    };
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-name" => {
+                let name = next_text(words, &mut i);
+                if name.is_empty() {
+                    log.say(stmt.line, "`-name` needs a value");
+                } else {
+                    row.display_name = Some(name);
+                }
+            }
+            "-dialect" => {
+                let dialect = next_text(words, &mut i);
+                match tcl_dialect::DialectProfile::find(&dialect) {
+                    Some(profile) => row.dialect = Some(profile.name),
+                    None => log.say(
+                        stmt.line,
+                        format!(
+                            "`-dialect {dialect}` names no dialect profile; \
+                             the extension is kept without routing"
+                        ),
+                    ),
+                }
+            }
+            other => log.unknown_flag("file_extension", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(row)
+}
 
 /// Warn when `speclib`'s version word is not a vocabulary this build knows.
 fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
@@ -781,7 +951,9 @@ fn value_rows(stmts: &[Stmt], log: &mut Log) -> Vec<ArgValue> {
                     }
                 }
                 other => {
-                    if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                    if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                        log.v11(stmt.line, other);
+                    } else {
                         log.unknown_flag("value", stmt.line, other);
                     }
                 }
@@ -2020,6 +2192,7 @@ fn option_row(
             // statement uses. The contextual-callback variant stays
             // reference-only.
             "-deprecation-fix" => {
+                log.v11(stmt.line, "-deprecation-fix");
                 i += 1;
                 match words.get(i) {
                     Some(value) => {
@@ -3274,7 +3447,10 @@ fn apply_command_stmt(
         }
         // The command-level mirror of the subcommand row, sharing its parser:
         // a literal value of one argument gated on the package's own axis.
+        // The statement is 1.1 vocabulary at THIS scope (it was
+        // subcommand-only in 1.0).
         "versioned_arg_value" => {
+            log.v11(stmt.line, "versioned_arg_value");
             if let Some(gate) = versioned_arg_value_row(stmt, log) {
                 acc.versioned_arg_values.push(gate);
             }
@@ -3470,7 +3646,9 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
                 form.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("form", stmt.line, other);
                 }
             }
@@ -3517,7 +3695,9 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
                 effect.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("side_effect", stmt.line, other);
                 }
             }
@@ -3547,7 +3727,9 @@ fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::Option
                 constraint.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("option_conflict", stmt.line, other);
                 }
             }
@@ -4005,7 +4187,9 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
                 row.dialects = parse_dialects(&text, stmt.line, log);
             }
             other => {
-                if !lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
+                    log.v11(stmt.line, other);
+                } else {
                     log.unknown_flag("sub_subcommand", stmt.line, other);
                 }
             }
@@ -4512,6 +4696,94 @@ mod tests {
                  1.1); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
+        );
+    }
+    /// A 1.1-only word under a 1.0 declaration draws one notice per site:
+    /// this loader reads the word fine (additions never gate), but a
+    /// genuinely-1.0 loader drops it silently, so the declaration must say
+    /// 1.1. Declaring 1.1 clears every notice; the option row's lifecycle
+    /// flags stay 1.0 vocabulary and never trip it.
+    #[test]
+    fn v11_words_under_a_10_declaration_draw_a_per_site_notice() {
+        let body = "\n command demo {\n                        arity 1\n                        option -x -introduced 1.2\n                        form Default {demo word} -introduced 1.2\n                        side_effect FileIo -writes -deprecated 2.0\n                        versioned_arg_value 0 utf-8 -introduced 1.2\n                    }\n}";
+
+        let pack = load_pack(&format!("speclib probe 1.0 {{{body}"));
+        let v11_notices: Vec<&str> = pack
+            .notices
+            .iter()
+            .filter(|n| n.message.contains("SpecTcl 1.1 vocabulary"))
+            .map(|n| n.message.as_str())
+            .collect();
+        // form -introduced, side_effect -deprecated, and the command-scope
+        // versioned_arg_value statement; the option row's -introduced is 1.0
+        // vocabulary and stays silent.
+        assert_eq!(v11_notices.len(), 3, "{:?}", pack.notices);
+        assert!(
+            v11_notices
+                .iter()
+                .all(|m| m.contains("declare `speclib probe 1.1`")),
+            "{v11_notices:?}"
+        );
+        assert!(
+            !v11_notices.iter().any(|m| m.contains("`-x`")),
+            "option-row lifecycle is 1.0 vocabulary: {v11_notices:?}"
+        );
+
+        let pack = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        assert!(
+            pack.notices.is_empty(),
+            "declaring 1.1 clears it: {:?}",
+            pack.notices
+        );
+    }
+
+    /// The all-versions contract: the same pack body loads to the identical
+    /// command surface under every vocabulary this loader knows — a pack is
+    /// never refused, and no known version reads fewer words than another.
+    #[test]
+    fn every_known_vocabulary_loads_the_same_command_surface() {
+        let body = "{\n command demo {\n                        arity 1..\n                        option -mode -takes mode -values {a b} -closed\n                        form Default {demo ?-mode mode? word}\n                        hover { summary {Demo.} synopsis {demo word} }\n                    }\n command other { arity 0 }\n}";
+        let baseline = load_pack(&format!("speclib probe 1.1 {body}"));
+        let baseline_names: Vec<&str> = baseline.commands.iter().map(|c| c.spec.name).collect();
+        for known in ["1", "1.0"] {
+            let pack = load_pack(&format!("speclib probe {known} {body}"));
+            let names: Vec<&str> = pack.commands.iter().map(|c| c.spec.name).collect();
+            assert_eq!(names, baseline_names, "{known}");
+            assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
+            let demo = pack.command("demo").expect("demo loads");
+            assert_eq!(demo.spec.options.len(), 1, "{known}");
+        }
+    }
+    /// `display_name` and `file_extension` are pack-level metadata: names
+    /// for humans, extensions for editors, and `-dialect` routing that must
+    /// resolve to a canonical profile — a typo keeps the row and drops only
+    /// the routing, with a notice.
+    #[test]
+    fn display_name_and_file_extension_rows_load() {
+        let pack = load_pack(
+            "speclib upfdemo 1.1 {\n             display_name {IEEE 1801 UPF}\n             file_extension .UPF -name {Unified Power Format} -dialect synopsys-eda-tcl\n             file_extension pwr -dialect no-such-dialect\n             file_extension upf -name {duplicate}\n             command demo { arity 1 }\n}",
+        );
+        assert_eq!(pack.display_name.as_deref(), Some("IEEE 1801 UPF"));
+        assert_eq!(pack.file_extensions.len(), 2, "{:?}", pack.file_extensions);
+        let upf = &pack.file_extensions[0];
+        assert_eq!(upf.extension, "upf", "lower-cased, dot stripped");
+        assert_eq!(upf.display_name.as_deref(), Some("Unified Power Format"));
+        assert_eq!(upf.dialect, Some("synopsys-eda-tcl"));
+        let pwr = &pack.file_extensions[1];
+        assert_eq!(pwr.extension, "pwr");
+        assert_eq!(pwr.dialect, None, "typo'd dialect drops only the routing");
+        let messages: Vec<&str> = pack.notices.iter().map(|n| n.message.as_str()).collect();
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("`-dialect no-such-dialect` names no dialect profile")),
+            "{messages:?}"
+        );
+        assert!(
+            messages
+                .iter()
+                .any(|m| m.contains("`file_extension upf` redeclared")),
+            "{messages:?}"
         );
     }
 }

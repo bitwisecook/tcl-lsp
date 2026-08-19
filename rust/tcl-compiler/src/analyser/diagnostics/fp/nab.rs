@@ -485,7 +485,7 @@ fn fp_nab_13_message_names_available_dialects() {
         .map(|(_, m)| m.as_str())
         .unwrap_or_default();
     assert!(
-        msg.contains("available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1"),
+        msg.contains("available in: Tcl 8.5, Tcl 8.6, Tcl 9.0, Tcl 9.1"),
         "W002 message should name the dialects dict is available in; got {msg:?}"
     );
 }

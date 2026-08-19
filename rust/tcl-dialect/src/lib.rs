@@ -60,7 +60,7 @@ pub use grammar::{
     NumberSyntax, expr_word_operator_since, is_expr_word_operator,
 };
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
-pub use profile::DialectProfile;
+pub use profile::{DialectFileExtension, DialectProfile};
 pub use version::{
     ByteStringEncoding, PackagePrefer, StringCharacterModel, TclVersion, Ternary, compare_versions,
     exact_requirement, select_package_version, version_is_stable, version_satisfies,

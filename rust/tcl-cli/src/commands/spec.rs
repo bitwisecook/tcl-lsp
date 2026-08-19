@@ -52,7 +52,7 @@ use tcl_cli_support::spec_import::{
 use tcl_cli_support::{OutputTarget, write_text_output};
 use tcl_spec_studio::versions::VersionedSnapshot;
 
-use crate::cli::{SpecCommand, SpecImportArgs};
+use crate::cli::{SpecCommand, SpecImportArgs, SpecUpgradeArgs};
 
 /// GitHub's maximum page size for `/tags`; fewer requests, same answer.
 const TAGS_PER_PAGE: usize = 100;
@@ -66,7 +66,81 @@ const MAX_TAG_PAGES: usize = 10;
 pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
     match action {
         SpecCommand::Import(args) => run_import(args),
+        SpecCommand::Upgrade(args) => run_upgrade(args),
     }
+}
+
+/// `tcl spec upgrade` — rewrite the `speclib` version word to the newest
+/// vocabulary.
+///
+/// The vocabulary is additive (`docs/design/spec-dsl-examples/README.md`,
+/// "Vocabulary changelog"), so the version word is the whole upgrade: every
+/// loader reads all known versions in full, and the declaration only says
+/// which words the pack is entitled to. The rewrite is a single-word edit on
+/// the `speclib` line — nothing else in the file is touched — and the result
+/// is re-loaded through the real loader so a pack that was clean stays
+/// provably clean.
+pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
+    use tcl_spectcl::{
+        KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, load_pack, speclib_version_span,
+    };
+
+    let mut behind = 0u32;
+    let mut skipped = 0u32;
+    for file in &args.files {
+        let source = std::fs::read_to_string(file)
+            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", file.display()))?;
+        // The speclib statement is the pack's one loader directive; the
+        // version is its third word, located through the loader's own word
+        // segmentation so `{1.0}` and `"1.0"` decode exactly as `load_pack`
+        // reads them. The rewrite replaces only the word's content — the
+        // author's delimiters and everything else in the file are untouched.
+        let Some((range, version)) = speclib_version_span(&source) else {
+            println!(
+                "{}: no `speclib <name> <version>` line found — skipped",
+                file.display()
+            );
+            skipped += 1;
+            continue;
+        };
+        if version == NEWEST_VOCABULARY_VERSION {
+            println!("{}: already declares vocabulary {version}", file.display());
+            continue;
+        }
+        if !KNOWN_VOCABULARY_VERSIONS.contains(&version.as_str()) {
+            // `speclib mylib 0.15` never named a vocabulary — most often the
+            // library's own release in the wrong slot. Rewriting it would
+            // destroy that (wrong, but meaningful) word silently.
+            println!(
+                "{}: `{version}` names no SpecTcl vocabulary (the library's own \
+                 version?) — not rewritten; fix the `speclib` line by hand",
+                file.display()
+            );
+            skipped += 1;
+            continue;
+        }
+        behind += 1;
+        if args.check {
+            println!(
+                "{}: declares vocabulary {version}; would declare {NEWEST_VOCABULARY_VERSION}",
+                file.display()
+            );
+            continue;
+        }
+        let mut upgraded = source.clone();
+        upgraded.replace_range(range, NEWEST_VOCABULARY_VERSION);
+        let pack = load_pack(&upgraded);
+        std::fs::write(file, &upgraded)
+            .map_err(|e| anyhow::anyhow!("cannot write {}: {e}", file.display()))?;
+        println!(
+            "{}: {version} -> {NEWEST_VOCABULARY_VERSION} (pack `{}`, {} commands, {} notices)",
+            file.display(),
+            pack.name,
+            pack.commands.len(),
+            pack.notices.len()
+        );
+    }
+    Ok(u8::from(skipped > 0 || (args.check && behind > 0)))
 }
 
 /// `tcl spec import` — derive version ranges from several releases.

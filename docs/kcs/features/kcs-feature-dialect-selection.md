@@ -22,10 +22,10 @@ MCP, all-editors
 
 ## How to use
 
-- **VS Code**: Run `Tcl: Select Dialect` from the command palette and pick from: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps, f5-bigip, synopsys-eda-tcl, cadence-eda-tcl, xilinx-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, expect.
+- **VS Code**: Run `Tcl: Select Dialect` from the command palette and pick from the eighteen profiles: tcl8.4, tcl8.5, tcl8.6, tcl9.0, tcl9.1, f5-irules, f5-iapps, f5-tmsh, f5-bigip, bpf, expect, spectcl, cadence-eda-tcl, intel-quartus-eda-tcl, mentor-eda-tcl, microchip-libero-eda-tcl, synopsys-eda-tcl, xilinx-eda-tcl.
 - **Other editors**: Set `tclLsp.dialect` in workspace settings.
 - **MCP**: Call `set_dialect` with the dialect name.
-- **Automatic**: `.irul`/`.irule` files default to f5-irules; `.iapp` to f5-iapps; `bigip.conf` to f5-bigip; `.exp` to expect. Shebang `#!/usr/bin/expect` also triggers the expect dialect.
+- **Automatic**: each profile owns its file extensions — `.irul`/`.irule`/`.irules` → f5-irules; `.iapp`/`.iappimpl`/`.impl` → f5-iapps; `.tmsh` → f5-tmsh; `.scf` (and `bigip.conf`) → f5-bigip; `.exp`/`.expect` → expect; `.tclspec` → spectcl; `.globals` → cadence-eda-tcl; `.qsf`/`.qpf`/`.qip` → intel-quartus-eda-tcl; `.do` → mentor-eda-tcl; `.sdc`/`.upf` → synopsys-eda-tcl; `.xdc` → xilinx-eda-tcl. bpf and microchip-libero-eda-tcl own no extension, so pick them by setting or `# tcl-dialect:` comment. Shebang `#!/usr/bin/expect` also triggers the expect dialect, and a SpecTcl pack can route further extensions with a `file_extension` row.
 
 ## Operational context
 

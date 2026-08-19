@@ -23,6 +23,7 @@
                                                 "f5-tmsh",
                                                 "intel-quartus-eda-tcl",
                                                 "mentor-eda-tcl",
+                                                "microchip-libero-eda-tcl",
                                                 "spectcl",
                                                 "synopsys-eda-tcl",
                                                 "tcl8.4",

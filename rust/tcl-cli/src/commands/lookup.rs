@@ -48,6 +48,13 @@ struct NotFoundPayload {
     dialect: String,
 }
 
+/// How a dialect is named in the human-readable output: `F5 iRules
+/// [f5-irules]`. The JSON payloads keep the bare canonical name — that is the
+/// machine-parseable field, and it stays a name a `--dialect` argument accepts.
+fn dialect_label(dialect: &DialectProfile) -> String {
+    format!("{} [{}]", dialect.display_name, dialect.name)
+}
+
 /// `tcl command-info` — look up registry metadata for one command.
 pub fn run_command_info(
     command: &str,
@@ -93,7 +100,10 @@ pub fn run_command_info(
         } else {
             write_text_output(
                 &target,
-                &format!("command not found: {query} (dialect={})", dialect.name),
+                &format!(
+                    "command not found: {query} (dialect={})",
+                    dialect_label(dialect)
+                ),
             )?;
         }
         return Ok(1);
@@ -142,7 +152,7 @@ pub fn run_command_info(
 
     let mut lines = vec![
         format!("command: {resolved_name}"),
-        format!("dialect: {}", dialect.name),
+        format!("dialect: {}", dialect_label(dialect)),
     ];
     if !summary.is_empty() {
         lines.push(format!("summary: {summary}"));

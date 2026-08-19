@@ -4,7 +4,7 @@
 # sink, layer/profile event requirements, a dialect-only command, and
 # subcommand-level credential / sensitive-header facts.
 
-speclib f5-irules 1.0 {
+speclib f5-irules 1.1 {
 
 command HTTP::header {
     dialects f5-irules
