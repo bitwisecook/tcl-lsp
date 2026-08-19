@@ -16,58 +16,86 @@
 # by the spec studio's SpecTcl renderer (rust/tcl-spec-studio/src/render_spectcl.rs)
 # from the registry modules, which reported no unwritable field on any command
 # here; this file is hand-maintained from now on.
+#
+# Blocks carrying `source {Questa SIM Command Reference 2025.3}` were checked
+# against that manual (Siemens EDA, mirrored by Microchip as
+# questa_sim_ref_2026_1.pdf, whose in-document version string is 2025.3); the
+# Signal Spy entries cite the ModelSim User's Manual 2024.2 instead. Blocks
+# still carrying `source {F5}` were not re-verified against a primary manual.
+# Ensembles are modelled as a command plus `subcommand` rows; where the manual's
+# member list is known to be partial the block also states
+# `allow_unknown_subcommands`.
 
-speclib eda_mentor 1.0 {
+speclib eda_mentor 1.1 {
 
-command add_list {
+display_name {Siemens Questa/ModelSim}
+
+command add {
     dialects tcl8.6
     required_package questa
+    allow_unknown_subcommands
 
-    form Default {add list ?-radix radix? signal_list}
+    form Default {add <subcommand> ?arg ...?}
 
     hover {
-        summary {Add signals to the list window (add list).}
-        synopsis {add list ?-radix radix? signal_list}
-        source {F5}
+        summary {Add objects to the List or Wave window, or to the log (ensemble).}
+        synopsis {add <subcommand> ?arg ...?}
+        description {`add list`, `add log` and `add wave` are the members documented here; `add log` is an alias of the canonical `log` command. `add wave` arguments are order dependent — an option applies to the objects named after it.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand list {
+        arity 1..
+        detail {Add objects to the List window; a user-defined bus is written as {name {sig ...}}.}
+        synopsis {add list {<object>... | <object_name> {sig ...}} ?-allowconstants? ?-depth level? ?-filter f? ?-nofilter f? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-label name? ?-nodelta? ?-optcells? ?-radix type? ?-recursive? ?-width n? ?-window wname?}
+    }
+
+    subcommand log {
+        arity 1..
+        detail {Alias of the `log` command: record objects and their descendants for later viewing. There is no `-r` spelling; the option is `-recursive`, optionally with `-depth level`.}
+        synopsis {add log ?-class classtype? ?-howmany? ?-filter f? ?-nofilter f? ?-flush? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-recursive ?-depth level?? object ...}
+    }
+
+    subcommand wave {
+        arity 1..
+        detail {Add objects to the Wave window. Arguments are order dependent.}
+        synopsis {add wave ?-allowconstants? ?-clampanalog {0 | 1}? ?-color name? ?-depth level? ?-divider name? ?-expand signal? ?-filter f? ?-nofilter f? ?-format format? ?-group name? ?-height pixels? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-label label? ?-max value? ?-min value? ?-noupdate? ?-position pos? ?-radix type? ?-recursive? ?-time? ?-window wname? object ...}
     }
 }
 
-command add_log {
+command assertion {
     dialects tcl8.6
     required_package questa
+    allow_unknown_subcommands
 
-    form Default {add log ?-r? signal_list}
+    form Default {assertion <subcommand> ?arg ...?}
 
     hover {
-        summary {Log signals for waveform viewing (add log).}
-        synopsis {add log ?-r? signal_list}
-        source {F5}
+        summary {Configure SVA/PSL assertions and cover directives (ensemble).}
+        synopsis {assertion <subcommand> ?arg ...?}
+        description {A large ensemble; `assertion enable` is spelled out below, and `assertion action`, `assertion pass` and `assertion severity` are further members.}
+        source {Questa SIM Command Reference 2025.3}
     }
-}
 
-command add_wave {
-    dialects tcl8.6
-    required_package questa
-
-    form Default {add wave ?-position pos? ?-radix radix? ?-format format? ?-label label? ?-divider name? ?-group name? signal_list}
-
-    hover {
-        summary {Add signals to the wave window (add wave).}
-        synopsis {add wave ?-position pos? ?-radix radix? ?-format format? ?-label label? ?-divider name? ?-group name}
-        source {F5}
+    subcommand enable {
+        arity 1..
+        detail {Enable, disable or release assertions and cover directives at runtime.}
+        synopsis {assertion enable -on | -off | -release ?-assert | -cover? ?-concurrent | -immediate | -soa | -extract | -meas? ?-filter pattern? ?-force? ?-lang sva | psl | vhdl | vhdlams | spice? ?-recursive? ?-severity info | note | warning | error | failure | fatal? path ...}
     }
 }
 
 command bc {
     dialects tcl8.6
     required_package questa
+    deprecated_replacement disablebp
 
     form Default {bc ?breakpoint_id | -all?}
 
     hover {
-        summary {Clear (disable) breakpoints.}
+        summary {Legacy: clear (disable) breakpoints.}
         synopsis {bc ?breakpoint_id | -all?}
-        source {F5}
+        description {No `bc` entry appears in the Questa SIM Command Reference 2025.3 or the ModelSim User's Manual 2024.2; the documented mechanism is `disablebp ?id# | label?`, whose entry describes itself as the current way to turn breakpoints and `when` statements off.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -75,38 +103,65 @@ command bd {
     dialects tcl8.6
     required_package questa
 
-    form Default {bd ?breakpoint_id | -all?}
+    form Default {bd {filename line_number} | {id_number | label} ...}
 
     hover {
         summary {Delete breakpoints.}
-        synopsis {bd ?breakpoint_id | -all?}
-        source {F5}
+        synopsis {bd {filename line_number} | {id_number | label} ...}
+        description {Deletes a breakpoint either by file and line number or by one or more id numbers or labels. There is no documented `-all` option.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
 command be {
     dialects tcl8.6
     required_package questa
+    deprecated_replacement enablebp
 
     form Default {be ?breakpoint_id | -all?}
 
     hover {
-        summary {Enable breakpoints.}
+        summary {Legacy: enable breakpoints.}
         synopsis {be ?breakpoint_id | -all?}
-        source {F5}
+        description {No `be` entry appears in the Questa SIM Command Reference 2025.3 or the ModelSim User's Manual 2024.2; the documented mechanism is `enablebp ?id# | label?`, cross-referenced from `disablebp` as the way to turn breakpoints and `when` statements back on.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
 command bl {
     dialects tcl8.6
     required_package questa
+    deprecated_replacement bp
 
     form Default {bl}
 
     hover {
-        summary {List all breakpoints.}
+        summary {Legacy: list all breakpoints.}
         synopsis {bl}
-        source {F5}
+        description {No `bl` entry appears in the Questa SIM Command Reference 2025.3 or the ModelSim User's Manual 2024.2; the documented mechanism is `bp` with no arguments, which lists the labels and id numbers of all breakpoints.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command bookmark {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {bookmark <subcommand> wave ?arg ...?}
+
+    hover {
+        summary {Manage Wave window bookmarks (ensemble).}
+        synopsis {bookmark <subcommand> wave ?arg ...?}
+        description {Each member is keyed by a window word; `bookmark goto wave` is the navigation spelling documented here.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand goto {
+        arity 1..
+        detail {Move the Wave window to a saved bookmark.}
+        synopsis {bookmark goto wave <bookmark_name>}
+        sub_subcommand wave -detail {Apply the bookmark to the Wave window.} -synopsis {bookmark goto wave <bookmark_name>}
     }
 }
 
@@ -114,12 +169,13 @@ command bp {
     dialects tcl8.6
     required_package questa
 
-    form Default {bp ?file_name? ?line_number? ?-cond condition?}
+    form Default {bp {filename line_number | filename:line_number | in} ?-ancestor? ?-appendinst? ?-class_randstate s? ?-cond "expr"? ?-disable? ?-id id_number | -label "label"? ?-inst region ...? ?-randstate s? ?-uvm? ?command ...?}
 
     hover {
         summary {Set a breakpoint.}
-        synopsis {bp ?file_name? ?line_number? ?-cond condition?}
-        source {F5}
+        synopsis {bp {filename line_number | filename:line_number | in} ?-ancestor? ?-appendinst? ?-class_randstate s? ?-cond "expr"? ?-disable? ?-id id_number | -label "label"? ?-inst region ...? ?-randstate s? ?-uvm? ?command ...?}
+        description {`-cond` takes a quoted expression. Two further forms exist: a C breakpoint, `bp -c {function_name | ?file:?line_number | *0xhex} ...`, and a query, `bp -query filename ?{start end} | line?`. `bp` with no arguments lists every breakpoint with its label and id number.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -179,53 +235,216 @@ command change {
     dialects tcl8.6
     required_package questa
 
-    form Default {change signal_name value}
+    form Default {change variable value}
 
     hover {
-        summary {Change the value of a VHDL signal or variable.}
-        synopsis {change signal_name value}
-        source {F5}
+        summary {Change the value of a VHDL constant, generic or variable, or a Verilog register, parameter or variable.}
+        synopsis {change variable value}
+        description {Does not work on signals or nets — use `force` to drive those. Under C Debug it also changes a C variable.}
+        source {Questa SIM Command Reference 2025.3}
     }
+}
+
+command checkpoint {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {checkpoint ?-dir? pathname}
+
+    hover {
+        summary {Save the complete simulator state to a checkpoint file.}
+        synopsis {checkpoint ?-dir? pathname}
+        description {Saves the simulation kernel state, the WLF, the List and Wave window contents and file pointers so the session can be resumed later with `restore` (warm restore) or `vsim -restore` (cold restore).}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command compare {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {compare <subcommand> ?arg ...?}
+
+    hover {
+        summary {Waveform comparison of a golden dataset against a test dataset (ensemble).}
+        synopsis {compare <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand start     { arity 0.. ; detail {Begin a comparison between a reference and a test dataset.} ; synopsis {compare start ?arg ...?} }
+    subcommand run       { arity 0.. ; detail {Run the configured comparison.} ;                            synopsis {compare run ?arg ...?} }
+    subcommand list      { arity 0.. ; detail {List the comparison differences.} ;                          synopsis {compare list ?arg ...?} }
+    subcommand info      { arity 0.. ; detail {Report information about the current comparison.} ;          synopsis {compare info ?arg ...?} }
+    subcommand delete    { arity 0.. ; detail {Delete comparison objects.} ;                                synopsis {compare delete ?arg ...?} }
+    subcommand reload    { arity 0.. ; detail {Reload previously saved comparison rules and results.} ;     synopsis {compare reload ?arg ...?} }
+    subcommand saverules { arity 0.. ; detail {Save the current comparison rules to a file.} ;              synopsis {compare saverules ?arg ...?} }
+    subcommand update    { arity 0.. ; detail {Update the comparison with newly available data.} ;          synopsis {compare update ?arg ...?} }
 }
 
 command coverage {
     dialects tcl8.6
     required_package questa
 
-    form Default {coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?}
+    form Default {coverage <subcommand> ?arg ...?}
 
     hover {
-        summary {Configure or report code coverage.}
-        synopsis {coverage ?save | report | reload | clear? ?-file file? ?-directive? ?-comments?}
-        source {F5}
+        summary {Save, report and manage coverage data (ensemble).}
+        synopsis {coverage <subcommand> ?arg ...?}
+        description {There is no `coverage reload`: a previously saved UCDB is loaded with `coverage open`. `coverage report` writes to `-output <filename>`, not `-file`, and the comment flag is singular (`-comment | -nocomment`). `coverage save` takes its output filename as a positional argument.}
+        source {Questa SIM Command Reference 2025.3}
     }
+
+    subcommand save {
+        arity 1..
+        detail {Save the current coverage data to a UCDB file named by a positional argument.}
+        synopsis {coverage save <file_name> ?-instance path? ?-code types? ?-testname name? ?arg ...?}
+    }
+
+    subcommand report {
+        arity 0..
+        detail {Report coverage data from the current simulation or a loaded UCDB.}
+        synopsis {coverage report ?-output filename? ?-directive? ?-comment | -nocomment? ?arg ...?}
+    }
+
+    subcommand open {
+        arity 1..
+        detail {Open a previously saved UCDB for reporting — the replacement for the non-existent `coverage reload`.}
+        synopsis {coverage open <ucdb_file>}
+    }
+
+    subcommand clear { arity 0 ;  detail {Clear the coverage data collected so far.} ;                 synopsis {coverage clear} }
+
+    subcommand aggregation   { arity 0.. ; detail {Control coverage aggregation.} ;                     synopsis {coverage aggregation ?arg ...?} }
+    subcommand analyze       { arity 0.. ; detail {Analyze coverage data.} ;                            synopsis {coverage analyze ?arg ...?} }
+    subcommand attribute     { arity 0.. ; detail {Read or write UCDB attributes.} ;                    synopsis {coverage attribute ?arg ...?} }
+    subcommand configure     { arity 0.. ; detail {Configure coverage collection.} ;                    synopsis {coverage configure ?arg ...?} }
+    subcommand create        { arity 0.. ; detail {Create coverage objects.} ;                          synopsis {coverage create ?arg ...?} }
+    subcommand edit          { arity 0.. ; detail {Edit coverage data in memory.} ;                     synopsis {coverage edit ?arg ...?} }
+    subcommand exclude       { arity 0.. ; detail {Exclude coverage items from the results.} ;          synopsis {coverage exclude ?arg ...?} }
+    subcommand goal          { arity 0.. ; detail {Set or query coverage goals.} ;                      synopsis {coverage goal ?arg ...?} }
+    subcommand loadtestassoc { arity 0.. ; detail {Load test-association data into the UCDB.} ;         synopsis {coverage loadtestassoc ?arg ...?} }
+    subcommand numbers       { arity 0.. ; detail {Report coverage numbers.} ;                          synopsis {coverage numbers ?arg ...?} }
+    subcommand ranktest      { arity 0.. ; detail {Rank tests by coverage contribution.} ;              synopsis {coverage ranktest ?arg ...?} }
+    subcommand tag           { arity 0.. ; detail {Tag coverage items.} ;                               synopsis {coverage tag ?arg ...?} }
+    subcommand testnames     { arity 0.. ; detail {List the test names recorded in the UCDB.} ;         synopsis {coverage testnames ?arg ...?} }
+    subcommand unlinked      { arity 0.. ; detail {Report coverage items not linked to a test.} ;       synopsis {coverage unlinked ?arg ...?} }
+    subcommand weight        { arity 0.. ; detail {Set or query coverage weights.} ;                    synopsis {coverage weight ?arg ...?} }
+}
+
+command dataset {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {dataset <subcommand> ?arg ...?}
+
+    hover {
+        summary {Open and manage simulation datasets (ensemble).}
+        synopsis {dataset <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand open {
+        arity 1..2
+        detail {Open a WLF or UCDB file as a named dataset for post-processing.}
+        synopsis {dataset open <file_name> ?<dataset_name>?}
+    }
+
+    subcommand close    { arity 0.. ; detail {Close an open dataset.} ;                        synopsis {dataset close ?arg ...?} }
+    subcommand config   { arity 0.. ; detail {Configure dataset logging behaviour.} ;          synopsis {dataset config ?arg ...?} }
+    subcommand alias    { arity 0.. ; detail {Give an open dataset an additional name.} ;      synopsis {dataset alias ?arg ...?} }
+    subcommand restart  { arity 0.. ; detail {Restart the dataset.} ;                          synopsis {dataset restart ?arg ...?} }
+    subcommand snapshot { arity 0.. ; detail {Take a snapshot of the current WLF data.} ;      synopsis {dataset snapshot ?arg ...?} }
+}
+
+command delete {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {delete <subcommand> ?-window wname? object_name ...}
+
+    hover {
+        summary {Remove objects from the List or Wave window (ensemble).}
+        synopsis {delete <subcommand> ?-window wname? object_name ...}
+        description {The counterpart of `add list` and `add wave`; `-window` names one of the windows created by `view`.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand list { arity 1.. ; detail {Remove objects from a List window.} ; synopsis {delete list ?-window wname? object_name ...} }
+    subcommand wave { arity 1.. ; detail {Remove objects from a Wave window.} ; synopsis {delete wave ?-window wname? object_name ...} }
 }
 
 command describe {
     dialects tcl8.6
-    arity 1
+    arity 1..
     required_package questa
 
-    form Default {describe signal_name}
+    form Default {describe name ...}
 
     hover {
-        summary {Show type and value information for a signal.}
-        synopsis {describe signal_name}
-        source {F5}
+        summary {Show type information for one or more objects.}
+        synopsis {describe name ...}
+        description {Accepts several names in one call.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command disablebp {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {disablebp ?id# | label?}
+
+    hover {
+        summary {Turn off breakpoints and when statements.}
+        synopsis {disablebp ?id# | label?}
+        description {With no argument, disables everything. Breakpoints and `when` statements share one id pool; `enablebp` turns them back on. This is the documented replacement for the legacy `bc` mnemonic.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
 command drivers {
     dialects tcl8.6
-    arity 1
+    arity 1..
     required_package questa
 
-    form Default {drivers signal_name}
+    form Default {drivers object_name ?-source?}
 
     hover {
-        summary {Find drivers of a signal.}
-        synopsis {drivers signal_name}
-        source {F5}
+        summary {Display the drivers of an object.}
+        synopsis {drivers object_name ?-source?}
+        description {`-source` reports the ultimate driving source rather than the immediate driver.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command enablebp {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {enablebp ?id# | label?}
+
+    hover {
+        summary {Turn on breakpoints and when statements previously disabled.}
+        synopsis {enablebp ?id# | label?}
+        description {With no argument, enables everything. Breakpoints and `when` statements share one id pool; `disablebp` turns them off. This is the documented replacement for the legacy `be` mnemonic.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command environment {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {environment ?-dataset | -nodataset? ?pathname | -forward | -back?}
+
+    hover {
+        summary {Display or change the current dataset and region context.}
+        synopsis {environment ?-dataset | -nodataset? ?pathname | -forward | -back?}
+        description {Behaves like a `cd` over the design hierarchy; with no arguments it reports the current context. May be abbreviated `env`.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -233,12 +452,13 @@ command examine {
     dialects tcl8.6
     required_package questa
 
-    form Default {examine ?-radix radix? ?-time time? signal_name}
+    form Default {examine name ... ?-delta delta? ?-env path? ?-event time? ?-gui? ?-handle? ?-in | -out | -inout | -ports? ?-internal? ?-expr expression? ?-name? ?-radix radix_type? ?-showbase | -noshowbase? ?-time time? ?-value?}
 
     hover {
-        summary {Examine the value of a signal or variable.}
-        synopsis {examine ?-radix radix? ?-time time? signal_name}
-        source {F5}
+        summary {Examine the current value of one or more objects.}
+        synopsis {examine name ... ?-delta delta? ?-env path? ?-event time? ?-gui? ?-handle? ?-in | -out | -inout | -ports? ?-internal? ?-expr expression? ?-name? ?-radix radix_type? ?-showbase | -noshowbase? ?-time time? ?-value?}
+        description {`-radix` accepts a comma-separated list of radix types. The command may be abbreviated `exa`.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -246,12 +466,55 @@ command find {
     dialects tcl8.6
     required_package questa
 
-    form Default {find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern}
+    form Default {find <object_type> ?arg ...?}
 
     hover {
-        summary {Find signals matching a pattern.}
-        synopsis {find ?-recursive? ?-type type? ?-ports? ?-signals? ?-internal? pattern}
-        source {F5}
+        summary {Locate design objects of a given kind (ensemble).}
+        synopsis {find <object_type> ?arg ...?}
+        description {The object type is the first positional keyword — there is no top-level `-type`, `-signals` or `-ports` flag.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand nets {
+        arity 1..
+        detail {Find nets matching the given names.}
+        synopsis {find nets object_name ... ?-internal? ?-nofilter? ?-in | -inout | -out | -ports? ?-recursive?}
+    }
+
+    subcommand signals {
+        arity 1..
+        detail {Find signals matching the given names.}
+        synopsis {find signals object_name ... ?-internal? ?-nofilter? ?-in | -inout | -out | -ports? ?-recursive?}
+    }
+
+    subcommand instances {
+        arity 1..
+        detail {Find design instances.}
+        synopsis {find instances {object_name ... | -bydu design_unit ?-filter pattern? | -file filename} ?-blocks | -instances? ?-arch? ?-protected? ?-recursive? ?-nodu?}
+    }
+
+    subcommand blocks {
+        arity 1..
+        detail {Find design blocks.}
+        synopsis {find blocks {object_name ... | -bydu design_unit ?-filter pattern? | -file filename} ?-blocks | -instances? ?-arch? ?-protected? ?-recursive? ?-nodu?}
+    }
+
+    subcommand virtuals {
+        arity 1..
+        detail {Find virtual signals, functions and regions.}
+        synopsis {find virtuals object_name ... ?-kind kind? ?-unsaved? ?-recursive?}
+    }
+
+    subcommand classes {
+        arity 0..1
+        detail {Find SystemVerilog classes.}
+        synopsis {find classes ?class_name?}
+    }
+
+    subcommand objects {
+        arity 0..
+        detail {Find class objects.}
+        synopsis {find objects ?-class class_name? ?-isa class_name? ?object_name?}
     }
 }
 
@@ -312,12 +575,13 @@ command init_signal_driver {
     arity 2..
     required_package questa
 
-    form Default {init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?}
+    form Default {init_signal_driver(<src_object>, <dest_object>, <delay>, <delay_type>, <verbose>)}
 
     hover {
-        summary {Initialize signal driver for cross-hierarchy driving.}
-        synopsis {init_signal_driver src_signal dst_signal ?-default default_value? ?-delay delay?}
-        source {F5}
+        summary {Signal Spy: drive a destination object from a source object elsewhere in the hierarchy, with this parameter order.}
+        synopsis {init_signal_driver(<src_object>, <dest_object>, <delay>, <delay_type>, <verbose>)}
+        description {Documented primarily as a Signal Spy HDL procedure called from inside HDL source — a VHDL procedure, the Verilog task `$init_signal_driver(...)`, or a SystemC function — with the comma-separated parameter order shown above rather than Tcl-style flags. ModelSim/Questa have historically also exposed a Tcl-prompt equivalent, so the name is retained here.}
+        source {ModelSim User's Manual 2024.2}
     }
 }
 
@@ -326,12 +590,60 @@ command init_signal_spy {
     arity 2..
     required_package questa
 
-    form Default {init_signal_spy src_signal dst_signal ?-node? ?-verbose?}
+    form Default {init_signal_spy(<src_object>, <dest_object>, <verbose>, <control_state>)}
 
     hover {
-        summary {Initialize signal spy for cross-hierarchy access.}
-        synopsis {init_signal_spy src_signal dst_signal ?-node? ?-verbose?}
-        source {F5}
+        summary {Signal Spy: mirror a source object onto a destination object elsewhere in the hierarchy, with this parameter order.}
+        synopsis {init_signal_spy(<src_object>, <dest_object>, <verbose>, <control_state>)}
+        description {Documented primarily as a Signal Spy HDL procedure called from inside HDL source — a VHDL procedure, a Verilog task, or a SystemC function — with the comma-separated parameter order shown above rather than Tcl-style flags. ModelSim/Questa have historically also exposed a Tcl-prompt equivalent, so the name is retained here.}
+        source {ModelSim User's Manual 2024.2}
+    }
+}
+
+command log {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {log ?-class classtype? ?-howmany? ?-filter f? ?-nofilter f? ?-flush? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-recursive ?-depth level?? object ...}
+
+    hover {
+        summary {Record objects and their descendants for later viewing.}
+        synopsis {log ?-class classtype? ?-howmany? ?-filter f? ?-nofilter f? ?-flush? ?-in? ?-inout? ?-out? ?-ports? ?-internal? ?-recursive ?-depth level?? object ...}
+        description {The canonical spelling; the manual notes that `log` is also known as `add log`. Recursion is `-recursive`, optionally bounded by `-depth level`.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command mem {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {mem <subcommand> ?arg ...?}
+
+    hover {
+        summary {Inspect and compare memory contents (ensemble).}
+        synopsis {mem <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand list    { arity 0.. ; detail {List the memories in the current design context.} ; synopsis {mem list ?arg ...?} }
+    subcommand search  { arity 0.. ; detail {Search a memory for a pattern.} ;                  synopsis {mem search ?arg ...?} }
+    subcommand compare { arity 0.. ; detail {Compare the contents of two memories.} ;           synopsis {mem compare ?arg ...?} }
+}
+
+command noforce {
+    dialects tcl8.6
+    arity 1..
+    required_package questa
+
+    form Default {noforce object_name ...}
+
+    hover {
+        summary {Remove an active force and re-evaluate the object.}
+        synopsis {noforce object_name ...}
+        description {The undo counterpart of `force`.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -339,13 +651,56 @@ command onbreak {
     dialects tcl8.6
     required_package questa
 
-    form Default {onbreak {command}}
+    form Default {onbreak {script ?; script ...?}}
 
     hover {
-        summary {Define action when a breakpoint is hit.}
-        synopsis {onbreak {command}}
-        source {F5}
+        summary {Define the commands run when a breakpoint is hit inside a DO file.}
+        synopsis {onbreak {script ?; script ...?}}
+        description {Several commands are separated by semicolons within one script argument. `onbreak ""` restores the default behavior.}
+        source {Questa SIM Command Reference 2025.3}
     }
+}
+
+command profile {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {profile <subcommand> ?arg ...?}
+
+    hover {
+        summary {Collect and report performance-profiling data (ensemble).}
+        synopsis {profile <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand summary {
+        arity 0..
+        detail {Report profiling data by category.}
+        synopsis {profile summary ?-file filename? ?-header? ?-noheader? ?-tcl?}
+    }
+
+    subcommand on    { arity 0.. ; detail {Start profile data collection.} ;            synopsis {profile on ?arg ...?} }
+    subcommand off   { arity 0.. ; detail {Stop profile data collection.} ;             synopsis {profile off ?arg ...?} }
+    subcommand clear { arity 0.. ; detail {Discard the profile data collected so far.} ; synopsis {profile clear ?arg ...?} }
+    subcommand open  { arity 0.. ; detail {Open a saved profile database.} ;            synopsis {profile open ?arg ...?} }
+}
+
+command property {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {property <subcommand> ?arg ...?}
+
+    hover {
+        summary {SVA property window commands (ensemble).}
+        synopsis {property <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand list { arity 0.. ; detail {List properties.} ;                       synopsis {property list ?arg ...?} }
+    subcommand wave { arity 0.. ; detail {Add a property to the Wave window.} ;     synopsis {property wave ?arg ...?} }
 }
 
 command qrun {
@@ -361,16 +716,31 @@ command qrun {
     }
 }
 
+command quit {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {quit ?-f | -force? ?-sim? ?-code integer?}
+
+    hover {
+        summary {Exit the simulator, or unload just the design.}
+        synopsis {quit ?-f | -force? ?-sim? ?-code integer?}
+        description {`-sim` unloads the current design and leaves the tool running; `-code` sets the process exit status.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
 command qverilog {
     dialects tcl8.6
     required_package questa
 
-    form Default {qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list}
+    form Default {qverilog ?vlog_and_vopt_options? ?-ccflags "opts"? ?-do dofile? ?-gui? ?-i? ?-l logfile? ?-ldflags "opts"? ?-R vsim_options? ?-stats args? ?-work library? filename ...}
 
     hover {
         summary {Questa one-step Verilog compile and simulate.}
-        synopsis {qverilog ?-sv? ?+define+name=val? ?-R? ?-c? file_list}
-        source {F5}
+        synopsis {qverilog ?vlog_and_vopt_options? ?-ccflags "opts"? ?-do dofile? ?-gui? ?-i? ?-l logfile? ?-ldflags "opts"? ?-R vsim_options? ?-stats args? ?-work library? filename ...}
+        description {`-R` takes a value — the `vsim` options to pass on — it is not a bare flag. There is no `qverilog`-specific `-c` or `-sv`; `vlog` and `vopt` options such as `-sv` are accepted as pass-through.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -378,11 +748,16 @@ command qvhdl {
     dialects tcl8.6
     required_package questa
 
+    ;# NOTE(eda): no current Siemens manual documents a `qvhdl` command — it does
+    ;# not appear in the Questa SIM Command Reference 2025.3, the ModelSim User's
+    ;# Manual 2024.2 or the Questa SIM Qrun User's Manual 2024.2. The one-step
+    ;# VHDL flow is `qrun`. The entry is retained unverified rather than deleted.
     form Default {qvhdl ?-2008? ?-R? ?-c? file_list}
 
     hover {
         summary {Questa one-step VHDL compile and simulate.}
         synopsis {qvhdl ?-2008? ?-R? ?-c? file_list}
+        description {Unverified: no current Siemens manual documents this command; `qrun` is the documented one-step flow for VHDL.}
         source {F5}
     }
 }
@@ -391,26 +766,51 @@ command qwave {
     dialects tcl8.6
     required_package questa
 
+    ;# NOTE(eda): no current Siemens manual documents a `qwave` command — it does
+    ;# not appear in the Questa SIM Command Reference 2025.3, the ModelSim User's
+    ;# Manual 2024.2 or the Questa SIM Qrun User's Manual 2024.2. "qwavedb" exists
+    ;# only as a file-format option name (`vsim -qwavedb=...`); the waveform-window
+    ;# ensemble is `wave`. The entry is retained unverified rather than deleted.
     form Default {qwave ?subcommand? ?args ...?}
 
     hover {
         summary {Questa waveform viewer command.}
         synopsis {qwave ?subcommand? ?args ...?}
+        description {Unverified: no current Siemens manual documents this command; the documented waveform-window ensemble is `wave`.}
         source {F5}
     }
 }
 
-command readers {
+command radix {
     dialects tcl8.6
-    arity 1
     required_package questa
+    allow_unknown_subcommands
 
-    form Default {readers signal_name}
+    form Default {radix <subcommand> ?arg ...?}
 
     hover {
-        summary {Find readers of a signal.}
-        synopsis {readers signal_name}
-        source {F5}
+        summary {Inspect and define numeric display radixes (ensemble).}
+        synopsis {radix <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand list   { arity 0..1 ; detail {List the definition of a user-defined radix, or of all of them.} ; synopsis {radix list ?name?} }
+    subcommand names  { arity 0 ;    detail {List the names of all defined radixes.} ;                          synopsis {radix names} }
+    subcommand signal { arity 0.. ;  detail {Query or set a per-signal radix override.} ;                       synopsis {radix signal ??signal_name ?radix_value??? ?-showbase?} }
+}
+
+command readers {
+    dialects tcl8.6
+    arity 1..
+    required_package questa
+
+    form Default {readers object_name ?-source?}
+
+    hover {
+        summary {Display the readers of an object.}
+        synopsis {readers object_name ?-source?}
+        description {`-source` reports the ultimate reading source rather than the immediate reader.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -431,12 +831,28 @@ command restart {
     dialects tcl8.6
     required_package questa
 
-    form Default {restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?}
+    form Default {restart ?-force? ?-nobreakpoint? ?-nolist? ?-nolog? ?-nowave? ?-noassertions? ?-nofcovers? ?-sv_seed seed_value | random?}
 
     hover {
-        summary {Restart the current simulation.}
-        synopsis {restart ?-force? ?-nowave? ?-nolist? ?-nolog? ?-nobreakpoint? ?-nokill?}
-        source {F5}
+        summary {Reload the design and reset the simulation to time zero.}
+        synopsis {restart ?-force? ?-nobreakpoint? ?-nolist? ?-nolog? ?-nowave? ?-noassertions? ?-nofcovers? ?-sv_seed seed_value | random?}
+        description {There is no `-nokill` option. `-noassertions` and `-nofcovers` keep assertion and functional-coverage state from being reset; `-sv_seed` re-seeds SystemVerilog randomization.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command restore {
+    dialects tcl8.6
+    arity 1
+    required_package questa
+
+    form Default {restore pathname}
+
+    hover {
+        summary {Warm-restore simulator state from a checkpoint file.}
+        synopsis {restore pathname}
+        description {Restores into the running session; `vsim -restore` performs the cold restore of the same file.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -457,12 +873,27 @@ command run {
     dialects tcl8.6
     required_package questa
 
-    form Default {run ?time_value? ?-all? ?-continue?}
+    form Default {run ?timesteps ?time_units?? | -all | -continue | -final | -finish | -init | -next | -step ?-current? ?n? ?-out? ?-over ?n?? ?-this?}
 
     hover {
-        summary {Advance simulation by specified time.}
-        synopsis {run ?time_value? ?-all? ?-continue?}
-        source {F5}
+        summary {Advance the simulation.}
+        synopsis {run ?timesteps ?time_units?? | -all | -continue | -final | -finish | -init | -next | -step ?-current? ?n? ?-out? ?-over ?n?? ?-this?}
+        description {`-final` runs the final blocks, `-finish` runs to $finish, `-init` runs the initialization phase, `-next` runs to the next event, and the `-step` family single-steps HDL statements.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command see {
+    dialects tcl8.6
+    required_package questa
+
+    form Default {see ?n | pre post?}
+
+    hover {
+        summary {Show the source lines around the current execution point.}
+        synopsis {see ?n | pre post?}
+        description {With one number, shows that many lines either side; with two, that many before and after.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -470,12 +901,13 @@ command signal_force {
     dialects tcl8.6
     required_package questa
 
-    form Default {signal_force signal_name value ?time? ?-freeze | -drive | -deposit?}
+    form Default {signal_force(<dest_object>, <value>, <rel_time>, <force_type>, <cancel_period>, <verbose>)}
 
     hover {
-        summary {Force a signal value using SignalSpy.}
-        synopsis {signal_force signal_name value ?time? ?-freeze | -drive | -deposit?}
-        source {F5}
+        summary {Signal Spy: force a destination object to a value, with this parameter order.}
+        synopsis {signal_force(<dest_object>, <value>, <rel_time>, <force_type>, <cancel_period>, <verbose>)}
+        description {Documented primarily as a Signal Spy HDL procedure called from inside HDL source — a VHDL procedure, a Verilog task, or a SystemC function — with the comma-separated parameter order shown above rather than Tcl-style flags. `force_type` is the VHDL enum literal default | deposit | drive | freeze, or the integer 0-3 in the Verilog and SystemC forms. ModelSim/Questa have historically also exposed a Tcl-prompt equivalent, so the name is retained here.}
+        source {ModelSim User's Manual 2024.2}
     }
 }
 
@@ -483,38 +915,95 @@ command signal_release {
     dialects tcl8.6
     required_package questa
 
-    form Default {signal_release signal_name}
+    form Default {signal_release(<dest_object>, <verbose>)}
 
     hover {
-        summary {Release a SignalSpy-forced signal.}
-        synopsis {signal_release signal_name}
-        source {F5}
+        summary {Signal Spy: release an object forced by signal_force, with this parameter order.}
+        synopsis {signal_release(<dest_object>, <verbose>)}
+        description {Documented primarily as a Signal Spy HDL procedure called from inside HDL source — a VHDL procedure, a Verilog task, or a SystemC function — rather than as a Tcl command with flags. The parameter list is taken by symmetry with the other Signal Spy entries and was not separately re-read. ModelSim/Questa have historically also exposed a Tcl-prompt equivalent, so the name is retained here.}
+        source {ModelSim User's Manual 2024.2}
     }
+}
+
+command stack {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {stack <subcommand> ?arg ...?}
+
+    hover {
+        summary {Navigate the C/SystemC debug call stack (ensemble).}
+        synopsis {stack <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand frame { arity 1 ; detail {Select the numbered stack frame as the current context.} ; synopsis {stack frame n} }
+    subcommand level { arity 0 ; detail {Report the current stack level.} ;                         synopsis {stack level} }
 }
 
 command toggle {
     dialects tcl8.6
     required_package questa
 
-    form Default {toggle ?signal_name? ?-report?}
+    form Default {toggle <subcommand> ?arg ...?}
 
     hover {
-        summary {Report toggle coverage statistics.}
-        synopsis {toggle ?signal_name? ?-report?}
-        source {F5}
+        summary {Add nodes to, or enable, toggle-coverage collection (ensemble).}
+        synopsis {toggle <subcommand> ?arg ...?}
+        description {There is no `-report` flag and no `toggle report` subcommand — toggle statistics are reported through `coverage report`.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand add {
+        arity 1..
+        detail {Add nodes to toggle-coverage collection.}
+        synopsis {toggle add ?-exclude {list}? ?-countlimit n? ?-extendedtogglemode 1 | 2 | 3? ?-full? ?-in? ?-inout? ?-internal? ?-out? ?-ports? ?-r? ?-unique? ?-widthlimit n? node_name}
+    }
+
+    subcommand enable {
+        arity 0..
+        detail {Enable toggle-coverage collection on already-added nodes.}
+        synopsis {toggle enable ?-all | -in | -out | -inout | -internal | -ports? ?-r? node_name}
     }
 }
 
 command transcript {
     dialects tcl8.6
     required_package questa
+    allow_unknown_subcommands
 
-    form Default {transcript ?on | off | file file_name?}
+    form Default {transcript ?on | off | -q | quietly?}
 
     hover {
-        summary {Control transcript file output.}
-        synopsis {transcript ?on | off | file file_name?}
-        source {F5}
+        summary {Control command echoing to the transcript.}
+        synopsis {transcript ?on | off | -q | quietly?}
+        description {The top-level command only turns transcript echoing on or off; the transcript file itself is set with the `transcript file` subcommand, and `transcript sizelimit` and `transcript wrapmode` control its size and wrapping.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand file      { arity 0..1 ; detail {Set or query the transcript file; an empty name closes the current file.} ; synopsis {transcript file ?filename?} }
+    subcommand sizelimit { arity 0..  ; detail {Set or query the transcript file size limit.} ;                            synopsis {transcript sizelimit ?arg ...?} }
+    subcommand wrapmode  { arity 0..  ; detail {Set or query how long transcript lines are wrapped.} ;                     synopsis {transcript wrapmode ?arg ...?} }
+}
+
+command vcd {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {vcd <subcommand> ?arg ...?}
+
+    hover {
+        summary {Create and control VCD dump files (ensemble).}
+        synopsis {vcd <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand dumpports {
+        arity 1..
+        detail {Create a port-level VCD (or extended VCD) dump for the named objects.}
+        synopsis {vcd dumpports ?-compress? ?-direction? ?-file filename? ?-force_direction? ?-in? ?-out? ?-inout? ?-no_strength_range? ?-unique? ?-vcdstim? object_name ...}
     }
 }
 
@@ -522,12 +1011,13 @@ command vcom {
     dialects tcl8.6
     required_package questa
 
-    form Default {vcom ?-work library? ?-2008? ?-explicit? ?-check_synthesis? ?-lint? ?-suppress n? ?-nowarn n? file_list}
+    form Default {vcom ?-work library_name? ?-87 | -93 | -2002 | -2008 | -2019? ?-explicit? ?-lint? ?-suppress {msgNumber | msgGroup},...? ?-nowarn category_number? file_list}
 
     hover {
         summary {Compile VHDL source files.}
-        synopsis {vcom ?-work library? ?-2008? ?-explicit? ?-check_synthesis? ?-lint? ?-suppress n? ?-nowarn n? file_l}
-        source {F5}
+        synopsis {vcom ?-work library_name? ?-87 | -93 | -2002 | -2008 | -2019? ?-explicit? ?-lint? ?-suppress {msgNumber | msgGroup},...? ?-nowarn category_number? file_list}
+        description {There is no `-check_synthesis` option in Questa SIM 2025.3. `-lint` is a bare flag for `vcom`; the language-version selectors are -87, -93, -2002, -2008 and -2019.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -535,25 +1025,66 @@ command vcover {
     dialects tcl8.6
     required_package questa
 
-    form Default {vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?}
+    form Default {vcover <subcommand> ?arg ...?}
 
     hover {
-        summary {Process coverage data files.}
-        synopsis {vcover ?merge | report | attr? ?-input file_list? ?-output file? ?-detail? ?-verbose?}
-        source {F5}
+        summary {Process saved coverage (UCDB) data files (ensemble).}
+        synopsis {vcover <subcommand> ?arg ...?}
+        description {The attribute subcommand is spelled `attribute`, not `attr`. `vcover merge` writes to `-out` and takes its inputs as trailing positionals; `vcover report` writes to `-output` and has no `-detail` flag.}
+        source {Questa SIM Command Reference 2025.3}
     }
+
+    subcommand merge {
+        arity 1..
+        detail {Merge several UCDB files into one.}
+        synopsis {vcover merge ?merge_options? ?-out? outfile input1 ?input2 ...?}
+    }
+
+    subcommand report {
+        arity 1..
+        detail {Report coverage from a UCDB file or coverage store.}
+        synopsis {vcover report ?mutual_arguments? ?common_arguments? ?text_arguments | html_arguments? ?-output filename? ?-verbose? ?-logfile filename | -l filename? ucdb_file | coverstore?:test?}
+    }
+
+    subcommand attribute     { arity 0.. ; detail {Read or write UCDB attributes.} ;                      synopsis {vcover attribute ?arg ...?} }
+    subcommand diff          { arity 0.. ; detail {Report the differences between two UCDB files.} ;      synopsis {vcover diff ?arg ...?} }
+    subcommand dump          { arity 0.. ; detail {Dump the raw contents of a UCDB file.} ;               synopsis {vcover dump ?arg ...?} }
+    subcommand history       { arity 0.. ; detail {Report the merge history recorded in a UCDB.} ;        synopsis {vcover history ?arg ...?} }
+    subcommand parallelmerge { arity 0.. ; detail {Merge UCDB files using parallel workers.} ;            synopsis {vcover parallelmerge ?arg ...?} }
+    subcommand ranktest      { arity 0.. ; detail {Rank tests by coverage contribution.} ;                synopsis {vcover ranktest ?arg ...?} }
+    subcommand remove        { arity 0.. ; detail {Remove data from a UCDB file.} ;                       synopsis {vcover remove ?arg ...?} }
+    subcommand stats         { arity 0.. ; detail {Report statistics about a UCDB file.} ;                synopsis {vcover stats ?arg ...?} }
+    subcommand testnames     { arity 0.. ; detail {List the test names recorded in a UCDB file.} ;        synopsis {vcover testnames ?arg ...?} }
 }
 
 command vdel {
     dialects tcl8.6
     required_package questa
 
-    form Default {vdel ?-lib library? ?-all? ?design_unit?}
+    form Default {vdel ?-ini path/questa.ini? ?-lib library_path? ?-verbose? {-all | primary ?arch_name? | -allsystemc | -obj {object_info} | -dpiobj ?object_info?}}
 
     hover {
-        summary {Delete a compiled library or design unit.}
-        synopsis {vdel ?-lib library? ?-all? ?design_unit?}
-        source {F5}
+        summary {Delete a compiled design unit or an entire library.}
+        synopsis {vdel ?-ini path/questa.ini? ?-lib library_path? ?-verbose? {-all | primary ?arch_name? | -allsystemc | -obj {object_info} | -dpiobj ?object_info?}}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command view {
+    dialects tcl8.6
+    required_package questa
+
+    ;# NOTE(eda): referenced from other entries (`delete -window`, "the view
+    ;# command allows you to create more than one List or Wave window") but its
+    ;# own Syntax block was not read in the 2025.3 review, so only the ensemble
+    ;# shape is recorded here.
+    form Default {view <window_type> ?arg ...?}
+
+    hover {
+        summary {Open or raise a GUI window (wave, list, structure, ...).}
+        synopsis {view <window_type> ?arg ...?}
+        description {Unverified in detail: the command is cross-referenced throughout the manual but its own option list was not read, so no options are claimed here.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -561,26 +1092,52 @@ command virtual {
     dialects tcl8.6
     required_package questa
 
-    form Default {virtual ?-install | -env env? ?signal | function? ?-name name?}
+    form Default {virtual <subcommand> ?arg ...?}
 
     hover {
-        summary {Create virtual signals or regions.}
-        synopsis {virtual ?-install | -env env? ?signal | function? ?-name name?}
-        source {F5}
+        summary {Create and manage virtual signals, functions, types and regions (ensemble).}
+        synopsis {virtual <subcommand> ?arg ...?}
+        description {There is no top-level `-install`, `-env` or `-name` flag: `-install` and `-env` are options of `virtual signal` and `virtual function`.}
+        source {Questa SIM Command Reference 2025.3}
     }
+
+    subcommand signal {
+        arity 2..
+        detail {Create a virtual signal from an expression over existing objects.}
+        synopsis {virtual signal ?-env path? ?-install path? ?-delay time unit? {expressionString} name}
+    }
+
+    subcommand function {
+        arity 2..
+        detail {Create a virtual function evaluated over existing objects.}
+        synopsis {virtual function ?-env path? ?-install path? {expressionString} name}
+    }
+
+    subcommand define {
+        arity 1..
+        detail {Print the definition of the virtual objects at a path.}
+        synopsis {virtual define ?-kind {implicits | explicits}? pathname}
+    }
+
+    subcommand describe { arity 0.. ; detail {Describe the type of a virtual object.} ;               synopsis {virtual describe ?arg ...?} }
+    subcommand log      { arity 0.. ; detail {Log the constituents of a virtual signal.} ;            synopsis {virtual log ?arg ...?} }
+    subcommand nohide   { arity 0.. ; detail {Undo the hiding of a virtual signal's constituents.} ;  synopsis {virtual nohide ?arg ...?} }
+    subcommand save     { arity 0.. ; detail {Save virtual definitions to a DO file.} ;               synopsis {virtual save ?arg ...?} }
+    subcommand type     { arity 0.. ; detail {Define a virtual type for value mapping.} ;             synopsis {virtual type ?arg ...?} }
 }
 
 command vlib {
     dialects tcl8.6
-    arity 1
+    arity 1..
     required_package questa
 
-    form Default {vlib ?-type type? library_name}
+    form Default {vlib ?-short | -dos | -long | -unix? ?-dirpath pathname? ?-type {directory | archive | flat}? ??-lock | -unlock? design_unit? ?-locklib | -unlocklib? ?-unnamed_designs value? ?-compress | -nocompress? library_name}
 
     hover {
-        summary {Create a design library directory.}
-        synopsis {vlib ?-type type? library_name}
-        source {F5}
+        summary {Create a design library.}
+        synopsis {vlib ?-short | -dos | -long | -unix? ?-dirpath pathname? ?-type {directory | archive | flat}? ??-lock | -unlock? design_unit? ?-locklib | -unlocklib? ?-unnamed_designs value? ?-compress | -nocompress? library_name}
+        description {`-type` takes one of the literals directory, archive or flat. `vlib -help` prints the usage message.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -592,7 +1149,7 @@ command vlog {
 
     hover {
         summary {Compile Verilog/SystemVerilog source files.}
-        synopsis {vlog ?-work library? ?-sv? ?+define+name=val? ?+incdir+dir? ?-lint? ?-suppress n? ?-nowarn n? file_l}
+        synopsis {vlog ?-work library? ?-sv? ?+define+name=val? ?+incdir+dir? ?-lint? ?-suppress n? ?-nowarn n? file_list}
         source {F5}
     }
 }
@@ -615,12 +1172,13 @@ command vopt {
     dialects tcl8.6
     required_package questa
 
-    form Default {vopt ?+acc? ?-o optimized_name? ?-debugdb? ?-L library? top_module}
+    form Default {vopt ?arguments? design_unit -o name}
 
     hover {
         summary {Optimize a compiled design for simulation.}
-        synopsis {vopt ?+acc? ?-o optimized_name? ?-debugdb? ?-L library? top_module}
-        source {F5}
+        synopsis {vopt ?arguments? design_unit -o name}
+        description {`-o name` is part of the documented top-level syntax, not an optional extra. Confirmed arguments include `-L libname`, `-work library_name`, the `-debug` family, and the access controls written {+acc | +noacc}?=spec??+selection?+recurse_level | .??. `-debugdb` is a `vsim` option and does not appear in the `vopt` entry.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
@@ -628,38 +1186,76 @@ command vsim {
     dialects tcl8.6
     required_package questa
 
-    form Default {vsim ?-c? ?-do command? ?-t time_resolution? ?-voptargs args? ?-L library? ?-debugdb? ?-wlf file? ?-onfinish action? ?-gui? ?work.top_module?}
+    form Default {vsim ?-c? ?-do command? ?-voptargs="args"? ?-L library_name? ?-debugdb=db_pathname? ?-wlf file_name? ?-onfinish ask | stop | exit | final? ?-gui? ?library_name.design_unit?}
 
     hover {
-        summary {Load and start simulation.}
-        synopsis {vsim ?-c? ?-do command? ?-t time_resolution? ?-voptargs args? ?-L library? ?-debugdb? ?-wlf file? ?-}
-        source {F5}
+        summary {Load a design and start simulation.}
+        synopsis {vsim ?-c? ?-do command? ?-voptargs="args"? ?-L library_name? ?-debugdb=db_pathname? ?-wlf file_name? ?-onfinish ask | stop | exit | final? ?-gui? ?library_name.design_unit?}
+        description {`-t time_resolution` is not a documented `vsim` argument in 2025.3. `-voptargs` and `-debugdb` take `=`-joined values, `-onfinish` takes one of ask, stop, exit or final, and `-L` is repeatable. The trailing object argument is a library-qualified design unit or a .wlf, .mpf or text file name.}
+        source {Questa SIM Command Reference 2025.3}
     }
 }
 
 command wave {
     dialects tcl8.6
     required_package questa
+    allow_unknown_subcommands
 
-    form Default {wave ?subcommand? ?args ...?}
+    form Default {wave <subcommand> ?arg ...?}
 
     hover {
-        summary {Waveform window command.}
-        synopsis {wave ?subcommand? ?args ...?}
-        source {F5}
+        summary {Wave window control (ensemble).}
+        synopsis {wave <subcommand> ?arg ...?}
+        description {A fixed ensemble — cursor, collapse, expand, interrupt and modify are among its documented members.}
+        source {Questa SIM Command Reference 2025.3}
     }
+
+    subcommand cursor {
+        arity 1..
+        detail {Create, query and move Wave window cursors.}
+        synopsis {wave cursor <action> ?arg ...?}
+        sub_subcommand add -detail {Add a new cursor to the Wave window.} -synopsis {wave cursor add ?arg ...?}
+        sub_subcommand time -detail {Query or set the time of a cursor.} -synopsis {wave cursor time ?arg ...?}
+    }
+
+    subcommand collapse  { arity 0.. ; detail {Collapse an expanded waveform group.} ;                 synopsis {wave collapse ?arg ...?} }
+    subcommand expand    { arity 0.. ; detail {Expand a waveform group.} ;                             synopsis {wave expand ?arg ...?} }
+    subcommand interrupt { arity 0.. ; detail {Interrupt a running Wave window operation.} ;           synopsis {wave interrupt ?arg ...?} }
+    subcommand modify    { arity 0.. ; detail {Modify the display properties of a waveform.} ;         synopsis {wave modify ?arg ...?} }
 }
 
 command when {
     dialects tcl8.6
     required_package questa
 
-    form Default {when {condition} {action} ?-label label?}
+    form Default {when ?-fast? ?-id id#? ?-label label? ?-repeat? {when_condition_expression} {command}}
 
     hover {
-        summary {Define conditional actions during simulation.}
-        synopsis {when {condition} {action} ?-label label?}
-        source {F5}
+        summary {Run commands when a condition becomes true during simulation.}
+        synopsis {when ?-fast? ?-id id#? ?-label label? ?-repeat? {when_condition_expression} {command}}
+        description {Options precede the condition. `-fast` allows embedded Tcl and simulator commands, `-repeat` re-arms the statement after it fires, and `-id` gives it a numeric identifier alongside `-label`.}
+        source {Questa SIM Command Reference 2025.3}
+    }
+}
+
+command write {
+    dialects tcl8.6
+    required_package questa
+    allow_unknown_subcommands
+
+    form Default {write <subcommand> ?arg ...?}
+
+    hover {
+        summary {Write window contents or layout to a file (ensemble).}
+        synopsis {write <subcommand> ?arg ...?}
+        source {Questa SIM Command Reference 2025.3}
+    }
+
+    subcommand format {
+        arity 1..
+        detail {Save the current List, Wave or Memory window layout — the signal set and its display options — as a DO file.}
+        synopsis {write format window_type ?-window window_name? filename}
+        sub_subcommand restart -detail {Save a format file that can be replayed after a restart.} -synopsis {write format restart ?options? filename}
     }
 }
 

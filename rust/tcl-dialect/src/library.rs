@@ -49,6 +49,8 @@ pub enum VersionKey {
     ToolVersion,
     /// The SDC (Synopsys Design Constraints) standard revision.
     SdcVersion,
+    /// The UPF (IEEE 1801, Unified Power Format) standard revision.
+    UpfVersion,
 }
 
 impl VersionKey {
@@ -59,15 +61,16 @@ impl VersionKey {
     ///   TMOS release at ratification time. Registry data introduced at or
     ///   below this floor is offered by default; later introductions
     ///   (`Introduced in BIG-IP x.y.z` > 16.1.0) need an explicit pin.
-    /// - [`VersionKey::ToolVersion`] / [`VersionKey::SdcVersion`] → `None`
-    ///   (permissive): no registry pack carries keyed tool/SDC
-    ///   introduction data yet, so there is no evidence to pick a floor
-    ///   from; the first data backfill must set one.
+    /// - [`VersionKey::ToolVersion`] / [`VersionKey::SdcVersion`] /
+    ///   [`VersionKey::UpfVersion`] → `None` (permissive): no registry
+    ///   pack carries keyed tool/SDC/UPF introduction data yet, so there
+    ///   is no evidence to pick a floor from; the first data backfill
+    ///   must set one.
     #[must_use]
     pub const fn default_version(self) -> Option<&'static str> {
         match self {
             Self::BigipVersion => Some("16.1.0"),
-            Self::ToolVersion | Self::SdcVersion => None,
+            Self::ToolVersion | Self::SdcVersion | Self::UpfVersion => None,
         }
     }
 
@@ -86,7 +89,7 @@ impl VersionKey {
     pub const fn baseline_version(self) -> Option<&'static str> {
         match self {
             Self::BigipVersion => Some("15.0.0"),
-            Self::ToolVersion | Self::SdcVersion => None,
+            Self::ToolVersion | Self::SdcVersion | Self::UpfVersion => None,
         }
     }
 }
@@ -148,6 +151,8 @@ pub struct LibraryVersionOverrides {
     pub tool_version: Option<String>,
     /// Pinned SDC standard revision.
     pub sdc_version: Option<String>,
+    /// Pinned UPF (IEEE 1801) standard revision.
+    pub upf_version: Option<String>,
 }
 
 impl LibraryVersionOverrides {
@@ -158,6 +163,7 @@ impl LibraryVersionOverrides {
             VersionKey::BigipVersion => self.bigip_version.as_deref(),
             VersionKey::ToolVersion => self.tool_version.as_deref(),
             VersionKey::SdcVersion => self.sdc_version.as_deref(),
+            VersionKey::UpfVersion => self.upf_version.as_deref(),
         }
     }
 }
@@ -191,10 +197,11 @@ mod tests {
             Some("16.1.0"),
             "BigipVersion default is the oldest F5-supported TMOS"
         );
-        // No keyed tool/SDC introduction data exists in any pack yet, so
-        // those keys stay permissive until the first backfill.
+        // No keyed tool/SDC/UPF introduction data exists in any pack yet,
+        // so those keys stay permissive until the first backfill.
         assert_eq!(VersionKey::ToolVersion.default_version(), None);
         assert_eq!(VersionKey::SdcVersion.default_version(), None);
+        assert_eq!(VersionKey::UpfVersion.default_version(), None);
     }
 
     #[test]

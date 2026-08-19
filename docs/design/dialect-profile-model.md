@@ -187,6 +187,23 @@ pub struct DialectProfile {
     pub name: &'static str,                 // "tcl8.6", "f5-irules", …
     pub aliases: &'static [&'static str],   // "irules" -> f5-irules, "tcl-irule" -> f5-irules
 
+    // ---- presentation (the catalog is the editors' source of truth) ----
+    /// Menu label ("Synopsys EDA Tcl"); projected into every editor's
+    /// dialect list by `cargo xtask gen-editor-dialects`.
+    pub display_name: &'static str,
+    /// Compact label for tight UI ("Synopsys EDA", "iRules") — the
+    /// compiler-explorer dropdowns, diagnostic prose ("available in: …").
+    pub short_name: &'static str,
+    /// The dedicated editor language id, undotted ("tcl-synopsys",
+    /// "tcl84"); None = the dialect's files ride the plain `tcl` language.
+    pub editor_language_id: Option<&'static str>,
+    /// The extensions this dialect owns, each with a human-facing name
+    /// ("xdc" / "Xilinx Design Constraints"). Drives extension→dialect
+    /// detection routing (the no-packs fallback under pack-declared
+    /// `file_extension` rows) and `cargo xtask gen-editor-extensions`,
+    /// which generates the editors' registered extension/language lists.
+    pub file_extensions: &'static [DialectFileExtension],
+
     // ---- AXIS A: availability ----
     /// Native tag of this dialect's own command surface, if any (IRULES,
     /// IAPPS, EXPECT, TMSH, BIGIP, BPF). None for the plain Tcl-version

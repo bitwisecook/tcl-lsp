@@ -84,26 +84,22 @@ pub use tcl_spectcl::catalogue;
 pub use tcl_spectcl::loader as spectcl;
 
 use serde_json::{Value, json};
+use tcl_dialect::DialectProfile;
 use tcl_lsp_core::formatting::{FormatterConfig, format_tcl};
 use tcl_registry::cache::registry_for_dialect;
 
-/// Dialects the studio offers, as `(registry name, label)`.
+/// Dialects the studio offers, as `(registry name, label)`, in catalogue order.
 ///
 /// These are the profile names [`registry_for_dialect`] resolves, not the
 /// primitive `DialectSet` bits — a profile is what decides which commands are
-/// actually visible.
-pub const BROWSABLE_DIALECTS: &[(&str, &str)] = &[
-    ("spectcl", "SpecTcl (Tcl 9.0)"),
-    ("tcl9.1", "Tcl 9.1"),
-    ("tcl9.0", "Tcl 9.0"),
-    ("tcl8.6", "Tcl 8.6"),
-    ("tcl8.5", "Tcl 8.5"),
-    ("tcl8.4", "Tcl 8.4"),
-    ("f5-irules", "F5 iRules"),
-    ("f5-iapps", "F5 iApps"),
-    ("tk", "Tk"),
-    ("expect", "Expect"),
-];
+/// actually visible. `tk` is therefore not here: it is a library pin rather
+/// than a profile, so it resolves to the permissive fallback, and the Tk
+/// commands are already browsable under every Tcl-version profile.
+pub fn browsable_dialects() -> impl Iterator<Item = (&'static str, &'static str)> {
+    DialectProfile::all()
+        .iter()
+        .map(|profile| (profile.name, profile.display_name))
+}
 
 /// Format a `SpecTcl` pack with the same Tcl formatter used by the LSP and CLI.
 ///
@@ -164,8 +160,7 @@ pub fn load_command(name: &str, dialect: &str) -> Option<Value> {
 #[must_use]
 pub fn dialects() -> Value {
     Value::Array(
-        BROWSABLE_DIALECTS
-            .iter()
+        browsable_dialects()
             .map(|(name, label)| json!({ "name": name, "label": label }))
             .collect(),
     )
@@ -212,7 +207,7 @@ mod tests {
 
     #[test]
     fn every_browsable_dialect_resolves_to_a_populated_registry() {
-        for (name, _) in BROWSABLE_DIALECTS {
+        for (name, _) in browsable_dialects() {
             assert!(
                 !command_names(name).is_empty(),
                 "{name} resolved to an empty registry"

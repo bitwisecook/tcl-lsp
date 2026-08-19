@@ -48,6 +48,7 @@ the compiler's own inference — never guesswork from names.
    built-in needs the user's attention, not a silent overwrite.
 6. Write the output — **SpecTcl in both cases**:
    - **private** — one `<library>.tclspec` pack at the library root,
+     declaring the current vocabulary — `speclib <name> 1.1` — and
      written strictly to the frozen syntax (schema keys as property
      words, catalogue spellings verbatim, hook bodies only where the
      evidence demands one and always with their family's calling
@@ -75,6 +76,18 @@ the compiler's own inference — never guesswork from names.
 8. Report: commands covered, evidence per guess, anything skipped, and
    open questions only the author can answer (side effects, taint,
    version history).
+
+## Vocabulary versions
+
+Every SpecTcl loader reads **all** known vocabulary versions (`1`, `1.0`,
+`1.1`) in full — a pack is never refused for its version word, and the
+studio, compiler, LSP and CLI all speak every version. Declare the newest
+(`speclib <name> 1.1`) in anything you write: the declaration is what
+entitles the pack to the 1.1-only words (row-level `-introduced` /
+`-deprecated` / `-retired`, command-scope `versioned_arg_value`, an
+option's `-deprecation-fix`), and the loader now flags each 1.1 word used
+under an older declaration. `tcl spec upgrade <pack.tclspec>` rewrites an
+older declaration in place (`--check` to only report).
 
 ## Deriving version ranges from release history
 

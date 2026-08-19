@@ -865,10 +865,10 @@ these same notes.
 
 ### Every supported dialect
 
-Sixteen dialect profiles, each gating which commands exist, which are
-deprecated, and which options and subcommands are valid. The list below is
-generated from `KNOWN_DIALECTS` in `rust/tcl-dialect`, the single source of
-truth.
+Eighteen dialect profiles, each gating which commands exist, which are
+deprecated, and which options and subcommands are valid. The list below
+mirrors the profile catalog (`DialectProfile`) in `rust/tcl-dialect`, the
+single source of truth — its `display_name` is the second column.
 
 | Dialect | Language / tooling it models |
 |---|---|
@@ -879,15 +879,17 @@ truth.
 | `tcl9.1` | Tcl 9.1 |
 | `expect` | Expect |
 | `bpf` | BPF-Tcl, the eBPF packet-matching dialect |
+| `spectcl` | SpecTcl command packs (`.tclspec`) |
 | `f5-irules` | F5 iRules (embedded Tcl 8.4.6) — see [README-f5.md](README-f5.md) |
-| `f5-iapps` | F5 iApp implementation scripts |
+| `f5-iapps` | F5 iApps — iApp templates and implementation scripts |
 | `f5-bigip` | F5 BIG-IP `bigip.conf` / `.scf` objects |
-| `f5-tmsh` | F5 tmsh scripting |
-| `cadence-eda-tcl` | Cadence EDA tooling |
-| `intel-quartus-eda-tcl` | Intel Quartus |
-| `mentor-eda-tcl` | Mentor Graphics |
-| `synopsys-eda-tcl` | Synopsys (incl. the SDC constraint base) |
-| `xilinx-eda-tcl` | AMD/Xilinx Vivado |
+| `f5-tmsh` | F5 tmsh scripts |
+| `cadence-eda-tcl` | Cadence EDA Tcl |
+| `intel-quartus-eda-tcl` | Intel Quartus EDA Tcl |
+| `mentor-eda-tcl` | Mentor EDA Tcl (ModelSim/Questa) |
+| `microchip-libero-eda-tcl` | Microchip Libero EDA Tcl |
+| `synopsys-eda-tcl` | Synopsys EDA Tcl (incl. the SDC constraint base) |
+| `xilinx-eda-tcl` | Xilinx EDA Tcl (AMD/Xilinx Vivado) |
 
 Pick one per file with a `# tcl-dialect:` comment, per project in
 configuration, or let detection choose — see
@@ -915,8 +917,8 @@ with [stub annotations](docs/kcs/kcs-howto-annotate-commands-with-stubs.md).
 
 ### Dialect profiles
 
-Switch between Tcl 8.4/8.5/8.6/9.0, F5 iRules, F5 iApps, and EDA tooling
-profiles.  Tk, tcllib, and stdlib commands activate automatically when their
+Switch between Tcl 8.4/8.5/8.6/9.0/9.1, F5 iRules, F5 iApps, F5 tmsh, and EDA
+tooling profiles.  Tk, tcllib, and stdlib commands activate automatically when their
 `package require` appears — including the full `tcltest` surface (`test`,
 `configure`, and the convenience commands) with per-version awareness, so
 `test -errorCode` is offered only for tcltest 2.5+ and `bytestring` disappears
@@ -987,8 +989,16 @@ The dialect is selected automatically using the following priority chain
    VS Code cannot carry a `configurationDefaults` override for a language id
    containing a `.`.  The *dialect* names below keep their dots, and the server
    still accepts the dotted `tcl8.4`-style id other editors send.)
-2. **File extension** -- `.irul`/`.irule` → `f5-irules`,
-   `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.exp` → `expect`.
+2. **File extension** -- each profile in the catalog owns its extensions:
+   `.irul`/`.irule`/`.irules` → `f5-irules`,
+   `.iapp`/`.iappimpl`/`.impl` → `f5-iapps`, `.tmsh` → `f5-tmsh`,
+   `.scf` → `f5-bigip`, `.exp`/`.expect` → `expect`,
+   `.tclspec` → `spectcl`, `.globals` → `cadence-eda-tcl`,
+   `.qsf`/`.qpf`/`.qip` → `intel-quartus-eda-tcl`, `.do` → `mentor-eda-tcl`,
+   `.sdc`/`.upf` → `synopsys-eda-tcl`, `.xdc` → `xilinx-eda-tcl`.
+   A SpecTcl pack can route further extensions to a dialect with a
+   `file_extension` row, so a private library's own suffix opens in the
+   dialect it is written for.
 3. **Comment directive** -- a `# tcl-dialect: <dialect>` comment in the
    first 5 lines of a file pins the dialect for that file:
 
@@ -1015,13 +1025,17 @@ different Tcl versions without manual switching.
 | `tcl9.1` | Tcl 9.1 core commands (superset of 9.0; adds the `unicode` and `timer` ensembles and `subst`'s positive `-backslashes`/`-commands`/`-variables` options) |
 | `f5-irules` | F5 BIG-IP iRules: HTTP/SSL/DNS/LB namespaces, event-validity checks, taint analysis, `static::` scoping rules |
 | `f5-iapps` | F5 iApps template commands |
-| `f5-bigip` | F5 BIG-IP configuration (`bigip.conf`) commands |
+| `f5-bigip` | F5 BIG-IP configuration (`bigip.conf` / `.scf`) commands |
+| `f5-tmsh` | F5 tmsh scripts: the `tmsh::` command surface on a Tcl 8.5 base |
 | `synopsys-eda-tcl` | Synopsys EDA commands (Design Compiler, PrimeTime, ICC2, Formality) |
 | `cadence-eda-tcl` | Cadence EDA commands (Genus, Innovus, Tempus, Xcelium) |
 | `xilinx-eda-tcl` | Xilinx/AMD EDA commands (Vivado, Vitis) |
 | `intel-quartus-eda-tcl` | Intel Quartus Prime commands |
 | `mentor-eda-tcl` | Mentor/Siemens EDA commands (ModelSim, Questa, Calibre) |
+| `microchip-libero-eda-tcl` | Microchip Libero SoC EDA commands |
 | `expect` | Expect: `spawn`, `expect`, `send`, `interact` and related commands for automating interactive programs |
+| `bpf` | BPF-Tcl: the eBPF packet-matching dialect |
+| `spectcl` | SpecTcl command packs (`.tclspec`): the declarations that teach the registry a private library |
 
 **Tk**, **tcllib**, and **Tcl stdlib** commands are automatically recognised
 when the corresponding `package require` appears in the file.  No manual

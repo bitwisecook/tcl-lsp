@@ -63,12 +63,14 @@ const PROFILES: &[(&str, &str, &str)] = &[
     ("cadence-eda-tcl", "cadence-innovus", "ccopt_design"),
     ("intel-quartus-eda-tcl", "quartus-flow", "execute_flow"),
     ("mentor-eda-tcl", "questa", "vsim"),
+    ("microchip-libero-eda-tcl", "libero", "run_designer"),
 ];
 
-/// The six packs are on disk, load without a warning, and carry the whole
-/// command surface the Rust modules used to.
+/// The eight packs are on disk, load without a warning, and carry the whole
+/// command surface the Rust modules used to — plus the UPF library added for
+/// issue #1560.
 #[test]
-fn the_six_packs_load_clean_and_carry_every_command() {
+fn the_eight_packs_load_clean_and_carry_every_command() {
     let set = shipped();
     let counts: Vec<(String, usize)> = set
         .packs
@@ -78,17 +80,22 @@ fn the_six_packs_load_clean_and_carry_every_command() {
     assert_eq!(
         counts,
         vec![
-            ("eda_cadence".to_owned(), 56),
-            ("eda_mentor".to_owned(), 49),
-            ("eda_quartus".to_owned(), 48),
+            ("eda_cadence".to_owned(), 77),
+            ("eda_mentor".to_owned(), 69),
+            // 257: the Libero SoC v11.8 Tcl Command Reference surface, minus
+            // the SmartTime commands that are portable SDC (sdc_base owns
+            // those).
+            ("eda_microchip".to_owned(), 257),
+            ("eda_quartus".to_owned(), 77),
             ("eda_synopsys".to_owned(), 68),
-            ("eda_xilinx".to_owned(), 64),
-            ("sdc_base".to_owned(), 61),
+            ("eda_xilinx".to_owned(), 788),
+            ("sdc_base".to_owned(), 86),
+            ("upf".to_owned(), 67),
         ],
-        "the migrated command counts, pack by pack"
+        "the shipped command counts, pack by pack"
     );
     let total: usize = set.packs.iter().map(|p| p.commands.len()).sum();
-    assert_eq!(total, 346, "every command the six Rust packs used to build");
+    assert_eq!(total, 1489, "every command the eight shipped packs carry");
 
     let warnings: Vec<String> = set
         .notices
@@ -104,7 +111,7 @@ fn the_six_packs_load_clean_and_carry_every_command() {
 }
 
 /// Each EDA profile resolves its own vendor's commands, plus the shared SDC
-/// library, through the loader.
+/// and UPF libraries, through the loader.
 #[test]
 fn every_eda_profile_resolves_its_own_vendor_library() {
     for &(dialect, package, own) in PROFILES {
@@ -119,6 +126,16 @@ fn every_eda_profile_resolves_its_own_vendor_library() {
             .get("create_clock")
             .unwrap_or_else(|| panic!("{dialect}: sdc_base must load too"));
         assert_eq!(sdc.required_package, Some("sdc"), "{dialect}/create_clock");
+
+        // As does the shared IEEE 1801 power-intent library.
+        let upf = reg
+            .get("create_power_domain")
+            .unwrap_or_else(|| panic!("{dialect}: upf must load too"));
+        assert_eq!(
+            upf.required_package,
+            Some("upf"),
+            "{dialect}/create_power_domain"
+        );
     }
 }
 
@@ -158,6 +175,32 @@ fn a_profile_never_sees_a_rival_vendors_library() {
     }
 }
 
+/// The packs' declared file extensions route dialect detection: `upf.tclspec`
+/// declares `file_extension upf -dialect synopsys-eda-tcl`, and once the set
+/// is loaded, a `.upf` filename resolves through the pack declaration (the
+/// static fallback arm keeps the same answer for consumers with no packs).
+#[test]
+fn pack_declared_extensions_route_dialect_detection() {
+    let set = shipped();
+    let upf = set
+        .packs
+        .iter()
+        .find(|p| p.name == "upf")
+        .expect("the upf pack");
+    assert_eq!(upf.display_name.as_deref(), Some("IEEE 1801 UPF"));
+    let row = upf
+        .file_extensions
+        .first()
+        .expect("upf declares its extension");
+    assert_eq!(row.extension, "upf");
+    assert_eq!(row.display_name.as_deref(), Some("Unified Power Format"));
+    assert_eq!(row.dialect, Some("synopsys-eda-tcl"));
+    assert_eq!(
+        tcl_registry::dialects::dialect_from_extension("soc.upf"),
+        Some("synopsys-eda-tcl")
+    );
+}
+
 /// A plain-Tcl profile gets none of it, exactly as before the migration: the
 /// packs are discovered for every dialect, and the vendor gate is what keeps
 /// `get_cells` out of a `tcl9.0` document.
@@ -170,6 +213,8 @@ fn plain_tcl_sees_no_eda_commands() {
         "synth_design",
         "compile_ultra",
         "vsim",
+        "create_power_domain",
+        "set_isolation",
     ] {
         assert!(reg.get(name).is_none(), "tcl9.0 must not carry `{name}`");
     }

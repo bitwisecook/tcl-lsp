@@ -9,7 +9,7 @@
 # Exercises: tcllib_package vs required_package, multi-row side effects, a
 # tri-state index list (taint_network_sink_args), credential_options.
 
-speclib tcl 1.0 {
+speclib tcl 1.1 {
 
 command uri::geturl {
     # No dialect gate: availability is decided by the package, not the Tcl

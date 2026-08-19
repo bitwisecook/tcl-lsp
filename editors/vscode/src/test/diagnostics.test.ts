@@ -969,7 +969,7 @@ suite("Diagnostics", () => {
       `expected W002 on the unshadowed 'dict create' call (line ${unshadowedLine})`,
     );
     assert.ok(
-      diagnostics.some((d) => codeOf(d) === "W002" && /available in: tcl8\.5/.test(d.message)),
+      diagnostics.some((d) => codeOf(d) === "W002" && /available in: Tcl 8\.5/.test(d.message)),
       `expected the W002 message to name the dialects dict is available in: ` +
         `${diagnostics.map((d) => d.message).join("; ")}`,
     );

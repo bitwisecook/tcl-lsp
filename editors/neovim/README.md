@@ -41,8 +41,14 @@ and drop it somewhere on PATH.
 vim.filetype.add({
   extension = {
     tcl = 'tcl', tk = 'tcl', itcl = 'tcl', tm = 'tcl', tclspec = 'tcl',
-    irul = 'tcl', irule = 'tcl', iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl',
-    apl = 'tcl-apl', exp = 'tcl',
+    irul = 'tcl', irule = 'tcl', irules = 'tcl',
+    iapp = 'tcl', iappimpl = 'tcl', impl = 'tcl', tmsh = 'tcl',
+    apl = 'tcl-apl', exp = 'tcl', expect = 'tcl',
+    -- EDA vendor scripts; the server picks the vendor dialect from the
+    -- extension (`.globals` is Innovus/Genus, `.do` is ModelSim/Questa —
+    -- `do` is a Lua keyword, hence the bracket form).
+    globals = 'tcl', qsf = 'tcl', qpf = 'tcl', qip = 'tcl',
+    ['do'] = 'tcl', sdc = 'tcl', upf = 'tcl', xdc = 'tcl',
   },
 })
 
@@ -126,6 +132,12 @@ Settings are sent under the `tclLsp` namespace. Key options:
 | `formatting.indentStyle` | string | `spaces` | `spaces` or `tabs` |
 | `formatting.braceStyle` | string | `k_and_r` | `k_and_r` |
 | `formatting.maxLineLength` | integer | `120` | Maximum line length |
+
+The eighteen dialect profiles `dialect` accepts: `tcl8.4`, `tcl8.5`,
+`tcl8.6`, `tcl9.0`, `tcl9.1`, `f5-irules`, `f5-iapps`, `f5-tmsh`,
+`f5-bigip`, `bpf`, `expect`, `spectcl`, `cadence-eda-tcl`,
+`intel-quartus-eda-tcl`, `mentor-eda-tcl`, `microchip-libero-eda-tcl`,
+`synopsys-eda-tcl`, `xilinx-eda-tcl`.
 
 See the top-level README for the full list of formatting, diagnostic, and optimiser settings.
 

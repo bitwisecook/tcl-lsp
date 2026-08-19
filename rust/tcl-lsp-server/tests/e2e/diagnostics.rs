@@ -703,7 +703,7 @@ fn disabled_command_is_w002_with_a_tight_span() {
     assert_eq!(
         message(w002[0]),
         "'dict' is disabled in the active dialect profile \
-         (available in: tcl8.5, tcl8.6, tcl9.0, tcl9.1)"
+         (available in: Tcl 8.5, Tcl 8.6, Tcl 9.0, Tcl 9.1)"
     );
     assert_eq!(
         range_on_line(&diags, "W002", 1),

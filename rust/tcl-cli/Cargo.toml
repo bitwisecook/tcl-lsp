@@ -48,6 +48,7 @@ tcl-pkg = { path = "../tcl-pkg" }
 # `tcl spec import` labels its release snapshots with the studio's versioned
 # importer types; the derivation and the render live in `tcl-cli-support`.
 tcl-spec-studio = { path = "../tcl-spec-studio" }
+tcl-spectcl = { path = "../tcl-spectcl" }
 tcl-sandbox = { path = "../tcl-sandbox" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }

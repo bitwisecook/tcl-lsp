@@ -442,6 +442,11 @@ got {nargs_min}{usage_suffix}",
 /// [`tcl_registry::SubCommand::dialects`], never a per-command name check.
 /// Empty when `dialects` is `None` (unrestricted) or has no primitive
 /// member (defensive; a restricted spec always has at least one).
+///
+/// Members print as the profile catalog's `short_name` ("Tcl 8.5",
+/// "iRules") — this suffix is the highest-traffic dialect naming in
+/// editor-visible prose, so it uses the human spelling; a member with no
+/// catalog profile keeps its canonical name.
 fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSet>) -> String {
     let Some(dialects) = dialects else {
         return String::new();
@@ -450,7 +455,13 @@ fn dialect_availability_suffix(dialects: Option<tcl_registry::prelude::DialectSe
     if names.is_empty() {
         return String::new();
     }
-    format!(" (available in: {})", names.join(", "))
+    let labels: Vec<&str> = names
+        .iter()
+        .map(|name| {
+            tcl_dialect::DialectProfile::find(name).map_or(*name, |profile| profile.short_name)
+        })
+        .collect();
+    format!(" (available in: {})", labels.join(", "))
 }
 
 /// The *content* range of a subcommand word token — excluding a wrapper

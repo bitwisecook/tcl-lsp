@@ -2,11 +2,11 @@
   "prompts": [
     {
       "file": "irules_system.md",
-      "dialects": ["f5-irules", "f5-iapps", "f5-bigip"]
+      "dialects": ["f5-irules", "f5-iapps", "f5-bigip", "f5-tmsh"]
     },
     {
       "file": "tcl_system.md",
-      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl", "expect"]
+      "dialects": ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1", "synopsys-eda-tcl", "cadence-eda-tcl", "xilinx-eda-tcl", "intel-quartus-eda-tcl", "mentor-eda-tcl", "microchip-libero-eda-tcl", "expect", "bpf", "spectcl"]
     },
     {
       "file": "tk_system.md",

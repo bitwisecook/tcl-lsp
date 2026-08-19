@@ -18,7 +18,7 @@
 
 name = "iRules"
 grammar = "tcl"
-path_suffixes = ["irul", "irule"]
+path_suffixes = ["irul", "irule", "irules"]
 line_comments = ["#"]
 tab_size = 4
 hard_tabs = false

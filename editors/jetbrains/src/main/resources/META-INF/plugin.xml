@@ -30,11 +30,11 @@
         <fileType name="Tcl" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclFileType"
             fieldName="INSTANCE"
-            extensions="tcl;tk;itcl;tm;test;iapp;iappimpl;impl;apl;exp;tclspec"/>
+            extensions="tcl;tk;itcl;tm;test;globals;exp;expect;scf;iapp;iappimpl;impl;tmsh;qsf;qpf;qip;do;tclspec;sdc;upf;xdc;apl"/>
         <fileType name="iRule" language="Tcl"
             implementationClass="com.tcllsp.jetbrains.TclIruleFileType"
             fieldName="INSTANCE"
-            extensions="irul;irule"/>
+            extensions="irul;irule;irules"/>
 
         <!-- TextMate grammar for syntax highlighting -->
         <editorHighlighterProvider filetype="Tcl"

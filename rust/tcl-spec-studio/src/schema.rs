@@ -1749,7 +1749,7 @@ pub fn catalogues() -> Value {
         "analyserHook": entries(catalogue::ANALYSER_HOOKS),
         "traits": entries(catalogue::TRAITS),
         "taintColour": entries(catalogue::TAINT_COLOURS),
-        "dialects": entries(catalogue::DIALECTS),
+        "dialects": entries(&catalogue::DIALECTS),
         "defaultFormFirstWord": json!([
             { "key": "Integer", "doc": "an integer first word selects the default form" }
         ]),
