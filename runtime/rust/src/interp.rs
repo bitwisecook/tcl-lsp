@@ -278,6 +278,12 @@ struct CmdFrame {
 /// entry) — see [`Interp::arg_locs`].
 type ArgLoc = (*mut TclObj, Option<Rc<[u8]>>, u32);
 
+/// One trace callback collected during namespace teardown: the entity's
+/// reported name (a variable's, including any `(element)`, or a command's FQN)
+/// and the trace's command prefix. The name doubles as the grouping key in
+/// [`Interp::group_newest_first_per_entity`].
+type TeardownCallback = (Vec<u8>, Vec<u8>);
+
 /// The outcome of an ensemble `-unknown` handler (`EnsembleUnknownCallback`).
 enum EnsembleUnknown {
     /// A non-empty result: the replacement command prefix to dispatch.
@@ -3285,7 +3291,7 @@ impl Interp {
     /// drops its traces, as C does). Only `delete`-op traces are returned for
     /// firing; `rename`-only traces are removed silently (a deletion isn't a
     /// rename).
-    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn take_ns_cmd_traces(&self, ns: NsId) -> Vec<TeardownCallback> {
         if self.traces.borrow().cmd_traces.is_empty() {
             return Vec::new();
         }
@@ -3339,7 +3345,7 @@ impl Interp {
     /// Fire collected command `delete`-trace callbacks as `command oldName {}
     /// delete` after the namespace has been torn down (errors ignored — a delete
     /// trace's result is discarded, matching C).
-    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+    fn fire_deleted_cmd_callbacks(&mut self, victims: Vec<TeardownCallback>) {
         if victims.is_empty() || self.traces.borrow().exec_firing > 0 {
             return;
         }
@@ -3368,7 +3374,7 @@ impl Interp {
     /// Remove and return the `(fullName, command)` of every *unset* variable
     /// trace registered on a namespace variable in `ns` or a descendant (so it
     /// can be fired as the namespace is deleted).
-    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn take_ns_unset_traces(&self, ns: NsId) -> Vec<TeardownCallback> {
         if self.traces.borrow().traces.iter().all(|t| t.ns.is_none()) {
             return Vec::new();
         }
@@ -3433,9 +3439,9 @@ impl Interp {
     /// C's hash-table walk and is deliberately not pinned — but that a group is
     /// contiguous is pinned regardless of hash order, which a flat reverse got
     /// wrong (`A1 B1 A2 B2` fired `B2 A2 B1 A1`, not C's `A2 A1 B2 B1`).
-    fn group_newest_first_per_entity(victims: Vec<(Vec<u8>, Vec<u8>)>) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn group_newest_first_per_entity(victims: Vec<TeardownCallback>) -> Vec<TeardownCallback> {
         let mut order: Vec<Vec<u8>> = Vec::new();
-        let mut groups: std::collections::HashMap<Vec<u8>, Vec<(Vec<u8>, Vec<u8>)>> =
+        let mut groups: std::collections::HashMap<Vec<u8>, Vec<TeardownCallback>> =
             std::collections::HashMap::new();
         for victim in victims {
             let group = groups.entry(victim.0.clone()).or_insert_with(|| {
@@ -3456,7 +3462,7 @@ impl Interp {
 
     /// Fire collected unset-trace callbacks as `command name {} unset`. Errors
     /// are ignored (an unset trace's result is discarded, as in C).
-    fn fire_unset_callbacks(&mut self, victims: Vec<(Vec<u8>, Vec<u8>)>) {
+    fn fire_unset_callbacks(&mut self, victims: Vec<TeardownCallback>) {
         if victims.is_empty() {
             return;
         }
