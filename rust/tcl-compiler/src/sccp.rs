@@ -3141,7 +3141,7 @@ mod tests {
         crate::command_binding::scan_module_command_mutations(&ir, &reg)
     }
 
-    /// Evaluate `stmt` under the trust fact scanned from `unit_src`.
+    /// Evaluate `stmt` under the whole-module trust fact `mutations`.
     fn evaluate_under_unit(
         stmt: &SsaStatement,
         ssa: &SsaFunction,

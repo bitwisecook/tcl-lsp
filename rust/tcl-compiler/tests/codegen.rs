@@ -2078,12 +2078,15 @@ fn the_trust_gate_is_per_name_not_whole_module() {
     assert!(lits.contains(&"k v".to_owned()), "{lits:?}");
 }
 
-/// The *simplified* value emitter (`emit_value_interpolated`) carries its own
-/// copy of the three folds, reached from the hook emitters rather than from
-/// the argument path the tests above take — `lset`'s new-value word is one.
-/// Gate it separately or the fold survives on this side (issue #1585).
+/// The gate holds through the *other* caller of the shared fold helper.
+///
+/// The tests above reach `try_emit_constant_fold` from the argument path; the
+/// simplified value emitter (`emit_value_interpolated`) reaches it from the
+/// hook emitters, and `lset`'s new-value word is one such route. Both callers
+/// were separate copies of the block until the copies were merged, and this is
+/// what keeps the second route honest (issue #1585).
 #[test]
-fn the_simplified_value_emitters_folds_answer_to_the_same_gate() {
+fn the_fold_gate_holds_through_the_simplified_value_emitter() {
     let lits = |src: &str| proc_asm(src, "::p").literals.entries().to_vec();
 
     let list_body = "proc p {} {set l {x}\nlset l 0 [list a b c]\nreturn $l}\n";
@@ -2105,7 +2108,10 @@ fn the_simplified_value_emitters_folds_answer_to_the_same_gate() {
     let dict_body = "proc p {} {set l {x}\nlset l 0 [dict create a 1]\nreturn $l}\n";
     let base_ops = opcodes(&proc_asm(dict_body, "::p"));
     assert!(base_ops.contains(&Op::VERIFY_DICT), "{base_ops:?}");
-    let deleted = opcodes(&proc_asm(&format!("{dict_body}rename dict {{}}\np\n"), "::p"));
+    let deleted = opcodes(&proc_asm(
+        &format!("{dict_body}rename dict {{}}\np\n"),
+        "::p",
+    ));
     assert!(
         !deleted.contains(&Op::VERIFY_DICT),
         "`lset`'s value word must keep the real `dict create` call: {deleted:?}"

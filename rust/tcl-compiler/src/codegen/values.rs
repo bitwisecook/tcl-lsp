@@ -70,9 +70,81 @@ pub(crate) fn whole_var_reference(word: &str) -> Option<&str> {
     is_bare_var_name(name).then_some(name)
 }
 
+/// Which literal-pool entry point a folded constant takes.
+///
+/// The only thing that ever distinguished the two value emitters' copies of
+/// the constant-fold block, and not interchangeable: the verbatim path also
+/// sets `push_verbatim`, which suppresses runtime word substitution on the
+/// pushed literal. That matters for a folded result that still contains a `$`
+/// — `[list {a$b}]` folds to `a$b`, since the braced word is literal — so each
+/// emitter keeps the entry point it had.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FoldedLiteral {
+    /// [`CodegenCtx::push_lit_no_dedup_verbatim`] — `emit_value_interpolated`.
+    Verbatim,
+    /// [`CodegenCtx::push_lit_no_dedup`] — `emit_value`.
+    NoDedup,
+}
+
 // -- Literal emission --
 
 impl CodegenCtx<'_> {
+    /// The `[list …]` / `[format …]` / `[dict create …]` constant folds and
+    /// the two `list` inlinings that sit between them — one copy, shared by
+    /// both value emitters, which carried it identically apart from `kind`.
+    ///
+    /// Every fold is gated on its own builtin still *being* the builtin
+    /// anywhere in this unit (issue #1585): a fold **is** that command's
+    /// semantics, so after `rename list mylist` or a shadowing `proc format …`
+    /// it would answer for a command that is no longer there. `dict` carries
+    /// the release gate as well (issue #1427) — folding bypasses the runtime's
+    /// availability check, so an ungated fold would make `dict create` *work*
+    /// under `--tcl-version 8.4`.
+    ///
+    /// Returns `true` when it emitted the value and the caller must stop.
+    pub(crate) fn try_emit_constant_fold(&mut self, value: &str, kind: FoldedLiteral) -> bool {
+        let push = |ctx: &mut Self, folded: &str| match kind {
+            FoldedLiteral::Verbatim => ctx.push_lit_no_dedup_verbatim(folded),
+            FoldedLiteral::NoDedup => ctx.push_lit_no_dedup(folded),
+        };
+        // Constant-fold [list arg1 arg2 ...].
+        if self.trusts_builtin("list")
+            && let Some(folded) = super::helpers::fold_list_cmd(value)
+        {
+            push(self, &folded);
+            return true;
+        }
+        // Inline [list {*}$a {*}$b] → load a, load b, listConcat. tclsh 9.0
+        // compiles two-list expansion as a specialised listConcat opcode
+        // rather than a generic `list` invoke.
+        if self.try_list_expand_concat(value) {
+            return true;
+        }
+        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...].
+        // tclsh 9.0 compiles break/continue inside `list` command
+        // substitutions as inline jumps with stack cleanup.
+        if self.try_inline_list_with_break_continue(value) {
+            return true;
+        }
+        // Constant-fold [format "..." arg ...] with literal args (%s/%d/%%).
+        if self.trusts_builtin("format")
+            && let Some(folded) = super::helpers::try_format_fold(value)
+        {
+            push(self, &folded);
+            return true;
+        }
+        // Constant-fold [dict create k v ...].
+        if self.registry.has_command_in_this_dialect("dict")
+            && self.trusts_builtin("dict")
+            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
+        {
+            self.push_lit(&folded);
+            self.emit(Op::DUP, vec![]);
+            self.emit(Op::VERIFY_DICT, vec![]);
+            return true;
+        }
+        false
+    }
     /// Push a literal onto the stack with deduplication.
     pub fn push_lit(&mut self, value: &str) {
         let idx = self.literals.intern(value);

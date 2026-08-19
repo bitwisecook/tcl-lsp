@@ -408,38 +408,10 @@ impl CodegenCtx<'_> {
             self.load_var(var_name);
             return;
         }
-        // Constant-fold [list arg1 arg2 ...] — only while `list` still is the
-        // builtin everywhere in this unit (issue #1585).
-        if self.trusts_builtin("list")
-            && let Some(folded) = super::helpers::fold_list_cmd(value)
-        {
-            self.push_lit_no_dedup_verbatim(&folded);
-            return;
-        }
-        // Inline [list {*}$a {*}$b] → load a, load b, listConcat.
-        if self.try_list_expand_concat(value) {
-            return;
-        }
-        // Inline [list arg ... [break] ...] / [list arg ... [continue] ...].
-        if self.try_inline_list_with_break_continue(value) {
-            return;
-        }
-        // Constant-fold [format "..." arg ...].
-        if self.trusts_builtin("format")
-            && let Some(folded) = super::helpers::try_format_fold(value)
-        {
-            self.push_lit_no_dedup_verbatim(&folded);
-            return;
-        }
-        // Constant-fold [dict create k v ...] — gated on the emulated release
-        // actually having `dict`; see the twin site in `cmd_subst.rs` (#1427).
-        if self.registry.has_command_in_this_dialect("dict")
-            && self.trusts_builtin("dict")
-            && let Some(folded) = super::helpers::fold_dict_create_cmd(value)
-        {
-            self.push_lit(&folded);
-            self.emit(Op::DUP, vec![]);
-            self.emit(Op::VERIFY_DICT, vec![]);
+        // The `[list …]` / `[format …]` / `[dict create …]` folds and the two
+        // `list` inlinings — shared with `emit_value`, which carried an
+        // identical copy of them (issues #1427 / #1585).
+        if self.try_emit_constant_fold(value, super::values::FoldedLiteral::Verbatim) {
             return;
         }
         // Whole-word variable-index array element `$arr($idx)`: route through
