@@ -3716,6 +3716,47 @@ struct IndexedDiagnosticChange {
     source_or_package_changed: bool,
 }
 
+impl IndexedDiagnosticChange {
+    /// Whether this publish moved any workspace fact another document's
+    /// diagnostics can be a function of.
+    fn moved_workspace_facts(&self) -> bool {
+        !self.command_names.is_empty() || self.source_or_package_changed
+    }
+}
+
+/// The **open** documents the index does not currently hold — the ones a
+/// workspace-fact write has to wake by hand (issue #1619).
+///
+/// Every other consumer set is read *from* the index, so a document that is
+/// open but has no entry cannot be found in one — and that is exactly the
+/// document whose analysis ran against a snapshot older than the write that
+/// just happened: `did_open` drops the entry and the debounced publish is what
+/// puts it back, so its own call-site records do not exist yet. Before this,
+/// such a document kept whatever verdict it reached against the older index,
+/// because re-opening an unedited buffer starts no new analysis and nothing
+/// else ever named it a consumer.
+///
+/// Call only when the publish moved something
+/// ([`IndexedDiagnosticChange::moved_workspace_facts`]): with no change there
+/// is nothing a peer could conclude differently, and waking one anyway would
+/// republish a byte-identical set for an unchanged version, which the
+/// one-publish-per-version contract (`diagnostics_delivery_smoke`) forbids.
+///
+/// Terminating: each woken peer's own publish puts it into the index, so the
+/// set this can draw from strictly shrinks, and a peer that moves no workspace
+/// fact of its own — the common case, a caller that defines nothing — wakes
+/// nobody.
+fn unindexed_open_documents(
+    index: &core_workspace_index::WorkspaceIndex,
+    docs: &HashMap<Uri, DocumentState>,
+) -> Vec<String> {
+    docs.keys()
+        .map(|uri| uri.as_str())
+        .filter(|uri| !index.contains_document(uri))
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 /// Documents whose own call-site records consume one of the changed command
 /// signatures. Both exact qualified candidates and the opt-in W123 tail tier
 /// are dependencies; unrelated open documents are deliberately absent.
@@ -3926,6 +3967,11 @@ async fn publish_diagnostics_result(
             if change.source_or_package_changed {
                 consumers.extend(before.stale_source_consumers(&index, delivery.uri.as_str()));
                 consumers.extend(source_diagnostic_consumers(&index, delivery.uri.as_str()));
+            }
+            // …plus the open documents this write could have raced — see
+            // [`unindexed_open_documents`] (issue #1619).
+            if change.moved_workspace_facts() {
+                consumers.extend(unindexed_open_documents(&index, &docs));
             }
             (change, consumers)
         };
@@ -5288,6 +5334,30 @@ impl Backend {
             edit_order: EditOrder::default(),
             store,
         }
+    }
+
+    /// Whether the salsa db *already* holds exactly this `(text, dialect)` for
+    /// `uri` — i.e. nothing about the analysis inputs changes by setting them.
+    ///
+    /// Used by `did_open` (issue #1619) to tell an opened buffer that merely
+    /// mirrors what the workspace scan read from disk apart from one that
+    /// differs, so only the latter has to drop its workspace-index entry. The
+    /// db is the right thing to ask because the scan sets this input from the
+    /// same text it indexed, in the same pass — so agreement here *is*
+    /// agreement with the index entry, with no second disk read.
+    ///
+    /// Compared in the analysis form [`Self::db_set_source`] stores, so a lone
+    /// `\r` cannot make an identical document look changed.
+    ///
+    /// Lock order is the global one: `db` → `db_files`, both taken and
+    /// released here, and always under `documents` at the call site.
+    async fn db_source_matches(&self, uri: &Uri, text: &str, dialect: &str) -> bool {
+        let normalised = tcl_lexer::normalise_lone_cr(text);
+        let db = self.db.lock().await;
+        let files = self.db_files.lock().await;
+        files.get(uri).is_some_and(|file| {
+            file.text(&*db).as_str() == normalised.as_ref() && file.dialect(&*db) == dialect
+        })
     }
 
     /// Create or update the salsa `SourceFile` input for `uri`.  Called by
@@ -14875,12 +14945,40 @@ impl LanguageServer for Backend {
                 DocumentState::with_version(params.text_document.text, dialect, version)
                     .with_language_id(params.text_document.language_id.clone()),
             );
+            // Dropping the index entry is what makes a freshly opened
+            // definition invisible to every *other* open document until this
+            // one's debounced publish puts it back — the window issue #1619
+            // wedges in: a sibling analysed inside it settles `W123` on a call
+            // this workspace does define, and the publish that restores the
+            // entry wakes only documents the index already records as invoking
+            // the name, which the sibling — also just opened, also just
+            // removed — is not yet one of.
+            //
+            // The entry is stale only if the buffer differs from what it was
+            // built from. Asked of the salsa db rather than of the disk,
+            // because the db already holds the very text the scan (or a
+            // watched-file reindex) read: this is an in-memory comparison, not
+            // a second read, and it cannot disagree with the index entry that
+            // was built alongside it. The dialect is part of the question —
+            // the same bytes analysed under a different dialect are a
+            // different analysis.
+            //
+            // Residual, deliberately accepted: the scan analyses with a bare
+            // `Analyser::new()`, so a kept entry can lack the class-factory
+            // oracle until this document's own publish replaces it a debounce
+            // later. That is strictly better than the entry being *absent* for
+            // that same window, which is what it was before.
+            let matches_indexed_source = self
+                .db_source_matches(&uri, &text, &dialect_for_diags)
+                .await;
             self.db_set_source(&uri, &text, dialect_for_diags.clone())
                 .await;
-            self.workspace_index
-                .write()
-                .await
-                .remove_document(uri.as_str());
+            if !matches_indexed_source {
+                self.workspace_index
+                    .write()
+                    .await
+                    .remove_document(uri.as_str());
+            }
             drop(docs);
         }
         // Do not keep the global document-sync turn across disk I/O. If a
