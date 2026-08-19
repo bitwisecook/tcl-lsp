@@ -31,11 +31,43 @@ use super::{CodegenCtx, Op, Operand, bytecode_imm};
 /// separators). A name with any other character (`-`, `.`, `(`, `$`) is *not* a
 /// whole bare reference, so e.g. `$item-suffix` is `$item` followed by literal
 /// `-suffix`, not a variable called `item-suffix`.
-fn is_bare_var_name(name: &str) -> bool {
+///
+/// This is the deliberately *looser* codegen-side contract recorded in
+/// `docs/design/contracts/shared-utility-contracts-rust.md`, distinct from the
+/// stricter `::`-segmented `tcl_syntax::naming::is_bare_var_name` that quick
+/// fixes use. `pub(crate)` so the WASM backend consumes this one rather than
+/// re-deriving the charset (issue #1459).
+pub(crate) fn is_bare_var_name(name: &str) -> bool {
     !name.is_empty()
         && name
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b':')
+}
+
+/// The exact Tcl variable name `word` refers to, when the **whole** word is one
+/// simple variable reference eligible for a direct load — otherwise `None`.
+///
+/// The single owner of the `$name` / `${name}` split for the codegen backends
+/// (issue #1459); `codegen::wasm::backend` and `codegen::wasm::leaf_invoke`
+/// each carried a byte-identical copy.
+///
+/// The two spellings are **not** validated alike, and that asymmetry is the
+/// point: braces are Tcl's own escape for a name the bare charset cannot
+/// express, so `${…}` accepts any non-empty name verbatim, while a bare
+/// `$name` must be a whole [`is_bare_var_name`] run — otherwise the word is
+/// `$name` *followed by literal text* (`$item-suffix`) and loading `item-suffix`
+/// would be wrong. Routing the braced form through the charset check as well
+/// would change behaviour, not just deduplicate.
+///
+/// Note the braced form here is decided by the *last* `}` in the word; the
+/// release-aware `${…}` close rule lives with the decoders in
+/// [`parse_simple_var_ref`] and is issue #1568's territory, not this one.
+pub(crate) fn whole_var_reference(word: &str) -> Option<&str> {
+    if let Some(name) = word.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
+        return (!name.is_empty()).then_some(name);
+    }
+    let name = word.strip_prefix('$')?;
+    is_bare_var_name(name).then_some(name)
 }
 
 // -- Literal emission --
@@ -569,6 +601,43 @@ mod tests {
     #[test]
     fn parse_simple_var_ref_no_close() {
         assert_eq!(parse_simple_var_ref("${x"), None);
+    }
+
+    // -- whole_var_reference (issue #1459) --
+
+    /// The braced and bare spellings are validated **differently**, and the
+    /// asymmetry is load-bearing: braces are Tcl's own escape for a name the
+    /// bare charset cannot express. Hoisting the braced arm through
+    /// `is_bare_var_name` — the obvious "deduplication" — would change
+    /// behaviour, so it is pinned here.
+    #[test]
+    fn whole_var_reference_accepts_any_non_empty_braced_name() {
+        assert_eq!(whole_var_reference("${a-b}"), Some("a-b"));
+        assert_eq!(whole_var_reference("${a.b}"), Some("a.b"));
+        assert_eq!(whole_var_reference("${a(b)}"), Some("a(b)"));
+        assert_eq!(whole_var_reference("${x}"), Some("x"));
+        // …but not an empty one.
+        assert_eq!(whole_var_reference("${}"), None);
+    }
+
+    #[test]
+    fn whole_var_reference_charset_checks_only_the_bare_form() {
+        assert_eq!(whole_var_reference("$x"), Some("x"));
+        assert_eq!(whole_var_reference("$::ns::x"), Some("::ns::x"));
+        assert_eq!(whole_var_reference("$x_1"), Some("x_1"));
+        // `$item-suffix` is `$item` followed by literal text, not a whole
+        // reference — so the *word* is not a simple variable load.
+        assert_eq!(whole_var_reference("$item-suffix"), None);
+        assert_eq!(whole_var_reference("$a(b)"), None);
+        assert_eq!(whole_var_reference("$"), None);
+    }
+
+    #[test]
+    fn whole_var_reference_rejects_a_word_that_is_not_a_reference() {
+        assert_eq!(whole_var_reference("x"), None);
+        assert_eq!(whole_var_reference(""), None);
+        assert_eq!(whole_var_reference("[f]"), None);
+        assert_eq!(whole_var_reference("a$b"), None);
     }
 
     // -- parse_braced_scalar_ref --
