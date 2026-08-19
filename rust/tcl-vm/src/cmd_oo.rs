@@ -842,6 +842,9 @@ fn bootstrap(vm: &mut Vm) {
             },
         );
         vm.register_command(root, Command::Object(root.to_string()));
+        // Engine-installed, not script-created: the registry dates these
+        // (TCL86_PLUS) and the availability gate must honour that.
+        vm.declare_registry_object_root(root);
     }
     // `oo::object`'s only super is nothing (it is the root); `oo::class` extends
     // `oo::object`.
@@ -883,6 +886,8 @@ fn bootstrap(vm: &mut Vm) {
         "oo::configurable",
         Command::Object("oo::configurable".to_string()),
     );
+    // TIP 558 is Tcl 9.0: real tclsh 8.6.16 has no `oo::configurable`.
+    vm.declare_registry_object_root("oo::configurable");
 }
 
 // ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@ pub mod array;
 pub mod binary;
 pub mod clock;
 pub mod dict;
+pub mod ensemble;
 pub mod error;
 pub mod format;
 pub mod index;

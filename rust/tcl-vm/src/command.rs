@@ -149,12 +149,22 @@ pub struct EnsembleDef {
     /// against which an unmapped subcommand `sub` resolves to `namespace::sub`.
     pub namespace: String,
     /// `-map`: subcommand → target command prefix (already qualified).
-    pub map: std::collections::HashMap<String, Vec<Value>>,
+    ///
+    /// An association list, not a hash map: C stores the map as a Tcl dict and
+    /// `namespace ensemble configure -map` reads it back in **insertion
+    /// order**, so the order is observable and must round-trip. (The runtime's
+    /// `EnsembleMap` is the same shape for the same reason.) Ensembles have a
+    /// handful of subcommands, so linear lookup is not a concern.
+    pub map: Vec<(String, Vec<Value>)>,
     /// `-subcommands`: the explicit subcommand list, or `None` to use the
     /// namespace's exported commands.
     pub subcommands: Option<Vec<String>>,
     /// `-prefixes`: whether an unambiguous prefix of a subcommand resolves.
     pub prefixes: bool,
+    /// `-parameters`: formal parameter names that precede the subcommand word
+    /// (`ens p1 p2 sub arg…`); their values thread in after the resolved
+    /// target prefix (`target p1 p2 arg…`). Empty for an ordinary ensemble.
+    pub parameters: Vec<String>,
     /// `-unknown`: a handler prefix invoked when no subcommand matches.
     pub unknown: Option<Vec<Value>>,
 }

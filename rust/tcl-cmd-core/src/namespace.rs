@@ -161,6 +161,123 @@ pub fn which_command<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Va
     }
 }
 
+/// [`which_command`] over a **byte-valued** name, as the resolved FQN bytes —
+/// the form a byte-native runtime uses so a command name survives verbatim.
+pub fn which_command_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Option<Vec<u8>> {
+    let cur = ops.current();
+    ops.find_command_bytes(cur, name)
+        .and_then(|id| ops.command_name_bytes(id))
+}
+
+/// `namespace which -variable name` — the fully-qualified name `name` resolves
+/// to as a **namespace** variable from the current namespace, or the empty
+/// string.
+///
+/// C's `NamespaceWhichCmd` case 1 calls `Tcl_FindNamespaceVar(interp, name,
+/// NULL, 0)` (`tclNamesp.c:4657-4664`), which walks namespace `varTable`s and
+/// **never** the call frame: a proc-local variable answers the empty string
+/// even while it is set, and a qualified name commits to the namespace its
+/// qualifier resolves to.
+///
+/// The one release axis is the *alternate* search. `ObjFindNamespaceVar`
+/// (`tclVar.c`) hands `TclGetNamespaceForQualName` two candidate namespaces
+/// and tries both; Tcl 9.0 added `flags |= TCL_NAMESPACE_ONLY`
+/// (`tcl9.0.4 tclVar.c:5951-5953`), which blanks the second, so 8.x falls back
+/// to the **global** namespace where 9.0 does not — tclsh-pinned:
+/// `set ::gv 1; namespace eval n {namespace which -variable gv}` is `::gv` on
+/// 8.6.16 and `{}` on 9.0.4.
+pub fn which_variable<O: ValueOps + Namespaces>(
+    ops: &mut O,
+    name: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> O::Value {
+    match variable_fqn(ops, name, profile) {
+        Some(fqn) => ops.new_string(fqn),
+        None => ops.empty(),
+    }
+}
+
+/// [`which_variable`]'s resolution step over a **byte-valued** name — the
+/// `&self` form for adapters that hold names as bytes.
+///
+/// A Tcl variable name is a byte string (`set [binary format c 255] 1`), so
+/// the resolution runs on bytes end to end: the qualifier split is already a
+/// byte op, and the namespace/table probes go through the `Namespaces`
+/// byte-valued spellings. A byte-native runtime therefore never has to route
+/// a name through `str`.
+pub fn variable_fqn_bytes<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: &[u8],
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<Vec<u8>> {
+    let cur = ops.current();
+    // Variable resolution has no existence-checked fall-through the way
+    // command resolution does (`tclVar.c`'s `TclLookupSimpleVar`): the
+    // qualifier names the namespace outright.
+    let (primary, simple): (Option<tcl_runtime_api::NsId>, Vec<u8>) = match qualifier(name) {
+        Qualifier::Unqualified => (Some(cur), name.to_vec()),
+        Qualifier::Absolute(prefix) | Qualifier::Relative(prefix) => {
+            (ops.find_namespace_bytes(cur, prefix), tail(name).to_vec())
+        }
+    };
+    // The alternate (global-rooted) candidate — TIP 278, dropped from 9.0 on.
+    // The release test is the dialect layer's to own (it follows the vendor
+    // shells' embedded core version, which a bare `TCL90_PLUS` mask test gets
+    // wrong), so ask it rather than re-deriving the comparison here. An
+    // absolute name has no alternate in any release: it already names the
+    // global-rooted namespace.
+    let alternate = match qualifier(name) {
+        _ if !tcl_dialect::DialectSet::namespace_var_global_fallback(profile.name) => None,
+        Qualifier::Absolute(_) => None,
+        Qualifier::Unqualified => ops.find_namespace_bytes(cur, b"::"),
+        Qualifier::Relative(prefix) => {
+            let mut rooted = b"::".to_vec();
+            rooted.extend_from_slice(prefix);
+            ops.find_namespace_bytes(cur, &rooted)
+        }
+    };
+    let ns = [primary, alternate]
+        .into_iter()
+        .flatten()
+        .find(|ns| ops.namespace_var_exists_bytes(*ns, &simple))?;
+    let mut fqn = ops.name_bytes(ns);
+    if fqn != b"::" {
+        fqn.extend_from_slice(b"::");
+    }
+    fqn.extend_from_slice(&simple);
+    Some(fqn)
+}
+
+/// [`variable_fqn_bytes`] for the UTF-8-keyed adapters (the VM), whose own
+/// tables cannot hold a non-UTF-8 name in the first place.
+pub fn variable_fqn<O: Namespaces + ?Sized>(
+    ops: &O,
+    name: &str,
+    profile: &tcl_dialect::DialectProfile,
+) -> Option<String> {
+    variable_fqn_bytes(ops, name.as_bytes(), profile)
+        .map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
+}
+
+/// `namespace origin command` over a **byte-valued** name — the fully-qualified
+/// name of the *original* command `name` resolves to, following `namespace
+/// import` links to their source. This is `NamespaceOriginCmd`
+/// (`tclNamesp.c`): resolve the word to a command token, ask
+/// `TclGetOriginalCommand` for the token it was imported from (falling back to
+/// the token itself when it was not imported), and report that token's
+/// fully-qualified name. `None` when the word resolves to no command at all —
+/// the caller reports `invalid command name "<name>"`.
+pub fn origin_bytes<O: Namespaces + ?Sized>(ops: &O, name: &[u8]) -> Option<Vec<u8>> {
+    let cur = ops.current();
+    let cmd = ops.find_command_bytes(cur, name)?;
+    ops.command_name_bytes(ops.command_origin(cmd).unwrap_or(cmd))
+}
+
+/// [`origin_bytes`] for the UTF-8-keyed adapters (the VM).
+pub fn origin<O: Namespaces + ?Sized>(ops: &O, name: &str) -> Option<String> {
+    origin_bytes(ops, name.as_bytes()).map(|fqn| String::from_utf8_lossy(&fqn).into_owned())
+}
+
 /// `namespace exists name` — whether `name` (resolved from the current
 /// namespace) names an existing namespace.
 pub fn exists<O: ValueOps + Namespaces>(ops: &mut O, name: &str) -> O::Value {

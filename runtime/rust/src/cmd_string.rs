@@ -1026,7 +1026,7 @@ fn class_err(kind: &[u8], arg: &[u8]) -> Vec<u8> {
     m.extend_from_slice(arg);
     m.extend_from_slice(b"\": must be ");
     let classes: Vec<Vec<u8>> = IS_CLASSES.iter().map(|s| s.to_vec()).collect();
-    m.extend_from_slice(&crate::ensemble::must_be(&classes));
+    m.extend_from_slice(&tcl_cmd_core::ensemble::subcommand_choices(&classes));
     m
 }
 
