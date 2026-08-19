@@ -1491,6 +1491,31 @@ fn a_bom_prefixed_pack_loads_like_any_other() {
     );
 }
 
+/// `speclib_version_span` must skip a leading BOM exactly as the loader does.
+///
+/// This is the hook `tcl spec upgrade` rewrites through, and it is a *separate*
+/// entry point with its own `LexerConfig` — the pack-loading test above does
+/// not exercise it. If the two disagreed about whether a leading mark is a
+/// prologue, the upgrade would compute a byte range against a different
+/// tokenisation than the one `load_pack` used and rewrite the wrong span.
+/// (Caught by mutation testing during the #1641 review: flipping this entry's
+/// disposition alone left every existing test green.)
+#[test]
+fn the_version_span_skips_a_leading_bom_like_the_loader() {
+    let source = "\u{feff}speclib demo 1.1 {\n  command demo::a { arity 1 }\n}\n";
+
+    let (range, version) =
+        tcl_spectcl::speclib_version_span(source).expect("a BOM must not hide the version word");
+
+    assert_eq!(version, "1.1");
+    assert_eq!(
+        &source[range.clone()],
+        "1.1",
+        "the span must be the version word's own bytes, so a rewrite lands on \
+         it and not on the BOM-shifted text beside it"
+    );
+}
+
 /// …but a BOM *inside* a block is ordinary data (#1635).
 ///
 /// The half of the fix that is easy to get wrong: flipping the disposition for
@@ -1638,6 +1663,49 @@ fn an_orphaned_block_notice_is_one_readable_line() {
         !orphan.message.contains("arity 1"),
         "the block's own body must not be quoted into the message, got {:?}",
         orphan.message
+    );
+}
+
+/// An unknown *property* that is long or spans lines is elided, not quoted
+/// whole (#1634).
+///
+/// The orphaned-block test above returns before the quoting code, so it does
+/// not pin it — flipping `unknown_property` back to a raw `word_text(0)` left
+/// that test green (found by mutation testing during the #1641 review). This
+/// is the case that catches it: a word that is neither empty nor short, on the
+/// non-block path where `quotable` is the only thing keeping the message to
+/// one bounded line.
+#[test]
+fn a_long_unknown_property_is_elided_rather_than_quoted_whole() {
+    let pack = load_pack(
+        "speclib demo 1.1 {\n\
+        \x20 command demo::a {\n\
+        \x20   arity 1\n\
+        \x20   \"a very long unknown property name that runs well past the limit\n\
+        \x20    and then keeps going onto a second physical line\"\n\
+        \x20 }\n\
+        }\n",
+    );
+
+    let notice = pack
+        .notices
+        .iter()
+        .find(|n| n.message.contains("unknown"))
+        .unwrap_or_else(|| panic!("the unknown property must be reported: {:#?}", pack.notices));
+    assert!(
+        !notice.message.contains('\n'),
+        "a diagnostic message must stay one physical line, got {:?}",
+        notice.message
+    );
+    assert!(
+        notice.message.contains('…'),
+        "and must show it was elided rather than silently truncated, got {:?}",
+        notice.message
+    );
+    assert!(
+        !notice.message.contains("second physical line"),
+        "the tail must not reach the message, got {:?}",
+        notice.message
     );
 }
 
