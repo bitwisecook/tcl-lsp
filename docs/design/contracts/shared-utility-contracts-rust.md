@@ -311,6 +311,29 @@ entry point, or gate moves without this contract being updated.
 5. Grammar direction is 9.0-first by design: the shared number grammar
    accepts `0d5` and `1_000` even though 8.6 rejects them (dialect
    gating is a lexer/analyser concern, not a per-consumer parser fork).
+6. A per-argument fact is projected, never filtered by the consumer.
+   `CommandSpec`'s six parallel per-argument tables (`arg_roles`,
+   `arg_types`, `arg_values`, `closed_value_args`, `arg_presentation`,
+   `command_prefixes`) are index-keyed slices with no record to hang a
+   `Lifecycle` on, so the authored rows live beside them as
+   `arg_rows: &[VersionedArgRow]` and
+   `tcl_registry::spec::project_arg_rows` is the **only** thing that
+   turns a row into the parallel form. A consumer that wants the tables
+   at a resolved package floor re-projects; one that open-codes a
+   seventh "is this row in range" test over one table has re-derived the
+   owner in five-sixths of the places it matters, which is the defect
+   the record shape exists to prevent.
+   `spec::versioned_arg_row_tests::projection_carries_every_row_column`
+   is the drift gate: a column added to the record and not to the
+   projection fails there rather than silently vanishing.
+7. A version floor is a lower bound and composes by taking the greatest.
+   Three things can state one — a `package require` in the document, a
+   `SpecTcl` pack's `ambient_package` row, and the profile's
+   `LibraryPin` — and `version_gate::FloorSource` is the single place
+   that ranks them. The *version* is the max; the ordering of the
+   `FloorSource` variants is the **reporting** tie-break at equal
+   versions, closest-to-the-author first, and is not a claim that one
+   source is more authoritative than another.
 
 ## Known deliberate exceptions
 
@@ -434,6 +457,20 @@ helper without reading the rationale:
 - `rust/tcl-vm/tests/language_e2e.rs` —
   `zero_length_array_name_is_an_array_element` and
   `link_commands_reject_element_looking_names` (`split_element_ref`).
+- `rust/tcl-registry/src/spec.rs` —
+  `projection_carries_every_row_column` (rule 6's drift gate) and
+  `a_row_outside_the_floor_is_filtered_from_every_slice`;
+  `rust/tcl-registry/src/arity.rs` —
+  `adjacent_windows_do_not_overlap_but_straddling_ones_do`;
+  `rust/tcl-registry/tests/registry_sweep.rs` —
+  `arity_window_gate_rejects_each_malformed_shape` (the shipped-spec
+  side of the same invariant the pack loader only notices).
+- `rust/tcl-compiler/src/analyser/diagnostics/version_gate.rs` —
+  `the_highest_of_the_three_floors_wins` and
+  `equal_floors_are_reported_in_precedence_order` (rule 7's two halves:
+  the max, then the reporting tie-break), with
+  `no_pack_overlay_leaves_every_floor_where_it_was` as the FN guard for
+  a session that loads no packs.
 
 ## Discoverability
 
