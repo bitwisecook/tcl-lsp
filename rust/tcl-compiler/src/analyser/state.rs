@@ -1685,7 +1685,7 @@ impl Analyser {
         // runs per segmented command in the dispatch loop below.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name(dialect)),
         );
         // Inline ``# tcl-lsp: stub …`` block scan.  After
         // capturing the parsed records, build the per-document
@@ -2071,7 +2071,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name(dialect)),
         );
 
         // Build + stash the dialect-aware registry so
@@ -2163,7 +2163,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(source, dialect),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name(dialect)),
         );
 
         // Same registry + line-index prelude as

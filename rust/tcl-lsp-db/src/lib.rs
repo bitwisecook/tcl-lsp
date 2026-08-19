@@ -857,7 +857,7 @@ pub fn file_call_site_evidence(
     let scanned = tcl_compiler::unit_scope::scan_source_call_sites(
         file.text(db),
         registry,
-        &dialect,
+        tcl_lsp_core::profile_for_dialect(&dialect),
         &known,
         &reach,
     );
@@ -1730,7 +1730,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
         key.namespace(db),
         registry,
         config,
-        key.dialect(db),
+        tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
     ))
 }
 
@@ -1796,7 +1796,13 @@ fn build_unit_with_keys<'db>(
         registry, config, ..
     } = options;
     let dialect = options.dialect;
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    // Salsa keys own their fields, so the memo identity is the profile's
+    // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
+    // profile and so now share one memo entry instead of one per spelling —
+    // the analysis they produce was already identical.
+    let dialect_key = dialect.map_or("", |profile| profile.name);
+    let dialect_opt =
+        dialect.and_then(|profile| tcl_dialect::DialectProfile::resolve_known(profile.name));
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -1834,7 +1840,7 @@ fn build_unit_with_keys<'db>(
             req.qname.to_owned(),
             req.params.to_vec(),
             context,
-            req.dialect.to_owned(),
+            req.dialect.map_or("", |profile| profile.name).to_owned(),
             req.param_constants.to_vec(),
             req.known_classes.to_vec(),
             req.traced_variables.to_vec(),
@@ -1879,7 +1885,7 @@ fn build_unit_with_keys<'db>(
                 db,
                 body_text.to_owned(),
                 namespace.to_owned(),
-                dialect.to_owned(),
+                dialect_key.to_owned(),
                 config.expand_syntax,
                 config.irules_brace_separator,
             );
@@ -1900,7 +1906,7 @@ fn build_unit_with_keys<'db>(
         dialect_opt,
         &mut |qname: &str, ia: &InterproceduralAnalysis| {
             let key = *lattice_keys.get(qname)?;
-            let summary_key = taint_summary_key(db, ia, qname, dialect);
+            let summary_key = taint_summary_key(db, ia, qname, dialect_key);
             // A hit returns the memoised map by refcount: `FunctionUnit::taints`
             // is span-free (the offset rebase never touches it), so the unit can
             // share the cached lattice rather than deep-copying it per procedure
@@ -2350,7 +2356,7 @@ pub fn proc_taint_solve<'db>(
             registry,
             defer_top_level: false,
             config: cfg.to_config(db),
-            dialect: &dialect,
+            dialect: tcl_lsp_core::optional_profile_for_dialect(&dialect),
             external_call_sites: external.as_deref(),
         },
     );
@@ -3036,7 +3042,7 @@ pub fn compilation_unit<'db>(
             registry,
             defer_top_level: false,
             config: cfg.to_config(db),
-            dialect: &dialect,
+            dialect: tcl_lsp_core::optional_profile_for_dialect(&dialect),
             external_call_sites: external.as_deref(),
         },
     ))
@@ -3219,7 +3225,7 @@ pub fn compiler_check_diagnostics_uncached(
             registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::for_dialect(dialect),
-            dialect,
+            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites,
         },
     )
@@ -3297,7 +3303,7 @@ pub fn semantic_tokens(db: &dyn TclDb, file: SourceFile, config: AnalyserConfig)
     let analysis = file_analysis_incremental(db, file, config);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         file.text(db),
-        file.dialect(db),
+        tcl_lsp_core::profile_for_dialect(file.dialect(db)),
         &registry,
         Some(&cu),
         Some(&analysis),
@@ -3498,7 +3504,7 @@ pub fn semantic_tokens_project(
     let named_instances = project_named_instance_index(db, project);
     tcl_lsp_core::semantic_tokens::full_with_cu_and_facts(
         file.text(db),
-        file.dialect(db),
+        tcl_lsp_core::profile_for_dialect(file.dialect(db)),
         &registry,
         Some(&cu),
         tcl_lsp_core::semantic_tokens::WorkspaceTokenFacts {
@@ -3517,7 +3523,11 @@ pub fn semantic_tokens_project(
 #[salsa::tracked(returns(clone))]
 pub fn folding_ranges(db: &dyn TclDb, file: SourceFile) -> Vec<FoldingRange> {
     let registry = db.registry(file.dialect(db));
-    tcl_lsp_core::folding::folding_ranges(file.text(db), file.dialect(db), registry)
+    tcl_lsp_core::folding::folding_ranges(
+        file.text(db),
+        tcl_lsp_core::profile_for_dialect(file.dialect(db)),
+        registry,
+    )
 }
 
 #[cfg(test)]
@@ -3705,7 +3715,7 @@ mod tests {
         let db = TclDatabase::default();
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = document_symbols(&db, file, cfg(&db));
-        let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, "tcl");
+        let expected = tcl_lsp_core::document_symbols::document_symbols(SRC, tcl_dialect::DialectProfile::by_name("tcl"));
         assert_eq!(got, expected);
     }
 
@@ -3715,7 +3725,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::semantic_tokens::full(SRC, "tcl", reg);
+        let expected = tcl_lsp_core::semantic_tokens::full(SRC, tcl_dialect::DialectProfile::by_name("tcl"), reg);
         assert_eq!(got, expected);
         assert!(!got.data.is_empty());
     }
@@ -3738,7 +3748,7 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), reg);
         assert_ne!(
             enriched, coarse,
             "the CompilationUnit-informed regex-source retag must change the \
@@ -3758,7 +3768,7 @@ mod tests {
         let file = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let enriched = semantic_tokens(&db, file, cfg(&db));
         let reg = db.registry("tcl9.0");
-        let coarse = tcl_lsp_core::semantic_tokens::full(src, "tcl9.0", reg);
+        let coarse = tcl_lsp_core::semantic_tokens::full(src, tcl_dialect::DialectProfile::by_name("tcl9.0"), reg);
         assert_eq!(
             enriched, coarse,
             "a non-constant pattern source must not be retagged by either tier"
@@ -4407,7 +4417,7 @@ mod tests {
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl".to_owned(), None);
         let got = folding_ranges(&db, file);
         let reg = db.registry("tcl");
-        let expected = tcl_lsp_core::folding::folding_ranges(SRC, "tcl", reg);
+        let expected = tcl_lsp_core::folding::folding_ranges(SRC, tcl_dialect::DialectProfile::by_name("tcl"), reg);
         assert_eq!(got, expected);
     }
 

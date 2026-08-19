@@ -506,7 +506,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::default(),
-            dialect,
+            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
         },
     ));
@@ -526,7 +526,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
             registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::for_dialect(dialect),
-            dialect,
+            dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
         },
     )
@@ -556,7 +556,7 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         &no_disabled,
         &no_suppressed,
         Some(&doc.input.decode),
-        dialect,
+        tcl_lsp_core::profile_for_dialect(dialect),
     ) {
         let Ok(code) = DiagCode::from_str(d.code) else {
             continue;

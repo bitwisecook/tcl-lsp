@@ -1774,7 +1774,7 @@ mod tests {
 
     fn fmt_dialect(src: &str, dialect: &'static tcl_dialect::DialectProfile) -> String {
         let registry = crate::registry_for_dialect_profile(dialect);
-        format_tcl(src, &FormatterConfig::for_dialect(dialect), registry)
+        format_tcl(src, &FormatterConfig::for_profile(dialect), registry)
     }
 
     /// Regression coverage for issue #996: `format_body` recurses once per
@@ -2057,7 +2057,7 @@ mod tests {
         let registry = tcl_registry::registry_for_dialect("f5-irules");
         let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
         for spelling in ["f5-irules", "irules", "tcl-irule"] {
-            let out = format_tcl(source, &FormatterConfig::for_dialect(tcl_dialect::DialectProfile::by_name(spelling)), registry);
+            let out = format_tcl(source, &FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(spelling)), registry);
             assert!(out.contains("} {"), "{spelling} emitted no `}} {{`:\n{out}");
             assert!(
                 !out.contains("}{"),
@@ -2066,7 +2066,7 @@ mod tests {
         }
         // The mismatched modern-Tcl profile — what a caller that forgot the
         // dialect used to get — leaves the same bytes alone.
-        let tcl9 = format_tcl(source, &FormatterConfig::for_dialect(tcl_dialect::DialectProfile::by_name("tcl9.0")), registry);
+        let tcl9 = format_tcl(source, &FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl9.0")), registry);
         assert!(
             tcl9.contains("}{"),
             "the Tcl 9 profile must not synthesise the separator:\n{tcl9}"

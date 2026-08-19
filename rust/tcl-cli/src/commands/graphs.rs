@@ -79,11 +79,11 @@ fn line_of(line_index: &LineIndex, offset: u32) -> u32 {
 fn detect_event_entries(
     source: &str,
     line_index: &LineIndex,
-    dialect: &tcl_dialect::DialectProfile,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<SymbolEntry> {
     let registry = registry_for_dialect(dialect.name);
     let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect.name, &registry);
+        tcl_compiler::head_identity::command_head_identities(source, dialect, &registry);
     let mut entries = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for handler in tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
@@ -285,7 +285,7 @@ pub fn run_symbolgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> 
     let documents = read_input_documents(&input.inputs, &input.source, !input.no_recursive)?;
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
-    let data = graphs::symbol_graph(&source, dialect.name);
+    let data = graphs::symbol_graph(&source, dialect);
 
     let summary = data.get("summary").cloned().unwrap_or_else(|| json!({}));
     let count = |key: &str| summary.get(key).and_then(Value::as_i64).unwrap_or(0);
@@ -323,7 +323,7 @@ pub fn run_callgraph(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);
-    let data = graphs::call_graph(&source, &registry, dialect.name);
+    let data = graphs::call_graph(&source, &registry, dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 
@@ -412,7 +412,7 @@ pub fn run_dataflow(input: &InputArgs, json_out: bool) -> anyhow::Result<u8> {
     let dialect = combined_effective_dialect(&documents, input.dialect_profile()?);
     let source = combine_sources(&documents);
     let registry = registry_for_dialect(dialect.name);
-    let data = graphs::dataflow_graph(&source, &registry, dialect.name);
+    let data = graphs::dataflow_graph(&source, &registry, dialect);
 
     let target = OutputTarget::from_arg(input.output.as_deref());
 

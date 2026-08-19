@@ -300,7 +300,7 @@ fn an_irules_document_gets_the_same_rewrite() {
     // the vendor dialect exactly as under a core one, with no core version
     // range to widen over.
     let registry = tcl_registry::registry_for_dialect("f5-irules");
-    let config = FormatterConfig::for_dialect(tcl_dialect::DialectProfile::by_name("f5-irules"));
+    let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("f5-irules"));
     let out = format_tcl("clock format $t -gmt yes\n", &config, registry);
     assert!(out.contains("-gmt true"), "{out}");
 }
@@ -377,7 +377,7 @@ fn a_dynamic_boolean_option_value_abstains() {
 /// that release and every later one.
 fn fmt_over_range(src: &str, dialect: &str) -> String {
     let registry = tcl_registry::registry_for_dialect(dialect);
-    let config = FormatterConfig::for_dialect(tcl_dialect::DialectProfile::by_name(dialect));
+    let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect));
     format_tcl(src, &config, registry)
 }
 
@@ -452,7 +452,7 @@ fn fmt_in_range(src: &str, dialect: &str, range: DialectSet) -> String {
     let registry = tcl_registry::registry_for_dialect(dialect);
     let config = FormatterConfig {
         target_range_override: Some(range),
-        ..FormatterConfig::for_dialect(tcl_dialect::DialectProfile::by_name(dialect))
+        ..FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect))
     };
     format_tcl(src, &config, registry)
 }

@@ -109,6 +109,19 @@ pub fn profile_for_dialect(name: &str) -> &'static tcl_dialect::DialectProfile {
         .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name(name))
 }
 
+/// [`profile_for_dialect`] for the inputs where an *empty* name means "this
+/// build named no dialect", which is not the same as naming plain Tcl.
+///
+/// The compiler's `UnitBuildOptions::dialect` and the lowering entry points
+/// draw that distinction: an unstated dialect selects no semantic dialect bit
+/// at all, while plain Tcl is a real profile. Salsa stores the document's
+/// dialect as a `String` (it is an input, so it must own its value and hash),
+/// so this is the conversion at every read of one.
+#[must_use]
+pub fn optional_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::DialectProfile> {
+    (!name.is_empty()).then(|| profile_for_dialect(name))
+}
+
 /// The command registry a document of `dialect` is analysed against.
 ///
 /// The one place the LSP layer still goes through a dialect *name* rather than

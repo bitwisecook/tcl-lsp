@@ -58,7 +58,7 @@ fn format_config(
     indent_style: Option<&str>,
     max_line_length: Option<usize>,
 ) -> FormatterConfig {
-    let mut config = FormatterConfig::for_dialect(dialect);
+    let mut config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect));
     if let Some(size) = indent_size {
         config.indent_size = size;
     }
@@ -262,7 +262,7 @@ pub fn run_minify(
         MinifyTier::Aggressive => {
             let result = minify_tcl_aggressive_with(
                 &source,
-                dialect.name,
+                dialect,
                 isolated,
                 &registry,
                 abbreviations,
@@ -270,10 +270,10 @@ pub fn run_minify(
             (result.source, Some(result.symbol_map))
         }
         MinifyTier::Compact => {
-            let (minified, sm) = minify_tcl_compact(&source, dialect.name, isolated, &registry);
+            let (minified, sm) = minify_tcl_compact(&source, dialect, isolated, &registry);
             (minified, Some(sm))
         }
-        MinifyTier::Default => (minify_tcl(&source, dialect.name, &registry), None),
+        MinifyTier::Default => (minify_tcl(&source, dialect, &registry), None),
     };
 
     write_highlighted_output(

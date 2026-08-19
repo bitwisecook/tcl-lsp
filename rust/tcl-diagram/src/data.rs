@@ -36,7 +36,6 @@ use tcl_compiler::ir::{
     CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
 };
 use tcl_compiler::registry_invocation::effective_command_arguments;
-use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
 use tcl_registry::dialects::DialectSet;
@@ -752,14 +751,14 @@ fn walk_script(
 /// so an iRule's `}{` control flow is parsed correctly).
 #[must_use]
 pub fn diagram_data(source: &str, registry: &CommandRegistry) -> Value {
-    diagram_data_for_dialect(source, registry, "")
+    diagram_data_for_dialect(source, registry, tcl_dialect::DialectProfile::by_name(""))
 }
 
 /// [`diagram_data`] for an explicit dialect. `registry` must be that
 /// dialect's registry.
 #[must_use]
-pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialect: &str) -> Value {
-    let profile = DialectProfile::by_name(dialect);
+pub fn diagram_data_for_dialect(source: &str, registry: &CommandRegistry, dialect: &'static tcl_dialect::DialectProfile) -> Value {
+    let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile);
     let module = &cu.ir_module;
 
@@ -866,7 +865,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             source,
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let flow = data
             .pointer("/procedures/0/flow")
@@ -893,7 +892,7 @@ mod tests {
                 }
             ",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let try_node = data.pointer("/procedures/0/flow/0").expect("try node");
         assert_eq!(try_node["kind"], "try");
@@ -917,7 +916,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             "proc paths {} { try { return stop } finally { set cleaned [clock seconds] } }",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert_eq!(
             data.pointer("/procedures/0/flow/0/body/0/completion"),
@@ -927,7 +926,7 @@ mod tests {
         let overridden = diagram_data_for_dialect(
             "proc paths {} { try { set done [clock seconds] } finally { return stop } }",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert_eq!(
             overridden.pointer("/procedures/0/flow/0/finally/0/completion"),
@@ -946,7 +945,7 @@ mod tests {
                 }
             ",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         // Tcl's default `return -level 1` is itself TCL_RETURN inside the
         // enclosing try; only level 0 exposes the configured error code.
@@ -975,7 +974,7 @@ mod tests {
                 }
             ",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert_eq!(
             data.pointer("/procedures/0/flow/0/body/0/completion"),
@@ -1003,7 +1002,7 @@ mod tests {
         let tcl86 = diagram_data_for_dialect(
             source,
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert_eq!(
             tcl86.pointer("/procedures/0/flow/0/body/0/completion"),
@@ -1029,7 +1028,7 @@ mod tests {
         let tcl90 = diagram_data_for_dialect(
             source,
             tcl_registry::registry_for_dialect("tcl9.0"),
-            "tcl9.0",
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
         );
         assert_eq!(
             tcl90.pointer("/procedures/0/flow/0/body/0/completion"),
@@ -1056,8 +1055,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             for index in 0..2 {
                 assert_eq!(
@@ -1081,8 +1080,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             for index in 0..3 {
                 assert_eq!(
@@ -1107,8 +1106,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             for index in 0..4 {
                 assert_eq!(
@@ -1134,8 +1133,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             let completions = [
                 "error",
@@ -1159,7 +1158,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             "proc paths {} { try { return -level 0 -code 00 x } finally {} ; try { return -level 0 -code +1 x } finally {} ; try { return -level 0 -code 02 x } finally {} ; try { return -level 0 -code 0x3 x } finally {} ; try { return -level 0 -code 04 x } finally {} }",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let expected = [
             None,
@@ -1184,7 +1183,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             "proc paths {} { try { return -level 0 -code 42 x } finally {} ; try { return -level 0 -code 4294967295 x } finally {} }",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         assert_eq!(
             data.pointer("/procedures/0/flow/0/body/0/completion"),
@@ -1208,8 +1207,8 @@ mod tests {
         for dialect in ["tcl8.6", "tcl9.0"] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             let handlers = data
                 .pointer("/procedures/0/flow/0/handlers")
@@ -1246,7 +1245,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             r#"proc paths {} { try { error x } trap {A \$B} {message options} {} trap {A {$B}} {message options} {} trap {A \[B\]} {message options} {} trap {A {[B]}} {message options} {} trap {A C:\\tmp} {message options} {} trap {A {C:\tmp}} {message options} {} trap "A \{" {message options} {} trap $pattern {message options} {} trap "A $pattern" {message options} {} trap [list A B] {message options} {} }"#,
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
         let expected = [
             json!(["A", "$B"]),
@@ -1278,8 +1277,8 @@ mod tests {
         for (dialect, expected) in [("tcl8.6", "\u{fffd}"), ("tcl9.0", "😀")] {
             let data = diagram_data_for_dialect(
                 source,
-                tcl_registry::registry_for_dialect(dialect),
-                dialect,
+                tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect)),
+                tcl_dialect::DialectProfile::by_name(dialect),
             );
             assert_eq!(
                 data.pointer("/procedures/0/flow/0/handlers/0/trap_pattern"),
@@ -1292,7 +1291,7 @@ mod tests {
     #[test]
     fn handler_number_release_vectors_share_tcl_numeric_owner() {
         for dialect in ["tcl8.4", "tcl8.6", "tcl9.0"] {
-            let profile = tcl_registry::registry_for_dialect(dialect)
+            let profile = tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
                 .profile()
                 .expect("dialect profile");
             let numbers = tcl_syntax::number::Numbers::of_profile(Some(profile));
@@ -1346,7 +1345,7 @@ mod tests {
                 }
             ",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
 
         let procedures = data["procedures"].as_array().expect("procedures");
@@ -1375,7 +1374,7 @@ mod tests {
         let data = diagram_data_for_dialect(
             "proc ::HTTP::caller {} { respond 200 content ok }",
             tcl_registry::registry_for_dialect("f5-irules"),
-            "f5-irules",
+            tcl_dialect::DialectProfile::by_name("f5-irules"),
         );
         let flow = data
             .pointer("/procedures/0/flow")
@@ -1401,7 +1400,7 @@ mod tests {
                 }
             ",
             tcl_registry::registry_for_dialect("tcl8.6"),
-            "tcl8.6",
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
         );
 
         let flow = data

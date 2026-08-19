@@ -95,7 +95,7 @@ impl CompileService for ProfileCompilerSvc {
         {
             return Err(CompileError(msg));
         }
-        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, profile.name);
+        let ir = lower_to_ir_for_bytecode_with_dialect(src, registry, config, Some(profile));
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, registry))
     }
@@ -138,7 +138,7 @@ fn assert_workers_inherit_a_separate_host_command_surface() {
     let registry = tcl_registry::registry_for_profile(dialect);
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
     let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
-    let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, dialect.name);
+    let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(dialect));
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry);
 

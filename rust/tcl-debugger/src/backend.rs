@@ -145,7 +145,7 @@ pub trait DebugBackend {
 struct Svc {
     registry: &'static CommandRegistry,
     config: tcl_lexer::LexerConfig,
-    dialect: &'static str,
+    dialect: Option<&'static DialectProfile>,
 }
 
 impl Svc {
@@ -154,7 +154,7 @@ impl Svc {
         Self {
             registry: tcl_registry::registry_for_profile(profile),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-            dialect: profile.name,
+            dialect: Some(profile),
         }
     }
 }

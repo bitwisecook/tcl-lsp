@@ -703,8 +703,11 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     // firing order rather than alphabetical order (which scrambles the
     // lifecycle, e.g. CLIENTSSL_HANDSHAKE ahead of CLIENT_ACCEPTED).
     let command_registry = tcl_registry::registry_for_dialect("f5-irules");
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(&body, "f5-irules", command_registry);
+    let identities = tcl_compiler::head_identity::command_head_identities(
+        &body,
+        tcl_dialect::DialectProfile::irules(),
+        command_registry,
+    );
     let discovered: BTreeSet<String> =
         tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
             &body,

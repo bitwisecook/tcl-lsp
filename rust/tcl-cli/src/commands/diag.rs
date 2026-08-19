@@ -168,7 +168,7 @@ fn cross_file_call_site_evidence(
         merged.merge_from(&tcl_compiler::unit_scope::scan_source_call_sites(
             &document.source,
             &registry_for_dialect(dialect.name),
-            dialect.name,
+            dialect,
             &known,
             &reach,
         ));
@@ -180,7 +180,7 @@ fn cross_file_call_site_evidence(
 /// [`tcl_compiler::signature_scan`] the analyser and the LSP index use.
 fn document_proc_names(
     document: &InputDocument,
-    dialect: &tcl_dialect::DialectProfile,
+    dialect: &'static tcl_dialect::DialectProfile,
 ) -> Vec<String> {
     tcl_compiler::signature_scan::extract_signatures(
         &document.source,
@@ -201,7 +201,7 @@ fn document_proc_names(
 /// `(line, column, code)` order; `disabled` removes `--disable`d codes.
 fn collect_rows(
     document: &InputDocument,
-    dialect: &tcl_dialect::DialectProfile,
+    dialect: &'static tcl_dialect::DialectProfile,
     disabled: &HashSet<String>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> Vec<Row> {
@@ -248,7 +248,7 @@ fn collect_rows(
             registry: &registry,
             defer_top_level: false,
             config: tcl_lexer::LexerConfig::default(),
-            dialect: dialect.name,
+            dialect: Some(dialect),
             external_call_sites,
         },
     ));
@@ -290,7 +290,7 @@ fn collect_rows(
                 registry: &registry,
                 defer_top_level: false,
                 config: checks_config,
-                dialect: dialect.name,
+                dialect: Some(dialect),
                 external_call_sites,
             },
         ))

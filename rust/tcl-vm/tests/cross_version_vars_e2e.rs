@@ -83,7 +83,7 @@ fn compile_exact_profile(
         src,
         registry,
         config,
-        profile.name,
+        Some(profile),
     );
     let cfg = build_cfg_codegen(&ir, false);
     Ok(codegen_module(&cfg, &ir, registry))

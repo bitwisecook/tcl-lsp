@@ -84,7 +84,7 @@ pub fn run_dis(input: &InputArgs, optimise_on: bool) -> anyhow::Result<u8> {
         &source,
         &registry,
         tcl_lexer::LexerConfig::for_dialect(dialect.name),
-        dialect.name,
+        Some(dialect),
     );
     let cfg = build_cfg_codegen(&ir, false);
     let module = codegen_module(&cfg, &ir, &registry);

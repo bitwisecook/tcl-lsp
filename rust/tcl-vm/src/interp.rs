@@ -6436,7 +6436,7 @@ mod family_b_tests {
         ) -> Result<Self::Module, CompileError> {
             let registry = tcl_registry::registry_for_profile(profile);
             let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
-            let ir = lower_to_ir(src, registry, config, profile.name);
+            let ir = lower_to_ir(src, registry, config, Some(profile));
             let cfg = build_cfg_codegen(&ir, false);
             Ok(codegen_module(&cfg, &ir, registry))
         }
