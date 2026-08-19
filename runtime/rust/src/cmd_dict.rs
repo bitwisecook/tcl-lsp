@@ -1397,7 +1397,10 @@ mod tests {
         // The *list* noun is untouched — the two must stay distinguishable.
         let (c, b) = run(&[BAD, b"llength $d"].concat());
         assert_eq!(c, Code::Error);
-        assert_eq!(b, b"list element in braces followed by \"c\" instead of space");
+        assert_eq!(
+            b,
+            b"list element in braces followed by \"c\" instead of space"
+        );
     }
 
     /// Issue #1328 finding (2) — `dict lappend` onto a non-dict "silently

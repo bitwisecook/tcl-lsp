@@ -1447,17 +1447,34 @@ pub struct ItemBodyKey<'db> {
         Arc<tcl_compiler::command_binding::CommandTrustSnapshot>,
         Option<String>,
     )>,
-    /// The body's enclosing-environment snapshot, two halves in one field
+    /// The body's enclosing-environment snapshot, several halves in one field
     /// (salsa interns the field tuple, whose `Hash` impl caps at 12
-    /// elements):
+    /// elements — and this struct is already at that cap, which is why these
+    /// travel packed rather than as fields of their own):
     ///
-    /// - `.0` — the ensemble `subcommand → target` maps visible to this
-    ///   body, mirroring
-    ///   [`tcl_compiler::analyser::per_item::DeferredBody::ensemble_targets`]
-    ///   (already canonically sorted and filtered to ensembles the body
-    ///   mentions, so an unrelated ensemble edit re-keys no body). Part of
-    ///   the key so an `<ensemble> <sub> …` call inside the body
-    ///   re-analyses when the mapping it resolves through changes.
+    /// - `.0` — the ensemble environment, itself a pair that must stay a
+    ///   pair:
+    ///   - `.0.0` — the ensemble `subcommand → target` maps visible to this
+    ///     body, mirroring
+    ///     [`tcl_compiler::analyser::per_item::DeferredBody::ensemble_targets`]
+    ///     (already canonically sorted and filtered to ensembles the body
+    ///     mentions, so an unrelated ensemble edit re-keys no body). Part of
+    ///     the key so an `<ensemble> <sub> …` call inside the body
+    ///     re-analyses when the mapping it resolves through changes.
+    ///   - `.0.1` — the `-prefixes 0` opt-out for those same ensembles,
+    ///     mirroring
+    ///     [`tcl_compiler::analyser::per_item::DeferredBody::prefixless_ensembles`].
+    ///     **Bound to `.0.0` by type on purpose.**
+    ///     `AnalysisResult::resolve_ensemble_subcommand` reads the two
+    ///     together — the map says which subcommands exist, this says
+    ///     whether an abbreviation of one may match — so seeding the map
+    ///     alone lets an isolated body resolve `g fo` against a
+    ///     `-prefixes 0` ensemble and record a dispatch the whole-file walk
+    ///     (and real Tcl) refuse. This query *resolves* the body rather than
+    ///     replaying a recorded answer, so the salsa altitude needs the
+    ///     opt-out exactly as much as the whole-file walk does; the nested
+    ///     pair is what stops a future edit from cloning one without the
+    ///     other.
     /// - `.1` — the enclosing safe-interpreter visibility context (issue
     ///   #1001 follow-up), mirroring
     ///   [`tcl_compiler::analyser::per_item::DeferredBody::safe_interp_ctx`]
@@ -1477,13 +1494,16 @@ pub struct ItemBodyKey<'db> {
     ///   bodies whose creation calls it decides.
     #[returns(ref)]
     pub body_env: (
-        Vec<(
-            String,
+        (
             Vec<(
                 String,
-                tcl_compiler::analyser::types::EnsembleSubcommandTarget,
+                Vec<(
+                    String,
+                    tcl_compiler::analyser::types::EnsembleSubcommandTarget,
+                )>,
             )>,
-        )>,
+            Vec<String>,
+        ),
         Option<(bool, Vec<String>, Vec<String>)>,
         Option<Arc<tcl_compiler::analyser::ClassFactoryIndex>>,
     ),
@@ -1520,7 +1540,10 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         class_variables: key.class_variables(db).clone(),
         command_trust,
         oo_defining_class,
-        ensemble_targets: key.body_env(db).0.clone(),
+        // The two ensemble halves are seeded together, never separately —
+        // see `ItemBodyKey::body_env`.
+        ensemble_targets: key.body_env(db).0.0.clone(),
+        prefixless_ensembles: key.body_env(db).0.1.clone(),
         safe_interp_ctx: key.body_env(db).1.clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
@@ -3105,7 +3128,10 @@ pub fn file_analysis_incremental(
                 .clone()
                 .map(|trust| (trust, body.oo_defining_class.clone())),
             (
-                body.ensemble_targets.clone(),
+                (
+                    body.ensemble_targets.clone(),
+                    body.prefixless_ensembles.clone(),
+                ),
                 body.safe_interp_ctx.clone(),
                 workspace_class_factories.clone(),
             ),
@@ -3676,7 +3702,7 @@ mod tests {
                 false,
                 Vec::new(),
                 None,
-                (Vec::new(), None, None),
+                ((Vec::new(), Vec::new()), None, None),
                 "tcl8.6".to_owned(),
                 Vec::new(),
                 NonAsciiMode::Default,
@@ -3699,7 +3725,7 @@ mod tests {
             false,
             Vec::new(),
             None,
-            (Vec::new(), None, None),
+            ((Vec::new(), Vec::new()), None, None),
             "tcl8.6".to_owned(),
             Vec::new(),
             NonAsciiMode::Default,

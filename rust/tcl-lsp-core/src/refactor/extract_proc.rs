@@ -77,6 +77,8 @@ use tcl_compiler::analyser::AnalysisResult;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset};
 use tcl_registry::{ArgRole, CommandRegistry, Traits};
 
+use tcl_dialect::BracedVarStyle;
+
 use super::{RefactorEdit, Refactoring, command_span_offsets};
 use crate::code_actions::{ActionCommand, ActionKind};
 
@@ -200,7 +202,11 @@ fn plan_extraction(
 ) -> Result<Plan, String> {
     reject_enclosing_definition_body(source, scope, registry)?;
     reject_frame_sensitive_selection(source, selected, registry)?;
-    let roles = classify_variables(source, selected, registry)?;
+    // The document's own `${…}` close rule — a brace-bearing name read by
+    // the wrong release's rule produces a proc built for a variable that
+    // does not exist (issue #1605).
+    let style = super::braced_var_style(analysis);
+    let roles = classify_variables(source, selected, registry, style)?;
 
     // The selection's own byte range, snapped to the commands it covers.
     let block_start = command_span_offsets(source, selected[0]).0;
@@ -218,7 +224,7 @@ fn plan_extraction(
         .into_iter()
         .filter(|command| !command.name().is_empty())
         .collect();
-    let mut used_after: BTreeSet<String> = variable_references(tail);
+    let mut used_after: BTreeSet<String> = variable_references(tail, style);
     for command in &tail_commands {
         used_after.extend(role_named_variables(command, registry));
     }
@@ -278,6 +284,7 @@ fn classify_variables(
     source: &str,
     selected: &[&SegmentedCommand],
     registry: &CommandRegistry,
+    style: BracedVarStyle,
 ) -> Result<VariableRoles, String> {
     let mut read = BTreeSet::new();
     let mut written = BTreeSet::new();
@@ -285,6 +292,7 @@ fn classify_variables(
         let (start, end) = command_span_offsets(source, command);
         read.extend(variable_references(
             source.get(start as usize..end as usize).unwrap_or(""),
+            style,
         ));
         let head = command.name();
         if head.contains('$') || head.contains('[') || head.contains('{') {
@@ -512,7 +520,16 @@ fn render_definition(
     params.extend(by_name.iter().map(|var| format!("{var}Name")));
     let mut body = String::new();
     for var in by_name {
-        let _ = writeln!(body, "    upvar 1 ${var}Name {var}");
+        // The `$<var>Name` read is a *reference* and needs the brace form for a
+        // non-bare name; the `upvar` target is a plain word, so it needs list
+        // quoting instead (a name may carry an unbalanced brace — on 8.x
+        // `${a{b}` names `a{b`).
+        let _ = writeln!(
+            body,
+            "    upvar 1 {} {}",
+            var_ref(&format!("{var}Name")),
+            word(var)
+        );
     }
     for line in block.lines() {
         let stripped = line.strip_prefix(block_indent).unwrap_or(line);
@@ -522,17 +539,41 @@ fn render_definition(
             let _ = writeln!(body, "    {}", stripped.trim_end());
         }
     }
-    format!("proc {name} {{{}}} {{\n{body}}}\n\n", params.join(" "))
+    // The parameter list is a Tcl *list*, so each name goes in as a properly
+    // quoted element rather than raw text.
+    let param_list = tcl_syntax::list::join_list(params.iter());
+    format!("proc {name} {{{param_list}}} {{\n{body}}}\n\n")
+}
+
+/// A `$` reference to `name`, braced unless the name can be written bare.
+///
+/// `${…}` is the spelling that survives every name this repository's scanners
+/// can produce, on both release rules: the 9.x scanner ends the name at the
+/// *matching* `}`, so `${a{b}c}` reads `a{b}c`, and the 8.x scanner ends it at
+/// the first `}`, so `${a{b}` reads `a{b}`'s 8.x form `a{b`. Emitting the bare
+/// `$a{b}c` instead would parse as `$a` followed by literal text on **both**
+/// releases — the same mistake the minifier made (issue #1605, fifth site).
+fn var_ref(name: &str) -> String {
+    if tcl_syntax::naming::is_bare_var_name(name) {
+        format!("${name}")
+    } else {
+        format!("${{{name}}}")
+    }
+}
+
+/// `name` as a single command word, list-quoted when it cannot stand raw.
+fn word(name: &str) -> String {
+    tcl_syntax::list::join_list(std::iter::once(name))
 }
 
 /// Render the call that replaces the selection.
 ///
 /// A by-value parameter is passed as `$var`; a by-name one is passed as the
-/// bare *name*, which is what `upvar` in the proc binds against.
+/// *name* itself, which is what `upvar` in the proc binds against.
 fn render_call(name: &str, by_value: &[String], by_name: &[String]) -> String {
     let mut words = vec![name.to_string()];
-    words.extend(by_value.iter().map(|var| format!("${var}")));
-    words.extend(by_name.iter().cloned());
+    words.extend(by_value.iter().map(|var| var_ref(var)));
+    words.extend(by_name.iter().map(|var| word(var)));
     words.join(" ")
 }
 
@@ -573,38 +614,16 @@ fn unique_proc_name(analysis: &AnalysisResult, registry: &CommandRegistry) -> St
 
 /// Distinct `$name` / `${name}` references in `text`, array elements
 /// reduced to the array's own name.
-fn variable_references(text: &str) -> BTreeSet<String> {
-    let bytes = text.as_bytes();
-    let mut out = BTreeSet::new();
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes[index] != b'$' {
-            index += 1;
-            continue;
-        }
-        if bytes.get(index + 1) == Some(&b'{') {
-            if let Some(offset) = text.get(index + 2..).and_then(|rest| rest.find('}')) {
-                out.insert(text[index + 2..index + 2 + offset].to_string());
-                index = index + 2 + offset + 1;
-                continue;
-            }
-            index += 1;
-            continue;
-        }
-        let mut end = index + 1;
-        while end < bytes.len()
-            && (bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' || bytes[end] == b':')
-        {
-            end += 1;
-        }
-        if end > index + 1 {
-            out.insert(text[index + 1..end].to_string());
-            index = end;
-        } else {
-            index += 1;
-        }
-    }
-    out
+///
+/// `style` is the document's `${…}` close rule: the captured-variable set
+/// decides the generated proc's parameter list and its call-site arguments,
+/// so reading a brace-bearing name by the wrong release's rule emits a proc
+/// built for a variable that does not exist (issue #1605).
+fn variable_references(text: &str, style: BracedVarStyle) -> BTreeSet<String> {
+    super::variable_reference_spans(text, style)
+        .into_iter()
+        .map(|(name, _, _)| name)
+        .collect()
 }
 
 /// The variable names `command` names through a registry `VarRead` /
@@ -630,9 +649,15 @@ mod tests {
 
     /// Run the transform over the byte range of `needle` in `src`.
     fn at(src: &str, needle: &str) -> Option<Refactoring> {
+        at_dialect(src, needle, "tcl9.0")
+    }
+
+    /// [`at`] against a document analysed under a named release — the
+    /// `${…}` close rule is release-dependent (issue #1605).
+    fn at_dialect(src: &str, needle: &str, dialect: &str) -> Option<Refactoring> {
         let registry = super::super::test_registry();
         let mut analyser = Analyser::new();
-        let analysis = analyser.analyse(src, "tcl9.0").clone();
+        let analysis = analyser.analyse(src, dialect).clone();
         let start = u32::try_from(src.find(needle).expect("needle in source")).unwrap();
         let end = start + u32::try_from(needle.len()).unwrap();
         extract_proc(src, (start, end), &analysis, &registry)
@@ -658,6 +683,128 @@ mod tests {
             "{result}"
         );
         assert!(result.contains("extracted_proc $x"), "{result}");
+    }
+
+    /// Issue #1605 — the captured-variable set decides the generated proc's
+    /// parameters and its call-site arguments, so a brace-bearing `${…}`
+    /// name must be read by the **document's** release rule, not always the
+    /// 8.x first-`}` one.
+    ///
+    /// Oracle: with `a{b}c` set to `NINE` and `a{b` set to `EIGHT`,
+    /// `puts ${a{b}c}` prints `NINE` on tclsh 9.0.4 (one variable named
+    /// `a{b}c`) and `EIGHTc}` on 8.6.16 (the name ends at the first `}` and
+    /// `c}` is ordinary word text).
+    ///
+    /// Asserted on `variable_references` rather than through a whole
+    /// extraction because the **segmenter**'s own `${…}` word span still
+    /// truncates at the first `}` on a 9.x document (issue #1568, the
+    /// compiled-word path — explicitly out of #1605's scope), so the block
+    /// boundary an end-to-end extraction computes is wrong for a reason this
+    /// change does not touch.
+    #[test]
+    fn variable_references_read_braced_names_by_the_documents_release() {
+        let text = "puts ${a{b}c}";
+        // 9.x: brace depth, so the whole `a{b}c` is the name.
+        let nine = variable_references(text, BracedVarStyle::Tcl9Nesting);
+        assert_eq!(
+            nine.iter().map(String::as_str).collect::<Vec<_>>(),
+            vec!["a{b}c"]
+        );
+        // 8.x: the name ends at the first `}`.
+        let eight = variable_references(text, BracedVarStyle::FirstClose);
+        assert_eq!(
+            eight.iter().map(String::as_str).collect::<Vec<_>>(),
+            vec!["a{b"]
+        );
+    }
+
+    /// An unterminated `${` names nothing — inventing a name for it would
+    /// put that name into the generated proc's parameter list.
+    #[test]
+    fn variable_references_reject_an_unterminated_braced_name() {
+        assert!(variable_references("puts ${abc", BracedVarStyle::Tcl9Nesting).is_empty());
+        assert!(variable_references("puts ${abc", BracedVarStyle::FirstClose).is_empty());
+    }
+
+    /// The **plumb**: the style must come from the document's own dialect,
+    /// not a constant. The reference sits inside a braced body so the whole
+    /// command's span is balanced and the segmenter hands over the complete
+    /// `${a{b}c}` (issue #1568 only truncates a bare `${…}` word).
+    ///
+    /// Oracle: `puts ${a{b}c}` reads the variable `a{b}c` on tclsh 9.0.4 and
+    /// `a{b` on 8.6.16, so the two releases capture different names — and
+    /// the generated proc's parameter list differs accordingly.
+    #[test]
+    fn the_documents_dialect_decides_the_captured_braced_name() {
+        let src = "if {1} {puts ${a{b}c}}\nputs done\n";
+        let nine = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
+            .expect("a selection")
+            .apply(src);
+        assert!(
+            nine.contains("proc extracted_proc {a{b}c} {"),
+            "9.x must capture the whole name: {nine}"
+        );
+        let eight = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl8.6")
+            .expect("a selection")
+            .apply(src);
+        // `a{b` carries an unbalanced brace, so it reaches the parameter list
+        // as the quoted element tclsh itself writes (`list a{b` → `a\{b`).
+        // Emitting it raw made `proc extracted_proc {a{b} {…}` — an unbalanced
+        // brace that breaks the whole generated command.
+        assert!(
+            eight.contains(r"proc extracted_proc {a\{b} {"),
+            "8.x must capture only `a{{b`, quoted: {eight}"
+        );
+    }
+
+    #[test]
+    fn render_call_braces_a_non_bare_captured_name() {
+        // A bare-writable name keeps the bare form…
+        assert_eq!(
+            render_call("p", &["plain".to_string()], &[]),
+            "p $plain",
+            "a bare name needs no braces"
+        );
+        // …and one that cannot be written bare gets the `${…}` spelling.
+        // `$a{b}c` would parse as `$a` followed by the literal `{b}c` on both
+        // 8.6.16 and 9.0.4, so the call passed the wrong value (issue #1636
+        // review).
+        assert_eq!(
+            render_call("p", &["a{b}c".to_string()], &[]),
+            "p ${a{b}c}",
+            "a brace-bearing name must be passed braced"
+        );
+        // A by-name argument is a word, not a reference, so it is list-quoted
+        // rather than braced.
+        assert_eq!(
+            render_call("p", &[], &["a{b".to_string()]),
+            r"p a\{b",
+            "an unbalanced-brace name must reach the call as one word"
+        );
+        assert_eq!(
+            render_call("p", &[], &["plain".to_string()]),
+            "p plain",
+            "a bare by-name argument stays raw"
+        );
+    }
+
+    #[test]
+    fn extracted_call_passes_a_brace_bearing_name_braced() {
+        // End-to-end, with the reference inside a braced body so the command
+        // span is balanced and the segmenter hands over the complete word
+        // (the #1568 cap the PR documents).
+        let src = "if {1} {puts ${a{b}c}}\nputs done\n";
+        let out = at_dialect(src, "if {1} {puts ${a{b}c}}", "tcl9.0")
+            .expect("a selection")
+            .apply(src);
+        assert!(
+            out.contains("extracted_proc ${a{b}c}"),
+            "the generated call must brace the name: {out}"
+        );
+        assert!(
+            !out.contains("extracted_proc $a{b}c"),
+            "the bare form parses as `$a` plus literal text: {out}"
+        );
     }
 
     #[test]
@@ -795,7 +942,7 @@ mod tests {
 
     #[test]
     fn variable_references_collects_bare_and_braced_names() {
-        let found = variable_references("puts $a ${b} $c_1");
+        let found = variable_references("puts $a ${b} $c_1", BracedVarStyle::Tcl9Nesting);
         assert_eq!(
             found.into_iter().collect::<Vec<_>>(),
             vec!["a".to_string(), "b".to_string(), "c_1".to_string()]

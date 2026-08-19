@@ -37,6 +37,11 @@
 //! Variable traces are keyed by the resolved variable identity (home namespace
 //! or local call frame, plus simple name). Command and execution traces are
 //! keyed by the resolved FQN (`Interp::resolve_cmd_fqn`).
+//!
+//! The deprecated 8.x `trace variable|vdelete|vinfo` forms are supported too.
+//! C compiles them behind `#ifndef TCL_REMOVE_OBSOLETE_TRACES` and Tcl 9.0
+//! dropped them, so the option word is resolved against the option set the
+//! registry declares for the emulated release rather than a fixed list.
 
 use tcl_cmd_core::trace as core_trace;
 
@@ -69,6 +74,12 @@ pub struct VarTrace {
     /// namespace is deleted). `None` for proc-local traces, which match by raw
     /// name as before (their frame disambiguates them).
     pub ns: Option<NsId>,
+    /// Registered through the deprecated 8.x `trace variable` form (C's
+    /// `TCL_TRACE_OLD_STYLE`), which calls the callback with the single
+    /// `rwua` letter rather than the operation name. It is deliberately not
+    /// part of the `trace remove` / `trace vdelete` match, exactly as C masks
+    /// the flag out there.
+    pub old_style: bool,
 }
 
 /// The operations a command/execution trace fires on, as a bitset (mirrors C's
@@ -192,13 +203,26 @@ pub fn install(interp: &mut Interp) {
     interp.register_builtin(b"trace", trace_cmd);
 }
 
-/// `bad option "X": must be ...` (the `Tcl_GetIndexFromObj` miss).
-fn bad_option(interp: &mut Interp, bad: &[u8], must_be: &[u8]) -> Code {
-    let mut m = b"bad option \"".to_vec();
-    m.extend_from_slice(bad);
-    m.extend_from_slice(b"\": must be ");
-    m.extend_from_slice(must_be);
-    interp.set_error(&m)
+/// The `trace` option words the emulated release carries, in the registry's
+/// declaration order — which is C's `traceOptions[]` order, so the `bad
+/// option` / `ambiguous option` enumeration matches byte for byte. The three
+/// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
+/// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
+fn visible_options(interp: &Interp) -> Vec<&'static str> {
+    let profile =
+        tcl_dialect::DialectProfile::by_name(interp.runtime_version().dialect_profile_name());
+    let Some(spec) = tcl_registry::cache::registry_for_profile(profile).get("trace") else {
+        return Vec::new();
+    };
+    spec.subcommands
+        .iter()
+        .filter(|sub| {
+            sub.dialects
+                .or(spec.dialects)
+                .is_none_or(|gate| gate.intersects(profile.availability_mask))
+        })
+        .map(|sub| sub.name)
+        .collect()
 }
 
 /// The variable resolver supplies the reason, while `trace` owns the command
@@ -222,7 +246,13 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() < 2 {
         return interp.wrong_args(b"trace option ?arg ...?");
     }
-    match obj_bytes(argv[1]).as_slice() {
+    let options = visible_options(interp);
+    let word = obj_bytes(argv[1]);
+    let option = match core_trace::resolve_option(&String::from_utf8_lossy(&word), &options) {
+        Ok(option) => option,
+        Err(e) => return interp.set_error(e.message().as_bytes()),
+    };
+    match option.as_bytes() {
         // `trace add`/`remove` then dispatch on the type word (objv[2]).
         op @ (b"add" | b"remove") => {
             let is_add = op == b"add";
@@ -257,7 +287,21 @@ fn trace_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
                 Err(e) => interp.set_error(e.message().as_bytes()),
             }
         }
-        other => bad_option(interp, other, b"add, info, or remove"),
+        // The deprecated 8.x forms; C rewrites them into `trace add|remove
+        // variable` with the `rwua` letters expanded to a word list.
+        b"variable" => legacy_var_add_remove(interp, argv, true),
+        b"vdelete" => legacy_var_add_remove(interp, argv, false),
+        b"vinfo" => legacy_var_info(interp, argv),
+        // A registry-declared option this engine has no arm for. Reporting it
+        // as unknown keeps a data-only spec edit (a new subcommand or alias)
+        // from turning into a panic in a shipped interpreter.
+        _ => {
+            let mut message = b"bad option \"".to_vec();
+            message.extend_from_slice(&word);
+            message.extend_from_slice(b"\": must be ");
+            message.extend_from_slice(tcl_cmd_core::prefix::choice_list(&options).as_bytes());
+            interp.set_error(&message)
+        }
     }
 }
 
@@ -339,14 +383,16 @@ fn cmd_trace_add_remove(
         });
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
     } else {
-        // Remove the first trace matching exact ops + command string (C's
-        // `FOREACH_COMMAND_TRACE` first-match).
+        // Remove the first trace matching exact ops + command string, where
+        // "first" is C's `FOREACH_COMMAND_TRACE` head→tail order and its head
+        // is the newest registration — so among duplicates the newest goes.
+        // Our Vec is oldest-first, hence `rposition`. Issue #1440.
         let pos = interp
             .traces
             .borrow()
             .cmd_traces
             .iter()
-            .position(|t| t.name == fqn && t.ops == flags && t.command == command);
+            .rposition(|t| t.name == fqn && t.ops == flags && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().cmd_traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::CommandTrace);
@@ -423,12 +469,33 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             b"trace remove variable name opList command"
         });
     }
-    let name = obj_bytes(argv[3]);
     let ops = match parse_ops(interp, &obj_bytes(argv[4])) {
         Ok(o) => o,
         Err(c) => return c,
     };
-    let command = obj_bytes(argv[5]);
+    var_trace_apply(
+        interp,
+        obj_bytes(argv[3]),
+        ops,
+        obj_bytes(argv[5]),
+        is_add,
+        false,
+    )
+}
+
+/// Install or remove one variable trace, shared by `trace add|remove variable`
+/// and the deprecated `trace variable`/`trace vdelete` forms — which C
+/// implements by rewriting them into the modern ones. `old_style` records the
+/// legacy spelling for the callback's op word only; it never takes part in the
+/// removal match, exactly as C masks `TCL_TRACE_OLD_STYLE` out there.
+fn var_trace_apply(
+    interp: &mut Interp,
+    name: Vec<u8>,
+    ops: Vec<Vec<u8>>,
+    command: Vec<u8>,
+    is_add: bool,
+    old_style: bool,
+) -> Code {
     if is_add {
         let (base, elem) = split_array_ref(&name);
         // Tracing an array element vivifies the array as an (undefined) array, so
@@ -462,6 +529,7 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             command,
             frame_level,
             ns,
+            old_style,
         });
         interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
     } else {
@@ -470,7 +538,12 @@ fn trace_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool)
             .borrow()
             .traces
             .iter()
-            .position(|t| t.name == name && t.ops == ops && t.command == command);
+            // Newest-first first match: C breaks at the first hit walking its
+            // list head→tail, and the head is the newest registration. Our Vec
+            // is oldest-first, hence `rposition`. `old_style` is deliberately
+            // absent from the match, as C masks `TCL_TRACE_OLD_STYLE` out
+            // here. Issue #1440.
+            .rposition(|t| t.name == name && t.ops == ops && t.command == command);
         if let Some(i) = pos {
             interp.traces.borrow_mut().traces.remove(i);
             interp.invalidate_guard_domain(tcl_runtime_api::guard::GuardDomain::VariableTrace);
@@ -496,6 +569,56 @@ fn trace_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         let ops_list = crate::list::new_list_obj(&op_objs);
         let cmd = new_string(&t.command);
         entries.push(crate::list::new_list_obj(&[ops_list, cmd]));
+    }
+    interp.set_result(crate::list::new_list_obj(&entries));
+    Code::Ok
+}
+
+/// `trace variable name ops command` / `trace vdelete name ops command` — the
+/// deprecated 8.x forms. The op word is a concatenation of the letters
+/// `r`/`w`/`u`/`a`; the shared parser expands and validates it, so a
+/// non-`rwua` byte is C's `bad operations "…": should be one or more of rwua`
+/// and the stored set is the same canonical set `trace add variable`
+/// produces — `vdelete` therefore removes an `add`-installed trace and vice
+/// versa, as C's `~TCL_TRACE_OLD_STYLE` match does.
+fn legacy_var_add_remove(interp: &mut Interp, argv: &[*mut TclObj], is_add: bool) -> Code {
+    if argv.len() != 5 {
+        return interp.wrong_args(if is_add {
+            b"trace variable name ops command"
+        } else {
+            b"trace vdelete name ops command"
+        });
+    }
+    let ops = match core_trace::parse_legacy_variable_ops(&obj_bytes(argv[3])) {
+        Ok(ops) => ops.iter().map(|o| o.as_bytes().to_vec()).collect(),
+        Err(e) => return interp.set_error(e.message().as_bytes()),
+    };
+    var_trace_apply(
+        interp,
+        obj_bytes(argv[2]),
+        ops,
+        obj_bytes(argv[4]),
+        is_add,
+        true,
+    )
+}
+
+/// `trace vinfo name` — the same live trace list `trace info variable` reports,
+/// with each op set rendered as the `rwua` letter string C's `TRACE_OLD_VINFO`
+/// arm builds instead of a word list.
+fn legacy_var_info(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
+    if argv.len() != 3 {
+        return interp.wrong_args(b"trace vinfo name");
+    }
+    let name = obj_bytes(argv[2]);
+    let mut entries: Vec<*mut TclObj> = Vec::new();
+    for t in interp.traces.borrow().traces.iter().rev() {
+        if t.name != name {
+            continue;
+        }
+        let letters = new_string(core_trace::legacy_ops_letters(&t.ops).as_bytes());
+        let cmd = new_string(&t.command);
+        entries.push(crate::list::new_list_obj(&[letters, cmd]));
     }
     interp.set_result(crate::list::new_list_obj(&entries));
     Code::Ok
@@ -968,6 +1091,410 @@ mod tests {
             // TN: a proc-local trace is scoped by its call frame, so the inner
             // unset cannot delete the caller's trace for its own `x`.
             assert_eq!(ok(i, b"set ::events"), b"outer");
+        });
+    }
+
+    /// Every trace list is prepended in C (`TraceVarEx`, tclTrace.c
+    /// 9.0.4:3090-3092) and walked head→tail, so the newest registration fires
+    /// first for `read`/`write`/`unset` alike. Issue #1440; pinned against
+    /// tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn variable_traces_fire_newest_first() {
+        for op in [&b"write"[..], b"read", b"unset"] {
+            leak_free(|i| {
+                ok(i, b"set ::log {}");
+                ok(i, b"proc rec {label args} {lappend ::log $label}");
+                let mut add = b"trace add variable v ".to_vec();
+                add.extend_from_slice(op);
+                for label in [&b" {rec one}"[..], b" {rec two}", b" {rec three}"] {
+                    let mut line = add.clone();
+                    line.extend_from_slice(label);
+                    ok(i, &line);
+                }
+                ok(i, b"set v x");
+                ok(i, b"set ignore $v");
+                ok(i, b"unset v");
+                assert_eq!(ok(i, b"set ::log"), b"three two one");
+                i.eval_str(b"unset -nocomplain ignore ::log");
+            });
+        }
+    }
+
+    /// C walks the containing array's trace list before the element's own
+    /// (`TclCallVarTraces`' `arrayPtr` loop precedes its `varPtr` loop), so
+    /// registration order does not decide which fires first. Issue #1440.
+    #[test]
+    fn whole_array_traces_fire_before_element_traces() {
+        for script in [
+            &b"trace add variable a write {rec W}\ntrace add variable a(k) write {rec E}"[..],
+            b"trace add variable a(k) write {rec E}\ntrace add variable a write {rec W}",
+        ] {
+            leak_free(|i| {
+                ok(i, b"set ::log {}");
+                ok(i, b"proc rec {label args} {lappend ::log $label}");
+                ok(i, b"array set a {}");
+                ok(i, script);
+                ok(i, b"set a(k) 1");
+                assert_eq!(ok(i, b"set ::log"), b"W E");
+                i.eval_str(b"unset -nocomplain a ::log");
+            });
+        }
+    }
+
+    /// `Tcl_TraceCommand` prepends and `CallCommandTraces` walks head→tail, so
+    /// `rename`/`delete` callbacks also run newest-first. Issue #1440.
+    #[test]
+    fn command_traces_fire_newest_first() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(
+                i,
+                b"proc rec {label args} {lappend ::log $label-[lindex $args end]}",
+            );
+            ok(i, b"proc victim {} {}");
+            ok(i, b"trace add command victim {rename delete} {rec one}");
+            ok(i, b"trace add command victim {rename delete} {rec two}");
+            ok(i, b"rename victim victim2");
+            ok(i, b"rename victim2 {}");
+            assert_eq!(
+                ok(i, b"set ::log"),
+                b"two-rename one-rename two-delete one-delete"
+            );
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// `trace remove` breaks at the first match walking C's list head→tail, and
+    /// that head is the newest registration — so among identical duplicates the
+    /// **newest** goes. Observable in the surviving firing order and in
+    /// `trace info`. Issue #1440; pinned against tclsh 8.6.16 and 9.0.4.
+    #[test]
+    fn trace_remove_drops_the_newest_duplicate() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"trace add variable v write {rec one}");
+            ok(i, b"trace add variable v write {rec two}");
+            ok(i, b"trace add variable v write {rec one}");
+            ok(i, b"trace remove variable v write {rec one}");
+            assert_eq!(
+                ok(i, b"trace info variable v"),
+                b"{write {rec two}} {write {rec one}}"
+            );
+            ok(i, b"set v 1");
+            assert_eq!(ok(i, b"set ::log"), b"two one");
+            i.eval_str(b"unset -nocomplain v ::log");
+        });
+        leak_free(|i| {
+            ok(i, b"proc cb1 args {}");
+            ok(i, b"proc cb2 args {}");
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command p delete cb1");
+            ok(i, b"trace add command p delete cb2");
+            ok(i, b"trace add command p delete cb1");
+            ok(i, b"trace remove command p delete cb1");
+            assert_eq!(ok(i, b"trace info command p"), b"{delete cb2} {delete cb1}");
+        });
+    }
+
+    /// Namespace teardown fires each variable's unset traces newest-first, like
+    /// every other trace list (the order *across* the namespace's variables is
+    /// C's hash walk and is not pinned). Issue #1440.
+    #[test]
+    fn namespace_teardown_fires_unset_traces_newest_first() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(
+                i,
+                b"namespace eval ::gone {variable v 1\n\
+                  trace add variable v unset {rec first}\n\
+                  trace add variable v unset {rec second}}",
+            );
+            ok(i, b"namespace delete ::gone");
+            assert_eq!(ok(i, b"set ::log"), b"second first");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// The commands the same teardown deletes fire their `delete` traces
+    /// newest-first too (`CallCommandTraces` walks head→tail). Issue #1440;
+    /// tclsh 8.6.16 and 9.0.4 both report `second first`.
+    #[test]
+    fn namespace_teardown_fires_command_delete_traces_newest_first() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::doomed {proc victim {} {}}");
+            ok(i, b"trace add command ::doomed::victim delete {rec first}");
+            ok(i, b"trace add command ::doomed::victim delete {rec second}");
+            ok(i, b"namespace delete ::doomed");
+            assert_eq!(ok(i, b"set ::log"), b"second first");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// C tears a namespace down one entity at a time, completing each
+    /// variable's whole trace list before the next, so **interleaved**
+    /// registrations still fire as contiguous per-variable groups. This is the
+    /// shape a flat reverse gets wrong: `A1 B1 A2 B2` must fire `A2 A1 B2 B1`,
+    /// not `B2 A2 B1 A1`. tclsh 8.6.16 and 9.0.4 agree. Issue #1440.
+    #[test]
+    fn namespace_teardown_groups_interleaved_variable_traces() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::nsv {variable a 1\nvariable b 2}");
+            ok(i, b"trace add variable ::nsv::a unset {rec A1}");
+            ok(i, b"trace add variable ::nsv::b unset {rec B1}");
+            ok(i, b"trace add variable ::nsv::a unset {rec A2}");
+            ok(i, b"trace add variable ::nsv::b unset {rec B2}");
+            ok(i, b"namespace delete ::nsv");
+            assert_eq!(ok(i, b"set ::log"), b"A2 A1 B2 B1");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// The same grouping for the command `delete` traces the teardown collects
+    /// alongside them: `X1 Y1 X2 Y2` fires `X2 X1 Y2 Y1`. Issue #1440.
+    #[test]
+    fn namespace_teardown_groups_interleaved_command_traces() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label args} {lappend ::log $label}");
+            ok(i, b"namespace eval ::nsc {proc x {} {}\nproc y {} {}}");
+            ok(i, b"trace add command ::nsc::x delete {rec X1}");
+            ok(i, b"trace add command ::nsc::y delete {rec Y1}");
+            ok(i, b"trace add command ::nsc::x delete {rec X2}");
+            ok(i, b"trace add command ::nsc::y delete {rec Y2}");
+            ok(i, b"namespace delete ::nsc");
+            assert_eq!(ok(i, b"set ::log"), b"X2 X1 Y2 Y1");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// Grouping holds when a teardown callback re-enters the interpreter — the
+    /// callbacks run after the namespace is already gone, so a callback that
+    /// reads or writes global state must not disturb the remaining groups.
+    #[test]
+    fn namespace_teardown_grouping_survives_a_re_entrant_callback() {
+        leak_free(|i| {
+            ok(i, b"set ::log {}");
+            ok(i, b"set ::side 0");
+            ok(
+                i,
+                b"proc rec {label args} {lappend ::log $label; incr ::side; \
+                  catch {namespace exists ::nsr}}",
+            );
+            ok(i, b"namespace eval ::nsr {variable a 1\nvariable b 2}");
+            ok(i, b"trace add variable ::nsr::a unset {rec A1}");
+            ok(i, b"trace add variable ::nsr::b unset {rec B1}");
+            ok(i, b"trace add variable ::nsr::a unset {rec A2}");
+            ok(i, b"trace add variable ::nsr::b unset {rec B2}");
+            ok(i, b"namespace delete ::nsr");
+            assert_eq!(ok(i, b"set ::log"), b"A2 A1 B2 B1");
+            assert_eq!(ok(i, b"set ::side"), b"4");
+            i.eval_str(b"unset -nocomplain ::log ::side");
+        });
+    }
+
+    /// `trace info` renders the stored op set in the order each C `TRACE_INFO`
+    /// arm tests the flag bits — `array read write unset` and `rename delete`,
+    /// neither of which is the `opStrings[]` table order the bad-operation
+    /// error enumerates.
+    #[test]
+    fn trace_info_renders_ops_in_cs_fixed_order() {
+        leak_free(|i| {
+            ok(i, b"proc cb args {}");
+            ok(i, b"proc p {} {}");
+            ok(i, b"trace add command p {delete rename} cb");
+            ok(
+                i,
+                b"trace add execution p {leavestep leave enterstep enter} cb",
+            );
+            ok(i, b"trace add variable q {unset write read array} cb");
+            assert_eq!(ok(i, b"trace info command p"), b"{{rename delete} cb}");
+            assert_eq!(
+                ok(i, b"trace info execution p"),
+                b"{{enter leave enterstep leavestep} cb}"
+            );
+            assert_eq!(
+                ok(i, b"trace info variable q"),
+                b"{{array read write unset} cb}"
+            );
+            i.eval_str(b"unset -nocomplain q");
+        });
+    }
+
+    /// The deprecated 8.x forms (issue #1444): `rwua`-only validation with C's
+    /// error text, duplicate letters collapsed, a set the modern `trace
+    /// remove variable` matches (and vice versa), `trace vinfo` rendering the
+    /// letters in C's fixed `r`,`w`,`u`,`a` order, and the callback receiving
+    /// the single letter rather than the operation name
+    /// (`TCL_TRACE_OLD_STYLE`). Every expectation is tclsh 8.6.16-pinned; the
+    /// 9.0 side lives in the `dialect_gate` test below.
+    #[test]
+    fn legacy_variable_trace_forms_match_c() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            ok(i, b"set ::log {}");
+            ok(i, b"proc cb args {lappend ::log [lindex $args end]}");
+            ok(i, b"proc cb2 args {}");
+            assert_eq!(
+                err(i, b"trace variable x q cb"),
+                b"bad operations \"q\": should be one or more of rwua"
+            );
+            assert_eq!(
+                err(i, b"trace vdelete x {read write} cb"),
+                b"bad operations \"read write\": should be one or more of rwua"
+            );
+            assert_eq!(
+                err(i, b"trace variable x"),
+                b"wrong # args: should be \"trace variable name ops command\""
+            );
+            assert_eq!(
+                err(i, b"trace vdelete x"),
+                b"wrong # args: should be \"trace vdelete name ops command\""
+            );
+            assert_eq!(
+                err(i, b"trace vinfo x y"),
+                b"wrong # args: should be \"trace vinfo name\""
+            );
+
+            // Repeated letters collapse, and `trace var` abbreviates.
+            ok(i, b"trace variable x rrw cb");
+            assert_eq!(ok(i, b"trace vinfo x"), b"{rw cb}");
+            assert_eq!(ok(i, b"trace info variable x"), b"{{read write} cb}");
+            ok(i, b"trace var x w cb2");
+            assert_eq!(ok(i, b"trace vinfo x"), b"{w cb2} {rw cb}");
+
+            // Letter order does not matter to the removal match, and the two
+            // spellings remove each other's registrations.
+            ok(i, b"trace vdelete x wr cb");
+            assert_eq!(ok(i, b"trace vinfo x"), b"{w cb2}");
+            ok(i, b"trace add variable y {write read} cb");
+            ok(i, b"trace vdelete y rw cb");
+            assert_eq!(ok(i, b"trace vinfo y"), b"");
+
+            // An old-style callback is invoked with the `rwua` letter.
+            ok(i, b"trace variable z rwua cb");
+            assert_eq!(ok(i, b"trace vinfo z"), b"{rwua cb}");
+            ok(i, b"set z 1");
+            ok(i, b"set ignore $z");
+            assert_eq!(ok(i, b"set ::log"), b"w r");
+            // …while a modern registration still gets the full word.
+            ok(i, b"set ::log {}");
+            ok(i, b"trace add variable m write cb");
+            ok(i, b"set m 1");
+            assert_eq!(ok(i, b"set ::log"), b"write");
+            i.eval_str(b"unset -nocomplain x y z m ignore ::log");
+        });
+    }
+
+    /// Where #1444's letter convention meets the teardown path: a trace
+    /// installed the deprecated way still receives the `rwua` **letter** when
+    /// it is fired by `namespace delete` rather than an explicit `unset`.
+    /// Teardown collects callbacks into a reduced list, so the flag has to be
+    /// carried through that reduction. tclsh 8.6.16 gives `L:u` for the legacy
+    /// registration, `M:unset` for a modern one, and — with both on one
+    /// variable, newest-first — `Mz:unset Lz:u`.
+    #[test]
+    fn legacy_letter_survives_namespace_teardown() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label n1 n2 op} {lappend ::log $label:$op}");
+
+            ok(
+                i,
+                b"namespace eval ::legacy {variable x 1\ntrace variable x u {rec L}}",
+            );
+            ok(i, b"namespace delete ::legacy");
+            assert_eq!(ok(i, b"set ::log"), b"L:u");
+
+            ok(i, b"set ::log {}");
+            ok(
+                i,
+                b"namespace eval ::modern {variable y 1\ntrace add variable y unset {rec M}}",
+            );
+            ok(i, b"namespace delete ::modern");
+            assert_eq!(ok(i, b"set ::log"), b"M:unset");
+
+            // Both conventions on one variable: each callback keeps its own.
+            ok(i, b"set ::log {}");
+            ok(
+                i,
+                b"namespace eval ::both {variable z 1\ntrace variable z u {rec Lz}\ntrace add variable z unset {rec Mz}}",
+            );
+            ok(i, b"namespace delete ::both");
+            assert_eq!(ok(i, b"set ::log"), b"Mz:unset Lz:u");
+
+            // An array element registered the legacy way behaves the same.
+            ok(i, b"set ::log {}");
+            ok(
+                i,
+                b"namespace eval ::arr {variable a\nset a(k) 1\ntrace variable a(k) u {rec A}}",
+            );
+            ok(i, b"namespace delete ::arr");
+            assert_eq!(ok(i, b"set ::log"), b"A:u");
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// The 9.x side of the same seam: the legacy form does not exist there, so
+    /// a modern registration fired by teardown must still say `unset`.
+    #[test]
+    fn teardown_op_word_is_the_full_word_at_9x() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            ok(i, b"set ::log {}");
+            ok(i, b"proc rec {label n1 n2 op} {lappend ::log $label:$op}");
+            ok(
+                i,
+                b"namespace eval ::modern {variable y 1\ntrace add variable y unset {rec M}}",
+            );
+            ok(i, b"namespace delete ::modern");
+            assert_eq!(ok(i, b"set ::log"), b"M:unset");
+            assert_eq!(
+                err(i, b"trace variable q u {rec L}"),
+                b"bad option \"variable\": must be add, info, or remove"
+            );
+            i.eval_str(b"unset -nocomplain ::log");
+        });
+    }
+
+    /// The registry retires the three legacy forms at 9.0, and the runtime
+    /// reads that rather than carrying its own list — so the same script is a
+    /// working trace at 8.x and `bad option` at 9.x, with the option
+    /// enumeration following too. Issue #1444.
+    #[test]
+    fn legacy_variable_trace_forms_follow_the_release() {
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V8_6);
+            assert_eq!(
+                err(i, b"trace zzz"),
+                b"bad option \"zzz\": must be add, info, remove, variable, vdelete, or vinfo"
+            );
+            assert_eq!(
+                err(i, b"trace v x"),
+                b"ambiguous option \"v\": must be add, info, remove, variable, vdelete, or vinfo"
+            );
+        });
+        leak_free(|i| {
+            i.set_runtime_version(tcl_dialect::TclVersion::V9_0);
+            for word in [&b"variable"[..], b"vdelete", b"vinfo", b"var"] {
+                let mut line = b"trace ".to_vec();
+                line.extend_from_slice(word);
+                line.extend_from_slice(b" x w cb");
+                let mut want = b"bad option \"".to_vec();
+                want.extend_from_slice(word);
+                want.extend_from_slice(b"\": must be add, info, or remove");
+                assert_eq!(err(i, &line), want);
+            }
+            assert_eq!(
+                err(i, b"trace zzz"),
+                b"bad option \"zzz\": must be add, info, or remove"
+            );
         });
     }
 }

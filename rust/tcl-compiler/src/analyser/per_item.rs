@@ -221,6 +221,21 @@ pub struct DeferredBody {
         String,
         Vec<(String, super::types::EnsembleSubcommandTarget)>,
     )>,
+    /// The `-prefixes 0` opt-out for the ensembles in
+    /// [`Self::ensemble_targets`] — the visible slice of
+    /// [`super::types::AnalysisResult::prefixless_ensembles`], under the same
+    /// precedes-the-body and occurs-in-the-body-text filters, sorted so it can
+    /// key `tcl-lsp-db`'s `ItemBodyKey`.
+    ///
+    /// **Travels with `ensemble_targets`, and must keep doing so.** The two
+    /// are read together by
+    /// [`super::types::AnalysisResult::resolve_ensemble_subcommand`]: the map
+    /// says which subcommands exist, this says whether an abbreviation of one
+    /// may match. Seeding only the map let an isolated body resolve `g fo`
+    /// against a `-prefixes 0` ensemble and record a dispatch invocation the
+    /// whole-file walk (and real Tcl) refuse — so the two are seeded and
+    /// merged at one site each, never separately.
+    pub prefixless_ensembles: Vec<String>,
     /// Mirrors [`super::types::Scope::oo_defining_class`] for the isolated
     /// rebuild: the fully-qualified defining class when this is an
     /// instance-side `TclOO` method body of a statically-named class,
@@ -522,6 +537,58 @@ impl Analyser {
     /// qualified `$::g` reads — replayed at graft) takes the fast incremental
     /// path.  Guarded by the corpus `per_item == analyse` gate + the
     /// `incremental == fresh` fuzzer.
+    /// Attach the ensemble facts each deferred body can see: the
+    /// `subcommand → target` maps whose `namespace ensemble` recording
+    /// **precedes** the body in source order (the whole-file DFS's own
+    /// visibility rule), filtered to ensembles whose tail name occurs in the
+    /// body text so an unrelated ensemble edit re-keys no body, canonically
+    /// sorted so the snapshot can key `tcl-lsp-db`'s `ItemBodyKey`.
+    ///
+    /// The **one** site that decides what an isolated body knows about
+    /// ensembles. `-prefixes 0` is attached here beside the map it modifies,
+    /// rather than at a second site, because
+    /// [`super::types::AnalysisResult::resolve_ensemble_subcommand`] reads the
+    /// two together: attaching only the map let an isolated body resolve
+    /// `<ensemble> fo` against an ensemble that refuses abbreviations and
+    /// record a dispatch real Tcl rejects.
+    fn attach_ensemble_facts(&self, deferred: &mut [DeferredBody]) {
+        if self.result.ensemble_subcommand_targets.is_empty() {
+            return;
+        }
+        let mut all: Vec<(
+            &String,
+            &std::collections::HashMap<String, super::types::EnsembleSubcommandTarget>,
+        )> = self.result.ensemble_subcommand_targets.iter().collect();
+        all.sort_by_key(|(k, _)| *k);
+        for db in deferred {
+            let body_start = db.body_tok.span.start();
+            let visible: Vec<(
+                String,
+                Vec<(String, super::types::EnsembleSubcommandTarget)>,
+            )> = all
+                .iter()
+                .filter(|(k, _)| {
+                    self.ensemble_record_offsets
+                        .get(*k)
+                        .is_some_and(|&off| off < body_start)
+                        && db.body_text.contains(crate::naming::key_tail(k))
+                })
+                .map(|(k, subs)| {
+                    let mut inner: Vec<(String, super::types::EnsembleSubcommandTarget)> =
+                        subs.iter().map(|(s, t)| (s.clone(), t.clone())).collect();
+                    inner.sort();
+                    ((*k).clone(), inner)
+                })
+                .collect();
+            db.prefixless_ensembles = visible
+                .iter()
+                .map(|(k, _)| k.clone())
+                .filter(|k| self.result.ensemble_refuses_prefixes(k))
+                .collect();
+            db.ensemble_targets = visible;
+        }
+    }
+
     fn fill_deferred_bodies(
         &mut self,
         source: &str,
@@ -598,41 +665,7 @@ impl Analyser {
                 }
             }
         }
-        // Attach the ensemble subcommand→target maps each body can see —
-        // the entries whose `namespace ensemble` recording precedes the
-        // body in source order (whole-file DFS visibility), filtered to
-        // ensembles whose tail name occurs in the body text so an
-        // unrelated ensemble edit re-keys no body. Canonically sorted so
-        // the snapshot can key `tcl-lsp-db`'s `ItemBodyKey`.
-        if !self.result.ensemble_subcommand_targets.is_empty() {
-            let mut all: Vec<(
-                &String,
-                &std::collections::HashMap<String, super::types::EnsembleSubcommandTarget>,
-            )> = self.result.ensemble_subcommand_targets.iter().collect();
-            all.sort_by_key(|(k, _)| *k);
-            for db in &mut deferred {
-                let body_start = db.body_tok.span.start();
-                let visible: Vec<(
-                    String,
-                    Vec<(String, super::types::EnsembleSubcommandTarget)>,
-                )> = all
-                    .iter()
-                    .filter(|(k, _)| {
-                        self.ensemble_record_offsets
-                            .get(*k)
-                            .is_some_and(|&off| off < body_start)
-                            && db.body_text.contains(crate::naming::key_tail(k))
-                    })
-                    .map(|(k, subs)| {
-                        let mut inner: Vec<(String, super::types::EnsembleSubcommandTarget)> =
-                            subs.iter().map(|(s, t)| (s.clone(), t.clone())).collect();
-                        inner.sort();
-                        ((*k).clone(), inner)
-                    })
-                    .collect();
-                db.ensemble_targets = visible;
-            }
-        }
+        self.attach_ensemble_facts(&mut deferred);
         let deferred = deferred;
         // **Proc duplicates take the fast path.**  A whole-file walk's
         // `all_variables` for a duplicated proc is the *union* of every
@@ -875,6 +908,13 @@ impl Analyser {
                 .or_default()
                 .extend(subs);
         }
+        // A body may *create* an ensemble as well as call one, so the
+        // `-prefixes 0` opt-out merges back on the same seam its subcommand
+        // map does — otherwise an ensemble configured inside a body would
+        // come back abbreviation-matching for every later reader.
+        self.result
+            .prefixless_ensembles
+            .extend(r.prefixless_ensembles);
         Self::merge_per_object_records(&mut self.result, r.object_methods, r.object_member_state);
         self.result.instance_classes.extend(r.instance_classes);
         // `object_handle_facts` is deliberately **not** merged here (issue #994
@@ -1248,6 +1288,30 @@ pub struct BodyFragment {
     minted_synthetics: std::collections::HashSet<String>,
 }
 
+/// Seed an isolated body's throwaway result with the ensemble facts the shell
+/// attached ([`Analyser::attach_ensemble_facts`]) — the `subcommand → target`
+/// maps, so an `<ensemble> <sub> …` call inside the body records the same
+/// existence-probed invocation the whole-file walk does (provenance included,
+/// so the body's dispatch words carry the same `-map`/`-subcommands` tag rename
+/// gates on, issue #1281), **and** the `-prefixes 0` opt-out that decides
+/// whether an abbreviation of one of those subcommands may match at all.
+///
+/// The counterpart of [`Analyser::graft_proc_body`]'s merge-back, and the one
+/// site that reads `DeferredBody`'s ensemble pair, so the two facts cannot
+/// drift apart again (issue #1636 review).
+fn seed_ensemble_facts(a: &mut super::state::Analyser, db: &DeferredBody) {
+    for (ensemble, subs) in &db.ensemble_targets {
+        a.result
+            .ensemble_subcommand_targets
+            .entry(ensemble.clone())
+            .or_default()
+            .extend(subs.iter().cloned());
+    }
+    a.result
+        .prefixless_ensembles
+        .extend(db.prefixless_ensembles.iter().cloned());
+}
+
 /// Analyse one `proc` **or method** body as an isolated unit at **offset 0** — a
 /// pure function of `(body_text, namespace, scope_name, params, is_method,
 /// class_variables)`, so a shifted-but-unedited body is a cache hit
@@ -1304,18 +1368,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // (`upvar ::ns::cell local`) must reach the shell's real global scope,
     // not the throwaway root this isolated walk builds (issue #923 idx 98).
     a.capture_global_defs = Some(Vec::new());
-    // Seed the ensemble subcommand→target maps visible to this body (the
-    // shell attached exactly the whole-file-DFS-visible, body-relevant
-    // slice — see `DeferredBody::ensemble_targets`), so an
-    // `<ensemble> <sub> …` call inside the body records the same
-    // existence-probed subcommand invocation the whole-file walk does.
-    for (ensemble, subs) in &db.ensemble_targets {
-        a.result
-            .ensemble_subcommand_targets
-            .entry(ensemble.clone())
-            .or_default()
-            .extend(subs.iter().cloned());
-    }
+    seed_ensemble_facts(&mut a, db);
     // Capture object-instance creations: the isolated body's `all_classes` is
     // empty, so the class can't be resolved here — the graft replays them.
     a.pending_instances = Some(Vec::new());
@@ -1835,6 +1888,8 @@ fn rebase_result_names(r: &mut AnalysisResult, fix: &impl Fn(&mut String)) {
     }
     fix_string_keys(&mut r.rename_offsets, fix);
     fix_string_keys(&mut r.ensemble_subcommand_targets, fix);
+    // Same key space as the map's outer keys, so it rebases with it.
+    fix_string_set(&mut r.prefixless_ensembles, fix);
     for subs in r.ensemble_subcommand_targets.values_mut() {
         for entry in subs.values_mut() {
             fix(&mut entry.target);
@@ -2747,6 +2802,31 @@ mod tests {
         // shape).
         eq(
             "namespace eval ::tm {\n    proc add {p} { return $p }\n}\nnamespace ensemble create -command ::tm::path -map {add ::tm::add}\nproc use {} { ::tm::path add x }\n",
+        );
+    }
+
+    #[test]
+    fn prefixless_ensemble_setting_reaches_and_returns_from_bodies() {
+        // The `-prefixes 0` opt-out has to travel **both** ways across the
+        // isolated-body seam, because `resolve_ensemble_subcommand` reads it
+        // together with the subcommand map (issue #1636 review).
+        //
+        // Seeding: the ensemble is configured at top level and abbreviated
+        // inside a body. Real Tcl (8.6.16 / 9.0.4) answers `unknown
+        // subcommand "fo"`, so neither walk may record a dispatch — the
+        // isolated pass used to, because only the map was seeded.
+        eq(
+            "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nnamespace ensemble create -command ::e::g -map {foo ::e::Foo} -prefixes 0\nproc use {} { ::e::g fo }\n",
+        );
+        // The positive control: without `-prefixes 0` the same abbreviation
+        // *does* dispatch (`FOO`), so the fix must not silence it.
+        eq(
+            "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nnamespace ensemble create -command ::e::h -map {foo ::e::Foo}\nproc use {} { ::e::h fo }\n",
+        );
+        // Merging back: a body may *create* the ensemble, and the opt-out has
+        // to reach the shell result the way its subcommand map already does.
+        eq(
+            "namespace eval ::e {\n    proc Foo {} { return FOO }\n}\nproc setup {} {\n    namespace ensemble create -command ::e::g -map {foo ::e::Foo} -prefixes 0\n}\nproc use {} { ::e::g fo }\n",
         );
     }
 

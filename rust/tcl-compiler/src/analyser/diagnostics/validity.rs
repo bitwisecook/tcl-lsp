@@ -1169,11 +1169,7 @@ impl Analyser {
         cmd_tok: tcl_lexer::Token,
         arg_tokens: &[tcl_lexer::Token],
     ) {
-        if self.prefixless_ensembles.contains(cmd_name)
-            || self
-                .prefixless_ensembles
-                .contains(&format!("::{}", cmd_name.trim_start_matches(':')))
-        {
+        if self.result.ensemble_refuses_prefixes(cmd_name) {
             return;
         }
         let span = match arg_tokens.first() {
@@ -3672,7 +3668,7 @@ before this value so it is treated as data, not an option."
         // A `-prefixes 0` ensemble in this file turns prefix matching off for
         // its option table too, so abbreviations there are plain unknown
         // options rather than ambiguities.
-        let prefix_matching = if self.prefixless_ensembles.contains(cmd_name) {
+        let prefix_matching = if self.result.prefixless_ensembles.contains(cmd_name) {
             tcl_registry::abbrev::PrefixMatching::Strict
         } else {
             spec.prefix_matching

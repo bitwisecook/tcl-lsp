@@ -1080,9 +1080,9 @@ mod tests {
         const MSG: &[u8] = b"missing close-brace for variable name";
         leak_free(|i| {
             for hex in [
-                &b"247B616263"[..],       // `${abc`  — no closer at all
-                &b"7A247B617B62"[..],     // `z${a{b` — unbalanced `{`
-                &b"247B615C"[..],         // `${a\`   — trailing lone backslash
+                &b"247B616263"[..],   // `${abc`  — no closer at all
+                &b"7A247B617B62"[..], // `z${a{b` — unbalanced `{`
+                &b"247B615C"[..],     // `${a\`   — trailing lone backslash
             ] {
                 let script = [b"subst [binary format H* ".as_ref(), hex, b"]"].concat();
                 assert_eq!(i.eval_str(&script), Code::Error, "{hex:?}");

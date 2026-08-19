@@ -1794,11 +1794,19 @@ pub fn indirection_pending_at(analysis: &AnalysisResult, qualified: &str, cursor
 /// Resolve `head sub` (as returned by [`instance_method_at_cursor`], with
 /// `is_dollar == false`) to the target command it dispatches to, when
 /// `head` names a known `namespace ensemble create -map`/`-subcommands`
-/// ensemble and `sub` exactly matches one of its literal, statically
-/// -recorded subcommands (issue #923 idx 106) — `namespace` is the call
-/// site's own command-resolution namespace, so a relative `head` (the
-/// overwhelmingly common case: an ensemble dispatches through its own short
-/// name) resolves the same way an ordinary bare command call would.
+/// ensemble and `sub` resolves against its literal, statically-recorded
+/// subcommands (issue #923 idx 106) — `namespace` is the call site's own
+/// command-resolution namespace, so a relative `head` (the overwhelmingly
+/// common case: an ensemble dispatches through its own short name) resolves
+/// the same way an ordinary bare command call would.
+///
+/// `sub` need not be written in full: a real ensemble abbreviates, so
+/// `e fo` dispatching to `-map {foo ::e::Foo}` is navigable here too
+/// (issue #1611). The rule is
+/// [`AnalysisResult::resolve_ensemble_subcommand`]'s — exact first, then a
+/// unique prefix unless the ensemble declared `-prefixes 0` — so navigation
+/// lands on whatever the ensemble itself would dispatch, and abstains
+/// wherever it would error.
 pub(crate) fn ensemble_subcommand_target<'a>(
     analysis: &'a AnalysisResult,
     namespace: &str,
@@ -1807,8 +1815,7 @@ pub(crate) fn ensemble_subcommand_target<'a>(
 ) -> Option<&'a str> {
     tcl_syntax::naming::bareword_resolution_candidates(namespace, head)
         .into_iter()
-        .find_map(|cand| analysis.ensemble_subcommand_targets.get(&cand))
-        .and_then(|subs| subs.get(sub))
+        .find_map(|cand| analysis.resolve_ensemble_subcommand(&cand, sub))
         .map(|entry| entry.target.as_str())
 }
 
@@ -6417,6 +6424,49 @@ mod tests {
         assert_eq!(locs[0].start_line, 6);
     }
 
+    /// A real ensemble abbreviates, so navigation on the abbreviated word
+    /// must land where the dispatch would. Oracle (identical on tclsh 8.6.16
+    /// and 9.0.4), for `namespace ensemble create -command ::e -map {foo
+    /// ::e::Foo}`: `e fo` returns `FOO`.
+    #[test]
+    fn ensemble_unique_prefix_subcommand_jumps_to_target_proc() {
+        let src = "namespace eval ::e {\n    namespace ensemble create -map {\n        foo ::e::Foo\n    }\n}\nproc ::e::Foo {args} { return \"foo: $args\" }\n\nputs [e fo bar]\n";
+        let analysis = analyse(src);
+        // Cursor on the abbreviated "fo" in `puts [e fo bar]`.
+        let locs = definition(src, 7, 8, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
+    }
+
+    /// An *ambiguous* prefix is an error at runtime, so there is no target to
+    /// point at and navigation must keep abstaining. Oracle: with `-map {foo
+    /// … fob …}`, `f fo` errors `unknown or ambiguous subcommand "fo": must
+    /// be fob, or foo`.
+    #[test]
+    fn ensemble_ambiguous_prefix_subcommand_abstains() {
+        let src = "namespace eval ::f {\n    namespace ensemble create -map {\n        foo ::f::Foo\n        fob ::f::Fob\n    }\n}\nproc ::f::Foo {args} { return F }\nproc ::f::Fob {args} { return B }\n\nputs [f fo bar]\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 9, 8, &analysis);
+        assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    /// `-prefixes 0` turns prefix matching off, so the abbreviation is a
+    /// plain unknown subcommand and navigation must not follow it — while the
+    /// exact word still resolves. Oracle: `g fo` errors `unknown subcommand
+    /// "fo": must be foo`; `g foo` returns `FOO`.
+    #[test]
+    fn prefixless_ensemble_resolves_only_the_exact_subcommand() {
+        let src = "namespace eval ::g {\n    namespace ensemble create -map {\n        foo ::g::Foo\n    } -prefixes 0\n}\nproc ::g::Foo {args} { return G }\n\nputs [g fo bar]\nputs [g foo bar]\n";
+        let analysis = analyse(src);
+        // The abbreviation must NOT resolve…
+        let abbreviated = definition(src, 7, 8, &analysis);
+        assert!(abbreviated.is_empty(), "{abbreviated:?}");
+        // …while the exact spelling still does.
+        let exact = definition(src, 8, 8, &analysis);
+        assert_eq!(exact.len(), 1, "{exact:?}");
+        assert_eq!(exact[0].start_line, 5);
+    }
+
     #[test]
     fn ensemble_subcommands_form_jumps_to_target_proc() {
         // TP — the `-subcommands` sibling form (not `-map`), the folded-in
@@ -6460,19 +6510,28 @@ mod tests {
 
     #[test]
     fn ensemble_unmapped_subcommand_abstains_rather_than_guessing() {
-        // FN (accepted, documented) — a typo'd/genuinely-unmapped
-        // subcommand silently abstains rather than crashing or guessing.
-        // Also documents that this fix deliberately does not implement
-        // Tcl's unique-prefix ensemble-subcommand matching (a real tclsh
-        // would dispatch "mak" to "make" here since it's an unambiguous
-        // prefix and `-prefixes` defaults to true) — a reusable, named
-        // follow-up (`CommandSpec::resolve_subcommand_for_dialect`-style
-        // logic), not attempted here.
-        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget mak hello]\n";
+        // A genuinely-unmapped subcommand silently abstains rather than
+        // crashing or guessing. `zzz` is not a prefix of anything the
+        // ensemble maps, so the ensemble itself would error here.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget zzz hello]\n";
         let analysis = analyse(src);
-        // Cursor on "mak" in `puts [widget mak hello]` (0-based line 6).
+        // Cursor on "zzz" in `puts [widget zzz hello]` (0-based line 6).
         let locs = definition(src, 6, 13, &analysis);
         assert!(locs.is_empty(), "{locs:?}");
+    }
+
+    #[test]
+    fn ensemble_abbreviated_subcommand_resolves_like_the_dispatch_does() {
+        // This case used to be an accepted FN: `mak` is an unambiguous
+        // prefix of `make` and `-prefixes` defaults to true, so tclsh
+        // dispatches it (oracle 8.6.16 / 9.0.4) while navigation abstained.
+        // Issue #1611 closed that gap by routing the lookup through
+        // `tcl_cmd_core::ensemble::resolve_subcommand`.
+        let src = "namespace eval ::widget {\n    namespace ensemble create -map {\n        make ::widget::Make\n    }\n}\nproc ::widget::Make {args} {}\nputs [widget mak hello]\n";
+        let analysis = analyse(src);
+        let locs = definition(src, 6, 13, &analysis);
+        assert_eq!(locs.len(), 1, "{locs:?}");
+        assert_eq!(locs[0].start_line, 5);
     }
 
     #[test]

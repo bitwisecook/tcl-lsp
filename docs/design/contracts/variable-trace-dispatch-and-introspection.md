@@ -6,8 +6,8 @@
 > [runtime-variable-frame-model.md](runtime-variable-frame-model.md); the
 > as-built dispatch is
 > [runtime/trace-implementation.md](../runtime/trace-implementation.md). The
-> reference is `tmp/tcl9.0.3/generic/tclTrace.c` (`TclCallVarTraces`, the
-> `done:` label) and `tclVar.c`.
+> reference is `tmp/tcl9.0.4/generic/tclTrace.c` (`TclCallVarTraces`, the
+> `done:` label) and `tclVar.c`, cross-checked against `tmp/tcl8.6.16/`.
 
 ## Why the dispatcher is shared
 
@@ -30,13 +30,19 @@ hoc.
 array}`, `name1`/`name2` are the array-and-element (scalar ⇒ `name2` empty):
 
 1. **Order.** Whole-array (`name1`) traces fire **before** element
-   (`name1(name2)`) traces. Within a list, **newest-first (LIFO)**. A
-   re-entrancy guard (`active` flag per record) skips a record already on the
-   stack.
+   (`name1(name2)`) traces — as *groups*, so registration order never puts an
+   element trace ahead of an array one. Within a group, **newest-first
+   (LIFO)**, for every op. A re-entrancy guard (`active` flag per record)
+   skips a record already on the stack.
 2. **Callback shape.** Each callback is evaluated as a *script*: the verbatim
    command prefix with `name1`, `name2`, and the **full op word**
    (`read`/`write`/`unset`/`array`) appended as list elements. (This is what
-   makes the `cmd … ;#` comment idiom and multi-word prefixes work.)
+   makes the `cmd … ;#` comment idiom and multi-word prefixes work.) The one
+   exception is a trace installed by Tcl 8.x's deprecated `trace variable`
+   form, which keeps C's `TCL_TRACE_OLD_STYLE` flag and receives the single
+   `rwua` **letter** instead. The flag affects nothing else: `trace remove`
+   and `trace vdelete` both mask it out, so either spelling removes a trace
+   the other installed.
 3. **Read / write error → reshape + stop.** If a read or write callback
    returns `TCL_ERROR` (and `leaveErrMsg`), the operation **fails** and the
    result is rewritten:
@@ -66,7 +72,12 @@ Where C commits the operation around the trace, the runtime must too:
 
 * **Write:** the value is **stored before** write traces run (a write trace
   observes the new value; its error reshapes the *result*, it does not
-  un-store the value).
+  un-store the value). `TclPtrSetVarIdx` swaps the value in, *then* calls the
+  traces, and on error jumps straight to `cleanup`, which never restores the
+  old one. This covers every writing command — `set`, `append`, `incr`,
+  `lappend` — on scalars and array elements alike, **including a variable or
+  element the failing write itself created**: it stays in existence, holding
+  the new value.
 * **Unset:** the cell is torn down as part of the unset; unset traces fire
   *during* teardown and their errors are ignored (#4). The variable is gone
   regardless — a subsequent read must error `no such variable`.
@@ -84,6 +95,13 @@ Where C commits the operation around the trace, the runtime must too:
   materialised.
 * Removing a variable's traces happens *after* the unset callbacks have fired,
   so a stale trace cannot re-fire on a later variable that reuses the name.
+* **`trace remove` deletes the newest match.** It removes exactly one
+  registration — the first hit walking the list the same way firing does, and
+  that head is the newest. When several registrations are identical the choice
+  is observable twice: in the surviving firing order and in `trace info`. The
+  match is ops-set plus command prefix only; the old-style flag is masked out,
+  so `trace remove variable` and `trace vdelete` each remove what the other
+  installed. The same rule governs command and execution traces.
 
 ## Introspection coherence (info / trace info)
 
@@ -93,6 +111,13 @@ compile-time-foldable:
 * `info exists x` after `unset x` is **0** — including on the compiled path,
   whose local-liveness map is invalidated by `unset`.
 * `trace info variable x` returns the live trace list (LIFO order, as added).
+  Each entry's op list is rendered in C's fixed `array read write unset`
+  order — the order `TraceVariableObjCmd`'s `TRACE_INFO` arm tests the stored
+  flag bits, **not** the alphabetical `opStrings[]` order the bad-operation
+  error enumerates, and never the order the caller spelled. The sibling kinds
+  have their own fixed orders (`rename delete`; `enter leave enterstep
+  leavestep`). 8.x's `trace vinfo` reports the same live list with each op set
+  collapsed to its `rwua` letters.
 * `info vars` / `info locals` / `info level` read the current cell table and
   call stack.
 
@@ -112,7 +137,11 @@ interpreter can't see by name can't be traced.
 | Full `arr(key)` name reported even for a whole-array trace | **Contract** | The accessed element's name, not the matched key. |
 | Unset-trace error ignored; unset succeeds; later unset traces still fire | **Contract** | C disposes the result, leaves code OK, continues. |
 | Read/write error stops further trace firing; whole-array before element; LIFO | **Contract** | Ordering is observable. |
-| Value stored before write trace; cell gone after unset regardless of trace | **Contract** | Mutation not gated on trace outcome. |
+| Value stored before write trace; cell gone after unset regardless of trace | **Contract** | Mutation not gated on trace outcome — a failed write keeps the new value and any cell it created. |
+| `trace info` op order is C's fixed per-kind order, not the spelled order | **Contract** | `array read write unset` / `rename delete` / `enter leave enterstep leavestep`. |
+| 8.x `trace variable`/`vdelete`/`vinfo` exist ≤8.6 and are `bad option` at 9.0+ | **Contract** | The registry's `DialectSet::TCL8X` gate states the boundary; the option enumeration follows it. |
+| An old-style-installed callback gets the `rwua` letter, not the op word | **Contract** | `TCL_TRACE_OLD_STYLE`; matching still ignores the flag. |
+| `trace remove` deletes the **newest** of several identical registrations | **Contract** | Observable in the survivors' firing order and in `trace info`. |
 | Fire-through-`upvar`/`global` links; re-entrancy terminates | **Contract** | Acts on the target cell. |
 | `info exists/vars/locals`, `trace info` reflect live state | **Contract** | Never compile-time-folded. |
 | `(read trace on "x")` errorInfo frame text | **Contract** | Matches C wording. |
