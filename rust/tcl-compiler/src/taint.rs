@@ -3015,14 +3015,9 @@ fn positional_arg_strings(spec: &tcl_registry::CommandSpec, args: &[String]) -> 
 /// Position-aware sink filter: `true` when a tainted variable `name`
 /// occupies a *non-dangerous* argument slot for `code` and so must not trip
 /// the sink.
-fn sink_var_position_safe(
-    registry: &CommandRegistry,
-    code: DiagCode,
-    command: &str,
-    args: &[String],
-    name: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> bool {
+fn sink_var_position_safe(call: &SinkCall<'_>, code: DiagCode, name: &str) -> bool {
+    let (registry, command, args, braced_var) =
+        (call.registry, call.command, call.args, call.braced_var);
     // A value that only reaches an `ArgRole::Channel` argument slot (e.g.
     // `puts`'s optional leading `channelId`) is a handle, not sink content
     // — regardless of which sink code classified the call. The position
@@ -3100,12 +3095,8 @@ fn var_only_in_safe_positions(
 /// word, so `eval`/`uplevel`/`interp eval` of the list runs no injected
 /// command. `[list $x …]` (variable head) and `[list]`-free args return
 /// `false`.
-fn list_wrapped_arg_command_is_literal(
-    registry: &CommandRegistry,
-    args: &[String],
-    name: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> bool {
+fn list_wrapped_arg_command_is_literal(call: &SinkCall<'_>, name: &str) -> bool {
+    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
     for arg in args {
         let trimmed = arg.trim();
         let Some(inner) = trimmed.strip_prefix('[').and_then(|s| s.strip_suffix(']')) else {
@@ -3180,12 +3171,8 @@ fn split_top_level_cmd_subs(arg: &str) -> (String, Vec<&str>) {
 /// `[...]`, or one inside a *non*-sanitiser substitution, returns `false` (the
 /// taint reaches the sink). Mirrors the carve-out the `expr`/`word_taint` path
 /// already applies, which `emit_sink_warnings` (iterating raw SSA uses) lacked.
-fn var_consumed_by_sanitiser(
-    registry: &CommandRegistry,
-    args: &[String],
-    name: &str,
-    braced_var: tcl_dialect::BracedVarStyle,
-) -> bool {
+fn var_consumed_by_sanitiser(call: &SinkCall<'_>, name: &str) -> bool {
+    let (registry, args, braced_var) = (call.registry, call.args, call.braced_var);
     let mut seen = false;
     for arg in args {
         if !arg_var_names(arg, braced_var).contains(name) {
@@ -3242,7 +3229,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // substitution — `puts [string length $x]` outputs the integer length,
         // not `$x` (tclsh-verified). The expr-operand path applies this via
         // word_taint; mirror it here for the direct sink-argument path.
-        if var_consumed_by_sanitiser(call.registry, call.args, name, call.braced_var) {
+        if var_consumed_by_sanitiser(call, name) {
             continue;
         }
         // Per-code mitigation suppression (IRULE3001–3004).
@@ -3272,14 +3259,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // Position-aware sink filter: a tainted variable only trips the
         // sink when it occupies a *dangerous* argument slot (the `puts`
         // content arg, a `taint_network_sink_args` network-address slot).
-        if sink_var_position_safe(
-            call.registry,
-            code,
-            call.command,
-            call.args,
-            name,
-            call.braced_var,
-        ) {
+        if sink_var_position_safe(call, code, name) {
             continue;
         }
         // `eval`/`uplevel`/`interp eval [list <known-cmd> $v …]`: the
@@ -3288,7 +3268,7 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         // no code-injection vector LIST_CANONICAL
         // head-literal filter).
         if matches!(code, DiagCode::T100 | DiagCode::T105)
-            && list_wrapped_arg_command_is_literal(call.registry, call.args, name, call.braced_var)
+            && list_wrapped_arg_command_is_literal(call, name)
         {
             continue;
         }
