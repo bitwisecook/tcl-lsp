@@ -116,6 +116,12 @@ pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<Co
 fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'static DialectProfile) {
     let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
+        // Ambient-package declarations go in unfiltered: they are a claim
+        // about the *runtime* this dialect models, not about a command, so
+        // there is no spec for the vendor gate below to weigh them against.
+        for ambient in &pack.ambient_packages {
+            registry.insert_ambient_package(ambient.name, ambient.version);
+        }
         for command in &pack.commands {
             if profile.package_available(command.spec.required_package)
                 && installs_over(command, registry)
@@ -268,6 +274,29 @@ mod tests {
         );
         let notices = crate::pack::collision_notices(&bold, &overridden);
         assert!(notices[0].message.contains("replaces the shipped command"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// An `ambient_package` row is not a command, so nothing in the command
+    /// install path would carry it. This is the whole journey: pack source →
+    /// overlaid registry → the floor the analyser reads.
+    #[test]
+    fn an_ambient_package_row_reaches_the_overlaid_registry() {
+        let _cache = cache_guard();
+        let dir = tmpdir("ambient");
+        let packs = pack_set(
+            &dir,
+            "amb.tclspec",
+            "speclib amb 1.2 {\n  ambient_package Tk 8.6\n  command demo { arity 1 }\n}\n",
+        );
+        let registry = registry_for_dialect_with_packs("tcl8.6", &packs);
+        assert_eq!(registry.ambient_package_floor("Tk"), Some("8.6"));
+        assert_eq!(registry.ambient_package_floor("Itcl"), None);
+        assert_eq!(
+            tcl_registry::registry_for_dialect("tcl8.6").ambient_package_floor("Tk"),
+            None,
+            "the un-overlaid registry is untouched"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

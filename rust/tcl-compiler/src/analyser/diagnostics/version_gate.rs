@@ -774,6 +774,9 @@ impl Analyser {
                         FloorSource::Require => {
                             format!("`package require` guarantees only {floor}")
                         }
+                        FloorSource::PackAmbient => {
+                            format!("a spec pack declares {package} {floor} ambient here")
+                        }
                         FloorSource::ProfilePin => {
                             format!("{} ships {package} {floor}", self.profile.name)
                         }
@@ -969,18 +972,41 @@ impl Analyser {
         let pin_floor = pin_applies
             .then(|| self.profile.library_floor(pkg, &self.library_versions))
             .flatten();
-        match (pin_floor, require_floor) {
-            (Some(pin), Some(req)) => {
-                if tcl_registry::version::compare(req, pin).is_gt() {
-                    Some((req.to_owned(), FloorSource::Require))
-                } else {
-                    Some((pin.to_owned(), FloorSource::ProfilePin))
-                }
+        // A pack's `ambient_package` row is ambient by construction — the
+        // package comes with the dialect, so like an ambient profile pin its
+        // floor applies whether or not the file requires anything.
+        let pack_floor = self.pack_ambient_floor(pkg);
+
+        let candidates = [
+            require_floor.map(|floor| (floor.to_owned(), FloorSource::Require)),
+            pack_floor.map(|floor| (floor.to_owned(), FloorSource::PackAmbient)),
+            pin_floor.map(|floor| (floor.to_owned(), FloorSource::ProfilePin)),
+        ];
+        // Highest floor wins; at equal versions the earliest `FloorSource`
+        // wins, since the variants are declared in reporting precedence.
+        // `max_by_key` would have kept the last equal one instead, so the
+        // comparison is written out.
+        candidates.into_iter().flatten().reduce(|best, next| {
+            match tcl_registry::version::compare(&next.0, &best.0) {
+                std::cmp::Ordering::Greater => next,
+                std::cmp::Ordering::Equal if next.1 < best.1 => next,
+                _ => best,
             }
-            (Some(pin), None) => Some((pin.to_owned(), FloorSource::ProfilePin)),
-            (None, Some(req)) => Some((req.to_owned(), FloorSource::Require)),
-            (None, None) => None,
+        })
+    }
+
+    /// The floor a loaded `SpecTcl` pack declared for `pkg` as an ambient
+    /// package, if any.
+    ///
+    /// Reads the overlaid registry rather than the profile: an
+    /// `ambient_package` row is authored outside this repository, so there is
+    /// no compiled-in [`tcl_dialect::LibraryPin`] to find it in. A session
+    /// with no packs never reaches the registry cache at all.
+    fn pack_ambient_floor(&self, pkg: &str) -> Option<&'static str> {
+        if self.pack_overlay == 0 {
+            return None;
         }
+        self.profile_registry().ambient_package_floor(pkg)
     }
 }
 
@@ -1031,11 +1057,22 @@ fn lifecycle_deprecation_fix(
 }
 
 /// Where a resolved package-version floor came from — an explicit
-/// `package require`, or the active profile's library pin (§7.1).
-#[derive(Debug, Clone, Copy)]
+/// `package require`, a pack's `ambient_package` declaration, or the active
+/// profile's library pin (§7.1).
+///
+/// The order of the variants is the **reporting** precedence at equal
+/// versions, and it is deliberate. All three are lower bounds and compose by
+/// taking the greatest; when two are equal the message should name the one
+/// closest to the author's own control, because that is the one they can act
+/// on. A `package require` is in the file being read; an `ambient_package` is
+/// in a pack the workspace owns; a profile pin is compiled into this server
+/// and is the only one the reader cannot change.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum FloorSource {
     /// A versioned, unconditional `package require` in the file.
     Require,
+    /// A `SpecTcl` pack's `ambient_package` row for this package.
+    PackAmbient,
     /// The profile's [`tcl_dialect::LibraryPin`].
     ProfilePin,
 }
@@ -1247,6 +1284,149 @@ mod tests {
             .filter(|d| matches!(d.code.as_str(), "W135" | "W136" | "W139"))
             .map(|d| (d.code.to_string(), d.message.clone()))
             .collect()
+    }
+
+    /// Build a registry overlay declaring `package` ambient at `version`,
+    /// and return an analyser bound to it.
+    ///
+    /// Goes straight at the registry cache rather than through `tcl-spectcl`:
+    /// the pack loader depends on this crate, so a test here cannot load a
+    /// `.tclspec`. What it *can* do is install the same thing the loader
+    /// installs, which is what the analyser actually reads.
+    fn analyser_with_ambient(
+        dialect: &str,
+        key: u64,
+        rows: &[(&'static str, &'static str)],
+    ) -> Analyser {
+        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let _registry =
+            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
+                for (package, version) in rows {
+                    registry.insert_ambient_package(package, version);
+                }
+            });
+        Analyser::new().with_pack_overlay(key)
+    }
+
+    fn gate_messages(
+        analyser: &mut Analyser,
+        source: &str,
+        dialect: &str,
+    ) -> Vec<(String, String)> {
+        analyser
+            .analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "W135" | "W136" | "W139"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    /// A pack declaring a package ambient floors it without any `package
+    /// require` in the file — which is the whole point: a package that comes
+    /// *with* the dialect is never required, so nothing else could floor it.
+    #[test]
+    fn a_pack_ambient_declaration_floors_a_package_with_no_require() {
+        // Tk is hosted (not ambient) on `tcl8.6`, so with no require and no
+        // pack there is no floor at all and the 8.7 option is not gated.
+        let src = "entry .e -placeholder hi\n";
+        assert!(
+            version_diags_for(src, "tcl8.6", None).is_empty(),
+            "baseline: no floor, no gate"
+        );
+
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0001, &[("Tk", "8.6")]);
+        let diags = gate_messages(&mut analyser, src, "tcl8.6");
+        assert!(
+            diags
+                .iter()
+                .any(|(c, m)| c == "W136"
+                    && m.contains("a spec pack declares Tk 8.6 ambient here")),
+            "the pack's declaration is the guarantor: {diags:?}"
+        );
+    }
+
+    /// The three floors compose by taking the greatest, exactly as two
+    /// `package require` lines already do — a floor is a lower bound.
+    #[test]
+    fn the_highest_of_the_three_floors_wins() {
+        // The pack claims 8.7; the profile pin claims 8.6. The higher claim
+        // holds, so the 8.7-introduced option is no longer gated.
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0002, &[("Tk", "8.7")]);
+        assert!(
+            gate_messages(
+                &mut analyser,
+                "package require Tk\nentry .e -placeholder hi\n",
+                "tcl8.6"
+            )
+            .is_empty(),
+            "the pack's 8.7 outranks the profile's 8.6"
+        );
+
+        // The require claims 8.7; the pack claims only 8.6. Same outcome from
+        // the other direction.
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0003, &[("Tk", "8.6")]);
+        assert!(
+            gate_messages(
+                &mut analyser,
+                "package require Tk 8.7\nentry .e -placeholder hi\n",
+                "tcl8.6"
+            )
+            .is_empty(),
+            "the require's 8.7 outranks the pack's 8.6"
+        );
+    }
+
+    /// At equal versions the *message* names the source closest to the
+    /// author's control, because that is the one they can act on: the require
+    /// in this file before the pack in this workspace before the profile
+    /// compiled into the server.
+    #[test]
+    fn equal_floors_are_reported_in_precedence_order() {
+        // Pack and profile pin both say 8.6: the pack wins the report.
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0004, &[("Tk", "8.6")]);
+        let diags = gate_messages(
+            &mut analyser,
+            "package require Tk\nentry .e -placeholder hi\n",
+            "tcl8.6",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|(c, m)| c == "W136"
+                    && m.contains("a spec pack declares Tk 8.6 ambient here")),
+            "pack outranks the profile pin at an equal version: {diags:?}"
+        );
+
+        // Require and pack both say 8.6: the require wins the report.
+        let mut analyser = analyser_with_ambient("tcl8.6", 0x1627_0005, &[("Tk", "8.6")]);
+        let diags = gate_messages(
+            &mut analyser,
+            "package require Tk 8.6\nentry .e -placeholder hi\n",
+            "tcl8.6",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|(c, m)| c == "W136" && m.contains("`package require` guarantees only 8.6")),
+            "the require outranks the pack at an equal version: {diags:?}"
+        );
+    }
+
+    /// FN guard for the short-circuit: a session with no packs must answer
+    /// exactly as it did before this axis existed.
+    #[test]
+    fn no_pack_overlay_leaves_every_floor_where_it_was() {
+        let src = "package require Tk\nentry .e -placeholder hi\n";
+        let before = version_diags_for(src, "tcl8.6", None);
+        let mut analyser = Analyser::new();
+        assert_eq!(gate_messages(&mut analyser, src, "tcl8.6"), before);
+        assert!(
+            before
+                .iter()
+                .any(|(_, m)| m.contains("tcl8.6 ships Tk 8.6")),
+            "still the profile pin: {before:?}"
+        );
     }
 
     #[test]
@@ -1606,14 +1786,21 @@ mod tests {
     #[test]
     fn command_below_floor_fires_w135() {
         // `ttk::button` needs Tk 8.5. On a tcl8.4 host the shipped Tk is
-        // 8.4 (TracksBase, §7.1) and a `require Tk 8.4` cannot raise it —
-        // W135, named after the runtime guarantor.
+        // 8.4 (TracksBase, §7.1) and a `require Tk 8.4` cannot raise it — so
+        // the floor is 8.4 either way and W135 fires.
+        //
+        // The floors are equal, so which one the message *names* is the
+        // reporting tie-break, and it names the require: of the ways a floor
+        // can arise, the line in this file is the one whose author is reading
+        // the diagnostic. (Before versioned arity there were only two sources
+        // and the tie went to the pin; issue #1627 made the tie-break
+        // explicit — see `FloorSource` — and the file's own require leads it.)
         let src = "package require Tk 8.4\nttk::button .b\n";
         let diags = version_diags_for(src, "tcl8.4", None);
         assert!(
             diags
                 .iter()
-                .any(|(c, m)| c == "W135" && m.contains("tcl8.4 ships Tk 8.4")),
+                .any(|(c, m)| c == "W135" && m.contains("`package require` guarantees only 8.4")),
             "{diags:?}"
         );
         // On a tcl8.6 host the same source is FINE: `package require Tk

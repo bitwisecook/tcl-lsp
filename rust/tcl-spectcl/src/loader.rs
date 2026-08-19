@@ -599,10 +599,34 @@ pub struct Pack {
     /// (`file_extension upf -name {Unified Power Format} -dialect …`),
     /// in declaration order.
     pub file_extensions: Vec<FileExtension>,
+    /// Packages this pack declares **ambient** in its dialect, with the
+    /// version the runtime provides (`ambient_package Tk 8.6`), in
+    /// declaration order.
+    ///
+    /// A package that comes *with* the dialect is never `package require`d in
+    /// the documents that use it, so nothing else could give its commands a
+    /// version floor — every per-release gate on them would go unchecked.
+    /// This is the pack-authored twin of an ambient
+    /// [`tcl_dialect::LibraryPin`], and the axis that lets a package be
+    /// modelled as a pack without having to be compiled into `tcl-dialect`
+    /// first (issue #1631).
+    pub ambient_packages: Vec<AmbientPackage>,
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
+}
+
+/// One `ambient_package NAME VERSION` row: a package the pack's dialect
+/// provides without a `package require`, and the version it provides.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AmbientPackage {
+    /// The package name, as `package require` would spell it.
+    pub name: &'static str,
+    /// The version the runtime provides — a floor, not an exact release.
+    pub version: &'static str,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
 }
 
 /// One `file_extension` row: an extension the pack's language is written
@@ -644,6 +668,7 @@ pub fn load_pack(source: &str) -> Pack {
         name: String::new(),
         display_name: None,
         file_extensions: Vec::new(),
+        ambient_packages: Vec::new(),
         dsl_version: String::new(),
         commands: Vec::new(),
         notices: Vec::new(),
@@ -702,6 +727,12 @@ pub fn load_pack(source: &str) -> Pack {
                     } else {
                         pack.file_extensions.push(row);
                     }
+                }
+            }
+            "ambient_package" => {
+                log.v12(stmt.line, "ambient_package");
+                if let Some(row) = ambient_package_row(&stmt, &mut log) {
+                    pack.ambient_packages.push(row);
                 }
             }
             "command" => declarations.push(stmt),
@@ -764,6 +795,36 @@ pub const NEWEST_VOCABULARY_VERSION: &str = "1.2";
 /// lower-case without a leading dot; `-dialect` must name a canonical
 /// profile (the routing consumer needs an interned name), and a typo drops
 /// only the routing, not the row.
+/// `ambient_package NAME VERSION` — one package the pack's dialect provides
+/// without a `package require`.
+///
+/// Both words are required. A row naming no version is dropped rather than
+/// defaulted: an ambient package with no version would floor at nothing, which
+/// is what the row exists to stop being the case.
+fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
+    let name = stmt.word_text(1);
+    if name.is_empty() {
+        log.say(stmt.line, "`ambient_package` needs a package name");
+        return None;
+    }
+    let version = stmt.word_text(2);
+    if version.is_empty() {
+        log.say(
+            stmt.line,
+            format!("`ambient_package {name}` needs the version the runtime provides; dropped"),
+        );
+        return None;
+    }
+    for extra in stmt.words.iter().skip(3) {
+        log.unknown_flag("ambient_package", stmt.line, &extra.text);
+    }
+    Some(AmbientPackage {
+        name: leak_str(name),
+        version: leak_str(version),
+        line: stmt.line,
+    })
+}
+
 fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
     let raw = stmt.word_text(1);
     if raw.is_empty() {
@@ -5151,6 +5212,65 @@ mod tests {
                 .any(|n| n.message.contains("arity window")),
             "{:?}",
             pack.notices
+        );
+    }
+
+    /// `ambient_package NAME VERSION` names a package the pack's dialect
+    /// provides without a `package require`. Both words are required: a row
+    /// with no version would floor at nothing, which is the situation the row
+    /// exists to end.
+    #[test]
+    fn ambient_package_rows_load_and_an_incomplete_one_is_dropped() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n \
+             ambient_package Tk 8.6\n \
+             ambient_package Itcl 4.0\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let named: Vec<(&str, &str)> = pack
+            .ambient_packages
+            .iter()
+            .map(|row| (row.name, row.version))
+            .collect();
+        assert_eq!(named, vec![("Tk", "8.6"), ("Itcl", "4.0")]);
+
+        let missing = load_pack(
+            "speclib probe 1.2 {\n \
+             ambient_package Tk\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(
+            missing.ambient_packages.is_empty(),
+            "a version-less row is dropped: {:?}",
+            missing.ambient_packages
+        );
+        assert!(
+            missing
+                .notices
+                .iter()
+                .any(|n| n.message.contains("needs the version the runtime provides")),
+            "{:?}",
+            missing.notices
+        );
+
+        // 1.2 vocabulary: the same per-site notice every other new word gets.
+        let older = load_pack(
+            "speclib probe 1.1 {\n \
+             ambient_package Tk 8.6\n \
+             command demo { arity 1 }\n}",
+        );
+        assert_eq!(
+            older.ambient_packages.len(),
+            1,
+            "the word still loads — additions never gate"
+        );
+        assert!(
+            older.notices.iter().any(|n| n
+                .message
+                .contains("`ambient_package` is SpecTcl 1.2 vocabulary")),
+            "{:?}",
+            older.notices
         );
     }
 

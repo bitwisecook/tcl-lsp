@@ -109,6 +109,12 @@ pub struct MergedPack {
     /// The file extensions the pack's language is written under, merged
     /// first-declaration-wins across the pack's files.
     pub file_extensions: Vec<crate::loader::FileExtension>,
+    /// The packages the pack declares ambient, merged across its files.
+    ///
+    /// Every row is kept, including two files naming the same package: they
+    /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
+    /// highest. Dropping one here would silently lower the floor instead.
+    pub ambient_packages: Vec<crate::loader::AmbientPackage>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -321,6 +327,7 @@ fn merge_group(
         files: files.iter().map(|(f, _)| f.path.clone()).collect(),
         display_name: None,
         file_extensions: Vec::new(),
+        ambient_packages: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -359,6 +366,7 @@ fn merge_group(
                 merged.file_extensions.push(row);
             }
         }
+        merged.ambient_packages.extend(pack.ambient_packages);
         for command in pack.commands {
             if let Some(first) = first_seen.get(command.spec.name) {
                 notices.push(PackNotice {
