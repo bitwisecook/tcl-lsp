@@ -451,6 +451,12 @@ pub(crate) struct CommandRenameTransaction {
     new_key: String,
     source_import_origin: Option<CommandSidecarKey>,
     source_builtin_identity: Option<String>,
+    /// Whether the source was an engine-installed `TclOO` root. Like
+    /// `source_builtin_identity`, this is an *identity* that must travel with
+    /// the command: `rename oo::configurable myconf` leaves a command that is
+    /// still the registry's `oo::configurable`, so it must still vanish on a
+    /// release that has no such builtin.
+    source_registry_object_root: Option<String>,
     cross_alias_target: Option<InterpId>,
 }
 
@@ -555,7 +561,14 @@ pub struct InterpState {
     /// user-created and release-invariant. Populated at bootstrap
     /// (`cmd_oo::register`), read by
     /// [`builtin_command_visible_for_identity`](Self::builtin_command_visible_for_identity).
-    registry_object_roots: HashSet<String>,
+    ///
+    /// Table key → **registry identity**, not a bare set, for the same reason
+    /// [`Self::builtin_identities`] is a map: `rename oo::configurable myconf`
+    /// leaves a command that is still the registry's `oo::configurable`, so
+    /// the release gate must keep dating it by that name rather than by
+    /// `myconf` (which the registry has never heard of, and would therefore
+    /// wave through on every release).
+    registry_object_roots: HashMap<String, String>,
     /// Namespace-name ⇆ opaque `NsId` arena for the Family-B `Frames`/`Namespaces`
     /// contract. The VM resolves namespaces by their canonical `String` name; this
     /// side-table mints stable `NsId` handles for them (`ns_arena[id]` is the name,
@@ -1196,16 +1209,20 @@ impl InterpState {
         // *other* object command is script-created — `oo::class create lpop`
         // is a user command that happens to share a registry name — so it is
         // invariant, exactly like a proc.
-        let gated = match command {
-            Command::Builtin(_) | Command::Native(_) => true,
-            Command::Object(_) => self.registry_object_roots.contains(name),
-            _ => false,
+        //
+        // A root's registry identity is recorded with it, so a renamed root
+        // keeps being dated by the name the registry knows rather than by the
+        // name it now answers to.
+        let root_identity = match command {
+            Command::Builtin(_) | Command::Native(_) => None,
+            Command::Object(_) => match self.registry_object_roots.get(name) {
+                Some(identity) => Some(identity.clone()),
+                None => return true,
+            },
+            _ => return true,
         };
-        if !gated {
-            return true;
-        }
-        let origin = identity
-            .map(str::to_owned)
+        let origin = root_identity
+            .or_else(|| identity.map(str::to_owned))
             .or_else(|| self.builtin_identities.get(name).cloned())
             .unwrap_or_else(|| {
                 let mut current = CommandSidecarKey::visible(name);
@@ -1267,7 +1284,7 @@ impl InterpState {
             ns_exports: HashMap::new(),
             imported_commands: HashMap::new(),
             builtin_identities: HashMap::new(),
-            registry_object_roots: HashSet::new(),
+            registry_object_roots: HashMap::new(),
             ns_arena: vec![String::new()],
             ns_intern: HashMap::from([(String::new(), ROOT_NS)]),
             ns_paths: HashMap::new(),
@@ -2053,6 +2070,7 @@ impl Vm {
             self.bump_cmd_epoch();
             self.imported_commands.remove(name);
             self.builtin_identities.remove(name);
+            self.registry_object_roots.remove(name);
         }
     }
 
@@ -2093,6 +2111,7 @@ impl Vm {
         }
         let source_import_origin = self.imported_commands.get(&old_key).cloned();
         let source_builtin_identity = self.builtin_identity_for_key(&old_key);
+        let source_registry_object_root = self.registry_object_roots.get(&old_key).cloned();
         let cross_alias_target = match command {
             Command::CrossAlias { target, .. } => Some(*target),
             _ => None,
@@ -2104,6 +2123,7 @@ impl Vm {
                 new_key: String::new(),
                 source_import_origin,
                 source_builtin_identity,
+                source_registry_object_root,
                 cross_alias_target,
             },
         ))
@@ -2129,6 +2149,14 @@ impl Vm {
         }
         if let Some(identity) = &transaction.source_builtin_identity {
             self.restore_builtin_identity(new_key, identity.clone());
+        }
+        // The `TclOO` root marking is the same kind of fact as the builtin
+        // identity above, so it travels the same way. Without this, `rename
+        // oo::configurable myconf` produced a command the availability gate
+        // read as script-created, so it survived a later switch to an 8.6
+        // surface that has no `oo::configurable` at all.
+        if let Some(identity) = &transaction.source_registry_object_root {
+            self.declare_registry_object_root_as(new_key, &identity.clone());
         }
         self.retarget_imports(&transaction.old_key, new_key);
     }
@@ -2194,6 +2222,11 @@ impl Vm {
         self.bump_cmd_epoch();
         self.imported_commands.remove(key);
         self.builtin_identities.remove(key);
+        // Clear the `TclOO` root marking with the entry it describes, exactly
+        // as the builtin identity above is cleared. A rename re-declares it at
+        // the destination; leaving it stranded under the vacated name would
+        // gate an unrelated command that later takes that name.
+        self.registry_object_roots.remove(key);
         self.commands.remove(key)
     }
 
@@ -4000,7 +4033,14 @@ impl Vm {
     /// when it names no import. Keys are canonical (unrooted), as
     /// `imported_commands` stores them.
     pub(crate) fn command_origin_key(&self, key: &str) -> String {
-        let mut cur = CommandSidecarKey::visible(key);
+        self.origin_key_of(&CommandSidecarKey::visible(key))
+    }
+
+    /// [`Self::command_origin_key`] from an explicit domain, so a hidden token
+    /// can be walked as itself rather than as an equally-named visible
+    /// command.
+    pub(crate) fn origin_key_of(&self, start: &CommandSidecarKey) -> String {
+        let mut cur = start.clone();
         // Bounded walk: a chain cannot be longer than the import table, so a
         // (malformed) cycle terminates instead of spinning.
         for _ in 0..self.imported_commands.len() + self.hidden_imported_commands.len() {
@@ -4059,17 +4099,36 @@ impl Vm {
     /// spellings). `register_command` drops the provenance record as part of
     /// overwriting, so it is captured first and restored after, leaving
     /// `namespace origin` still answering the source.
+    ///
+    /// Membership is by **ultimate** origin, not by the direct edge: an import
+    /// of an import (`::S::e` imported and re-exported by `::A`, then imported
+    /// by `::B`) is one shared token in C, so every spelling in the chain has
+    /// to be refreshed, not just `::A::e`. Hidden clones count too — `interp
+    /// hide` moves the entry but not its provenance, and `invokehidden` would
+    /// otherwise still reach the stale definition.
     pub(crate) fn resync_import_clones(&mut self, origin_key: &str, cmd: &Command) {
-        let origin = CommandSidecarKey::visible(origin_key);
-        let importers: Vec<(String, CommandSidecarKey)> = self
+        let visible: Vec<(String, CommandSidecarKey)> = self
             .imported_commands
             .iter()
-            .filter(|(_, source)| **source == origin)
+            .filter(|(key, _)| self.command_origin_key(key) == origin_key)
             .map(|(key, source)| (key.clone(), source.clone()))
             .collect();
-        for (key, source) in importers {
+        let hidden: Vec<String> = self
+            .hidden_imported_commands
+            .keys()
+            .filter(|token| {
+                self.origin_key_of(&CommandSidecarKey::hidden(token.as_str())) == origin_key
+            })
+            .cloned()
+            .collect();
+        for (key, source) in visible {
             self.register_command(&key, cmd.clone());
             self.restore_import_origin(&key, source);
+        }
+        for token in hidden {
+            // The hidden table holds only the command; its provenance lives in
+            // `hidden_imported_commands` and is untouched by this write.
+            self.hidden_commands.insert(token, cmd.clone());
         }
     }
 
@@ -4082,7 +4141,15 @@ impl Vm {
     /// release-availability gate treats it like a builtin (see
     /// [`InterpState::registry_object_roots`]).
     pub(crate) fn declare_registry_object_root(&mut self, key: &str) {
-        self.registry_object_roots.insert(key.to_owned());
+        self.declare_registry_object_root_as(key, key);
+    }
+
+    /// [`Self::declare_registry_object_root`] with an explicit registry
+    /// identity, for a root that has been renamed away from the name the
+    /// registry dates it by.
+    pub(crate) fn declare_registry_object_root_as(&mut self, key: &str, identity: &str) {
+        self.registry_object_roots
+            .insert(key.to_owned(), identity.to_owned());
     }
 
     /// `namespace forget pattern` — remove previously imported commands matching
@@ -6552,6 +6619,15 @@ impl Namespaces for Vm {
     fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {
         let fqn = self.command_fqn(cmd.0)?;
         let key = fqn.strip_prefix("::").unwrap_or(&fqn);
+        // The trait's `None` means "not an imported command", which is C's
+        // `cmdPtr->deleteProc == DeleteImportedCmd` test — *not* "the walk
+        // ended where it started". Comparing names cannot stand in for it: a
+        // visible import whose chain ends at an equally-named hidden token
+        // would compare equal while genuinely being an import. The presence of
+        // a provenance record is the VM's exact spelling of C's predicate.
+        if !self.imported_commands.contains_key(key) {
+            return None;
+        }
         // `command_origin_key` owns the walk because the VM's import links are
         // name-keyed across two domains (visible / hidden token), which a bare
         // FQN cannot distinguish.

@@ -436,6 +436,36 @@ impl Namespaces for Interp {
             .is_some()
     }
 
+    // -- byte-valued spellings. This runtime keys every table by bytes, so
+    // these are the lossless forms; the `&str` methods above are the lossy
+    // convenience the UTF-8-keyed VM uses. Shared cores call these, so a name
+    // like `[binary format c 255]` reaches the table verbatim.
+
+    fn find_command_bytes(&self, cxt: NsId, name: &[u8]) -> Option<CommandId> {
+        self.find_command_id(cxt.0 as usize, name).map(CommandId)
+    }
+
+    fn find_namespace_bytes(&self, cxt: NsId, name: &[u8]) -> Option<NsId> {
+        self.namespaces()
+            .find_namespace(cxt.0 as usize, name)
+            .map(|id| NsId(id as u32))
+    }
+
+    fn namespace_var_exists_bytes(&self, ns: NsId, simple: &[u8]) -> bool {
+        self.namespaces()
+            .var_table(ns.0 as usize)
+            .cell(simple)
+            .is_some()
+    }
+
+    fn name_bytes(&self, ns: NsId) -> Vec<u8> {
+        self.ns_qualified_name(ns.0 as usize)
+    }
+
+    fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
+        self.command_fqn(cmd.0)
+    }
+
     fn command_origin(&self, cmd: CommandId) -> Option<CommandId> {
         self.imported_source_id(cmd.0).map(CommandId)
     }

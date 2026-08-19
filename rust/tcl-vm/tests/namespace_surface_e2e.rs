@@ -110,6 +110,25 @@ fn run(src: &str) -> String {
     run_at(src, "tcl9.0")
 }
 
+/// Run each `(release, script)` step on **one** VM, re-pinning its profile
+/// between steps; the last step's result is returned. Real tclsh cannot change
+/// release mid-session, so this exists only for invariants about what the
+/// emulated surface must do when an embedder re-pins it.
+fn run_flipping(steps: &[(&str, &str)]) -> String {
+    let mut vm = Vm::with_output(Box::new(Capture::default()));
+    let mut last = String::new();
+    for (release, src) in steps {
+        let profile = DialectProfile::by_name(release);
+        vm.set_dialect_profile(profile);
+        vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+        match CompilerSvc::for_profile(profile).compile(src) {
+            Ok(asm) => last = vm.run_module(&asm).result.to_str().to_string(),
+            Err(e) => return e.0,
+        }
+    }
+    last
+}
+
 // ===========================================================================
 // #1442 — `namespace which -variable` never answers with a call frame
 // (`NamespaceWhichCmd` → `Tcl_FindNamespaceVar`, tclNamesp.c:4657)
@@ -191,6 +210,50 @@ fn origin_follows_import_chains() {
     assert_eq!(
         run("catch {namespace origin nosuchcommand} m; set m"),
         "invalid command name \"nosuchcommand\""
+    );
+}
+
+/// The `Namespaces::command_origin` contract: `None` means "not an imported
+/// command" (C's `cmdPtr->deleteProc == DeleteImportedCmd`), so a shared core
+/// can tell the two apart. The VM used to answer `Some(self)` for every
+/// command, which happened to be invisible through `namespace origin` — it
+/// folds both onto the same answer — but left the trait unusable for anything
+/// that needs the distinction, and disagreed with the WASM runtime's impl.
+#[test]
+fn command_origin_reports_none_for_a_command_that_was_not_imported() {
+    use tcl_runtime_api::Namespaces;
+
+    let profile = DialectProfile::by_name("tcl9.0");
+    let svc = CompilerSvc::for_profile(profile);
+    let asm = svc
+        .compile(
+            "namespace eval src {namespace export p; proc p {} {return P}}\n\
+             namespace eval dst {namespace import ::src::p}",
+        )
+        .expect("setup compiles");
+    let mut vm = Vm::with_output(Box::new(Capture::default()));
+    vm.set_dialect_profile(profile);
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
+    assert!(vm.run_module(&asm).code.is_ok());
+
+    let cur = Namespaces::current(&vm);
+    let imported = vm.find_command(cur, "::dst::p").expect("the import exists");
+    let source = vm.find_command(cur, "::src::p").expect("the source exists");
+    let builtin = vm.find_command(cur, "set").expect("a builtin exists");
+
+    let origin = vm
+        .command_origin(imported)
+        .expect("an import has an origin");
+    assert_eq!(vm.command_name(origin).as_deref(), Some("::src::p"));
+    assert_eq!(
+        vm.command_origin(source),
+        None,
+        "a plain proc is not an import"
+    );
+    assert_eq!(
+        vm.command_origin(builtin),
+        None,
+        "a builtin is not an import"
     );
 }
 
@@ -537,6 +600,42 @@ fn configuring_an_imported_ensemble_updates_the_origin() {
     );
 }
 
+/// Reconfiguring an ensemble reaches every importer in the chain, not just the
+/// direct ones. C hands each import the *source's* command token, so a
+/// two-hop chain (`::S::e` imported and re-exported by `::A`, imported again
+/// by `::B`) observes one shared definition; the VM clones the dispatcher, so
+/// the refresh has to follow provenance to its ultimate origin. Every
+/// expectation below is tclsh 9.0.4- and 8.6.16-pinned.
+#[test]
+fn reconfiguring_an_ensemble_reaches_transitive_importers() {
+    let setup = "namespace eval S {\n\
+                     namespace export e\n\
+                     proc impl1 {args} {return OLD}\n\
+                     proc impl2 {args} {return NEW}\n\
+                     namespace ensemble create -command ::S::e -map {go ::S::impl1}}\n\
+                 namespace eval A {namespace import ::S::e; namespace export e}\n\
+                 namespace eval B {namespace import ::A::e}\n\
+                 namespace ensemble configure ::S::e -map {go ::S::impl2}\n";
+    // Dispatch: all three spellings run the new target.
+    assert_eq!(run(&format!("{setup}::S::e go")), "NEW");
+    assert_eq!(run(&format!("{setup}::A::e go")), "NEW");
+    assert_eq!(run(&format!("{setup}::B::e go")), "NEW");
+    // Config query agrees with dispatch at every spelling — the pair that
+    // diverged while only direct edges were refreshed.
+    for spelling in ["::S::e", "::A::e", "::B::e"] {
+        assert_eq!(
+            run(&format!(
+                "{setup}namespace ensemble configure {spelling} -map"
+            )),
+            "go ::S::impl2",
+            "{spelling}"
+        );
+    }
+    // Provenance is untouched: both imports still answer the original source.
+    assert_eq!(run(&format!("{setup}namespace origin ::A::e")), "::S::e");
+    assert_eq!(run(&format!("{setup}namespace origin ::B::e")), "::S::e");
+}
+
 /// A namespace-scoped link (`namespace upvar`, or an `upvar` at the global
 /// level) is a real cell in the namespace's table, so `namespace which
 /// -variable` and `info vars` both see it. A *proc*-local alias is a
@@ -773,5 +872,60 @@ fn a_hidden_tcloo_root_cannot_be_renamed_back_into_view() {
     assert_eq!(
         run_at("catch {rename oo::class fresh} m; set m", "tcl8.4"),
         "can't rename \"oo::class\": command doesn't exist"
+    );
+}
+
+/// A renamed engine-installed root keeps its **registry identity**, so it is
+/// still dated by the name the registry knows rather than by the name it now
+/// answers to. Real tclsh cannot switch release mid-session, so this pins the
+/// invariant the gate exists to enforce rather than a tclsh transcript: the
+/// same command, re-pinned to a release that has no such builtin, must
+/// disappear exactly as it would have under its original name.
+#[test]
+fn a_renamed_tcloo_root_still_gates_by_its_registry_identity() {
+    // `oo::configurable` is TIP 558 (9.0); renaming it does not make it an
+    // 8.6 command.
+    assert_eq!(
+        run_flipping(&[
+            (
+                "tcl9.0",
+                "rename oo::configurable myconf\nmyconf create C {}"
+            ),
+            ("tcl8.6", "catch {myconf create D {}} m; set m"),
+        ]),
+        "invalid command name \"myconf\""
+    );
+    // The rename really did work on the release that has the command…
+    assert_eq!(
+        run_flipping(&[(
+            "tcl9.0",
+            "rename oo::configurable myconf\nmyconf create C {}"
+        )]),
+        "::C"
+    );
+    // …and the vacated name is not left gated: it is the user's to take.
+    assert_eq!(
+        run_flipping(&[
+            ("tcl9.0", "rename oo::configurable myconf"),
+            (
+                "tcl9.0",
+                "oo::class create oo::configurable {method m {} {return MINE}}\n\
+                 [oo::configurable new] m"
+            ),
+        ]),
+        "MINE"
+    );
+    // A script-created object stays release-invariant across the same flip —
+    // the control that says the gate is keyed on identity, not on being an
+    // object command.
+    assert_eq!(
+        run_flipping(&[
+            (
+                "tcl9.0",
+                "oo::class create keeper {method m {} {return KEPT}}\nkeeper create k"
+            ),
+            ("tcl8.6", "k m"),
+        ]),
+        "KEPT"
     );
 }

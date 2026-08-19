@@ -294,6 +294,43 @@ pub trait Namespaces {
     /// unrelated visible command also called `b`). Backs
     /// [`origin`](../tcl_cmd_core/namespace/fn.origin.html).
     fn command_origin(&self, cmd: CommandId) -> Option<CommandId>;
+
+    // -- byte-valued spellings ------------------------------------------------
+    //
+    // A Tcl name is a byte string, not text: `set [binary format c 255] 1`
+    // names a variable no `&str` can hold without a lossy round trip. The
+    // `&str` methods above stay the ergonomic form for the UTF-8-keyed VM,
+    // whose own tables cannot hold anything else, while a byte-native runtime
+    // overrides these so a name reaches its table verbatim. The defaults
+    // preserve today's behaviour exactly (`from_utf8_lossy`), so an
+    // implementation that is already UTF-8-keyed need not do anything.
+
+    /// [`find_command`](Self::find_command) over a byte-valued name.
+    fn find_command_bytes(&self, cxt: NsId, name: &[u8]) -> Option<CommandId> {
+        self.find_command(cxt, &String::from_utf8_lossy(name))
+    }
+
+    /// [`find_namespace`](Self::find_namespace) over a byte-valued name.
+    fn find_namespace_bytes(&self, cxt: NsId, name: &[u8]) -> Option<NsId> {
+        self.find_namespace(cxt, &String::from_utf8_lossy(name))
+    }
+
+    /// [`namespace_var_exists`](Self::namespace_var_exists) over a
+    /// byte-valued simple name.
+    fn namespace_var_exists_bytes(&self, ns: NsId, simple: &[u8]) -> bool {
+        self.namespace_var_exists(ns, &String::from_utf8_lossy(simple))
+    }
+
+    /// [`name`](Self::name) as the bytes the namespace is actually keyed by.
+    fn name_bytes(&self, ns: NsId) -> Vec<u8> {
+        self.name(ns).into_bytes()
+    }
+
+    /// [`command_name`](Self::command_name) as the bytes the command is
+    /// actually keyed by.
+    fn command_name_bytes(&self, cmd: CommandId) -> Option<Vec<u8>> {
+        self.command_name(cmd).map(String::into_bytes)
+    }
 }
 
 /// Variable traces (read/write/unset). (Contract surface; not yet

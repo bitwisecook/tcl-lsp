@@ -303,15 +303,13 @@ fn ns_which(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
         // `-variable` through the shared `Tcl_FindNamespaceVar` core — the
         // 8.x global-fallback candidate is a release axis, so the profile
         // goes with it.
-        let name_str = String::from_utf8_lossy(&name).into_owned();
         let profile = interp.dialect_profile();
-        let fqn = tcl_cmd_core::namespace::variable_fqn(interp, &name_str, profile);
-        interp.set_result_bytes(fqn.unwrap_or_default().as_bytes());
+        let fqn = tcl_cmd_core::namespace::variable_fqn_bytes(interp, &name, profile);
+        interp.set_result_bytes(&fqn.unwrap_or_default());
     } else {
         // `-command` via the shared `Namespaces` resolution core.
-        let name_str = String::from_utf8_lossy(&name);
-        let v = tcl_cmd_core::namespace::which_command(interp, name_str.as_ref());
-        interp.set_result(v);
+        let fqn = tcl_cmd_core::namespace::which_command_bytes(interp, &name);
+        interp.set_result_bytes(&fqn.unwrap_or_default());
     }
     Code::Ok
 }
@@ -676,10 +674,10 @@ fn ns_origin(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     }
     let name = obj_bytes(argv[2]);
     // The shared `TclGetOriginalCommand` walk (`tcl_cmd_core::namespace`).
-    let origin = tcl_cmd_core::namespace::origin(interp, &String::from_utf8_lossy(&name));
+    let origin = tcl_cmd_core::namespace::origin_bytes(interp, &name);
     match origin {
         Some(fqn) => {
-            interp.set_result_bytes(fqn.as_bytes());
+            interp.set_result_bytes(&fqn);
             Code::Ok
         }
         None => {
@@ -2157,6 +2155,105 @@ mod tests {
         });
     }
 
+    /// The same byte fidelity for the *command* half of the namespace surface:
+    /// `namespace origin`, `namespace which -command`, and the TclOO
+    /// object-name resolution behind them. These reach their tables through
+    /// the shared core's byte-valued entry points, so an invalid-UTF-8 name is
+    /// never routed through `str`. tclsh 9.0.4-pinned (`binary encode hex` of
+    /// each answer).
+    #[test]
+    fn origin_and_which_command_preserve_byte_valued_names() {
+        leak_free(|i| {
+            // An imported command whose simple name is the single byte 0xFF.
+            assert_eq!(
+                i.eval_str(
+                    b"set n [binary format H* ff]\n\
+                      namespace eval src [list namespace export $n]\n\
+                      namespace eval src [list proc $n {} {return P}]\n\
+                      namespace eval dst [list namespace import ::src::$n]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(
+                i.eval_str(b"binary encode hex [namespace origin ::dst::$n]"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"3a3a7372633a3aff");
+            assert_eq!(i.eval_str(b"::dst::$n"), Code::Ok);
+            assert_eq!(i.result_bytes(), b"P");
+            // Two distinct byte names must stay distinct through `origin` —
+            // a lossy map would collapse both onto U+FFFD and collide them.
+            assert_eq!(
+                i.eval_str(
+                    b"set a [binary format H* ff]; set b [binary format H* fe]\n\
+                      namespace eval s2 [list namespace export $a $b]\n\
+                      namespace eval s2 [list proc $a {} {return A}]\n\
+                      namespace eval s2 [list proc $b {} {return B}]\n\
+                      list [binary encode hex [namespace origin ::s2::$a]] \
+                           [binary encode hex [namespace origin ::s2::$b]]"
+                ),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"3a3a73323a3aff 3a3a73323a3afe");
+            // `namespace which -command` over the same name.
+            assert_eq!(
+                i.eval_str(b"binary encode hex [namespace which -command ::s2::$a]"),
+                Code::Ok
+            );
+            assert_eq!(i.result_bytes(), b"3a3a73323a3aff");
+            i.eval_str(b"unset -nocomplain n a b");
+        });
+    }
+
+    /// The byte-valued `Namespaces` spellings resolve a name the `&str` ones
+    /// cannot express at all.
+    ///
+    /// Everything reachable from a *script* arrives here as valid UTF-8 — a
+    /// byte array's string rep is one U+00XX per byte (`bytearray.rs`), so the
+    /// old `from_utf8_lossy` hop was a no-op on every scripted path, which is
+    /// why the surface test above passes either way. The hole it leaves is the
+    /// one `binary_bytes` already documents: an embedder may hand the C ABI a
+    /// plain string that is not UTF-8. This exercises that seam directly, so it
+    /// fails if the byte-valued entry points are ever routed back through
+    /// `str`.
+    #[test]
+    fn byte_valued_command_names_resolve_without_a_utf8_round_trip() {
+        use tcl_runtime_api::Namespaces;
+
+        leak_free(|i| {
+            // A command name that is not valid UTF-8 in any encoding.
+            let raw: &[u8] = b"::raw\xff\xfename";
+            i.ns_register(
+                raw,
+                crate::interp::Command::Builtin(|interp, _| {
+                    interp.set_result_bytes(b"RAW");
+                    Code::Ok
+                }),
+            );
+            let global = tcl_runtime_api::NsId(crate::namespace::GLOBAL as u32);
+            let id = i
+                .find_command_bytes(global, raw)
+                .expect("a byte-valued name resolves through the byte-valued spelling");
+            assert_eq!(i.command_name_bytes(id).as_deref(), Some(raw));
+            // The shared cores reach the same answer.
+            assert_eq!(
+                tcl_cmd_core::namespace::origin_bytes(i, raw).as_deref(),
+                Some(raw)
+            );
+            assert_eq!(
+                tcl_cmd_core::namespace::which_command_bytes(i, raw).as_deref(),
+                Some(raw)
+            );
+            // The lossy `&str` spelling genuinely cannot: the replacement
+            // characters name a different (absent) command. This is the
+            // divergence the byte-valued entry points exist to remove.
+            assert_eq!(
+                tcl_cmd_core::namespace::origin(i, &String::from_utf8_lossy(raw)),
+                None
+            );
+        });
+    }
+
     /// `-map` is a dict: insertion order round-trips through the read-back and
     /// a repeated key keeps its first position while taking the last value
     /// (tclsh 9.0.4-pinned).
@@ -2174,7 +2271,10 @@ mod tests {
                 Code::Ok
             );
             // Insertion order, not sorted (`aa` would sort first).
-            assert_eq!(i.eval_str(b"namespace ensemble configure ::E -map"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace ensemble configure ::E -map"),
+                Code::Ok
+            );
             assert_eq!(i.result_bytes(), b"zz ::M::zeta aa ::M::alpha");
             // A repeated key: last value wins, first position kept.
             assert_eq!(
@@ -2184,7 +2284,10 @@ mod tests {
                 ),
                 Code::Ok
             );
-            assert_eq!(i.eval_str(b"namespace ensemble configure ::E -map"), Code::Ok);
+            assert_eq!(
+                i.eval_str(b"namespace ensemble configure ::E -map"),
+                Code::Ok
+            );
             assert_eq!(i.result_bytes(), b"zz ::M::mid aa ::M::alpha");
             // Dispatch follows the collapsed entry, not the stale first one.
             assert_eq!(i.eval_str(b"::E zz"), Code::Ok);
