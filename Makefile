@@ -702,6 +702,8 @@ check-source-data: ## Verify embedded SslicTcl data, provenance, hashes, and gen
 xtask-c-api-ownership: check-c-api-ownership ## Verify runtime/rust/src/capi.rs exports each have a row in c-api-ownership-contract.md (drift gate, issue #1404)
 
 check-c-api-ownership: ## Verify the C-API ownership/error contract: capi.rs exports <-> docs/design/runtime/c-api-ownership-contract.md rows (offline; pass TCL_SOURCE=path for the fuller header cross-check)
+	@echo "==> Running the C-API ownership checker's own regression tests"
+	python3 $(ROOT)scripts/check_c_api_ownership.py --self-test
 	@echo "==> Checking C-API ownership contract coverage (offline)"
 	python3 $(ROOT)scripts/check_c_api_ownership.py $(if $(TCL_SOURCE),--tcl-source $(TCL_SOURCE))
 

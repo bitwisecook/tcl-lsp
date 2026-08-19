@@ -41,10 +41,13 @@ stub-table data symbols.
 
 Usage:
     python3 scripts/check_c_api_ownership.py [--tcl-source PATH] [-v]
+    python3 scripts/check_c_api_ownership.py --self-test
 
 Exit status 0 if every real C-API export has an ownership row (and, when a
 Tcl source tree was found, every header-declared function has a row and
-every row names a real header function); 1 otherwise.
+every row names a real header function); 1 otherwise. `--self-test` runs
+this script's own regression tests against synthetic fixtures instead
+(no real tree touched) — run it after touching the parsing logic.
 """
 
 from __future__ import annotations
@@ -52,6 +55,7 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+import tempfile
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -80,21 +84,45 @@ KNOWN_INTERNAL_EXPORTS = frozenset(
 )
 
 
+_FN_LINE_RE = re.compile(
+    r'^\s*pub\s+(?:unsafe\s+)?extern\s+"C"\s+fn\s+([A-Za-z_][A-Za-z0-9_]*)'
+)
+_ATTR_LINE_RE = re.compile(r"^\s*#!?\[")
+
+
 def find_capi_exports(capi_rs: Path) -> list[str]:
     """Every `#[no_mangle] extern "C" fn NAME` in `capi.rs`, in file order.
 
     Matches both `pub extern "C" fn` and `pub unsafe extern "C" fn` — the
     `unsafe` marker is orthogonal to whether the function is a real ABI
     export.
+
+    `#[no_mangle]` need not be the *immediately* preceding line: an
+    intervening single-line attribute (`#[allow(clippy::missing_safety_doc)]`
+    — an ordinary, clippy-encouraged pattern this file's own style uses) or a
+    blank line is skipped over. A regex requiring strict line-adjacency
+    between `#[no_mangle]` and the `fn` — this function's first
+    implementation — silently missed exactly this shape: a real export with
+    a real ownership gap, invisible to the gate that exists to catch it. Only
+    attribute/blank lines are skipped; anything else (a doc comment, a stray
+    brace, actual code) stops the search, so `#[no_mangle]` decorating
+    something several statements away is never swept in.
     """
-    text = capi_rs.read_text(encoding="utf-8")
-    # `#[no_mangle]` immediately precedes the fn item; allow a line of
-    # whitespace but nothing else between them so an unrelated fn below an
-    # unrelated attribute two lines up is never swept in.
-    pattern = re.compile(
-        r"#\[no_mangle\]\s*\n\s*pub\s+(?:unsafe\s+)?extern\s+\"C\"\s+fn\s+([A-Za-z_][A-Za-z0-9_]*)"
-    )
-    return pattern.findall(text)
+    lines = capi_rs.read_text(encoding="utf-8").splitlines()
+    exports: list[str] = []
+    for i, line in enumerate(lines):
+        if line.strip() != "#[no_mangle]":
+            continue
+        j = i + 1
+        while j < len(lines) and (
+            not lines[j].strip() or _ATTR_LINE_RE.match(lines[j])
+        ):
+            j += 1
+        if j < len(lines):
+            m = _FN_LINE_RE.match(lines[j])
+            if m:
+                exports.append(m.group(1))
+    return exports
 
 
 def find_doc_rows(contract_doc: Path) -> list[str]:
@@ -182,6 +210,148 @@ def find_tcl_source(explicit: Path | None) -> Path | None:
     return None
 
 
+# --------------------------------------------------------------------------
+# Self-tests. This script has no pytest/unittest harness of its own (it is a
+# standalone dev tool, matching the other scripts/ tools' style), so its
+# regression coverage lives here as plain assert-based checks against
+# synthetic fixtures, run with `--self-test` rather than against the real
+# tree. Run these after touching find_capi_exports/find_doc_rows.
+
+
+def _write(dir_path: Path, name: str, content: str) -> Path:
+    p = dir_path / name
+    p.write_text(content, encoding="utf-8")
+    return p
+
+
+def _self_test_finds_a_plain_export(tmp_dir: Path) -> None:
+    p = _write(
+        tmp_dir,
+        "plain.rs",
+        '#[no_mangle]\npub extern "C" fn Tcl_NewObj() -> *mut TclObj {\n    todo!()\n}\n',
+    )
+    assert find_capi_exports(p) == ["Tcl_NewObj"], find_capi_exports(p)
+
+
+def _self_test_finds_an_unsafe_export(tmp_dir: Path) -> None:
+    p = _write(
+        tmp_dir,
+        "unsafe_export.rs",
+        '#[no_mangle]\npub unsafe extern "C" fn Tcl_GetString(o: *mut TclObj) -> *mut c_char {\n'
+        "    todo!()\n}\n",
+    )
+    assert find_capi_exports(p) == ["Tcl_GetString"], find_capi_exports(p)
+
+
+def _self_test_finds_an_export_behind_an_intervening_attribute(tmp_dir: Path) -> None:
+    """Regression test for the exact gap an adversarial review found: an
+    `#[allow(...)]` between `#[no_mangle]` and the fn item — an ordinary,
+    clippy-encouraged pattern this file's own style uses — must not hide
+    the export from the ownership-contract gate."""
+    p = _write(
+        tmp_dir,
+        "sneaky.rs",
+        "#[no_mangle]\n"
+        "#[allow(clippy::missing_safety_doc)]\n"
+        'pub unsafe extern "C" fn Tcl_SneakyExportBehindAnotherAttribute() {\n'
+        "    todo!()\n}\n",
+    )
+    assert find_capi_exports(p) == ["Tcl_SneakyExportBehindAnotherAttribute"], (
+        find_capi_exports(p)
+    )
+
+
+def _self_test_finds_an_export_behind_several_intervening_attributes(
+    tmp_dir: Path,
+) -> None:
+    p = _write(
+        tmp_dir,
+        "sneakier.rs",
+        "#[no_mangle]\n"
+        "#[allow(clippy::missing_safety_doc)]\n"
+        "#[allow(non_snake_case)]\n"
+        "\n"
+        'pub unsafe extern "C" fn Tcl_StillFound() {\n'
+        "    todo!()\n}\n",
+    )
+    assert find_capi_exports(p) == ["Tcl_StillFound"], find_capi_exports(p)
+
+
+def _self_test_does_not_attach_no_mangle_across_real_code(tmp_dir: Path) -> None:
+    """`#[no_mangle]` decorating a `static`, with an unrelated fn later in
+    the file, must not have that later fn misattributed to it."""
+    p = _write(
+        tmp_dir,
+        "static_then_fn.rs",
+        "#[no_mangle]\n"
+        "pub static SOME_TABLE: [u8; 4] = [0, 0, 0, 0];\n"
+        "\n"
+        'pub extern "C" fn Tcl_NotDecorated() {\n'
+        "    todo!()\n}\n",
+    )
+    assert find_capi_exports(p) == [], find_capi_exports(p)
+
+
+def _self_test_doc_rows_handle_a_combined_heading_cell(tmp_dir: Path) -> None:
+    p = _write(
+        tmp_dir,
+        "contract.md",
+        "## Subsystems\n\n"
+        "### Threading\n\n"
+        "| Function | Obj args | Return | Errors | Notes |\n"
+        "|---|---|---|---|---|\n"
+        "| `Tcl_MutexLock` / `Tcl_MutexUnlock` | n/a | `void` | `no-error` | |\n",
+    )
+    assert find_doc_rows(p) == ["Tcl_MutexLock", "Tcl_MutexUnlock"], find_doc_rows(p)
+
+
+def _self_test_doc_rows_ignore_tables_before_subsystems(tmp_dir: Path) -> None:
+    p = _write(
+        tmp_dir,
+        "contract2.md",
+        "## Categories\n\n"
+        "| Category | Meaning |\n"
+        "|---|---|\n"
+        "| `borrowed` | Caller keeps its reference. |\n\n"
+        "## Subsystems\n\n"
+        "| Function | Obj args | Return | Errors | Notes |\n"
+        "|---|---|---|---|---|\n"
+        "| `Tcl_NewObj` | n/a | `fresh_zero` | `no-error` | |\n",
+    )
+    assert find_doc_rows(p) == ["Tcl_NewObj"], find_doc_rows(p)
+
+
+_SELF_TESTS = (
+    _self_test_finds_a_plain_export,
+    _self_test_finds_an_unsafe_export,
+    _self_test_finds_an_export_behind_an_intervening_attribute,
+    _self_test_finds_an_export_behind_several_intervening_attributes,
+    _self_test_does_not_attach_no_mangle_across_real_code,
+    _self_test_doc_rows_handle_a_combined_heading_cell,
+    _self_test_doc_rows_ignore_tables_before_subsystems,
+)
+
+
+def run_self_tests() -> int:
+    failed = 0
+    with tempfile.TemporaryDirectory(prefix="check-c-api-ownership-selftest-") as td:
+        tmp_dir = Path(td)
+        for test in _SELF_TESTS:
+            try:
+                test(tmp_dir)
+            except AssertionError as exc:
+                failed += 1
+                print(f"FAIL: {test.__name__}: {exc}", file=sys.stderr)
+            else:
+                print(f"ok: {test.__name__}")
+    total = len(_SELF_TESTS)
+    if failed:
+        print(f"\nself-test: {failed}/{total} FAILED", file=sys.stderr)
+        return 1
+    print(f"\nself-test: {total}/{total} passed")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -196,7 +366,16 @@ def main() -> int:
     ap.add_argument(
         "-v", "--verbose", action="store_true", help="list excluded/matched names too"
     )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="run this script's own regression tests against synthetic fixtures "
+        "(does not touch the real tree) and exit",
+    )
     args = ap.parse_args()
+
+    if args.self_test:
+        return run_self_tests()
 
     if not CAPI_RS.is_file():
         print(f"error: {CAPI_RS} not found", file=sys.stderr)
