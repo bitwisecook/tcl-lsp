@@ -363,17 +363,104 @@ fn clause_text_keeps_a_trailing_brace_in_a_for_step() {
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
-/// Control: a condition whose last inner character is `]`, not `}`, was never
-/// affected — it must stay byte-identical, proving the fix did not start
-/// mangling the unaffected majority.
+/// A *braced* condition whose last inner character is `]` was never affected
+/// by the `strip_suffix('}')` bug — it must stay byte-identical, proving the
+/// fix did not start mangling the unaffected majority.
 #[test]
-fn clause_text_leaves_a_bracket_terminated_condition_alone() {
+fn clause_text_leaves_a_bracket_terminated_braced_condition_alone() {
     let mut module = compile_wasm("while {[string match {a} $x]} {puts hi}\n");
     let wat = module.to_wat();
 
     assert!(
         wat.contains(r#""[string match {a} $x]""#),
         "an unaffected condition must round-trip byte-for-byte:\n{wat}"
+    );
+    assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+}
+
+/// A condition **word** opened by `[` or `${` is a different shape from a
+/// braced condition that merely *contains* one, and it was broken in both
+/// directions: for these classes the delimiters belong to the **value**
+/// (`${x}` and `[foo]` *are* the expression text), so nothing may be trimmed
+/// from either end. Trimming the closer emitted `${x` / `[foo`, which the
+/// runtime rejects as unterminated.
+#[test]
+fn clause_text_keeps_the_delimiters_of_a_substitution_condition_word() {
+    for (source, want) in [
+        ("while ${x} {puts hi}\n", "${x}"),
+        ("if ${x} {puts hi}\n", "${x}"),
+        ("while [foo] {puts hi}\n", "[foo]"),
+        ("if [foo] {puts hi}\n", "[foo]"),
+        // A `}` inside the braced name must not end the word early.
+        ("if ${a{b}c} {puts hi}\n", "${a{b}c}"),
+        ("for {set i 0} ${x} {incr i} {puts a}\n", "${x}"),
+        ("for {set i 0} [foo] {incr i} {puts a}\n", "[foo]"),
+    ] {
+        let mut module = compile_wasm(source);
+        let wat = module.to_wat();
+        assert!(
+            wat.contains(&format!("\"{want}\"")),
+            "{source:?} must intern its condition word whole as {want:?}:\n{wat}"
+        );
+        assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+    }
+}
+
+/// A **quoted** `if` condition is the shape that disproved the "the span
+/// always excludes the closer" assumption: the lexer's span *includes* the
+/// closing `"` exactly when the word ends in a substitution. Assuming
+/// otherwise emitted a stray trailing quote — `if "$a == $b"` became
+/// `$a == $b"`, which `tcl_expr_bool` rejects with `missing operator` on
+/// correct user code.
+///
+/// `while` / `for` never reach this path (they gate on `arg_single` and
+/// barrier a quoted condition to a whole-command eval); `if` has no such
+/// gate, so it is the only affected caller — and the suite had no quoted-`if`
+/// coverage whatsoever.
+#[test]
+fn clause_text_keeps_a_quoted_if_condition_exact() {
+    for (source, want) in [
+        // Ends in a substitution -> the span INCLUDES the closing quote.
+        (r#"if "$a == $b" {puts x}"#, "$a == $b"),
+        (r#"if "$x" {puts x}"#, "$x"),
+        (r#"if "${x}" {puts x}"#, "${x}"),
+        (r#"if "[foo]" {puts x}"#, "[foo]"),
+        (r#"if "$a(b)" {puts x}"#, "$a(b)"),
+        (r#"if "a$x" {puts x}"#, "a$x"),
+        (r#"if "$x$y" {puts x}"#, "$x$y"),
+        // Ends in literal text -> the span EXCLUDES it. Both must work.
+        (r#"if "$x eq lit" {puts x}"#, "$x eq lit"),
+        // `elseif` takes the same path.
+        (r#"if "$x" {puts a} elseif "$y" {puts b}"#, "$y"),
+    ] {
+        let mut module = compile_wasm(&format!("{source}\n"));
+        let wat = module.to_wat();
+        assert!(
+            wat.contains(&format!("\"{want}\"")),
+            "{source:?} must intern its condition as {want:?}:\n{wat}"
+        );
+        assert!(
+            !wat.contains(&format!("\"{want}\\\"\"")),
+            "{source:?} must not emit a stray trailing quote:\n{wat}"
+        );
+        assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+    }
+}
+
+/// The same quoted-`if` path inside a proc body, which the backend emits as
+/// its own function — a distinct lowering route from the top level.
+#[test]
+fn clause_text_keeps_a_quoted_if_condition_in_a_proc_body() {
+    let mut module = compile_wasm("proc p {} { if \"$x\" {puts a} }\np\n");
+    let wat = module.to_wat();
+
+    assert!(
+        wat.contains(r#""$x""#),
+        "the proc-body condition must be interned exactly:\n{wat}"
+    );
+    assert!(
+        !wat.contains(r#""$x\"""#),
+        "no stray trailing quote in the proc-body condition:\n{wat}"
     );
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }

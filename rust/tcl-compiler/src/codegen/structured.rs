@@ -318,59 +318,90 @@ fn slice(source: &str, span: Span) -> &str {
 }
 
 /// The expression / clause source text a condition or `for`-*next* word
-/// spans, driven by the anchors the CST already produced.
+/// spans.
 ///
-/// Issue #1376: a clause word's token span starts at the **opening**
-/// delimiter and ends *exclusively at the closing* one, so `source[span]` is
-/// `"{1"` for `{1}`. The content is therefore `source[content_start..span.end()]`
-/// with nothing to strip off the tail — an earlier `strip_suffix('}')` here
-/// could only ever delete a byte of real content, truncating every clause
-/// whose last inner character is `}` (`${name}`, a trailing braced word, a
-/// nested dict/list literal) or `"`.
+/// # There is no universal span convention — classify by delimiter
 ///
-/// `base` is the lowerer's [`crate::ir::IfClause::condition_base`] — the
-/// absolute offset of the content's first byte, computed once by
-/// [`crate::lowering_hooks::word_content_base`], which is the one place the
-/// opening-delimiter width is recovered without guessing. When it is absent
-/// (a reconstructed / multi-token word, an empty `{}`, or a synthetically
-/// built statement) the opener width is recovered from the opener byte the
-/// span points at — directly observable, not inferred, since a Tcl word that
-/// begins with `{` or `"` is a braced / quoted word and no other word may.
+/// Issue #1376's first fix assumed one: "the token span starts at the opener
+/// and always excludes the closer". That is false, and the counter-examples
+/// are ordinary code. The lexer's span geometry differs **per word class**,
+/// verified against the segmenter:
 ///
-/// The *end* is never guessed at all: it comes from
-/// [`tcl_lexer::word_closer_offset_at`], the shared owner of the inner-end
-/// convention. That matters because the convention has one exception — an
-/// empty `{}` / `""` span already covers its closer — which a plain
-/// `span.end()` would render as the literal text `"}"` (issue #1423 is the
-/// same trap in `branch_folding`). A bare or unterminated word has no closer,
-/// and the span's exclusive end is already the content end.
+/// | source | kind | span covers | the value |
+/// |---|---|---|---|
+/// | `if {$x eq {a}}` | `Str` | `{$x eq {a}` — closer excluded | `$x eq {a}` |
+/// | `while {}` | `Str` | `{}` — closer **included** (empty word) | `` |
+/// | `if "$x eq lit"` | `Esc` | `"$x eq lit` — closer excluded | `$x eq lit` |
+/// | `if "$x"` | `Esc` | `"$x"` — closer **included** | `$x` |
+/// | `while ${x}` | `Var` | `${x` — closer excluded | `${x}` |
+/// | `if [foo]` | `Cmd` | `[foo` — closer excluded | `[foo]` |
+/// | `while $x` | `Var` | `$x` — no delimiters | `$x` |
+///
+/// A quoted word's span includes its closing `"` exactly when the word *ends
+/// in a substitution* (`"$x"`, `"[foo]"`, `"$a(b)"`) and excludes it when it
+/// ends in literal text. Assuming the closer was always excluded emitted a
+/// stray trailing `"` — `if "$a == $b"` became `$a == $b"`, which
+/// `tcl_expr_bool` rejects with `missing operator` on correct user code. Only
+/// `if` was affected: `lower_while` / `lower_for` gate on `arg_single` and
+/// barrier a quoted condition to a whole-command eval, but `lower_if` has no
+/// equivalent gate.
+///
+/// So: classify by the **opener byte** — a Tcl word's first byte determines
+/// its class unambiguously — and take each class's bounds from the lexer owner
+/// that knows that class, never from a shared assumption.
+///
+/// For a `${…}` / `[…]` word the delimiters belong to the **value**: `${x}`
+/// and `[foo]` *are* the expression text, so the whole word is taken and
+/// nothing is trimmed. Trimming them (`${x` / `[foo`) is what the first fix
+/// did, because its start half skipped only `{` / `"` while its end half
+/// resolved those closers too — the two halves disagreed.
+///
+/// `base` is the lowerer's [`crate::ir::IfClause::condition_base`], from
+/// [`crate::lowering_hooks::word_content_base`]. It is consulted only for the
+/// classes whose value *excludes* the opener (braced and bare), and only when
+/// it lands inside the word — for every other class it is `None` by
+/// construction anyway, since the segmenter reconstructs those words' text.
 fn clause_text(source: &str, span: Span, base: Option<u32>) -> &str {
-    let start = span.start();
-    // For a delimited word this is the closer's offset, i.e. the exclusive
-    // end of the content — which is *not* `span.end()` for an empty `{}`.
-    let end = tcl_lexer::word_closer_offset_at(source, span).unwrap_or_else(|| span.end());
-    let content_start = match base {
-        // Trust the lowerer's anchor only when it lands inside this word; a
-        // rebased or mismatched base degrades to the span-derived form rather
-        // than slicing somewhere unrelated.
-        Some(b) if b >= start && b <= end => b,
-        _ => {
-            let opener = source
-                .as_bytes()
-                .get(start as usize)
-                .copied()
-                .unwrap_or(b'\0');
-            if matches!(opener, b'{' | b'"') {
-                start.saturating_add(1).min(end)
-            } else {
-                start
-            }
+    let (start, span_end) = (span.start() as usize, span.end() as usize);
+    let opener = source.as_bytes().get(start).copied().unwrap_or(b'\0');
+
+    let (content_start, content_end) = match opener {
+        // Substitution word: the delimiters are part of the value, so take the
+        // whole word. `word_span_at` widens the span over the closer the lexer
+        // left out (and returns it unchanged for a bare `$x`, which has none).
+        b'$' | b'[' => (start, tcl_lexer::word_span_at(source, span).end() as usize),
+        // Quoted word: locate the closing `"` with the lexer's own escape- and
+        // command-substitution-aware scan rather than inferring it from the
+        // span, precisely because the span may or may not include it.
+        b'"' => (
+            start + 1,
+            tcl_lexer::close_quote_offset(source, start).unwrap_or(span_end),
+        ),
+        // Braced word: the span excludes the closer except for an empty `{}`,
+        // which is the one case `word_closer_offset_at` exists to get right
+        // (the same trap #1423 found in `branch_folding`).
+        b'{' => {
+            let end = tcl_lexer::word_closer_offset_at(source, span)
+                .map_or(span_end, |closer| closer as usize);
+            (base_or(base, start + 1, start, end), end)
         }
+        // Bare word: no delimiters, the span is the value.
+        _ => (base_or(base, start, start, span_end), span_end),
     };
     source
-        .get(content_start as usize..end as usize)
+        .get(content_start.min(content_end)..content_end)
         .unwrap_or_default()
         .trim()
+}
+
+/// The lowerer's own content anchor when it lands inside `[lo, hi]`, else
+/// `fallback`. A rebased or mismatched base degrades to the class-derived
+/// offset rather than slicing somewhere unrelated.
+fn base_or(base: Option<u32>, fallback: usize, lo: usize, hi: usize) -> usize {
+    match base.map(|b| b as usize) {
+        Some(b) if b >= lo && b <= hi => b,
+        _ => fallback,
+    }
 }
 
 /// `Some(text)` unless `text` is empty — an empty condition / step clause maps
@@ -430,40 +461,59 @@ mod tests {
         }
     }
 
-    /// Issue #1376 — [`clause_text`] unit contract. The token span starts at
-    /// the opener and ends *exclusively at* the closer, so nothing may ever be
-    /// stripped off the tail. Each vector below is a byte range constructed
-    /// the way the lexer builds one, so a reintroduced `strip_suffix` fails
-    /// here even if no lowering path currently produces the shape.
+    /// Issue #1376 — [`clause_text`] unit contract, one vector per **word
+    /// class**. Every span below is the lexer's real span for that source,
+    /// taken from the segmenter, not from an assumed convention: the first fix
+    /// for #1376 assumed a universal "the span excludes the closer" rule, and
+    /// the quoted rows here are exactly the shapes that disprove it.
     #[test]
-    fn clause_text_never_strips_a_closer_the_span_already_excludes() {
+    fn clause_text_derives_content_bounds_from_the_word_class() {
         // (source, span, base, expected)
         let cases: &[(&str, u32, u32, Option<u32>, &str)] = &[
-            // Braced, trailing `}` is real content — the #1376 repro.
+            // -- braced word: span excludes the closer --
             ("while {${x}} {b}", 6, 11, None, "${x}"),
             // …and with the lowerer's own anchor supplied.
             ("while {${x}} {b}", 6, 11, Some(7), "${x}"),
-            // Braced, nested braced word at the tail.
             ("if {$x eq {a}} {b}", 3, 13, None, "$x eq {a}"),
-            // Quoted: the opener is `"`, the closer is likewise excluded, and
-            // a trailing `\"` in the content must survive.
-            (r#"while "$x eq \"a\"" {b}"#, 6, 18, None, r#"$x eq \"a\""#),
-            // Bare word: no delimiter at all, content is the whole span.
-            ("while $c {b}", 6, 8, None, "$c"),
-            // Empty braced clause — the one exception to the inner-end span
-            // convention: the span already covers its closer, so a naive
-            // `span.end()` would yield the literal text `}`.
-            ("while {} {b}", 6, 8, None, ""),
-            // …likewise an empty quoted clause.
-            (r#"while "" {b}"#, 6, 8, None, ""),
             // A *nested* empty pair at the tail is not the empty-word case —
             // the outer word's own closer still sits one byte past the span
             // (issue #1423's shape).
             ("while {$x eq {}} {b}", 6, 15, None, "$x eq {}"),
             // Surrounding whitespace inside the braces is trimmed, as before.
             ("while { $x } {b}", 6, 11, None, "$x"),
-            // An out-of-range base is ignored in favour of the span-derived
-            // opener rather than slicing somewhere unrelated.
+            // -- braced word, EMPTY: span *includes* the closer --
+            ("while {} {b}", 6, 8, None, ""),
+            // -- quoted word ending in literal text: span EXCLUDES the closer --
+            (r#"if "$x eq lit" {b}"#, 3, 13, None, "$x eq lit"),
+            // -- quoted word ending in a SUBSTITUTION: span INCLUDES the
+            // closer. This is the shape the universal-convention assumption
+            // got wrong: `if "$x"` emitted `$x"` and `tcl_expr_bool` then
+            // failed with `missing operator` on correct source.
+            (r#"if "$x" {b}"#, 3, 7, None, "$x"),
+            (r#"if "[foo]" {b}"#, 3, 10, None, "[foo]"),
+            // An escaped quote inside the word is content, not the closer —
+            // the scan is escape-aware, so neither end is misplaced.
+            (r#"if "$x eq \"a\"" {b}"#, 3, 15, None, r#"$x eq \"a\""#),
+            // The quoted arm locates the closer itself and does **not** read
+            // the span's end, which is the whole reason it survives a span
+            // that includes the closer and one that does not. Same source,
+            // both span ends, same answer — a regression to span-derived
+            // trimming breaks one of these two rows.
+            (r#"if "$x" {b}"#, 3, 7, None, "$x"), // end past the closer
+            (r#"if "$x" {b}"#, 3, 6, None, "$x"), // end before the closer
+            // -- substitution word: the delimiters ARE part of the value --
+            ("while ${x} {b}", 6, 9, None, "${x}"),
+            ("if [foo] {b}", 3, 7, None, "[foo]"),
+            // A `}` inside the name does not end the word early under 9.x.
+            ("if ${a{b}c} {b}", 3, 10, None, "${a{b}c}"),
+            // -- bare word: no delimiters, the span is the value --
+            ("while $c {b}", 6, 8, None, "$c"),
+            ("while 1 {b}", 6, 7, None, "1"),
+            // A bare word that merely *starts* with `$` is still whole.
+            ("while $x+1 {b}", 6, 10, None, "$x+1"),
+            // -- base handling --
+            // An out-of-range base is ignored in favour of the class-derived
+            // start rather than slicing somewhere unrelated.
             ("while {${x}} {b}", 6, 11, Some(99), "${x}"),
         ];
         for &(source, start, end, base, expected) in cases {
