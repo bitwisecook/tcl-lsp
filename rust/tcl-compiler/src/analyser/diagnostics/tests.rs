@@ -1498,9 +1498,22 @@ fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
     // Tcl's unique-prefix rule reaches the operation word too — `conf`
     // resolves to `configure` (tclsh-confirmed) and so must select its table.
     assert_eq!(names("conf"), names("configure"));
-    // `exists` declares none and falls back to the subcommand's union, which
-    // is deliberately wider than either.
-    let union = names("exists");
+    // `exists` takes no options *at all* and declares that explicitly, so it
+    // does not inherit the union. `ENS_EXISTS` (`tclEnsemble.c`) takes
+    // `cmdname` and never reaches an option table; pinned on tclsh 8.6.16 and
+    // 9.0.4, byte identical, `namespace ensemble exists -namespace` answers
+    // `0` — reading the flag as the command name, not rejecting it as an
+    // option. This assertion previously pinned the opposite, which is the
+    // defect Codex found on #1647.
+    assert!(
+        names("exists").is_empty(),
+        "`exists` must not inherit the parent union: {:?}",
+        names("exists")
+    );
+    // The union still applies where it is the right answer: a dispatch word no
+    // consumer can resolve abstains to the subcommand's own, wider table
+    // rather than guessing which operation was meant.
+    let union = names("$op");
     assert!(union.contains(&"-command") && union.contains(&"-namespace"));
 }
 
