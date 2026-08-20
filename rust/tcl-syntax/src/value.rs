@@ -180,9 +180,14 @@ where
 {
     // Key → its slot's position in `slots`, so a duplicate is O(1) to find: a
     // linear re-scan per element made this O(N²) on every dict operation (D3).
-    let mut first_seen: std::collections::HashMap<&'a K, usize> = std::collections::HashMap::new();
-    let mut slots: Vec<(usize, usize)> = Vec::new();
-    for (slot, key) in keys.into_iter().enumerate() {
+    // Both containers are sized from the iterator up front — this runs on every
+    // VM dict opcode, so the growth reallocations are worth avoiding.
+    let keys = keys.into_iter();
+    let expected = keys.size_hint().0;
+    let mut first_seen: std::collections::HashMap<&'a K, usize> =
+        std::collections::HashMap::with_capacity(expected);
+    let mut slots: Vec<(usize, usize)> = Vec::with_capacity(expected);
+    for (slot, key) in keys.enumerate() {
         if let Some(&position) = first_seen.get(key) {
             slots[position].1 = slot; // last value wins, first position kept
         } else {
