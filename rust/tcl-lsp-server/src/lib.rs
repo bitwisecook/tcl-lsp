@@ -469,6 +469,166 @@ impl Drop for DbSnapshot {
     }
 }
 
+/// The open-document map, plus a record of **who currently holds it**.
+///
+/// # Why the map needs a name attached
+///
+/// Issue #1657's wedge is a whole server answering nothing, and the chain that
+/// produces it is: some task holds this lock and does not give it back → the
+/// document-sync handler holding the [`EditOrder`] turn blocks on it → every
+/// request handler blocks on the barrier behind that turn. The phase marker on
+/// [`TurnHolder`] names the *waiter* (it reported `did_change: documents.lock`,
+/// with the phase as old as the turn). Nothing named the holder.
+///
+/// Inferring it from the surrounding log — a `diagnostics.publish.enqueued`
+/// marker with no matching completion — got the investigation one suspect, but
+/// an inference from adjacent log lines is not a name, and the next occurrence
+/// may not leave so tidy a trail. This records it directly, so the stall line
+/// states the holder instead of implying it.
+///
+/// # Cost
+///
+/// One uncontended `std::sync::Mutex` and two stores per acquisition of a lock
+/// that is already a serialisation point — the tag is written by whoever just
+/// won the tokio mutex, so nothing else can be contending for the tag. Cleared
+/// on guard drop.
+struct DocumentStore {
+    docs: Mutex<HashMap<Uri, DocumentState>>,
+    /// `None` whenever the map is free.
+    holder: std::sync::Mutex<Option<DocumentsHolder>>,
+}
+
+/// Who holds [`DocumentStore::docs`], and since when.
+#[derive(Debug, Clone, Copy)]
+struct DocumentsHolder {
+    /// The call site that took it, as passed to [`DocumentStore::lock`].
+    site: &'static str,
+    /// `crate::rt::Instant`, never `std::time::Instant`: the latter compiles on
+    /// `wasm32-unknown-unknown` and panics the moment it is called.
+    since: crate::rt::Instant,
+}
+
+impl Default for DocumentStore {
+    fn default() -> Self {
+        Self {
+            docs: Mutex::new(HashMap::new()),
+            holder: std::sync::Mutex::new(None),
+        }
+    }
+}
+
+impl DocumentStore {
+    /// Take the open-document map, recording `site` as the holder for as long
+    /// as the returned guard lives.
+    ///
+    /// `site` is a `&'static str` naming the caller — it ends up in a stall
+    /// line a human reads, so name the function, not the file and line.
+    async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
+        let docs = self.docs.lock().await;
+        *self
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(DocumentsHolder {
+            site,
+            since: crate::rt::Instant::now(),
+        });
+        DocumentsGuard { docs, store: self }
+    }
+
+    /// Rename whoever currently holds the map, without needing their guard.
+    ///
+    /// [`DocumentsGuard::retag`] is the same operation for a caller that has the
+    /// guard in hand. This one exists for code that runs *under* a caller's
+    /// guard without being given it — `DeliveryCtx::cache_and_deliver`, which
+    /// both of its callers invoke while holding the map, and which has its own
+    /// awaits worth telling apart (issue #1657).
+    ///
+    /// **Precondition:** the calling task must be the holder. There is no way to
+    /// check that, so a call from a task that does not hold the map would
+    /// silently relabel someone else's hold. Every caller must be reachable only
+    /// from under the guard.
+    fn retag_held(&self, site: &'static str) {
+        if let Some(holder) = self
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.site = site;
+        }
+    }
+
+    /// The current holder and how long it has held, for the stall line.
+    ///
+    /// Takes no `await` and never blocks on the map itself, so it is safe to
+    /// call from a reporter that is itself running because the map is stuck.
+    fn holder(&self) -> Option<(&'static str, std::time::Duration)> {
+        self.holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .map(|h| (h.site, h.since.elapsed()))
+    }
+}
+
+/// A held [`DocumentStore`], which clears the holder tag when dropped.
+///
+/// Derefs to the map, so every call site reads exactly as it did when the field
+/// was a bare `Mutex<HashMap<..>>`.
+struct DocumentsGuard<'a> {
+    docs: tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>,
+    store: &'a DocumentStore,
+}
+
+impl DocumentsGuard<'_> {
+    /// Rename the current holder without releasing the map.
+    ///
+    /// A long guarded region is not one place. `publish_diagnostics_result`
+    /// holds this map across six `await`s — a `workspace_index` write, a slot
+    /// walk, two small mutexes, and the delivery — and a tag naming only the
+    /// function tells you it was stuck somewhere in that span. Retagging as it
+    /// advances narrows "held by `publish_diagnostics_result` for 103.7s" to the
+    /// exact `await`, the same way [`EditTurn::at`] does for a held turn.
+    ///
+    /// [`DocumentsHolder::since`] is deliberately **not** reset, so the reported
+    /// age stays the age of the whole hold rather than of the current step; the
+    /// site says where it stopped, the age says how long the map has been gone.
+    fn retag(&self, site: &'static str) {
+        if let Some(holder) = self
+            .store
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.site = site;
+        }
+    }
+}
+
+impl std::ops::Deref for DocumentsGuard<'_> {
+    type Target = HashMap<Uri, DocumentState>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.docs
+    }
+}
+
+impl std::ops::DerefMut for DocumentsGuard<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.docs
+    }
+}
+
+impl Drop for DocumentsGuard<'_> {
+    fn drop(&mut self) {
+        *self
+            .store
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+    }
+}
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -498,6 +658,29 @@ const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duratio
 /// debounce-skip; [`DIAGNOSTICS_FAST_TIER_MIN_LINES`] is the timing-independent
 /// half that keeps trivial files a single publish regardless of cold-start.
 const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
+
+/// How long a single client send may park while the `documents` lock is held
+/// before [`DeliveryCtx::cache_and_deliver`] gives the lock back and reschedules
+/// (issue #1657).
+///
+/// Sized against the two things it sits between. Far above any healthy drain —
+/// the outbound path is `channel(1)` into `stdio_pump`, whose `poll_write` is
+/// always `Ready`, so a send that has not completed in whole seconds is not
+/// merely busy. Far below [`EDIT_BARRIER_STALL_WARN`], so the document-sync
+/// barrier cannot reach the point of reporting a stall on account of a slow
+/// publish: the wedge is prevented rather than merely diagnosed.
+///
+/// Not comparable to [`DIAGNOSTICS_FAST_TIER_BUDGET`], which is a *drop*
+/// deadline for a best-effort push the deep tier will supersede anyway. This one
+/// is a *reschedule* deadline for a publish that must not be lost, so it is
+/// generous where that one is tight.
+const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Inline send attempts for a [`DiagCurrency::ClosedFromDisk`] publish — the one
+/// delivery with no scheduler behind it. See
+/// [`DeliveryCtx::delivery_attempts`] for why closed runs cannot fall back to
+/// [`reschedule_self`], and why this stays small.
+const CLOSED_DELIVERY_ATTEMPTS: u32 = 2;
 
 /// Documents below this line count never get a fast tier — they go straight to
 /// the single deep publish.  This is the **timing-independent** floor of the
@@ -1234,7 +1417,7 @@ struct DiagInputs {
     style_line_length: u32,
     non_ascii_mode: NonAsciiMode,
     opt_disabled: HashSet<String>,
-    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    documents: Arc<DocumentStore>,
     /// Open-document diagnostic workers, used to invalidate only consumers of
     /// workspace facts changed by this publication.
     diag_slots: Arc<Mutex<HashMap<Uri, DiagSlot>>>,
@@ -1308,7 +1491,7 @@ impl DiagInputs {
     /// state.  `None` when the document is not open.
     async fn capture_job(&self, uri: &Uri) -> Option<DiagJob> {
         let (text, decode_report, dialect, language_id, revision, version) = {
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("capture_job").await;
             let doc = docs.get(uri)?;
             (
                 doc.text.clone(),
@@ -1410,7 +1593,7 @@ async fn deliver_diagnostics(
 /// the same currency-guarded channel.
 struct DeliveryCtx<'a> {
     client: &'a Client,
-    documents: &'a Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    documents: &'a Arc<DocumentStore>,
     diag_slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
     /// The closed-file generation map, consulted by the currency guard for a
@@ -1467,7 +1650,7 @@ impl DeliveryCtx<'_> {
     /// Returns whether it published — a superseded (no
     /// longer current) run returns `false` without touching the client.
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("deliver_if_current").await;
         if self.is_current(&docs).await {
             self.cache_and_deliver(diags).await;
             true
@@ -1516,7 +1699,7 @@ impl DeliveryCtx<'_> {
         if self.client_supports_pull {
             return;
         }
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("deliver_fast_tier_if_current").await;
         if self.is_current(&docs).await {
             // Best-effort/droppable (see above): cap the lock hold so a slow client
             // can't hold `documents` hostage for every other document's edits.
@@ -1534,7 +1717,77 @@ impl DeliveryCtx<'_> {
     /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
     /// `revision`, with a fresh `result_id`, then notify the client (push or
     /// refresh) — the publish half shared by every settled path.
+    ///
+    /// # The client sends here are time-bounded (issue #1657)
+    ///
+    /// Both callers — [`Self::deliver_if_current`] and
+    /// `publish_diagnostics_result` — run this **while holding the `documents`
+    /// lock**, deliberately: delivering inside the lock is what stops a
+    /// `did_close` that lands between the currency check and the send from
+    /// having its clearing publish overwritten by this run's late squiggles.
+    ///
+    /// Both sends below go through `tower-lsp-server`'s bounded
+    /// `futures::mpsc::channel(1)`, so both can park. Unbounded, that made a
+    /// *global* lock hostage to a *per-document* send: the open-document map
+    /// stops, the document-sync handler holding the [`EditOrder`] turn blocks on
+    /// it, every request handler blocks on the barrier behind that turn, and the
+    /// server answers nothing. That is issue #1657, caught on CI with the turn
+    /// holder suspended at `did_change: documents.lock` and no salsa snapshot
+    /// outstanding.
+    ///
+    /// So each send is capped at [`DELIVERY_SEND_BUDGET`] and, if the cap is
+    /// hit, this returns **without having delivered** and marks its own slot
+    /// dirty so the scheduler runs the whole publish again from scratch. The
+    /// retry re-checks currency on its own, so a superseded run simply finds
+    /// itself superseded — the same answer it would have given had it never
+    /// been delayed.
+    ///
+    /// Why reschedule rather than retry inline: `publish_diagnostics_result`
+    /// holds this same lock across a workspace-index write, and replaying that
+    /// write is neither cheap nor obviously idempotent. Handing the work back to
+    /// the scheduler re-runs a *complete, fresh* pass through machinery that is
+    /// already correct, and does it with the lock released.
+    ///
+    /// The delivery invariant in `main.rs` is preserved. Nothing is
+    /// fire-and-forget: delivery is still an inline `.await`, ordering per URI
+    /// still comes from the currency check, and nothing is dropped — a send that
+    /// times out is *retried*, not abandoned. Dropping a parked `channel(1)`
+    /// send is atomic (the item never enters the channel), which is what makes
+    /// the retry duplicate-free; `deliver_fast_tier_if_current` already relies
+    /// on exactly that property.
+    ///
+    /// The pull cache is primed *before* the sends and deliberately left primed
+    /// on timeout: a `textDocument/diagnostic` request can then serve this
+    /// revision immediately, which is the one delivery channel a parked push
+    /// does not block.
+    ///
+    /// # What this does not fix, and why it cannot be reported
+    ///
+    /// If the outbound path is *dead* rather than slow, every rescheduled pass
+    /// times out again, so the document is re-analysed once per cycle for as
+    /// long as the session lasts (throttled by [`DIAGNOSTICS_DEBOUNCE`], since
+    /// the reschedule goes through the ordinary scheduler). That is wasteful,
+    /// and it is still strictly better than the alternative: the server keeps
+    /// answering everything else instead of wedging.
+    ///
+    /// It is deliberately *not* announced with a log line. Every log the server
+    /// emits goes to the client down the very channel that is stuck, so a
+    /// "delivery is not draining" warning is precisely the message that cannot
+    /// be delivered when it would be true. The condition is visible the moment
+    /// the transport recovers — the `[timing]` markers resume — and if it never
+    /// recovers the client is gone and there is nobody left to tell.
+    ///
+    /// Losing the stall line is the real cost here. Before this change a stuck
+    /// publish announced itself loudly, by wedging the barrier until
+    /// [`Backend::report_edit_barrier_stall`] described it. Now it does not
+    /// wedge, so it does not announce. That is the right trade — a wedged server
+    /// is not an acceptable diagnostic channel — but it is a trade.
     async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+        // Phase markers within the held map — see `DocumentStore::retag_held`.
+        // Both callers run this under their `documents` guard, so a hold that
+        // stops in here reports only the caller without these (issue #1657).
+        self.documents
+            .retag_held("cache_and_deliver: pull_diag_cache");
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
             PullDiagEntry {
@@ -1550,27 +1803,118 @@ impl DeliveryCtx<'_> {
         // has committed to publishing version N" without consuming version N's
         // publish, which is what `diagnostics_delivery_smoke`'s burst phase
         // needs to hold two publishes in flight at once (review of #1100).
-        // Emitted after the currency check, so a marker is always followed by
-        // its publish.
-        self.client
-            .log_message(
-                MessageType::LOG,
-                format!(
-                    "[timing] diagnostics.publish.enqueued (uri={}, version={})",
-                    self.uri.as_str(),
-                    self.version
-                        .map_or_else(|| "none".to_owned(), |v| v.to_string()),
+        // Emitted after the currency check, so a marker is followed by its
+        // publish.
+        //
+        // "Followed by" rather than "immediately followed by", since #1657: if
+        // the publish below times out, this marker has been sent and its publish
+        // has not, and the pairing is restored only when the rescheduled pass
+        // emits a fresh marker and publish together. A consumer that waits for a
+        // publish after a marker still gets one; a consumer that counts markers
+        // 1:1 against publishes would see one extra. That can only happen when a
+        // send parks for whole seconds, which is the failure this cap exists to
+        // survive — under any client that is draining at all, the two still go
+        // out back to back.
+        let attempts = self.delivery_attempts();
+        let marker = format!(
+            "[timing] diagnostics.publish.enqueued (uri={}, version={})",
+            self.uri.as_str(),
+            self.version
+                .map_or_else(|| "none".to_owned(), |v| v.to_string()),
+        );
+        let mut marker_sent = false;
+        self.documents.retag_held("cache_and_deliver: marker send");
+        for _ in 0..attempts {
+            if crate::rt::timeout(
+                DELIVERY_SEND_BUDGET,
+                self.client.log_message(MessageType::LOG, marker.clone()),
+            )
+            .await
+            .is_ok()
+            {
+                marker_sent = true;
+                break;
+            }
+        }
+        if !marker_sent {
+            self.redeliver_later().await;
+            return;
+        }
+        let mut diags = diags;
+        self.documents.retag_held("cache_and_deliver: publish send");
+        for attempt in 0..attempts {
+            // The last attempt owns the payload; earlier ones must keep a copy
+            // to retry with. An open run has a single attempt, so it still moves
+            // the vector exactly as before.
+            let payload = if attempt + 1 == attempts {
+                std::mem::take(&mut diags)
+            } else {
+                diags.clone()
+            };
+            if crate::rt::timeout(
+                DELIVERY_SEND_BUDGET,
+                deliver_diagnostics(
+                    self.client,
+                    self.uri,
+                    payload,
+                    self.version,
+                    self.client_supports_pull,
                 ),
             )
-            .await;
-        deliver_diagnostics(
-            self.client,
-            self.uri,
-            diags,
-            self.version,
-            self.client_supports_pull,
-        )
-        .await;
+            .await
+            .is_ok()
+            {
+                return;
+            }
+        }
+        self.redeliver_later().await;
+    }
+
+    /// How many times a timed-out send may be re-attempted **inline**, before
+    /// falling back to [`Self::redeliver_later`].
+    ///
+    /// One for an open document: the scheduler owns it, so handing the publish
+    /// back is both cheaper and more complete than retrying under the lock.
+    ///
+    /// More than one for a closed-file run, because for those there is nothing
+    /// to hand back to (Codex P1 on #1670). `did_close` calls `evict_diag_slot`
+    /// *before* `publish_closed_file_diagnostics` runs, and that either removes
+    /// the slot outright or clears its `latest_inputs` — both of which make
+    /// `reschedule_self` a no-op. A closed publish is an inline, one-shot run,
+    /// not a scheduled one, so a timeout there would have silently dropped the
+    /// notification while the pull cache and the closed badge both read current:
+    /// a client that paused across the timeout during a close would never have
+    /// been told, until some unrelated event republished the URI.
+    ///
+    /// Bounded so the worst case stays under [`EDIT_BARRIER_STALL_WARN`]: two
+    /// attempts each for the marker and the publish is four sends of
+    /// [`DELIVERY_SEND_BUDGET`], which cannot reach the point where the
+    /// document-sync barrier reports a stall.
+    ///
+    /// Residual, and deliberately not engineered away here: if every attempt
+    /// fails, a push-only client still loses this closed publish. Covering that
+    /// completely needs a closed-file retry queue, which is more machinery than
+    /// this path warrants — a pull-capable client is already served by the cache
+    /// primed above, and the window a client must be stalled for has gone from
+    /// one budget to four.
+    fn delivery_attempts(&self) -> u32 {
+        delivery_attempts_for(self.currency)
+    }
+
+    /// Hand this URI's publish back to the diagnostics scheduler, because a
+    /// client send timed out while the `documents` lock was held.
+    ///
+    /// Marks the slot dirty and starts a worker if none is running — the same
+    /// two steps [`reschedule_peers`] takes, for this document rather than its
+    /// peers. The worker re-runs the publish from scratch once the caller has
+    /// released the lock, so the delivery is deferred rather than lost.
+    ///
+    /// Touches only `diag_slots`, never `documents`, so it is safe to call from
+    /// under the very lock whose hold it exists to cut short.
+    async fn redeliver_later(&self) {
+        self.documents
+            .retag_held("cache_and_deliver: redeliver_later");
+        reschedule_self(self.diag_slots, self.uri).await;
     }
 }
 
@@ -2516,7 +2860,7 @@ async fn reindex_unopened_factory_consumers(
     let _rehoming_guard = handles.rehoming_gate.lock().await;
     let open: HashSet<String> = handles
         .documents
-        .lock()
+        .lock("warm_open_documents")
         .await
         .keys()
         .map(|u| u.as_str().to_owned())
@@ -2559,6 +2903,52 @@ async fn reindex_unopened_factory_consumers(
 
 /// Mark each peer dirty and start its worker if one is not already draining
 /// it. See [`spawn_diagnostics_worker`] for why this exists.
+/// Inline send attempts for a run of this currency — see
+/// [`DeliveryCtx::delivery_attempts`], which this backs.
+///
+/// A free function taking the currency rather than a method on the context, so
+/// the closed-versus-open decision can be asserted without standing up a whole
+/// `DeliveryCtx` (whose eight borrowed handles are not the thing under test).
+const fn delivery_attempts_for(currency: DiagCurrency) -> u32 {
+    match currency {
+        DiagCurrency::Open(_) => 1,
+        DiagCurrency::ClosedFromDisk(_) => CLOSED_DELIVERY_ATTEMPTS,
+    }
+}
+
+/// Queue `uri`'s **own** publish to run again, and start a worker if none is.
+///
+/// [`reschedule_peers`] does this for the documents a publish invalidated and
+/// deliberately skips the publishing document itself. This is the case that one
+/// excludes: a run that could not finish delivering and wants another pass over
+/// its own URI (issue #1657 — see [`DeliveryCtx::cache_and_deliver`], whose
+/// client sends are time-bounded because they run under the `documents` lock).
+///
+/// Takes only `diag_slots`. That is what makes it callable from under the
+/// `documents` lock whose hold it exists to cut short — it must not need the
+/// very lock its caller is trying to give back.
+///
+/// A slot with no `latest_inputs` is left alone: nothing can re-derive the
+/// publish, so marking it dirty would spin a worker that immediately finds
+/// nothing to do. The next edit re-establishes the inputs.
+async fn reschedule_self(slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: &Uri) {
+    let start_worker = {
+        let mut guard = slots.lock().await;
+        match guard.get_mut(uri) {
+            Some(slot) if slot.latest_inputs.is_some() => {
+                slot.mark_dirty();
+                let start = !slot.running;
+                slot.running = true;
+                start
+            }
+            _ => false,
+        }
+    };
+    if start_worker {
+        spawn_diagnostics_worker(Arc::clone(slots), uri.clone());
+    }
+}
+
 async fn reschedule_peers(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     self_uri: &Uri,
@@ -2630,7 +3020,7 @@ struct EvidenceHandles {
     /// The open-document map, so the unopened-consumer re-index (issue #1304)
     /// can tell an open buffer — whose own diagnostics worker republishes it —
     /// from a disk-backed file that nothing else will ever revisit.
-    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    documents: Arc<DocumentStore>,
     /// Serialises that re-index with source-site reconciliation, exactly as
     /// [`Backend::merge_workspace_scan_results`] does.
     rehoming_gate: Arc<tokio::sync::Mutex<()>>,
@@ -4154,8 +4544,31 @@ async fn add_entry_point_diagnostic_consumers(
 
 /// Publish the lifted diagnostics: re-check currency, refresh the workspace
 /// index, prime the pull cache, deliver to the client, and log timing.  Always
-/// settled (`true`) — a stale revision or a lift-worker panic both keep the
+/// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
+///
+/// # Over the line limit, deliberately
+///
+/// The body is two lines past `clippy::too_many_lines`, and the overrun is the
+/// [`DocumentsGuard::retag`] markers — one before each `await` that runs while
+/// the open-document map is held (issue #1657).
+///
+/// They are all-or-nothing. A retag persists until the next one, so marking
+/// *some* awaits is worse than marking none: a hold at an unmarked await still
+/// reports the last marked one, which is a confident, wrong answer. Dropping
+/// two to satisfy the lint would have produced exactly that.
+///
+/// Splitting the function is the other way out and is the wrong one here. What
+/// makes this body long is a single deliberate critical section — the
+/// `documents` lock held across the currency re-check, the index update and the
+/// delivery — and cutting it in half would put that lock's acquisition and its
+/// release in different functions. The lock scope being readable in one piece is
+/// the property this whole issue is about.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the overrun is #1657 lock-phase markers, which are only correct as a complete set; \
+              splitting the body would hide the documents-lock critical section"
+)]
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -4197,7 +4610,7 @@ async fn publish_diagnostics_result(
         // that ran between the currency check and the delivery from having its
         // clearing empty publish overwritten (and its pull-cache removal
         // undone) by this run's late squiggles.
-        let docs = delivery.documents.lock().await;
+        let docs = delivery.documents.lock("publish_diagnostics_result").await;
         if !delivery.is_current(&docs).await {
             // Superseded by a newer edit (open run), a reopen, or a newer closed
             // run (generation bumped), which has taken authority for this URI —
@@ -4214,6 +4627,7 @@ async fn publish_diagnostics_result(
             .get(delivery.uri)
             .is_some_and(|doc| doc.backing_file_deleted);
         let (change, mut consumers) = {
+            docs.retag("publish_diagnostics_result: workspace_index.write");
             let mut index = workspace_index.write().await;
             let before = IndexedDiagnosticFacts::capture(&index, delivery.uri.as_str());
             if orphaned {
@@ -4241,6 +4655,7 @@ async fn publish_diagnostics_result(
             (change, consumers)
         };
         if change.source_or_package_changed {
+            docs.retag("publish_diagnostics_result: add_entry_point_diagnostic_consumers");
             add_entry_point_diagnostic_consumers(
                 delivery.diag_slots,
                 delivery.uri.as_str(),
@@ -4256,6 +4671,7 @@ async fn publish_diagnostics_result(
         // The document is now indexed standalone: invalidate its applied
         // source-site seed record (M9) so the next cross-document query
         // re-applies the seeded views.
+        docs.retag("publish_diagnostics_result: rehomed_source_seeds");
         rehomed_source_seeds
             .lock()
             .await
@@ -4265,6 +4681,7 @@ async fn publish_diagnostics_result(
         // republishes must compute against the new facts, never return the old
         // cache entry merely because the peer's text revision did not change.
         if !peers.is_empty() {
+            docs.retag("publish_diagnostics_result: pull_diag_cache");
             let mut cache = delivery.pull_diag_cache.lock().await;
             for peer in &peers {
                 cache.remove(peer);
@@ -4274,6 +4691,7 @@ async fn publish_diagnostics_result(
         // `textDocument/diagnostic` request now returns this exact set with
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
+        docs.retag("publish_diagnostics_result: cache_and_deliver");
         delivery.cache_and_deliver(diags).await;
         peers
     };
@@ -4361,7 +4779,7 @@ struct PublishedPackSet {
 pub struct Backend {
     client: Client,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
-    documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+    documents: Arc<DocumentStore>,
     /// Per-URI coalescing diagnostics scheduler state.  Each edit marks the
     /// document dirty and, if no worker is running, starts one; the single
     /// worker debounces, then repeatedly analyses the document's **latest**
@@ -5781,7 +6199,7 @@ impl Backend {
         );
         Self {
             client,
-            documents: Arc::new(Mutex::new(HashMap::new())),
+            documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
@@ -5962,7 +6380,7 @@ impl Backend {
             uris
         };
         let open: Vec<(Uri, String)> = {
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("invalidate_sidecar_stubs").await;
             tracked
                 .into_iter()
                 .filter_map(|uri| docs.get(&uri).map(|doc| (uri, doc.dialect.clone())))
@@ -6207,7 +6625,10 @@ impl Backend {
         // `dialect_for_open` calls lock `folder_dialects` / `default_dialect`,
         // so they must not run while the `documents` lock is held.
         let snapshot: Vec<(Uri, String, String, Arc<str>)> = {
-            let docs = self.documents.lock().await;
+            let docs = self
+                .documents
+                .lock("reresolve_open_document_dialects")
+                .await;
             docs.iter()
                 .map(|(uri, doc)| {
                     (
@@ -6229,7 +6650,10 @@ impl Backend {
             // `workspace_index` ordering `did_open` uses; `db_set_source`
             // never locks `documents`, so the nesting is cycle-free).
             {
-                let mut docs = self.documents.lock().await;
+                let mut docs = self
+                    .documents
+                    .lock("reresolve_open_document_dialects")
+                    .await;
                 let Some(doc) = docs.get_mut(&uri) else {
                     continue; // closed between snapshot and commit
                 };
@@ -6975,15 +7399,29 @@ impl Backend {
                      `cancel_others`"
                 .to_owned(),
         };
+        // The third reading, and the one that closes the chain. The phase marker
+        // says which lock the turn holder is *waiting* on; this says who is
+        // *holding* it. The first #1657 capture had to infer that from an
+        // adjacent `diagnostics.publish.enqueued` marker with no matching
+        // completion — a good inference, but an inference, and the next
+        // occurrence may not leave so tidy a trail.
+        let documents_holder = match self.documents.holder() {
+            Some((site, held)) => format!(
+                "the open-document map is held by {site} ({:.1}s)",
+                held.as_secs_f64(),
+            ),
+            None => "the open-document map is free, so the holder is waiting on something else"
+                .to_owned(),
+        };
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
-                     The turn is {culprit}. {waiting_on}. Every request handler is blocked on \
-                     this barrier and the server will answer nothing until it moves \
-                     (issue #1657).",
+                     The turn is {culprit}. {documents_holder}. {waiting_on}. Every request \
+                     handler is blocked on this barrier and the server will answer nothing \
+                     until it moves (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
                 ),
@@ -7006,7 +7444,7 @@ impl Backend {
     /// [`DocumentState::raw`] instead.
     async fn read_document(&self, url: &Uri) -> Option<DocumentState> {
         self.edits_settled().await;
-        if let Some(doc) = self.documents.lock().await.get(url).cloned() {
+        if let Some(doc) = self.documents.lock("read_document").await.get(url).cloned() {
             return Some(doc.normalised_for_analysis());
         }
         // On-disk fallback: files the folder scan indexed but the
@@ -7482,7 +7920,7 @@ impl Backend {
         // removal, then hold `documents` across the open-set read + index
         // removals. Global order: rehoming_gate → documents → workspace_index.
         let rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("drop_index_under_folders").await;
         let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         let mut index = self.workspace_index.write().await;
         let to_remove: Vec<String> = index
@@ -7612,7 +8050,7 @@ impl Backend {
         // still-closed re-check and both updates. Global order:
         // rehoming_gate → documents → db → workspace_index.
         let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("batch_reindex_from_disk").await;
         let mut applied: Vec<(Uri, String, String, AnalysisResult)> = Vec::new();
         let mut to_remove: Vec<Uri> = Vec::new();
         for (uri, scanned) in results {
@@ -7673,7 +8111,7 @@ impl Backend {
         // updates. Global order: rehoming_gate → documents → db →
         // workspace_index.
         let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("reindex_index_from_disk").await;
         if docs.contains_key(uri) {
             return;
         }
@@ -7717,7 +8155,12 @@ impl Backend {
     /// generation so a newer refresh supersedes it.
     async fn publish_closed_file_diagnostics(&self, uri: &Uri) {
         // An open buffer is owned by the open path; never shadow it from disk.
-        if self.documents.lock().await.contains_key(uri) {
+        if self
+            .documents
+            .lock("publish_closed_file_diagnostics")
+            .await
+            .contains_key(uri)
+        {
             return;
         }
         // The on-disk-backed salsa source `reindex_index_from_disk` primed; its
@@ -7823,7 +8266,7 @@ impl Backend {
     /// Guarded on the document still being closed, so a `did_open` racing in
     /// cannot have this empty publish blank a freshly reopened buffer.
     async fn clear_closed_diagnostics(&self, uri: &Uri) {
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("clear_closed_diagnostics").await;
         if docs.contains_key(uri) {
             return;
         }
@@ -8088,7 +8531,7 @@ impl Backend {
         if evicted.is_empty() {
             return;
         }
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("record_closed_diag_badge").await;
         let mut cache = self.pull_diag_cache.lock().await;
         let mut gens = self.closed_diag_gen.lock().await;
         for uri in &evicted {
@@ -8113,7 +8556,10 @@ impl Backend {
         // Snapshot the closed-and-badged URIs under `documents` → `pull_diag_cache`
         // (the established lock order) before doing any per-file work.
         let closed: Vec<Uri> = {
-            let docs = self.documents.lock().await;
+            let docs = self
+                .documents
+                .lock("reschedule_closed_file_diagnostics")
+                .await;
             let cache = self.pull_diag_cache.lock().await;
             cache
                 .keys()
@@ -8137,7 +8583,7 @@ impl Backend {
     /// toggle.
     async fn reschedule_all_open_documents(&self) {
         let snapshot: Vec<(Uri, String)> = {
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("reschedule_all_open_documents").await;
             docs.iter()
                 .map(|(uri, doc)| (uri.clone(), doc.dialect.clone()))
                 .collect()
@@ -11352,7 +11798,7 @@ impl Backend {
         // every other cross-document feature.
         let mut open_uris: HashSet<Uri> = HashSet::new();
         let mut docs: Vec<(Uri, Arc<str>, String)> = {
-            let store = self.documents.lock().await;
+            let store = self.documents.lock("cross_document_incoming_calls").await;
             store
                 .iter()
                 .filter(|(u, _)| *u != current_uri)
@@ -13781,7 +14227,7 @@ impl Backend {
         // debounced push before its cache is primed, so it must carry the same
         // byte evidence itself rather than relying on a prior publish.
         let decode_report = {
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("full_diagnostics_for").await;
             docs.get(uri)
                 .filter(|doc| doc.text.as_ref() == text.as_ref())
                 .and_then(|doc| doc.decode_report)
@@ -15178,7 +15624,7 @@ impl Backend {
         let unindexed: Vec<(Uri, Arc<str>, String)> = {
             // `documents` → `workspace_index`, the lock order `did_open`
             // establishes.
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("open_but_unindexed_symbols").await;
             let index = self.workspace_index.read().await;
             docs.iter()
                 .filter(|(uri, _)| !index.contains_document(uri.as_str()))
@@ -15223,7 +15669,13 @@ impl Backend {
         // Snapshot the dialect-resolution inputs and the set of
         // open documents so the blocking worker can run without
         // touching any async mutex.
-        let open: HashSet<Uri> = self.documents.lock().await.keys().cloned().collect();
+        let open: HashSet<Uri> = self
+            .documents
+            .lock("scan_workspace_folders")
+            .await
+            .keys()
+            .cloned()
+            .collect();
         let folder_dialects = self.folder_dialect_overrides().await;
         let default_dialect = self.session_dialect().await;
         // Inputs for the package-database `auto_path`: the editor's
@@ -15465,7 +15917,7 @@ impl Backend {
         // hold `documents` across the open-set read, salsa-db batch, and index
         // merge. Global order: rehoming_gate → documents → db → workspace_index.
         let _rehoming_guard = self.rehoming_gate.lock().await;
-        let docs = self.documents.lock().await;
+        let docs = self.documents.lock("merge_workspace_scan_results").await;
         let open: HashSet<String> = docs.keys().map(|u| u.as_str().to_owned()).collect();
         // Salsa db first (db → db_files → db_project), before the workspace_index
         // lock, to preserve the global lock order.
@@ -15568,11 +16020,16 @@ impl Backend {
     async fn warm_open_documents(
         db: Arc<Mutex<tcl_lsp_db::TclDatabase>>,
         db_files: Arc<Mutex<HashMap<Uri, tcl_lsp_db::SourceFile>>>,
-        documents: Arc<Mutex<HashMap<Uri, DocumentState>>>,
+        documents: Arc<DocumentStore>,
         db_config: Arc<Mutex<tcl_lsp_db::AnalyserConfig>>,
         folder_db_configs: Arc<Mutex<Vec<(Uri, tcl_lsp_db::AnalyserConfig)>>>,
     ) {
-        let open_uris: Vec<Uri> = documents.lock().await.keys().cloned().collect();
+        let open_uris: Vec<Uri> = documents
+            .lock("warm_open_documents")
+            .await
+            .keys()
+            .cloned()
+            .collect();
         if open_uris.is_empty() {
             return;
         }
@@ -16100,7 +16557,7 @@ impl LanguageServer for Backend {
             // stale query result for the old text, and no diagnostics run may
             // re-add a stale index entry between them.
             turn.at("did_open: documents.lock");
-            let mut docs = self.documents.lock().await;
+            let mut docs = self.documents.lock("did_open").await;
             docs.insert(
                 uri.clone(),
                 DocumentState::with_version(params.text_document.text, dialect, version)
@@ -16152,7 +16609,7 @@ impl LanguageServer for Backend {
         let decode_report =
             Self::decode_report_for_matching_disk_text(&self.store, &uri, &text).await;
         if let Some(decode_report) = decode_report {
-            let mut docs = self.documents.lock().await;
+            let mut docs = self.documents.lock("did_open").await;
             if let Some(doc) = docs.get_mut(&uri)
                 && doc.version == Some(version)
                 && doc.text.as_ref() == text
@@ -16195,7 +16652,7 @@ impl LanguageServer for Backend {
         let (dialect, language_id, dialect_hint_may_have_changed) = {
             // Phase marker — see `EditTurn::at`.
             turn.at("did_change: documents.lock");
-            let mut docs = self.documents.lock().await;
+            let mut docs = self.documents.lock("did_change").await;
             // tower-lsp-server 0.23 dispatches notification handlers
             // concurrently (`buffer_unordered(4)`), so a `didChange` can be
             // processed before its `didOpen` or after its `didClose`. Only
@@ -16309,14 +16766,14 @@ impl LanguageServer for Backend {
             // the turn handed on, a newer edit may have re-resolved it already,
             // and comparing against this handler's own captured value would
             // re-commit a dialect that is no longer news.
-            let (text, current_dialect) = match self.documents.lock().await.get(&uri) {
+            let (text, current_dialect) = match self.documents.lock("did_change").await.get(&uri) {
                 Some(entry) => (entry.text.clone(), entry.dialect.clone()),
                 None => return,
             };
             let new_dialect = self.dialect_for_open(&uri, &language_id, &text).await;
             if new_dialect != current_dialect {
                 {
-                    let mut docs = self.documents.lock().await;
+                    let mut docs = self.documents.lock("did_change").await;
                     let Some(entry) = docs.get_mut(&uri) else {
                         return;
                     };
@@ -16406,7 +16863,7 @@ impl LanguageServer for Backend {
             // re-add a stale index entry or publish for it.
             // Phase markers — see `EditTurn::at`.
             turn.at("did_close: documents.lock");
-            let mut docs = self.documents.lock().await;
+            let mut docs = self.documents.lock("did_close").await;
             docs.remove(uri);
             turn.at("did_close: workspace_index.write");
             self.workspace_index
@@ -16586,7 +17043,11 @@ impl LanguageServer for Backend {
         // orphan mark so the buffer rejoins the cross-document index.
         let mut revived_while_open: Vec<Uri> = Vec::new();
         for (uri, typ) in last_kind {
-            let is_open = self.documents.lock().await.contains_key(&uri);
+            let is_open = self
+                .documents
+                .lock("did_change_watched_files")
+                .await
+                .contains_key(&uri);
             if typ == FileChangeType::DELETED {
                 if is_open {
                     deleted_while_open.insert(uri.clone());
@@ -16618,7 +17079,7 @@ impl LanguageServer for Backend {
         // publish path (which consults the flag under the `documents` lock)
         // cannot re-add a just-retired path.
         if !deleted_while_open.is_empty() || !revived_while_open.is_empty() {
-            let mut docs = self.documents.lock().await;
+            let mut docs = self.documents.lock("did_change_watched_files").await;
             for uri in &deleted_while_open {
                 if let Some(doc) = docs.get_mut(uri) {
                     doc.backing_file_deleted = true;
@@ -17756,7 +18217,7 @@ impl LanguageServer for Backend {
             .map(|(uri, entry)| (uri.clone(), entry.clone()))
             .collect();
         let versions: HashMap<Uri, Option<i64>> = {
-            let docs = self.documents.lock().await;
+            let docs = self.documents.lock("workspace_diagnostic").await;
             entries
                 .iter()
                 .map(|(uri, _)| {
@@ -20929,7 +21390,7 @@ fn is_apl_source(uri: &Uri, language_id: &str) -> bool {
 /// extension.
 async fn find_sibling_impl_vars(
     uri: &Uri,
-    documents: &Mutex<HashMap<Uri, DocumentState>>,
+    documents: &DocumentStore,
 ) -> Option<Vec<tcl_bigip::apl::IappVarRef>> {
     let path = uri.to_file_path()?;
     let dir = path.parent()?.to_path_buf();
@@ -20949,7 +21410,7 @@ async fn find_sibling_impl_vars(
     //    edit to the implementation must drive the presentation's cross-file
     //    diagnostics, not a stale on-disk copy.
     {
-        let docs = documents.lock().await;
+        let docs = documents.lock("find_sibling_impl_vars").await;
         for (doc_uri, doc) in docs.iter() {
             if doc_uri == uri {
                 continue;
@@ -21010,7 +21471,7 @@ async fn f5_dialect_diagnostics(
     dialect: &'static tcl_dialect::DialectProfile,
     language_id: &str,
     disabled: &HashSet<String>,
-    documents: &Mutex<HashMap<Uri, DocumentState>>,
+    documents: &DocumentStore,
 ) -> Option<Vec<tower_lsp_server::ls_types::Diagnostic>> {
     if Backend::is_bigip_dialect(dialect.name) {
         let (t, dis) = (text.to_owned(), disabled.clone());
@@ -26638,7 +27099,7 @@ mod tests {
             let mut doc = DocumentState::with_version(text.clone(), dialect.to_owned(), 1)
                 .with_language_id(language_id.to_owned());
             doc.decode_report = Some(report);
-            backend.documents.lock().await.insert(uri.clone(), doc);
+            backend.documents.lock("test").await.insert(uri.clone(), doc);
             let diagnostics = backend
                 .full_diagnostics_for(
                     &uri,
@@ -28290,7 +28751,7 @@ mod tests {
         );
         Backend {
             client: service.inner().client.clone(),
-            documents: Arc::new(Mutex::new(HashMap::new())),
+            documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
             default_dialect_explicit: Mutex::new(false),
@@ -28478,7 +28939,13 @@ mod tests {
         assert_eq!(doc.text.len(), doc.raw().len());
         // …and the stored shadow buffer is untouched.
         assert_eq!(
-            &*backend.documents.lock().await.get(&uri).expect("doc").text,
+            &*backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("doc")
+                .text,
             src,
         );
         // An LF document is handed out unchanged (and does not allocate).
@@ -28530,7 +28997,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///life.conf").unwrap();
         let src = "ltm pool /Common/p {\n    members {\n        /Common/n:80 { }\n    }\n}\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
         );
@@ -28563,7 +29030,7 @@ mod tests {
                 },
             })
             .await;
-        let docs = backend.documents.lock().await;
+        let docs = backend.documents.lock("test").await;
         let doc = docs.get(&uri).expect("did_open should store the document");
         assert_eq!(&*doc.text, "set x 1\n");
     }
@@ -28597,7 +29064,13 @@ mod tests {
             })
             .await;
         assert_eq!(
-            &*backend.documents.lock().await.get(&uri).expect("doc").text,
+            &*backend
+                .documents
+                .lock("test")
+                .await
+                .get(&uri)
+                .expect("doc")
+                .text,
             "set y 2\n",
         );
     }
@@ -28624,7 +29097,7 @@ mod tests {
             })
             .await;
         assert!(
-            !backend.documents.lock().await.contains_key(&uri),
+            !backend.documents.lock("test").await.contains_key(&uri),
             "did_close should remove the open document",
         );
         assert!(
@@ -28797,7 +29270,7 @@ mod tests {
         );
         // Queued while closed, then reopened before the cap pushed it out.
         backend.record_closed_diag_badge(&reopened).await;
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             reopened.clone(),
             DocumentState::new("set x 1\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -28928,7 +29401,7 @@ mod tests {
             .await;
 
         assert!(
-            !backend.documents.lock().await.contains_key(&uri),
+            !backend.documents.lock("test").await.contains_key(&uri),
             "did_close still removes the open buffer",
         );
         let cache = backend.pull_diag_cache.lock().await;
@@ -29832,7 +30305,7 @@ mod tests {
             })
             .await;
         assert!(
-            !backend.documents.lock().await.contains_key(&uri),
+            !backend.documents.lock("test").await.contains_key(&uri),
             "did_change on an unopened URI must not create a document",
         );
     }
@@ -30242,7 +30715,7 @@ mod tests {
         proven.decode_report = Some(report);
         backend
             .documents
-            .lock()
+            .lock("test")
             .await
             .insert(proven_uri.clone(), proven);
 
@@ -30269,7 +30742,7 @@ mod tests {
         // text. With no matching bytes, pull and push both abstain.
         let literal_uri = Uri::from_str("file:///pull-literal-fffd.tcl").unwrap();
         let literal = "puts \u{fffd}\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             literal_uri.clone(),
             DocumentState::with_version(literal.to_owned(), "tcl9.0".into(), 1),
         );
@@ -30450,7 +30923,7 @@ mod tests {
         );
         // An open caller with crossFileResolution enabled.
         let caller = Uri::from_str("file:///caller.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -30486,7 +30959,7 @@ mod tests {
         let backend = test_backend();
         // No `crossFileResolution` toggle — a plain document.
         let caller = Uri::from_str("file:///plain-caller.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -30517,7 +30990,7 @@ mod tests {
     async fn workspace_folder_add_reschedules_non_xc_document_too() {
         let backend = test_backend();
         let caller = Uri::from_str("file:///plain-caller2.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -30562,7 +31035,7 @@ mod tests {
         // `package require` — the same shape as the reported
         // `::report::defstyle` false positive.
         let caller = Uri::from_str("file:///startup-caller.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -30661,7 +31134,7 @@ mod tests {
                 index.add_document(uri.as_str(), &analysis);
             }
         }
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             still_open.clone(),
             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
         );
@@ -30721,7 +31194,7 @@ mod tests {
                 .unwrap(),
         );
         let caller = Uri::from_str("file:///proj/caller.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             caller.clone(),
             DocumentState::new("helper x\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -31079,7 +31552,7 @@ mod tests {
         // Simulate `did_change`: bump the revision (and text) without running
         // the worker, so the cache entry is now for an older revision.
         {
-            let mut docs = backend.documents.lock().await;
+            let mut docs = backend.documents.lock("test").await;
             let doc = docs.get_mut(&uri).unwrap();
             doc.text = Arc::from("set x 2\n");
             doc.bump_revision(1);
@@ -31199,7 +31672,11 @@ mod tests {
             let mut doc =
                 DocumentState::with_version(current_src.to_owned(), "tcl8.6".to_owned(), 2);
             doc.revision = 2;
-            backend.documents.lock().await.insert(uri.clone(), doc);
+            backend
+                .documents
+                .lock("test")
+                .await
+                .insert(uri.clone(), doc);
             backend
                 .workspace_index
                 .write()
@@ -31591,7 +32068,7 @@ mod tests {
         let root_url = Uri::from_file_path(&root).unwrap();
         let uri = Uri::from_file_path(&on_disk).unwrap();
         *backend.workspace_folders.lock().await = vec![root_url];
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -31702,7 +32179,7 @@ mod tests {
         }));
         let open_uri = Uri::from_str("file:///workspace/open.tcl").unwrap();
         let closed_uri = Uri::from_str("file:///workspace/closed.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             open_uri.clone(),
             DocumentState::new("proc open_proc {} {}\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -31741,7 +32218,7 @@ mod tests {
     async fn workspace_scan_merge_does_not_clobber_open_document() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///workspace/live.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -31821,7 +32298,7 @@ mod tests {
 
         let backend = test_backend();
         let uri = Uri::from_file_path(&on_disk).unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new("proc fresh {} {}\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -32556,7 +33033,7 @@ mod tests {
         let plain = Uri::from_str("file:///plain.tcl").unwrap();
         let irule = Uri::from_str("file:///app.irule").unwrap();
         {
-            let mut docs = backend.documents.lock().await;
+            let mut docs = backend.documents.lock("test").await;
             // No recognised language id → opened under the session default.
             docs.insert(
                 plain.clone(),
@@ -32576,7 +33053,7 @@ mod tests {
         *backend.default_dialect.lock().await = "tcl9.0".to_owned();
         backend.reresolve_open_document_dialects().await;
 
-        let docs = backend.documents.lock().await;
+        let docs = backend.documents.lock("test").await;
         assert_eq!(
             docs.get(&plain).unwrap().dialect,
             "tcl9.0",
@@ -32644,7 +33121,7 @@ mod tests {
         let main_src = "shared_helper\n";
         // Register both documents.
         {
-            let mut docs = backend.documents.lock().await;
+            let mut docs = backend.documents.lock("test").await;
             docs.insert(
                 lib_uri.clone(),
                 DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
@@ -32693,7 +33170,7 @@ mod tests {
         let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    namespace export bar\n}\n";
         let main_src = "namespace import ::Lib::*\nbar\n";
         {
-            let mut docs = backend.documents.lock().await;
+            let mut docs = backend.documents.lock("test").await;
             docs.insert(
                 lib_uri.clone(),
                 DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
@@ -32736,7 +33213,7 @@ mod tests {
         let lib_src = "namespace eval ::Lib {\n    proc bar {} {}\n    proc other {} {}\n    namespace export bar\n}\n";
         let main_src = "namespace import ::Lib::*\nother\n";
         {
-            let mut docs = backend.documents.lock().await;
+            let mut docs = backend.documents.lock("test").await;
             docs.insert(
                 lib_uri.clone(),
                 DocumentState::new(lib_src.to_owned(), "tcl8.6".to_owned()),
@@ -32769,7 +33246,7 @@ mod tests {
     async fn minify_document_command_returns_minified_source() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///m.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new("# c\nputs   hi\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -32794,7 +33271,7 @@ mod tests {
     async fn minify_document_command_compact_includes_symbol_map() {
         let backend = test_backend();
         let uri = Uri::from_str("file:///m.tcl").unwrap();
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(
                 "proc greet {name} {\n    return $name\n}\n".to_owned(),
@@ -32870,7 +33347,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///main.tcl").unwrap();
         let src = "proc greet {} {}\ngreet\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
         );
@@ -32929,7 +33406,7 @@ mod tests {
         }
 
         let owner = {
-            let docs = backend.documents.lock().await;
+            let docs = backend.documents.lock("test").await;
             docs.get(&uri).expect("open document").clone()
         };
         for (i, snap) in snapshots.iter().enumerate() {
@@ -33016,11 +33493,11 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str(&format!("file://{}", path.display())).expect("uri");
 
-        assert!(backend.documents.lock().await.is_empty());
+        assert!(backend.documents.lock("test").await.is_empty());
         let snap = backend.read_document(&uri).await.expect("disk fallback");
         assert_eq!(&*snap.text, "proc onDisk {} { return 1 }\n");
         assert!(
-            backend.documents.lock().await.is_empty(),
+            backend.documents.lock("test").await.is_empty(),
             "a disk read must not become a permanent open-document entry"
         );
         // Reading again is a fresh read, not a retained snapshot.
@@ -33065,7 +33542,7 @@ mod tests {
 
         // Land the edit, then release the ordering lock: the read must now
         // resolve against the *settled* buffer, never the pre-edit text.
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new("set x 2\n".to_owned(), "tcl8.6".to_owned()),
         );
@@ -33305,7 +33782,7 @@ mod tests {
         let backend = Arc::new(test_backend());
         let uri = Uri::from_str("file:///w/phase.tcl").unwrap();
 
-        let held_documents = backend.documents.lock().await;
+        let held_documents = backend.documents.lock("test").await;
 
         let opener = {
             let backend = Arc::clone(&backend);
@@ -33383,6 +33860,218 @@ mod tests {
         );
     }
 
+    /// The stall line must name **who holds** the open-document map, not only
+    /// which lock the turn holder is waiting on.
+    ///
+    /// This is the other half of the #1657 chain. The phase marker established
+    /// that a wedged `did_change` sits at `did_change: documents.lock`; that
+    /// says what it wants, not who has it. The first capture had to infer the
+    /// holder from an adjacent `diagnostics.publish.enqueued` marker with no
+    /// matching completion — sound, but an inference, and the next occurrence
+    /// need not leave so tidy a trail.
+    ///
+    /// Constructed rather than raced: the test takes the map itself under a
+    /// known tag and holds it, which is exactly the state a real holder is in.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_open_document_map_names_its_holder() {
+        let backend = test_backend();
+        assert!(
+            backend.documents.holder().is_none(),
+            "a free map must report no holder, or a stall line would accuse a \
+             call site that has already finished",
+        );
+
+        {
+            let _held = backend.documents.lock("a-known-test-site").await;
+            let (site, held_for) = backend.documents.holder().expect(
+                "a held map must name its holder — without this the #1657 \
+                         stall line can only say which lock is wanted, never who has it",
+            );
+            assert_eq!(
+                site, "a-known-test-site",
+                "the holder must be the site that actually took the lock",
+            );
+            // Sanity that the clock is the shim and is running, not a default.
+            assert!(
+                held_for < std::time::Duration::from_secs(60),
+                "the hold age must be measured from the acquisition, not from an epoch",
+            );
+        }
+
+        assert!(
+            backend.documents.holder().is_none(),
+            "dropping the guard must clear the holder; a tag that outlived its \
+             guard would blame the previous holder for the next wedge",
+        );
+
+        // And the tag tracks a second, different holder rather than sticking.
+        {
+            let _held = backend.documents.lock("a-second-site").await;
+            assert_eq!(
+                backend.documents.holder().expect("held").0,
+                "a-second-site",
+                "each acquisition must overwrite the tag",
+            );
+        }
+    }
+
+    /// A delivery that could not finish must queue itself for another pass.
+    ///
+    /// This is the recovery half of the #1657 fix. `cache_and_deliver` runs its
+    /// client sends under the `documents` lock, so those sends are capped; when
+    /// a cap is hit it gives the lock back **without having published**, and the
+    /// only thing standing between that and a silently lost diagnostic is this
+    /// reschedule. The delivery invariant in `main.rs` forbids dropping a
+    /// publish, so "returned early" must mean "will run again".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_delivery_that_timed_out_queues_itself_again() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/redeliver.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // A slot the scheduler has never seen has nothing to re-derive from, so
+        // it must be left alone rather than spun.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        assert!(
+            backend.diag_slots.lock().await.get(&uri).is_none(),
+            "rescheduling an unknown slot must not create one — a worker with no \
+             cached inputs would wake, find nothing to do, and stop",
+        );
+
+        // Give the URI a real slot with resolved inputs, the way an ordinary
+        // edit would, then let the worker settle.
+        backend
+            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let settled = crate::rt::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                {
+                    let slots = backend.diag_slots.lock().await;
+                    if let Some(slot) = slots.get(&uri)
+                        && slot.latest_inputs.is_some()
+                        && !slot.running
+                        && !slot.dirty
+                    {
+                        return;
+                    }
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        assert!(
+            settled.is_ok(),
+            "the scheduled publish must settle before this test can say anything \
+             about re-scheduling it",
+        );
+
+        // The timed-out-delivery case: the slot is queued again.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        let slots = backend.diag_slots.lock().await;
+        let slot = slots.get(&uri).expect("the slot exists");
+        assert!(
+            slot.dirty || slot.running,
+            "a delivery that returned without publishing must leave its slot \
+             queued (dirty) or already being drained (running); neither means \
+             the diagnostics for this revision are lost, which the main.rs \
+             delivery invariant forbids",
+        );
+    }
+
+    /// A closed-file publish must not depend on a slot `did_close` has already
+    /// evicted.
+    ///
+    /// Codex P1 on #1670. The two halves of the trap, pinned together:
+    ///
+    /// 1. `did_close` calls `evict_diag_slot` **before**
+    ///    `publish_closed_file_diagnostics` runs, and eviction either removes
+    ///    the slot or clears its `latest_inputs` — so `reschedule_self`, which
+    ///    requires cached inputs, can do nothing for a closed URI.
+    /// 2. A closed publish is therefore the one delivery with no scheduler
+    ///    behind it, so it must retry inline rather than hand the work back.
+    ///
+    /// Without the second half a timed-out closed publish is lost silently,
+    /// while the pull cache and the closed badge both read current — a client
+    /// that paused across the timeout during a close would never be told.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_closed_file_publish_does_not_rely_on_an_evicted_slot() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/closed-retry.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // Give the URI a real, fully populated slot…
+        backend
+            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        // Wait for the worker to finish as well as populate: `evict_diag_slot`
+        // keeps a *running* slot (clearing its inputs) and removes an idle one,
+        // and only the second branch is unambiguous to assert on.
+        let ready = crate::rt::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                {
+                    let slots = backend.diag_slots.lock().await;
+                    if slots
+                        .get(&uri)
+                        .is_some_and(|s| s.latest_inputs.is_some() && !s.running && !s.dirty)
+                    {
+                        return;
+                    }
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        assert!(
+            ready.is_ok(),
+            "the slot must be populated and settled before it is evicted",
+        );
+
+        // …then evict it exactly as `did_close` does, before the closed publish.
+        backend.evict_diag_slot(&uri).await;
+
+        // The scheduler fallback is now dead for this URI. This is the half that
+        // makes the inline retry necessary, not an incidental detail. Both of
+        // eviction's branches defeat it: the idle one drops the slot, and the
+        // running one clears the `latest_inputs` that `reschedule_self` requires.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        let revivable = {
+            let slots = backend.diag_slots.lock().await;
+            slots
+                .get(&uri)
+                .is_some_and(|s| s.latest_inputs.is_some() && (s.dirty || s.running))
+        };
+        assert!(
+            !revivable,
+            "after `did_close` evicts the slot there is nothing for \
+             `reschedule_self` to drive — if this ever starts passing, the \
+             closed path gained a scheduler and `delivery_attempts` should be \
+             revisited",
+        );
+
+        // So a closed run must carry its own retries, and an open one must not
+        // pay for them (the scheduler is strictly better for open documents).
+        let closed = DiagCurrency::ClosedFromDisk(7);
+        let open = DiagCurrency::Open(3);
+        assert!(
+            delivery_attempts_for(closed) > 1,
+            "a closed publish has no scheduler to fall back on, so it must \
+             retry inline or the notification is lost",
+        );
+        assert_eq!(
+            delivery_attempts_for(open),
+            1,
+            "an open publish must hand back to the scheduler rather than retry \
+             under the `documents` lock",
+        );
+        // Worst case must stay under the barrier's stall threshold: marker plus
+        // publish, each retried, is four sends.
+        assert!(
+            DELIVERY_SEND_BUDGET * 2 * delivery_attempts_for(closed) < EDIT_BARRIER_STALL_WARN,
+            "the inline retries must not themselves be able to hold `documents` \
+             long enough for the document-sync barrier to report a stall (#1657)",
+        );
+    }
+
     /// Wait for the single document-sync handler under test to draw its
     /// `EditOrder` ticket **and** hand it on, or give up.
     ///
@@ -33448,7 +34137,7 @@ mod tests {
              run while the rehoming gate is held",
         );
         assert!(
-            !backend.documents.lock().await.contains_key(&uri),
+            !backend.documents.lock("test").await.contains_key(&uri),
             "the mutations the ticket covers must already be applied",
         );
         assert!(
@@ -33509,7 +34198,7 @@ mod tests {
         assert_eq!(
             backend
                 .documents
-                .lock()
+                .lock("test")
                 .await
                 .get(&uri)
                 .map(|doc| doc.text.clone())
@@ -33566,7 +34255,7 @@ mod tests {
         backend
             .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
             .await;
-        let docs_held = backend.documents.lock().await;
+        let docs_held = backend.documents.lock("test").await;
         assert!(
             optimiser_in_slot().await,
             "the optimiser starts enabled, so the primed inputs must say so",
@@ -33628,7 +34317,7 @@ mod tests {
 
         // Park the diagnostics worker, so it cannot retire the slot out from
         // under the assertions.
-        let docs_held = backend.documents.lock().await;
+        let docs_held = backend.documents.lock("test").await;
         // Park the resolve, after the optimiser switch has been read.
         let packs_held = backend.spec_packs.lock().await;
 
@@ -33693,7 +34382,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///w/late-resolve.tcl").unwrap();
         register(&backend, &uri, "set x 1\n").await;
-        let docs_held = backend.documents.lock().await;
+        let docs_held = backend.documents.lock("test").await;
 
         // What the faster scheduler committed: the optimiser off, under an
         // epoch later than anything a resolve starting now could read.
@@ -33805,7 +34494,7 @@ mod tests {
     }
 
     async fn register(backend: &Backend, uri: &Uri, src: &str) {
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl8.6".to_owned()),
         );
@@ -34815,7 +35504,7 @@ mod tests {
         let publisher = crate::rt::spawn(async move {
             let revision = publisher_backend
                 .documents
-                .lock()
+                .lock("test")
                 .await
                 .get(&publisher_b)
                 .expect("b.tcl stays open")
@@ -35413,7 +36102,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///bigip.conf").unwrap();
         let src = "ltm pool /Common/p {\n}\nltm virtual /Common/v {\n    pool /Common/p\n}\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
         );
@@ -35445,7 +36134,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///bigip.conf").unwrap();
         let src = "ltm pool /Common/web_pool { }\nltm rule /Common/r {\nwhen HTTP_REQUEST { pool /Common/web_pool }\n}\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
         );
@@ -35477,7 +36166,7 @@ mod tests {
         let backend = test_backend();
         let uri = Uri::from_str("file:///bigip.conf").unwrap();
         let src = "auth partition Team1 {\n    description test\n}\n";
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "f5-bigip".to_owned()),
         );
@@ -36565,7 +37254,7 @@ mod tests {
         let uri = Uri::from_str("file:///indexed.tcl").unwrap();
         let src = "set my_re \".*abc\"\nregexp $my_re $s\n";
         backend.db_set_source(&uri, src, "tcl9.0".to_owned()).await;
-        backend.documents.lock().await.insert(
+        backend.documents.lock("test").await.insert(
             uri.clone(),
             DocumentState::new(src.to_owned(), "tcl9.0".to_owned()),
         );
@@ -37177,7 +37866,7 @@ mod tests {
             .await
             .add_document(uri.as_str(), &analysis);
         assert!(
-            backend.documents.lock().await.is_empty(),
+            backend.documents.lock("test").await.is_empty(),
             "the fixture must not be an open document",
         );
 
@@ -37539,7 +38228,7 @@ mod tests {
         // A renamed-away path is not an open buffer — the client moved the file
         // on disk — so drop the live document `register` seeded and stand the
         // rest of the old URI's per-URI state up as a real session would have.
-        backend.documents.lock().await.remove(&old);
+        backend.documents.lock("test").await.remove(&old);
         backend.db_set_source(&old, src, "tcl8.6".to_owned()).await;
         let old_file = *backend
             .db_files
@@ -37734,7 +38423,7 @@ mod tests {
         // The client renames b.tcl → c.tcl: the file leaves its old path, the
         // buffer follows it to the new URI, and the workspace edit
         // `will_rename_files` handed back rewrites the `source` literal.
-        backend.documents.lock().await.remove(&b);
+        backend.documents.lock("test").await.remove(&b);
         register(&backend, &c, sourced).await;
         backend
             .workspace_index
@@ -37815,8 +38504,8 @@ mod tests {
 
         // A directory move: the client renames both files in one notification
         // and neither old path survives.
-        backend.documents.lock().await.remove(&a);
-        backend.documents.lock().await.remove(&b);
+        backend.documents.lock("test").await.remove(&a);
+        backend.documents.lock("test").await.remove(&b);
         backend
             .did_rename_files(rename_params(&[(&a, &a2), (&b, &b2)]))
             .await;
@@ -37857,7 +38546,7 @@ mod tests {
             "precondition: only the sourced file has a record",
         );
 
-        backend.documents.lock().await.remove(&unrelated);
+        backend.documents.lock("test").await.remove(&unrelated);
         backend
             .did_rename_files(rename_params(&[(&unrelated, &renamed)]))
             .await;
