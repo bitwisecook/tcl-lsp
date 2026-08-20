@@ -6071,7 +6071,8 @@ mod class_factories {
         );
         assert!(
             result.class_factories().contains_key("::T::D::class"),
-            "the resolved metaclass must still publish a factory"        );
+            "the resolved metaclass must still publish a factory"
+        );
     }
 
     #[test]
