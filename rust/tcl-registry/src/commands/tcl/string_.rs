@@ -411,7 +411,9 @@ fn fold_string_map_impl(mapping_str: &str, s: &str, nocase: bool) -> Option<Stri
         return None;
     }
     let reps: Vec<(&str, &str)> = pairs
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|kv| (kv[0].as_str(), kv[1].as_str()))
         .collect();
     let sb = s.as_bytes();

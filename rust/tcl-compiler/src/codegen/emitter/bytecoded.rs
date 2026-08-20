@@ -854,14 +854,14 @@ fn upvar_cmd(ctx: &mut CodegenCtx, args: &[String]) -> bool {
         return false;
     }
     // Every `local` (the odd-indexed words) must be a simple compiled local.
-    for pair in pairs.chunks_exact(2) {
+    for pair in pairs.as_chunks::<2>().0 {
         let local = &pair[1];
         if is_qualified(local) || local.starts_with('$') || local.starts_with('[') {
             return false;
         }
     }
     ctx.push_lit(level);
-    for pair in pairs.chunks_exact(2) {
+    for pair in pairs.as_chunks::<2>().0 {
         let (other, local) = (&pair[0], &pair[1]);
         let slot = ctx.lvt.intern(local);
         ctx.emit_value_interpolated(other);

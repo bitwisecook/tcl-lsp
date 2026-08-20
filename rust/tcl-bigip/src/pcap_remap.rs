@@ -305,28 +305,28 @@ fn l4_checksum(packet: &mut [u8], ctx: &L4Ctx) -> Option<u16> {
 
     // TCP / UDP / ICMPv6 use a pseudo-header.
     let mut pseudo: Vec<u8> = Vec::with_capacity(40);
-    let cksum_off;
-    if proto == 58 {
+
+    let cksum_off = if proto == 58 {
         // ICMPv6 pseudo-header: src + dst + length(4) + zero(3) + nh(1).
         pseudo.extend_from_slice(&src);
         pseudo.extend_from_slice(&dst);
         pseudo.extend_from_slice(&(payload_len as u32).to_be_bytes());
         pseudo.extend_from_slice(&[0, 0, 0, proto]);
-        cksum_off = l4_off + 2;
+        l4_off + 2
     } else if is_v6 {
         pseudo.extend_from_slice(&src);
         pseudo.extend_from_slice(&dst);
         pseudo.extend_from_slice(&(payload_len as u32).to_be_bytes());
         pseudo.extend_from_slice(&[0, 0, 0, proto]);
-        cksum_off = if proto == 6 { l4_off + 16 } else { l4_off + 6 };
+        if proto == 6 { l4_off + 16 } else { l4_off + 6 }
     } else {
         // IPv4 TCP/UDP pseudo-header: src(4) + dst(4) + zero + proto + length.
         pseudo.extend_from_slice(&src[..4]);
         pseudo.extend_from_slice(&dst[..4]);
         pseudo.extend_from_slice(&[0, proto]);
         pseudo.extend_from_slice(&(payload_len as u16).to_be_bytes());
-        cksum_off = if proto == 6 { l4_off + 16 } else { l4_off + 6 };
-    }
+        if proto == 6 { l4_off + 16 } else { l4_off + 6 }
+    };
 
     let saved = (packet[cksum_off], packet[cksum_off + 1]);
     packet[cksum_off] = 0;

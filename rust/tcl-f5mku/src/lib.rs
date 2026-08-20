@@ -216,9 +216,8 @@ fn resolve_salt(salt: Option<&str>) -> Result<Vec<u8>, F5MkuError> {
 
 fn ecb_encrypt(cipher: &Aes, data: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(data.len());
-    for chunk in data.chunks_exact(BLOCK_SIZE) {
-        let block: [u8; BLOCK_SIZE] = chunk.try_into().expect("chunks_exact yields full blocks");
-        out.extend_from_slice(&cipher.encrypt_block(&block));
+    for block in data.as_chunks::<BLOCK_SIZE>().0 {
+        out.extend_from_slice(&cipher.encrypt_block(block));
     }
     out
 }
@@ -230,9 +229,8 @@ fn ecb_decrypt(cipher: &Aes, data: &[u8]) -> Result<Vec<u8>, F5MkuError> {
         ));
     }
     let mut out = Vec::with_capacity(data.len());
-    for chunk in data.chunks_exact(BLOCK_SIZE) {
-        let block: [u8; BLOCK_SIZE] = chunk.try_into().expect("chunks_exact yields full blocks");
-        out.extend_from_slice(&cipher.decrypt_block(&block));
+    for block in data.as_chunks::<BLOCK_SIZE>().0 {
+        out.extend_from_slice(&cipher.decrypt_block(block));
     }
     Ok(out)
 }

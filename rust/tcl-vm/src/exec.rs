@@ -5058,7 +5058,9 @@ mod tests {
     fn top_pairs(v: &Value) -> Vec<(String, String)> {
         v.as_list()
             .expect("dict value is a valid list")
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
             .collect()
     }

@@ -353,7 +353,9 @@ fn trim_tzif(blob: &[u8], trim_from: Option<i64>, trim_to: Option<i64>) -> Vec<u
     };
 
     let times: Vec<i32> = times_raw
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|c| i32::from_be_bytes([c[0], c[1], c[2], c[3]]))
         .collect();
 

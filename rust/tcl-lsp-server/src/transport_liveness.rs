@@ -170,15 +170,15 @@ mod tests {
     }
 
     impl LanguageServer for PendingHoverServer {
-        async fn initialize(
+        fn initialize(
             &self,
             _params: InitializeParams,
-        ) -> tower_lsp_server::jsonrpc::Result<InitializeResult> {
-            Ok(InitializeResult::default())
+        ) -> impl Future<Output = tower_lsp_server::jsonrpc::Result<InitializeResult>> {
+            std::future::ready(Ok(InitializeResult::default()))
         }
 
-        async fn shutdown(&self) -> tower_lsp_server::jsonrpc::Result<()> {
-            Ok(())
+        fn shutdown(&self) -> impl Future<Output = tower_lsp_server::jsonrpc::Result<()>> {
+            std::future::ready(Ok(()))
         }
 
         async fn hover(
