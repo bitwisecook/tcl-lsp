@@ -87,3 +87,7 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - ROLLBACK DOCTRINE WORKING: both v2 lanes pushed early — claude/f5-fixes-1653-1654 @901bb5c0c, claude/f6-fixes-1600-1651 @758ac0512 on origin. No PRs yet (~1h in, normal). Only their two worktrees present (no zombies). Disk 18G.
 - Labelling: no new issues since #1656; latest five all correctly labelled. Compliant.
 - Queue unchanged: #1624 #1606 #1608 #1617 after v2 lanes; E1 finish low priority.
+
+## 2026-08-20 10:08Z — check-in (light)
+- Both v2 lanes actively pushing: F5 @1024a7032, F6 @5c8088a20 (advanced since 09:11). No PRs yet (~2h in). Branch movement = health signal, no pings.
+- Disk 7.9G (builds in flight), above gate. No zombie worktrees. Labelling compliant (no new issues).
