@@ -130,3 +130,8 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - User reported Pages deploy failing (run 32364367991, the #1658-merge push). Wasm LSP-server in-browser smoke panics twice: parking_lot Condvar wait ("Parking not supported") + NativeClock::now_micros SystemTime::now — wasm server executing native host paths. Regular CI wasm checks cover the VM artifact only, NOT this smoke → gap let it reach rust. Culprit = one of the recent server merges (#1649/#1652/#1658 most likely).
 - Filed #1661 (bug+pre-release). Lane F7 launched (a1d993e535dc39e1b, opus, worktree, branch claude/f7-fix-1661-pages-wasm): bound regression window via last green pages run, bisect, root-cause both panics, reproduce the workflow's smoke locally, fix, note the PR-gate gap. Full doctrines + durability rules.
 - #1659: test-ext green (no wedge), rust-tests finishing — merge imminent. F6v2 on #1657. Three lanes active (F5v2 idle after #1659 closes).
+
+## 2026-08-20 11:58Z — #1659 MERGED
+- #1659 MERGED at 22f534496d66793ab047841230e60280df8fc7db (all 25 green on d13750e09, test-ext no wedge). Closed #1653 #1654. TALLY: 21 PRs merged, 52 issues closed this session. F5v2 worktree removed; lane retired.
+- Note for the pages issue: #1659's merge triggers another pages deploy run which will presumably fail the same way until F7's fix lands — expected, not new information.
+- Active: F6v2 (#1657 wedge conviction), F7 (#1661 pages wasm). Queue: #1624 #1606 #1608 #1617 + #1644 #1656 #1660 in the pre-release pool; E1 low.
