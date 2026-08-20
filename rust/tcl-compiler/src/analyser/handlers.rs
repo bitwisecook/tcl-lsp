@@ -310,6 +310,17 @@ impl ManufacturerLayout {
 /// stopping early can only *lose* evidence, which abstains.
 const MAX_UNKNOWN_BODY_DEPTH: u32 = 8;
 
+/// How many unclassifiable creation calls one document keeps for the
+/// post-pass retry — see [`Analyser::defer_class_creation`] (issue #1660).
+///
+/// Only a call whose head names nothing the document knows is kept, so a real
+/// file holds a handful: the shape exists to catch a metaclass proved after
+/// the walk, and a document proves few. The cap bounds a generated or
+/// half-edited file whose calls are all to unknown commands; past it the
+/// document behaves exactly as it did before this pass existed, which is the
+/// abstaining direction.
+const MAX_DEFERRED_CLASS_CREATIONS: usize = 4096;
+
 /// One creation call inside a proc body whose name word reads a parameter —
 /// see [`Analyser::record_literal_parameter_definitions`].
 struct ParameterisedCreation {
@@ -6567,7 +6578,182 @@ impl Analyser {
     /// ([`tcl_registry::CommandRegistry::is_manufacturer_method`]) and the
     /// creation's structural template exists only when the ordinary generic
     /// handler classified it as a class creation.
+    /// Keep a creation call the walk declined, in case a metaclass proved
+    /// after the walk turns it into one (issue #1660).
+    ///
+    /// The gate is "nothing this document knows makes the head's verdict
+    /// final": a registry command has its own classification, and a recorded
+    /// **proc** is a command that is not a class, so neither can become a
+    /// factory later and neither is kept.
+    ///
+    /// A recorded **class** deliberately *is* kept, even though the walk knew
+    /// the name. A class can be recorded without a factory and gain one in the
+    /// post-pass — an `oo::define` on a computed-name metaclass makes exactly
+    /// such a stub, and the join then proves it — so "known" is not the same
+    /// question as "judged".
+    ///
+    /// A call needs at least a manufacturer word and a name word to be a
+    /// creation at all, so shorter ones are never kept. Buffering is bounded:
+    /// past [`MAX_DEFERRED_CLASS_CREATIONS`] a document keeps the behaviour it
+    /// had before this pass existed, which is the abstaining direction.
+    fn defer_class_creation(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        scope_path: &[usize],
+        cmd_tok: Token,
+    ) {
+        // Cheapest questions first: this runs for every command the generic
+        // handler declines, which is most of a document.
+        if args.len() < 2
+            || arg_tokens.len() < 2
+            || self.deferred_class_creations.len() >= MAX_DEFERRED_CLASS_CREATIONS
+            || crate::naming::is_dynamic_word(cmd_name)
+            || self
+                .registry
+                .as_deref()
+                .is_some_and(|registry| registry.get(cmd_name).is_some())
+        {
+            return;
+        }
+        let namespace = self.command_resolution_namespace(scope_path);
+        if crate::naming::bareword_resolution_candidates(&namespace, cmd_name)
+            .into_iter()
+            .any(|candidate| self.result.all_procs.contains_key(&candidate))
+        {
+            return;
+        }
+        self.deferred_class_creations
+            .push(super::types::DeferredClassCreation {
+                cmd_name: cmd_name.to_owned(),
+                args: args.to_vec(),
+                arg_tokens: arg_tokens.to_vec(),
+                scope_path: scope_path.to_vec(),
+                cmd_tok,
+            });
+    }
+
+    /// Form the deferred verdicts, now that
+    /// [`Self::record_literal_parameter_definitions`] has settled the
+    /// parameterised-class join (issue #1660).
+    ///
+    /// Replayed in document order, so a chain settles in one pass: a class
+    /// this replay records is in the index before the next call is retried,
+    /// which is what lets `Meta create ::A::sub` and then `::A::sub create
+    /// ::A::leaf` both land when `Meta` itself was only proved post-pass.
+    ///
+    /// Each call goes back through the *same* handler the walk used, so a
+    /// replayed creation is recorded by one code path with the walk's own
+    /// rules — the manufacturer layout, the injected members, the body walk,
+    /// the W314/W315 emissions. The retry is gated on the head now naming a
+    /// factory, so a head that stayed unknown costs one lookup and records
+    /// nothing.
+    pub(super) fn replay_deferred_class_creations(&mut self) {
+        if self.deferred_class_creations.is_empty() {
+            return;
+        }
+        for deferred in std::mem::take(&mut self.deferred_class_creations) {
+            // What the walk already recorded under the name this call
+            // creates — an `oo::define` stub it made *because* the creation
+            // was invisible. Captured before the replay, which overwrites it.
+            let prior = self.deferred_creation_prior(&deferred);
+            if !self.handle_oo_class_command(
+                &deferred.cmd_name,
+                &deferred.args,
+                &deferred.arg_tokens,
+                &deferred.scope_path,
+                deferred.cmd_tok,
+            ) {
+                continue;
+            }
+            if let Some((qualified, prior)) = prior {
+                self.rejoin_replayed_class(&qualified, &prior, &deferred.scope_path);
+            }
+        }
+        // A replayed call has had its verdict, whichever way it went. The
+        // handler's decline path buffers again — it cannot tell a first
+        // hearing from a second — so the buffer is emptied here rather than
+        // left to be replayed once more against the same evidence.
+        self.deferred_class_creations.clear();
+    }
+
+    /// The class name a deferred call would record, paired with whatever the
+    /// walk already holds under it (issue #1660).
+    ///
+    /// `None` when the head still names no factory, when the layout puts no
+    /// name where this call has a word, or — the ordinary case — when nothing
+    /// was recorded under that name at all.
+    fn deferred_creation_prior(
+        &self,
+        deferred: &super::types::DeferredClassCreation,
+    ) -> Option<(String, ClassDef)> {
+        let resolved = self.resolve_class_creation(
+            &deferred.cmd_name,
+            &deferred.args,
+            &deferred.arg_tokens,
+            &deferred.scope_path,
+            deferred.cmd_tok,
+        )?;
+        let raw_name = deferred.args.get(resolved.layout.name_arg)?;
+        let namespace = self.command_resolution_namespace(&deferred.scope_path);
+        let qualified = qualify(&namespace, raw_name);
+        Some((
+            qualified.clone(),
+            self.result.all_classes.get(&qualified)?.clone(),
+        ))
+    }
+
+    /// Fold a record the walk made for a class whose creation call it could
+    /// not see back into the replayed creation (issue #1660).
+    ///
+    /// Because the creation was invisible, an `oo::define` on the same class
+    /// made a *stub* — and that stub is where its members went. The replay
+    /// then records the creation under the same name, so without this the
+    /// members the walk did record would be lost: strictly worse than before
+    /// the replay existed.
+    ///
+    /// The union is the one [`join_parameterised_class_observations`] already
+    /// owns, used exactly as the parameterised-class post-pass uses it, so a
+    /// stub joins a creation by one rule wherever the two meet. Two
+    /// observations that contradict each other publish the abstaining record
+    /// the house rule calls for — no factory, inheritance unknown — while
+    /// still keeping both sides' declarations, which are declarations of this
+    /// class either way.
+    fn rejoin_replayed_class(&mut self, qualified: &str, prior: &ClassDef, scope_path: &[usize]) {
+        let Some(observed) = self.result.all_classes.get(qualified) else {
+            return;
+        };
+        let joined = join_parameterised_class_observations(prior, observed).unwrap_or_else(|| {
+            let mut abstaining = observed.clone();
+            abstaining.factory = None;
+            abstaining.inheritance_unknown = true;
+            abstaining.absorb_declarations(prior);
+            abstaining
+        });
+        let simple = joined.name.clone();
+        self.result
+            .all_classes
+            .insert(qualified.to_owned(), joined.clone());
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, scope_path) {
+            scope.classes.insert(simple, joined);
+        }
+    }
+
     pub(super) fn record_literal_parameter_definitions(&mut self) {
+        self.record_parameterised_class_definitions();
+        // The join has settled, so the heads the walk could not judge can be
+        // judged now (issue #1660). Paired here rather than at each of the
+        // four entry points that run this tail: the order matters — a
+        // creation call can only be classified after the metaclass it names
+        // is proved — and pairing them is what makes that order impossible to
+        // get wrong. It also guarantees the buffer is drained on every path,
+        // so a reused analyser never carries one document's deferrals into
+        // the next.
+        self.replay_deferred_class_creations();
+    }
+
+    fn record_parameterised_class_definitions(&mut self) {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
@@ -8805,6 +8991,11 @@ impl Analyser {
             // to put in `all_classes`; ordinary instance manufacturers have
             // no class-definition body. Both are handled by their respective
             // object-value paths instead.
+            //
+            // …and a third case, which is not a verdict at all: the head may
+            // name a metaclass this document proves only *after* the walk
+            // (issue #1660). Keep it for the post-pass.
+            self.defer_class_creation(cmd_name, args, arg_tokens, scope_path, cmd_tok);
             return false;
         };
         if layout.name_arg >= args.len() || layout.name_arg >= arg_tokens.len() {

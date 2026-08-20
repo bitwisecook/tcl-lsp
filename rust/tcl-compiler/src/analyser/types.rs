@@ -1068,6 +1068,34 @@ pub struct ManufacturerSpec {
 /// when `Meta` is written in another document (issue #1276).
 pub type ClassFactoryIndex = BTreeMap<String, ClassFactory>;
 
+/// A creation call the walk could not classify, kept for a **second verdict**
+/// once the parameterised-class observation join has settled (issue #1660).
+///
+/// A metaclass proved only by that post-pass does not exist while the walk
+/// runs: `::T::D::class create ::T::W { … }` in the same document reads as a
+/// call to an unknown command, so the class it makes is recorded nowhere.
+/// Which verdict the head deserves is therefore not answerable during the
+/// walk — the same situation #1642 met with version-floor arity, and the same
+/// answer: buffer the inputs, decide afterwards.
+///
+/// Only calls whose head names **nothing this document knows** are kept, which
+/// is the one shape a later proof can turn into a creation; a head that
+/// already resolves has had its verdict, right or wrong, and is not revisited.
+#[derive(Debug, Clone)]
+pub struct DeferredClassCreation {
+    /// The call's head word, exactly as `handle_oo_class_command` received it.
+    pub cmd_name: String,
+    /// Its argument words.
+    pub args: Vec<String>,
+    /// Their tokens, for the name and body spans the replay records.
+    pub arg_tokens: Vec<Token>,
+    /// The scope the call was written in, so the replayed class homes where
+    /// the walk would have homed it.
+    pub scope_path: Vec<usize>,
+    /// The head's own token — the call offset a rename chain resolves at.
+    pub cmd_tok: Token,
+}
+
 /// Instance methods dispatchable on some workspace **descendant** of each
 /// class, keyed by the ancestor's fully-qualified name — what a host hands
 /// the analyser so the template-method abstention (issue #1367) can see a

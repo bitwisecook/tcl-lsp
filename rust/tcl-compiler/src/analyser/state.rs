@@ -1175,6 +1175,20 @@ pub struct Analyser {
     /// [`Self::irules_file_profiles`]; `None` until the first IRULE4003
     /// candidate asks for it.
     pub(super) irules_event_bodies: Option<Vec<(String, Vec<String>)>>,
+    /// Creation calls the walk could not classify because their head was not
+    /// yet known to be a class factory — replayed once the parameterised-class
+    /// observation join has settled (issue #1660).
+    ///
+    /// A metaclass whose identity is proved only by that post-pass does not
+    /// exist while the walk runs, so `Meta create ::T::W { … }` in the same
+    /// document reads as an ordinary call to an unknown command and the class
+    /// it makes goes unrecorded — no factory, no members, no completion. The
+    /// verdict on such a head cannot be formed during the walk at all, so it
+    /// is buffered and formed afterwards, the shape #1642 used for
+    /// version-floor arity.
+    ///
+    /// Cleared at the top of each `analyse` run.
+    pub(super) deferred_class_creations: Vec<super::types::DeferredClassCreation>,
 }
 
 /// W108 non-ASCII detection mode for the `tclLsp.style.nonAscii`
@@ -1485,6 +1499,7 @@ impl Analyser {
             per_item_fallback: None,
             irules_file_profiles: None,
             irules_event_bodies: None,
+            deferred_class_creations: Vec::new(),
         }
     }
 
@@ -2724,6 +2739,11 @@ impl Analyser {
         self.minted_synthetic_names.clear();
         self.pending_instances = None;
         self.deferred_instance_replays.clear();
+        // Normally drained by the replay, but a walk that never runs the
+        // post-walk tail (`analyse_commands` with `finalise: false`) leaves
+        // entries behind, and a reused analyser must not carry one document's
+        // deferred calls into the next.
+        self.deferred_class_creations.clear();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");

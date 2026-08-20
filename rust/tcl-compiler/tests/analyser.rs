@@ -5739,6 +5739,315 @@ mod class_factories {
     }
 
     #[test]
+    fn a_post_pass_metaclass_classifies_a_creation_in_its_own_file() {
+        // TP (#1660) — `::T::D::class` is proved a metaclass only by the
+        // parameterised-class join, which runs *after* the walk, so a
+        // creation call naming it in the same document had nothing to be
+        // classified against and the class it makes went unrecorded: no
+        // factory, no members, no completion.
+        //
+        // tclsh 8.6.16 / 9.0.4 run the whole chain: `::T::W` exists, is a
+        // class, `info object class ::T::W` is `::T::D::class`, its methods
+        // are `go`, and `[[::T::W new] go]` answers `went`.
+        let src = format!(
+            "{COMPUTED_METACLASS}::T::D::class create ::T::W {{ method go {{}} {{ return went }} }}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        let w = result
+            .all_classes
+            .get("::T::W")
+            .expect("the class the post-pass metaclass makes must be recorded");
+        assert!(
+            w.methods.contains_key("go"),
+            "its members come from the creation body; got {:?}",
+            w.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            w.metaclass.ends_with("T::D::class"),
+            "the recorded metaclass is the head the source wrote; got {:?}",
+            w.metaclass
+        );
+        // `::T::W` declares no superclass, so it is an ordinary class rather
+        // than another factory — the replay must not manufacture one.
+        assert!(
+            !result.class_factories().contains_key("::T::W"),
+            "a plain class must publish no factory; got {:?}",
+            result.class_factories().keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_replayed_creation_can_itself_prove_the_next_one() {
+        // The replay runs in document order, so a chain settles in one pass:
+        // `::T::Sub` is created by the post-pass metaclass *and* declares it
+        // as its superclass, which makes `::T::Sub` a factory in turn, which
+        // is what classifies `::T::Leaf`.
+        //
+        // tclsh 8.6.16 / 9.0.4: `info object class ::T::Sub` is
+        // `::T::D::class`, `info object class ::T::Leaf` is `::T::Sub`, and
+        // `[[::T::Leaf new] go]` answers `leafy`.
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             ::T::D::class create ::T::Sub {{ superclass ::T::D::class }}\n\
+             ::T::Sub create ::T::Leaf {{ method go {{}} {{ return leafy }} }}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.class_factories().contains_key("::T::Sub"),
+            "a replayed class that inherits the metaclass is a factory too; got {:?}",
+            result.class_factories().keys().collect::<Vec<_>>()
+        );
+        let leaf = result
+            .all_classes
+            .get("::T::Leaf")
+            .expect("the second link of the chain must be recorded");
+        assert!(
+            leaf.methods.contains_key("go"),
+            "got {:?}",
+            leaf.methods.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn an_unknown_head_that_never_becomes_a_factory_records_nothing() {
+        // FP guard: deferring a call is not a claim about it. A head that is
+        // still unknown when the join has settled — no proc, no class, no
+        // registry command — must record exactly what it did before this
+        // pass existed, which is nothing at all.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "::T::NoSuchMeta create ::T::Q { method m {} {} }\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        assert!(
+            !result.all_classes.contains_key("::T::Q"),
+            "an unproved head must manufacture nothing; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn the_incremental_path_records_the_same_classes_as_a_full_analysis() {
+        // The deferred creation is *pending verdict* state, so it has to
+        // survive a snapshot/restore exactly as the pending-arity buffers do
+        // (PR #1673 review, thread r3825697165). The LSP's incremental path
+        // restores a snapshot covering the clean prefix and re-walks only the
+        // dirty chunk: if the buffer is not in the snapshot, a creation call
+        // written in that prefix is gone, while the evidence that proves its
+        // metaclass — the placeholder and the load-time call — is restored
+        // with the result. The join then proves `::T::D::class` and nothing
+        // recreates `::T::W`, so the same document answers differently
+        // depending on which entry point analysed it.
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             ::T::D::class create ::T::W {{ method go {{}} {{ return went }} }}\n\
+             set unrelated 1\n"
+        );
+        let full = analysis(&src, "tcl9.0");
+        assert!(
+            full.all_classes.contains_key("::T::W"),
+            "precondition: the full analysis records the class"
+        );
+
+        let commands = tcl_compiler::segmenter::segment_commands(&src);
+        let split = commands.len() - 1;
+        let (prefix, dirty) = commands.split_at(split);
+        let mut analyser = Analyser::new();
+        let (_, snapshots) =
+            analyser.analyse_chunked(&src, vec![prefix.to_vec(), dirty.to_vec()], "tcl9.0");
+        // Re-analyse the dirty chunk from the clean prefix's snapshot, which
+        // is what an edit to the last line does.
+        let mut incremental = Analyser::new();
+        incremental.restore(snapshots[0].clone());
+        let restored = incremental.analyse_commands(&src, dirty, "tcl9.0", true);
+
+        let mut full_classes: Vec<&String> = full.all_classes.keys().collect();
+        let mut restored_classes: Vec<&String> = restored.all_classes.keys().collect();
+        full_classes.sort();
+        restored_classes.sort();
+        assert_eq!(
+            restored_classes, full_classes,
+            "incremental analysis must record the same classes as a full one"
+        );
+    }
+
+    #[test]
+    fn a_deferred_creation_never_leaks_into_the_next_document() {
+        // The other half of owning per-run state: an analyser is reused, and
+        // a walk that never runs the post-walk tail (`finalise: false`, the
+        // partial-snapshot path) leaves the buffer full. Those calls belong
+        // to a document that is over — their tokens index its source — so
+        // carrying them forward would let the *next* document, which happens
+        // to prove the same metaclass, record a class it never wrote.
+        let mut analyser = Analyser::new();
+        let first =
+            format!("{COMPUTED_METACLASS}::T::D::class create ::T::W {{ method go {{}} {{}} }}\n");
+        let first_commands = tcl_compiler::segmenter::segment_commands(&first);
+        let _ = analyser.analyse_commands(&first, &first_commands, "tcl9.0", false);
+
+        let second = COMPUTED_METACLASS.to_owned();
+        let second_commands = tcl_compiler::segmenter::segment_commands(&second);
+        let result = analyser.analyse_commands(&second, &second_commands, "tcl9.0", true);
+        assert!(
+            !result.all_classes.contains_key("::T::W"),
+            "the second document writes no creation call; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_creation_written_before_its_metaclass_is_proved_stays_unrecorded() {
+        // The limit this deliberately keeps. Written in this order the
+        // program does not run at all: tclsh 8.6.16 / 9.0.4 both raise
+        // `invalid command name "::U::D::class"`, because the metaclass does
+        // not exist until `::U::mk` is called on the next line. The walk's
+        // own reachability proof stops at the unknown head, so nothing is
+        // claimed — the correct answer for a program with no successful run.
+        let src = concat!(
+            "namespace eval ::U {}\n",
+            "oo::class create ::U::Mother { superclass oo::class }\n",
+            "proc ::U::mk {name} { ::U::Mother create ${name}::class { superclass ::U::Mother } }\n",
+            "namespace eval ::U::D {}\n",
+            "::U::D::class create ::U::W { method go {} {} }\n",
+            "::U::mk ::U::D\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        assert!(
+            !result.all_classes.contains_key("::U::W"),
+            "a creation that cannot have run must not be recorded; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_replayed_creation_keeps_the_members_its_define_stub_already_held() {
+        // The regression the replay would otherwise cause. While the creation
+        // was invisible, `oo::define ::T::W` had nothing to extend, so the
+        // walk made a *stub* and put `extra` in it. Recording the creation
+        // afterwards under the same name must not throw that away — the class
+        // really has both members (tclsh 8.6.16 / 9.0.4: `info class methods
+        // ::T::W` is `go extra`).
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             ::T::D::class create ::T::W {{ method go {{}} {{ return went }} }}\n\
+             ::oo::define ::T::W {{ method extra {{}} {{}} }}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        let w = result
+            .all_classes
+            .get("::T::W")
+            .expect("the created class is recorded");
+        assert!(
+            w.methods.contains_key("go") && w.methods.contains_key("extra"),
+            "both the creation body's member and the stub's must survive; got {:?}",
+            w.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !w.via_define,
+            "this file creates the class, so the record is not an extension stub"
+        );
+        assert!(
+            w.metaclass.ends_with("T::D::class"),
+            "got {:?}",
+            w.metaclass
+        );
+    }
+
+    #[test]
+    fn a_replayed_creation_with_a_relative_name_homes_where_it_was_written() {
+        // A replayed creation goes back through the handler the walk uses, so
+        // its name homes by the same rule: `create W` written inside
+        // `namespace eval ::T` is `::T::W`, not a global `::W`. Recording it
+        // anywhere else would put a class in the index no interpreter has.
+        //
+        // tclsh 8.6.16 / 9.0.4: `info commands ::T::W` finds it and
+        // `info commands ::W` does not.
+        let src = format!(
+            "{COMPUTED_METACLASS}namespace eval ::T {{\n    ::T::D::class create W {{ method go {{}} {{}} }}\n}}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::W"),
+            "the relative name homes to the enclosing namespace; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !result.all_classes.contains_key("::W"),
+            "and nowhere else; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_head_the_walk_knew_only_as_a_define_stub_is_still_deferred() {
+        // "Known" is not "judged". The `oo::define` here records `::T::D::class`
+        // during the walk — as a stub with no factory, because the creation
+        // that proves it is still a computed name — so a creation call naming
+        // it looks like a call to a *recorded class*. Its verdict is no more
+        // final than an unknown head's: the post-pass join is what gives that
+        // stub its factory (#1653), and only then can this call be classified.
+        //
+        // tclsh 8.6.16 / 9.0.4 run it: `::T::D::class` has method `extra`,
+        // `info object class ::T::W` is `::T::D::class`, and `[[::T::W new] go]`
+        // answers `went`.
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             ::oo::define ::T::D::class {{ method extra {{}} {{ return e }} }}\n\
+             ::T::D::class create ::T::W {{ method go {{}} {{ return went }} }}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        let w = result
+            .all_classes
+            .get("::T::W")
+            .expect("a stub-known metaclass must still classify its creation");
+        assert!(
+            w.methods.contains_key("go"),
+            "got {:?}",
+            w.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            result
+                .all_classes
+                .get("::T::D::class")
+                .is_some_and(|meta| meta.methods.contains_key("extra")),
+            "and the metaclass keeps the stub's own member"
+        );
+    }
+
+    #[test]
+    fn a_stub_that_contradicts_the_replayed_creation_abstains_but_keeps_members() {
+        // The other side of that join: the stub and the creation body declare
+        // *different* superclasses. Two observations that disagree publish the
+        // abstaining record — no factory, inheritance unknown — exactly as a
+        // pair of disagreeing creations does, while both sides' declarations
+        // stay, because they are declarations of this class either way.
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             oo::class create ::T::Other {{}}\n\
+             ::T::D::class create ::T::W {{ superclass ::T::Mother\n method go {{}} {{}} }}\n\
+             ::oo::define ::T::W {{ superclass ::T::Other\n method extra {{}} {{}} }}\n"
+        );
+        let result = analysis(&src, "tcl9.0");
+        let w = result
+            .all_classes
+            .get("::T::W")
+            .expect("the contested class is still recorded");
+        assert!(
+            w.inheritance_unknown,
+            "two disagreeing superclass observations must abstain"
+        );
+        assert!(
+            w.methods.contains_key("go") && w.methods.contains_key("extra"),
+            "an abstaining record still holds every declaration; got {:?}",
+            w.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !result.class_factories().contains_key("::T::W"),
+            "an abstaining record publishes no factory"
+        );
+    }
+
+    #[test]
     fn an_apply_of_an_unreadable_lambda_still_abstains() {
         // FP guard (#1656) — the same soundness class as the `uplevel` vector
         // above, reached through the *other* role. `apply`'s argument is
