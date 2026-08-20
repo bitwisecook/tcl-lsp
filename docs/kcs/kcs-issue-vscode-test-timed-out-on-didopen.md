@@ -61,6 +61,35 @@ Each line below the verdict reports how long that question took, so a verdict
 of "answered after 3900ms" on a 4000ms budget reads as a slow machine rather
 than a healthy one, even when the starvation probe cannot confirm it.
 
+## What the server was doing
+
+Below the three per-question lines is a capture of the process itself, which is
+what turns a `SERVER WEDGED` verdict from "re-run it" into a diagnosis. Read it
+in this order:
+
+1. **`extension host: a 250ms timer woke Nx late`.** If that is `2x` or more,
+   the extension host's own event loop was blocked and the request may never
+   have left it — the server is not necessarily implicated at all.
+2. **`server process: pid N, state S, T thread(s) … burned C CPU tick(s), read R
+   byte(s) and wrote W byte(s)`.** These are deltas over a quarter-second, and
+   the line after them says which shape they are:
+   - CPU moving → the server is running. Suspect a spin, or a long computation
+     holding a lock every other request needs.
+   - no CPU but bytes moving → the transport is alive and the work is parked.
+     Suspect a barrier (`edits_settled`) or a mutex, not the pipe.
+   - neither moving → nothing is being read from stdin or written to stdout.
+     That is the stdin-reader-stopped shape; see `transport_liveness.rs`.
+   - `state Z` → the process is a zombie; it already exited.
+3. **`server log: last N of M line(s)`.** The server's own `[timing]` markers,
+   which name the last thing it got through before it went quiet.
+
+If the capture says `pid unavailable`, the language client no longer exposes its
+child process where `serverProcessId` looks (`helper.ts`) — a
+vscode-languageclient upgrade is the usual cause. `waitDiscipline.test.ts` has
+an assertion that fails on exactly that, so it should not reach you silently.
+
+## Why the first question carries no URI
+
 The first question is asked with **no URI** (`tcl-lsp.getEffectiveConfig` with
 an empty argument), and that is load-bearing. Given a document URI the same
 command runs `read_document`, which waits on the server's global `EditOrder`
