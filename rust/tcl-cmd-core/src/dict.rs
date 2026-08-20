@@ -110,7 +110,7 @@ pub fn create<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, C
     }
     let mut pairs: Vec<(O::Value, O::Value)> = Vec::new();
     let mut index = std::collections::HashMap::new();
-    for chunk in args.chunks_exact(2) {
+    for chunk in args.as_chunks::<2>().0 {
         upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
     }
     Ok(ops.new_dict(pairs))
@@ -257,7 +257,7 @@ pub fn replace<O: ValueOps>(
     }
     let mut pairs = ops.dict_pairs(dict)?;
     let mut index = index_of_pairs(ops, &pairs);
-    for chunk in kv.chunks_exact(2) {
+    for chunk in kv.as_chunks::<2>().0 {
         upsert_indexed(ops, &mut pairs, &mut index, &chunk[0], chunk[1].clone());
     }
     Ok(ops.new_dict(pairs))

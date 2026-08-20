@@ -362,7 +362,7 @@ fn parse_dict(s: &str) -> Option<Vec<(String, String)>> {
     let mut index: std::collections::HashMap<String, usize> =
         std::collections::HashMap::with_capacity(elems.len() / 2);
     let mut pairs: Vec<(String, String)> = Vec::with_capacity(elems.len() / 2);
-    for kv in elems.chunks_exact(2) {
+    for kv in elems.as_chunks::<2>().0 {
         let (k, v) = (&kv[0], &kv[1]);
         if let Some(&pos) = index.get(k) {
             pairs[pos].1.clone_from(v); // last value wins, position preserved
@@ -445,7 +445,7 @@ pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
     }
     let mut order: Vec<String> = Vec::new();
     let mut pos: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for kv in args.chunks_exact(2) {
+    for kv in args.as_chunks::<2>().0 {
         let (k, v) = (kv[0], kv[1]);
         if let Some(&p) = pos.get(k) {
             // Reuse the existing slot's allocation (clippy::assigning_clones).

@@ -282,7 +282,7 @@ pub trait ValueOps {
         let mut index: std::collections::HashMap<Rc<str>, usize> =
             std::collections::HashMap::with_capacity(elems.len() / 2);
         let mut pairs: Vec<(Self::Value, Self::Value)> = Vec::new();
-        for chunk in elems.chunks_exact(2) {
+        for chunk in elems.as_chunks::<2>().0 {
             let key = self.as_str(&chunk[0]);
             if let Some(&pos) = index.get(&key) {
                 pairs[pos].1 = chunk[1].clone(); // last value wins, keep position

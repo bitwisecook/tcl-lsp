@@ -485,7 +485,7 @@ pub fn fold_dict_create_cmd(value: &str) -> Option<String> {
         return None;
     }
     let mut pairs: Vec<(&str, &str)> = Vec::with_capacity(args.len() / 2);
-    for pair in args.chunks_exact(2) {
+    for pair in args.as_chunks::<2>().0 {
         let (k, v) = (pair[0].as_str(), pair[1].as_str());
         if let Some(slot) = pairs.iter_mut().find(|(pk, _)| *pk == k) {
             slot.1 = v; // last value wins, position preserved

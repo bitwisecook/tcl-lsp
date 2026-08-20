@@ -2220,7 +2220,7 @@ file; this call falls through to the 'unknown' handler."
             let rng = if f.reason == "negative" {
                 "negative".to_string()
             } else if f.index_interval.lo == f.index_interval.hi {
-                format!("is {}", f.index_interval.lo.map_or(0, |l| l))
+                format!("is {}", f.index_interval.lo.unwrap_or(0))
             } else {
                 let lo = f
                     .index_interval

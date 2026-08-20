@@ -312,7 +312,7 @@ fn ns_upvar(
         return err(format!("namespace \"{namespace_word}\" not found"));
     }
 
-    for pair in rest[1..].chunks_exact(2) {
+    for pair in rest[1..].as_chunks::<2>().0 {
         let other = pair[0].to_str();
         let local = pair[1].to_str();
         let target = if other.starts_with("::") || namespace.is_empty() {
@@ -568,7 +568,7 @@ fn ns_ensemble_create(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         parameters: Vec::new(),
         unknown: None,
     };
-    for pair in args.chunks_exact(2) {
+    for pair in args.as_chunks::<2>().0 {
         let word = pair[0].to_str();
         let resolved = match CreateOption::resolve(word.as_bytes()) {
             Ok(resolved) => resolved,
@@ -663,7 +663,7 @@ fn ns_ensemble_configure(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     // `namespace eval M {namespace ensemble configure …}` shape, but
     // configuring an ensemble from outside its namespace resolves relative
     // targets against the caller.
-    for pair in rest.chunks_exact(2) {
+    for pair in rest.as_chunks::<2>().0 {
         let resolved = match ConfigOption::resolve(pair[0].to_str().as_bytes()) {
             Ok(resolved) => resolved,
             Err(message) => return err(String::from_utf8_lossy(&message).into_owned()),
