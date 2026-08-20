@@ -556,6 +556,32 @@ struct DocumentsGuard<'a> {
     store: &'a DocumentStore,
 }
 
+impl DocumentsGuard<'_> {
+    /// Rename the current holder without releasing the map.
+    ///
+    /// A long guarded region is not one place. `publish_diagnostics_result`
+    /// holds this map across six `await`s — a `workspace_index` write, a slot
+    /// walk, two small mutexes, and the delivery — and a tag naming only the
+    /// function tells you it was stuck somewhere in that span. Retagging as it
+    /// advances narrows "held by `publish_diagnostics_result` for 103.7s" to the
+    /// exact `await`, the same way [`EditTurn::at`] does for a held turn.
+    ///
+    /// [`DocumentsHolder::since`] is deliberately **not** reset, so the reported
+    /// age stays the age of the whole hold rather than of the current step; the
+    /// site says where it stopped, the age says how long the map has been gone.
+    fn retag(&self, site: &'static str) {
+        if let Some(holder) = self
+            .store
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.site = site;
+        }
+    }
+}
+
 impl std::ops::Deref for DocumentsGuard<'_> {
     type Target = HashMap<Uri, DocumentState>;
 
@@ -4417,8 +4443,31 @@ async fn add_entry_point_diagnostic_consumers(
 
 /// Publish the lifted diagnostics: re-check currency, refresh the workspace
 /// index, prime the pull cache, deliver to the client, and log timing.  Always
-/// settled (`true`) — a stale revision or a lift-worker panic both keep the
+/// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
+///
+/// # Over the line limit, deliberately
+///
+/// The body is two lines past `clippy::too_many_lines`, and the overrun is the
+/// [`DocumentsGuard::retag`] markers — one before each `await` that runs while
+/// the open-document map is held (issue #1657).
+///
+/// They are all-or-nothing. A retag persists until the next one, so marking
+/// *some* awaits is worse than marking none: a hold at an unmarked await still
+/// reports the last marked one, which is a confident, wrong answer. Dropping
+/// two to satisfy the lint would have produced exactly that.
+///
+/// Splitting the function is the other way out and is the wrong one here. What
+/// makes this body long is a single deliberate critical section — the
+/// `documents` lock held across the currency re-check, the index update and the
+/// delivery — and cutting it in half would put that lock's acquisition and its
+/// release in different functions. The lock scope being readable in one piece is
+/// the property this whole issue is about.
+#[allow(
+    clippy::too_many_lines,
+    reason = "the overrun is #1657 lock-phase markers, which are only correct as a complete set; \
+              splitting the body would hide the documents-lock critical section"
+)]
 async fn publish_diagnostics_result(
     delivery: &DeliveryCtx<'_>,
     workspace_index: &Arc<RwLock<core_workspace_index::WorkspaceIndex>>,
@@ -4477,6 +4526,7 @@ async fn publish_diagnostics_result(
             .get(delivery.uri)
             .is_some_and(|doc| doc.backing_file_deleted);
         let (change, mut consumers) = {
+            docs.retag("publish_diagnostics_result: workspace_index.write");
             let mut index = workspace_index.write().await;
             let before = IndexedDiagnosticFacts::capture(&index, delivery.uri.as_str());
             if orphaned {
@@ -4504,6 +4554,7 @@ async fn publish_diagnostics_result(
             (change, consumers)
         };
         if change.source_or_package_changed {
+            docs.retag("publish_diagnostics_result: add_entry_point_diagnostic_consumers");
             add_entry_point_diagnostic_consumers(
                 delivery.diag_slots,
                 delivery.uri.as_str(),
@@ -4519,6 +4570,7 @@ async fn publish_diagnostics_result(
         // The document is now indexed standalone: invalidate its applied
         // source-site seed record (M9) so the next cross-document query
         // re-applies the seeded views.
+        docs.retag("publish_diagnostics_result: rehomed_source_seeds");
         rehomed_source_seeds
             .lock()
             .await
@@ -4528,6 +4580,7 @@ async fn publish_diagnostics_result(
         // republishes must compute against the new facts, never return the old
         // cache entry merely because the peer's text revision did not change.
         if !peers.is_empty() {
+            docs.retag("publish_diagnostics_result: pull_diag_cache");
             let mut cache = delivery.pull_diag_cache.lock().await;
             for peer in &peers {
                 cache.remove(peer);
@@ -4537,6 +4590,7 @@ async fn publish_diagnostics_result(
         // `textDocument/diagnostic` request now returns this exact set with
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
+        docs.retag("publish_diagnostics_result: cache_and_deliver");
         delivery.cache_and_deliver(diags).await;
         peers
     };
