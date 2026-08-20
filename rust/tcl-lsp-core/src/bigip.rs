@@ -48,24 +48,21 @@ use tcl_registry::bigip::{BigipPropertySpec, BigipRegistry, ValueKind};
 use crate::document_symbols::{DocumentSymbol, LineRange, SymbolKind};
 use crate::folding::{FoldKind, FoldingRange};
 
-/// Canonical BIG-IP configuration file names, matched by basename
-/// (not extension).
-const BIGIP_CONF_NAMES: &[&str] = &[
-    "bigip.conf",
-    "bigip_base.conf",
-    "bigip_gtm.conf",
-    "bigip_script.conf",
-    "bigip_user.conf",
-];
-
 /// Return `true` when `uri`'s basename is a canonical BIG-IP config
-/// name. Single source of truth for the basename → BIG-IP test the
-/// `did_open` dialect routing relies on.
+/// name (`bigip.conf`, `bigip_base.conf`, …).
+///
+/// The names themselves live on the `f5-bigip` profile's `filenames` axis in
+/// the dialect catalog, which is what the editors' generator projects into
+/// each editor's per-language `filenames` list. They used to be a private
+/// list here, invisible to the editors — so VS Code contributed no
+/// `filenames` and a `bigip.conf` never associated (issue #1625).
 #[must_use]
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
     let lower = basename.to_ascii_lowercase();
-    BIGIP_CONF_NAMES.contains(&lower.as_str())
+    tcl_dialect::DialectProfile::by_name("f5-bigip")
+        .filenames
+        .contains(&lower.as_str())
 }
 
 /// A top-level config stanza: its header text and byte span.

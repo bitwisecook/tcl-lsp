@@ -21,7 +21,11 @@ file_extensions:
 
 # NOT `conf`: a bare `.conf` extension would claim every unrelated .conf file
 # in Sublime, which has no filename-glob support in a syntax file. VS Code
-# matches the specific filenames (bigip.conf, bigip_base.conf, …) instead.
+# matches the specific filenames (bigip.conf, bigip_base.conf, …) instead —
+# from the `f5-bigip` profile's `filenames` axis in the dialect catalogue,
+# which `cargo xtask gen-editor-extensions` projects into its manifest. (That
+# was aspirational when this comment was written: VS Code contributed no
+# `filenames` at all until issue #1625.)
 # `plugin.py` sets this syntax by filename; first_line_match catches the rest.
 
 first_line_match: '^#TMSH-VERSION'

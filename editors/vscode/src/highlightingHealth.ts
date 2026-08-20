@@ -27,7 +27,7 @@ import {
   window,
   workspace,
 } from "vscode";
-import { isTclLanguage } from "./languageIds";
+import { EXTENSION_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
 
 // Highlighting-health notices.
 //
@@ -57,7 +57,20 @@ const DISMISS_ACTION = "Don't show again";
 // Extensions that our language contributions claim but that are too generic to
 // treat as "should be Tcl" — flagging a foreign `.test`/`.apl`/`.exp` file would
 // be a false positive.
-const GENERIC_EXTENSIONS = new Set([".test", ".impl", ".scf", ".exp", ".apl"]);
+//
+// `.do` and `.globals` are here for the same reason and were missed: `.do`
+// belongs to ModelSim/Questa macros *and* to a dozen unrelated tools, and
+// `.globals` to as many again — both collide with foreign files more often
+// than `.scf`, which was already listed (issue #1625).
+const GENERIC_EXTENSIONS = new Set([
+  ".test",
+  ".impl",
+  ".scf",
+  ".exp",
+  ".apl",
+  ".do",
+  ".globals",
+]);
 
 // Shown at most once per session per check (in addition to the permanent
 // "Don't show again" dismissal) to keep the notices quiet.
@@ -404,16 +417,16 @@ function ownedTclExtensions(context: ExtensionContext): Set<string> {
   return filterOwnedExtensions(raw);
 }
 
-/** Pick the most specific Tcl language id for a given file extension. Exported for unit testing. */
+/**
+ * Pick the most specific Tcl language id for a given file extension, falling
+ * back to plain `tcl` for one we do not own. Exported for unit testing.
+ *
+ * A hand-written switch here knew 4 of the 25 registered extensions, so the
+ * "Switch to Tcl" action on a `.sdc` file that had lost its association
+ * offered `tcl` rather than `tcl-synopsys` (issue #1625). The answer now comes
+ * from the generated catalogue projection, which cannot drift from what
+ * `contributes.languages` registers.
+ */
 export function tclLanguageIdForExtension(ext: string): string {
-  switch (ext) {
-    case ".irul":
-    case ".irule":
-      return "tcl-irule";
-    case ".iapp":
-    case ".iappimpl":
-      return "tcl-iapp";
-    default:
-      return "tcl";
-  }
+  return EXTENSION_LANGUAGE_IDS[ext.toLowerCase()] ?? "tcl";
 }

@@ -11424,6 +11424,7 @@ impl Backend {
             "library_paths": library_paths,
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
+            "pack_file_extensions": self.pack_file_extension_report().await,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
@@ -12739,6 +12740,65 @@ impl Backend {
             })
             .collect();
         (configured, report)
+    }
+
+    /// The file extensions the *discovered* packs claim, each resolved to the
+    /// editor language id a client should associate it with.
+    ///
+    /// The dynamic half of extension registration (issue #1626). A pack's
+    /// `file_extension NAME -dialect D` row already routes the extension
+    /// server-side — `dialect_from_extension` consults pack routing before the
+    /// static catalogue — but an editor learns its associations from a static
+    /// manifest written long before the pack existed, so the file never
+    /// associates, the client never attaches, and in VS Code the extension may
+    /// not even activate. Advertising the pairs here lets a client that *can*
+    /// register at runtime do so.
+    ///
+    /// No new editor *language* can be created at runtime, so each extension
+    /// resolves onto an existing one: the owning dialect's
+    /// `editor_language_id` when it has a dedicated language, and plain `tcl`
+    /// otherwise (including for a row with no `-dialect` at all, where the
+    /// server's own detection decides the dialect once the file opens).
+    ///
+    /// Extensions the shipped catalogue already owns are **excluded**: those
+    /// are registered statically by every editor, and re-advertising them
+    /// would invite a client to write a redundant `files.associations` entry
+    /// that it would then have to distinguish from a real one on cleanup.
+    async fn pack_file_extension_report(&self) -> Vec<serde_json::Value> {
+        let packs = self.spec_packs().await;
+        let mut seen: Vec<String> = Vec::new();
+        let mut out: Vec<serde_json::Value> = Vec::new();
+        for pack in &packs.packs {
+            for row in &pack.file_extensions {
+                if seen.contains(&row.extension) {
+                    continue;
+                }
+                // A statically-registered extension needs no dynamic
+                // association; the catalogue's own routing is what the
+                // editors already ship.
+                if tcl_dialect::DialectProfile::all()
+                    .iter()
+                    .any(|p| p.file_extensions.iter().any(|e| e.extension == row.extension))
+                {
+                    continue;
+                }
+                seen.push(row.extension.clone());
+                let language_id = row
+                    .dialect
+                    .and_then(tcl_dialect::DialectProfile::find)
+                    .and_then(|p| p.editor_language_id)
+                    .unwrap_or("tcl");
+                out.push(serde_json::json!({
+                    "extension": row.extension,
+                    "dialect": row.dialect,
+                    "language_id": language_id,
+                    "display_name": row.display_name,
+                    "pack": pack.name,
+                }));
+            }
+        }
+        out.sort_by(|a, b| a["extension"].as_str().cmp(&b["extension"].as_str()));
+        out
     }
 
     /// The workspace's loaded `SpecTcl` packs.  Clones the `Arc` and drops the

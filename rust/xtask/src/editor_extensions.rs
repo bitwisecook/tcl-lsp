@@ -26,16 +26,22 @@
 //!
 //! Projections:
 //! - VS Code `package.json` `contributes.languages` (one language per
-//!   profile with an `editor_language_id`, carrying its extensions) and
-//!   `contributes.grammars` (a `source.tcl` grammar row for any language
-//!   that lacks one).
-//! - VS Code `src/languageIds.ts` `TCL_LANGUAGE_IDS` and
-//!   `src/extension.ts` `LANGUAGE_ID_DIALECTS` (marked blocks).
+//!   profile with an `editor_language_id`, carrying its extensions and its
+//!   whole-basename `filenames`), `contributes.grammars` (a `source.tcl`
+//!   grammar row for any language that lacks one), and the
+//!   `onLanguage:` half of `activationEvents`.
+//! - VS Code `src/languageIds.ts` `TCL_LANGUAGE_IDS`,
+//!   `src/extension.ts` `LANGUAGE_ID_DIALECTS`, and
+//!   `src/languageIds.ts` `EXTENSION_LANGUAGE_IDS` (marked blocks).
 //! - `JetBrains` `plugin.xml`: the `Tcl` and `iRule` fileType
 //!   `extensions="…"` attributes.
 //! - Sublime `Tcl.sublime-syntax` `file_extensions` and Zed
-//!   `config.toml` `path_suffixes` (single-syntax editors get the full
-//!   union).
+//!   `languages/tcl/config.toml` `path_suffixes` (single-syntax editors get
+//!   the full union).
+//! - The **per-dialect** editor surfaces, which used to be hand-maintained
+//!   and had drifted (issue #1625): Sublime's `iRule` / `Expect` / `iApp` /
+//!   `BIG-IP` syntaxes and Zed's secondary `languages/*/config.toml`, each
+//!   carrying exactly the extensions its one dialect owns.
 //!
 //! Run `cargo xtask gen-editor-extensions`; `--check` makes the committed
 //! projections a drift gate.
@@ -60,6 +66,73 @@ const JETBRAINS_FILETYPE: &str =
 const SUBLIME_SYNTAX: &str = "editors/sublime-text/Tcl.sublime-syntax";
 const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
 
+/// The per-dialect editor surfaces: one file, one canonical dialect whose
+/// extensions it registers.
+///
+/// Every one of these was hand-maintained, and three of the five had drifted
+/// from the catalog by the time issue #1625 audited them — Sublime's `iRule`
+/// syntax was missing `irules` and its `Expect` syntax `expect`, so those
+/// files opened under the umbrella `Tcl` syntax with the wrong scope, and
+/// Zed's secondary configs were correct only by luck, gated by nothing.
+///
+/// Sublime's eight EDA / Tcl-version syntaxes are deliberately absent: they
+/// declare no `file_extensions` at all today, and giving them one would make
+/// a *new* ambiguous claim against the umbrella `Tcl.sublime-syntax` (which
+/// lists the whole union) rather than fix a drifted one. That is a design
+/// decision about Sublime's syntax-selection order, not catalog drift, so it
+/// stays out of the generator until it is taken.
+const DIALECT_SURFACES: &[(&str, &str, Surface)] = &[
+    (
+        "editors/sublime-text/iRule.sublime-syntax",
+        "f5-irules",
+        Surface::SublimeSyntax,
+    ),
+    (
+        "editors/sublime-text/Expect.sublime-syntax",
+        "expect",
+        Surface::SublimeSyntax,
+    ),
+    (
+        "editors/sublime-text/iApp.sublime-syntax",
+        "f5-iapps",
+        Surface::SublimeSyntax,
+    ),
+    (
+        "editors/sublime-text/BIG-IP.sublime-syntax",
+        "f5-bigip",
+        Surface::SublimeSyntax,
+    ),
+    (
+        "editors/zed/languages/irules/config.toml",
+        "f5-irules",
+        Surface::ZedConfig,
+    ),
+    (
+        "editors/zed/languages/expect/config.toml",
+        "expect",
+        Surface::ZedConfig,
+    ),
+    (
+        "editors/zed/languages/iapps/config.toml",
+        "f5-iapps",
+        Surface::ZedConfig,
+    ),
+    (
+        "editors/zed/languages/tmsh/config.toml",
+        "f5-tmsh",
+        Surface::ZedConfig,
+    ),
+];
+
+/// How a per-dialect surface spells its extension list.
+#[derive(Clone, Copy)]
+enum Surface {
+    /// A `file_extensions:` YAML block terminated by a blank line.
+    SublimeSyntax,
+    /// A `path_suffixes = […]` TOML array.
+    ZedConfig,
+}
+
 /// `.apl` (the iApp presentation language) has an editor language of its own
 /// (`tcl-apl`, hand-maintained: it is an iApp *sublanguage*, not a dialect
 /// profile), so the generated `tcl` language must not also claim it.
@@ -76,6 +149,9 @@ struct Language {
     aliases: Vec<String>,
     /// Lower-case extensions without dots.
     extensions: Vec<String>,
+    /// Whole basenames the language claims by name rather than by extension
+    /// (`bigip.conf`), from the catalog's `filenames` axis.
+    filenames: Vec<String>,
     /// The canonical dialect the language pins, if any (`None` for plain
     /// `tcl`, whose dialect is detected).
     dialect: Option<String>,
@@ -101,6 +177,7 @@ fn languages() -> Result<Vec<Language>> {
         id: "tcl".to_owned(),
         aliases: vec!["Tcl".to_owned(), "tcl".to_owned()],
         extensions: Vec::new(),
+        filenames: Vec::new(),
         dialect: None,
     });
     for profile in DialectProfile::all() {
@@ -122,6 +199,7 @@ fn languages() -> Result<Vec<Language>> {
                 .iter()
                 .map(|row| row.extension.to_owned())
                 .collect(),
+            filenames: profile.filenames.iter().map(|n| (*n).to_owned()).collect(),
             dialect: Some(profile.name.to_owned()),
         });
     }
@@ -198,6 +276,17 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
                 ),
             );
         }
+        // The whole-basename axis. VS Code matches `filenames` exactly and
+        // case-sensitively, so the catalog's lower-case names are what a real
+        // `bigip.conf` carries. Before the catalog grew this axis, `tcl-bigip`
+        // contributed none and a `bigip.conf` never associated at all, even
+        // though the server has always routed it (issue #1625).
+        if !lang.filenames.is_empty() {
+            entry.insert(
+                "filenames".to_owned(),
+                Value::Array(lang.filenames.iter().cloned().map(Value::String).collect()),
+            );
+        }
         entry.insert(
             "configuration".to_owned(),
             Value::String(configuration.clone()),
@@ -264,11 +353,54 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
         }
     }
 
+    set_on_language_events(&mut root, &all_ids)?;
+
     let mut rendered =
         serde_json::to_string_pretty(&root).context("serialising VS Code package.json")?;
     rendered.push('\n');
     Ok(rendered)
 }
+
+/// Rewrite the `onLanguage:` half of `activationEvents` to name exactly the
+/// languages the manifest contributes, leaving every other event
+/// (`onChatParticipant:`, the generated `workspaceContains:` glob that
+/// `gen-vscode-package` owns) untouched and in place.
+///
+/// Hand-written, this list carried 16 of the 19 contributed languages: a lone
+/// `.tmsh` or `.tclspec` file activated nothing at all, because `onLanguage:`
+/// is the only activation path an opened file takes — `workspaceContains:`
+/// covers the workspace-*scan* path and, for `.tmsh`, does not even list the
+/// extension (issue #1625). A language contributed but never named here is
+/// exactly the failure the drift gate now catches.
+fn set_on_language_events(manifest: &mut Value, all_ids: &[&str]) -> Result<()> {
+    let events = manifest
+        .get_mut("activationEvents")
+        .and_then(Value::as_array_mut)
+        .context("activationEvents must be an array")?;
+    // Splice the generated block in where the first `onLanguage:` entry sat,
+    // so the manifest's ordering (languages, then chat participants, then the
+    // workspace glob) survives a regeneration.
+    let at = events
+        .iter()
+        .position(|e| {
+            e.as_str()
+                .is_some_and(|s| s.starts_with(ON_LANGUAGE_PREFIX))
+        })
+        .unwrap_or(0);
+    events.retain(|e| {
+        !e.as_str()
+            .is_some_and(|s| s.starts_with(ON_LANGUAGE_PREFIX))
+    });
+    let generated: Vec<Value> = all_ids
+        .iter()
+        .map(|id| Value::String(format!("{ON_LANGUAGE_PREFIX}{id}")))
+        .collect();
+    let at = at.min(events.len());
+    events.splice(at..at, generated);
+    Ok(())
+}
+
+const ON_LANGUAGE_PREFIX: &str = "onLanguage:";
 
 fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> Result<String> {
     let start = text
@@ -306,6 +438,54 @@ fn render_language_ids(original: &str, langs: &[Language]) -> Result<String> {
         "// @generated:language-ids:end",
         &body,
     )
+}
+
+/// The `.ext` → language-id and basename → language-id maps the extension's
+/// runtime resolves a file with no (or a lost) association through.
+fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<String> {
+    let mut ext_rows = String::new();
+    let mut name_rows = String::new();
+    for (id, extensions, filenames) in owned_paths(langs) {
+        for ext in extensions {
+            let _ = writeln!(ext_rows, "  \".{ext}\": \"{id}\",");
+        }
+        for name in filenames {
+            let _ = writeln!(name_rows, "  \"{name}\": \"{id}\",");
+        }
+    }
+    let text = replace_marked_block(
+        original,
+        "// @generated:extension-language-ids:begin",
+        "// @generated:extension-language-ids:end",
+        &format!("export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {{\n{ext_rows}}};\n"),
+    )?;
+    replace_marked_block(
+        &text,
+        "// @generated:filename-language-ids:begin",
+        "// @generated:filename-language-ids:end",
+        &format!("export const FILENAME_LANGUAGE_IDS: Record<string, string> = {{\n{name_rows}}};\n"),
+    )
+}
+
+/// Every `(language id, extensions, filenames)` triple the editors register,
+/// including the hand-maintained sublanguages the catalog has no profile for.
+fn owned_paths(langs: &[Language]) -> Vec<(String, Vec<String>, Vec<String>)> {
+    let mut out: Vec<(String, Vec<String>, Vec<String>)> = langs
+        .iter()
+        .map(|l| (l.id.clone(), l.extensions.clone(), l.filenames.clone()))
+        .collect();
+    // `tcl-apl` is the iApp presentation language: an iApp *sublanguage* with
+    // no dialect profile of its own, so its `.apl` extension and its
+    // `presentation` basename are hand-maintained here rather than projected.
+    out.push((
+        "tcl-apl".to_owned(),
+        HAND_MAINTAINED_EXTENSIONS
+            .iter()
+            .map(|e| (*e).to_owned())
+            .collect(),
+        vec!["presentation".to_owned()],
+    ));
+    out
 }
 
 fn render_vscode_runtime(original: &str, langs: &[Language]) -> Result<String> {
@@ -404,17 +584,30 @@ fn render_jetbrains_kotlin(original: &str, langs: &[Language]) -> Result<String>
     )
 }
 
-fn render_sublime(original: &str, langs: &[Language]) -> Result<String> {
+/// Rewrite a Sublime syntax's `file_extensions:` block — a YAML list of
+/// `  - ext` items, ending at the first line that is not one (a blank line in
+/// the umbrella `Tcl` syntax, end-of-file in the per-dialect ones, which
+/// carry nothing after their list).
+fn set_sublime_extensions(original: &str, extensions: &[String]) -> Result<String> {
     let start = original
         .find("file_extensions:\n")
         .context("missing file_extensions block")?;
     let list_start = start + "file_extensions:\n".len();
-    let list_end = original[list_start..]
-        .find("\n\n")
-        .map(|n| list_start + n + 1)
-        .context("file_extensions block must end with a blank line")?;
+    let mut list_end = list_start;
+    while list_end < original.len() {
+        let line_end = original[list_end..]
+            .find('\n')
+            .map_or(original.len(), |n| list_end + n + 1);
+        if !original[list_end..line_end].starts_with("  - ") {
+            break;
+        }
+        list_end = line_end;
+    }
+    if list_end == list_start {
+        bail!("file_extensions block lists nothing");
+    }
     let mut rows = String::new();
-    for ext in all_extensions(langs) {
+    for ext in extensions {
         let _ = writeln!(rows, "  - {ext}");
     }
     Ok(format!(
@@ -425,7 +618,8 @@ fn render_sublime(original: &str, langs: &[Language]) -> Result<String> {
     ))
 }
 
-fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
+/// Rewrite a Zed `config.toml`'s `path_suffixes = […]` array.
+fn set_zed_suffixes(original: &str, extensions: &[String]) -> Result<String> {
     let start = original
         .find("path_suffixes = [")
         .context("missing path_suffixes")?;
@@ -433,10 +627,7 @@ fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
         .find(']')
         .map(|n| start + n + 1)
         .context("unterminated path_suffixes")?;
-    let quoted: Vec<String> = all_extensions(langs)
-        .iter()
-        .map(|e| format!("\"{e}\""))
-        .collect();
+    let quoted: Vec<String> = extensions.iter().map(|e| format!("\"{e}\"")).collect();
     Ok(format!(
         "{}path_suffixes = [{}]{}",
         &original[..start],
@@ -445,21 +636,59 @@ fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
     ))
 }
 
-type Render = fn(&str, &[Language]) -> Result<String>;
+fn render_sublime(original: &str, langs: &[Language]) -> Result<String> {
+    set_sublime_extensions(original, &all_extensions(langs))
+}
+
+fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
+    set_zed_suffixes(original, &all_extensions(langs))
+}
+
+/// One per-dialect surface: exactly the extensions its dialect owns, in
+/// catalog order.
+fn render_dialect_surface(
+    original: &str,
+    langs: &[Language],
+    dialect: &str,
+    surface: Surface,
+) -> Result<String> {
+    let lang = langs
+        .iter()
+        .find(|l| l.dialect.as_deref() == Some(dialect))
+        .ok_or_else(|| anyhow!("no editor language for dialect {dialect}"))?;
+    if lang.extensions.is_empty() {
+        bail!("dialect {dialect} owns no extensions to register");
+    }
+    match surface {
+        Surface::SublimeSyntax => set_sublime_extensions(original, &lang.extensions),
+        Surface::ZedConfig => set_zed_suffixes(original, &lang.extensions),
+    }
+}
+
+type Render = Box<dyn Fn(&str, &[Language]) -> Result<String>>;
 
 pub fn run(check: bool) -> Result<ExitCode> {
     let root = repo_root();
     let langs = languages()?;
 
-    let renders: Vec<(&str, Render)> = vec![
-        (VSCODE_PACKAGE, render_vscode_package),
-        (VSCODE_LANGUAGE_IDS, render_language_ids),
-        (VSCODE_RUNTIME, render_vscode_runtime),
-        (JETBRAINS_PLUGIN, render_jetbrains),
-        (JETBRAINS_FILETYPE, render_jetbrains_kotlin),
-        (SUBLIME_SYNTAX, render_sublime),
-        (ZED_CONFIG, render_zed),
+    let mut renders: Vec<(&str, Render)> = vec![
+        (VSCODE_PACKAGE, Box::new(render_vscode_package)),
+        (VSCODE_LANGUAGE_IDS, Box::new(render_language_ids)),
+        (VSCODE_LANGUAGE_IDS, Box::new(render_extension_language_ids)),
+        (VSCODE_RUNTIME, Box::new(render_vscode_runtime)),
+        (JETBRAINS_PLUGIN, Box::new(render_jetbrains)),
+        (JETBRAINS_FILETYPE, Box::new(render_jetbrains_kotlin)),
+        (SUBLIME_SYNTAX, Box::new(render_sublime)),
+        (ZED_CONFIG, Box::new(render_zed)),
     ];
+    for (rel, dialect, surface) in DIALECT_SURFACES {
+        renders.push((
+            rel,
+            Box::new(move |original: &str, langs: &[Language]| {
+                render_dialect_surface(original, langs, dialect, *surface)
+            }),
+        ));
+    }
 
     let mut drifted: Vec<&str> = Vec::new();
     for (rel, render) in renders {
@@ -471,7 +700,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
             continue;
         }
         if check {
-            drifted.push(rel);
+            if !drifted.contains(&rel) {
+                drifted.push(rel);
+            }
         } else {
             fs::write(&path, rendered).with_context(|| format!("writing {}", path.display()))?;
             println!("gen-editor-extensions: wrote {rel}");
@@ -482,11 +713,22 @@ pub fn run(check: bool) -> Result<ExitCode> {
     // (the catalog's invariant tests cover the profiles; packs could still
     // collide with each other here).
     let mut owners: BTreeMap<String, String> = BTreeMap::new();
+    let mut named: BTreeMap<String, String> = BTreeMap::new();
     for lang in &langs {
         for ext in &lang.extensions {
             if let Some(prior) = owners.insert(ext.clone(), lang.id.clone()) {
                 bail!(
                     "extension {ext:?} registered by both {prior:?} and {:?}",
+                    lang.id
+                );
+            }
+        }
+        // The basename axis is a function too — an editor cannot open one
+        // file under two languages.
+        for name in &lang.filenames {
+            if let Some(prior) = named.insert(name.clone(), lang.id.clone()) {
+                bail!(
+                    "filename {name:?} registered by both {prior:?} and {:?}",
                     lang.id
                 );
             }

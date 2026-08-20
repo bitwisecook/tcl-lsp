@@ -76,7 +76,8 @@ import { openSpecStudio, prepareSpecStudioStorage } from "./specStudio";
 import { registerHighlightingHealthChecks } from "./highlightingHealth";
 import { ensureStickyScrollDefaultModel } from "./stickyScrollHealth";
 import { DiffDiagnosticsSuppressor } from "./diffAnalysis";
-import { TCL_LANGUAGE_IDS, isTclLanguage } from "./languageIds";
+import { TCL_LANGUAGE_IDS, isTclLanguage, tclLanguageIdForPath } from "./languageIds";
+import { PackFileExtension, syncPackFileAssociations } from "./packAssociations";
 
 const execFileAsync = promisify(execFile);
 
@@ -700,6 +701,7 @@ export async function activate(context: ExtensionContext) {
   ch.appendLine(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
   void ensureStickyScrollDefaultModel(context, ch);
   applyDialectForEditor(window.activeTextEditor);
+  registerPackAssociationSync(context, ch);
 
   try {
     registerIruleParticipant(context);
@@ -724,6 +726,54 @@ export async function activate(context: ExtensionContext) {
 export async function deactivate(): Promise<void> {
   if (client) {
     await client.stop();
+  }
+}
+
+/**
+ * Keep workspace `files.associations` in step with the extensions the
+ * discovered SpecTcl packs claim (issue #1626).
+ *
+ * Re-synced on the two events that can change the answer: the client having
+ * just started (the packs discovered at startup), and any `.tclspec` in the
+ * workspace being written, created or deleted — the same file set the server
+ * watches to reload its pack registry, so the client's view can never lag it
+ * by more than one round trip.
+ */
+function registerPackAssociationSync(context: ExtensionContext, ch: vscode.OutputChannel): void {
+  const sync = () => {
+    void syncPackAssociationsNow(context, ch);
+  };
+  const watcher = workspace.createFileSystemWatcher("**/*.tclspec");
+  context.subscriptions.push(
+    watcher,
+    watcher.onDidChange(sync),
+    watcher.onDidCreate(sync),
+    watcher.onDidDelete(sync),
+  );
+  sync();
+}
+
+/** One reconciliation pass: ask the server what the packs claim, apply it. */
+async function syncPackAssociationsNow(
+  context: ExtensionContext,
+  ch: vscode.OutputChannel,
+): Promise<void> {
+  if (!client) {
+    return;
+  }
+  const folder = workspace.workspaceFolders?.[0]?.uri.toString() ?? "";
+  try {
+    const result = (await client.sendRequest("workspace/executeCommand", {
+      command: "tcl-lsp.getEffectiveConfig",
+      arguments: [folder],
+    })) as { pack_file_extensions?: PackFileExtension[] } | null;
+    await syncPackFileAssociations(context, result?.pack_file_extensions ?? [], (message) =>
+      ch.appendLine(message),
+    );
+  } catch (err) {
+    // A server that is restarting (or has stopped) simply has nothing to say
+    // about packs yet; the next watcher event re-asks.
+    ch.appendLine(`[packs] file-association sync skipped: ${String(err)}`);
   }
 }
 
@@ -934,24 +984,7 @@ function detectDialectFromDocument(document: TextDocument): string {
     return langDialect;
   }
 
-  // 2. File extension for non-Tcl file types.
-  const fileName = document.fileName.toLowerCase();
-  const extensionMatch = fileName.match(/(\.[^./\\]+)$/);
-  const extension = extensionMatch ? extensionMatch[1] : "";
-
-  switch (extension) {
-    case ".irul":
-    case ".irule":
-      return "f5-irules";
-    case ".iapp":
-    case ".iappimpl":
-    case ".impl":
-      return "f5-iapps";
-    case ".exp":
-      return "expect";
-  }
-
-  // 3. Comment directive ``# tcl-dialect: <dialect>`` in the first few lines.
+  // 2. Comment directive ``# tcl-dialect: <dialect>`` in the first few lines.
   const scanLines = Math.min(document.lineCount, DIALECT_DIRECTIVE_SCAN_LINES);
   for (let i = 0; i < scanLines; i++) {
     const directiveMatch = document.lineAt(i).text.match(DIALECT_DIRECTIVE_RE);
@@ -963,18 +996,36 @@ function detectDialectFromDocument(document: TextDocument): string {
     }
   }
 
-  // 4. Shebang detection.
+  // 3. Shebang detection. `wish` counts alongside `tclsh`: Tk is a library in
+  //    this model, not a dialect, so a `#!/usr/bin/wish8.6` script is a Tcl
+  //    8.6 script for exactly the reason a `tclsh8.6` one is. Mirrors the
+  //    server's `SHEBANG_TCL_SHELLS` (issue #1625).
   if (document.lineCount > 0) {
     const firstLine = document.lineAt(0).text;
     if (/^#!.*\bexpect\b/i.test(firstLine)) {
       return "expect";
     }
-    const shebangMatch = firstLine.match(/^#!.*\btclsh(\d+\.\d+)\b/i);
+    const shebangMatch = firstLine.match(/^#!.*\b(?:tclsh|wish)(\d+\.\d+)\b/i);
     if (shebangMatch) {
       const versionDialect = TCL_VERSION_DIALECTS[shebangMatch[1]];
       if (versionDialect) {
         return versionDialect;
       }
+    }
+  }
+
+  // 4. The file's own name — its whole basename, then its extension — through
+  //    the generated catalogue projection, so every registered extension is
+  //    covered. A hand-written switch here used to answer for 6 of the 25 and
+  //    sat *above* the directive and shebang tiers, which is both narrower
+  //    and more eager than the server's own order (issue #1625); it now sits
+  //    where the server puts it, since a file's content is a stronger signal
+  //    than its name.
+  const pathLanguage = tclLanguageIdForPath(document.fileName);
+  if (pathLanguage) {
+    const pathDialect = LANGUAGE_ID_DIALECTS[pathLanguage];
+    if (pathDialect) {
+      return pathDialect;
     }
   }
 
