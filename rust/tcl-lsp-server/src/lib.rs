@@ -6602,8 +6602,26 @@ impl Backend {
     /// a reader needs out of the captured tail. Reporting again once the
     /// sequence has moved on is intentional — a barrier that stalls repeatedly
     /// at successive positions is a different story from one that stopped dead.
+    ///
+    /// # The barrier is re-read before anything is claimed
+    ///
+    /// The caller's timeout can win its race by a hair: the wait expires, and
+    /// the edit it was waiting for lands before this runs. Reporting on the
+    /// strength of "the timeout fired" would then announce a permanent wedge
+    /// that is already over — with no holder and zero notifications queued,
+    /// which is the *ticket-loss* shape and so actively misleading.
+    ///
+    /// Worse than the noise is what it would do to the rate limiter. Recording
+    /// that position would make a later, genuine stall at the same position
+    /// suppress itself, so the false report could hide the real one. Both
+    /// failures land in the one diagnosis stream issue #1657 depends on, so the
+    /// re-read comes first and the suppression slot is only ever written for a
+    /// stall that is real at the moment it is claimed.
     async fn report_edit_barrier_stall(&self, target: u64) {
         let serving = self.edit_order.served();
+        if serving >= target {
+            return;
+        }
         if self
             .edit_barrier_stall_reported
             .swap(serving, std::sync::atomic::Ordering::AcqRel)
@@ -32549,6 +32567,43 @@ mod tests {
     /// wait for the outstanding edit rather than racing ahead and answering from
     /// the pre-edit text (which yielded semantic tokens whose lines/lengths
     /// described text the client had already replaced).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn read_document_waits_for_an_in_flight_edit() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///ordering.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // Stand in for a `didChange` that has arrived and taken its turn, but has
+        // not yet spliced the buffer.
+        let ticket = backend.edit_order.take_ticket("didChange", &uri);
+        let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
+
+        let mut reader = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move { backend.read_document(&uri).await.map(|d| d.text) }
+        });
+
+        // While the edit is in flight the read must not resolve.
+        let elapsed = std::time::Duration::from_millis(300);
+        if let Ok(done) = crate::rt::timeout(elapsed, &mut reader).await {
+            panic!("read_document returned {done:?} while an edit was still in flight");
+        }
+
+        // Land the edit, then release the ordering lock: the read must now
+        // resolve against the *settled* buffer, never the pre-edit text.
+        backend.documents.lock().await.insert(
+            uri.clone(),
+            DocumentState::new("set x 2\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        drop(edit_in_flight);
+        let text = crate::rt::timeout(std::time::Duration::from_secs(5), reader)
+            .await
+            .expect("read_document must resolve once the edit lands")
+            .expect("reader task panicked");
+        assert_eq!(text.as_deref(), Some("set x 2\n"));
+    }
+
     /// #1657, the latent half: a ticket whose waiter is dropped *before* its
     /// turn is granted must not stop the sequence for ever.
     ///
@@ -32617,41 +32672,79 @@ mod tests {
         );
     }
 
+    /// The stall reporter must not announce a wedge that is already over.
+    ///
+    /// `edits_settled`'s timeout can win its race by a hair: the wait expires,
+    /// and the edit it was waiting for lands before the report runs. Reporting
+    /// on the strength of "the timeout fired" would then describe a permanent
+    /// wedge with no holder and zero notifications queued — which is the
+    /// *ticket-loss* shape, so the line would not merely be noise but point at
+    /// the wrong defect.
+    ///
+    /// The second half matters as much: recording that position in the rate
+    /// limiter would make a later, genuine stall at the same position suppress
+    /// itself. A false report could then hide the real one, in the single
+    /// diagnosis stream issue #1657 depends on.
+    ///
+    /// Constructed directly rather than by racing a ten-second timeout: the
+    /// state that race produces is simply "the reporter is called with a target
+    /// the barrier has already reached", which is what this hands it.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn read_document_waits_for_an_in_flight_edit() {
-        let backend = Arc::new(test_backend());
-        let uri = Uri::from_str("file:///ordering.tcl").unwrap();
-        register(&backend, &uri, "set x 1\n").await;
+    async fn a_barrier_that_has_caught_up_is_not_reported_as_a_stall() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/caught-up.tcl").unwrap();
 
-        // Stand in for a `didChange` that has arrived and taken its turn, but has
-        // not yet spliced the buffer.
-        let ticket = backend.edit_order.take_ticket("didChange", &uri);
-        let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
-
-        let mut reader = crate::rt::spawn({
-            let backend = Arc::clone(&backend);
-            let uri = uri.clone();
-            async move { backend.read_document(&uri).await.map(|d| d.text) }
-        });
-
-        // While the edit is in flight the read must not resolve.
-        let elapsed = std::time::Duration::from_millis(300);
-        if let Ok(done) = crate::rt::timeout(elapsed, &mut reader).await {
-            panic!("read_document returned {done:?} while an edit was still in flight");
-        }
-
-        // Land the edit, then release the ordering lock: the read must now
-        // resolve against the *settled* buffer, never the pre-edit text.
-        backend.documents.lock().await.insert(
-            uri.clone(),
-            DocumentState::new("set x 2\n".to_owned(), "tcl8.6".to_owned()),
+        // One edit drawn and handed on, so the barrier has reached its target —
+        // exactly the state the timeout can lose its race against.
+        let target = {
+            let ticket = backend.edit_order.take_ticket("didChange", &uri);
+            let target = backend.edit_order.settle_target();
+            drop(backend.edit_order.wait_turn(ticket).await);
+            target
+        };
+        assert!(
+            backend.edit_order.served() >= target,
+            "the barrier must have caught up, or this test proves nothing",
         );
-        drop(edit_in_flight);
-        let text = crate::rt::timeout(std::time::Duration::from_secs(5), reader)
-            .await
-            .expect("read_document must resolve once the edit lands")
-            .expect("reader task panicked");
-        assert_eq!(text.as_deref(), Some("set x 2\n"));
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.report_edit_barrier_stall(target),
+        )
+        .await
+        .expect("the reporter must return promptly rather than block");
+
+        assert_eq!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            u64::MAX,
+            "a barrier that has caught up must not be reported, and must not \
+             claim the rate limiter's slot — doing so would suppress the next \
+             genuine stall at this position (#1657)",
+        );
+
+        // The positive case still works: a turn that is genuinely held is
+        // reported, and only then does the position get recorded.
+        let held = backend.edit_order.take_ticket("didOpen", &uri);
+        let held_at = backend.edit_order.served();
+        let _turn = backend.edit_order.wait_turn(held).await;
+        let queued = backend.edit_order.take_ticket("didChange", &uri);
+        let stalled_target = backend.edit_order.settle_target();
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.report_edit_barrier_stall(stalled_target),
+        )
+        .await
+        .expect("the reporter must return promptly rather than block");
+        assert_eq!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            held_at,
+            "a genuine stall must still be reported and recorded",
+        );
+        drop(queued);
     }
 
     /// Wait for the single document-sync handler under test to draw its
