@@ -331,6 +331,20 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// next schedule therefore re-resolves.
 const DIAG_INPUTS_RESOLVE_ATTEMPTS: u32 = 4;
 
+/// How long a request may wait on the document-sync barrier before the server
+/// says so on its log channel.
+///
+/// Well past any honest wait — the barrier covers a buffer splice and a salsa
+/// input set, which are milliseconds — and well inside the budgets the editor
+/// harness allows a request, so the line lands while the run is still going
+/// rather than after it has given up.
+const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Greppable marker on the stall line, so a CI log scan can classify a wedged
+/// run without reading the prose. Mirrors the harness's own
+/// `VSCODE-WAIT-TIMEOUT`.
+const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -4433,6 +4447,10 @@ pub struct Backend {
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
     diag_inputs_epoch: std::sync::atomic::AtomicU64,
+    /// The `now_serving` position the last document-sync barrier stall was
+    /// reported at, so a wedge logs once rather than once per blocked request.
+    /// See [`Backend::report_edit_barrier_stall`].
+    edit_barrier_stall_reported: std::sync::atomic::AtomicU64,
     /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
     /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
     /// on.
@@ -4798,10 +4816,26 @@ impl EditOrder {
         self.advanced.notify_waiters();
     }
 
-    /// Wait until every edit that had drawn a ticket *before this call* has been
-    /// applied. Edits arriving later do not hold the caller up.
-    async fn settled(&self) {
-        let target = self.next_ticket.load(std::sync::atomic::Ordering::Acquire);
+    /// The ticket number a barrier taken *now* would have to reach.
+    ///
+    /// Split out so a caller can snapshot the target, wait on it with a
+    /// timeout, and then resume waiting on the **same** target — re-calling
+    /// [`Self::settled`] would re-read this and start waiting for edits that
+    /// arrived in the meantime, which is a different (and stricter) question.
+    fn settle_target(&self) -> u64 {
+        self.next_ticket.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// How far the sequence has actually got.
+    fn served(&self) -> u64 {
+        self.now_serving.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Wait until every edit that had drawn a ticket before `target` has been
+    /// applied. Edits arriving later do not hold the caller up, which is why
+    /// the target is snapshotted by the caller ([`Self::settle_target`]) rather
+    /// than re-read here.
+    async fn settled_to(&self, target: u64) {
         loop {
             let advanced = self.advanced.notified();
             tokio::pin!(advanced);
@@ -5455,6 +5489,7 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -6458,8 +6493,58 @@ impl Backend {
     /// Waits only for the edits that had already arrived ([`EditOrder::settled`]),
     /// so a later edit does not hold this reader up and readers never serialise
     /// against one another.
+    ///
+    /// A wait here that never ends is the shape of issue #1657 — the whole
+    /// server stops answering while burning no CPU — and from the outside it is
+    /// indistinguishable from any other stall. So a wait that overruns
+    /// [`EDIT_BARRIER_STALL_WARN`] says so on the client's log channel before
+    /// resuming, which names the barrier as the culprit and says exactly where
+    /// the sequence stopped. The extension-host capture quotes the tail of that
+    /// channel, so the next occurrence carries this line with it.
     async fn edits_settled(&self) {
-        self.edit_order.settled().await;
+        // Snapshot the target so the resumed wait asks the same question the
+        // timed-out one did, rather than a stricter one that includes edits
+        // which arrived while we waited.
+        let target = self.edit_order.settle_target();
+        if crate::rt::timeout(EDIT_BARRIER_STALL_WARN, self.edit_order.settled_to(target))
+            .await
+            .is_ok()
+        {
+            return;
+        }
+        self.report_edit_barrier_stall(target).await;
+        self.edit_order.settled_to(target).await;
+    }
+
+    /// Announce that the document-sync barrier has stopped advancing.
+    ///
+    /// Rate-limited to one line per stuck position: in a real wedge *every*
+    /// request handler arrives here, and a log storm would push the very lines
+    /// a reader needs out of the captured tail. Reporting again once the
+    /// sequence has moved on is intentional — a barrier that stalls repeatedly
+    /// at successive positions is a different story from one that stopped dead.
+    async fn report_edit_barrier_stall(&self, target: u64) {
+        let serving = self.edit_order.served();
+        if self
+            .edit_barrier_stall_reported
+            .swap(serving, std::sync::atomic::Ordering::AcqRel)
+            == serving
+        {
+            return;
+        }
+        self.client
+            .log_message(
+                MessageType::WARNING,
+                format!(
+                    "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
+                     {target}, so {} document-sync notification(s) are queued behind a turn \
+                     nothing has handed on. Every request handler is blocked on this barrier \
+                     and the server will answer nothing until it moves (issue #1657).",
+                    EDIT_BARRIER_STALL_WARN.as_secs(),
+                    target.saturating_sub(serving),
+                ),
+            )
+            .await;
     }
 
     /// A snapshot of `url`'s text, **normalised for analysis**: every lone
@@ -7416,6 +7501,7 @@ impl Backend {
             feature_toggles: _,
             optimiser_enabled: _,
             diag_inputs_epoch: _,
+            edit_barrier_stall_reported: _,
             shimmer_enabled: _,
             optimiser_profile: _,
             optimiser_code_overrides: _,
@@ -27631,6 +27717,7 @@ mod tests {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -32397,9 +32484,12 @@ mod tests {
         // And the sequence is genuinely caught up, not merely unblocked: a
         // request barrier taken now must see every drawn ticket accounted for.
         assert!(
-            crate::rt::timeout(std::time::Duration::from_secs(5), order.settled())
-                .await
-                .is_ok(),
+            crate::rt::timeout(
+                std::time::Duration::from_secs(5),
+                order.settled_to(order.settle_target()),
+            )
+            .await
+            .is_ok(),
             "`settled` must not still be waiting on the abandoned ticket",
         );
     }
