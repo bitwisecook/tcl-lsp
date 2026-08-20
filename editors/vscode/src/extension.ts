@@ -749,31 +749,84 @@ function registerPackAssociationSync(context: ExtensionContext, ch: vscode.Outpu
     watcher.onDidChange(sync),
     watcher.onDidCreate(sync),
     watcher.onDidDelete(sync),
+    // `tclLsp.specPacks` names directories outside the discovery conventions,
+    // so changing it changes the answer without any `.tclspec` moving.
+    workspace.onDidChangeConfiguration((event) => {
+      if (event.affectsConfiguration("tclLsp.specPacks")) {
+        sync();
+      }
+    }),
   );
-  sync();
+  void syncPackAssociationsAtStartup(context, ch);
 }
 
-/** One reconciliation pass: ask the server what the packs claim, apply it. */
-async function syncPackAssociationsNow(
+/**
+ * The startup passes, in milliseconds after activation.
+ *
+ * Backing off rather than firing once, because "the packs are loaded" is not a
+ * single moment the client can observe: the server discovers the bundled tier
+ * during its own startup, then re-reads the workspace once the
+ * `workspace/configuration` pull delivers `tclLsp.specPacks` — so a single
+ * pass taken at the first moment the server answers sees the bundled tier and
+ * none of the user's packs, and there is no later `.tclspec` change for the
+ * watcher to catch. Each pass is idempotent and writes nothing when the
+ * advertised set has not moved, so the cost of the extra ones is a handful of
+ * round trips confined to the first half-minute of a session.
+ */
+const PACK_SYNC_STARTUP_DELAYS_MS = [0, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
+
+async function syncPackAssociationsAtStartup(
   context: ExtensionContext,
   ch: vscode.OutputChannel,
 ): Promise<void> {
-  if (!client) {
-    return;
+  let everAnswered = false;
+  for (const delay of PACK_SYNC_STARTUP_DELAYS_MS) {
+    if (delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+    everAnswered = (await syncPackAssociationsNow(context, ch)) || everAnswered;
   }
-  const folder = workspace.workspaceFolders?.[0]?.uri.toString() ?? "";
+  if (!everAnswered) {
+    ch.appendLine("[packs] file-association sync: no pack reload observed at startup");
+  }
+}
+
+/**
+ * One reconciliation pass: ask the server what the packs claim, apply it.
+ *
+ * Returns whether the server answered with a completed pack reload — `false`
+ * means "nothing to reconcile against yet", not "nothing claimed".
+ */
+async function syncPackAssociationsNow(
+  context: ExtensionContext,
+  ch: vscode.OutputChannel,
+): Promise<boolean> {
+  if (!client) {
+    return false;
+  }
   try {
+    // The pack set is process-global on the server — one reload covers the
+    // bundled tier and every workspace folder — so this asks with no URI
+    // rather than implying a per-folder answer.
     const result = (await client.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.getEffectiveConfig",
-      arguments: [folder],
-    })) as { pack_file_extensions?: PackFileExtension[] } | null;
-    await syncPackFileAssociations(context, result?.pack_file_extensions ?? [], (message) =>
+      arguments: [""],
+    })) as {
+      pack_file_extensions?: PackFileExtension[];
+      spec_packs_loaded?: unknown[];
+    } | null;
+    if (!result?.spec_packs_loaded?.length) {
+      return false;
+    }
+    await syncPackFileAssociations(context, result.pack_file_extensions ?? [], (message) =>
       ch.appendLine(message),
     );
+    return true;
   } catch (err) {
     // A server that is restarting (or has stopped) simply has nothing to say
     // about packs yet; the next watcher event re-asks.
     ch.appendLine(`[packs] file-association sync skipped: ${String(err)}`);
+    return false;
   }
 }
 

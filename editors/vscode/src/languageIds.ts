@@ -105,7 +105,7 @@ export const FILENAME_LANGUAGE_IDS: Record<string, string> = {
   "bigip_gtm.conf": "tcl-bigip",
   "bigip_script.conf": "tcl-bigip",
   "bigip_user.conf": "tcl-bigip",
-  "presentation": "tcl-apl",
+  presentation: "tcl-apl",
 };
 // @generated:filename-language-ids:end
 

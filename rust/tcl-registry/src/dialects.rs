@@ -485,19 +485,6 @@ fn catalog_filename_dialect(base: &str) -> Option<&'static str> {
     .copied()
 }
 
-/// Every whole basename the catalog's `filenames` axis owns, with its dialect.
-/// The projection the editors' generator and the BIG-IP routing read, so
-/// there is one owner for "which files are recognised by name".
-#[must_use]
-pub fn catalog_filename_dialects() -> Vec<(&'static str, &'static str)> {
-    let mut out: Vec<(&'static str, &'static str)> = tcl_dialect::DialectProfile::all()
-        .iter()
-        .flat_map(|profile| profile.filenames.iter().map(move |n| (*n, profile.name)))
-        .collect();
-    out.sort_unstable();
-    out
-}
-
 /// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
 /// the `file_extensions` axis each profile declares (`xdc` →
 /// `xilinx-eda-tcl`). Built once; the catalog's invariant tests guarantee

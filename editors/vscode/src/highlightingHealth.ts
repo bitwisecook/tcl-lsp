@@ -62,15 +62,7 @@ const DISMISS_ACTION = "Don't show again";
 // belongs to ModelSim/Questa macros *and* to a dozen unrelated tools, and
 // `.globals` to as many again — both collide with foreign files more often
 // than `.scf`, which was already listed (issue #1625).
-const GENERIC_EXTENSIONS = new Set([
-  ".test",
-  ".impl",
-  ".scf",
-  ".exp",
-  ".apl",
-  ".do",
-  ".globals",
-]);
+const GENERIC_EXTENSIONS = new Set([".test", ".impl", ".scf", ".exp", ".apl", ".do", ".globals"]);
 
 // Shown at most once per session per check (in addition to the permanent
 // "Don't show again" dismissal) to keep the notices quiet.

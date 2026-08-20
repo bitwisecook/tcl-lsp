@@ -404,6 +404,26 @@ fn set_on_language_events(manifest: &mut Value, all_ids: &[&str]) -> Result<()> 
 
 const ON_LANGUAGE_PREFIX: &str = "onLanguage:";
 
+/// An object key spelled the way Prettier's default `quoteProps: "as-needed"`
+/// spells it: bare when it is a plain identifier, quoted otherwise.
+///
+/// The generated TypeScript is checked by the same `prettier --check` the rest
+/// of the extension is, so a generator that always quotes produces a file the
+/// formatter immediately rewrites — and then the drift gate and the format
+/// gate disagree forever.
+fn prettier_key(key: &str) -> String {
+    let identifier = !key.is_empty()
+        && !key.starts_with(|c: char| c.is_ascii_digit())
+        && key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '$');
+    if identifier {
+        key.to_owned()
+    } else {
+        format!("\"{key}\"")
+    }
+}
+
 fn replace_marked_block(text: &str, begin: &str, end: &str, body: &str) -> Result<String> {
     let start = text
         .find(begin)
@@ -452,7 +472,7 @@ fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<S
             let _ = writeln!(ext_rows, "  \".{ext}\": \"{id}\",");
         }
         for name in filenames {
-            let _ = writeln!(name_rows, "  \"{name}\": \"{id}\",");
+            let _ = writeln!(name_rows, "  {}: \"{id}\",", prettier_key(&name));
         }
     }
     let text = replace_marked_block(

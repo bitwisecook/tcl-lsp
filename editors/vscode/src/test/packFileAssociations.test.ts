@@ -96,9 +96,8 @@ async function advertisedExtensions(): Promise<
 /** The workspace-scoped `files.associations` map, as VS Code has it now. */
 function workspaceAssociations(): Record<string, string> {
   return (
-    vscode.workspace
-      .getConfiguration("files")
-      .inspect<Record<string, string>>("associations")?.workspaceValue ?? {}
+    vscode.workspace.getConfiguration("files").inspect<Record<string, string>>("associations")
+      ?.workspaceValue ?? {}
   );
 }
 
