@@ -378,7 +378,7 @@ static SNAPSHOT_CENSUS: std::sync::LazyLock<SnapshotCensus> =
 /// See [`SNAPSHOT_CENSUS`].
 #[derive(Default)]
 struct SnapshotCensus {
-    live: std::sync::Mutex<HashMap<u64, (&'static str, std::time::Instant)>>,
+    live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
     next_id: std::sync::atomic::AtomicU64,
 }
 
@@ -404,7 +404,7 @@ impl SnapshotCensus {
         self.live
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(id, (site, std::time::Instant::now()));
+            .insert(id, (site, crate::rt::Instant::now()));
         DbSnapshot {
             db: db.clone(),
             census: self,
