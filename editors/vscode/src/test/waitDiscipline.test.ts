@@ -21,6 +21,7 @@ import * as vscode from "vscode";
 import {
   activate,
   awaitSignal,
+  beginTestDeadline,
   bounded,
   classifyLiveness,
   DIAGNOSTIC_BUDGET_MS,
@@ -466,6 +467,16 @@ suite("Wait discipline (issue #1274)", () => {
       // is capped by (see `signal.ts`), so asserting against it is racy in
       // one direction only: it can under-fail (miss a real regression that
       // stays within the max) but never flake on legitimate load.
+      //
+      // That worst case is 8 * 15_000 + 2_000 = 122s, and this test's own
+      // mocha backstop is 60s at load factor 1 — a ceiling above the bound
+      // that would kill the test before it could be checked. It is reachable
+      // only because `diagnose()` clamps a probe to the enclosing test's own
+      // remaining time (`diagnosticBudget()` in signal.ts): the probe now
+      // finishes inside the test by construction, whatever the load factor
+      // says at the moment it runs. Without that clamp this assertion was
+      // unreachable under load and CI failed here — not on the ceiling, but
+      // at mocha's `Timeout of 60000ms exceeded`.
       const ceiling =
         boundCeiling(base) +
         (label === "hangs" ? MAX_LOAD_FACTOR * DIAGNOSTIC_BUDGET_MS + 2_000 : 0);
@@ -474,6 +485,41 @@ suite("Wait discipline (issue #1274)", () => {
         `a ${label} probe must not make the failure unbounded; took ${Date.now() - started}ms`,
       );
     }
+  });
+
+  test("a follow-up probe cannot outlive the test that is waiting for it", async () => {
+    // The property the test above can only assert under load, asserted here
+    // without needing any: whatever `scaledTimeout(DIAGNOSTIC_BUDGET_MS)` says,
+    // a follow-up probe may not run past the deadline of the test awaiting it.
+    // Declaring a short deadline makes the clamp observable in a second — with
+    // the clamp removed, the hanging probe below runs for the full 15s budget
+    // (120s under load) and this fails. The root `beforeEach` puts the real
+    // deadline back for every following test.
+    const enclosing = 4_000;
+    beginTestDeadline(enclosing);
+    const started = Date.now();
+    let error: Error | undefined;
+    try {
+      await bounded(new Promise<void>(() => {}), "a stalled request (clamped)", {
+        timeout: 200,
+        diagnose: () => new Promise<string>(() => {}),
+      });
+      assert.fail("bounded resolved for a promise that never settles");
+    } catch (err) {
+      error = err as Error;
+    }
+    const elapsed = Date.now() - started;
+    assert.ok(error, "expected a rejection");
+    assert.ok(
+      error.message.includes("VSCODE-WAIT-TIMEOUT") &&
+        error.message.includes("a stalled request (clamped)"),
+      `the original timeout must still survive the probe: ${error.message}`,
+    );
+    assert.ok(
+      elapsed < enclosing,
+      `a hanging probe must stay inside the enclosing test's deadline; took ${elapsed}ms ` +
+        `against a ${enclosing}ms deadline`,
+    );
   });
 
   test("a diagnostics wait returns on the publish event without waiting out a backstop", async () => {

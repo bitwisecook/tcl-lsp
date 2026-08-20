@@ -29,6 +29,7 @@ import {
 
 export {
   awaitSignal,
+  beginTestDeadline,
   bounded,
   DIAGNOSTIC_BUDGET_MS,
   loadFactor,

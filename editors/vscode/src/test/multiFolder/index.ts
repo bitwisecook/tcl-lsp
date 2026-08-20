@@ -22,7 +22,7 @@ import * as fs from "fs";
 import * as path from "path";
 import Mocha from "mocha";
 import { glob } from "glob";
-import { scaledTimeout } from "../signal";
+import { beginTestDeadline, scaledTimeout } from "../signal";
 import { createHeartbeatWriter, MOCHA_TEST_TIMEOUT_BASE_MS } from "../runnerWatchdog";
 import { probeServer } from "../serverProbe";
 
@@ -51,6 +51,20 @@ export async function run(): Promise<void> {
     // Same backstop and provenance as the single-folder suite's — see
     // `index.ts`'s matching comment.
     timeout: scaledTimeout(MOCHA_TEST_TIMEOUT_BASE_MS),
+  });
+
+  // The follow-up diagnostics in `signal.ts` are load-scaled at the moment
+  // they run, while this `timeout:` was fixed above under whatever load
+  // existed at suite construction — so without a tie the inner budget can
+  // outgrow the outer bound and the diagnostic becomes the thing that hangs.
+  // Recording the effective per-test deadline here is that tie; the clamp
+  // lives in `diagnosticBudget()`.
+  mocha.suite.beforeEach(function (this: Mocha.Context) {
+    beginTestDeadline(this.timeout());
+  });
+  // Dropped on the way out for the same reason as `index.ts`'s — see there.
+  mocha.suite.afterEach(() => {
+    beginTestDeadline(0);
   });
 
   const testsRoot = path.resolve(__dirname);
