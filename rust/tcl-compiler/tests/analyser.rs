@@ -5739,6 +5739,103 @@ mod class_factories {
     }
 
     #[test]
+    fn an_apply_of_an_unreadable_lambda_still_abstains() {
+        // FP guard (#1656) — the same soundness class as the `uplevel` vector
+        // above, reached through the *other* role. `apply`'s argument is
+        // `ArgRole::LambdaLiteral`, not `Body`, so before this fix
+        // `control_arms_for_segment` never saw it: the walk neither read the
+        // lambda nor abstained on it, and claimed the creation below.
+        //
+        // A lambda word this walk cannot read can be anything, including a
+        // body that raises — tclsh 8.6.16 and 9.0.4 agree that the statement
+        // after `apply $lambda` is not reached when it does.
+        // The last two vectors are readable as *text* but not as a script: a
+        // body element that is not `{braced}` is list-decoded before `apply`
+        // evaluates it, so its source slice is not the script that runs.
+        //
+        // The quoted one is the sharp case, and the reason this walk takes
+        // only a braced body. Its slice is `puts a\;error stop` — an escaped
+        // semicolon, so *as source* it is one `puts` command that falls
+        // through. The script `apply` actually runs is the list-decoded
+        // `puts a;error stop`: two commands, the second of which raises.
+        // tclsh 8.6.16 / 9.0.4 agree (both print `a`, raise `stop`, and never
+        // create the class), so a walk that read the slice would claim a
+        // creation neither interpreter performs.
+        for prefix in [
+            "    apply $lambda\n",
+            "    apply $lambda a b\n",
+            "    apply [set lambda]\n",
+            "    apply {{} error\\ stop}\n",
+            "    apply {{} \"puts a\\;error stop\"}\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                !result.all_classes.contains_key("::T::D::class"),
+                "an unreadable lambda must abstain: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn an_aborting_literal_lambda_cannot_be_walked_past() {
+        // The concrete harm, with the lambda in plain sight: both oracles
+        // agree the creation never happens.
+        //
+        //   proc mk {name} { apply {{} {error stop}}; Mother create … }
+        //
+        // tclsh 8.6.16 / 9.0.4: `::T::D::class` does not exist afterwards.
+        for prefix in [
+            "    apply {{} {error stop}}\n",
+            "    apply {{} {return -code error stop}}\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                !result.class_factories().contains_key("::T::D::class"),
+                "no factory may be published past an aborting lambda: {prefix:?}; got {:?}",
+                result.class_factories().keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn a_readable_lambda_that_falls_through_is_not_a_blocker() {
+        // TP control for the two guards above: the fix must not cost the walk
+        // every `apply`. This lambda's body is right there, it completes
+        // normally, and tclsh 8.6.16 / 9.0.4 both reach the statement after
+        // it — so the creation stays proved.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    apply {{} {set q 1}}\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::D::class"),
+            "a readable falling-through lambda must not abstain the walk; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            result.class_factories().contains_key("::T::D::class"),
+            "the resolved metaclass must still publish a factory"
+        );
+    }
+
+    #[test]
     fn four_hundred_nested_foreach_bodies_do_not_abort_the_process() {
         // Issue #1654, on this test's own default-sized thread — which is
         // the whole point: the walks this drives must contain themselves on
