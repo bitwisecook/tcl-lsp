@@ -22,16 +22,17 @@ No history. Delete items as they complete. Issues carry per-task detail.
 - **#1644** — per-arg lifecycle wiring. Layering decision + acceptance
   criteria in issue. Assign to first lane that frees (disk too tight for a
   third concurrent worktree build).
-- **#1662** — wasm LSP server CI gate. USER decision on CI budget; options
-  in issue.
+- **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
+  job. Do LAST — when the rest of this pool is empty, immediately before the
+  release handoff. No time on it before then; Pages deploy stays the gate.
 - **E1 (low priority)** — `claude/e1-expr-numbers` @ a8058849d. Remaining:
   fmt, 8.4/8.5/9.1 matrix + guard flips, gates, adversary, PR
   (`Fixes #1382 #1425 #1428 #1432`).
 
 ## Release
 
-When the pool above is empty and `rust` green end-to-end (CI + pages
-deploy): hand to user. 2.x cut from `rust` via
+Order: empty the pool above → land #1662's CI gate (last) → `rust` green
+end-to-end (CI + pages deploy) → hand to user. 2.x cut from `rust` via
 `scripts/release/rust_release.sh` (`release` skill); marketplace approvals
 from release laptop. Never run unilaterally.
 
