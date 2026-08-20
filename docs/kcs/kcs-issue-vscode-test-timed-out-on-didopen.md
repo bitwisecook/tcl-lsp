@@ -28,8 +28,10 @@ Read the `LIVENESS:` line that follows the probe note. The wait asks three
 independent questions before it gives up, and the verdict names which of them
 answered:
 
-1. **`SERVER WEDGED`** — *none* of the three questions answered, including one
-   that touches no document at all. The fault is the server process or the
+1. **`SERVER WEDGED`** — *none* of the three questions answered, including the
+   one that names no file (called "document-free" below: it asks the server for
+   settings rather than about a document, so it needs nothing that a stuck
+   document could be holding). The fault is the server program or the
    connection, not the test. Look for a panic or a deadlock in the server log;
    the stuck test is a symptom, not the cause. This is the one verdict that
    latches: the runner skips every remaining test rather than have each of them
