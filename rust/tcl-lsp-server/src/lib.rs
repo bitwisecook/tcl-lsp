@@ -653,6 +653,12 @@ const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::f
 /// generous where that one is tight.
 const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
 
+/// Inline send attempts for a [`DiagCurrency::ClosedFromDisk`] publish — the one
+/// delivery with no scheduler behind it. See
+/// [`DeliveryCtx::delivery_attempts`] for why closed runs cannot fall back to
+/// [`reschedule_self`], and why this stays small.
+const CLOSED_DELIVERY_ATTEMPTS: u32 = 2;
+
 /// Documents below this line count never get a fast tier — they go straight to
 /// the single deep publish.  This is the **timing-independent** floor of the
 /// debounce-skip: a trivial document's deep-pass wall-clock is dominated by
@@ -1781,38 +1787,88 @@ impl DeliveryCtx<'_> {
         // send parks for whole seconds, which is the failure this cap exists to
         // survive — under any client that is draining at all, the two still go
         // out back to back.
-        let marker = crate::rt::timeout(
-            DELIVERY_SEND_BUDGET,
-            self.client.log_message(
-                MessageType::LOG,
-                format!(
-                    "[timing] diagnostics.publish.enqueued (uri={}, version={})",
-                    self.uri.as_str(),
-                    self.version
-                        .map_or_else(|| "none".to_owned(), |v| v.to_string()),
-                ),
-            ),
-        )
-        .await;
-        if marker.is_err() {
+        let attempts = self.delivery_attempts();
+        let marker = format!(
+            "[timing] diagnostics.publish.enqueued (uri={}, version={})",
+            self.uri.as_str(),
+            self.version
+                .map_or_else(|| "none".to_owned(), |v| v.to_string()),
+        );
+        let mut marker_sent = false;
+        for _ in 0..attempts {
+            if crate::rt::timeout(
+                DELIVERY_SEND_BUDGET,
+                self.client.log_message(MessageType::LOG, marker.clone()),
+            )
+            .await
+            .is_ok()
+            {
+                marker_sent = true;
+                break;
+            }
+        }
+        if !marker_sent {
             self.redeliver_later().await;
             return;
         }
-        if crate::rt::timeout(
-            DELIVERY_SEND_BUDGET,
-            deliver_diagnostics(
-                self.client,
-                self.uri,
-                diags,
-                self.version,
-                self.client_supports_pull,
-            ),
-        )
-        .await
-        .is_err()
-        {
-            self.redeliver_later().await;
+        let mut diags = diags;
+        for attempt in 0..attempts {
+            // The last attempt owns the payload; earlier ones must keep a copy
+            // to retry with. An open run has a single attempt, so it still moves
+            // the vector exactly as before.
+            let payload = if attempt + 1 == attempts {
+                std::mem::take(&mut diags)
+            } else {
+                diags.clone()
+            };
+            if crate::rt::timeout(
+                DELIVERY_SEND_BUDGET,
+                deliver_diagnostics(
+                    self.client,
+                    self.uri,
+                    payload,
+                    self.version,
+                    self.client_supports_pull,
+                ),
+            )
+            .await
+            .is_ok()
+            {
+                return;
+            }
         }
+        self.redeliver_later().await;
+    }
+
+    /// How many times a timed-out send may be re-attempted **inline**, before
+    /// falling back to [`Self::redeliver_later`].
+    ///
+    /// One for an open document: the scheduler owns it, so handing the publish
+    /// back is both cheaper and more complete than retrying under the lock.
+    ///
+    /// More than one for a closed-file run, because for those there is nothing
+    /// to hand back to (Codex P1 on #1670). `did_close` calls `evict_diag_slot`
+    /// *before* `publish_closed_file_diagnostics` runs, and that either removes
+    /// the slot outright or clears its `latest_inputs` — both of which make
+    /// `reschedule_self` a no-op. A closed publish is an inline, one-shot run,
+    /// not a scheduled one, so a timeout there would have silently dropped the
+    /// notification while the pull cache and the closed badge both read current:
+    /// a client that paused across the timeout during a close would never have
+    /// been told, until some unrelated event republished the URI.
+    ///
+    /// Bounded so the worst case stays under [`EDIT_BARRIER_STALL_WARN`]: two
+    /// attempts each for the marker and the publish is four sends of
+    /// [`DELIVERY_SEND_BUDGET`], which cannot reach the point where the
+    /// document-sync barrier reports a stall.
+    ///
+    /// Residual, and deliberately not engineered away here: if every attempt
+    /// fails, a push-only client still loses this closed publish. Covering that
+    /// completely needs a closed-file retry queue, which is more machinery than
+    /// this path warrants — a pull-capable client is already served by the cache
+    /// primed above, and the window a client must be stalled for has gone from
+    /// one budget to four.
+    fn delivery_attempts(&self) -> u32 {
+        delivery_attempts_for(self.currency)
     }
 
     /// Hand this URI's publish back to the diagnostics scheduler, because a
@@ -2815,6 +2871,19 @@ async fn reindex_unopened_factory_consumers(
 
 /// Mark each peer dirty and start its worker if one is not already draining
 /// it. See [`spawn_diagnostics_worker`] for why this exists.
+/// Inline send attempts for a run of this currency — see
+/// [`DeliveryCtx::delivery_attempts`], which this backs.
+///
+/// A free function taking the currency rather than a method on the context, so
+/// the closed-versus-open decision can be asserted without standing up a whole
+/// `DeliveryCtx` (whose eight borrowed handles are not the thing under test).
+const fn delivery_attempts_for(currency: DiagCurrency) -> u32 {
+    match currency {
+        DiagCurrency::Open(_) => 1,
+        DiagCurrency::ClosedFromDisk(_) => CLOSED_DELIVERY_ATTEMPTS,
+    }
+}
+
 /// Queue `uri`'s **own** publish to run again, and start a worker if none is.
 ///
 /// [`reschedule_peers`] does this for the documents a publish invalidated and
@@ -33874,6 +33943,100 @@ mod tests {
              queued (dirty) or already being drained (running); neither means \
              the diagnostics for this revision are lost, which the main.rs \
              delivery invariant forbids",
+        );
+    }
+
+    /// A closed-file publish must not depend on a slot `did_close` has already
+    /// evicted.
+    ///
+    /// Codex P1 on #1670. The two halves of the trap, pinned together:
+    ///
+    /// 1. `did_close` calls `evict_diag_slot` **before**
+    ///    `publish_closed_file_diagnostics` runs, and eviction either removes
+    ///    the slot or clears its `latest_inputs` — so `reschedule_self`, which
+    ///    requires cached inputs, can do nothing for a closed URI.
+    /// 2. A closed publish is therefore the one delivery with no scheduler
+    ///    behind it, so it must retry inline rather than hand the work back.
+    ///
+    /// Without the second half a timed-out closed publish is lost silently,
+    /// while the pull cache and the closed badge both read current — a client
+    /// that paused across the timeout during a close would never be told.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_closed_file_publish_does_not_rely_on_an_evicted_slot() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/closed-retry.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // Give the URI a real, fully populated slot…
+        backend
+            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        // Wait for the worker to finish as well as populate: `evict_diag_slot`
+        // keeps a *running* slot (clearing its inputs) and removes an idle one,
+        // and only the second branch is unambiguous to assert on.
+        let ready = crate::rt::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                {
+                    let slots = backend.diag_slots.lock().await;
+                    if slots
+                        .get(&uri)
+                        .is_some_and(|s| s.latest_inputs.is_some() && !s.running && !s.dirty)
+                    {
+                        return;
+                    }
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        assert!(
+            ready.is_ok(),
+            "the slot must be populated and settled before it is evicted",
+        );
+
+        // …then evict it exactly as `did_close` does, before the closed publish.
+        backend.evict_diag_slot(&uri).await;
+
+        // The scheduler fallback is now dead for this URI. This is the half that
+        // makes the inline retry necessary, not an incidental detail. Both of
+        // eviction's branches defeat it: the idle one drops the slot, and the
+        // running one clears the `latest_inputs` that `reschedule_self` requires.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        let revivable = {
+            let slots = backend.diag_slots.lock().await;
+            slots
+                .get(&uri)
+                .is_some_and(|s| s.latest_inputs.is_some() && (s.dirty || s.running))
+        };
+        assert!(
+            !revivable,
+            "after `did_close` evicts the slot there is nothing for \
+             `reschedule_self` to drive — if this ever starts passing, the \
+             closed path gained a scheduler and `delivery_attempts` should be \
+             revisited",
+        );
+
+        // So a closed run must carry its own retries, and an open one must not
+        // pay for them (the scheduler is strictly better for open documents).
+        let closed = DiagCurrency::ClosedFromDisk(7);
+        let open = DiagCurrency::Open(3);
+        assert!(
+            delivery_attempts_for(closed) > 1,
+            "a closed publish has no scheduler to fall back on, so it must \
+             retry inline or the notification is lost",
+        );
+        assert_eq!(
+            delivery_attempts_for(open),
+            1,
+            "an open publish must hand back to the scheduler rather than retry \
+             under the `documents` lock",
+        );
+        // Worst case must stay under the barrier's stall threshold: marker plus
+        // publish, each retried, is four sends.
+        assert!(
+            DELIVERY_SEND_BUDGET * 2 * delivery_attempts_for(closed) < EDIT_BARRIER_STALL_WARN,
+            "the inline retries must not themselves be able to hold `documents` \
+             long enough for the document-sync barrier to report a stall (#1657)",
         );
     }
 
