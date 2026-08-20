@@ -32,6 +32,7 @@ import {
   type ProbeOutcome,
   resetServerTransportWedged,
   scaledTimeout,
+  serverStateEvidence,
   serverTransportWedged,
   waitForDiagnostics,
   waitForProviderResult,
@@ -351,17 +352,25 @@ suite("Wait discipline (issue #1274)", () => {
       }),
       /REQUEST DROPPED, NOT WEDGED/,
     );
-    // A transport that never answered outranks a retry that did — a server
-    // that cannot answer a document-free request is the more general fault,
-    // whatever the later probes claim.
-    assert.match(
-      classifyLiveness({
-        transport: outcome(false),
-        otherDocument: outcome(true),
-        retry: outcome(true),
-      }),
-      /SERVER WEDGED/,
-    );
+    // A transport probe that did not answer while a *document* hover did is
+    // self-contradictory evidence, not the most general fault: the hover's
+    // reply travelled the whole client → server → client path, which is the
+    // only thing "SERVER WEDGED" claims is broken. Issue #1600's occurrence
+    // read this way and skipped 212 tests on it; a byte-identical re-run then
+    // passed 899/899.
+    for (const contradicted of [
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(false), retry: outcome(true) },
+    ]) {
+      const verdict = classifyLiveness(contradicted);
+      assert.match(verdict, /DOCUMENT-FREE REQUEST SLOW, TRANSPORT ALIVE/);
+      assert.doesNotMatch(
+        verdict,
+        /SERVER WEDGED/,
+        `a reply that crossed the transport contradicts a wedge: ${verdict}`,
+      );
+    }
   });
 
   // Issue #1294: once the server answers nothing, every later test can only
@@ -374,10 +383,19 @@ suite("Wait discipline (issue #1274)", () => {
 
     // Recoverable verdicts must NOT latch: a stuck document queue, or a
     // request that was merely dropped, still leaves a suite that can run.
+    //
+    // The last three are the #1600 shape — the document-free request did not
+    // answer in its short budget, but something else did. One answer anywhere
+    // is a reply that crossed the transport, so the run must continue: the
+    // latch skips every remaining test, and 212 skipped tests is far too
+    // expensive a conclusion to draw from contradicted evidence.
     for (const recoverable of [
       { transport: outcome(true), otherDocument: outcome(false), retry: outcome(false) },
       { transport: outcome(true), otherDocument: outcome(true), retry: outcome(true) },
       { transport: outcome(true), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(false), retry: outcome(true) },
     ]) {
       latchFromOutcomes(recoverable);
       assert.strictEqual(
@@ -387,15 +405,62 @@ suite("Wait discipline (issue #1274)", () => {
       );
     }
 
-    // The terminal verdict arms it.
+    // The terminal verdict — nothing answered at all — arms it.
     latchFromOutcomes({
       transport: outcome(false),
-      otherDocument: outcome(true),
-      retry: outcome(true),
+      otherDocument: outcome(false),
+      retry: outcome(false),
     });
     assert.strictEqual(serverTransportWedged(), true, "a transport wedge must latch");
 
     resetServerTransportWedged();
+  });
+
+  // Issue #1600: three unanswered probes say "nothing answered"; they do not
+  // say whether the server was spinning, parked, or had stopped reading stdin,
+  // and a wedge that cannot be told apart from those is only ever re-runnable.
+  // This pins the capture that closes that gap.
+  test("the liveness diagnostic captures what the server process was doing", async () => {
+    // Needs a running server to have a process to read: `activate` is what
+    // guarantees one, and every other test in this file that touches the
+    // server does the same.
+    await activate(getDocUri("simple.tcl"));
+    const evidence = await serverStateEvidence();
+
+    assert.match(
+      evidence,
+      /extension host: a \d+ms timer woke [\d.]+x late/,
+      `the host's own event-loop stall must be reported: ${evidence}`,
+    );
+    // Not merely "some string": the pid comes from a private field on
+    // `LanguageClient`, which has no public accessor. If a vscode-languageclient
+    // upgrade renames it the capture degrades silently to nothing, which is
+    // exactly the rot this assertion exists to catch.
+    assert.doesNotMatch(
+      evidence,
+      /pid unavailable/,
+      `the server pid must still be reachable from the language client: ${evidence}`,
+    );
+    assert.match(
+      evidence,
+      /server process: pid \d+, state \S+, \d+ thread\(s\)/,
+      `the process reading must name state and thread count: ${evidence}`,
+    );
+    assert.match(
+      evidence,
+      /CPU tick\(s\) and moved \d+ byte\(s\) in \/ \d+ byte\(s\) out/,
+      `the CPU and byte deltas are what separate spinning from stopped: ${evidence}`,
+    );
+    // The byte counters are process-wide (`/proc/<pid>/io` aggregates every
+    // descriptor), so the reading must say so rather than let a reader take
+    // movement as proof the LSP pipes are draining — a pack-discovery walk
+    // moves them too.
+    assert.match(
+      evidence,
+      /aggregate process I\/O, not the LSP pipes alone/,
+      `the byte counters must be labelled as process-wide: ${evidence}`,
+    );
+    assert.match(evidence, /server log:/, `the server's last words must be quoted: ${evidence}`);
   });
 
   test("a timeout carries its follow-up probe's verdict", async () => {

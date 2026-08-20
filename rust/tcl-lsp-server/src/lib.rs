@@ -320,6 +320,17 @@ impl DocumentState {
 /// diagnostics still feel immediate after typing stops.
 const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(50);
 
+/// How many times [`Backend::schedule_diagnostics_impl`] may re-read
+/// `diag_inputs` when the configuration moves while it is being read.
+///
+/// Bounded so the loop can never spin: each attempt costs only the dozen mutex
+/// acquisitions `diag_inputs` makes, so exhausting this needs several config
+/// applies inside a fraction of a millisecond — which the reload's own
+/// coalescing already rules out. Exhausting it is safe rather than merely
+/// unlikely: the resolve is discarded, the slot keeps its older stamp, and the
+/// next schedule therefore re-resolves.
+const DIAG_INPUTS_RESOLVE_ATTEMPTS: u32 = 4;
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -988,14 +999,33 @@ struct DiagSlot {
     generation: u64,
     /// A worker task is currently draining this document.
     running: bool,
-    /// The freshest analyser inputs (registry + per-URI config toggles),
-    /// refreshed by every [`Backend::schedule_diagnostics`] call.  The worker
-    /// reads this at drain time rather than a snapshot captured when it spawned,
-    /// so a config change (optimiser / diagnostics toggle) that arrives while
-    /// the worker is mid-flight is analysed under the *new* toggles, not the
-    /// stale ones — otherwise a disabled optimiser would keep emitting O-codes
-    /// until the next document edit.
+    /// The freshest analyser inputs (registry + per-URI config toggles).  The
+    /// worker reads this at drain time rather than a snapshot captured when it
+    /// spawned, so a config change (optimiser / diagnostics toggle) that arrives
+    /// while the worker is mid-flight is analysed under the *new* toggles, not
+    /// the stale ones — otherwise a disabled optimiser would keep emitting
+    /// O-codes until the next document edit.
+    ///
+    /// Resolving these is the expensive half of scheduling, so an ordinary edit
+    /// reuses what is here rather than re-reading a dozen config mutexes per
+    /// keystroke.  [`Self::inputs_epoch`] is what keeps that reuse honest.
     latest_inputs: Option<DiagInputs>,
+    /// The [`Backend::diag_inputs_epoch`] value `latest_inputs` was resolved at.
+    ///
+    /// The cache above may only be reused while the configuration it was read
+    /// from is still current.  Without this stamp the edit path (which does not
+    /// force a refresh) silently analysed under whatever config was in force at
+    /// the *previous* schedule — see [`Backend::invalidate_diag_inputs`] for the
+    /// window that made that observable (issue #1651).
+    ///
+    /// Two invariants make the stamp trustworthy, both enforced in
+    /// [`Backend::schedule_diagnostics_impl`]: the epoch was the same before and
+    /// after the resolve that produced `latest_inputs` (so the snapshot is not
+    /// half from each side of an apply), and the pair only ever moves *forwards*
+    /// (so a slow resolve landing after a faster one cannot stamp the slot back
+    /// into the past). Without the second, the reuse check above would go on to
+    /// call the older snapshot current.
+    inputs_epoch: u64,
 }
 
 impl DiagSlot {
@@ -4400,6 +4430,9 @@ pub struct Backend {
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
     optimiser_enabled: Mutex<bool>,
+    /// Monotonic stamp for "the configuration the diagnostics scheduler caches
+    /// has moved".  See [`Backend::invalidate_diag_inputs`].
+    diag_inputs_epoch: std::sync::atomic::AtomicU64,
     /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
     /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
     /// on.
@@ -5322,6 +5355,7 @@ impl Backend {
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -7282,6 +7316,7 @@ impl Backend {
             formatting_settings: _,
             feature_toggles: _,
             optimiser_enabled: _,
+            diag_inputs_epoch: _,
             shimmer_enabled: _,
             optimiser_profile: _,
             optimiser_code_overrides: _,
@@ -11853,6 +11888,11 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
+        // Everything above is an input to `diag_inputs`, so no diagnostics run
+        // scheduled before this point may keep its cached copy — including one
+        // an edit schedules between here and the reload's own reschedule
+        // (issue #1651).
+        self.invalidate_diag_inputs();
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
@@ -12186,6 +12226,10 @@ impl Backend {
             *handles = next;
         }
         *self.folder_configs.lock().await = parsed;
+        // The folder chain is what every per-URI knob in `diag_inputs` resolves
+        // through, so a replaced chain retires the scheduler's cached copies for
+        // the same reason `apply_global_config` does.
+        self.invalidate_diag_inputs();
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -13367,6 +13411,57 @@ impl Backend {
         run_diagnostics_core(inputs, &uri, job).await;
     }
 
+    /// Retire every cached [`DiagSlot::latest_inputs`], so the next scheduled
+    /// run — **including one an ordinary edit schedules** — resolves its
+    /// analyser inputs from the configuration as it stands now.
+    ///
+    /// # The contract
+    ///
+    /// Call this from every path that writes state [`Self::diag_inputs`] reads:
+    /// the feature toggles, the optimiser switch / profile / per-code
+    /// overrides, the disabled-diagnostic and severity-override sets, the
+    /// non-ASCII mode, `extraCommands`, `genericVariablePatterns`, the style
+    /// line length, the diagnostics exclude globs, the per-folder configs, and
+    /// the `SpecTcl` pack set (which decides the command registry).  It is a
+    /// single atomic increment — cheap enough that erring towards calling it is
+    /// always right, and the only cost of a spurious call is one extra
+    /// `diag_inputs` resolve on the next schedule.
+    ///
+    /// `AcqRel` / `Acquire`, matching [`EditOrder`]: the writes this bump
+    /// announces are the config mutations that precede it, so a scheduler that
+    /// observes the new epoch must also observe them.  Relaxed would let the two
+    /// be reordered and reintroduce the window in miniature.
+    ///
+    /// # Why an epoch and not just `reschedule_all_open_documents`
+    ///
+    /// The config reload already reschedules every open document under the new
+    /// toggles — but only at the *end* of [`Self::run_config_reload`], after the
+    /// pack-discovery walk.  The switches themselves are applied at the start,
+    /// which is also the instant `tcl-lsp.getEffectiveConfig` starts reporting
+    /// them.  A client that (reasonably) treats that command as the settle
+    /// signal and then types a character lands inside that window, and the
+    /// keystroke's `schedule_diagnostics` reused inputs resolved *before* the
+    /// apply: the optimiser was off in the reported config and still on in the
+    /// analysis, so O-codes the user had just disabled came back on that
+    /// publish and only cleared on the reschedule a moment later.
+    ///
+    /// Issue #1651 is that window, seen from the VS Code suite: the
+    /// `optimiser.enabled` test failed exactly when its post-toggle edit landed
+    /// before the reschedule, which is why a slower local runner reproduced it
+    /// and CI (with a shorter pack walk) did not.  Widening the reschedule's
+    /// reach cannot fix it — the edit arrives *during* the window, so the only
+    /// thing that can be right is what the edit itself reads.
+    fn invalidate_diag_inputs(&self) {
+        self.diag_inputs_epoch
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+    }
+
+    /// The current [`Self::diag_inputs_epoch`].
+    fn diag_inputs_epoch(&self) -> u64 {
+        self.diag_inputs_epoch
+            .load(std::sync::atomic::Ordering::Acquire)
+    }
+
     /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
     /// immediately (the analyser work runs on a `tokio::spawn`ed task), so
     /// `did_open` / `did_change` never block the message loop on analysis.
@@ -13381,8 +13476,11 @@ impl Backend {
     /// on a loaded machine, and never runs two analyses for one document
     /// concurrently (so an edit's write is never blocked behind a stale read).
     async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
-        // Edit path: config is unchanged, so reuse the slot's cached inputs (the
-        // worker still reads the document's *current* content at drain time).
+        // Edit path: reuse the slot's cached inputs *if the configuration they
+        // were read from is still current* (the worker still reads the
+        // document's own content at drain time regardless).  Currency is the
+        // epoch check inside the impl, not an assumption — see
+        // [`Self::invalidate_diag_inputs`].
         self.schedule_diagnostics_impl(uri, dialect, false).await;
     }
 
@@ -13396,38 +13494,74 @@ impl Backend {
     }
 
     async fn schedule_diagnostics_impl(&self, uri: Uri, dialect: String, force_refresh: bool) {
-        // Only (re)resolve the relatively expensive `diag_inputs` when the
-        // worker has none yet or a config change forces it — an edit reuses the
-        // cached inputs.  Peek that decision under the lock without mutating.
-        let need_inputs = {
-            let mut slots = self.diag_slots.lock().await;
-            let slot = slots.entry(uri.clone()).or_default();
-            force_refresh || slot.latest_inputs.is_none()
-        };
-        // Resolve the fresh inputs *before* marking the slot dirty. Marking
-        // dirty first and storing `latest_inputs` only after the `await` let a
-        // running worker drain the dirty flag with the *stale* inputs in that
-        // window, silently dropping a config change (e.g. squiggles the user
-        // just disabled would persist until the next keystroke) —.
-        // Resolving first means `dirty` and `latest_inputs` are
-        // published together, atomically, so the worker never observes one
-        // without the other.
-        let fresh_inputs = if need_inputs {
-            Some(
-                self.diag_inputs(&uri, tcl_lsp_core::profile_for_dialect(&dialect))
-                    .await,
-            )
-        } else {
-            None
-        };
+        let profile = tcl_lsp_core::profile_for_dialect(&dialect);
+        // Resolve under an epoch that did not move while we were reading it.
+        //
+        // `diag_inputs` is a long chain of awaits over a dozen separate config
+        // mutexes, so an apply landing in the middle of it yields a snapshot
+        // that is half pre-change and half post-change — and stamping that with
+        // *either* epoch is a lie. Reading the epoch on both sides and keeping
+        // only a snapshot that saw the same value on both is what makes the
+        // stamp mean what it says.
+        //
+        // Discarding rather than stamping-conservatively matters because the
+        // stamp is not the only consumer: the worker takes `latest_inputs` at
+        // drain time and never re-checks it, so a mixed snapshot committed here
+        // is a mixed snapshot published. That is the #1651 window again, just
+        // narrower, which is exactly what this whole change exists to close.
+        let mut resolved: Option<(DiagInputs, u64)> = None;
+        for _ in 0..DIAG_INPUTS_RESOLVE_ATTEMPTS {
+            let epoch = self.diag_inputs_epoch();
+            // Only (re)resolve the relatively expensive `diag_inputs` when the
+            // worker has none yet, a config change forces it, or the cached ones
+            // were read from a configuration that has since moved
+            // ([`Self::invalidate_diag_inputs`]) — an edit under an unchanged
+            // configuration reuses them.  Peek that decision under the lock
+            // without mutating. Re-peeked on every attempt, so a concurrent
+            // scheduler that installed current inputs while we were reading
+            // leaves us nothing to do.
+            let need_inputs = {
+                let mut slots = self.diag_slots.lock().await;
+                let slot = slots.entry(uri.clone()).or_default();
+                force_refresh || slot.latest_inputs.is_none() || slot.inputs_epoch != epoch
+            };
+            if !need_inputs {
+                break;
+            }
+            // Resolve the fresh inputs *before* marking the slot dirty. Marking
+            // dirty first and storing `latest_inputs` only after the `await` let
+            // a running worker drain the dirty flag with the *stale* inputs in
+            // that window, silently dropping a config change (e.g. squiggles the
+            // user just disabled would persist until the next keystroke).
+            // Resolving first means `dirty` and `latest_inputs` are published
+            // together, atomically, so the worker never observes one without the
+            // other.
+            let inputs = self.diag_inputs(&uri, profile).await;
+            if self.diag_inputs_epoch() == epoch {
+                resolved = Some((inputs, epoch));
+                break;
+            }
+            // The configuration moved while we read it. Drop the snapshot and
+            // read again under the epoch that now applies.
+        }
         // Commit `latest_inputs` (if freshly resolved) and mark dirty in a
         // single locked section — no `await` between them — so a storm of rapid
         // edits still coalesces predictably.
         let start_worker = {
             let mut slots = self.diag_slots.lock().await;
             let slot = slots.entry(uri.clone()).or_default();
-            if let Some(inputs) = fresh_inputs {
+            // Forwards only. Two schedules for one URI can be in flight at once,
+            // and nothing makes them finish in the order they started: a resolve
+            // that read epoch N can land *after* one that read N+1 and has
+            // already committed. Overwriting there would replace a current
+            // snapshot with an older one and stamp the slot backwards, so the
+            // reuse check would then call the older one current. An equal epoch
+            // may commit — the two snapshots saw the same configuration.
+            if let Some((inputs, epoch)) = resolved
+                && epoch >= slot.inputs_epoch
+            {
                 slot.latest_inputs = Some(inputs);
+                slot.inputs_epoch = epoch;
             }
             slot.mark_dirty();
             if slot.running {
@@ -13670,6 +13804,11 @@ impl Backend {
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
                 *guard = PublishedPackSet { seq, packs: loaded };
+                // The new set decides `registry_for_dialect`, and every cached
+                // `DiagInputs` holds a registry handle resolved from the old
+                // one.  Retired here, with the swap, so the next scheduled run
+                // resolves against what is now published.
+                self.invalidate_diag_inputs();
             }
             changed
         };
@@ -15577,6 +15716,12 @@ impl LanguageServer for Backend {
         if let Some(overrides) = settings_severity_overrides(&params.settings) {
             *self.severity_overrides.lock().await = overrides;
         }
+        // The three writes above land immediately, ahead of the coalesced
+        // re-pull below, so they retire the scheduler's cached inputs on their
+        // own — the flat MCP-bridge payload is the only thing that carries them
+        // and it must not need a second notification to take effect on the next
+        // keystroke.
+        self.invalidate_diag_inputs();
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -27386,6 +27531,7 @@ mod tests {
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -32272,6 +32418,227 @@ mod tests {
             .await
             .expect("the edit must finish once its tail can take the diag_slots lock")
             .expect("did_change panicked");
+    }
+
+    /// #1651: an edit that lands *between* a config apply and the reload's own
+    /// `reschedule_all_open_documents` must analyse under the config that has
+    /// been applied, not the one its slot cached before the apply.
+    ///
+    /// That window is real and observable: `run_config_reload` applies the
+    /// switches first (which is the instant `tcl-lsp.getEffectiveConfig` starts
+    /// reporting them), then walks the disk for `SpecTcl` packs, and only then
+    /// reschedules.  A client that treats the command as the settle signal and
+    /// then types lands inside it — and before the epoch stamp, that keystroke
+    /// reused inputs resolved before the apply, so a just-disabled optimiser
+    /// still emitted its O-codes on that publish.
+    ///
+    /// Pinned without racing the debounce: the worker's first act after the
+    /// debounce is `capture_job`, which takes `documents`, so holding that lock
+    /// parks it there.  It cannot retire the slot from there (retirement needs a
+    /// *clean* slot, and it has already taken the dirty flag), so `latest_inputs`
+    /// stays observable for the whole test.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn an_edit_during_a_config_apply_re_resolves_its_diagnostics_inputs() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/epoch.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let optimiser_in_slot = async || -> bool {
+            backend
+                .diag_slots
+                .lock()
+                .await
+                .get(&uri)
+                .expect("the slot must still exist")
+                .latest_inputs
+                .as_ref()
+                .expect("a scheduled slot carries its inputs")
+                .toggles
+                .optimiser_enabled
+        };
+
+        // The first edit primes the cache, exactly as a keystroke does.
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let docs_held = backend.documents.lock().await;
+        assert!(
+            optimiser_in_slot().await,
+            "the optimiser starts enabled, so the primed inputs must say so",
+        );
+
+        // The apply half of `run_config_reload`: the switch is live and the
+        // command already reports it, but no reschedule has run yet.
+        backend
+            .apply_global_config(&serde_json::json!({"optimiser": {"enabled": false}}))
+            .await;
+        assert!(
+            !*backend.optimiser_enabled.lock().await,
+            "the apply must have landed, or this test proves nothing",
+        );
+
+        // …and the user types.  The edit path asks for no refresh; the epoch
+        // stamp is the only thing that can make this correct.
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        assert!(
+            !optimiser_in_slot().await,
+            "an edit arriving after a config apply must re-resolve its analyser \
+             inputs — reusing the pre-apply cache republishes the O-codes the \
+             user just disabled (#1651)",
+        );
+        drop(docs_held);
+    }
+
+    /// The epoch stamp is only worth anything if it describes a snapshot that
+    /// saw *one* configuration. `diag_inputs` is a long chain of awaits over a
+    /// dozen config mutexes, so an apply landing inside it produces a snapshot
+    /// that is half pre-change and half post-change; committing that — under
+    /// either epoch — puts the #1651 window straight back, because the worker
+    /// takes `latest_inputs` at drain time and never re-checks it.
+    ///
+    /// Interleaved deterministically rather than by luck. The resolve is parked
+    /// on `spec_packs`, which `registry_for_dialect` takes *after*
+    /// `resolved_analysis_settings` has already read the optimiser switch — so
+    /// the parked task is holding a snapshot that says "enabled" while the test
+    /// flips it to disabled underneath. The park is observable because the
+    /// URI is fresh: `schedule_diagnostics_impl`'s first act is a
+    /// `slots.entry(uri).or_default()` peek, so the slot appearing in the map
+    /// proves the task is past it and inside the resolve, and it cannot leave
+    /// the resolve while the test holds `spec_packs`.
+    ///
+    /// The flip is made directly rather than through `apply_global_config`
+    /// because that path takes `spec_packs` itself (via `sync_db_config`) and
+    /// would deadlock against the park. The wiring from a real apply to the
+    /// invalidation is pinned by
+    /// `an_edit_during_a_config_apply_re_resolves_its_diagnostics_inputs`; what
+    /// is under test here is what `schedule_diagnostics_impl` does with an
+    /// epoch that moves mid-resolve.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_snapshot_resolved_across_a_config_change_is_discarded_not_committed() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/mid-resolve.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // Park the diagnostics worker, so it cannot retire the slot out from
+        // under the assertions.
+        let docs_held = backend.documents.lock().await;
+        // Park the resolve, after the optimiser switch has been read.
+        let packs_held = backend.spec_packs.lock().await;
+
+        let scheduling = crate::rt::spawn({
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            async move {
+                backend.schedule_diagnostics(uri, "tcl8.6".to_owned()).await;
+            }
+        });
+
+        assert!(
+            wait_for(|| async { backend.diag_slots.lock().await.contains_key(&uri) }).await,
+            "the scheduler must reach its slot peek, or nothing is being interleaved",
+        );
+
+        // The apply half: the switch is now off and the epoch has moved, while
+        // the parked resolve still holds a snapshot that says it is on.
+        *backend.optimiser_enabled.lock().await = false;
+        backend.invalidate_diag_inputs();
+        let epoch_after_apply = backend.diag_inputs_epoch();
+
+        drop(packs_held);
+        crate::rt::timeout(std::time::Duration::from_secs(30), scheduling)
+            .await
+            .expect("the schedule must finish once the pack lock is free")
+            .expect("schedule_diagnostics panicked");
+
+        let slots = backend.diag_slots.lock().await;
+        let slot = slots.get(&uri).expect("the slot must still exist");
+        let inputs = slot
+            .latest_inputs
+            .as_ref()
+            .expect("a scheduled slot carries its inputs");
+        assert!(
+            !inputs.toggles.optimiser_enabled,
+            "a snapshot read across the apply must be discarded and re-read, not \
+             committed — publishing it republishes the O-codes the user just disabled",
+        );
+        assert_eq!(
+            slot.inputs_epoch, epoch_after_apply,
+            "the committed stamp must name the configuration the snapshot actually saw",
+        );
+        drop(slots);
+        drop(docs_held);
+    }
+
+    /// Two schedules for one URI can be in flight at once and nothing makes
+    /// them finish in the order they started, so a resolve that read epoch N
+    /// can land *after* one that read N+1 and has already committed. Letting it
+    /// win would replace a current snapshot with an older one and stamp the slot
+    /// backwards — and the reuse check would then call the older one current,
+    /// which is worse than having no stamp at all.
+    ///
+    /// The faster commit is installed directly. That is not a shortcut around a
+    /// race: `(latest_inputs, inputs_epoch)` at a later epoch than the one the
+    /// next resolve will read *is* the state that interleaving leaves behind,
+    /// and building it outright is what makes the assertion deterministic
+    /// instead of dependent on which task the runtime happens to poll first.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_late_resolve_cannot_stamp_the_slot_backwards() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/late-resolve.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        let docs_held = backend.documents.lock().await;
+
+        // What the faster scheduler committed: the optimiser off, under an
+        // epoch later than anything a resolve starting now could read.
+        *backend.optimiser_enabled.lock().await = false;
+        backend.invalidate_diag_inputs();
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let newer_epoch = backend.diag_inputs_epoch() + 5;
+        {
+            let mut slots = backend.diag_slots.lock().await;
+            let slot = slots.get_mut(&uri).expect("the slot must exist");
+            assert!(
+                !slot
+                    .latest_inputs
+                    .as_ref()
+                    .expect("inputs")
+                    .toggles
+                    .optimiser_enabled,
+                "the newer snapshot must start out with the optimiser off",
+            );
+            slot.inputs_epoch = newer_epoch;
+        }
+
+        // The slower resolve now lands. It reads the configuration as it stands
+        // — which the test moves back to "enabled", so an overwrite is visible —
+        // and stamps it with today's epoch, which is behind the slot's.
+        *backend.optimiser_enabled.lock().await = true;
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+
+        let slots = backend.diag_slots.lock().await;
+        let slot = slots.get(&uri).expect("the slot must still exist");
+        assert!(
+            !slot
+                .latest_inputs
+                .as_ref()
+                .expect("inputs")
+                .toggles
+                .optimiser_enabled,
+            "a resolve stamped behind the slot must not overwrite the newer snapshot",
+        );
+        assert_eq!(
+            slot.inputs_epoch, newer_epoch,
+            "and it must not stamp the slot backwards, which would make the reuse \
+             check call the older snapshot current",
+        );
+        drop(slots);
+        drop(docs_held);
     }
 
     /// #1149: an edit no longer evicts the edited document from the workspace
