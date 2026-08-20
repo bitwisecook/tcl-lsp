@@ -4,22 +4,24 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1670** — wedge fix (`claude/f6e-1657-endgame`, `Refs #1657`). CI
-   green; open Codex P1 (closed-file publish retry lost after did_close
-   eviction) with lane. Merge when thread settled + green on final head.
-   #1657 closes only after the fix survives the loaded-loop repro.
+1. **PR #1670** — wedge hardening + holder tag (`claude/f6e-1657-endgame`,
+   `Refs #1657`). Codex P1 fixed (3d9e286e3, closed-file retries). Merge on
+   green — it is hardening + conviction instrumentation, NOT the cure: the
+   tag named `publish_diagnostics_result` holding the map 103.7s, past the
+   2s send caps. Do **not** close #1657.
 2. **PR #1671** — lambda-arg materiality (`claude/f9-fix-1656`,
    `Fixes #1656`). CI running; Codex round pending. Merge on green +
    resolved feedback, manually close #1656.
 
 ## Pre-release issues
 
-- **#1657** — wedge endgame, ACTIVE (census lane, branch
-  `claude/f6e-1657-endgame`). Step 1: holder tag on `documents` lock.
-  Step 2: design around `deliver_if_current`'s unbounded send under the
-  lock — the hold is documented load-bearing for a `did_close` race in
-  `main.rs`; design goes on the issue before code. Close only when fix
-  survives loaded-loop repro. Census is on `rust` (bad41e1df).
+- **#1657** — wedge endgame, ACTIVE (census lane). Holder CONVICTED:
+  `publish_diagnostics_result` held the map 103.7s — not the client sends
+  (capped 2s in #1670, hold persisted). Standing hypothesis: deadlock cycle
+  via `workspace_index.write()` under `documents` (checkpoint 6 on issue);
+  per-await retag markers landed, lane re-running loaded loop to name the
+  exact await. Repro is FAST now (~run 2 of loop). Close only when fix
+  survives the loop.
 - **#1656** — ACTIVE (F9 lane, `claude/f9-fix-1656`). `apply $lambda`
   invisible to fall-through walk; DEFERS_BODY vocabulary; repro in issue.
 - **#1660** — QUEUED behind #1656, same lane (`claude/f9-fix-1660`).
