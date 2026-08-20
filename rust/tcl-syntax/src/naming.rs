@@ -708,12 +708,13 @@ pub fn split_array_name_braced_for_style(
     if !braced_literal {
         return split_array_name_for_style(name, style);
     }
-    if name.ends_with(')')
-        && let Some(idx) = name.find('(')
-    {
-        return (&name[..idx], Some(&name[idx + 1..name.len() - 1]));
+    // A braced-literal word carries no sigil to strip, so the element split is
+    // the owner's rule applied to the whole word — call it rather than
+    // re-deriving it here (issue #1606).
+    match split_element_ref(name) {
+        Some((array, elem)) => (array, Some(elem)),
+        None => (name, None),
     }
-    (name, None)
 }
 
 /// Whether a variable's **name** can only ever appear in source inside

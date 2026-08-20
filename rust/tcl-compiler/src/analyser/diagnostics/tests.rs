@@ -10048,6 +10048,36 @@ fn analyse_w123_filtered_by_disabled_diagnostics() {
     );
 }
 
+/// **TN/TP for the array-element constant harvest** — the W307 input whose
+/// element predicate is [`tcl_syntax::naming::split_element_ref`] (issue
+/// #1606). A dispatch through `$cmd(k)` is resolved from the literal the
+/// element was set to: a real command suppresses W307, an unknown one does
+/// not. If the harvest stops recognising `cmd(k)` as an element it collects
+/// no constant and the first case warns.
+#[test]
+fn w307_reads_the_constant_an_array_element_was_set_to() {
+    // `var_command_sites` is populated by the analyser's walk dispatch, so
+    // this must go through `analyse` rather than the emitter pipeline.
+    let codes = |src: &str| {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect::<Vec<_>>()
+    };
+    let known = codes("proc f {} { set cmd(k) puts\n $cmd(k) hi }");
+    assert!(
+        !known.contains(&"W307".to_string()),
+        "the element's literal proves the head is `puts`; got {known:?}",
+    );
+    let unknown = codes("proc f {} { set cmd(k) nosuchcommand\n $cmd(k) hi }");
+    assert!(
+        unknown.contains(&"W307".to_string()),
+        "an element set to a non-command must still warn; got {unknown:?}",
+    );
+}
+
 #[test]
 fn analyse_w307_var_as_command() {
     // ``proc foo {} { $cmd arg1 }`` — ``$cmd`` (a non-parameter local

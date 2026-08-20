@@ -241,19 +241,22 @@ impl CodegenCtx<'_> {
 // -- Array reference helpers --
 
 /// Split `arr(key)` into `("arr", "key")`, or `None` for scalars.
+///
+/// The codegen-side facade over the one element-split owner,
+/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) —
+/// `TclObjLookupVarEx`'s rule (`tclVar.c(9.0.4):683-686`). It carried a
+/// byte-equivalent re-implementation until issue #1606; both halves may be
+/// empty, so `(x)` is element `x` of the array named `""` (issue #1458).
 #[must_use]
 pub fn split_array_ref(name: &str) -> Option<(&str, &str)> {
-    if let (Some(open), true) = (name.find('('), name.ends_with(')')) {
-        Some((&name[..open], &name[open + 1..name.len() - 1]))
-    } else {
-        None
-    }
+    tcl_syntax::naming::split_element_ref(name)
 }
 
-/// Return `true` if `name` is an array reference like `arr(key)`.
+/// Return `true` if `name` is an array reference like `arr(key)` — the
+/// predicate half of [`split_array_ref`], from the same owner.
 #[must_use]
 pub fn is_array_ref(name: &str) -> bool {
-    name.contains('(') && name.ends_with(')')
+    split_array_ref(name).is_some()
 }
 
 /// Return `true` for namespace-qualified variable names (`::foo`).
@@ -665,6 +668,20 @@ mod tests {
     #[test]
     fn split_array_ref_nested() {
         assert_eq!(split_array_ref("arr(${inner})"), Some(("arr", "${inner}")));
+    }
+
+    /// The owner's edge cases hold through this facade (issues #1458, #1606):
+    /// both halves may be empty, and a `(` with nothing closing it is not a
+    /// reference. A local re-spelling that adds a "base must be non-empty"
+    /// test would silently demote `set (x) 5` to a scalar.
+    #[test]
+    fn split_array_ref_matches_the_owners_edges() {
+        assert_eq!(split_array_ref("(x)"), Some(("", "x")));
+        assert_eq!(split_array_ref("arr()"), Some(("arr", "")));
+        assert_eq!(split_array_ref("()"), Some(("", "")));
+        assert_eq!(split_array_ref(")"), None);
+        assert_eq!(split_array_ref("a(b"), None);
+        assert!(is_array_ref("(x)"));
     }
 
     // -- is_array_ref, is_qualified --
