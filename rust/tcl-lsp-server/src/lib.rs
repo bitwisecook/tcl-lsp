@@ -3790,12 +3790,26 @@ impl IndexedDiagnosticChange {
 /// set this can draw from strictly shrinks, and a peer that moves no workspace
 /// fact of its own — the common case, a caller that defines nothing — wakes
 /// nobody.
+///
+/// Orphaned buffers are excluded (issue #1624). "Open but unindexed" is
+/// otherwise a *transient* state a document leaves for good at its first
+/// debounced publish, which is what makes the set self-limiting. A buffer whose
+/// backing file was deleted out of band is the one way to be in it permanently:
+/// [`publish_diagnostics_result`] deliberately calls `remove_document` for those
+/// rather than re-adding them (re-adding is what used to resurrect the ghost
+/// `did_change_watched_files` had just retired), so it is open and never indexed
+/// for as long as it stays open. Without this filter every fact-moving publish
+/// anywhere in the workspace re-woke it to re-derive the same answer — bounded
+/// and never a cascade (its own publish moves nothing, so it wakes nobody), but
+/// pure waste. The same `backing_file_deleted` flag the caller reads to choose
+/// removal over replacement decides it here.
 fn unindexed_open_documents(
     index: &core_workspace_index::WorkspaceIndex,
     docs: &HashMap<Uri, DocumentState>,
 ) -> Vec<String> {
-    docs.keys()
-        .map(|uri| uri.as_str())
+    docs.iter()
+        .filter(|(_, doc)| !doc.backing_file_deleted)
+        .map(|(uri, _)| uri.as_str())
         .filter(|uri| !index.contains_document(uri))
         .map(ToOwned::to_owned)
         .collect()
@@ -24190,6 +24204,40 @@ mod tests {
         assert_eq!(
             source_diagnostic_consumers(&index, child.as_str()),
             HashSet::from([root.as_str().to_owned(), grandchild.as_str().to_owned(),]),
+        );
+    }
+
+    /// **TP/TN for the hand-built wake set** (issues #1619, #1624).  A document
+    /// that is open but not in the index is woken — that is the race #1619
+    /// closed — *unless* its backing file was deleted out of band, in which case
+    /// it is unindexed permanently rather than transiently: the publish path
+    /// removes rather than replaces it, so it would otherwise be re-woken by
+    /// every fact-moving publish anywhere in the workspace, for ever, to
+    /// re-derive the same answer.  An indexed document is never in this set at
+    /// all — the index-driven consumer queries find those.
+    #[test]
+    fn the_wake_set_skips_a_buffer_whose_backing_file_was_deleted() {
+        let indexed = Uri::from_file_path("/proj/indexed.tcl").unwrap();
+        let just_opened = Uri::from_file_path("/proj/just-opened.tcl").unwrap();
+        let orphaned = Uri::from_file_path("/proj/orphaned.tcl").unwrap();
+        let index = ws_index(&[(&indexed, "proc helper {a} {}\n")]);
+
+        let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
+        for uri in [&indexed, &just_opened, &orphaned] {
+            docs.insert(
+                uri.clone(),
+                DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        docs.get_mut(&orphaned).unwrap().backing_file_deleted = true;
+
+        let woken: HashSet<String> = unindexed_open_documents(&index, &docs)
+            .into_iter()
+            .collect();
+        assert_eq!(
+            woken,
+            HashSet::from([just_opened.as_str().to_owned()]),
+            "only the transiently unindexed buffer is woken by hand",
         );
     }
 
