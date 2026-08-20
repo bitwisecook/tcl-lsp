@@ -4754,6 +4754,25 @@ struct EditOrder {
     /// case a blocking mutex is for. Holding it across an await is what would
     /// make it a hazard, and nothing here does.
     abandoned: std::sync::Mutex<std::collections::BTreeSet<u64>>,
+    /// Who currently holds the turn, and since when.
+    ///
+    /// "The barrier has stopped" is only half a diagnosis — the other half is
+    /// *which handler* stopped it, and that cannot be recovered afterwards
+    /// because a wedged server writes nothing. Recording it at the grant makes
+    /// [`Backend::report_edit_barrier_stall`] able to name the culprit in the
+    /// one line it gets out (issue #1657).
+    holder: std::sync::Mutex<Option<TurnHolder>>,
+}
+
+/// The handler currently holding an [`EditOrder`] turn.
+#[derive(Debug, Clone)]
+struct TurnHolder {
+    /// The notification that drew the ticket — `didOpen`, `didChange`, `didClose`.
+    what: &'static str,
+    /// The document it is for.
+    uri: String,
+    ticket: u64,
+    since: std::time::Instant,
 }
 
 impl EditOrder {
@@ -4762,13 +4781,15 @@ impl EditOrder {
     ///
     /// The returned [`EditTicket`] is a reservation that must be accounted for
     /// however the handler ends — see its docs.
-    fn take_ticket(&self) -> EditTicket<'_> {
+    fn take_ticket(&self, what: &'static str, uri: &Uri) -> EditTicket<'_> {
         EditTicket {
             order: self,
             ticket: self
                 .next_ticket
                 .fetch_add(1, std::sync::atomic::Ordering::AcqRel),
             armed: true,
+            what,
+            uri: uri.as_str().to_owned(),
         }
     }
 
@@ -4790,6 +4811,15 @@ impl EditOrder {
                 // The turn is ours; the guard below now owns the release, so the
                 // reservation must not also account for it.
                 ticket.armed = false;
+                *self
+                    .holder
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(TurnHolder {
+                    what: ticket.what,
+                    uri: std::mem::take(&mut ticket.uri),
+                    ticket: ticket.ticket,
+                    since: std::time::Instant::now(),
+                });
                 return EditTurn { order: self };
             }
             advanced.await;
@@ -4876,6 +4906,10 @@ struct EditTicket<'a> {
     /// Still owing an accounting. Cleared when [`EditOrder::wait_turn`] hands
     /// ownership to the [`EditTurn`] it returns.
     armed: bool,
+    /// Carried so the grant can publish who holds the turn — see
+    /// [`EditOrder::holder`].
+    what: &'static str,
+    uri: String,
 }
 
 impl Drop for EditTicket<'_> {
@@ -4903,6 +4937,11 @@ struct EditTurn<'a> {
 
 impl Drop for EditTurn<'_> {
     fn drop(&mut self) {
+        *self
+            .order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         self.order
             .now_serving
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
@@ -6543,13 +6582,39 @@ impl Backend {
         {
             return;
         }
+        let holder = self
+            .edit_order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        // Naming the holder is the difference between "the barrier stopped" and
+        // a diagnosis. No holder at all is itself informative: nobody is in the
+        // turn, so the sequence is stuck on a ticket whose handler never
+        // reached its grant.
+        let culprit = holder.map_or_else(
+            || {
+                "held by nobody — the sequence is stuck on a ticket whose handler never \
+                 reached its grant"
+                    .to_owned()
+            },
+            |h| {
+                format!(
+                    "held by {} for {:.1}s on {} (ticket {})",
+                    h.what,
+                    h.since.elapsed().as_secs_f64(),
+                    h.uri,
+                    h.ticket,
+                )
+            },
+        );
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
-                     {target}, so {} document-sync notification(s) are queued behind a turn \
-                     nothing has handed on. Every request handler is blocked on this barrier \
+                     {target}, so {} document-sync notification(s) are queued behind it. \
+                     The turn is {culprit}. Every request handler is blocked on this barrier \
                      and the server will answer nothing until it moves (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
@@ -15629,7 +15694,9 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         // Apply document-sync mutations in arrival order (see `EditOrder`). The
         // ticket must be drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let dialect = self
             .dialect_for_open(
@@ -15728,7 +15795,9 @@ impl LanguageServer for Backend {
         // Apply document-sync mutations in arrival order (see `EditOrder`) —
         // otherwise two rapid incremental edits splice out of order and corrupt
         // the buffer. The ticket must be drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didChange", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
@@ -15933,7 +16002,9 @@ impl LanguageServer for Backend {
         // Apply document-sync mutations in arrival order (see `EditOrder`) so a
         // close can't be reordered ahead of an in-flight edit. The ticket must be
         // drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didClose", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
@@ -32455,14 +32526,15 @@ mod tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn a_dropped_waiter_does_not_wedge_the_edit_order() {
         let order = EditOrder::default();
+        let uri = Uri::from_str("file:///w/ordering.tcl").unwrap();
 
         // Ticket 0 is held by an edit that is getting on with its work.
-        let first = order.take_ticket();
+        let first = order.take_ticket("didChange", &uri);
         let first_turn = order.wait_turn(first).await;
 
         // Ticket 1's handler is dropped while parked — it never reaches the
         // grant, so it never owns an `EditTurn`.
-        let abandoned = order.take_ticket();
+        let abandoned = order.take_ticket("didChange", &uri);
         let abandoned_n = abandoned.ticket;
         {
             let mut waiting = Box::pin(order.wait_turn(abandoned));
@@ -32476,7 +32548,7 @@ mod tests {
         }
 
         // Ticket 2 is a later edit, waiting its turn behind the abandoned one.
-        let third = order.take_ticket();
+        let third = order.take_ticket("didChange", &uri);
         let third_n = third.ticket;
         let next = order.wait_turn(third);
 
@@ -32513,7 +32585,7 @@ mod tests {
 
         // Stand in for a `didChange` that has arrived and taken its turn, but has
         // not yet spliced the buffer.
-        let ticket = backend.edit_order.take_ticket();
+        let ticket = backend.edit_order.take_ticket("didChange", &uri);
         let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
 
         let mut reader = crate::rt::spawn({
