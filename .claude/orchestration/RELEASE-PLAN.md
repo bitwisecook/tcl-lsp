@@ -51,7 +51,8 @@ from release laptop. Never run unilaterally.
   then clean.
 - Every lane: push after each green unit; laconic issue comment with branch
   name + discoveries at every checkpoint. GitHub is the only durable store.
-- Keep this file current at every transition; no history, laconic.
+- Keep this file current at every transition; no history, laconic; every
+  update is committed AND pushed immediately — an unpushed plan is no plan.
 - Labels: vm/codegen/runtime issues → `post-release` unless they impact
   `.tclspec` load/exec; `pre-release`/`post-release` mutually exclusive.
 - `stable` toolchain floats: new Rust can break `pr-gate` overnight → hotfix
