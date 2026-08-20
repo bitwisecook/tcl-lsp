@@ -163,3 +163,7 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - #1663 merged (f59a2818c); pages deploy run 286 in progress on the merge push (timer pending; #1661 closes on deploy green). Run history confirms F7's bisect: last green deploy = run 267.
 - #1664: race fix pushed (de46dca95), CI running. PR body notes wedge STILL reproduces (a didOpen-held turn pins it to db_set_source's salsa wait — a snapshot outliving its worker remains); named next step = Drop-counting snapshot census. Merge when green; #1657 stays open.
 - Disk fine; no new issues; labelling compliant. Queue: #1624 #1606 #1608 #1617 (+#1644 #1656 #1660); E1 low.
+
+## 2026-08-20 14:00Z — #1661 CLOSED: pages deploy GREEN
+- Pages deploy run 286 SUCCESS on #1663's merge push — first green since run 267 (19 runs). #1661 closed with end-to-end evidence. TALLY: 22 PRs merged, 53 issues closed this session. F7 worktree removed; lane retired. #1662 (CI gate gap) remains for the user's budget call.
+- Open: #1664 (test-ext red — F6v2 triaging with its own capture; wedge evidence preservation ordered before any re-run). #1657 open by design.
