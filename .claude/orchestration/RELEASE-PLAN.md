@@ -19,6 +19,9 @@ No history. Delete items as they complete. Issues carry per-task detail.
 - **#1644** — ACTIVE (F9 lane, `claude/f9-fix-1644`). Per-arg lifecycle
   wiring; layering design comment on issue before code; acceptance criteria
   in issue.
+- **#1614** — ACTIVE (F11 lane, `claude/f11-enums-1614`). Closed string
+  vocabularies → enums; 7 independent sites inventoried in issue (taint
+  basis highest value); wire formats must not change.
 - **#1672** — UNASSIGNED. Readable-but-untyped body arm walked past
   (`uplevel 1 {error stop}` twin of #1652/#1656). Fix direction + oracle
   rows in issue; needs deliberate tcllib clay-corpus run (#1571 test).
