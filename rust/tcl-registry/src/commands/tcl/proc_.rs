@@ -105,7 +105,12 @@ pub fn spec() -> CommandSpec {
             | Traits::LANGUAGE_KEYWORD
             | Traits::DEFINES_PROCEDURE
             | Traits::NEVER_INLINE_BODY
-            | Traits::IRULES_TOP_LEVEL_ONLY,
+            | Traits::IRULES_TOP_LEVEL_ONLY
+            // …and the same "stored, not executed" fact the comment below
+            // spells out, in the form a consumer can read: `DEFERS_BODY`
+            // is what tells a static walk that an unreadable `body` word
+            // costs it nothing about *this* call's completion (issue #1571).
+            | Traits::DEFERS_BODY,
         // Deliberately no `TAINT_SINK` / `DYNAMIC_EVAL_BODY`: `body` is
         // *stored*, not executed, by this call. Unlike `eval` / `uplevel`
         // / `apply`, which run their tainted argument immediately as part

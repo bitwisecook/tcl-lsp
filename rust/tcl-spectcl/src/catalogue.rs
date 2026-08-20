@@ -581,6 +581,10 @@ pub const TRAITS: &[Variant] = &[
         "TK_GEOMETRY_MANAGER",
         "a Tk geometry manager that claims a container",
     ),
+    v(
+        "DEFERS_BODY",
+        "stores its script argument instead of running it; unset means the body is treated as executed",
+    ),
 ];
 
 /// [`TaintColour`] bits.

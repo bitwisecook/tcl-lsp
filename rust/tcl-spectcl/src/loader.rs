@@ -4748,6 +4748,45 @@ fn versioned_arg_value_row(
 mod tests {
     use super::*;
 
+    /// A pack can declare `DEFERS_BODY` for its own definer, and — the half
+    /// that matters — a pack that says nothing leaves the bit **unset**.
+    ///
+    /// The flag tells a static walk that an unreadable body word costs it
+    /// nothing about the call's completion (issue #1571), so the silent
+    /// default has to be the abstaining one: unset means "this body may run
+    /// here". Traits resolve by name against the registry's own flag list, so
+    /// there is no loader table to keep in step — but there is also nothing
+    /// stopping a future edit from inventing one, which is what this pins.
+    #[test]
+    fn a_pack_declares_defers_body_and_omitting_it_stays_abstaining() {
+        let declared = load_pack(
+            "speclib probe 1.1 { command mydefiner { \
+             arity 3; traits {DEFERS_BODY} } }",
+        );
+        assert!(
+            declared
+                .command("mydefiner")
+                .unwrap()
+                .spec
+                .traits
+                .contains(tcl_registry::Traits::DEFERS_BODY),
+            "a pack must be able to declare its own definer dormant: {:?}",
+            declared.notices
+        );
+        assert!(declared.notices.is_empty(), "{:?}", declared.notices);
+
+        let silent = load_pack("speclib probe 1.1 { command mydefiner { arity 3 } }");
+        assert!(
+            !silent
+                .command("mydefiner")
+                .unwrap()
+                .spec
+                .traits
+                .contains(tcl_registry::Traits::DEFERS_BODY),
+            "an undeclared body must stay material, never dormant-by-default"
+        );
+    }
+
     #[test]
     fn case_list_loader_preserves_every_clause_shape_field() {
         let pack = load_pack(

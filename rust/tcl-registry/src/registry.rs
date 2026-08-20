@@ -98,8 +98,21 @@ pub enum ControlArmSemantics {
     FrameBoundary,
     /// The body runs, but its completion is contained by the enclosing call.
     CompletionBoundary,
+    /// The body is repeated over a **finite** collection the invocation
+    /// itself supplies — `foreach` / `lmap` / the `foreach`-line family.
+    ///
+    /// Like [`Self::Uncertain`] it names no *selectable* execution: which
+    /// iteration (or whether any at all) a body run belongs to is not
+    /// statically decidable, so nothing may be read out of the body's
+    /// environment. It differs in the one fact that *is* decidable — the loop
+    /// runs a bounded number of times, so the construct terminates whenever
+    /// its body does. A consumer asking "does control reach the next
+    /// statement?" can therefore answer from the body alone, which it cannot
+    /// do for [`Self::Uncertain`].
+    BoundedIteration,
     /// The body is conditional or repeated in a way this descriptor does not
-    /// statically select.
+    /// statically select, and whose trip count it cannot bound either — a
+    /// condition-driven `for` / `while`.
     Uncertain,
 }
 
@@ -2109,11 +2122,14 @@ impl CommandRegistry {
             LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
             LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
             LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
-            LoweringHookId::For
-            | LoweringHookId::While
-            | LoweringHookId::Foreach
-            | LoweringHookId::Lmap
-            | LoweringHookId::ForeachLine => Some(ControlArmSemantics::Uncertain),
+            // A collection loop iterates a value the invocation itself
+            // supplies, so it runs a *finite* number of times: it terminates
+            // whenever its body does. A condition loop's trip count depends on
+            // state this descriptor cannot read, so it stays uncertain.
+            LoweringHookId::Foreach | LoweringHookId::Lmap | LoweringHookId::ForeachLine => {
+                Some(ControlArmSemantics::BoundedIteration)
+            }
+            LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
             LoweringHookId::Try => try_control_arms(args)?
                 .into_iter()
                 .find_map(|(idx, semantics)| (idx == body_index).then_some(semantics)),
@@ -6858,6 +6874,110 @@ mod tests {
     /// both `VarRead` and `VarWrite` roles. This is emitted via
     /// duplicate `(idx, role)` rows in the resolver (the multi-role
     /// observable behaviour is what consumers query).
+    /// `DEFERS_BODY` marks the commands that **store** a body rather than
+    /// run it, and it is the fail-safe direction that matters: a consumer
+    /// asking "can an unreadable body word cost me the proof that this call
+    /// completes?" must get `yes` for everything that has not declared
+    /// otherwise.
+    ///
+    /// `BodyKind` cannot answer this — `proc` and `uplevel` are both
+    /// `Structural`, because that descriptor answers *which frame*, not
+    /// *when* — and neither can the absence of `control_arm_semantics`, which
+    /// `uplevel` / `apply` / `oo::define` share with `proc` (issue #1571,
+    /// PR #1652 review).
+    #[test]
+    fn defers_body_marks_only_stored_bodies() {
+        use crate::body_kind::BodyKind;
+        let mut reg = CommandRegistry::build_default();
+        assert!(
+            reg.get("proc")
+                .unwrap()
+                .traits
+                .contains(Traits::DEFERS_BODY),
+            "`proc` stores its body for a later call"
+        );
+        // Every command that runs its script as part of the same call — all
+        // of which lack control-arm semantics exactly as `proc` does.
+        for name in ["uplevel", "apply", "oo::define", "oo::objdefine", "eval"] {
+            let spec = reg.get(name).unwrap_or_else(|| panic!("{name} is known"));
+            assert!(
+                !spec.traits.contains(Traits::DEFERS_BODY),
+                "{name} executes its script argument at this call"
+            );
+        }
+        // The trap the flag exists to close: same `BodyKind`, opposite timing.
+        assert_eq!(reg.get("proc").unwrap().body_kind, BodyKind::Structural);
+        assert_eq!(reg.get("uplevel").unwrap().body_kind, BodyKind::Structural);
+        // An iRules handler registration stores its body the same way.
+        reg.load_irules();
+        assert!(
+            reg.get("when")
+                .unwrap()
+                .traits
+                .contains(Traits::DEFERS_BODY)
+        );
+        // The flag is opt-in, so the silent default is the abstaining one.
+        assert!(
+            !CommandSpec::DEFAULT.traits.contains(Traits::DEFERS_BODY),
+            "an undeclared command must never read as dormant"
+        );
+        assert!(
+            !SubCommand::DEFAULT.traits.contains(Traits::DEFERS_BODY),
+            "an undeclared subcommand must never read as dormant"
+        );
+    }
+
+    /// `DEFERS_BODY` and typed control-arm semantics are answers to different
+    /// questions, and today no command gives both: everything the registry
+    /// types (`if`, `switch`, `namespace eval`, `catch`, `try`, the loops)
+    /// runs the arm it types.
+    ///
+    /// That is *why* a consumer cannot currently observe which of the two
+    /// checks fires first — dropping either leaves every shipped command
+    /// classified the same. It is a property of today's data, not of the
+    /// question, so it is pinned rather than assumed: a future command that
+    /// stored a body the registry also typed as an arm would make the order
+    /// load-bearing, and this is the assertion that says so out loud before
+    /// the analyser silently starts trusting a dormant body's arm.
+    #[test]
+    fn no_command_both_defers_a_body_and_types_it_as_a_control_arm() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let deferring: Vec<String> = reg
+            .command_names()
+            .filter(|name| {
+                reg.get(name)
+                    .is_some_and(|spec| spec.traits.contains(Traits::DEFERS_BODY))
+            })
+            .map(str::to_owned)
+            .collect();
+        assert!(!deferring.is_empty(), "the sweep must not be vacuous");
+        // Positive control: the probe below has to be able to *see* a typed
+        // arm, or the sweep proves nothing. Role resolution is argv-shaped, so
+        // an empty argument list makes every command answer `None` — including
+        // `if`. Probe each deferring command across the argument counts its
+        // grammar could take instead.
+        assert_eq!(
+            reg.control_arm_semantics("if", &["{$c}", "{body}"], 1),
+            Some(ControlArmSemantics::Selected),
+            "the probe must detect a typed arm, else the sweep is inert"
+        );
+        for name in deferring {
+            for argc in 1..=6 {
+                let args = vec!["x"; argc];
+                for index in 0..argc {
+                    assert_eq!(
+                        reg.control_arm_semantics(&name, &args, index),
+                        None,
+                        "{name}/{argc} declares DEFERS_BODY but types argument {index} as a \
+                         control arm; `unreadable_body_is_material`'s check order now decides \
+                         its behaviour"
+                    );
+                }
+            }
+        }
+    }
+
     /// Every spec defaults to `BodyKind::Plain` unless it
     /// opts into `Structural`.
     #[test]

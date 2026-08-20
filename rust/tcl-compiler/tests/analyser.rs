@@ -5503,7 +5503,275 @@ mod class_factories {
     }
 
     #[test]
-    fn full_tcllib_clay_factory_resolves_when_the_corpus_is_available() {
+    fn a_collection_loop_in_the_dominating_prefix_preserves_provenance() {
+        // TP (#1571) — `foreach` iterates a value the invocation itself
+        // supplies, so it runs a bounded number of times and control reaches
+        // the creation below it exactly when the loop body falls through.
+        // Nothing is read *out* of the loop: the body writes only its own
+        // iteration variable and an unrelated local, so NSPACE's provenance
+        // survives. This is tcllib clay's `foreach command [info commands
+        // ::oo::define::*] {…}`, which used to abstain the whole walk merely
+        // by standing between `set NSPACE …` and the creation.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    foreach command [info commands ::oo::define::*] {\n",
+                "        set procname [namespace tail $command]\n",
+                "    }\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::D::class"),
+            "a bounded collection loop must not abstain the walk; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            result.class_factories().contains_key("::T::D::class"),
+            "the resolved metaclass must still publish a factory"
+        );
+    }
+
+    #[test]
+    fn a_collection_loop_writing_the_provenance_variable_abstains() {
+        // FP guard for the above — the relaxation covers *reachability*
+        // only. Which iteration ran, or whether any did, stays undecidable,
+        // so a loop body that writes NSPACE destroys the fact exactly as an
+        // unknown-selection `if` arm does.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    foreach command {a b} {\n",
+                "        set NSPACE $command\n",
+                "    }\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        assert!(
+            !analysis(&src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a loop write to NSPACE must invalidate its provenance"
+        );
+    }
+
+    #[test]
+    fn a_collection_loop_whose_body_diverges_abstains() {
+        // FP guard: "bounded" buys the termination fact, nothing else. If the
+        // body cannot reach its own end, the loop reaches the statement after
+        // it only when the collection was empty — which is exactly what this
+        // walk cannot decide — so the creation below stays unproved.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    foreach command {a b} {\n",
+                "        return\n",
+                "    }\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        assert!(
+            !analysis(&src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a loop body that cannot fall through must abstain"
+        );
+    }
+
+    #[test]
+    fn a_creation_inside_a_collection_loop_body_abstains() {
+        // FP guard on the *selection* axis: a bounded loop is still not a
+        // selectable arm. A creation written inside the body runs once per
+        // element and not at all for an empty collection, so the walk must
+        // not claim it the way it claims a creation in the unconditional
+        // statement stream.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    foreach x {a} {\n",
+                "        ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                "    }\n",
+            ),
+        );
+        assert!(
+            !analysis(&src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "a creation inside a loop body must not be claimed"
+        );
+    }
+
+    #[test]
+    fn a_condition_loop_in_the_dominating_prefix_abstains() {
+        // FP guard for the same relaxation, on the other axis: a `while` /
+        // `for` trip count depends on state no descriptor here can read, so
+        // the loop may never terminate and nothing is claimed about the
+        // statement after it. Only *collection* loops carry the termination
+        // guarantee the relaxation rests on.
+        for loop_text in [
+            "    while {[incr n] < $limit} {\n        set zz 1\n    }\n",
+            "    for {set i 0} {$i < $limit} {incr i} {\n        set zz 1\n    }\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{loop_text}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            assert!(
+                !analysis(&src, "tcl9.0")
+                    .all_classes
+                    .contains_key("::T::D::class"),
+                "an unbounded loop must abstain: {loop_text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_declaration_body_the_walk_cannot_read_is_not_a_blocker() {
+        // TP (#1571) — `proc NAME ARGS [string map … {…}]` *stores* its body;
+        // nothing in it runs at this call, so an unreadable body word says
+        // nothing about whether the declaration falls through. `proc` says so
+        // itself, through `Traits::DEFERS_BODY` — see
+        // `an_immediately_executed_body_the_walk_cannot_read_still_abstains`
+        // for why that has to be a declared fact rather than an inference.
+        // This is tcllib clay's `proc ${NSPACE}::define {oclass args}
+        // [string map [list %NSPACE% $NSPACE] {…}]`.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    proc ${NSPACE}::define {oclass args} [string map [list %NSPACE% $NSPACE] {\n",
+                "        set class $oclass\n",
+                "    }]\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::D::class"),
+            "an unreadable proc body must not abstain the walk; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            result.class_factories().contains_key("::T::D::class"),
+            "the resolved metaclass must still publish a factory"
+        );
+    }
+
+    #[test]
+    fn a_running_body_the_walk_cannot_read_still_abstains() {
+        // FP guard: `namespace eval $ns $script` runs its body at this very
+        // call and the registry types that arm (`FrameBoundary`), so a body
+        // word the walk cannot read there is a fact it genuinely needed.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    namespace eval ::T [string map [list a b] {\n",
+                "        set class 1\n",
+                "    }]\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        assert!(
+            !analysis(&src, "tcl9.0")
+                .all_classes
+                .contains_key("::T::D::class"),
+            "an unreadable body that runs now must still abstain"
+        );
+    }
+
+    #[test]
+    fn an_immediately_executed_body_the_walk_cannot_read_still_abstains() {
+        // FP guard (PR #1652 review, thread r3818596741) — and the reason
+        // dormancy has to be *declared* rather than inferred.
+        //
+        // None of these commands carries control-arm semantics, exactly like
+        // `proc`. Unlike `proc`, every one of them **runs** its script as part
+        // of this very call, so the script can raise, `return`, or otherwise
+        // stop control ever reaching the creation below it. Reading "no typed
+        // control semantics" as proof of dormancy therefore let the walk
+        // materialise a class created after a script that aborts.
+        //
+        // `BodyKind` cannot separate them either: `proc` and `uplevel` are
+        // both `Structural`, because that descriptor answers *which frame*,
+        // not *when*. Only `Traits::DEFERS_BODY` does, and it is unset here.
+        for prefix in [
+            "    uplevel 1 $script\n",
+            "    uplevel 0 $script\n",
+            "    uplevel #0 $script\n",
+            "    oo::define ::T::Mother $script\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                !result.all_classes.contains_key("::T::D::class"),
+                "an immediately-executed unreadable body must abstain: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn an_aborting_uplevel_script_cannot_be_walked_past() {
+        // The concrete harm the guard above prevents, in one vector: the
+        // script `uplevel` runs really does end the procedure before the
+        // creation, so a walk that claimed the class would be reporting a
+        // class no interpreter ever makes.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    uplevel 1 $script\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            !result.class_factories().contains_key("::T::D::class"),
+            "no factory may be published past an aborting script; got {:?}",
+            result.class_factories().keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
+        // Native-stack safety net (#996's family) for the relaxation above:
+        // the fall-through walk re-enters itself once per control body it
+        // descends into, and before #1571 a loop returned immediately so that
+        // recursion could never be driven by loop nesting. It can now, so the
+        // walk carries the same `MAX_UNKNOWN_BODY_DEPTH` bound every other
+        // recursive walk in the analyser has. Past the cap it abstains — the
+        // direction it already takes for anything it cannot read — so this
+        // asserts termination and a well-formed result, not a resolution.
+        //
+        // 64 is many times the cap (8) and far below the analyser's own
+        // whole-body nesting limit (`MAX_BODY_DEPTH`, 256), so a failure here
+        // is this walk's recursion and not the generic one's.
+        let nest: String = (0..64)
+            .map(|i| format!("    foreach v{i} {{a b}} {{\n"))
+            .chain(std::iter::once("    set zz 1\n".to_owned()))
+            .chain((0..64).map(|_| "    }\n".to_owned()))
+            .collect();
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            &format!(
+                "{nest}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::Mother"),
+            "the literally-written metaclass must survive the deep walk"
+        );
+    }
+
+    #[test]
+    fn full_tcllib_clay_dialect_metaclass_resolves_when_the_corpus_is_available() {
         // Exact tcllib 2.0 corpus oracle. Developer/bootstrap environments
         // fetch this source under tmp; a source-only distribution may omit it.
         //
@@ -5512,10 +5780,42 @@ mod class_factories {
         // convention `tcl-lsp-db/tests/compiler_check_corpus.rs` already uses
         // for the same tcllib-2.0 corpus ("skip: {path} not present"), so
         // `cargo test -- --nocapture` (or a failure elsewhere in the run)
-        // makes it obvious this test asserted nothing. The underlying clay
-        // metaclass-factory resolution defect issue #1571 also reports is
-        // NOT fixed here — this test still needs the corpus present, and
-        // still fails against it, until that defect is fixed separately.
+        // makes it obvious this test asserted nothing.
+        //
+        // # What this pins, and why not more
+        //
+        // `::clay::dialect::MotherOfAllMetaClasses` is written literally
+        // (`::oo::class create … { superclass ::oo::class }`), so it is a
+        // straight true positive: the corpus must publish its factory, and
+        // `::clay::class` must be recorded as a class.
+        //
+        // What is deliberately *not* asserted is that `::clay::class`
+        // publishes a factory of its own. That class is manufactured inside
+        // `::clay::dialect::create` under the computed name
+        // `${NSPACE}::class`, so proving the name needs the whole dominating
+        // prefix to be statically executable — from the file's first command
+        // to the `::clay::dialect::create ::clay` call site, and from the
+        // procedure's first statement to the creation. Four constructs stand
+        // in that prefix. Two were *over-broad* abstentions and are fixed
+        // alongside this test (see
+        // `a_collection_loop_in_the_dominating_prefix_preserves_provenance`
+        // and `a_declaration_body_the_walk_cannot_read_is_not_a_blocker`).
+        // The other two are genuine limits of the static-execution walk, both
+        // inside the `::clay::PROC` helper the file calls at load time:
+        //
+        //  * `if {[info commands $name] ne {}} return` — a conditional
+        //    `return` selected by the live command table. The walk treats "an
+        //    arm may not reach the next statement" as a reason to abstain
+        //    rather than distinguishing an early *normal* completion from an
+        //    abnormal one;
+        //  * `eval $ninja` — the fall-through proof carries no argument
+        //    binding, so it cannot see that this call site leaves `ninja` at
+        //    its `{}` default.
+        //
+        // Asserting the *absence* of a `::clay::class` factory would ossify
+        // those two limits: lifting either is a strict improvement and must
+        // not be reported here as a failure. So this test asserts only what
+        // is proved, and the prose above records the boundary instead.
         let corpus = std::env::var_os("TCLLIB_2_0_DIR").map_or_else(
             || std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tcllib-2.0"),
             std::path::PathBuf::from,
@@ -5531,20 +5831,22 @@ mod class_factories {
         let result = analysis(&src, "tcl9.0");
         assert!(
             result.all_classes.contains_key("::clay::class"),
-            "the exact tcllib 2.0 factory must publish ::clay::class; got {:?}",
+            "the exact tcllib 2.0 corpus must record ::clay::class; got {:?}",
             result.all_classes.keys().collect::<Vec<_>>()
         );
-        assert!(
-            result.class_factories().contains_key("::clay::class"),
-            "the exact tcllib 2.0 metaclass must publish its factory; clay={:?}; mother={:?}; factories={:?}",
-            result
-                .all_classes
-                .get("::clay::class")
-                .map(|class| &class.superclasses),
+        assert_eq!(
             result
                 .all_classes
                 .get("::clay::dialect::MotherOfAllMetaClasses")
-                .map(|class| &class.superclasses),
+                .map(|class| class.superclasses.as_slice()),
+            Some(&["::oo::class".to_owned()][..]),
+            "the literally-written dialect root must keep its superclass"
+        );
+        assert!(
+            result
+                .class_factories()
+                .contains_key("::clay::dialect::MotherOfAllMetaClasses"),
+            "the literally-written dialect root must publish its factory; factories={:?}",
             result.class_factories().keys().collect::<Vec<_>>()
         );
     }

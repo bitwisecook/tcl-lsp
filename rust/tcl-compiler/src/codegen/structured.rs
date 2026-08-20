@@ -107,7 +107,7 @@ fn walk_stmt<E: Emit>(
             Statement::If { .. } | Statement::While { .. } | Statement::For { .. }
         )
     {
-        emit.emit_command(slice(source, stmt.span()));
+        emit.emit_command(command_text(source, stmt.span()));
         return Flow::Normal;
     }
     // `break` / `continue` inside a loop are completion codes the walk realises
@@ -194,7 +194,7 @@ fn walk_stmt<E: Emit>(
             // -code`) already unwinds the function via `emit_command`'s dispatch.
             // The explicit `emit_return` makes the exit unconditional (a `return`
             // statement always leaves) and terminates this straight-line script.
-            emit.emit_command(slice(source, *span));
+            emit.emit_command(command_text(source, *span));
             emit.emit_return();
             Flow::Diverged
         }
@@ -203,14 +203,14 @@ fn walk_stmt<E: Emit>(
         // `continue` are ordinary commands too (the runtime raises "invoked …
         // outside of a loop").
         Statement::Call { span, .. } => {
-            emit.emit_command(slice(source, *span));
+            emit.emit_command(command_text(source, *span));
             Flow::Normal
         }
 
         // Everything else — assignments, `foreach`/`switch`/`catch`/`try`,
         // barriers, inlined blocks — is one whole-construct eval-fallback.
         other => {
-            emit.emit_command(slice(source, other.span()));
+            emit.emit_command(command_text(source, other.span()));
             Flow::Normal
         }
     }
@@ -258,7 +258,7 @@ fn emit_if<E: Emit>(
             // (cheap, and — same assumption every other eval-fallback in
             // this module already makes — side-effect-free) reaches
             // exactly the same outcome as evaluating just the remainder.
-            emit.emit_command(slice(source, full_span));
+            emit.emit_command(command_text(source, full_span));
         } else {
             // Remaining `elseif` clauses become a nested `if` in the `else` arm.
             emit_if(
@@ -315,6 +315,66 @@ fn slice(source: &str, span: Span) -> &str {
     source
         .get(span.start() as usize..span.end() as usize)
         .unwrap_or_default()
+}
+
+/// The **whole written command** a statement's span denotes — the text handed
+/// to a whole-construct eval fallback (`tcl_eval_code`).
+///
+/// # Why the raw span is one byte short for a quoted final word
+///
+/// A statement's span is the segmenter's command span
+/// ([`crate::segmenter::command_span`]): the first token's start through
+/// `widen_word_end` of the last. That widening carries a deliberate **type
+/// gate** — it covers a braced (`{…}`) or bracketed (`[…]`) final word, but
+/// *not* a quoted one, because `cmd.range` consumers (W105 unbraced-body
+/// detection, segmenter tiling) rely on the inner-end for `"…"`. So a command
+/// whose last word is quoted and ends in literal text — the class whose lexer
+/// span excludes the closer, per [`clause_text`]'s word-class table — loses
+/// its closing `"` when the span is sliced raw:
+///
+/// ```text
+/// "puts hi"          ->  "puts hi     (whole command is one quoted word)
+/// catch "puts hi"    ->  catch "puts hi
+/// return "a b"       ->  return "a b
+/// ```
+///
+/// The runtime then raises `missing "` where real Tcl raises
+/// `invalid command name "puts hi"` — a parse error on code the user wrote
+/// correctly (issue #1595, the whole-command sibling of #1376).
+///
+/// # Deciding it from an authority, not a guess
+///
+/// [`clause_text`] classifies by *opener* byte because it holds a single
+/// word's span. A command span covers many words and its start says nothing
+/// about its **last** word, so the same trick does not transfer: the only
+/// thing known here is that the closer, if one is missing, sits exactly at
+/// `span.end()`.
+///
+/// Rather than re-deriving where the final word began — the hand-rolled scan
+/// whose copies keep drifting (issues #1423, #1424) — the question is put to
+/// [`tcl_lexer::script_is_complete`], the crate's `Tcl_CommandComplete` port
+/// (`info complete`, verified against C Tcl 9.0.3): a truncated command is
+/// *exactly* a script that needs more input, and restoring its closer is
+/// exactly what makes it complete. So the widened byte is taken only when it
+/// turns an incomplete script into a complete one — which also means a span
+/// left short for any *other* reason (a mis-lowered dynamic body, a rebased
+/// synthetic span) is never silently extended, and a command that is already
+/// whole is returned byte-identical.
+fn command_text(source: &str, span: Span) -> &str {
+    let text = slice(source, span);
+    let end = span.end() as usize;
+    // `"` is the one closer `widen_word_end`'s type gate leaves out; a braced
+    // or bracketed final word is already covered by the time the span is built.
+    if source.as_bytes().get(end) != Some(&b'"') {
+        return text;
+    }
+    let Some(widened) = source.get(span.start() as usize..end + 1) else {
+        return text;
+    };
+    if tcl_lexer::script_is_complete(text) || !tcl_lexer::script_is_complete(widened) {
+        return text;
+    }
+    widened
 }
 
 /// The expression / clause source text a condition or `for`-*next* word
@@ -530,6 +590,58 @@ mod tests {
                 clause_text(source, span, base),
                 expected,
                 "clause_text({source:?}, {start}..{end}, {base:?})"
+            );
+        }
+    }
+
+    /// Issue #1595 — [`command_text`] unit contract. The rows split into the
+    /// truncated class (a final quoted word ending in literal text, which the
+    /// segmenter's type gate leaves one byte short) and the majority that must
+    /// come back byte-identical.
+    #[test]
+    fn command_text_restores_only_a_missing_final_quote() {
+        // (source, span, expected)
+        let cases: &[(&str, u32, u32, &str)] = &[
+            // -- the truncated class: the closer sits at `span.end()` --
+            (r#""puts hi""#, 0, 8, r#""puts hi""#),
+            (r#"catch "puts hi""#, 0, 14, r#"catch "puts hi""#),
+            (r#"return "a b""#, 0, 11, r#"return "a b""#),
+            // -- quoted final word ending in a substitution: the span already
+            // covers the closer, so nothing is added --
+            (r#"catch "puts $x""#, 0, 15, r#"catch "puts $x""#),
+            // -- braced / bracketed final words: already widened upstream --
+            (
+                "foreach x {a b} {puts $x}",
+                0,
+                25,
+                "foreach x {a b} {puts $x}",
+            ),
+            ("catch [foo]", 0, 11, "catch [foo]"),
+            // …and the type gate is a real gate, not decoration: a `}` or `]`
+            // sitting at the span end is *not* restored here, because a span
+            // that reaches this helper has already been widened over those by
+            // `widen_word_end`. Completing the script is necessary but not
+            // sufficient — the closer has to be the one the gate omits.
+            ("catch {a}", 0, 8, "catch {a"),
+            ("catch [foo]", 0, 10, "catch [foo"),
+            // -- a `"` sitting at the span end that closes nothing: the
+            // completeness pair refuses the widening rather than guessing.
+            // Mid-word (`a"b`) the quote is literal, so the text is already a
+            // complete script and stays as it is.
+            (r#"puts a"b""#, 0, 8, r#"puts a"b"#),
+            // A span left short for some *other* reason is not extended just
+            // because a `"` sits at its end — adding it still leaves the brace
+            // open, so the widened form is not complete either.
+            (r#"puts {a"b}"#, 0, 7, r"puts {a"),
+            // A degenerate span never slices past the buffer.
+            (r#"catch "x""#, 0, 99, ""),
+        ];
+        for &(source, start, end, expected) in cases {
+            let span = Span::new(start, end);
+            assert_eq!(
+                command_text(source, span),
+                expected,
+                "command_text({source:?}, {start}..{end})"
             );
         }
     }

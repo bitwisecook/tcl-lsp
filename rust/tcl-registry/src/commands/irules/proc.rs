@@ -31,7 +31,10 @@ pub const fn spec() -> CommandSpec {
         name: "proc",
         traits: Traits::DEFINES_PROCEDURE
             .union(Traits::NEVER_INLINE_BODY)
-            .union(Traits::IRULES_TOP_LEVEL_ONLY),
+            .union(Traits::IRULES_TOP_LEVEL_ONLY)
+            // The body is stored for later invocation, exactly as in the
+            // Tcl `proc` spec — see `commands/tcl/proc_.rs`.
+            .union(Traits::DEFERS_BODY),
         dialects: Some(DialectSet::IRULES),
         arity: Arity::exact(3),
         arg_roles: &[
