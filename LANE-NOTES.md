@@ -15,13 +15,27 @@ is opened**; its content becomes the PR body.
 
 ### A/B evidence
 
-Same commit, same binary path, same host, only `|| slot.inputs_epoch != epoch`
-removed from `schedule_diagnostics_impl`:
+Same tree, same host, same binary path, same harness; the only difference is
+whether `|| slot.inputs_epoch != epoch` is present in
+`schedule_diagnostics_impl`.
 
-| run | result |
-|---|---|
-| fixed | 920 passing, 0 failing, 1 pending (`3m`) |
-| baseline | 651 passing, **8 failing**, 241 pending (`8m`), first failure `Configuration Settings disabling optimiser.enabled suppresses O1xx diagnostics: AssertionError … got [O111,O120]` |
+| arm | runs | optimiser-test failures | runs truncated by the wedge latch | clean 920/0/1 |
+|---|---|---|---|---|
+| baseline | 5 | **1** (`got [O111,O120]`, verbatim) | **1** (241 skipped) | 3 |
+| fixed | 4 (so far) | 0 | 0 | 4 |
+
+Honest caveat: on a *quiet* box the baseline is green too — the failure needs
+the pack-discovery walk to be slow (cold page cache and/or concurrent load),
+which is exactly what #1600's own comment reports ("0-in-4 when run alone",
+"2 in 4" under four concurrent build lanes). So the ext-suite numbers show the
+fix does not regress and do reproduce the reported failure at baseline; the
+*deterministic* proof of the mechanism is the mutation-verified Rust unit test,
+which does not depend on timing at all.
+
+Also of note: the two failing baseline runs each carried a batch of
+`SpecTcl pack torture` failures, and the loop's three quiet baseline runs did
+not — so those are load artifacts of the same kind, not caused by the probe
+change (the same probe change was in place for every green run in both arms).
 
 The 241 pending in the baseline run is the wedge latch truncating the rest
 (`index.ts:124` `skipWhenServerWedged` is the only such skip site in the suite),
@@ -141,18 +155,40 @@ it were ever starved, all three probes fail together — which is exactly the
 `SERVER WEDGED` branch that still latches. So the terminal verdict keeps its
 meaning and loses only its false positives.
 
+## Gate results
+
+| gate | result |
+|---|---|
+| `cargo fmt --all --check` (`rust/`, `runtime/rust/`) | clean |
+| `cargo clippy -p tcl-lsp-server --all-targets` | clean (one `too_many_lines` I introduced in `reload_spec_packs` was fixed by moving the invalidation inside the existing `if changed` block) |
+| `cargo check --workspace` | clean |
+| `cargo test -p tcl-lsp-server` (lib) | 471 passed |
+| `cargo test -p tcl-lsp-server` (e2e) | 1504 passed, 1 failed under concurrent load — `semantic_tokens_reference_client::large_file_range_semantic_tokens_converges_via_refresh`, which passes in isolation and touches nothing this branch changes (semantic tokens do not go through `DiagInputs`). Re-run on a quiet box pending. |
+| ext-host single-root | 920 passing / 0 failing / 1 pending, ×4 |
+| ext-host multi-root | 14 passing ×1 |
+| `prettier --check` / `eslint` on touched TS | clean |
+
 ## Next steps
 
-1. `make test-ext` under xvfb, looped, on the fixed tree (and confirm the
-   baseline failure on stock `origin/rust` first if a spare build slot exists).
-2. Pre-push gates: `cargo fmt --all --check`, clippy on `tcl-lsp-server`
-   `--all-targets`, `cargo check --workspace`, `lsp-e2e`, full ext-host suite.
-3. Adversary pass, then open the PR (`Fixes #1600`, `Fixes #1651`), delete this
+1. Finish the fixed-arm loop; re-run the full server test suite on a quiet box
+   to confirm the semantic-tokens e2e failure is load-only.
+2. Adversary pass, then open the PR (`Fixes #1600`, `Fixes #1651`), delete this
    file.
 
-## Open questions
+## Resolved questions
 
-* Whether the `#1600` comment's "marker and publish are different channels"
-  reading has any residual truth for *other* `waitForDeepDiagnostics` +
-  `getDiagnostics` pairs. Evidence so far says no (server-side ordering is
-  publish-then-marker over one FIFO), but the suite run will tell.
+* *"Is the `#1600` comment's marker-versus-publish reading right?"* — No. The
+  server emits the marker after `cache_and_deliver` over `stdio_pump`'s single
+  FIFO, so the publish precedes it on the wire; the set the test reads really
+  did contain O1xx. The 23 other `waitForDeepDiagnostics` call sites are
+  therefore not suspect on those grounds.
+
+## Out of scope, worth filing separately
+
+Under load the `SpecTcl pack torture` suite hits a real document-pipeline
+stall: `a hover on an undriven document` timing out at **57803ms** with
+`PROBE: could not confirm starvation`, and — later in the same run — the
+heartbeat reporting `getEffectiveConfig` unresponsive after 5000ms at
+`loadFactor 1`. Evidence in `scratchpad/baseline-full.log`. No open issue
+covers it (searched). Not #1600 (that is the *verdict*, now correct) and not
+#1651.
