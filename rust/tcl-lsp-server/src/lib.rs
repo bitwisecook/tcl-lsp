@@ -535,6 +535,29 @@ impl DocumentStore {
         DocumentsGuard { docs, store: self }
     }
 
+    /// Rename whoever currently holds the map, without needing their guard.
+    ///
+    /// [`DocumentsGuard::retag`] is the same operation for a caller that has the
+    /// guard in hand. This one exists for code that runs *under* a caller's
+    /// guard without being given it — `DeliveryCtx::cache_and_deliver`, which
+    /// both of its callers invoke while holding the map, and which has its own
+    /// awaits worth telling apart (issue #1657).
+    ///
+    /// **Precondition:** the calling task must be the holder. There is no way to
+    /// check that, so a call from a task that does not hold the map would
+    /// silently relabel someone else's hold. Every caller must be reachable only
+    /// from under the guard.
+    fn retag_held(&self, site: &'static str) {
+        if let Some(holder) = self
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.site = site;
+        }
+    }
+
     /// The current holder and how long it has held, for the stall line.
     ///
     /// Takes no `await` and never blocks on the map itself, so it is safe to
@@ -1760,6 +1783,11 @@ impl DeliveryCtx<'_> {
     /// wedge, so it does not announce. That is the right trade — a wedged server
     /// is not an acceptable diagnostic channel — but it is a trade.
     async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
+        // Phase markers within the held map — see `DocumentStore::retag_held`.
+        // Both callers run this under their `documents` guard, so a hold that
+        // stops in here reports only the caller without these (issue #1657).
+        self.documents
+            .retag_held("cache_and_deliver: pull_diag_cache");
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
             PullDiagEntry {
@@ -1795,6 +1823,7 @@ impl DeliveryCtx<'_> {
                 .map_or_else(|| "none".to_owned(), |v| v.to_string()),
         );
         let mut marker_sent = false;
+        self.documents.retag_held("cache_and_deliver: marker send");
         for _ in 0..attempts {
             if crate::rt::timeout(
                 DELIVERY_SEND_BUDGET,
@@ -1812,6 +1841,7 @@ impl DeliveryCtx<'_> {
             return;
         }
         let mut diags = diags;
+        self.documents.retag_held("cache_and_deliver: publish send");
         for attempt in 0..attempts {
             // The last attempt owns the payload; earlier ones must keep a copy
             // to retry with. An open run has a single attempt, so it still moves
@@ -1882,6 +1912,8 @@ impl DeliveryCtx<'_> {
     /// Touches only `diag_slots`, never `documents`, so it is safe to call from
     /// under the very lock whose hold it exists to cut short.
     async fn redeliver_later(&self) {
+        self.documents
+            .retag_held("cache_and_deliver: redeliver_later");
         reschedule_self(self.diag_slots, self.uri).await;
     }
 }
