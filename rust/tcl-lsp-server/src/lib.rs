@@ -6490,9 +6490,9 @@ impl Backend {
     /// offsets. LSP requires a request to observe every notification that
     /// preceded it.
     ///
-    /// Waits only for the edits that had already arrived ([`EditOrder::settled`]),
-    /// so a later edit does not hold this reader up and readers never serialise
-    /// against one another.
+    /// Waits only for the edits that had already arrived
+    /// ([`EditOrder::settled_to`]), so a later edit does not hold this reader up
+    /// and readers never serialise against one another.
     ///
     /// A wait here that never ends is the shape of issue #1657 — the whole
     /// server stops answering while burning no CPU — and from the outside it is
@@ -6501,11 +6501,22 @@ impl Backend {
     /// resuming, which names the barrier as the culprit and says exactly where
     /// the sequence stopped. The extension-host capture quotes the tail of that
     /// channel, so the next occurrence carries this line with it.
+    ///
+    /// That reporting must not be paid for on the hot path. **Every** request
+    /// handler calls this, and in the overwhelmingly common case there is no
+    /// edit in flight at all, so the barrier is already satisfied: the check
+    /// below settles it in two atomic loads, allocating nothing and registering
+    /// no timer. Only a wait that genuinely has to block reaches the timeout —
+    /// which is cheaper than the previous unconditional `settled()`, since that
+    /// built a `Notified` even when it had nothing to wait for.
     async fn edits_settled(&self) {
         // Snapshot the target so the resumed wait asks the same question the
         // timed-out one did, rather than a stricter one that includes edits
         // which arrived while we waited.
         let target = self.edit_order.settle_target();
+        if self.edit_order.served() >= target {
+            return;
+        }
         if crate::rt::timeout(EDIT_BARRIER_STALL_WARN, self.edit_order.settled_to(target))
             .await
             .is_ok()
