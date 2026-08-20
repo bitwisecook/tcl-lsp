@@ -178,3 +178,7 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - Items 1-2 pre-completed (#1661 closed on deploy green; #1664 merged; census assigned to F6v2).
 - Lane F8 LAUNCHED (ac025765f8aec5519, opus, worktree): #1624+#1606, branch claude/f8-fixes-1624-1606. Brief includes the #1657 wedge CI hazard (report, don't self-rerun — failure block is census evidence) + all durability doctrines.
 - Disk 22G. Board: F6v2 (census), F8 (#1624+#1606). Queue: #1608 #1617, findings pool #1644 #1656 #1660; E1 low. Labelling compliant.
+
+## 2026-08-20 14:50Z — USER FLAGGED: pages deploy RED AGAIN (run 287)
+- #1664's merge re-broke the deploy: Instant::now in EditOrder::wait_turn (the new stall instrumentation) panics on wasm32-unknown-unknown ("time not implemented"), aborting the spec-studio page. Same platform-time class as #1661, in the SERVER this time; PR CI blind to it (#1662 gap, occurrence #2 in 24h — commented there re the budget case).
+- F6v2 redirected URGENTLY off the census onto hotfix branch claude/f6d-fix-wasm-stall-clock: cfg-gate the stall timing off wasm (single-threaded browser server can't have the Tokio-parking wedge) or wasm-safe clock; sweep the whole #1664 diff for reachable std::time uses; validate with F7's make lsp-server-wasm-test (built for exactly this class) + pages boot checks; ready PR ASAP. Census resumes after.
