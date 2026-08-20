@@ -6985,6 +6985,29 @@ impl Analyser {
                 if is_control {
                     return false;
                 }
+                // Untyped is not the same as irrelevant (issue #1672). The
+                // registry types the arms whose *selection* it models; a body
+                // it does not type is still a body, and unless the command
+                // declared that it stores one, it runs it here. Whether
+                // control reaches the next statement is then exactly whether
+                // that body falls through — the same requirement `Always` and
+                // `FrameBoundary` carry, reached without a descriptor.
+                //
+                // `uplevel 1 {error stop}`, `eval {error stop}` and
+                // `oo::define C {error stop}` were walked past on the strength
+                // of having no descriptor, while tclsh 8.6.16 / 9.0.4 both
+                // never reach the statement after them. A `proc` declaration's
+                // body is the case the exemption exists for: it cannot run
+                // here, so `proc helper {a} {return $a}` still falls through.
+                if self.body_runs_now(&arm.controller)
+                    && !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    )
+                {
+                    return false;
+                }
                 continue;
             };
             saw_typed_arm = true;
@@ -7336,6 +7359,31 @@ impl Analyser {
         {
             return true;
         }
+        !self.body_runs_now(seg)
+    }
+
+    /// Whether `seg` runs its body argument as part of **this** invocation.
+    ///
+    /// The one place that answers it, for both the unreadable-body question
+    /// above and the untyped-arm question in
+    /// [`Self::static_statement_falls_through`] (issue #1672) — the two were
+    /// the same question asked in two places, and only one of them was asking
+    /// it.
+    ///
+    /// Registry data, never an inference: [`Traits::DEFERS_BODY`] is declared
+    /// by the commands that *store* a script (`proc`, `after`'s scheduling
+    /// forms, the iRules `when` registration), and everything that has not
+    /// declared it is assumed to run its body now. That default is the
+    /// abstaining direction — a body that runs can raise or return before the
+    /// walk reaches the statement it cares about, while a body that is merely
+    /// stored cannot.
+    ///
+    /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
+    fn body_runs_now(&self, seg: &SegmentedCommand) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return true;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
         !registry
             .invocation_traits(seg.name(), &args, self.profile.availability_mask)
             .contains(tcl_registry::Traits::DEFERS_BODY)
