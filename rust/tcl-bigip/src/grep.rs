@@ -37,6 +37,44 @@ use crate::range::Range;
 /// The accepted traversal directions.
 pub const DIRECTIONS: [&str; 3] = ["both", "forward", "reverse"];
 
+/// Closed vocabulary backing [`DIRECTIONS`]. `GrepArgs::direction` (CLI input)
+/// and `GrepReport::direction` (JSON/text output) stay `&str`/`String` — those
+/// are wire spellings a user types and a report emits, so the string is kept
+/// there per the #1405 boundary discipline — but the two BFS direction checks
+/// in [`expand_bfs`] dispatch on this enum via [`GrepDirection::from_str`]
+/// instead of re-matching the raw string at each site.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GrepDirection {
+    Both,
+    Forward,
+    Reverse,
+}
+
+impl GrepDirection {
+    /// Whether this direction walks outgoing edges.
+    fn walks_forward(self) -> bool {
+        matches!(self, GrepDirection::Forward | GrepDirection::Both)
+    }
+
+    /// Whether this direction walks incoming edges.
+    fn walks_reverse(self) -> bool {
+        matches!(self, GrepDirection::Reverse | GrepDirection::Both)
+    }
+}
+
+impl std::str::FromStr for GrepDirection {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "both" => Ok(GrepDirection::Both),
+            "forward" => Ok(GrepDirection::Forward),
+            "reverse" => Ok(GrepDirection::Reverse),
+            _ => Err(()),
+        }
+    }
+}
+
 /// One object in the grep result — a seed or a related object.
 #[derive(Debug, Clone)]
 pub struct GrepObject {
@@ -503,7 +541,7 @@ impl Default for GrepArgs<'_> {
 
 /// Validate the direction / `max_nodes` invariants `compute_grep` relies on.
 fn validate_grep_args(args: &GrepArgs) -> Result<(), BigipError> {
-    if !DIRECTIONS.contains(&args.direction) {
+    if args.direction.parse::<GrepDirection>().is_err() {
         let mut sorted = DIRECTIONS;
         sorted.sort_unstable();
         return Err(BigipError::grep(format!(
@@ -552,6 +590,11 @@ fn expand_bfs(
     if !args.recurse {
         return depths;
     }
+    // `compute_grep` always runs `validate_grep_args` (which rejects any
+    // direction not in `DIRECTIONS`) before calling this, so the parse cannot
+    // fail in practice; `Both` is a harmless fallback rather than a silent
+    // behaviour change if that invariant is ever loosened.
+    let direction: GrepDirection = args.direction.parse().unwrap_or(GrepDirection::Both);
     let mut queue: VecDeque<String> = seed_ids.iter().cloned().collect();
     while let Some(nid) = queue.pop_front() {
         if depths.len() >= args.max_nodes {
@@ -562,14 +605,14 @@ fn expand_bfs(
             continue;
         }
         let mut neighbours: Vec<String> = Vec::new();
-        if matches!(args.direction, "forward" | "both")
+        if direction.walks_forward()
             && let Some(edges) = outgoing.get(nid.as_str())
         {
             for edge in edges {
                 neighbours.push(edge.target_id.clone());
             }
         }
-        if matches!(args.direction, "reverse" | "both")
+        if direction.walks_reverse()
             && let Some(edges) = incoming.get(nid.as_str())
         {
             for edge in edges {
