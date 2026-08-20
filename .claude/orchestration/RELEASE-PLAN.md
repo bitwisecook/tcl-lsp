@@ -9,9 +9,6 @@ No history. Delete items as they complete. Issues carry per-task detail.
    green — it is hardening + conviction instrumentation, NOT the cure: the
    tag named `publish_diagnostics_result` holding the map 103.7s, past the
    2s send caps. Do **not** close #1657.
-2. **PR #1671** — lambda-arg materiality (`claude/f9-fix-1656`,
-   `Fixes #1656`). CI running; Codex round pending. Merge on green +
-   resolved feedback, manually close #1656.
 
 ## Pre-release issues
 
@@ -22,14 +19,10 @@ No history. Delete items as they complete. Issues carry per-task detail.
   per-await retag markers landed, lane re-running loaded loop to name the
   exact await. Repro is FAST now (~run 2 of loop). Close only when fix
   survives the loop.
-- **#1656** — ACTIVE (F9 lane, `claude/f9-fix-1656`). `apply $lambda`
-  invisible to fall-through walk; DEFERS_BODY vocabulary; repro in issue.
-- **#1660** — QUEUED behind #1656, same lane (`claude/f9-fix-1660`).
-  Metaclass can't classify same-file creation call; deferred-verdict shape
-  in issue.
-- **#1644** — per-arg lifecycle wiring. Layering decision + acceptance
-  criteria in issue. Assign to first lane that frees (disk too tight for a
-  third concurrent worktree build).
+- **#1660** — ACTIVE (F9 lane, `claude/f9-fix-1660`). Metaclass can't
+  classify same-file creation call; deferred-verdict shape in issue.
+- **#1644** — QUEUED for F9 after #1660. Per-arg lifecycle wiring;
+  layering decision + acceptance criteria in issue.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
