@@ -6735,9 +6735,7 @@ impl Analyser {
         self.result
             .all_classes
             .insert(qualified.to_owned(), joined.clone());
-        if let Some(scope) =
-            super::scope::scope_at_mut(&mut self.result.global_scope, &scope_path.to_vec())
-        {
+        if let Some(scope) = super::scope::scope_at_mut(&mut self.result.global_scope, scope_path) {
             scope.classes.insert(simple, joined);
         }
     }
