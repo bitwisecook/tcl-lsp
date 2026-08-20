@@ -345,6 +345,122 @@ const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_s
 /// `VSCODE-WAIT-TIMEOUT`.
 const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
 
+/// Live salsa database snapshots, so a stalled barrier can name what it is
+/// waiting for.
+///
+/// # Why this exists
+///
+/// Salsa grants `&mut` on the database through `Storage::cancel_others`, which
+/// parks on a condvar until every *other* `DatabaseImpl` clone has been
+/// dropped. [`Backend::db_set_source`] reaches that from `did_open` /
+/// `did_change` **while they hold the [`EditOrder`] turn**, so one slow-to-drop
+/// snapshot stops the whole server (issue #1657).
+///
+/// The stall report could already say the barrier had stopped and which handler
+/// held it. It could not say *what the handler was waiting for*, because a
+/// snapshot leaves no trace — and the process is gone by the time anyone looks.
+/// This is that trace: every clone registers here with the site that made it and
+/// when, and retires on drop.
+///
+/// # Cost
+///
+/// One `HashMap` insert and one remove per salsa query, under a
+/// `std::sync::Mutex` whose critical sections contain no `await` and no
+/// allocation beyond the entry itself. Against the query it accompanies — a
+/// file analysis, a semantic-token pass, a whole-project arity walk — that is
+/// not measurable. A process-global rather than a `Backend` field on purpose:
+/// several of the clone sites are free functions that are handed
+/// `Arc<Mutex<TclDatabase>>` and no `&self`, and threading a census through them
+/// would be a lot of plumbing for a diagnostic.
+static SNAPSHOT_CENSUS: std::sync::LazyLock<SnapshotCensus> =
+    std::sync::LazyLock::new(SnapshotCensus::default);
+
+/// See [`SNAPSHOT_CENSUS`].
+#[derive(Default)]
+struct SnapshotCensus {
+    live: std::sync::Mutex<HashMap<u64, (&'static str, std::time::Instant)>>,
+    next_id: std::sync::atomic::AtomicU64,
+}
+
+/// What the census can say about the snapshots outstanding right now.
+struct SnapshotReport {
+    outstanding: usize,
+    /// The site and age of the longest-lived one — the one a blocked
+    /// `cancel_others` is really waiting for.
+    oldest: Option<(&'static str, std::time::Duration)>,
+}
+
+impl SnapshotCensus {
+    /// Clone `db` into a tracked snapshot, tagged with the site that took it.
+    ///
+    /// Takes `&'static self` so the handle retires into *this* census rather
+    /// than a hard-coded global — which is what lets a test drive an isolated
+    /// one instead of asserting on a counter every other test in the binary is
+    /// also moving.
+    fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(id, (site, std::time::Instant::now()));
+        DbSnapshot {
+            db: db.clone(),
+            census: self,
+            id,
+        }
+    }
+
+    fn retire(&self, id: u64) {
+        self.live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&id);
+    }
+
+    fn report(&self) -> SnapshotReport {
+        let live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let oldest = live
+            .values()
+            .min_by_key(|(_, since)| *since)
+            .map(|(site, since)| (*site, since.elapsed()));
+        SnapshotReport {
+            outstanding: live.len(),
+            oldest,
+        }
+    }
+}
+
+/// A salsa database snapshot that retires itself from [`SNAPSHOT_CENSUS`].
+///
+/// Derefs to the database, so a call site reads `&*snapshot` where it used to
+/// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
+/// cloned for and let it drop there — see [`Backend::db_set_source`] for what
+/// holding one across an unrelated `await` costs.
+struct DbSnapshot {
+    db: tcl_lsp_db::TclDatabase,
+    census: &'static SnapshotCensus,
+    id: u64,
+}
+
+impl std::ops::Deref for DbSnapshot {
+    type Target = tcl_lsp_db::TclDatabase;
+
+    fn deref(&self) -> &Self::Target {
+        &self.db
+    }
+}
+
+impl Drop for DbSnapshot {
+    fn drop(&mut self) {
+        self.census.retire(self.id);
+    }
+}
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -1680,11 +1796,11 @@ async fn compute_base_analysis(
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
-        let snapshot = db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_base_analysis");
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                    tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                 })
                 .ok()
             })
@@ -1969,10 +2085,10 @@ async fn compute_project_diags(
     let (Some(project), Some(file)) = (project, file) else {
         return ControlFlow::Continue(None);
     };
-    let snapshot = db.lock().await.clone();
+    let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_project_diags");
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
-            (*tcl_lsp_db::project_callback_diagnostics(&snapshot, file, config, project)).clone()
+            (*tcl_lsp_db::project_callback_diagnostics(&*snapshot, file, config, project)).clone()
         })
         .ok()
     })
@@ -2014,11 +2130,11 @@ async fn compute_compiler_diags(
         dialect,
     } = ctx;
     if let Some(file) = file {
-        let snapshot = db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_compiler_diags");
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+                    tcl_lsp_db::compiler_check_diagnostics(&*snapshot, file, config)
                 })
                 .ok()
             })
@@ -2584,7 +2700,11 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (db.clone(), files, project)
+        (
+            SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence"),
+            files,
+            project,
+        )
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -2595,7 +2715,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
                 .into_iter()
                 .filter_map(|(uri, file)| {
                     let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
-                    let have = file.external_call_sites(&snapshot).as_ref();
+                    let have = file.external_call_sites(&*snapshot).as_ref();
                     (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
                 })
                 .collect::<Vec<_>>()
@@ -2808,19 +2928,23 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (db.clone(), files, project)
+        (
+            SNAPSHOT_CENSUS.take(&db, "sync_workspace_class_factories_round"),
+            files,
+            project,
+        )
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
     let computed = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-            let index = tcl_lsp_db::project_class_factories(&snapshot, project);
+            let index = tcl_lsp_db::project_class_factories(&*snapshot, project);
             let want = (!index.is_empty()).then_some(index);
             let pending: Vec<(Uri, tcl_lsp_db::SourceFile)> = files
                 .into_iter()
                 .filter(|(_, file)| {
-                    file.workspace_class_factories(&snapshot).as_deref() != want.as_deref()
+                    file.workspace_class_factories(&*snapshot).as_deref() != want.as_deref()
                 })
                 .collect();
             (want, pending)
@@ -6004,9 +6128,9 @@ impl Backend {
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_document_symbols");
         crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
         })
         .await
         .ok()
@@ -6027,9 +6151,9 @@ impl Backend {
         uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_folding_ranges");
         crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&*snapshot, file)).ok()
         })
         .await
         .ok()
@@ -6092,10 +6216,11 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot =
+            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_file_analysis_handle");
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
             })
             .ok()
         }))
@@ -6110,9 +6235,10 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot =
+            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_compilation_unit_handle");
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&*snapshot, file)).ok()
         }))
     }
 
@@ -6155,13 +6281,13 @@ impl Backend {
         // a class defined in another file highlights; otherwise fall back to the
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_semantic_tokens");
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => {
-                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, project, config)
+                    tcl_lsp_db::semantic_tokens_project(&*snapshot, file, project, config)
                 }
-                None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
+                None => tcl_lsp_db::semantic_tokens(&*snapshot, file, config),
             })
             .ok()
         }))
@@ -6655,14 +6781,33 @@ impl Backend {
                 )
             },
         );
+        // What the holder is itself waiting for. `did_open` / `did_change` reach
+        // `db_set_source` inside the turn, and salsa's `cancel_others` parks
+        // there until every other database snapshot has been dropped — so the
+        // outstanding census, and above all the *oldest* entry, names the thing
+        // at the bottom of the stack (issue #1657).
+        let census = SNAPSHOT_CENSUS.report();
+        let waiting_on = match census.oldest {
+            Some((site, age)) => format!(
+                "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s \
+                 ago, so a `set_text` inside the turn is parked in `cancel_others` until it \
+                 drops",
+                census.outstanding,
+                age.as_secs_f64(),
+            ),
+            None => "no salsa snapshot is outstanding, so the holder is parked on something \
+                     other than `cancel_others`"
+                .to_owned(),
+        };
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
-                     The turn is {culprit}. Every request handler is blocked on this barrier \
-                     and the server will answer nothing until it moves (issue #1657).",
+                     The turn is {culprit}. {waiting_on}. Every request handler is blocked on \
+                     this barrier and the server will answer nothing until it moves \
+                     (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
                 ),
@@ -13394,8 +13539,8 @@ impl Backend {
         // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
         let p = project?;
-        let db = self.db.lock().await.clone();
-        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+        let db = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "project_callback_arities_if");
+        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&*db, p))
             .await
             .ok()
     }
@@ -15291,10 +15436,11 @@ impl Backend {
                 // Clone the snapshot only after the permit is held, so
                 // `set_text` never waits on more than `concurrency` in-flight
                 // reads.
-                let snapshot = db.lock().await.clone();
+                let snapshot =
+                    SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "warm_open_documents");
                 let _ = crate::rt::spawn_blocking(move || {
                     let _ = salsa::Cancelled::catch(|| {
-                        tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                        tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                     });
                 })
                 .await;
@@ -32745,6 +32891,72 @@ mod tests {
             "a genuine stall must still be reported and recorded",
         );
         drop(queued);
+    }
+
+    /// The snapshot census must count what is live and retire what is not.
+    ///
+    /// This is the reading that names what a stalled turn is waiting for: salsa
+    /// parks `set_text` in `cancel_others` until every other database clone
+    /// drops, so the oldest outstanding snapshot is the thing at the bottom of
+    /// the stack. A census that over-counts would accuse an innocent site; one
+    /// that under-counts would report "nothing outstanding" and send the next
+    /// reader looking somewhere else entirely (issue #1657).
+    ///
+    /// Driven against an isolated census rather than the process-global one:
+    /// the whole test binary shares that global, so asserting on its counts
+    /// would be asserting on whatever every other test happened to be doing.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_snapshot_census_tracks_live_clones_and_retires_dropped_ones() {
+        let db = tcl_lsp_db::TclDatabase::default();
+        // `&'static` because a snapshot retires into the census that made it,
+        // and production's is a `LazyLock` static.
+        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        assert_eq!(census.report().outstanding, 0, "a fresh census is empty");
+
+        let first = census.take(&db, "test-first");
+        // Distinguishable ages, so "oldest" means something to assert on.
+        crate::rt::sleep(std::time::Duration::from_millis(20)).await;
+        let second = census.take(&db, "test-second");
+
+        let report = census.report();
+        assert_eq!(report.outstanding, 2, "both live snapshots must be counted");
+        assert_eq!(
+            report
+                .oldest
+                .expect("a live snapshot must have an oldest")
+                .0,
+            "test-first",
+            "the census must name the *longest-lived* snapshot, not the newest — \
+             that is the one a blocked `cancel_others` is waiting for",
+        );
+
+        drop(first);
+        let report = census.report();
+        assert_eq!(
+            report.outstanding, 1,
+            "a dropped snapshot must retire, or a wedge would be blamed on a query \
+             that finished long ago",
+        );
+        assert_eq!(
+            report.oldest.expect("one snapshot is still live").0,
+            "test-second",
+            "retiring the oldest must promote the next one",
+        );
+
+        drop(second);
+        let report = census.report();
+        assert_eq!(report.outstanding, 0, "the census must return to empty");
+        assert!(
+            report.oldest.is_none(),
+            "an empty census reports no oldest, which is what tells the stall line \
+             the holder is parked on something other than `cancel_others`",
+        );
+
+        // And the handle really is the database: the deref is what lets every
+        // call site pass `&*snapshot` where it passed `&snapshot` before.
+        let third = census.take(&db, "test-deref");
+        let _: &tcl_lsp_db::TclDatabase = &third;
+        drop(third);
     }
 
     /// Wait for the single document-sync handler under test to draw its
