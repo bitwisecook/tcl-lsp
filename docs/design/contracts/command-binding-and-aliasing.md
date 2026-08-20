@@ -134,7 +134,15 @@ redefinition.
     A `Binding` carries the kind plus a target qname for `Proc`, `Class`, and
     `Alias`.
   * **Flow-insensitive and whole-module** — `ModuleCommandMutations` is the
-    optimiser's fold gate. A `rename` / redefinition / `interp alias` buried
+    fold-and-specialisation gate for the optimiser **and for codegen**
+    (issue #1585). C Tcl reaches the same answer dynamically: it
+    inline-compiles a builtin unconditionally but wraps every command in
+    `INST_START_CMD`, which re-dispatches the slow way once
+    `iPtr->compileEpoch` moves (`tclExecute.c`, `instStartCmdFailed`). This
+    compiler emits no epoch guard, so `codegen_module` scans the unit once
+    and `CodegenCtx::trusts_builtin` gates the `list` / `format` /
+    `dict create` text folds and the registry-driven inline emitters —
+    the concrete form of the "barriers for the unresolvable" rule below. A `rename` / redefinition / `interp alias` buried
     in a proc body only fires when that proc is called, and cross-proc call
     order is not statically known, so any builtin some body may rebind is
     untrusted *everywhere*. `trusts(name)` gates folding a builtin with its

@@ -63,6 +63,7 @@ const fn sub_since(
         synopsis,
         dialects: Some(dialects),
         lifecycle: Lifecycle::introduced_in(since),
+        ..SubSubCommand::DEFAULT
     }
 }
 

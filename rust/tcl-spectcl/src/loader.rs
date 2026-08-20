@@ -4537,7 +4537,9 @@ fn apply_subcommand_stmt(
                 acc.side_effects.push(effect);
             }
         }
-        "sub_subcommand" => acc.sub_subcommands.push(sub_subcommand_row(stmt, log)),
+        "sub_subcommand" => acc
+            .sub_subcommands
+            .push(sub_subcommand_row(stmt, tables, log)),
         "versioned_arg_value" => {
             if let Some(gate) = versioned_arg_value_row(stmt, log) {
                 acc.versioned_arg_values.push(gate);
@@ -4613,7 +4615,25 @@ fn apply_subcommand_stmt(
     }
 }
 
-fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
+/// `sub_subcommand NAME ?flags? ?{ option … }?`.
+///
+/// The trailing block is optional and holds `option` rows: a second-level
+/// operation whose option table genuinely differs from its siblings'
+/// (`namespace ensemble create` has `-command`, `configure` has `-namespace`)
+/// declares its own, and a consumer that can see the dispatch word prefers it
+/// over the owning subcommand's (issue #1610).
+///
+/// **No block and an empty block mean different things.** No block leaves
+/// `options` at `None` — this operation says nothing, so the owning
+/// subcommand's table applies. An empty block `{}` sets `Some(&[])`: this
+/// operation takes no options at all, and the parent's table must not leak
+/// into it (`namespace ensemble exists`, whose C arm takes `cmdname` and
+/// nothing else).
+///
+/// The block is recognised by being a **braced** word in a position where a
+/// flag name was expected, which no flag value can be: every flag here is
+/// `-name value`, so a value is only ever read through `next_text`.
+fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSubCommand {
     let mut row = SubSubCommand {
         name: leak_str(stmt.word_text(1)),
         ..SubSubCommand::DEFAULT
@@ -4627,6 +4647,14 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
             "-dialects" => {
                 let text = next_text(words, &mut i);
                 row.dialects = parse_dialects(&text, stmt.line, log);
+            }
+            other if !other.starts_with('-') && words[i].braced => {
+                log.v12(stmt.line, "an option block on `sub_subcommand`");
+                // `Some`, even when the block is empty — that is the whole
+                // point of writing one.
+                row.options = Some(leak_slice(sub_subcommand_options(
+                    &words[i], row.name, tables, log,
+                )));
             }
             other => {
                 if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {
@@ -4645,6 +4673,47 @@ fn sub_subcommand_row(stmt: &Stmt, log: &mut Log) -> SubSubCommand {
         log,
     );
     row
+}
+
+/// The `option` rows inside a `sub_subcommand NAME { … }` body.
+///
+/// An `-arity-hook` here is reported rather than dropped in silence: the hook
+/// binder walks the command and its subcommands only, so a hook declared at
+/// the second level would never be bound, and a pack that wrote one would get
+/// a silently arity-hookless option. The option itself survives; only the hook
+/// is refused.
+fn sub_subcommand_options(
+    body: &Word,
+    owner: &str,
+    tables: &PackTables,
+    log: &mut Log,
+) -> Vec<OptionSpec> {
+    let mut options = Vec::new();
+    for stmt in block(body) {
+        if stmt.word_text(0) != "option" {
+            log.say(
+                stmt.line,
+                format!(
+                    "a `sub_subcommand` body holds `option` rows only; `{}` dropped",
+                    stmt.word_text(0)
+                ),
+            );
+            continue;
+        }
+        let (option, hook) = option_row(&stmt, tables, log);
+        if hook.is_some() {
+            log.say(
+                stmt.line,
+                format!(
+                    "`-arity-hook` on `{}`'s option `{}` is not bindable at the \
+                     second subcommand level; the option is kept, the hook is not",
+                    owner, option.name
+                ),
+            );
+        }
+        options.push(option);
+    }
+    options
 }
 
 fn versioned_arg_value_row(

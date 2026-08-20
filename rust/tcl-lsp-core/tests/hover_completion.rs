@@ -1052,3 +1052,198 @@ fn hover_on_a_boolean_option_names_the_vocabulary() {
         h.value
     );
 }
+
+// ---------------------------------------------------------------------------
+// Issue #1610 — `namespace ensemble create` and `configure` are two different
+// option tables, and the consumers must take the operation's own.
+//
+// Oracle, tclsh 8.6.16 and 9.0.4, byte identical:
+//   namespace ensemble configure ::E -namespace  -> ::M            (valid read)
+//   namespace ensemble configure ::E -command x  -> bad option "-command":
+//       must be -map, -namespace, -parameters, -prefixes, -subcommands,
+//       or -unknown
+//   namespace ensemble create -namespace ::M     -> bad option "-namespace":
+//       must be -command, -map, -parameters, -prefixes, -subcommands,
+//       or -unknown
+// A merged table offered `configure` a `-command` that always errors and hid
+// the `-namespace` it accepts.
+// ---------------------------------------------------------------------------
+
+/// The option labels offered where the cursor sits after `-` on `src`'s line 0.
+fn ensemble_option_labels(src: &str, col: u32) -> Vec<String> {
+    let analysis = analyse(src);
+    let reg = registry();
+    completions(
+        src,
+        0,
+        col,
+        &analysis,
+        Some(&reg),
+        None,
+        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+    )
+    .into_iter()
+    .map(|i| i.label)
+    .collect()
+}
+
+#[test]
+fn ensemble_configure_completion_offers_namespace_and_never_command() {
+    let src = "namespace ensemble configure $e -\n";
+    let labels = ensemble_option_labels(src, 33);
+    assert!(
+        labels.iter().any(|l| l == "-namespace"),
+        "`configure` reads `-namespace`: {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|l| l == "-command"),
+        "`-command` on `configure` is a guaranteed `bad option`: {labels:?}"
+    );
+    for want in ["-map", "-prefixes", "-subcommands", "-unknown"] {
+        assert!(labels.iter().any(|l| l == want), "{want}: {labels:?}");
+    }
+}
+
+#[test]
+fn ensemble_create_completion_offers_command_and_never_namespace() {
+    let src = "namespace ensemble create -\n";
+    let labels = ensemble_option_labels(src, 27);
+    assert!(
+        labels.iter().any(|l| l == "-command"),
+        "`create` takes `-command`: {labels:?}"
+    );
+    assert!(
+        !labels.iter().any(|l| l == "-namespace"),
+        "`-namespace` on `create` is a guaranteed `bad option`: {labels:?}"
+    );
+}
+
+/// A dispatch word no consumer can read keeps the wider union — the abstain
+/// answer, so a dynamic `namespace ensemble $op` never has a valid option
+/// withheld from it.
+#[test]
+fn a_dynamic_ensemble_dispatch_word_keeps_both_tables() {
+    let src = "namespace ensemble $op -\n";
+    let labels = ensemble_option_labels(src, 24);
+    assert!(
+        labels.iter().any(|l| l == "-command") && labels.iter().any(|l| l == "-namespace"),
+        "an unreadable dispatch word abstains to the union: {labels:?}"
+    );
+}
+
+#[test]
+fn hover_on_ensemble_configure_namespace_answers_from_configures_table() {
+    let src = "namespace ensemble configure ::E -namespace\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let h = hover(src, 0, 36, &analysis, Some(&reg)).expect("`-namespace` must hover");
+    assert!(
+        h.value.contains("-namespace") && h.value.contains("read-only"),
+        "hover must explain the read-only property: {}",
+        h.value
+    );
+    assert!(
+        h.value.contains("namespace ensemble configure"),
+        "hover names the operation whose table answered: {}",
+        h.value
+    );
+}
+
+#[test]
+fn hover_on_ensemble_create_command_answers_from_creates_table() {
+    let src = "namespace ensemble create -command ::E\n";
+    let analysis = analyse(src);
+    let reg = registry();
+    let h = hover(src, 0, 29, &analysis, Some(&reg)).expect("`-command` must hover");
+    assert!(
+        h.value.contains("namespace ensemble create"),
+        "hover names the operation whose table answered: {}",
+        h.value
+    );
+}
+
+/// The mirror of the two tests above: each operation's own table means the
+/// *other* one's distinctive option is simply not there. tclsh agrees loudly
+/// — `configure ::E -command x` is `bad option "-command"` — so hovering it as
+/// though it were a `configure` option would be describing an error as a
+/// feature.
+#[test]
+fn hover_declines_an_option_the_other_ensemble_operation_owns() {
+    let reg = registry();
+
+    let src = "namespace ensemble configure ::E -command x\n";
+    let analysis = analyse(src);
+    assert!(
+        hover(src, 0, 36, &analysis, Some(&reg)).is_none(),
+        "`-command` is not a `configure` option"
+    );
+
+    let src = "namespace ensemble create -namespace ::M\n";
+    let analysis = analyse(src);
+    assert!(
+        hover(src, 0, 29, &analysis, Some(&reg)).is_none(),
+        "`-namespace` is not a `create` option"
+    );
+}
+
+/// `namespace ensemble exists` takes no options, so none are offered — and an
+/// explicitly empty operation table is what makes that true.
+///
+/// `ENS_EXISTS` (`tclEnsemble.c`) is `if (objc != 3) { Tcl_WrongNumArgs(…,
+/// "cmdname"); }` followed by `Tcl_FindEnsemble`; it never reaches an option
+/// table. A `-`-shaped word there is the *command name*. Pinned on tclsh
+/// 8.6.16 and 9.0.4, byte identical:
+///
+/// ```text
+/// namespace ensemble exists -namespace      -> 0
+/// namespace ensemble exists -namespace foo  -> wrong # args: should be
+///     "namespace ensemble exists cmdname"
+/// ```
+///
+/// The first line is why this matters more than a rejected flag would:
+/// accepting the completion turns the call into "is there an ensemble named
+/// `-namespace`", which answers `0` and never complains.
+#[test]
+fn ensemble_exists_offers_no_options_at_all() {
+    let dashed = |src: &str, col: u32| -> Vec<String> {
+        ensemble_option_labels(src, col)
+            .into_iter()
+            .filter(|l| l.starts_with('-'))
+            .collect()
+    };
+
+    assert!(
+        dashed("namespace ensemble exists -\n", 27).is_empty(),
+        "`exists` takes no options, so none may be offered: {:?}",
+        dashed("namespace ensemble exists -\n", 27)
+    );
+    // …while its siblings still offer theirs, so this is the empty table
+    // talking and not a dead completion path.
+    assert!(!dashed("namespace ensemble create -\n", 27).is_empty());
+
+    // An option-less command falls through to the generic command-name
+    // context on a `-` partial — long-standing behaviour, unrelated to this
+    // issue. `exists` now takes exactly that path, as `namespace current`
+    // does, rather than being handed another subcommand's option table.
+    assert_eq!(
+        ensemble_option_labels("namespace ensemble exists -\n", 27).len(),
+        ensemble_option_labels("namespace current -\n", 19).len(),
+        "`exists` behaves like any other command that takes no options"
+    );
+}
+
+#[test]
+fn hover_declines_every_option_on_ensemble_exists() {
+    let reg = registry();
+    for src in [
+        "namespace ensemble exists -namespace\n",
+        "namespace ensemble exists -command\n",
+        "namespace ensemble exists -map\n",
+    ] {
+        let analysis = analyse(src);
+        assert!(
+            hover(src, 0, 28, &analysis, Some(&reg)).is_none(),
+            "`exists` has no options, so {src:?} must not hover one"
+        );
+    }
+}

@@ -20,7 +20,7 @@ import * as fs from "fs";
 import * as path from "path";
 import Mocha from "mocha";
 import { glob } from "glob";
-import { scaledTimeout } from "./signal";
+import { beginTestDeadline, scaledTimeout } from "./signal";
 import { createHeartbeatWriter, MOCHA_TEST_TIMEOUT_BASE_MS } from "./runnerWatchdog";
 import { probeServer } from "./serverProbe";
 import { serverTransportWedged } from "./helper";
@@ -49,6 +49,24 @@ export async function run(): Promise<void> {
     // no-progress window is itself derived from this same constant, so the
     // two cannot drift out of the relationship it depends on.
     timeout: scaledTimeout(MOCHA_TEST_TIMEOUT_BASE_MS),
+  });
+
+  // The follow-up diagnostics in `signal.ts` are load-scaled at the moment
+  // they run, while this `timeout:` was fixed above under whatever load
+  // existed at suite construction — so without a tie the inner budget can
+  // outgrow the outer bound and the diagnostic becomes the thing that hangs.
+  // Recording the effective per-test deadline here is that tie; the clamp
+  // lives in `diagnosticBudget()`.
+  mocha.suite.beforeEach(function (this: Mocha.Context) {
+    beginTestDeadline(this.timeout());
+  });
+  // And dropped again on the way out, so the clamp covers only what a test's
+  // deadline actually governs. A suite's `suiteSetup` runs *before* any root
+  // `beforeEach`, so without this it would inherit the previous test's
+  // already-spent deadline and lose its diagnostics — and `activate`'s cold
+  // handshake, the slowest wait in the suite, lives in exactly those hooks.
+  mocha.suite.afterEach(() => {
+    beginTestDeadline(0);
   });
   if (process.env.MOCHA_GREP) {
     mocha.grep(process.env.MOCHA_GREP);
