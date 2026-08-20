@@ -29,13 +29,24 @@ Add to your `init.el`:
 ;; on (see `dialect_from_language_id`).
 (define-derived-mode f5-irules-mode tcl-mode "iRules")
 (define-derived-mode f5-iapps-mode  tcl-mode "iApp")
+(define-derived-mode f5-tmsh-mode   tcl-mode "tmsh")
 (define-derived-mode expect-mode    tcl-mode "Expect")
 
 ;; The extensions each profile owns in the dialect catalog.
 (add-to-list 'auto-mode-alist '("\\.irul\\(es?\\)?\\'" . f5-irules-mode)) ; .irul / .irule / .irules
 (add-to-list 'auto-mode-alist '("\\.\\(iapp\\|iappimpl\\|impl\\)\\'" . f5-iapps-mode))
 (add-to-list 'auto-mode-alist '("\\.apl\\'"            . f5-iapps-mode)) ; the iApp presentation language
+(add-to-list 'auto-mode-alist '("\\.tmsh\\'"           . f5-tmsh-mode))
 (add-to-list 'auto-mode-alist '("\\.\\(exp\\|expect\\)\\'" . expect-mode))
+
+;; Plain `tcl-mode` for the rest of the family. These need no derived mode:
+;; the server's own detection routes them — a `.tclspec` by its `speclib`
+;; wrapper, an EDA script by its vendor commands, a `bigip.conf` by name — so
+;; sending languageId "tcl" costs nothing but the mode line.
+(add-to-list 'auto-mode-alist '("\\.\\(tclspec\\|test\\)\\'" . tcl-mode))
+(add-to-list 'auto-mode-alist
+             '("\\.\\(sdc\\|upf\\|xdc\\|qsf\\|qpf\\|qip\\|do\\|globals\\)\\'" . tcl-mode))
+(add-to-list 'auto-mode-alist '("\\(\\.scf\\|/bigip\\(_[a-z]+\\)?\\.conf\\)\\'" . tcl-mode))
 
 (with-eval-after-load 'eglot
   (add-to-list 'eglot-server-programs
@@ -45,10 +56,13 @@ Add to your `init.el`:
   (add-to-list 'eglot-server-programs
                '((f5-iapps-mode :language-id "f5-iapps") . ("/path/to/tcl-lsp-server")))
   (add-to-list 'eglot-server-programs
+               '((f5-tmsh-mode :language-id "f5-tmsh") . ("/path/to/tcl-lsp-server")))
+  (add-to-list 'eglot-server-programs
                '((expect-mode :language-id "expect") . ("/path/to/tcl-lsp-server"))))
 
 ;; Auto-start on Tcl and the dialect modes
-(dolist (h '(tcl-mode-hook f5-irules-mode-hook f5-iapps-mode-hook expect-mode-hook))
+(dolist (h '(tcl-mode-hook f5-irules-mode-hook f5-iapps-mode-hook
+             f5-tmsh-mode-hook expect-mode-hook))
   (add-hook h #'eglot-ensure))
 ```
 
@@ -76,9 +90,16 @@ Pass settings via eglot workspace configuration:
 ```
 
 `.apl` (and `.irul` / `.irule` / `.irules` / `.iapp` / `.iappimpl` / `.impl` /
-`.exp` / `.expect`) files are handled by the dialect
+`.tmsh` / `.exp` / `.expect`) files are handled by the dialect
 derived modes in the eglot setup above, which send the correct `languageId` —
 do **not** also map `.apl` to plain `tcl-mode`, or it would analyse as tcl8.6.
+
+Everything else the catalogue owns rides plain `tcl-mode`: `.tclspec`,
+`.test`, the EDA suffixes and the BIG-IP config files have no ambiguity the
+`languageId` needs to resolve, because the server detects them from their own
+content or filename. The authoritative list is the dialect catalogue —
+`cargo xtask gen-editor-extensions --check` gates the editors that can be
+generated; this README is prose beside it.
 
 ## Known issues
 

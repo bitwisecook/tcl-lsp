@@ -9,3 +9,4 @@ extends: Tcl.sublime-syntax
 
 file_extensions:
   - exp
+  - expect

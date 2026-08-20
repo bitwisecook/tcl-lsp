@@ -68,14 +68,32 @@ fn has_word(haystack: &str, word: &str) -> bool {
     false
 }
 
-/// Extract `<x.y>` from a `…\btclsh<x.y>\b…` shebang (input already lowercased).
+/// The interpreter names a Tcl shebang may spell, each of which may carry a
+/// `<x.y>` version suffix: the Tcl shell and the Tk shell.
+///
+/// `wish` is here because a `#!/usr/bin/wish8.6` script is a Tcl 8.6 script by
+/// the same reasoning `tclsh8.6` is — Tk is a *library* in this model, not a
+/// dialect profile, so the shell name only ever contributes the version
+/// (issue #1625). A bare `#!/usr/bin/wish` therefore still falls through to
+/// the content tiers, exactly as a bare `tclsh` does.
+const SHEBANG_TCL_SHELLS: &[&str] = &["tclsh", "wish"];
+
+/// Extract `<x.y>` from a `…\b(tclsh|wish)<x.y>\b…` shebang (input already
+/// lowercased).
 fn shebang_tclsh_version(lower: &str) -> Option<String> {
+    SHEBANG_TCL_SHELLS
+        .iter()
+        .find_map(|shell| shebang_shell_version(lower, shell))
+}
+
+/// [`shebang_tclsh_version`] for one interpreter name.
+fn shebang_shell_version(lower: &str, shell: &str) -> Option<String> {
     let bytes = lower.as_bytes();
     let mut i = 0;
-    while let Some(off) = lower[i..].find("tclsh") {
+    while let Some(off) = lower[i..].find(shell) {
         let start = i + off;
         let before = start == 0 || !is_word_byte(bytes[start - 1]);
-        let mut j = start + "tclsh".len();
+        let mut j = start + shell.len();
         let d1 = j;
         while j < bytes.len() && bytes[j].is_ascii_digit() {
             j += 1;
@@ -352,6 +370,22 @@ pub const DETECT_SCAN_BYTES: usize = 8192;
 /// project source we index.
 pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
     "tcl", "tk", "itcl", "tm", "irul", "irule", "iapp", "iappimpl", "impl", "exp", "apl", "test",
+    // The long spellings of the two extensions above that every editor
+    // registers: `.irules` is owned by `f5-irules` and `.expect` by `expect`
+    // in the profile catalog, so a file with either name opens as project
+    // source in VS Code / JetBrains / Sublime / Zed. They were simply missed
+    // when their short forms were listed, which left them registered by the
+    // editors but never *indexed* — `is_tcl_source`, the watched-file glob,
+    // the rename filter and the CLI directory walk all skipped them, so
+    // cross-file references and rename silently missed those files until one
+    // was opened (issue #1625).
+    "irules", "expect",
+    // `.tmsh` is an F5 tmsh *script* — Tcl the user writes and keeps beside
+    // the rest of a project, in the same sense `.exp` is, and unlike the EDA
+    // vendor suffixes below. It was omitted here, which left the
+    // `workspaceContains` activation glob without it: a workspace whose only
+    // Tcl files were `.tmsh` was never indexed (issue #1625).
+    "tmsh",
     // SpecTcl packs (`spec-packs.md`): a `.tclspec` is one Tcl script, sits
     // beside the code it describes, and is indexed like any other source.
     "tclspec",
@@ -374,21 +408,52 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// broad `**/*` filtered afterwards.
 #[must_use]
 pub fn tcl_source_glob_any_case() -> String {
-    let alternatives: Vec<String> = TCL_SOURCE_EXTENSIONS
-        .iter()
-        .map(|ext| {
-            ext.chars()
-                .map(|c| {
-                    if c.is_ascii_alphabetic() {
-                        format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
-                    } else {
-                        c.to_string()
-                    }
-                })
-                .collect::<String>()
+    extension_glob_any_case(TCL_SOURCE_EXTENSIONS.iter().copied())
+}
+
+/// One literal spelled so a glob matches it in **any** casing —
+/// `bigip.conf` → `[bB][iI][gG][iI][pP].[cC][oO][nN][fF]`.
+///
+/// The per-character-class trick [`tcl_source_glob_any_case`] documents,
+/// factored out because the same problem appears wherever a *name* rather
+/// than an extension has to be matched case-insensitively by a consumer with
+/// no case-insensitivity option — VS Code's contributed `filenamePatterns`
+/// being the case that motivated splitting it out (issue #1625).
+#[must_use]
+pub fn fold_case_in_glob(literal: &str) -> String {
+    literal
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphabetic() {
+                format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
+            } else {
+                c.to_string()
+            }
         })
-        .collect();
-    format!("**/*.{{{}}}", alternatives.join(","))
+        .collect()
+}
+
+/// The `**/*.{…}` any-casing glob over an arbitrary extension set.
+///
+/// [`tcl_source_glob_any_case`] is this over the static set; the LSP server's
+/// pack-extension watcher registration is this over
+/// [`pack_source_extensions`], which is why it takes an iterator rather than
+/// reading the constant. Returns `None` for an empty set, since `**/*.{}`
+/// matches nothing and registering it would be a silent no-op.
+#[must_use]
+pub fn extension_glob_any_case_opt<'a>(
+    extensions: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    let alternatives: Vec<String> = extensions.into_iter().map(fold_case_in_glob).collect();
+    if alternatives.is_empty() {
+        return None;
+    }
+    Some(format!("**/*.{{{}}}", alternatives.join(",")))
+}
+
+/// [`extension_glob_any_case_opt`] for a set known to be non-empty.
+fn extension_glob_any_case<'a>(extensions: impl IntoIterator<Item = &'a str>) -> String {
+    extension_glob_any_case_opt(extensions).unwrap_or_else(|| "**/*.{}".to_owned())
 }
 
 /// Extension-to-dialect routing declared by loaded `SpecTcl` packs
@@ -420,6 +485,93 @@ pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String,
     *guard = Some(map);
 }
 
+/// Every extension currently claimed by a loaded pack that the shipped
+/// catalogue does **not** already account for, sorted.
+///
+/// The indexing counterpart of [`dialect_from_extension`]'s pack tier. A pack
+/// claiming `.irulex` made an *opened* `.irulex` file analyse correctly from
+/// the first release of that tier, but every predicate that decides which
+/// files the toolchain reaches on its own — the LSP workspace scan, the
+/// watched-file admission filter, the rename filter, the CLI directory walk —
+/// read the static constant alone, so closed files stayed unindexed and
+/// external edits never refreshed references or definitions (issue #1626,
+/// review finding P1-3).
+///
+/// Two kinds of extension are filtered out, for different reasons.
+/// [`TCL_SOURCE_EXTENSIONS`] entries, because a consumer unions this with that
+/// set and returning them would make a caller building a glob emit each one
+/// twice. And extensions the **profile catalogue** owns, because those are a
+/// decision the catalogue has already taken: `.upf` is catalogued as Synopsys
+/// Tcl *and* deliberately left out of the indexed set (it is Tcl, but it is
+/// not project source we walk), so a bundled pack restating
+/// `file_extension upf` must not quietly overturn that. The rule is the same
+/// one the server's `pack_file_extensions` advertisement applies, which keeps
+/// "what a pack adds" one answer rather than two.
+///
+/// A **snapshot**, not a subscription: the answer changes whenever a pack
+/// reload republishes routing, so a consumer that caches a derived value
+/// (a glob, a watcher registration) has to recompute it on reload rather than
+/// once at startup.
+#[must_use]
+pub fn pack_source_extensions() -> Vec<String> {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let Some(map) = guard.as_ref() else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = map
+        .keys()
+        .filter(|ext| {
+            !TCL_SOURCE_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+                && catalog_extension_dialect(&ext.to_ascii_lowercase()).is_none()
+        })
+        .cloned()
+        .collect();
+    out.sort();
+    out
+}
+
+/// Whether `ext` is one [`pack_source_extensions`] would list — asked per
+/// **file**, so it allocates nothing.
+///
+/// The list form is for building a glob, which happens once per pack reload.
+/// This is for `is_tcl_source`, which the workspace scan calls on every path
+/// it walks; building and sorting a `Vec<String>` there would put an
+/// allocation and a sort on the hot path of a scan that runs on every
+/// configuration change.
+///
+/// Returns `false` immediately when no pack has registered anything, which is
+/// the overwhelmingly common case and costs one lock-free-ish read.
+#[must_use]
+pub fn is_pack_source_extension(ext: &str) -> bool {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let Some(map) = guard.as_ref() else {
+        return false;
+    };
+    if map.is_empty() {
+        return false;
+    }
+    // The map is keyed lower-case; only pay for a lowercased copy when the
+    // caller's spelling is not already one.
+    let lowered;
+    let key = if ext.bytes().any(|b| b.is_ascii_uppercase()) {
+        lowered = ext.to_ascii_lowercase();
+        lowered.as_str()
+    } else {
+        ext
+    };
+    map.contains_key(key)
+        && !TCL_SOURCE_EXTENSIONS.contains(&key)
+        && catalog_extension_dialect(key).is_none()
+}
+
 /// The pack-declared dialect for `ext`, if any pack registered one.
 fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     let guard = match PACK_EXTENSION_DIALECTS.read() {
@@ -427,6 +579,28 @@ fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
         Err(poisoned) => poisoned.into_inner(),
     };
     guard.as_ref()?.get(ext).copied()
+}
+
+/// The dialect owning the whole basename `base` per the catalog's
+/// `filenames` axis (`bigip.conf` → `f5-bigip`), or `None`.
+///
+/// A basename claim is the more specific of the two static tiers — the files
+/// it names have no useful extension — so [`dialect_from_extension`] asks
+/// this before the extension tier.
+fn catalog_filename_dialect(base: &str) -> Option<&'static str> {
+    static MAP: std::sync::OnceLock<std::collections::HashMap<&'static str, &'static str>> =
+        std::sync::OnceLock::new();
+    MAP.get_or_init(|| {
+        let mut map = std::collections::HashMap::new();
+        for profile in tcl_dialect::DialectProfile::all() {
+            for name in profile.filenames {
+                map.insert(*name, profile.name);
+            }
+        }
+        map
+    })
+    .get(base)
+    .copied()
 }
 
 /// The dialect owning `ext` per the [`tcl_dialect::DialectProfile`] catalog —
@@ -475,6 +649,12 @@ pub fn dialect_from_extension(filename: &str) -> Option<&'static str> {
     }
     if base.ends_with(".invs_setup.tcl") || base.ends_with(".genus_setup.tcl") {
         return Some("cadence-eda-tcl");
+    }
+    // The catalog's whole-basename tier (`bigip.conf`), ahead of the
+    // extension tier: a file claimed by name has no extension worth
+    // claiming (issue #1625).
+    if let Some(dialect) = catalog_filename_dialect(base.as_str()) {
+        return Some(dialect);
     }
     let ext = base.rsplit('.').next()?;
     if let Some(dialect) = pack_extension_dialect(ext) {
@@ -699,8 +879,8 @@ fn detect_from_content(head: &str) -> Option<&'static str> {
     None
 }
 
-/// The dialect named by a `#!…` shebang on the first line (`expect`, or
-/// `tclsh<x.y>`), or `None`.
+/// The dialect named by a `#!…` shebang on the first line (`expect`, or a
+/// versioned `tclsh<x.y>` / `wish<x.y>`), or `None`.
 fn shebang_dialect(source: &str) -> Option<&'static str> {
     let first = source.lines().next()?;
     if !first.starts_with("#!") {
@@ -740,7 +920,7 @@ fn detect_content_signals(head: &str) -> Option<&'static str> {
 /// Heuristics are applied in this priority order, most-trusted first:
 /// 1. an explicit `# tcl-dialect: <name>` directive (first
 ///    [`DIALECT_DIRECTIVE_SCAN_LINES`] lines);
-/// 2. the `#!…` shebang (`expect`, `tclsh<x.y>`);
+/// 2. the `#!…` shebang (`expect`, `tclsh<x.y>`, `wish<x.y>`);
 /// 3. a tokenised `package require ?-exact? Tcl <x.y>` or `package vsatisfies
 ///    [package require Tcl] <x.y>` version guard;
 /// 4. content signatures — iRules `when EVENT {`, F5 `tmsh::` / iApp, EDA-tool
@@ -793,7 +973,8 @@ pub fn detect_dialect(source: &str, filename: Option<&str>, default: &'static st
 /// Detect a Tcl dialect from a script's *content* — used when no explicit
 /// dialect is configured. Checks, in priority order: a `# tcl-dialect:`
 /// directive (first [`DIALECT_DIRECTIVE_SCAN_LINES`] lines), a
-/// `#!…tclsh<x.y>` / `#!…expect` shebang (first line), then a tokenised
+/// `#!…tclsh<x.y>` / `#!…wish<x.y>` / `#!…expect` shebang (first line), then a
+/// tokenised
 /// `package require ?-exact? Tcl <x.y>` or `package vsatisfies [package require
 /// Tcl] <x.y>` version guard over the first [`DETECT_SCAN_BYTES`] bytes.
 /// Returns `None` when no hint is found.
@@ -1042,6 +1223,108 @@ mod detect_tests {
             ),
             "microchip-libero-eda-tcl"
         );
+    }
+
+    /// Issue #1625: the Tk shell names a Tcl version exactly as `tclsh` does.
+    /// Tk is modelled as a library, not a dialect, so a `wish` shebang
+    /// contributes only its version — and a *bare* `wish` contributes nothing,
+    /// falling through to the content tiers like a bare `tclsh`.
+    #[test]
+    fn a_wish_shebang_names_its_tcl_version() {
+        assert_eq!(
+            detect_dialect("#!/usr/bin/wish8.6\nbutton .b\n", None, DEF),
+            "tcl8.6"
+        );
+        assert_eq!(
+            detect_dialect("#!/usr/bin/env wish9.0\nbutton .b\n", None, DEF),
+            "tcl9.0"
+        );
+        // Bare `wish`: no version, no opinion.
+        assert_eq!(
+            detect_dialect("#!/usr/bin/wish\nbutton .b\n", None, DEF),
+            DEF
+        );
+        // The `tclsh` half is unchanged.
+        assert_eq!(
+            detect_dialect("#!/usr/bin/tclsh8.4\nputs hi\n", None, DEF),
+            "tcl8.4"
+        );
+    }
+
+    /// Issue #1625: the catalog's whole-basename axis routes the BIG-IP
+    /// config files, which have no extension worth claiming — a bare `.conf`
+    /// belongs to every unrelated config file on the machine.
+    #[test]
+    fn a_bigip_config_basename_routes_by_name() {
+        use super::dialect_from_extension;
+        assert_eq!(dialect_from_extension("bigip.conf"), Some("f5-bigip"));
+        assert_eq!(
+            dialect_from_extension("/config/BiGiP_base.CONF"),
+            Some("f5-bigip")
+        );
+        assert_eq!(
+            dialect_from_extension("C:\\tmp\\bigip_gtm.conf"),
+            Some("f5-bigip")
+        );
+        // NEGATIVE control: the extension itself is still nobody's.
+        assert_eq!(dialect_from_extension("httpd.conf"), None);
+        assert_eq!(dialect_from_extension("bigip.conf.bak"), None);
+    }
+
+    /// Issue #1625: the long spellings every editor registers are indexed
+    /// too, and so is the tmsh script extension — they were registered but
+    /// never walked, so cross-file references silently missed them.
+    #[test]
+    fn the_long_extension_spellings_are_indexed_source() {
+        use super::TCL_SOURCE_EXTENSIONS;
+        for ext in ["irules", "expect", "tmsh", "irule", "exp"] {
+            assert!(
+                TCL_SOURCE_EXTENSIONS.contains(&ext),
+                ".{ext} must be indexed as project source",
+            );
+        }
+        // NEGATIVE control: the EDA vendor suffixes stay out — they are Tcl
+        // but are not project source we walk.
+        for ext in ["sdc", "xdc", "do", "qsf"] {
+            assert!(
+                !TCL_SOURCE_EXTENSIONS.contains(&ext),
+                ".{ext} must not be indexed",
+            );
+        }
+    }
+
+    /// The two views of "what a pack adds" must agree.
+    ///
+    /// One builds the watcher glob, the other decides per file whether the
+    /// scan indexes it. If they could disagree, a file would be indexed but
+    /// not watched (so external edits never refresh it) or watched but not
+    /// indexed (so its events are admitted and then dropped) — the exact
+    /// half-wired state review finding P1-3 was about.
+    ///
+    /// Asserts nothing about *which* packs are loaded, so it is safe beside
+    /// the process-global routing table other tests share.
+    #[test]
+    fn the_two_pack_source_views_agree() {
+        use super::{is_pack_source_extension, pack_source_extensions};
+        for ext in pack_source_extensions() {
+            assert!(
+                is_pack_source_extension(&ext),
+                ".{ext} is listed as pack source but the per-file predicate says no",
+            );
+            // Case-folded, since the scan meets any spelling on disk.
+            assert!(is_pack_source_extension(&ext.to_ascii_uppercase()));
+        }
+        // NEGATIVE control: neither view ever admits what the shipped
+        // catalogue already accounts for — `.upf` is catalogued Synopsys Tcl
+        // *and* deliberately not indexed, and a pack restating it must not
+        // overturn that.
+        for ext in ["tcl", "irule", "upf", "sdc", "xdc"] {
+            assert!(
+                !is_pack_source_extension(ext),
+                ".{ext} is the catalogue's, not a pack's addition",
+            );
+            assert!(!pack_source_extensions().iter().any(|e| e == ext));
+        }
     }
 
     #[test]

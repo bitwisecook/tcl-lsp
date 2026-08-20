@@ -25,25 +25,28 @@
   ],
   "activationEvents": [
     "onLanguage:tcl",
-    "onLanguage:tcl-irule",
-    "onLanguage:tcl-iapp",
-    "onLanguage:tcl-apl",
+    "onLanguage:tcl-cadence",
+    "onLanguage:tcl-expect",
     "onLanguage:tcl-bigip",
+    "onLanguage:tcl-iapp",
+    "onLanguage:tcl-irule",
+    "onLanguage:tcl-tmsh",
+    "onLanguage:tcl-quartus",
+    "onLanguage:tcl-mentor",
+    "onLanguage:tcl-microchip",
+    "onLanguage:tclspec",
+    "onLanguage:tcl-synopsys",
     "onLanguage:tcl84",
     "onLanguage:tcl85",
     "onLanguage:tcl86",
     "onLanguage:tcl90",
     "onLanguage:tcl91",
-    "onLanguage:tcl-synopsys",
-    "onLanguage:tcl-cadence",
     "onLanguage:tcl-xilinx",
-    "onLanguage:tcl-quartus",
-    "onLanguage:tcl-mentor",
-    "onLanguage:tcl-expect",
+    "onLanguage:tcl-apl",
     "onChatParticipant:tcl-lsp.irule",
     "onChatParticipant:tcl-lsp.tcl",
     "onChatParticipant:tcl-lsp.tk",
-    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[tT][cC][lL][sS][pP][eE][cC]}"
+    "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC]}"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -94,6 +97,20 @@
         ],
         "extensions": [
           ".scf"
+        ],
+        "filenames": [
+          "bigip.conf",
+          "bigip_base.conf",
+          "bigip_gtm.conf",
+          "bigip_script.conf",
+          "bigip_user.conf"
+        ],
+        "filenamePatterns": [
+          "[bB][iI][gG][iI][pP].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[bB][aA][sS][eE].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[gG][tT][mM].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[sS][cC][rR][iI][pP][tT].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[uU][sS][eE][rR].[cC][oO][nN][fF]"
         ],
         "configuration": "./language-configuration.json"
       },

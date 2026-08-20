@@ -87,7 +87,35 @@ struct LoadedIrules {
     sources: Vec<(String, String)>,
 }
 
-const IRULE_SUFFIXES: &[&str] = &["tcl", "irul", "irule"];
+/// The filename suffixes that name a **standalone** iRule file, as opposed to
+/// a `bigip.conf` / SCF / UCS the rules are extracted from.
+///
+/// Projected from the dialect catalog rather than restated: the `f5-irules`
+/// profile owns `irul`, `irule` and `irules`, and every editor registers all
+/// three, but this list was hand-written with two of them — so `foo.irules`
+/// was parsed as a BIG-IP config instead of an iRule (issue #1625). `tcl` is
+/// added on top because the catalog deliberately leaves the generic extension
+/// unowned (content decides the dialect there), while `f5-query irule` is
+/// already in iRules context by the time it reads a file.
+fn irule_suffixes() -> &'static [&'static str] {
+    static SUFFIXES: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    SUFFIXES.get_or_init(|| {
+        std::iter::once("tcl")
+            .chain(
+                tcl_dialect::DialectProfile::by_name("f5-irules")
+                    .file_extensions
+                    .iter()
+                    .map(|row| row.extension),
+            )
+            .collect()
+    })
+}
+
+/// The container suffixes a standalone iRule is *extracted from* — the other
+/// half of the input taxonomy, and not a dialect-catalog fact: `.conf` and
+/// `.ucs` are deliberately not owned by any profile (a bare `.conf` belongs
+/// to every unrelated config file), and `.scf` is `f5-bigip`'s.
+const CONTAINER_SUFFIXES: &[&str] = &["conf", "scf", "ucs"];
 
 fn suffix_lower(path: &str) -> String {
     Path::new(path)
@@ -168,7 +196,7 @@ fn load_irule_inputs(paths: &[String], inline_sources: &[String]) -> Result<Load
 
         // Standalone iRule file: never parse as a bigip.conf — synthesise a
         // single-rule config at `/{stem}`.
-        if IRULE_SUFFIXES.contains(&suffix.as_str()) {
+        if irule_suffixes().contains(&suffix.as_str()) {
             let stem = label_stem(&label);
             let synth = synth_rule_config(&stem, &format!("/{stem}"), &text);
             inputs.push(IruleInput {
@@ -258,8 +286,12 @@ fn flatten_rule_path(rule_full_path: Option<&str>, fallback_label: &str) -> Stri
     if stem.is_empty() || stem == "<stdin>" || stem == "-" {
         "irule".clone_into(&mut stem);
     }
-    let known = [".tcl", ".irul", ".irule", ".conf", ".scf", ".ucs"];
-    if known.iter().any(|s| stem.ends_with(s))
+    let known: Vec<String> = irule_suffixes()
+        .iter()
+        .chain(CONTAINER_SUFFIXES)
+        .map(|s| format!(".{s}"))
+        .collect();
+    if known.iter().any(|s| stem.ends_with(s.as_str()))
         && let Some(base) = Path::new(&stem).file_stem()
     {
         stem = base.to_string_lossy().into_owned();
@@ -1029,10 +1061,9 @@ fn run_extract(paths: &[String], output: &Path) -> Result<u8, u8> {
         eprintln!("error: no input provided; pass bigip.conf / SCF / UCS files");
         return Err(2);
     }
-    let standalone = ["tcl", "irul", "irule"];
     let bad: Vec<&String> = paths
         .iter()
-        .filter(|p| *p != "-" && standalone.contains(&suffix_lower(p).as_str()))
+        .filter(|p| *p != "-" && irule_suffixes().contains(&suffix_lower(p).as_str()))
         .collect();
     if !bad.is_empty() {
         let joined = bad

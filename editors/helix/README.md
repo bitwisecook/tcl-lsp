@@ -32,7 +32,7 @@ args = []
 [[language]]
 name = "tcl"
 scope = "source.tcl"
-file-types = ["tcl", "tk", "itcl", "tm"]
+file-types = ["tcl", "tk", "itcl", "tm", "test"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
@@ -78,6 +78,21 @@ name = "f5-tmsh"
 language-id = "f5-tmsh"
 scope = "source.tcl"
 file-types = ["tmsh"]
+comment-tokens = ["#"]
+indent = { tab-width = 4, unit = "    " }
+language-servers = ["tcl-lsp"]
+auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
+
+# BIG-IP configuration. A `.scf` is not Tcl, but an `ltm rule` body inside one
+# is, and the server walks it as iRules — so the file routes here like any
+# other. The canonical `bigip.conf` / `bigip_base.conf` basenames have no
+# useful extension to match on, and Helix keys `file-types` on extension only,
+# so those are reached by the server's own basename routing once opened.
+[[language]]
+name = "f5-bigip"
+language-id = "f5-bigip"
+scope = "source.tcl"
+file-types = ["scf"]
 comment-tokens = ["#"]
 indent = { tab-width = 4, unit = "    " }
 language-servers = ["tcl-lsp"]
@@ -149,10 +164,17 @@ language-servers = ["tcl-lsp"]
 auto-pairs = { "{" = "}", "[" = "]", "(" = ")", "\"" = "\"" }
 ```
 
-`bpf` and `microchip-libero-eda-tcl` own no file extension, and `f5-bigip`
-owns `.scf` — a BIG-IP configuration rather than a Tcl script, so it gets no
-`source.tcl` entry here. Select those three per file with a
-`# tcl-dialect:` comment or per workspace with the `dialect` setting below.
+Every `file-types` list above is generated from the dialect catalogue by
+`cargo xtask gen-editor-extensions`, and CI fails if it drifts — so this block
+stays in step with what the server actually routes. Do not hand-edit them;
+adding a profile that owns extensions without a block here is a hard error in
+the generator.
+
+`bpf` and `microchip-libero-eda-tcl` own no file extension, so they have no
+entry. Select them per file with a `# tcl-dialect:` comment or per workspace
+with the `dialect` setting below. The BIG-IP config *basenames*
+(`bigip.conf`, `bigip_base.conf`, …) have no extension for Helix to key on
+either; the server recognises them by name once the file is open.
 
 ## Settings
 

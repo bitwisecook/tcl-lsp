@@ -4369,6 +4369,16 @@ pub struct Backend {
     /// reload re-registers only when the set actually moves, since each change
     /// costs an unregister/register round trip to the client.
     external_pack_watch_globs: Arc<Mutex<Vec<String>>>,
+    /// The extensions loaded packs claim that the static
+    /// [`TCL_SOURCE_EXTENSIONS`] set does not, as of the last reload.
+    ///
+    /// Remembered for the same reason as the field above: the watcher and
+    /// rename-filter registrations built from it cost an unregister/register
+    /// round trip, so they are refreshed only when the set actually moves.
+    /// Also the trigger for re-scanning the workspace — a pack that has just
+    /// started claiming `.irulex` needs the `.irulex` files already on disk
+    /// indexed, which only a fresh scan does (issue #1626, finding P1-3).
+    pack_source_extensions: Arc<Mutex<Vec<String>>>,
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
@@ -5306,6 +5316,7 @@ impl Backend {
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
+            pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
@@ -7234,6 +7245,9 @@ impl Backend {
             // Owned by the SpecTcl reload path: watch registrations track the
             // configured pack roots, not any document's lifetime.
             external_pack_watch_globs: _,
+            // Owned by the SpecTcl reload path too: the claimed-extension
+            // snapshot tracks the pack set, not any document's lifetime.
+            pack_source_extensions: _,
             // Keyed by folder URI.
             workspace_folders: _,
             folder_dialects: _,
@@ -11358,7 +11372,7 @@ impl Backend {
         // analysed before or after its config landed.
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
-        let (spec_packs, spec_packs_loaded) = self.spec_pack_report().await;
+        let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
         // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
         // `resolved_docstring_style`, but a folder-only query (no readable
@@ -11424,6 +11438,7 @@ impl Backend {
             "library_paths": library_paths,
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
+            "pack_file_extensions": pack_file_extensions,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
@@ -12719,9 +12734,18 @@ impl Backend {
     /// loaded packs are what a user needs when the answer to "why is my pack
     /// not loading?" is that discovery never saw it — visible without reading
     /// a server log, which is the only other place that fact exists.
-    async fn spec_pack_report(&self) -> (Vec<String>, Vec<serde_json::Value>) {
+    async fn spec_pack_report(
+        &self,
+    ) -> (Vec<String>, Vec<serde_json::Value>, Vec<serde_json::Value>) {
         let configured = self.spec_pack_paths.lock().await.clone();
         let loaded = self.spec_packs().await;
+        // Built from the same `Arc`, so `getEffectiveConfig` takes the
+        // `spec_packs` lock once rather than twice. It is only ever held for a
+        // short synchronous critical section — the reload's publish does no
+        // `await` inside it — so a second acquisition could not deadlock; but
+        // a reload storm makes it contended, and doubling the acquisitions on
+        // a request path the liveness probe watches bought nothing.
+        let extensions = Self::pack_file_extension_rows(&loaded);
         let report = loaded
             .packs
             .iter()
@@ -12738,7 +12762,73 @@ impl Backend {
                 })
             })
             .collect();
-        (configured, report)
+        (configured, report, extensions)
+    }
+
+    /// The file extensions the *discovered* packs claim, each resolved to the
+    /// editor language id a client should associate it with.
+    ///
+    /// The dynamic half of extension registration (issue #1626). A pack's
+    /// `file_extension NAME -dialect D` row already routes the extension
+    /// server-side — `dialect_from_extension` consults pack routing before the
+    /// static catalogue — but an editor learns its associations from a static
+    /// manifest written long before the pack existed, so the file never
+    /// associates, the client never attaches, and in VS Code the extension may
+    /// not even activate. Advertising the pairs here lets a client that *can*
+    /// register at runtime do so.
+    ///
+    /// No new editor *language* can be created at runtime, so each extension
+    /// resolves onto an existing one: the owning dialect's
+    /// `editor_language_id` when it has a dedicated language, and plain `tcl`
+    /// otherwise (including for a row with no `-dialect` at all, where the
+    /// server's own detection decides the dialect once the file opens).
+    ///
+    /// Extensions the shipped catalogue already owns are **excluded**: those
+    /// are registered statically by every editor, and re-advertising them
+    /// would invite a client to write a redundant `files.associations` entry
+    /// that it would then have to distinguish from a real one on cleanup.
+    async fn pack_file_extension_report(&self) -> Vec<serde_json::Value> {
+        Self::pack_file_extension_rows(self.spec_packs().await.as_ref())
+    }
+
+    /// [`Backend::pack_file_extension_report`] over a pack set already in
+    /// hand, so a caller holding one builds the rows without re-acquiring the
+    /// `spec_packs` lock.
+    fn pack_file_extension_rows(packs: &tcl_spectcl::PackSet) -> Vec<serde_json::Value> {
+        let mut seen: Vec<String> = Vec::new();
+        let mut out: Vec<serde_json::Value> = Vec::new();
+        for pack in &packs.packs {
+            for row in &pack.file_extensions {
+                if seen.contains(&row.extension) {
+                    continue;
+                }
+                // A statically-registered extension needs no dynamic
+                // association; the catalogue's own routing is what the
+                // editors already ship.
+                if tcl_dialect::DialectProfile::all().iter().any(|p| {
+                    p.file_extensions
+                        .iter()
+                        .any(|e| e.extension == row.extension)
+                }) {
+                    continue;
+                }
+                seen.push(row.extension.clone());
+                let language_id = row
+                    .dialect
+                    .and_then(tcl_dialect::DialectProfile::find)
+                    .and_then(|p| p.editor_language_id)
+                    .unwrap_or("tcl");
+                out.push(serde_json::json!({
+                    "extension": row.extension,
+                    "dialect": row.dialect,
+                    "language_id": language_id,
+                    "display_name": row.display_name,
+                    "pack": pack.name,
+                }));
+            }
+        }
+        out.sort_by(|a, b| a["extension"].as_str().cmp(&b["extension"].as_str()));
+        out
     }
 
     /// The workspace's loaded `SpecTcl` packs.  Clones the `Arc` and drops the
@@ -13635,6 +13725,7 @@ impl Backend {
         .await
         .unwrap_or_default();
         self.publish_spec_pack_notices(&packs, &collisions).await;
+
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
             self.client
@@ -13650,7 +13741,189 @@ impl Backend {
                 )
                 .await;
         }
+
+        self.settle_pack_reload(changed, trigger).await;
         changed
+    }
+
+    /// Everything that has to happen *after* a pack set is published, in the
+    /// order a client can rely on.
+    ///
+    /// Split from [`Backend::reload_spec_packs`] because it is a distinct
+    /// phase with a contract of its own: by the time the notification at the
+    /// end is sent, every consequence of the reload has already landed.
+    async fn settle_pack_reload(&self, changed: bool, trigger: ReloadTrigger) {
+        // Reconciled on **every** reload, not only a `changed` one: `changed`
+        // compares the pack *content* key, and a reload leaving content
+        // identical can still be the first to reach a client that had not yet
+        // registered (a restarted client, a folder added). The refresh is a
+        // no-op when the set has genuinely not moved, so this costs a vec
+        // comparison.
+        let extensions_changed = self.refresh_pack_extension_registrations().await;
+        // Files already on disk under a newly-claimed extension are invisible
+        // to the index until something walks them again — except at startup,
+        // where `initialized` scans immediately after the reload returns and a
+        // scan here would be the same walk twice.
+        if extensions_changed && trigger != ReloadTrigger::Startup {
+            self.scan_workspace_folders().await;
+        }
+
+        // Tell the client the reload is finished. A client that reacts to the
+        // same filesystem event the server did has no way to know when the
+        // server is done with it, so it races: it asks for the new pack set,
+        // is answered from the old one, and has nothing scheduled to ask
+        // again. A client watching only its workspace folders cannot even see
+        // an edit under an absolute `tclLsp.specPacks` root, which the server
+        // watches and it does not. One push after the fact settles both
+        // (issue #1626, review finding P1-2). Sent unconditionally: "nothing
+        // changed" is exactly what a racing client needs to hear to stop
+        // waiting.
+        self.client
+            .send_notification::<SpecPacksReloaded>(serde_json::json!({
+                "changed": changed,
+                "pack_file_extensions": self.pack_file_extension_report().await,
+            }))
+            .await;
+    }
+
+    /// Bring the registrations and the index into line with the extensions
+    /// the freshly-loaded packs claim.
+    ///
+    /// A pack's `file_extension` row was only ever consulted by
+    /// `dialect_from_extension`, which decides the dialect of a document the
+    /// server is *already looking at*. Everything that decides which files the
+    /// server looks at on its own read the static `TCL_SOURCE_EXTENSIONS`
+    /// alone, so a pack claiming `.irulex` gave a correct answer for an open
+    /// `.irulex` file and nothing at all for a closed one: no workspace index
+    /// entry, so no cross-file references, definitions or rename; and no
+    /// watcher, so an external edit never refreshed any of it (issue #1626,
+    /// review finding P1-3).
+    ///
+    /// Three things therefore have to follow the pack set:
+    ///
+    /// 1. **`is_tcl_source`**, which reads the live snapshot directly and so
+    ///    needs nothing here.
+    /// 2. **The client-side registrations** — the watched-file glob and the
+    ///    `willRename`/`didRename` filters. Those are patterns the *client*
+    ///    matches, so they have to be re-registered; the static ones are set
+    ///    at `initialize`, long before any pack is read. Dynamic
+    ///    re-registration under their own ids, exactly as
+    ///    [`Backend::refresh_external_pack_watchers`] does, leaves the static
+    ///    registrations untouched.
+    /// 3. **The existing files on disk.** A newly-claimed extension does not
+    ///    make the last scan's results grow; only a fresh scan indexes the
+    ///    `.irulex` files that were already there. That is the expensive step,
+    ///    which is why it is gated on the extension set having actually moved
+    ///    rather than on any pack reload.
+    ///
+    /// Returns whether the claimed set changed, so the caller can decide
+    /// whether to pay for the re-scan.
+    async fn refresh_pack_extension_registrations(&self) -> bool {
+        const WATCH_ID: &str = "tcl-lsp-pack-extension-files";
+        const WATCH_METHOD: &str = "workspace/didChangeWatchedFiles";
+        const WILL_RENAME_ID: &str = "tcl-lsp-pack-extension-will-rename";
+        const WILL_RENAME_METHOD: &str = "workspace/willRenameFiles";
+        const DID_RENAME_ID: &str = "tcl-lsp-pack-extension-did-rename";
+        const DID_RENAME_METHOD: &str = "workspace/didRenameFiles";
+
+        let extensions = tcl_registry::dialects::pack_source_extensions();
+        let had_registrations = {
+            let mut current = self.pack_source_extensions.lock().await;
+            if *current == extensions {
+                return false;
+            }
+            let had = !current.is_empty();
+            current.clone_from(&extensions);
+            had
+        };
+
+        // Unregister before registering: the ids are stable, and a client
+        // still holding the previous set would otherwise match both — which
+        // for a *retired* extension means events keep arriving for files the
+        // server no longer considers source.
+        if had_registrations {
+            for (id, method) in [
+                (WATCH_ID, WATCH_METHOD),
+                (WILL_RENAME_ID, WILL_RENAME_METHOD),
+                (DID_RENAME_ID, DID_RENAME_METHOD),
+            ] {
+                let _ = self
+                    .client
+                    .unregister_capability(vec![Unregistration {
+                        id: id.to_owned(),
+                        method: method.to_owned(),
+                    }])
+                    .await;
+            }
+        }
+
+        let Some(watch_glob) = tcl_registry::dialects::extension_glob_any_case_opt(
+            extensions.iter().map(String::as_str),
+        ) else {
+            // Every pack extension retired; the unregisters above are the
+            // whole of the work.
+            return true;
+        };
+
+        let all_kinds = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
+        let mut registrations = vec![Registration {
+            id: WATCH_ID.to_owned(),
+            method: WATCH_METHOD.to_owned(),
+            register_options: serde_json::to_value(DidChangeWatchedFilesRegistrationOptions {
+                watchers: vec![FileSystemWatcher {
+                    // Case-folded per character for the same reason the static
+                    // watcher is (issue #1215): watcher registrations carry no
+                    // `ignoreCase` option and a client matches them
+                    // case-sensitively on Linux.
+                    glob_pattern: GlobPattern::String(watch_glob),
+                    kind: all_kinds,
+                }],
+            })
+            .ok(),
+        }];
+
+        // The rename filters take the protocol's own `ignoreCase`, so they use
+        // the plain lower-case glob — matching how `rename_file_operation_options`
+        // pairs `tcl_source_glob` with that option rather than folding case
+        // into the pattern.
+        let rename_options = FileOperationRegistrationOptions {
+            filters: vec![FileOperationFilter {
+                scheme: Some("file".to_owned()),
+                pattern: FileOperationPattern {
+                    glob: format!("**/*.{{{}}}", extensions.join(",")),
+                    // `None`, exactly as the static filter leaves it: the glob
+                    // ends in an extension, so a directory cannot match it and
+                    // naming a kind would only be a second way to say so.
+                    matches: None,
+                    options: Some(FileOperationPatternOptions {
+                        ignore_case: Some(true),
+                    }),
+                },
+            }],
+        };
+        for (id, method) in [
+            (WILL_RENAME_ID, WILL_RENAME_METHOD),
+            (DID_RENAME_ID, DID_RENAME_METHOD),
+        ] {
+            registrations.push(Registration {
+                id: id.to_owned(),
+                method: method.to_owned(),
+                register_options: serde_json::to_value(&rename_options).ok(),
+            });
+        }
+
+        if let Err(err) = self.client.register_capability(registrations).await {
+            // Same contract as every other dynamic registration here: a client
+            // that cannot honour one declines it, and the server keeps working
+            // with whatever the startup scan seeded.
+            self.client
+                .log_message(
+                    MessageType::LOG,
+                    format!("pack-extension registration declined by client: {err}"),
+                )
+                .await;
+        }
+        true
     }
 
     /// Re-register the watchers for pack directories outside every workspace
@@ -18872,6 +19145,41 @@ fn formatter_config_from(
 /// glob can reach it; it is re-read on the next pull instead.
 const PROJECT_CONFIG_GLOB: &str = "**/.tcl-lsp.ini";
 
+/// `tcl-lsp/specPacksReloaded` — sent once a `SpecTcl` pack reload has fully
+/// landed, carrying the extensions the resulting pack set claims.
+///
+/// The push half of pack-declared extension registration (issue #1626). A
+/// client cannot derive this moment for itself: it sees the same filesystem
+/// event the server does, but not when the server has finished acting on it,
+/// so a client that reacts to the event directly reads the *previous* pack
+/// set and has nothing scheduled to ask again. It also cannot see an edit to
+/// a pack under an absolute `tclLsp.specPacks` root at all, since a
+/// workspace-scoped watcher never fires there — the same gap
+/// [`Backend::refresh_external_pack_watchers`] exists to close on the server
+/// side.
+///
+/// Carries the payload rather than only the fact, so the common case costs no
+/// follow-up round trip; `tcl-lsp.getEffectiveConfig` remains the pull
+/// equivalent for a client that would rather ask.
+/// Params: `{changed, pack_file_extensions}`.
+///
+/// `changed` says whether the pack *content* actually moved — a client
+/// reconciling derived state still wants the `false` notifications, since they
+/// are how it learns the reload it was waiting on is over.
+/// `pack_file_extensions` is exactly the array `tcl-lsp.getEffectiveConfig`
+/// reports under that name, so a client can use one shape for both paths.
+///
+/// Carried as `serde_json::Value` rather than a derived struct: this crate
+/// takes no direct `serde` dependency, and one outbound message is a thin
+/// reason to add one when the payload is assembled by `serde_json::json!`
+/// either way.
+struct SpecPacksReloaded;
+
+impl tower_lsp_server::ls_types::notification::Notification for SpecPacksReloaded {
+    type Params = serde_json::Value;
+    const METHOD: &'static str = "tcl-lsp/specPacksReloaded";
+}
+
 /// `true` when `uri` names a `.tclspec` `SpecTcl` pack.
 fn is_spec_pack_file(uri: &Uri) -> bool {
     uri.to_file_path()
@@ -21823,6 +22131,25 @@ use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 /// `dialect_from_extension`, `core_bigip::is_bigip_conf_name`, the APL source
 /// check) — an `UPPER.TCL` opens as Tcl but used to be invisible to the
 /// workspace scan, the watched-file filter, and the rename filter.
+/// Extensions the *loaded packs* claim, on top of the static set — so a pack
+/// declaring `file_extension irulex` makes closed `.irulex` files indexable,
+/// not merely analysable once opened (issue #1626, review finding P1-3).
+///
+/// Read live rather than cached: the pack set reloads while the server runs,
+/// and this predicate is asked on every scanned path *after* a reload as well
+/// as before it.
+///
+/// Deliberately the registry's allocation-free entry point rather than its
+/// list form. `is_tcl_source` is called once per path by the workspace scan,
+/// and that scan runs on every configuration change — building and sorting a
+/// `Vec<String>` per file there would put an allocation and a sort on the hot
+/// path of the very thing whose latency the liveness probe watches. The
+/// no-packs case, which is every session that loads none, returns on a single
+/// map check.
+fn is_pack_source_extension(ext: &str) -> bool {
+    tcl_registry::dialects::is_pack_source_extension(ext)
+}
+
 fn is_tcl_source(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -21830,6 +22157,7 @@ fn is_tcl_source(path: &Path) -> bool {
             TCL_SOURCE_EXTENSIONS
                 .iter()
                 .any(|known| known.eq_ignore_ascii_case(ext))
+                || is_pack_source_extension(ext)
         })
 }
 
@@ -27052,6 +27380,7 @@ mod tests {
             spec_pack_reload_seq: std::sync::atomic::AtomicU64::new(0),
             spec_pack_diagnostic_uris: Arc::new(Mutex::new(HashSet::new())),
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
+            pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),

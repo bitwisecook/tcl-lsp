@@ -180,6 +180,25 @@ pub struct DialectProfile {
     /// language; the dialect's files (if any) ride the plain `tcl`
     /// language and server-side detection routes them.
     pub editor_language_id: Option<&'static str>,
+    /// Whole *basenames* this dialect owns, matched instead of an extension
+    /// (`bigip.conf`, `bigip_base.conf`). Lower-case, compared
+    /// case-insensitively against a path's last component, unique across the
+    /// catalog.
+    ///
+    /// The second axis of file recognition, and it needs its own field
+    /// because the file it names has no useful extension: a bare `.conf`
+    /// suffix belongs to every unrelated config file on the machine, so
+    /// `f5-bigip` can only claim `bigip.conf` by *name*. Before this existed
+    /// the set lived in `tcl_lsp_core::bigip`, which the editors could not
+    /// read — so VS Code contributed no `filenames` at all and a `bigip.conf`
+    /// never associated, while the Sublime grammar's comment claimed the
+    /// opposite (issue #1625).
+    ///
+    /// Consumed exactly where `file_extensions` is: `dialect_from_extension`
+    /// checks it *before* the extension tier (a basename match is the more
+    /// specific claim), and `cargo xtask gen-editor-extensions` projects it
+    /// into each editor's per-language `filenames` list.
+    pub filenames: &'static [&'static str],
     /// The filename extensions this dialect owns, each with its
     /// human-facing name (`xdc` / "Xilinx Design Constraints"). This is
     /// the source of truth its consumers project: extension→dialect
@@ -339,6 +358,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "BPF",
         short_name: "BPF",
         editor_language_id: None,
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: Some(DialectSet::BPF),
         availability_mask: DialectSet::TCL90.union(DialectSet::BPF),
@@ -363,6 +383,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Cadence EDA Tcl",
         short_name: "Cadence EDA",
         editor_language_id: Some("tcl-cadence"),
+        filenames: &[],
         file_extensions: &[DialectFileExtension {
             extension: "globals",
             display_name: "Innovus/Genus Globals",
@@ -435,6 +456,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Expect",
         short_name: "Expect",
         editor_language_id: Some("tcl-expect"),
+        filenames: &[],
         file_extensions: &[
             DialectFileExtension {
                 extension: "exp",
@@ -478,6 +500,16 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "F5 BIG-IP",
         short_name: "BIG-IP",
         editor_language_id: Some("tcl-bigip"),
+        // The canonical BIG-IP configuration basenames. Deliberately *not*
+        // the `.conf` extension: that suffix belongs to every unrelated
+        // config file, so these files can only be claimed by name.
+        filenames: &[
+            "bigip.conf",
+            "bigip_base.conf",
+            "bigip_gtm.conf",
+            "bigip_script.conf",
+            "bigip_user.conf",
+        ],
         file_extensions: &[DialectFileExtension {
             extension: "scf",
             display_name: "BIG-IP Single Configuration File",
@@ -513,6 +545,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "F5 iApps",
         short_name: "iApps",
         editor_language_id: Some("tcl-iapp"),
+        filenames: &[],
         file_extensions: &[
             DialectFileExtension {
                 extension: "iapp",
@@ -564,6 +597,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "F5 iRules",
         short_name: "iRules",
         editor_language_id: Some("tcl-irule"),
+        filenames: &[],
         file_extensions: &[
             DialectFileExtension {
                 extension: "irul",
@@ -611,6 +645,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "F5 tmsh Scripts",
         short_name: "tmsh",
         editor_language_id: Some("tcl-tmsh"),
+        filenames: &[],
         file_extensions: &[DialectFileExtension {
             extension: "tmsh",
             display_name: "F5 tmsh Script",
@@ -642,6 +677,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Intel Quartus EDA Tcl",
         short_name: "Intel Quartus",
         editor_language_id: Some("tcl-quartus"),
+        filenames: &[],
         file_extensions: &[
             DialectFileExtension {
                 extension: "qsf",
@@ -725,6 +761,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Mentor EDA Tcl",
         short_name: "Mentor EDA",
         editor_language_id: Some("tcl-mentor"),
+        filenames: &[],
         file_extensions: &[DialectFileExtension {
             extension: "do",
             display_name: "ModelSim/Questa Do Script",
@@ -781,6 +818,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Microchip Libero EDA Tcl",
         short_name: "Microchip Libero",
         editor_language_id: Some("tcl-microchip"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         // Libero SoC's embedded interpreter is an 8.5-era core (the v11.x
@@ -841,6 +879,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "SpecTcl",
         short_name: "SpecTcl",
         editor_language_id: Some("tclspec"),
+        filenames: &[],
         file_extensions: &[DialectFileExtension {
             extension: "tclspec",
             display_name: "SpecTcl Command Pack",
@@ -868,6 +907,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Synopsys EDA Tcl",
         short_name: "Synopsys EDA",
         editor_language_id: Some("tcl-synopsys"),
+        filenames: &[],
         file_extensions: &[
             DialectFileExtension {
                 extension: "sdc",
@@ -944,6 +984,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Tcl 8.4",
         short_name: "Tcl 8.4",
         editor_language_id: Some("tcl84"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL84,
@@ -976,6 +1017,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Tcl 8.5",
         short_name: "Tcl 8.5",
         editor_language_id: Some("tcl85"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL85,
@@ -1004,6 +1046,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Tcl 8.6",
         short_name: "Tcl 8.6",
         editor_language_id: Some("tcl86"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL86,
@@ -1032,6 +1075,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Tcl 9.0",
         short_name: "Tcl 9.0",
         editor_language_id: Some("tcl90"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL90,
@@ -1062,6 +1106,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Tcl 9.1",
         short_name: "Tcl 9.1",
         editor_language_id: Some("tcl91"),
+        filenames: &[],
         file_extensions: &[],
         vendor_bit: None,
         availability_mask: DialectSet::TCL91,
@@ -1090,6 +1135,7 @@ static CATALOG: [DialectProfile; 18] = [
         display_name: "Xilinx EDA Tcl",
         short_name: "Xilinx EDA",
         editor_language_id: Some("tcl-xilinx"),
+        filenames: &[],
         file_extensions: &[DialectFileExtension {
             extension: "xdc",
             display_name: "Xilinx Design Constraints",
@@ -1139,6 +1185,7 @@ static PLAIN_TCL: DialectProfile = DialectProfile {
     display_name: "Tcl",
     short_name: "Tcl",
     editor_language_id: None,
+    filenames: &[],
     file_extensions: &[],
     vendor_bit: None,
     availability_mask: DialectSet::ALL_TCL,
@@ -1167,6 +1214,7 @@ static TK_PROFILE: DialectProfile = DialectProfile {
     display_name: "Tk",
     short_name: "Tk",
     editor_language_id: None,
+    filenames: &[],
     file_extensions: &[],
     vendor_bit: None,
     availability_mask: DialectSet::TK_AND_TCL,
@@ -2174,5 +2222,44 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// The `filenames` axis obeys the same shape rules as `file_extensions`:
+    /// lower-case whole basenames, one owner apiece, and an editor language
+    /// to register them under (issue #1625).
+    #[test]
+    fn owned_filenames_follow_the_catalog_shape() {
+        let mut seen: Vec<&str> = Vec::new();
+        for p in all_with_fallback() {
+            for name in p.filenames {
+                assert!(
+                    !name.is_empty() && *name == name.to_ascii_lowercase(),
+                    "{}: filename {name:?} must be lower-case and non-empty",
+                    p.name
+                );
+                assert!(
+                    !name.contains('/') && !name.contains('\\'),
+                    "{}: filename {name:?} must be a bare basename",
+                    p.name
+                );
+                assert!(
+                    !seen.contains(name),
+                    "{}: filename {name:?} owned twice",
+                    p.name
+                );
+                seen.push(name);
+                assert!(
+                    p.editor_language_id.is_some(),
+                    "{}: owns filenames but has no editor language",
+                    p.name
+                );
+            }
+        }
+        // The axis is not vacuous — BIG-IP's config basenames are its whole
+        // reason to exist, and an empty catalog would pass every rule above.
+        assert!(
+            seen.contains(&"bigip.conf"),
+            "the BIG-IP config basenames must be catalogued"
+        );
     }
 }

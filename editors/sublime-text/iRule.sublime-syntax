@@ -11,6 +11,7 @@ extends: Tcl.sublime-syntax
 file_extensions:
   - irul
   - irule
+  - irules
 
 contexts:
   main:

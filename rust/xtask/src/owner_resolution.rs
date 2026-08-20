@@ -358,6 +358,7 @@ fn xtask_dispatches(main: &str, command: &str) -> bool {
         "command-backing" => "WasmBacking",
         "diag-tables" => "DiagTables",
         "gen-ai-diagnostics" => "GenAiDiagnostics",
+        "gen-editor-extensions" => "GenEditorExtensions",
         "owner-resolution" => "OwnerResolution",
         _ => return false,
     };

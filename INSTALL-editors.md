@@ -251,7 +251,7 @@ if executable(expand('~/bin/tcl-lsp-server'))
     augroup END
 endif
 
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec set filetype=tcl
 ```
 
 **coc.nvim** (`neoclide/coc.nvim`) in `coc-settings.json`
@@ -275,7 +275,7 @@ au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.
 `.impl` files won't trigger the server):
 
 ```vim
-au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl set filetype=tcl
+au BufRead,BufNewFile *.tcl,*.tk,*.itcl,*.tm,*.irul,*.irule,*.iapp,*.iappimpl,*.impl,*.exp,*.apl,*.test,*.irules,*.expect,*.tmsh,*.tclspec set filetype=tcl
 ```
 
 ### Kate
@@ -332,7 +332,7 @@ hook global WinSetOption filetype=tcl %{ lsp-enable-window }
       "name": "tcl-lsp",
       "executable": "C:\\Users\\you\\tcl-lsp-server.exe",
       "args": "",
-      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl"],
+      "fileExtensions": [".tcl", ".tk", ".itcl", ".tm", ".irul", ".irule", ".iapp", ".iappimpl", ".impl", ".exp", ".apl", ".test", ".irules", ".expect", ".tmsh", ".tclspec"],
       "initOptions": { "tclLsp": { "dialect": "tcl8.6" } }
     }
   }
@@ -366,7 +366,7 @@ local lsp = require "plugins.lsp"
 lsp.add_server {
   name = "tcl-lsp",
   language = "tcl",
-  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$" },
+  file_patterns = { "%.tcl$", "%.tk$", "%.itcl$", "%.tm$", "%.irul$", "%.irule$", "%.iapp$", "%.iappimpl$", "%.impl$", "%.exp$", "%.apl$", "%.test$", "%.irules$", "%.expect$", "%.tmsh$", "%.tclspec$" },
   command = { "/home/you/bin/tcl-lsp-server" },
   settings = { tclLsp = { dialect = "tcl8.6" } },
 }
