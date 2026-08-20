@@ -135,3 +135,9 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - #1659 MERGED at 22f534496d66793ab047841230e60280df8fc7db (all 25 green on d13750e09, test-ext no wedge). Closed #1653 #1654. TALLY: 21 PRs merged, 52 issues closed this session. F5v2 worktree removed; lane retired.
 - Note for the pages issue: #1659's merge triggers another pages deploy run which will presumably fail the same way until F7's fix lands — expected, not new information.
 - Active: F6v2 (#1657 wedge conviction), F7 (#1661 pages wasm). Queue: #1624 #1606 #1608 #1617 + #1644 #1656 #1660 in the pre-release pool; E1 low.
+
+## 2026-08-20 12:05Z — late check-in (all items pre-completed)
+- #1658/#1659 already merged+closed; #1657 already assigned. Health: F6v2 pushed claude/f6b-fix-1657 @30fde9a8d (early-push doctrine holding); F7 not yet pushed (~25min in, investigation phase — normal). Disk 19G, two active worktrees only, no zombies. 12:54Z check-in armed.
+
+## 2026-08-20 12:54Z — check-in (light)
+- F7 pushed claude/f7-fix-1661-pages-wasm @bbb5b23cc (first push — investigation bearing fruit); F6b advanced @fab754f26. No PRs yet; branch movement = health, no pings. Disk 13G. Labelling compliant (no new issues). Queue unchanged.
