@@ -7045,25 +7045,48 @@ impl Analyser {
     /// Whether a body argument this walk could **not** read makes the arm set
     /// incomplete.
     ///
-    /// Only a body position the registry gives *typed control semantics*
-    /// carries a fact the consumers below need — whether the body runs now
-    /// (`namespace eval $ns $script`), whether it is one arm of a selection
-    /// (`if {$c} $script`), and so on. A body position with no typed control
-    /// semantics is one the arm walk would have skipped even had it been
-    /// readable: `proc ${ns}::define {a} [string map … {…}]` declares a
-    /// procedure whose body does not run at this call at all, so an
-    /// unreadable body word there says nothing about the *declaration*, which
-    /// falls through like any other. Treating it as incomplete abstained on
-    /// the whole enclosing walk over a fact that was never consulted — the
-    /// second half of issue #1571's clay factory resolution.
+    /// Two registry facts, in order, and the walk abstains unless both say the
+    /// body is irrelevant to it:
+    ///
+    /// 1. **Typed control semantics.** A body position the registry types
+    ///    carries a fact the consumers below consume directly — whether it is
+    ///    one arm of a selection (`if {$c} $script`), a frame boundary that
+    ///    runs now (`namespace eval $ns $script`), a bounded iteration. An
+    ///    unreadable body there is a missing answer, so the arm set really is
+    ///    incomplete.
+    /// 2. **[`Traits::DEFERS_BODY`].** With no typed semantics the question
+    ///    left is whether the body runs as part of *this* invocation, and that
+    ///    is registry data, never an inference. `proc ${ns}::define {a}
+    ///    [string map … {…}]` stores its body — nothing in it executes here,
+    ///    so an unreadable body word costs the walk nothing about the
+    ///    declaration, which falls through like any other command.
+    ///
+    /// The default is deliberately the abstaining one: a command that has not
+    /// declared `DEFERS_BODY` is assumed to run its body now. The first
+    /// version of this helper read the *absence* of control-arm semantics as
+    /// proof of dormancy, which is not what that absence means —
+    /// `uplevel 1 $script`, `apply $lambda` and `oo::define $c $script` have
+    /// no control-arm semantics either, and every one of them executes its
+    /// argument immediately and can raise or return before the enclosing walk
+    /// reaches the statement it cares about. That let the computed-metaclass
+    /// walk materialise a class created after `uplevel 1 $script`
+    /// (PR #1652 review, issue #1571). `BodyKind` cannot answer it either:
+    /// `proc` and `uplevel` are both `Structural`, because that descriptor
+    /// answers *which frame*, not *when*.
     fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
         let Some(registry) = self.registry.as_deref() else {
             return true;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        registry
+        if registry
             .control_arm_semantics(seg.name(), &args, body_index)
             .is_some()
+        {
+            return true;
+        }
+        !registry
+            .invocation_traits(seg.name(), &args, self.profile.availability_mask)
+            .contains(tcl_registry::Traits::DEFERS_BODY)
     }
 
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {

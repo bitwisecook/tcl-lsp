@@ -5630,14 +5630,14 @@ mod class_factories {
 
     #[test]
     fn a_declaration_body_the_walk_cannot_read_is_not_a_blocker() {
-        // TP (#1571) — `proc NAME ARGS [string map … {…}]` declares a
-        // procedure whose body does not run at this call at all, so an
-        // unreadable body *word* says nothing about whether the declaration
-        // falls through. That body position carries no typed control
-        // semantics, so the arm walk would have skipped it even as a brace
-        // literal — yet marking the arm set incomplete abstained the whole
-        // enclosing walk. This is tcllib clay's `proc ${NSPACE}::define
-        // {oclass args} [string map [list %NSPACE% $NSPACE] {…}]`.
+        // TP (#1571) — `proc NAME ARGS [string map … {…}]` *stores* its body;
+        // nothing in it runs at this call, so an unreadable body word says
+        // nothing about whether the declaration falls through. `proc` says so
+        // itself, through `Traits::DEFERS_BODY` — see
+        // `an_immediately_executed_body_the_walk_cannot_read_still_abstains`
+        // for why that has to be a declared fact rather than an inference.
+        // This is tcllib clay's `proc ${NSPACE}::define {oclass args}
+        // [string map [list %NSPACE% $NSPACE] {…}]`.
         let src = COMPUTED_METACLASS.replace(
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
             concat!(
@@ -5661,11 +5661,9 @@ mod class_factories {
 
     #[test]
     fn a_running_body_the_walk_cannot_read_still_abstains() {
-        // FP guard for the above — the relaxation is scoped to body
-        // positions with *no* typed control semantics. `namespace eval $ns
-        // $script` runs its body at this very call (a `FrameBoundary` arm),
-        // so a body word the walk cannot read there is a fact it genuinely
-        // needed.
+        // FP guard: `namespace eval $ns $script` runs its body at this very
+        // call and the registry types that arm (`FrameBoundary`), so a body
+        // word the walk cannot read there is a fact it genuinely needed.
         let src = COMPUTED_METACLASS.replace(
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
             concat!(
@@ -5680,6 +5678,63 @@ mod class_factories {
                 .all_classes
                 .contains_key("::T::D::class"),
             "an unreadable body that runs now must still abstain"
+        );
+    }
+
+    #[test]
+    fn an_immediately_executed_body_the_walk_cannot_read_still_abstains() {
+        // FP guard (PR #1652 review, thread r3818596741) — and the reason
+        // dormancy has to be *declared* rather than inferred.
+        //
+        // None of these commands carries control-arm semantics, exactly like
+        // `proc`. Unlike `proc`, every one of them **runs** its script as part
+        // of this very call, so the script can raise, `return`, or otherwise
+        // stop control ever reaching the creation below it. Reading "no typed
+        // control semantics" as proof of dormancy therefore let the walk
+        // materialise a class created after a script that aborts.
+        //
+        // `BodyKind` cannot separate them either: `proc` and `uplevel` are
+        // both `Structural`, because that descriptor answers *which frame*,
+        // not *when*. Only `Traits::DEFERS_BODY` does, and it is unset here.
+        for prefix in [
+            "    uplevel 1 $script\n",
+            "    uplevel 0 $script\n",
+            "    uplevel #0 $script\n",
+            "    oo::define ::T::Mother $script\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                !result.all_classes.contains_key("::T::D::class"),
+                "an immediately-executed unreadable body must abstain: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn an_aborting_uplevel_script_cannot_be_walked_past() {
+        // The concrete harm the guard above prevents, in one vector: the
+        // script `uplevel` runs really does end the procedure before the
+        // creation, so a walk that claimed the class would be reporting a
+        // class no interpreter ever makes.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    uplevel 1 $script\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            !result.class_factories().contains_key("::T::D::class"),
+            "no factory may be published past an aborting script; got {:?}",
+            result.class_factories().keys().collect::<Vec<_>>()
         );
     }
 

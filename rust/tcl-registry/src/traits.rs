@@ -1051,6 +1051,36 @@ declare_traits! {
     /// manager, and its spec should switch TK1001 on without an analyser
     /// edit (issue #1390).
     TkGeometryManager => TK_GEOMETRY_MANAGER;
+
+    /// The command **stores** its script argument instead of running it —
+    /// the body is dormant at this invocation and executes later, if ever
+    /// (`proc name params body`, an iRules `when EVENT body`).
+    ///
+    /// The distinction is *timing*, and it is orthogonal to
+    /// [`BodyKind`](crate::body_kind::BodyKind), which answers *frame*:
+    /// `proc` and `uplevel` are both `Structural` — neither body runs in the
+    /// caller's frame — yet `uplevel`'s runs **now**, and can raise, return
+    /// or otherwise stop the caller reaching its next statement, while
+    /// `proc`'s cannot. No consumer can tell those apart from `BodyKind`,
+    /// from [`ArgRole::Body`](crate::ArgRole::Body), or from the absence of
+    /// control-arm semantics — `uplevel`, `apply`, `oo::define` and `proc`
+    /// alike have no
+    /// [`ControlArmSemantics`](crate::registry::ControlArmSemantics).
+    ///
+    /// So a static walk asking "does an unreadable body word cost me the
+    /// proof that this call completes?" reads *this* flag: unset means the
+    /// body may run here, which is the safe answer for every command that
+    /// has not declared otherwise. Inferring dormancy from what a command
+    /// *lacks* let the computed-metaclass walk (issue #1571) claim a class
+    /// created after `uplevel 1 $script`, a script that can abort before the
+    /// creation is ever reached.
+    ///
+    /// Deliberately a trait, not a name list in the consumer: a spec pack
+    /// declaring its own definer (`DEFERS_BODY` in the pack's `traits` word)
+    /// gets the same treatment with no compiler edit, and an unset flag
+    /// keeps the abstaining behaviour a pack author never has to think
+    /// about.
+    DefersBody => DEFERS_BODY;
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

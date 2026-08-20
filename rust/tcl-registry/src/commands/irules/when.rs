@@ -66,7 +66,10 @@ pub const fn spec() -> CommandSpec {
         name: "when",
         traits: Traits::LANGUAGE_KEYWORD
             .union(Traits::IS_EVENT_HANDLER)
-            .union(Traits::IRULES_TOP_LEVEL_ONLY),
+            .union(Traits::IRULES_TOP_LEVEL_ONLY)
+            // Registering a handler stores its body for the dispatcher to
+            // run on a later event; nothing in it executes at this call.
+            .union(Traits::DEFERS_BODY),
         dialects: Some(DialectSet::IRULES),
         event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),
         arity: Arity::new(2, 6),
