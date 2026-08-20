@@ -321,6 +321,69 @@ export type TimeoutDiagnostic = () => string | PromiseLike<string>;
  *  the answer on precisely the machines whose failures are hardest to read. */
 export const DIAGNOSTIC_BUDGET_MS = 15_000;
 
+/** Headroom left to the enclosing test after a diagnostic, so the test still
+ *  gets to fail *its* way — with its own message — rather than being killed by
+ *  mocha while waiting for the explanation. */
+const DIAGNOSTIC_MARGIN_MS = 2_000;
+
+/** Floor on a clamped diagnostic: below this a probe cannot say anything
+ *  useful, so there is no point starting one. */
+const MIN_DIAGNOSTIC_BUDGET_MS = 250;
+
+/** Share of the enclosing test's *remaining* time a single diagnostic may
+ *  claim.
+ *
+ *  A fraction rather than the remainder for two reasons. Several diagnosing
+ *  waits can happen inside one test, and none of them may add up to the whole
+ *  budget. And the timer enforcing this budget is subject to the same load the
+ *  budget is scaled for: measured under 6x CPU oversubscription, a cap of
+ *  `room / 2` came back at ~1.9x its nominal value because the event loop was
+ *  starved — leaving a third means the enforcement can run that late and the
+ *  test still gets to fail its own way. */
+const DIAGNOSTIC_SHARE_OF_REMAINING = 3;
+
+/** The enclosing mocha test's deadline, as read at test start. */
+let _testDeadline: { startedAt: number; timeoutMs: number } | undefined;
+
+/**
+ * Record the enclosing test's effective timeout, so a follow-up diagnostic can
+ * never outlive the test that is waiting for it.
+ *
+ * Called from a root `beforeEach` by both test runners. `timeoutMs` is mocha's
+ * *effective* per-test value, so a suite that raised its own bound gets the
+ * raised one; a test that raises it from inside its own body is read as the
+ * suite default, which errs short and is therefore always safe.
+ *
+ * `0` is mocha's "no timeout", which leaves nothing to clamp against.
+ */
+export function beginTestDeadline(timeoutMs: number): void {
+  _testDeadline = timeoutMs > 0 ? { startedAt: Date.now(), timeoutMs } : undefined;
+}
+
+/**
+ * How long a follow-up diagnostic may run.
+ *
+ * `scaledTimeout(DIAGNOSTIC_BUDGET_MS)` alone is not a bound on anything the
+ * enclosing test can survive: it scales with load *at the moment the
+ * diagnostic runs*, while mocha's backstop was fixed at suite construction, so
+ * the two can invert. Clamping to a share of the time remaining in the
+ * enclosing test ties them together, whatever either reading of the load
+ * factor says (see `DIAGNOSTIC_SHARE_OF_REMAINING`).
+ *
+ * Under the light load of an ordinary run `scaled` is the binding term and
+ * nothing changes; the clamp only ever takes over where the unclamped budget
+ * would have outlived the test.
+ */
+function diagnosticBudget(): number {
+  const scaled = scaledTimeout(DIAGNOSTIC_BUDGET_MS);
+  if (!_testDeadline) return scaled;
+  const room =
+    _testDeadline.timeoutMs - (Date.now() - _testDeadline.startedAt) - DIAGNOSTIC_MARGIN_MS;
+  if (room <= 0) return 0;
+  const share = Math.floor(room / DIAGNOSTIC_SHARE_OF_REMAINING);
+  return Math.min(scaled, room, Math.max(MIN_DIAGNOSTIC_BUDGET_MS, share));
+}
+
 /**
  * Run a [`TimeoutDiagnostic`] under a hard cap, converting any failure of the
  * diagnostic itself into prose rather than letting it displace the timeout it
@@ -328,7 +391,13 @@ export const DIAGNOSTIC_BUDGET_MS = 15_000;
  */
 async function diagnose(probe: TimeoutDiagnostic | undefined): Promise<string> {
   if (!probe) return "";
-  const cap = scaledTimeout(DIAGNOSTIC_BUDGET_MS);
+  const cap = diagnosticBudget();
+  if (cap <= 0) {
+    return (
+      "\n  no time left in this test to run the follow-up probe, which is itself " +
+      "evidence: the wait consumed the whole per-test budget"
+    );
+  }
   try {
     const note = await Promise.race([
       Promise.resolve(probe()),

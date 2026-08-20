@@ -84,7 +84,7 @@ Additive only, so nothing written against 1.0 has to change.
 |---|---|
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
-| **1.2** | the same three lifecycle flags on an `arity` row (making it a per-release signature *window*) and on an `arg` row (gating a per-argument fact), plus the pack-level `ambient_package NAME VERSION` |
+| **1.2** | the same three lifecycle flags on an `arity` row (making it a per-release signature *window*) and on an `arg` row (gating a per-argument fact), plus the pack-level `ambient_package NAME VERSION`, and an optional `{ option … }` block on a `sub_subcommand` row (a second-level operation whose option table differs from its siblings') |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -233,6 +233,25 @@ form Default {chan close chan ?direction?} -introduced 8.6
 side_effect FileIo -writes -introduced 1.4 -deprecated 2.0 -retired 3.0
 option_conflict {-glob -regexp} -introduced 8.5
 sub_subcommand call -detail {…} -introduced 9.0
+```
+
+A second-level operation whose options are not its siblings' takes a block
+instead of staying a flag row — the only reason to write one:
+
+```tcl
+sub_subcommand configure -detail {…} -synopsis {…} {
+    option -namespace -detail {…}
+    option -map -takes dict -detail {…}
+}
+```
+
+**No block and an empty block are different claims.** No block means the
+operation says nothing about options, so the owning subcommand's table
+applies. An empty block means this operation takes *no* options, and the
+subcommand's table must not leak into it:
+
+```tcl
+sub_subcommand exists -detail {…} -synopsis {…} {}
 ```
 
 `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?`
@@ -1209,6 +1228,6 @@ schema order. "excluded" rows carry the reason.
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |
 | `cfg_rewrite_name` | `cfg_rewrite_name NAME` |  |
-| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle` |
+| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V? ?{ option … }?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle`. The optional trailing block holds `option` rows and is `SubSubCommand.options` — write it only where the operation's option table genuinely differs from its siblings' (`namespace ensemble create` has `-command`, `configure` has `-namespace`), because a consumer that can read the dispatch word takes this table *instead of* the subcommand's, not merged with it. Omitting the block leaves the field unset and inherits; an **empty** block `{}` declares that the operation takes no options at all (`namespace ensemble exists`) |
 | `defines_command_at` | `defines_command_at N` |  |
 | `max_leading_option_words` | `max_leading_option_words N` |  |

@@ -185,6 +185,27 @@ pub struct CodegenCtx<'r> {
     /// lifetime of the context — codegen runs synchronously and the
     /// caller already holds the registry that lowering used.
     pub registry: &'r CommandRegistry,
+    /// Whole-module command-binding summary — which command *names* still
+    /// denote their original builtin anywhere in this compilation unit
+    /// (issue #1585).
+    ///
+    /// C Tcl inline-compiles a builtin unconditionally but guards every
+    /// compiled command with `INST_START_CMD`, which re-dispatches the slow
+    /// way once `iPtr->compileEpoch` moves — so `rename dict {}` earlier in
+    /// the file makes the *compiled* `dict create` call fall back and raise
+    /// `invalid command name "dict"` (tclExecute.c, `instStartCmdFailed`).
+    /// This compiler emits no epoch guard, so the same protection has to be
+    /// static: a fold or a specialised emission is only sound for a name no
+    /// body in the unit `rename`s, `interp alias`es, or shadows with a proc.
+    ///
+    /// `None` means the caller supplied **no whole-module view** — the
+    /// hand-built emitter contexts in unit tests and the per-function
+    /// [`Backend::lower_function`](crate::codegen::backend::Backend::lower_function)
+    /// seam, which is handed one CFG and never sees the module. Those keep
+    /// the historical trust-everything behaviour;
+    /// [`codegen_module`](crate::codegen::codegen_module), the whole-unit
+    /// entry point every production pipeline uses, always supplies the scan.
+    pub command_bindings: Option<&'r crate::command_binding::ModuleCommandMutations>,
     /// The module's original source text, indexed by `current_span` to recover
     /// each command's surface text for `errorInfo` (`while executing "…"`).
     /// Empty when the caller did not supply it (hand-built test contexts).
@@ -234,6 +255,7 @@ impl<'r> CodegenCtx<'r> {
             current_source_line: 0,
             current_span: None,
             registry,
+            command_bindings: None,
             source: "".into(),
             cmd_arg_braced: Vec::new(),
         }
@@ -243,6 +265,20 @@ impl<'r> CodegenCtx<'r> {
     /// carry their command's surface text for `errorInfo`.
     pub fn set_source(&mut self, source: &str) {
         self.source = source.into();
+    }
+
+    /// Whether `name` still denotes its original builtin everywhere in this
+    /// compilation unit, so a constant fold or a specialised inline emission
+    /// for it is sound (issue #1585).
+    ///
+    /// Answers from the whole-module [`Self::command_bindings`] summary — a
+    /// flow-**insensitive** scan on purpose: a `rename` buried in a proc body
+    /// can fire before a call earlier in the file runs, so "no rename seen so
+    /// far" is not a sound answer. Without a module view the answer is the
+    /// historical `true`; see [`Self::command_bindings`].
+    #[must_use]
+    pub fn trusts_builtin(&self, name: &str) -> bool {
+        self.command_bindings.is_none_or(|m| m.trusts(name))
     }
 
     /// The surface text of the construct at `current_span`, for `errorInfo`.

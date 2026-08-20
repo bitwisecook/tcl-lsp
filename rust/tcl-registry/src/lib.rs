@@ -182,7 +182,7 @@ pub mod prelude {
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
         DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-        SubCommand, SubSubCommand, VersionedArgValue, leading_option_word_count,
+        OptionScope, SubCommand, SubSubCommand, VersionedArgValue, leading_option_word_count,
         leading_option_word_count_with, resolve_option_prefix, resolve_option_prefix_with,
     };
     pub use crate::state_transition::{
@@ -270,7 +270,7 @@ pub use side_effects::SideSwitchTarget;
 pub use spec::{
     BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
     DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-    SubCommand, SubSubCommand, VersionedArgValue,
+    OptionScope, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

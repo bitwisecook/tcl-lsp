@@ -645,3 +645,131 @@ fn statement_words(source: &str, _command: &str) -> BTreeSet<String> {
         .map(ToOwned::to_owned)
         .collect()
 }
+
+/// A second-level subcommand that carries its own option table is written as a
+/// **block**, and the block survives the round trip (issue #1610).
+///
+/// `namespace ensemble create` and `configure` are the case the field exists
+/// for: two different C option tables (`ensembleCreateOptions` /
+/// `ensembleConfigOptions`, `tclEnsemble.c`), so a pack that could only say
+/// one of them would silently re-merge the bug the split removed.
+#[test]
+fn a_sub_subcommands_own_option_table_survives_the_round_trip() {
+    let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
+    let trip = round_trip(&shipped);
+
+    assert!(
+        trip.text.contains("sub_subcommand create") && trip.text.contains("option -command"),
+        "`create`'s own table must be written out:\n{}",
+        trip.text
+    );
+    assert!(
+        trip.text.contains("sub_subcommand configure") && trip.text.contains("option -namespace"),
+        "`configure`'s own table must be written out:\n{}",
+        trip.text
+    );
+    // `exists` declares none, so it stays a flag row: its statement never
+    // opens a block, however the row happens to wrap.
+    assert!(
+        !trip
+            .text
+            .lines()
+            .any(|l| l.trim_start().starts_with("sub_subcommand exists") && l.ends_with('{')),
+        "an operation with no table of its own keeps the flag row:\n{}",
+        trip.text
+    );
+
+    let reloaded = &trip.reloaded;
+    let ensemble = reloaded["subcommands"]
+        .as_array()
+        .expect("subcommands is a list")
+        .iter()
+        .find(|sub| sub["name"] == "ensemble")
+        .expect("`namespace ensemble` survives");
+    let ops = ensemble["sub_subcommands"]
+        .as_array()
+        .expect("sub_subcommands is a list");
+    let names_of = |op: &str| -> Vec<String> {
+        ops.iter()
+            .find(|row| row["name"] == op)
+            .and_then(|row| row["options"].as_array())
+            .map(|opts| {
+                opts.iter()
+                    .map(|o| o["name"].as_str().unwrap_or_default().to_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    assert_eq!(
+        names_of("create"),
+        vec![
+            "-command",
+            "-map",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert_eq!(
+        names_of("configure"),
+        vec![
+            "-map",
+            "-namespace",
+            "-parameters",
+            "-prefixes",
+            "-subcommands",
+            "-unknown"
+        ],
+    );
+    assert!(names_of("exists").is_empty());
+}
+
+/// An **empty** option block is a claim of its own and survives as one.
+///
+/// `sub_subcommand exists {}` says "this operation takes no options"; writing
+/// no block at all says "this operation declares nothing, use the
+/// subcommand's". If the DSL could only spell the second, the round trip would
+/// quietly turn `namespace ensemble exists`'s empty table back into an
+/// inheriting one and re-offer it the parent's union (issue #1610, Codex
+/// review).
+#[test]
+fn an_empty_sub_subcommand_option_block_means_empty_not_inherit() {
+    let shipped = load_command("namespace", "tcl").expect("tcl has `namespace`");
+    let trip = round_trip(&shipped);
+
+    assert!(
+        trip.text
+            .lines()
+            .any(|l| l.trim_start().starts_with("sub_subcommand exists")
+                && l.trim_end().ends_with("{}")),
+        "`exists`'s empty table must be written as an empty block:\n{}",
+        trip.text
+    );
+
+    let ops = trip.reloaded["subcommands"]
+        .as_array()
+        .expect("subcommands is a list")
+        .iter()
+        .find(|sub| sub["name"] == "ensemble")
+        .expect("`namespace ensemble` survives")["sub_subcommands"]
+        .as_array()
+        .expect("sub_subcommands is a list")
+        .clone();
+    let options_of = |op: &str| -> Value {
+        ops.iter()
+            .find(|row| row["name"] == op)
+            .map_or(Value::Null, |row| row["options"].clone())
+    };
+    assert_eq!(
+        options_of("exists"),
+        Value::Array(vec![]),
+        "`exists` reloads as an empty table, not a null one"
+    );
+    assert!(
+        options_of("create")
+            .as_array()
+            .is_some_and(|o| !o.is_empty()),
+        "`create` still reloads with its own table"
+    );
+}

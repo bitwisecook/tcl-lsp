@@ -48,6 +48,14 @@ pub fn try_bytecoded(
     args: &[String],
     used_generic_invoke: &mut bool,
 ) -> bool {
+    // A name this unit renames, aliases, or shadows with a proc no longer
+    // denotes the builtin the hook's emitter open-codes, so decline to
+    // specialise and let the generic invoke dispatch on whatever the name
+    // actually holds — the static stand-in for C Tcl's `INST_START_CMD`
+    // compile-epoch re-dispatch (issue #1585).
+    if !ctx.trusts_builtin(cmd) {
+        return false;
+    }
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     // The registry's own availability mask (issues #1462/#1463): a
     // profile-built registry suppresses the specialised emission of a

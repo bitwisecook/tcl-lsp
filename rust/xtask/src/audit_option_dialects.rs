@@ -570,6 +570,97 @@ const PROBES: &[(&str, Option<&str>, &str, &str)] = &[
         "-writable",
         "catch {vwait -writable stdout -timeout 1}",
     ),
+    // ---- namespace ensemble (issue #1610) ----
+    //
+    // `create` and `configure` are two different C option tables
+    // (`ensembleCreateOptions` / `ensembleConfigOptions`, `tclEnsemble.c`),
+    // and the audit has to probe each separately or the pair's whole point —
+    // that `-command` is create-only and `-namespace` configure-only — is
+    // exactly what stays invisible. Each probe builds its own ensemble in a
+    // throwaway namespace first, so the option word is the only thing under
+    // test; `namespace ensemble` itself is 8.5+, so on 8.4 every one of these
+    // reports as unsupported through the same "invalid command"/"bad option"
+    // path any other post-8.4 surface does.
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-command",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-map",
+        "namespace eval ::probe {proc p {} {}; namespace export p; \
+         namespace ensemble create -map {q p}}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-parameters",
+        "namespace eval ::probe {namespace ensemble create -parameters arg}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-prefixes",
+        "namespace eval ::probe {namespace ensemble create -prefixes 0}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-subcommands",
+        "namespace eval ::probe {proc p {} {}; namespace ensemble create -subcommands p}",
+    ),
+    (
+        "namespace",
+        Some("ensemble create"),
+        "-unknown",
+        "namespace eval ::probe {namespace ensemble create -unknown ::puts}",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-map",
+        "namespace eval ::probe {proc p {} {}; namespace export p; \
+         namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -map {q ::probe::p}",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-namespace",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -namespace",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-parameters",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -parameters arg",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-prefixes",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -prefixes 0",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-subcommands",
+        "namespace eval ::probe {proc p {} {}; namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -subcommands p",
+    ),
+    (
+        "namespace",
+        Some("ensemble configure"),
+        "-unknown",
+        "namespace eval ::probe {namespace ensemble create -command ::probeEns}; \
+         namespace ensemble configure ::probeEns -unknown ::puts",
+    ),
 ];
 
 /// Probed options the registry does not declare, each with the issue tracking
@@ -589,6 +680,14 @@ static TCL_SPECS: LazyLock<Vec<CommandSpec>> =
 /// `CommandForm`'s options, and its subcommands' options. Declared aliases
 /// (`-bd` for `-borderwidth`) count as declarations. `None` means the command
 /// itself is not in the registry.
+///
+/// A **second-level** subcommand's own table (`SubSubCommand::options` —
+/// `namespace ensemble create` vs `configure`, issue #1610) is deliberately
+/// *not* folded in as a third source. Every option there also belongs to the
+/// owning subcommand's abstain table, because that table is what a consumer
+/// falls back to when the dispatch word is dynamic; walking the second level
+/// too would let a registry that declared an option *only* down there — where
+/// no abstaining consumer could ever offer it — still pass this gate.
 ///
 /// The subcommand surface is folded in whether or not the probe names a
 /// subcommand, because [`PROBES`]' subcommand column records *where the probe
