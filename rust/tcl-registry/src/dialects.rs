@@ -408,21 +408,52 @@ pub const TCL_SOURCE_EXTENSIONS: &[&str] = &[
 /// broad `**/*` filtered afterwards.
 #[must_use]
 pub fn tcl_source_glob_any_case() -> String {
-    let alternatives: Vec<String> = TCL_SOURCE_EXTENSIONS
-        .iter()
-        .map(|ext| {
-            ext.chars()
-                .map(|c| {
-                    if c.is_ascii_alphabetic() {
-                        format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
-                    } else {
-                        c.to_string()
-                    }
-                })
-                .collect::<String>()
+    extension_glob_any_case(TCL_SOURCE_EXTENSIONS.iter().copied())
+}
+
+/// One literal spelled so a glob matches it in **any** casing —
+/// `bigip.conf` → `[bB][iI][gG][iI][pP].[cC][oO][nN][fF]`.
+///
+/// The per-character-class trick [`tcl_source_glob_any_case`] documents,
+/// factored out because the same problem appears wherever a *name* rather
+/// than an extension has to be matched case-insensitively by a consumer with
+/// no case-insensitivity option — VS Code's contributed `filenamePatterns`
+/// being the case that motivated splitting it out (issue #1625).
+#[must_use]
+pub fn fold_case_in_glob(literal: &str) -> String {
+    literal
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphabetic() {
+                format!("[{}{}]", c.to_ascii_lowercase(), c.to_ascii_uppercase())
+            } else {
+                c.to_string()
+            }
         })
-        .collect();
-    format!("**/*.{{{}}}", alternatives.join(","))
+        .collect()
+}
+
+/// The `**/*.{…}` any-casing glob over an arbitrary extension set.
+///
+/// [`tcl_source_glob_any_case`] is this over the static set; the LSP server's
+/// pack-extension watcher registration is this over
+/// [`pack_source_extensions`], which is why it takes an iterator rather than
+/// reading the constant. Returns `None` for an empty set, since `**/*.{}`
+/// matches nothing and registering it would be a silent no-op.
+#[must_use]
+pub fn extension_glob_any_case_opt<'a>(
+    extensions: impl IntoIterator<Item = &'a str>,
+) -> Option<String> {
+    let alternatives: Vec<String> = extensions.into_iter().map(fold_case_in_glob).collect();
+    if alternatives.is_empty() {
+        return None;
+    }
+    Some(format!("**/*.{{{}}}", alternatives.join(",")))
+}
+
+/// [`extension_glob_any_case_opt`] for a set known to be non-empty.
+fn extension_glob_any_case<'a>(extensions: impl IntoIterator<Item = &'a str>) -> String {
+    extension_glob_any_case_opt(extensions).unwrap_or_else(|| "**/*.{}".to_owned())
 }
 
 /// Extension-to-dialect routing declared by loaded `SpecTcl` packs
@@ -452,6 +483,56 @@ pub fn register_pack_extension_dialects(pairs: impl IntoIterator<Item = (String,
         Err(poisoned) => poisoned.into_inner(),
     };
     *guard = Some(map);
+}
+
+/// Every extension currently claimed by a loaded pack that the shipped
+/// catalogue does **not** already account for, sorted.
+///
+/// The indexing counterpart of [`dialect_from_extension`]'s pack tier. A pack
+/// claiming `.irulex` made an *opened* `.irulex` file analyse correctly from
+/// the first release of that tier, but every predicate that decides which
+/// files the toolchain reaches on its own — the LSP workspace scan, the
+/// watched-file admission filter, the rename filter, the CLI directory walk —
+/// read the static constant alone, so closed files stayed unindexed and
+/// external edits never refreshed references or definitions (issue #1626,
+/// review finding P1-3).
+///
+/// Two kinds of extension are filtered out, for different reasons.
+/// [`TCL_SOURCE_EXTENSIONS`] entries, because a consumer unions this with that
+/// set and returning them would make a caller building a glob emit each one
+/// twice. And extensions the **profile catalogue** owns, because those are a
+/// decision the catalogue has already taken: `.upf` is catalogued as Synopsys
+/// Tcl *and* deliberately left out of the indexed set (it is Tcl, but it is
+/// not project source we walk), so a bundled pack restating
+/// `file_extension upf` must not quietly overturn that. The rule is the same
+/// one the server's `pack_file_extensions` advertisement applies, which keeps
+/// "what a pack adds" one answer rather than two.
+///
+/// A **snapshot**, not a subscription: the answer changes whenever a pack
+/// reload republishes routing, so a consumer that caches a derived value
+/// (a glob, a watcher registration) has to recompute it on reload rather than
+/// once at startup.
+#[must_use]
+pub fn pack_source_extensions() -> Vec<String> {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let Some(map) = guard.as_ref() else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = map
+        .keys()
+        .filter(|ext| {
+            !TCL_SOURCE_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(ext))
+                && catalog_extension_dialect(&ext.to_ascii_lowercase()).is_none()
+        })
+        .cloned()
+        .collect();
+    out.sort();
+    out
 }
 
 /// The pack-declared dialect for `ext`, if any pack registered one.
