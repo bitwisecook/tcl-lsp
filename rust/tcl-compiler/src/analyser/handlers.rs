@@ -6580,17 +6580,28 @@ impl Analyser {
         let mut body_span = Span::new(0, u32::try_from(self.source.len()).unwrap_or(u32::MAX));
         let env = std::collections::HashMap::new();
         for arm in &call.control_path {
-            if !self.static_prefix_falls_through(body_span, arm.controller.span.start())
+            if !self.static_prefix_falls_through(body_span, arm.controller.span.start(), 0)
                 || self.control_body_is_selected("", arm, &env, 0) != Some(true)
             {
                 return false;
             }
             body_span = arm.body_span;
         }
-        self.static_prefix_falls_through(body_span, call.call_off)
+        self.static_prefix_falls_through(body_span, call.call_off, 0)
     }
 
-    fn static_prefix_falls_through(&mut self, body_span: Span, stop_off: u32) -> bool {
+    /// Whether the statements of `body_span` before `stop_off` all fall
+    /// through, so control really reaches `stop_off`.
+    ///
+    /// `depth` is the nesting of *control bodies* this walk has descended
+    /// into — [`Self::static_statement_falls_through`] re-enters here for each
+    /// arm whose body may run, so nested control flow recurses one native
+    /// frame per level and has to be bounded like every other recursive walk
+    /// in this file ([`MAX_UNKNOWN_BODY_DEPTH`], issue #996's family). Past
+    /// the cap the walk abstains, which is the direction it already takes for
+    /// anything it cannot read. Entry points that are not themselves inside a
+    /// body pass `0`.
+    fn static_prefix_falls_through(&mut self, body_span: Span, stop_off: u32, depth: u32) -> bool {
         if self.registry.is_none() {
             return false;
         }
@@ -6601,7 +6612,7 @@ impl Analyser {
             .into_iter()
             .take_while(|seg| seg.span.start() < stop_off)
         {
-            if !self.static_statement_falls_through(&seg, 0) {
+            if !self.static_statement_falls_through(&seg, depth) {
                 return false;
             }
         }
@@ -6760,12 +6771,35 @@ impl Analyser {
                 tcl_registry::registry::ControlArmSemantics::Always
                 | tcl_registry::registry::ControlArmSemantics::FrameBoundary => {
                     saw_propagating_arm = true;
-                    if !self.static_prefix_falls_through(arm.body_span, arm.body_span.end()) {
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
                         return false;
                     }
                 }
                 tcl_registry::registry::ControlArmSemantics::Selected => selected.push(arm),
                 tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {}
+                // A collection loop runs its body a finite number of times, so
+                // control reaches the next statement exactly when the body
+                // falls through — the same question, and the same answer, as
+                // an `if` arm whose selection is unknown (below). Nothing is
+                // *read* out of the loop: it stays unselectable, and the
+                // provenance walk still clears every fact the iteration
+                // variables or the body could write.
+                tcl_registry::registry::ControlArmSemantics::BoundedIteration => {
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
+                        return false;
+                    }
+                }
+                // A condition loop's trip count is not bounded by anything
+                // readable here — it may run forever, so no claim is made
+                // about the statement after it.
                 tcl_registry::registry::ControlArmSemantics::Uncertain => return false,
             }
         }
@@ -6776,17 +6810,32 @@ impl Analyser {
             return false;
         }
 
+        self.selected_arms_fall_through(&selected, depth)
+    }
+
+    /// The `Selected`-arm half of [`Self::static_statement_falls_through`]:
+    /// at most one arm of an `if` / `switch` runs, so control reaches the
+    /// next statement when *that* arm does. An arm whose selection cannot be
+    /// decided is treated as one that may run, which is the same requirement
+    /// a [`ControlArmSemantics::BoundedIteration`] body carries.
+    ///
+    /// [`ControlArmSemantics::BoundedIteration`]: tcl_registry::registry::ControlArmSemantics::BoundedIteration
+    fn selected_arms_fall_through(&mut self, selected: &[ControlArm], depth: u32) -> bool {
         let env = std::collections::HashMap::new();
         let mut selected_body = None;
         let mut selection_unknown = false;
         for arm in selected {
-            match self.control_body_is_selected("", &arm, &env, depth + 1) {
+            match self.control_body_is_selected("", arm, &env, depth + 1) {
                 Some(true) if selected_body.is_none() => selected_body = Some(arm.body_span),
                 Some(true) => return false,
                 Some(false) => {}
                 None => {
                     selection_unknown = true;
-                    if !self.static_prefix_falls_through(arm.body_span, arm.body_span.end()) {
+                    if !self.static_prefix_falls_through(
+                        arm.body_span,
+                        arm.body_span.end(),
+                        depth + 1,
+                    ) {
                         return false;
                     }
                 }
@@ -6795,7 +6844,8 @@ impl Analyser {
         if selection_unknown {
             return true;
         }
-        selected_body.is_none_or(|span| self.static_prefix_falls_through(span, span.end()))
+        selected_body
+            .is_none_or(|span| self.static_prefix_falls_through(span, span.end(), depth + 1))
     }
 
     /// The placeholder record made by the ordinary walk for `candidate`.
@@ -6942,7 +6992,11 @@ impl Analyser {
         match self.control_arm_semantics_for(arm)? {
             tcl_registry::registry::ControlArmSemantics::Always => return Some(true),
             tcl_registry::registry::ControlArmSemantics::Selected => {}
+            // A bounded collection loop is no more *selectable* than an
+            // unbounded one — which iteration a body run belongs to, or
+            // whether the collection was empty, is not decidable here.
             tcl_registry::registry::ControlArmSemantics::FrameBoundary
+            | tcl_registry::registry::ControlArmSemantics::BoundedIteration
             | tcl_registry::registry::ControlArmSemantics::Uncertain => return None,
             tcl_registry::registry::ControlArmSemantics::CompletionBoundary => {
                 return Some(true);
@@ -6988,6 +7042,30 @@ impl Analyser {
         registry.control_arm_semantics(arm.controller.name(), &args, body_index)
     }
 
+    /// Whether a body argument this walk could **not** read makes the arm set
+    /// incomplete.
+    ///
+    /// Only a body position the registry gives *typed control semantics*
+    /// carries a fact the consumers below need — whether the body runs now
+    /// (`namespace eval $ns $script`), whether it is one arm of a selection
+    /// (`if {$c} $script`), and so on. A body position with no typed control
+    /// semantics is one the arm walk would have skipped even had it been
+    /// readable: `proc ${ns}::define {a} [string map … {…}]` declares a
+    /// procedure whose body does not run at this call at all, so an
+    /// unreadable body word there says nothing about the *declaration*, which
+    /// falls through like any other. Treating it as incomplete abstained on
+    /// the whole enclosing walk over a fact that was never consulted — the
+    /// second half of issue #1571's clay factory resolution.
+    fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
+        let Some(registry) = self.registry.as_deref() else {
+            return true;
+        };
+        let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+        registry
+            .control_arm_semantics(seg.name(), &args, body_index)
+            .is_some()
+    }
+
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
         let Some(registry) = self.registry.as_deref() else {
             return ControlArms::default();
@@ -7006,7 +7084,7 @@ impl Analyser {
             let (Some(word), Some(token)) =
                 (seg.args().get(idx), seg.arg_tokens().get(idx).copied())
             else {
-                complete = false;
+                complete &= !self.unreadable_body_is_material(seg, idx);
                 continue;
             };
             if case_call == Some(idx) {
@@ -7042,7 +7120,7 @@ impl Analyser {
                     body_span: token.span,
                 });
             } else {
-                complete = false;
+                complete &= !self.unreadable_body_is_material(seg, idx);
             }
         }
         ControlArms { arms, complete }

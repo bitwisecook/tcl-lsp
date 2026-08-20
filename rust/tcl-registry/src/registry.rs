@@ -98,8 +98,21 @@ pub enum ControlArmSemantics {
     FrameBoundary,
     /// The body runs, but its completion is contained by the enclosing call.
     CompletionBoundary,
+    /// The body is repeated over a **finite** collection the invocation
+    /// itself supplies — `foreach` / `lmap` / the `foreach`-line family.
+    ///
+    /// Like [`Self::Uncertain`] it names no *selectable* execution: which
+    /// iteration (or whether any at all) a body run belongs to is not
+    /// statically decidable, so nothing may be read out of the body's
+    /// environment. It differs in the one fact that *is* decidable — the loop
+    /// runs a bounded number of times, so the construct terminates whenever
+    /// its body does. A consumer asking "does control reach the next
+    /// statement?" can therefore answer from the body alone, which it cannot
+    /// do for [`Self::Uncertain`].
+    BoundedIteration,
     /// The body is conditional or repeated in a way this descriptor does not
-    /// statically select.
+    /// statically select, and whose trip count it cannot bound either — a
+    /// condition-driven `for` / `while`.
     Uncertain,
 }
 
@@ -2109,11 +2122,14 @@ impl CommandRegistry {
             LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
             LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
             LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
-            LoweringHookId::For
-            | LoweringHookId::While
-            | LoweringHookId::Foreach
-            | LoweringHookId::Lmap
-            | LoweringHookId::ForeachLine => Some(ControlArmSemantics::Uncertain),
+            // A collection loop iterates a value the invocation itself
+            // supplies, so it runs a *finite* number of times: it terminates
+            // whenever its body does. A condition loop's trip count depends on
+            // state this descriptor cannot read, so it stays uncertain.
+            LoweringHookId::Foreach | LoweringHookId::Lmap | LoweringHookId::ForeachLine => {
+                Some(ControlArmSemantics::BoundedIteration)
+            }
+            LoweringHookId::For | LoweringHookId::While => Some(ControlArmSemantics::Uncertain),
             LoweringHookId::Try => try_control_arms(args)?
                 .into_iter()
                 .find_map(|(idx, semantics)| (idx == body_index).then_some(semantics)),
