@@ -351,17 +351,25 @@ suite("Wait discipline (issue #1274)", () => {
       }),
       /REQUEST DROPPED, NOT WEDGED/,
     );
-    // A transport that never answered outranks a retry that did — a server
-    // that cannot answer a document-free request is the more general fault,
-    // whatever the later probes claim.
-    assert.match(
-      classifyLiveness({
-        transport: outcome(false),
-        otherDocument: outcome(true),
-        retry: outcome(true),
-      }),
-      /SERVER WEDGED/,
-    );
+    // A transport probe that did not answer while a *document* hover did is
+    // self-contradictory evidence, not the most general fault: the hover's
+    // reply travelled the whole client → server → client path, which is the
+    // only thing "SERVER WEDGED" claims is broken. Issue #1600's occurrence
+    // read this way and skipped 212 tests on it; a byte-identical re-run then
+    // passed 899/899.
+    for (const contradicted of [
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(false), retry: outcome(true) },
+    ]) {
+      const verdict = classifyLiveness(contradicted);
+      assert.match(verdict, /DOCUMENT-FREE REQUEST SLOW, TRANSPORT ALIVE/);
+      assert.doesNotMatch(
+        verdict,
+        /SERVER WEDGED/,
+        `a reply that crossed the transport contradicts a wedge: ${verdict}`,
+      );
+    }
   });
 
   // Issue #1294: once the server answers nothing, every later test can only
@@ -374,10 +382,19 @@ suite("Wait discipline (issue #1274)", () => {
 
     // Recoverable verdicts must NOT latch: a stuck document queue, or a
     // request that was merely dropped, still leaves a suite that can run.
+    //
+    // The last three are the #1600 shape — the document-free request did not
+    // answer in its short budget, but something else did. One answer anywhere
+    // is a reply that crossed the transport, so the run must continue: the
+    // latch skips every remaining test, and 212 skipped tests is far too
+    // expensive a conclusion to draw from contradicted evidence.
     for (const recoverable of [
       { transport: outcome(true), otherDocument: outcome(false), retry: outcome(false) },
       { transport: outcome(true), otherDocument: outcome(true), retry: outcome(true) },
       { transport: outcome(true), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(true) },
+      { transport: outcome(false), otherDocument: outcome(true), retry: outcome(false) },
+      { transport: outcome(false), otherDocument: outcome(false), retry: outcome(true) },
     ]) {
       latchFromOutcomes(recoverable);
       assert.strictEqual(
@@ -387,11 +404,11 @@ suite("Wait discipline (issue #1274)", () => {
       );
     }
 
-    // The terminal verdict arms it.
+    // The terminal verdict — nothing answered at all — arms it.
     latchFromOutcomes({
       transport: outcome(false),
-      otherDocument: outcome(true),
-      retry: outcome(true),
+      otherDocument: outcome(false),
+      retry: outcome(false),
     });
     assert.strictEqual(serverTransportWedged(), true, "a transport wedge must latch");
 

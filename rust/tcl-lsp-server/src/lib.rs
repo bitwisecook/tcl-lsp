@@ -32370,6 +32370,77 @@ mod tests {
             .expect("did_change panicked");
     }
 
+    /// #1651: an edit that lands *between* a config apply and the reload's own
+    /// `reschedule_all_open_documents` must analyse under the config that has
+    /// been applied, not the one its slot cached before the apply.
+    ///
+    /// That window is real and observable: `run_config_reload` applies the
+    /// switches first (which is the instant `tcl-lsp.getEffectiveConfig` starts
+    /// reporting them), then walks the disk for `SpecTcl` packs, and only then
+    /// reschedules.  A client that treats the command as the settle signal and
+    /// then types lands inside it — and before the epoch stamp, that keystroke
+    /// reused inputs resolved before the apply, so a just-disabled optimiser
+    /// still emitted its O-codes on that publish.
+    ///
+    /// Pinned without racing the debounce: the worker's first act after the
+    /// debounce is `capture_job`, which takes `documents`, so holding that lock
+    /// parks it there.  It cannot retire the slot from there (retirement needs a
+    /// *clean* slot, and it has already taken the dirty flag), so `latest_inputs`
+    /// stays observable for the whole test.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn an_edit_during_a_config_apply_re_resolves_its_diagnostics_inputs() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/epoch.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        let optimiser_in_slot = async || -> bool {
+            backend
+                .diag_slots
+                .lock()
+                .await
+                .get(&uri)
+                .expect("the slot must still exist")
+                .latest_inputs
+                .as_ref()
+                .expect("a scheduled slot carries its inputs")
+                .toggles
+                .optimiser_enabled
+        };
+
+        // The first edit primes the cache, exactly as a keystroke does.
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let docs_held = backend.documents.lock().await;
+        assert!(
+            optimiser_in_slot().await,
+            "the optimiser starts enabled, so the primed inputs must say so",
+        );
+
+        // The apply half of `run_config_reload`: the switch is live and the
+        // command already reports it, but no reschedule has run yet.
+        backend
+            .apply_global_config(&serde_json::json!({"optimiser": {"enabled": false}}))
+            .await;
+        assert!(
+            !*backend.optimiser_enabled.lock().await,
+            "the apply must have landed, or this test proves nothing",
+        );
+
+        // …and the user types.  The edit path asks for no refresh; the epoch
+        // stamp is the only thing that can make this correct.
+        backend
+            .schedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        assert!(
+            !optimiser_in_slot().await,
+            "an edit arriving after a config apply must re-resolve its analyser \
+             inputs — reusing the pre-apply cache republishes the O-codes the \
+             user just disabled (#1651)",
+        );
+        drop(docs_held);
+    }
+
     /// #1149: an edit no longer evicts the edited document from the workspace
     /// index.  `publish_diagnostics_result` re-indexes it (remove + add) behind
     /// its own `is_current` check, so all the per-keystroke removal bought was

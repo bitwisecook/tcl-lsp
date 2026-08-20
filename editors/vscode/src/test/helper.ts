@@ -640,11 +640,20 @@ export function resetServerTransportWedged(): void {
  * [`classifyLiveness`] is: the decision is then a pure function of three
  * booleans, so every branch can be pinned without a server behind it.
  *
+ * **Requires corroboration.** The flag skips every remaining test, so arming it
+ * on one unanswered request is a claim the evidence has to actually support: an
+ * answer to *either* of the other two questions is a reply that travelled the
+ * whole client → server → client path, which contradicts "the server answers
+ * nothing" outright. Issue #1600's occurrence is exactly that shape — the
+ * verdict fired at 687/899, and a byte-identical re-run passed 899/899 — so a
+ * single slow document-free request must read as "slow", not as "dead", and
+ * the run must be allowed to continue and report what it finds.
+ *
  * Latch-only: it never clears the flag, so a later probe that happens to get
  * an answer out of a dying server cannot un-diagnose an earlier wedge.
  */
 export function latchFromOutcomes(outcomes: LivenessOutcomes): void {
-  if (!outcomes.transport.answered) {
+  if (!outcomes.transport.answered && !outcomes.otherDocument.answered && !outcomes.retry.answered) {
     transportWedgeConfirmed = true;
   }
 }
@@ -677,6 +686,14 @@ export interface LivenessOutcomes {
  */
 export function classifyLiveness(outcomes: LivenessOutcomes): string {
   if (!outcomes.transport.answered) {
+    if (outcomes.otherDocument.answered || outcomes.retry.answered) {
+      return (
+        "DOCUMENT-FREE REQUEST SLOW, TRANSPORT ALIVE — the request that touches no document " +
+        "did not answer in its budget, but a document hover did, and that reply travelled the " +
+        "same client → server → client path. So the transport is not wedged; the document-free " +
+        "command was merely slower than a probe budget that is deliberately short."
+      );
+    }
     return (
       "SERVER WEDGED — the server did not even answer a request that touches no document, " +
       "so the fault is the server (or the connection), not this document."
@@ -734,9 +751,10 @@ async function probeOutcome(
  * evidence could say only that the request never came back — not whether the
  * server was answering *anything*. Three cheap questions separate the cases:
  *
- * 1. ``getEffectiveConfig`` for the stalled document — a request that touches
- *    neither the analyser nor the document's work queue, so it answers whenever
- *    the client → server → client path itself is alive.
+ * 1. ``getEffectiveConfig`` with **no URI at all** — a request that touches
+ *    neither the analyser nor any document's work queue, so it answers whenever
+ *    the client → server → client path itself is alive. The empty argument is
+ *    load-bearing, not tidiness: see the note on the probe below.
  * 2. A hover on a **different** document, which no test drives. Answering means
  *    the document pipeline as a whole is draining, so whatever is stuck is
  *    specific to *this* document.
@@ -756,10 +774,23 @@ export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnos
     // on a loaded machine is long enough for `bounded`'s own cap to truncate
     // the answer, exactly when the answer is most wanted.
     const [transport, otherDoc, retry] = await Promise.all([
-      probeOutcome(
-        () => vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", stalledUri.toString()),
-        budget,
-      ),
+      // `""`, not `stalledUri` — the same document-free form `probeServer`
+      // (the heartbeat's liveness probe) uses, and the form the extension's own
+      // pack sync uses.
+      //
+      // Passed a document URI, this command is not the transport question the
+      // verdict above reports it as. `get_effective_config_command` parses the
+      // URI and then, on the `Some` branch only, calls `read_document` — whose
+      // first act is `edits_settled()`, the server's *global* `EditOrder`
+      // barrier that every request handler waits on — and later takes the
+      // `documents` lock and the salsa `db` mutex (which `set_text` holds while
+      // it waits out open reads). Every one of those can be held by exactly the
+      // condition this diagnostic exists to classify, so the "server answers
+      // nothing" branch could be reached by a server that was answering
+      // everything else perfectly well. With no URI, none of that code runs:
+      // the handler reads a dozen leaf mutexes and returns, so a failure here
+      // really is the transport.
+      probeOutcome(() => vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", ""), budget),
       probeOutcome(
         () =>
           vscode.commands.executeCommand(
