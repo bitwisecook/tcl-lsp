@@ -87,8 +87,8 @@ pub use tcl_syntax::mro::{self, MroError, build_mro_map, tcloo_linearise};
 pub use types::{
     AnalysisResult, ClassDef, ClassFactory, ClassFactoryIndex, CodeFix, DefinedSymbol,
     DefinitionAbortKind, Diagnostic, FactoryMember, FactoryWord, FixSafety, ManufacturerSpec,
-    MemberRetractionRecord, MemberSide, MethodDef, ObjectMemberState, ObjectMethodDef,
-    ProcArgTrait, ProcDef, PropertyDef, QualifiedVarRef, RenamedMember, Scope, ScopeKind, Severity,
-    StubFlags, SubclassProvidedMethods, UnknownProcInfo, VarDef, class_constructor_key,
-    class_destructor_key, class_member_key, class_property_key,
+    MemberRetractionRecord, MemberSide, MetaclassProvenance, MethodDef, ObjectMemberState,
+    ObjectMethodDef, ProcArgTrait, ProcDef, PropertyDef, QualifiedVarRef, RenamedMember, Scope,
+    ScopeKind, Severity, StubFlags, SubclassProvidedMethods, UnknownProcInfo, VarDef,
+    class_constructor_key, class_destructor_key, class_member_key, class_property_key,
 };

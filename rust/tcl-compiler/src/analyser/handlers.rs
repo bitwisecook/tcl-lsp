@@ -44,7 +44,9 @@ use crate::signature_scan::types::ParamDef;
 use crate::signature_scan::types::SignatureCommandAlias;
 
 use super::state::Analyser;
-use super::types::{ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, ProcDef};
+use super::types::{
+    ClassDef, ClassFactory, DefinedSymbol, FactoryMember, FactoryWord, MetaclassProvenance, ProcDef,
+};
 use super::utils::{param_name_spans_for_token, parse_param_list};
 
 /// The three per-proc facts [`Analyser::infer_proc_param_traits`] derives from
@@ -419,13 +421,26 @@ fn substitute_bound_words(
 /// factory never disappears behind a later empty observation. Two different
 /// concrete superclass relations are not compatible evidence for one class;
 /// the caller must publish an abstaining record instead.
+///
+/// **Only facts a walk actually established take part in the conflict check.**
+/// Both sides here are `ClassDef`s, and `ClassDef::default()` fabricates one
+/// concrete-looking value — `metaclass: "oo::class"` — that no walk need have
+/// read. A record that never saw a creation command's head word carries it
+/// while having observed nothing, so it is compared only when
+/// [`ClassDef::metaclass_provenance`] says it was read; otherwise the observing
+/// side's answer is simply adopted. Without that gate an `oo::define` stub for
+/// a class made by a user metaclass contradicted the real metaclass and cost
+/// the record its factory and superclasses (issue #1653).
 fn join_parameterised_class_observations(
     existing: &ClassDef,
     observed: &ClassDef,
 ) -> Option<ClassDef> {
+    let metaclasses_conflict = existing.metaclass_provenance == MetaclassProvenance::Observed
+        && observed.metaclass_provenance == MetaclassProvenance::Observed
+        && crate::naming::normalise_qualified_name(&existing.metaclass)
+            != crate::naming::normalise_qualified_name(&observed.metaclass);
     if existing.qualified_name != observed.qualified_name
-        || crate::naming::normalise_qualified_name(&existing.metaclass)
-            != crate::naming::normalise_qualified_name(&observed.metaclass)
+        || metaclasses_conflict
         || (!existing.superclasses.is_empty()
             && !observed.superclasses.is_empty()
             && existing.superclasses != observed.superclasses)
@@ -443,6 +458,14 @@ fn join_parameterised_class_observations(
     } else {
         (observed.clone(), existing)
     };
+    // The stand-in loses to a real reading whichever side won above, so the
+    // joined record names the metaclass the source actually wrote.
+    if joined.metaclass_provenance != MetaclassProvenance::Observed
+        && other.metaclass_provenance == MetaclassProvenance::Observed
+    {
+        joined.metaclass.clone_from(&other.metaclass);
+        joined.metaclass_provenance = MetaclassProvenance::Observed;
+    }
     if joined.superclasses.is_empty() {
         joined.superclasses.clone_from(&other.superclasses);
     }
@@ -454,6 +477,18 @@ fn join_parameterised_class_observations(
     }
     joined.inheritance_unknown |= other.inheritance_unknown;
     joined.member_set_incomplete |= other.member_set_incomplete;
+    // One of these observations *is* the creation, so the joined record is
+    // not a cross-file extension stub even when the stub's side won above —
+    // go-to-definition must still prefer this file's creation site.
+    joined.via_define &= other.via_define;
+    // Whichever side lost, its declarations are still declarations: an
+    // `oo::define` stub's members belong to this class as surely as the
+    // creation body's do (issue #1653). Deliberately after the line above:
+    // `absorb_declarations` reads `via_define` on both records to decide who
+    // wins a name they both declare, and by here `joined`'s answers "were
+    // *both* of these observations stubs" — which is exactly the question
+    // that rule needs asked.
+    joined.absorb_declarations(other);
     Some(joined)
 }
 
@@ -8707,6 +8742,7 @@ impl Analyser {
             name_span,
             body_span,
             metaclass: cmd_name.to_string(),
+            metaclass_provenance: MetaclassProvenance::Observed,
             doc,
             inheritance_unknown: layout.inheritance_unknown,
             ..Default::default()
@@ -9933,6 +9969,49 @@ mod tests {
         let left = class_observation(Some("::T::Mother"), true);
         let right = class_observation(Some("::T::OtherMother"), true);
         assert!(join_parameterised_class_observations(&left, &right).is_none());
+    }
+
+    #[test]
+    fn parameterised_class_join_ignores_an_unobserved_metaclass() {
+        // Issue #1653 — the `oo::define` stub's `"oo::class"` is
+        // `ClassDef::default()`'s stand-in, not something a walk read, so it
+        // must neither contradict the proved `::T::Mother` nor survive into
+        // the joined record.
+        let stub = class_observation(None, false);
+        assert_ne!(stub.metaclass_provenance, MetaclassProvenance::Observed);
+        let proved = ClassDef {
+            metaclass: "::T::Mother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(Some("::T::Mother"), true)
+        };
+
+        for (existing, observed) in [(&stub, &proved), (&proved, &stub)] {
+            let joined = join_parameterised_class_observations(existing, observed)
+                .expect("a stand-in metaclass is not conflicting evidence");
+            assert_eq!(joined.metaclass, "::T::Mother");
+            assert_eq!(joined.metaclass_provenance, MetaclassProvenance::Observed);
+            assert_eq!(joined.superclasses, vec!["::T::Mother"]);
+            assert!(joined.factory.is_some());
+        }
+    }
+
+    #[test]
+    fn parameterised_class_join_abstains_on_two_observed_metaclasses() {
+        // FP guard for the gate above: once *both* sides read a head word,
+        // a disagreement is still a real conflict.
+        let left = ClassDef {
+            metaclass: "::T::Mother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(None, true)
+        };
+        let right = ClassDef {
+            metaclass: "::T::OtherMother".to_owned(),
+            metaclass_provenance: MetaclassProvenance::Observed,
+            ..class_observation(None, true)
+        };
+        assert!(join_parameterised_class_observations(&left, &right).is_none());
+        // …and identical observed metaclasses still join.
+        assert!(join_parameterised_class_observations(&left, &left).is_some());
     }
 
     fn esc_tok(span: Span) -> Token {
