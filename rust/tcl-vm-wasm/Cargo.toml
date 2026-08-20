@@ -41,7 +41,15 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-tcl-vm = { path = "../tcl-vm" }
+# `default-features = false` drops `tcl-vm`'s `js-clock`, and with it the only
+# import this module would otherwise have. `js-clock` reads the wall clock from
+# JavaScript's `Date.now()` — right for the wasm-bindgen consumers (the language
+# server, the explorer, the spec studio), fatal here: this cdylib is loaded by a
+# bare `WebAssembly.instantiate` with no glue object, so a `js-sys` import makes
+# instantiation itself fail ("Import #0 module=__wbindgen_placeholder__"). The
+# VM's browser host then reports the epoch instead, which is what it did before
+# there was a clock to choose at all. `tcl-vm/tests/wasm_coro_e2e.rs` guards it.
+tcl-vm = { path = "../tcl-vm", default-features = false }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-bytecode = { path = "../tcl-bytecode" }

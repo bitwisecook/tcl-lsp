@@ -42,11 +42,15 @@
 //!
 //! ## What each capability does here
 //!
-//! - **Clock** — real, and the reason this module is not a stub: the browser
-//!   has a wall clock, so [`BrowserClock`] reads JavaScript's `Date.now()`.
-//!   Millisecond resolution (what `Date.now()` reports, and what browsers clamp
-//!   to anyway), so `now_micros` keeps the trait's `now_millis() * 1000`
-//!   default rather than pretending to a precision it does not have.
+//! - **Clock** — real under the default `js-clock` feature, and the reason this
+//!   module is not a stub: the browser has a wall clock, so [`BrowserClock`]
+//!   reads JavaScript's `Date.now()`. Millisecond resolution (what `Date.now()`
+//!   reports, and what browsers clamp to anyway), so `now_micros` keeps the
+//!   trait's `now_millis() * 1000` default rather than pretending to a
+//!   precision it does not have. With `js-clock` off — the import-free build
+//!   `tcl-vm-wasm` needs — it reports the epoch, which is a wrong answer rather
+//!   than a crash, and the posture `runtime/rust`'s `BrowserHost` has always
+//!   had.
 //! - **`StdIo`** — discarded. There is no terminal on the other end of a
 //!   worker's `puts`; a host that wants the output owns the decision of where
 //!   it goes and can install its own [`Host`] with [`Vm::set_host`].
@@ -107,14 +111,25 @@ impl Host for BrowserHost {
     // filesystem()/sockets()/process() keep the trait's `None` defaults.
 }
 
-/// The wall clock, read from JavaScript's `Date.now()` — milliseconds since the
-/// Unix epoch, as an `f64`.
+/// The wall clock.
 ///
-/// `Date.now()` is on the global object in a window, a worker, and node alike,
-/// so this needs no host import beyond `js-sys` and works in every context the
-/// language server's wasm build is loaded into.
+/// Under the default `js-clock` feature this is JavaScript's `Date.now()` —
+/// milliseconds since the Unix epoch, as an `f64`. `Date.now()` is on the
+/// global object in a window, a worker, and node alike, so it needs no host
+/// import beyond `js-sys` and works in every context the language server's wasm
+/// build is loaded into.
+///
+/// With `js-clock` off there is no JavaScript to ask (that build has no imports
+/// at all, by design), so it reports the epoch.
+///
+/// `now_micros` keeps the trait default (`now_millis() * 1000`) either way:
+/// `Date.now()` has no sub-millisecond resolution to report. So does
+/// `local_offset_secs` (0 = UTC), matching the std host — the browser knows its
+/// timezone, but wiring that is a behaviour change for `clock format`, not a
+/// crash fix.
 struct BrowserClock;
 
+#[cfg(feature = "js-clock")]
 impl Clock for BrowserClock {
     fn now_secs(&self) -> i64 {
         // `Date.now()` is an integral number of milliseconds; dividing before
@@ -125,12 +140,17 @@ impl Clock for BrowserClock {
     fn now_millis(&self) -> i128 {
         js_sys::Date::now() as i128
     }
-    // `now_micros` keeps the trait default (`now_millis() * 1000`): `Date.now()`
-    // has no sub-millisecond resolution to report.
-    //
-    // `local_offset_secs` keeps the trait default (0 = UTC), matching the std
-    // host — the browser knows its timezone, but wiring that is a behaviour
-    // change for `clock format`, not a crash fix.
+}
+
+#[cfg(not(feature = "js-clock"))]
+impl Clock for BrowserClock {
+    fn now_secs(&self) -> i64 {
+        0
+    }
+
+    fn now_millis(&self) -> i128 {
+        0
+    }
 }
 
 /// `puts` output is discarded: a worker has no terminal, and an embedder that
