@@ -4,7 +4,13 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-(empty — merge PRs as lanes open them, on green + resolved feedback)
+1. **PR #1670** — wedge fix (`claude/f6e-1657-endgame`, `Refs #1657`). CI
+   green; open Codex P1 (closed-file publish retry lost after did_close
+   eviction) with lane. Merge when thread settled + green on final head.
+   #1657 closes only after the fix survives the loaded-loop repro.
+2. **PR #1671** — lambda-arg materiality (`claude/f9-fix-1656`,
+   `Fixes #1656`). CI running; Codex round pending. Merge on green +
+   resolved feedback, manually close #1656.
 
 ## Pre-release issues
 
