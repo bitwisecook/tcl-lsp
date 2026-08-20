@@ -626,8 +626,21 @@ interface ProcSample {
   state: string;
   /** `utime + stime` in clock ticks: CPU the process has ever consumed. */
   cpuTicks: number;
-  /** `rchar` / `wchar` from `/proc/<pid>/io`: bytes read/written, which for
-   *  this process is dominated by the LSP pipes. */
+  /**
+   * `rchar` / `wchar` from `/proc/<pid>/io`: bytes the process has read and
+   * written **across every descriptor**, not just its LSP pipes.
+   *
+   * That breadth is the whole caveat. A pack-discovery walk reads `.tclspec`
+   * files, the analyser reads sources from disk, and any of that moves these
+   * counters — so movement here is *not* evidence that the transport is alive,
+   * and must never be reported as if it were. Only the zero case is conclusive
+   * in its own right: if nothing at all was read or written, that necessarily
+   * includes stdin and stdout.
+   *
+   * Narrowing this to the two transport descriptors would need per-fd counters
+   * (`/proc/<pid>/fdinfo/0` and `/1` positions); noted as the next step on the
+   * wedge this capture exists for, issue #1657.
+   */
   readBytes: number;
   writeBytes: number;
   threads: number;
@@ -685,10 +698,14 @@ function readProcSample(pid: number): ProcSample | undefined {
  * causes, and the three probes cannot separate them: a server spinning on a
  * lock, a server idle because its stdin reader has stopped routing, a server
  * that already died, or an extension host too blocked to have sent the request
- * at all. Two `/proc` samples separate the first three by whether CPU and pipe
- * bytes are still moving, an event-loop dilation sample separates the fourth,
- * and the tail of the captured server log says what the server last did before
- * it went quiet.
+ * at all. Two `/proc` samples narrow the first three by whether the process is
+ * burning CPU and whether it is moving any bytes at all, an event-loop dilation
+ * sample separates the fourth, and the tail of the captured server log says what
+ * the server last did before it went quiet.
+ *
+ * These are *readings*, not verdicts, and the byte counters in particular are
+ * process-wide rather than per-descriptor — see [`ProcSample`] for what may and
+ * may not be concluded from them.
  *
  * Best-effort and non-throwing throughout: every reading degrades to a note
  * saying it was unavailable. Costs [`PROC_SAMPLE_INTERVAL_MS`], and is asked
@@ -720,15 +737,20 @@ export async function serverStateEvidence(): Promise<string> {
     const wrote = after.writeBytes - before.writeBytes;
     lines.push(
       `server process: pid ${pid}, state ${after.state}, ${after.threads} thread(s); over the ` +
-        `sample it burned ${cpu} CPU tick(s), read ${read} byte(s) and wrote ${wrote} byte(s)`,
+        `sample it burned ${cpu} CPU tick(s) and moved ${read} byte(s) in / ${wrote} byte(s) out ` +
+        `across all descriptors (aggregate process I/O, not the LSP pipes alone)`,
     );
     lines.push(
       cpu > 0
         ? "  -> it is running, so suspect a spin or a long computation holding a lock, not a dead process"
         : read > 0 || wrote > 0
-          ? "  -> it is idle but still moving bytes, so the transport is alive and the work is parked"
-          : "  -> it is idle and moving no bytes at all: nothing is being read from stdin or written " +
-            "to stdout, which is the stdin-reader-stopped shape",
+          ? "  -> it is idle but some I/O is still happening somewhere in the process. These " +
+            "counters aggregate every descriptor, so this does NOT show the transport is alive — " +
+            "a pack-discovery walk or a source scan reads files too. Treat it as 'the process is " +
+            "not wholly stopped' and no more."
+          : "  -> it is idle and moved no bytes at all, which necessarily includes stdin and " +
+            "stdout: nothing is being read from or written to the LSP pipes. This is the " +
+            "stdin-reader-stopped shape, and it is the one conclusive reading here.",
     );
   }
   const log = getServerLog();

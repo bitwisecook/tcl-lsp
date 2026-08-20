@@ -63,23 +63,39 @@ than a healthy one, even when the starvation probe cannot confirm it.
 
 ## What the server was doing
 
-Below the three per-question lines is a capture of the process itself, which is
-what turns a `SERVER WEDGED` verdict from "re-run it" into a diagnosis. Read it
-in this order:
+Below the three per-question lines is a reading of the server program itself,
+which is what turns a `SERVER WEDGED` verdict from "re-run it" into a diagnosis.
 
-1. **`extension host: a 250ms timer woke Nx late`.** If that is `2x` or more,
-   the extension host's own event loop was blocked and the request may never
+A few words used below, in plain terms. The **process id** is the number the
+operating system uses to identify a running program. **Processor time** is how
+much work the program has actually been given to do, counted in the small fixed
+units the operating system reports. **Standard input** and **standard output**
+are the two channels the editor and the server talk over. A **lock** is a claim
+one part of the program takes so that only it may touch a piece of shared state;
+while it is held, everything else that wants that state waits.
+
+Read the block in this order.
+
+1. **`extension host: a 250ms timer woke Nx late`.** The extension host is the
+   VS Code process the tests run inside. If the figure is `2x` or more, that
+   process was too busy to run its own work on time, so the request may never
    have left it — the server is not necessarily implicated at all.
-2. **`server process: pid N, state S, T thread(s) … burned C CPU tick(s), read R
-   byte(s) and wrote W byte(s)`.** These are deltas over a quarter-second, and
-   the line after them says which shape they are:
-   - CPU moving → the server is running. Suspect a spin, or a long computation
-     holding a lock every other request needs.
-   - no CPU but bytes moving → the transport is alive and the work is parked.
-     Suspect a barrier (`edits_settled`) or a mutex, not the pipe.
-   - neither moving → nothing is being read from stdin or written to stdout.
-     That is the stdin-reader-stopped shape; see `transport_liveness.rs`.
-   - `state Z` → the process is a zombie; it already exited.
+2. **`server process: pid N, state S, T thread(s) … burned C CPU tick(s) and
+   moved R byte(s) in / W byte(s) out`.** These are changes measured over a
+   quarter of a second, and the line after them says which shape they are:
+   - processor time moving → the server is running. Suspect a loop that never
+     finishes, or a long computation holding a lock every other request needs.
+   - no processor time but bytes still moving → the program is not wholly
+     stopped, and that is all this says. The byte counters cover **every** file
+     and channel the program uses, not only the two it talks to the editor over,
+     so a pack-discovery walk reading files from disk moves them too. Do not read
+     it as proof that the editor channel is alive.
+   - neither moving → the program read and wrote nothing at all, which
+     necessarily includes the two editor channels. This is the one conclusive
+     reading in the block: the server has stopped reading its input. See
+     `transport_liveness.rs`.
+   - `state Z` → the program has already exited and only its exit status
+     remains.
 3. **`server log: last N of M line(s)`.** The server's own `[timing]` markers,
    which name the last thing it got through before it went quiet.
 
@@ -88,15 +104,15 @@ child process where `serverProcessId` looks (`helper.ts`) — a
 vscode-languageclient upgrade is the usual cause. `waitDiscipline.test.ts` has
 an assertion that fails on exactly that, so it should not reach you silently.
 
-## Why the first question carries no URI
+## Why the first question carries no file name
 
-The first question is asked with **no URI** (`tcl-lsp.getEffectiveConfig` with
-an empty argument), and that is load-bearing. Given a document URI the same
-command runs `read_document`, which waits on the server's global `EditOrder`
-barrier and then takes the `documents` lock and the salsa `db` mutex — every one
-of which can be held by exactly the stall being diagnosed. It would then be a
-document question wearing a transport question's label. If you add a liveness
-check of your own, pass `""`.
+The first question is asked with **no file name** (`tcl-lsp.getEffectiveConfig`
+with an empty argument), and that is load-bearing. Given a file name, the same
+command reads that document — which first waits for every edit the editor has
+already sent to be applied, and then takes two of the locks described above.
+Every one of those can be held by exactly the stall being diagnosed, so the
+question would be a document question wearing a transport question's label. If
+you add a liveness check of your own, pass `""`.
 
 If the verdict is missing entirely, the failing wait is not one that carries a
 liveness probe. Add one at the call site with

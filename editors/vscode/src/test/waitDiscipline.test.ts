@@ -448,8 +448,17 @@ suite("Wait discipline (issue #1274)", () => {
     );
     assert.match(
       evidence,
-      /CPU tick\(s\), read \d+ byte\(s\) and wrote \d+ byte\(s\)/,
-      `the CPU and pipe-byte deltas are what separate spinning from parked: ${evidence}`,
+      /CPU tick\(s\) and moved \d+ byte\(s\) in \/ \d+ byte\(s\) out/,
+      `the CPU and byte deltas are what separate spinning from stopped: ${evidence}`,
+    );
+    // The byte counters are process-wide (`/proc/<pid>/io` aggregates every
+    // descriptor), so the reading must say so rather than let a reader take
+    // movement as proof the LSP pipes are draining — a pack-discovery walk
+    // moves them too.
+    assert.match(
+      evidence,
+      /aggregate process I\/O, not the LSP pipes alone/,
+      `the byte counters must be labelled as process-wide: ${evidence}`,
     );
     assert.match(evidence, /server log:/, `the server's last words must be quoted: ${evidence}`);
   });
