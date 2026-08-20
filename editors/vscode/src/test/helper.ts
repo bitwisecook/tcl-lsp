@@ -17,12 +17,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import * as vscode from "vscode";
+import * as fs from "fs";
 import * as path from "path";
 
 import {
   awaitSignal,
   bounded,
   scaledTimeout,
+  sleep,
   WAIT_TIMEOUT_MARKER,
   type TimeoutDiagnostic,
 } from "./signal";
@@ -607,6 +609,148 @@ const LIVENESS_PROBE_FIXTURE = "livenessProbe.tcl";
  *  answered in this long has answered "no". */
 const LIVENESS_PROBE_BUDGET_MS = 4_000;
 
+/** Interval between the two `/proc` samples [`serverStateEvidence`] takes.
+ *  Long enough that a busy process accrues visible CPU and a draining pipe
+ *  visible bytes; short enough to hide entirely inside the concurrent probes. */
+const PROC_SAMPLE_INTERVAL_MS = 250;
+
+/** How many trailing server log lines [`serverStateEvidence`] quotes. Enough to
+ *  see what the server was doing when it went quiet, few enough to keep a
+ *  failure message readable. */
+const SERVER_LOG_TAIL_LINES = 6;
+
+/** One `/proc` sample of the server process, or `undefined` where the file is
+ *  unreadable (a non-Linux host, or the process is already gone). */
+interface ProcSample {
+  /** The single-letter state from `/proc/<pid>/stat` — `R`, `S`, `D`, `Z`. */
+  state: string;
+  /** `utime + stime` in clock ticks: CPU the process has ever consumed. */
+  cpuTicks: number;
+  /** `rchar` / `wchar` from `/proc/<pid>/io`: bytes read/written, which for
+   *  this process is dominated by the LSP pipes. */
+  readBytes: number;
+  writeBytes: number;
+  threads: number;
+}
+
+/** The server's pid, via the language client's child process.
+ *
+ * Reaching into `_serverProcess` is deliberate: `LanguageClient` exposes no
+ * public accessor, and this is test-only diagnostic code that must degrade to
+ * `undefined` rather than fail. */
+function serverProcessId(): number | undefined {
+  try {
+    const ext = vscode.extensions.getExtension("bitwisecook.tcl-lsp");
+    const client = ext?.exports?.getClient?.() as { _serverProcess?: { pid?: number } } | undefined;
+    const pid = client?._serverProcess?.pid;
+    return typeof pid === "number" ? pid : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Read one [`ProcSample`]. Never throws. */
+function readProcSample(pid: number): ProcSample | undefined {
+  try {
+    // The comm field is parenthesised and may itself contain spaces, so split
+    // after the last `)` rather than on whitespace from the start.
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    const rest = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+    // Fields after comm are 1-indexed from `state`: state=0, utime=11, stime=12.
+    const state = rest[0] ?? "?";
+    const cpuTicks = Number(rest[11] ?? 0) + Number(rest[12] ?? 0);
+    const io = fs.readFileSync(`/proc/${pid}/io`, "utf8");
+    const field = (name: string) =>
+      Number(new RegExp(`^${name}:\\s*(\\d+)`, "m").exec(io)?.[1] ?? 0);
+    const status = fs.readFileSync(`/proc/${pid}/status`, "utf8");
+    const threads = Number(/^Threads:\s*(\d+)/m.exec(status)?.[1] ?? 0);
+    return {
+      state,
+      cpuTicks,
+      readBytes: field("rchar"),
+      writeBytes: field("wchar"),
+      threads,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * What the server process and this extension host were *doing* while the probes
+ * went unanswered — the capture issue #1600 asks for, so a wedge is
+ * attributable on its first occurrence instead of only re-runnable.
+ *
+ * A verdict of "nothing answered" is a symptom with several very different
+ * causes, and the three probes cannot separate them: a server spinning on a
+ * lock, a server idle because its stdin reader has stopped routing, a server
+ * that already died, or an extension host too blocked to have sent the request
+ * at all. Two `/proc` samples separate the first three by whether CPU and pipe
+ * bytes are still moving, an event-loop dilation sample separates the fourth,
+ * and the tail of the captured server log says what the server last did before
+ * it went quiet.
+ *
+ * Best-effort and non-throwing throughout: every reading degrades to a note
+ * saying it was unavailable. Costs [`PROC_SAMPLE_INTERVAL_MS`], and is asked
+ * concurrently with the probes so it adds nothing to the diagnostic's wall
+ * clock.
+ */
+export async function serverStateEvidence(): Promise<string> {
+  const pid = serverProcessId();
+  const before = pid === undefined ? undefined : readProcSample(pid);
+  const hostStalled = await eventLoopDilation();
+  const after = pid === undefined ? undefined : readProcSample(pid);
+
+  const lines: string[] = [];
+  lines.push(
+    `extension host: a ${PROC_SAMPLE_INTERVAL_MS}ms timer woke ${hostStalled.toFixed(1)}x late, so ` +
+      (hostStalled >= 2
+        ? "the host's own event loop is blocked — the request may never have been sent"
+        : "the host is dispatching normally and the request did leave it"),
+  );
+  if (pid === undefined) {
+    lines.push("server process: pid unavailable (no child process on the language client)");
+  } else if (!before || !after) {
+    lines.push(
+      `server process: pid ${pid}, but /proc is unreadable (already exited, or not Linux)`,
+    );
+  } else {
+    const cpu = after.cpuTicks - before.cpuTicks;
+    const read = after.readBytes - before.readBytes;
+    const wrote = after.writeBytes - before.writeBytes;
+    lines.push(
+      `server process: pid ${pid}, state ${after.state}, ${after.threads} thread(s); over the ` +
+        `sample it burned ${cpu} CPU tick(s), read ${read} byte(s) and wrote ${wrote} byte(s)`,
+    );
+    lines.push(
+      cpu > 0
+        ? "  -> it is running, so suspect a spin or a long computation holding a lock, not a dead process"
+        : read > 0 || wrote > 0
+          ? "  -> it is idle but still moving bytes, so the transport is alive and the work is parked"
+          : "  -> it is idle and moving no bytes at all: nothing is being read from stdin or written " +
+            "to stdout, which is the stdin-reader-stopped shape",
+    );
+  }
+  const log = getServerLog();
+  const tail = log.slice(-SERVER_LOG_TAIL_LINES);
+  lines.push(
+    tail.length === 0
+      ? `server log: nothing captured (${getServerLogSize()} line(s) total)`
+      : `server log: last ${tail.length} of ${getServerLogSize()} line(s) —\n      ` +
+          tail.join("\n      "),
+  );
+  return lines.map((line) => `    ${line}`).join("\n");
+}
+
+/** Median lateness of a [`PROC_SAMPLE_INTERVAL_MS`] timer, as a multiple of the
+ *  interval asked for — the extension host's own event-loop stall, measured on
+ *  the host that would have had to dispatch the unanswered request. */
+async function eventLoopDilation(): Promise<number> {
+  const started = Date.now();
+  await sleep(PROC_SAMPLE_INTERVAL_MS);
+  return (Date.now() - started) / PROC_SAMPLE_INTERVAL_MS;
+}
+
 /**
  * Set once a liveness probe has confirmed a **transport-level** wedge: the
  * server did not answer even a request that touches no document.
@@ -770,6 +914,12 @@ async function probeOutcome(
  * 3. A retry of the same request on the stalled document, which distinguishes a
  *    permanently wedged queue from a request that was simply dropped.
  *
+ * Alongside them, [`serverStateEvidence`] reads what the server process and
+ * this extension host were actually *doing* — the capture issue #1600 asks for.
+ * Three unanswered probes say "nothing answered"; they do not say whether the
+ * server was spinning, parked, or had stopped reading stdin, and without that
+ * a wedge is only ever re-runnable.
+ *
  * Every question is separately bounded and none may throw: the test is already
  * failing, and a diagnostic that hangs turns an attributable failure into an
  * unattributable one.
@@ -782,7 +932,7 @@ export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnos
     // them in series would make the whole diagnostic cost three budgets — which
     // on a loaded machine is long enough for `bounded`'s own cap to truncate
     // the answer, exactly when the answer is most wanted.
-    const [transport, otherDoc, retry] = await Promise.all([
+    const [transport, otherDoc, retry, evidence] = await Promise.all([
       // `""`, not `stalledUri` — the same document-free form `probeServer`
       // (the heartbeat's liveness probe) uses, and the form the extension's own
       // pack sync uses.
@@ -818,6 +968,10 @@ export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnos
           ),
         budget,
       ),
+      // Asked alongside them, not after: what the process was doing *while* the
+      // questions went unanswered is the whole value of the reading, and it is
+      // over long before the probes are.
+      serverStateEvidence(),
     ]);
 
     // Latch the terminal verdict so the rest of the run stops paying full wait
@@ -833,7 +987,8 @@ export function serverLivenessDiagnostic(stalledUri: vscode.Uri): TimeoutDiagnos
       `LIVENESS: ${classifyLiveness({ transport, otherDocument: otherDoc, retry })}\n` +
       `    ${describe("document-free getEffectiveConfig", transport)}\n` +
       `    ${describe(`hover on ${LIVENESS_PROBE_FIXTURE} (a different document)`, otherDoc)}\n` +
-      `    ${describe("hover retried on the stalled document", retry)}`
+      `    ${describe("hover retried on the stalled document", retry)}\n` +
+      `${evidence}`
     );
   };
 }

@@ -32,6 +32,7 @@ import {
   type ProbeOutcome,
   resetServerTransportWedged,
   scaledTimeout,
+  serverStateEvidence,
   serverTransportWedged,
   waitForDiagnostics,
   waitForProviderResult,
@@ -413,6 +414,44 @@ suite("Wait discipline (issue #1274)", () => {
     assert.strictEqual(serverTransportWedged(), true, "a transport wedge must latch");
 
     resetServerTransportWedged();
+  });
+
+  // Issue #1600: three unanswered probes say "nothing answered"; they do not
+  // say whether the server was spinning, parked, or had stopped reading stdin,
+  // and a wedge that cannot be told apart from those is only ever re-runnable.
+  // This pins the capture that closes that gap.
+  test("the liveness diagnostic captures what the server process was doing", async () => {
+    // Needs a running server to have a process to read: `activate` is what
+    // guarantees one, and every other test in this file that touches the
+    // server does the same.
+    await activate(getDocUri("simple.tcl"));
+    const evidence = await serverStateEvidence();
+
+    assert.match(
+      evidence,
+      /extension host: a \d+ms timer woke [\d.]+x late/,
+      `the host's own event-loop stall must be reported: ${evidence}`,
+    );
+    // Not merely "some string": the pid comes from a private field on
+    // `LanguageClient`, which has no public accessor. If a vscode-languageclient
+    // upgrade renames it the capture degrades silently to nothing, which is
+    // exactly the rot this assertion exists to catch.
+    assert.doesNotMatch(
+      evidence,
+      /pid unavailable/,
+      `the server pid must still be reachable from the language client: ${evidence}`,
+    );
+    assert.match(
+      evidence,
+      /server process: pid \d+, state \S+, \d+ thread\(s\)/,
+      `the process reading must name state and thread count: ${evidence}`,
+    );
+    assert.match(
+      evidence,
+      /CPU tick\(s\), read \d+ byte\(s\) and wrote \d+ byte\(s\)/,
+      `the CPU and pipe-byte deltas are what separate spinning from parked: ${evidence}`,
+    );
+    assert.match(evidence, /server log:/, `the server's last words must be quoted: ${evidence}`);
   });
 
   test("a timeout carries its follow-up probe's verdict", async () => {
