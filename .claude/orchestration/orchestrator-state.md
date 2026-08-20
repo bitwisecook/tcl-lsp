@@ -208,3 +208,4 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - Lane F9 LAUNCHED (a85000918a6c310be, opus, worktree): #1608+#1617, branch claude/f9-fixes-1608-1617. Brief now includes the WASM-SAFETY doctrine (crate::rt::Instant + make lsp-server-wasm-test for server-touching changes — codifying the #1661/#1665 lesson) alongside wedge policy + durability rules.
 - F6v2 told to RESUME the #1657 census with the revised lost-wakeup design (phase marker on TurnHolder + snapshot count/age), rebased on current rust, wasm-discipline on all instrumentation.
 - Queue after F9: findings pool #1644 #1656 #1660; E1 finish low. Remaining pre-release pool is thinning fast.
+- 16:46Z: Deploy run 289 SUCCESS on #1666's merge push — two consecutive green deploys; the wake-set server change is wasm-clean. Board steady: F6v2 (census), F9 (#1608+#1617). 17:29Z check-in armed.
