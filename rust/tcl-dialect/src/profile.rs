@@ -180,17 +180,6 @@ pub struct DialectProfile {
     /// language; the dialect's files (if any) ride the plain `tcl`
     /// language and server-side detection routes them.
     pub editor_language_id: Option<&'static str>,
-    /// The filename extensions this dialect owns, each with its
-    /// human-facing name (`xdc` / "Xilinx Design Constraints"). This is
-    /// the source of truth its consumers project: extension→dialect
-    /// routing (`tcl-registry`'s `dialect_from_extension` fallback), the
-    /// editors' registered extension lists (`cargo xtask
-    /// gen-editor-extensions`), and any UI that names a file type.
-    /// Lower-case, no leading dot, unique across the catalog. `SpecTcl`
-    /// packs can register further extensions at load time
-    /// (`file_extension` rows) — those layer on top of, and are consulted
-    /// before, this static set.
-    pub file_extensions: &'static [DialectFileExtension],
     /// Whole *basenames* this dialect owns, matched instead of an extension
     /// (`bigip.conf`, `bigip_base.conf`). Lower-case, compared
     /// case-insensitively against a path's last component, unique across the
@@ -210,6 +199,17 @@ pub struct DialectProfile {
     /// specific claim), and `cargo xtask gen-editor-extensions` projects it
     /// into each editor's per-language `filenames` list.
     pub filenames: &'static [&'static str],
+    /// The filename extensions this dialect owns, each with its
+    /// human-facing name (`xdc` / "Xilinx Design Constraints"). This is
+    /// the source of truth its consumers project: extension→dialect
+    /// routing (`tcl-registry`'s `dialect_from_extension` fallback), the
+    /// editors' registered extension lists (`cargo xtask
+    /// gen-editor-extensions`), and any UI that names a file type.
+    /// Lower-case, no leading dot, unique across the catalog. `SpecTcl`
+    /// packs can register further extensions at load time
+    /// (`file_extension` rows) — those layer on top of, and are consulted
+    /// before, this static set.
+    pub file_extensions: &'static [DialectFileExtension],
     /// Native tag of this dialect's own command surface, if any (`IRULES`,
     /// `IAPPS`, `EXPECT`, an EDA vendor, `BPF`). `None` for the plain
     /// Tcl-version profiles, the config-only dialects, and the permissive

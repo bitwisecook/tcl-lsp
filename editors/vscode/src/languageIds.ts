@@ -118,10 +118,21 @@ export const FILENAME_LANGUAGE_IDS: Record<string, string> = {
 export function tclLanguageIdForPath(path: string): string | undefined {
   const basename = path.split(/[/\\]/).pop() ?? path;
   const lower = basename.toLowerCase();
-  const byName = FILENAME_LANGUAGE_IDS[lower];
+  const byName = lookup(FILENAME_LANGUAGE_IDS, lower);
   if (byName) {
     return byName;
   }
   const dot = lower.lastIndexOf(".");
-  return dot < 0 ? undefined : EXTENSION_LANGUAGE_IDS[lower.slice(dot)];
+  return dot < 0 ? undefined : lookup(EXTENSION_LANGUAGE_IDS, lower.slice(dot));
+}
+
+/**
+ * Read `key` from a generated map, ignoring everything the object inherits.
+ *
+ * The keys here come from a *filename*, so a plain `map[key]` answers for
+ * `constructor` and `__proto__` with something off `Object.prototype` — a file
+ * named `constructor` would resolve to a function, not a language id.
+ */
+function lookup(map: Record<string, string>, key: string): string | undefined {
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
 }

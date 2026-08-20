@@ -165,6 +165,17 @@ suite("Language-id projection", () => {
     assert.strictEqual(tclLanguageIdForPath("Makefile"), undefined);
   });
 
+  test("a filename that names an Object.prototype member resolves to nothing", () => {
+    // The lookup keys are filenames, so a plain `map[key]` answers for
+    // `constructor` / `__proto__` / `toString` with something inherited — a
+    // file called `constructor` would resolve to a *function* posing as a
+    // language id, and be handed to `setTextDocumentLanguage`.
+    for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
+      assert.strictEqual(tclLanguageIdForPath(`/w/${name}`), undefined, name);
+      assert.strictEqual(tclLanguageIdForExtension(`.${name}`), "tcl", name);
+    }
+  });
+
   test("every registered language id is one we recognise as Tcl", () => {
     // The two generated maps and the generated id set are projections of one
     // catalogue; a mapping that named an id outside `TCL_LANGUAGE_IDS` would

@@ -420,5 +420,8 @@ function ownedTclExtensions(context: ExtensionContext): Set<string> {
  * `contributes.languages` registers.
  */
 export function tclLanguageIdForExtension(ext: string): string {
-  return EXTENSION_LANGUAGE_IDS[ext.toLowerCase()] ?? "tcl";
+  const key = ext.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(EXTENSION_LANGUAGE_IDS, key)
+    ? EXTENSION_LANGUAGE_IDS[key]
+    : "tcl";
 }
