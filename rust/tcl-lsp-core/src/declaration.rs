@@ -42,9 +42,16 @@ use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
 
 /// Recursion depth guard for nested body walks — a defensive stack-overflow
-/// bound, set to match the compiler analyser's `MAX_BODY_DEPTH` so deeply (but
-/// validly) nested code keeps full go-to-declaration support. Real source never
-/// nests anywhere near this.
+/// bound, kept at or above the compiler analyser's own `MAX_BODY_DEPTH` so
+/// deeply (but validly) nested code keeps full go-to-declaration support.
+/// Real source never nests anywhere near this.
+///
+/// It used to be the same 256 that cap was; since issue #1654 the compiler
+/// derives its number from a stack budget and lands well below this one, so
+/// a body tree this walk receives from the analyser can no longer reach
+/// here at all. The bound stays as defence-in-depth against a tree built or
+/// received some other way — the same role
+/// `document_symbols`' `MAX_SCOPE_WALK_DEPTH` plays.
 const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
 
 use crate::definition::{LspRange, byte_offset_at, definition, scope_body_spans_at, span_to_range};

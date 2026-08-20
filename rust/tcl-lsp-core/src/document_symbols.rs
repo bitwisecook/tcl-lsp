@@ -1227,7 +1227,9 @@ mod tests {
     /// recurse once per nested namespace/proc scope, with no depth cap
     /// before this fix (`MAX_SCOPE_WALK_DEPTH`, `crate::lib`). A `Scope`
     /// tree built by the real analyser can never exceed its own
-    /// `MAX_BODY_DEPTH` (256) in practice, so this exercises deep-but-valid
+    /// `MAX_BODY_DEPTH` (256 when this was written; derived from a stack
+    /// budget and lower still since issue #1654), so this exercises
+    /// deep-but-valid
     /// nesting rather than this crate's own cap tripping — that cap is
     /// defence-in-depth against a scope tree built/received some other way.
     ///

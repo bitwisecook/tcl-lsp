@@ -70,7 +70,12 @@ type CollectedHead = (
 /// diagnostics worker and the `tcl diag` / `lint` / `validate` CLIs. At
 /// the cap we stop descending into further nested bodies (the diagnostics
 /// already collected stand); no real source nests anywhere near this.
-const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+///
+/// The number itself is [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`],
+/// derived there from a stack budget and a measured per-level cost rather
+/// than picked to match a convention — see issue #1654 for what the old
+/// hand-picked 256 cost.
+const MAX_BODY_DEPTH: tcl_core_types::RecursionLimit = crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
 /// The borrowed word-level view of one command, threaded into the
 /// dispatch-site diagnostic emitter ([`Analyser::emit_dispatch_site_diagnostics`]).

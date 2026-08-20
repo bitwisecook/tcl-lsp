@@ -1363,6 +1363,7 @@ impl Analyser {
             name_span,
             body_span: body_tok.span,
             metaclass: cmd_name.to_string(),
+            metaclass_provenance: super::types::MetaclassProvenance::Observed,
             doc,
             ..Default::default()
         };
@@ -1743,6 +1744,7 @@ impl Analyser {
             name_span,
             body_span: body_tok.span,
             metaclass: cmd_name.to_string(),
+            metaclass_provenance: super::types::MetaclassProvenance::Observed,
             doc,
             ..Default::default()
         };

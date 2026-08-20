@@ -203,7 +203,19 @@ pub(crate) struct CfgBuilder {
 /// treat the over-deep script as a non-fall-through tail, yielding a
 /// truncated-but-valid CFG instead of a crash. No real source nests
 /// anywhere near this.
-const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+///
+/// Shares [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`] with the lowering
+/// and analyser body walks — one budget, derived from a measured per-level
+/// stack cost, rather than three copies of a hand-picked 256 (issue #1654).
+///
+/// Through the normal pipeline this cap is **unreachable**: `lowering`'s
+/// copy of the same number already bounds the IR handed here, so a
+/// `Module` built from source cannot nest deeper than the cap in the first
+/// place. It matters for a host that builds a `Module` some other way, and
+/// its 8,288 bytes a level is what the budget must still afford for that
+/// caller — the same defence-in-depth role the optimiser and codegen walks
+/// play over the same IR.
+const MAX_LOWER_DEPTH: tcl_core_types::RecursionLimit = crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
 /// Maximum nested-`[...]` descent depth for
 /// [`CfgBuilder::upvar_defs_from_text_bounded`] /

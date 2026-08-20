@@ -4541,7 +4541,7 @@ mod report_scoped_commands {
 // ===========================================================================
 mod class_factories {
     use super::*;
-    use tcl_compiler::analyser::{AnalysisResult, ClassDef};
+    use tcl_compiler::analyser::{AnalysisResult, ClassDef, MetaclassProvenance};
 
     fn analysis(src: &str, dialect: &str) -> AnalysisResult {
         Analyser::new().analyse(src, dialect)
@@ -5739,6 +5739,35 @@ mod class_factories {
     }
 
     #[test]
+    fn four_hundred_nested_foreach_bodies_do_not_abort_the_process() {
+        // Issue #1654, on this test's own default-sized thread — which is
+        // the whole point: the walks this drives must contain themselves on
+        // the 2 MiB every unremarkable caller gets, not only on the 64 MiB
+        // the CLI and the LSP worker ask for. No parameterised creation
+        // anywhere in the file, so none of the machinery above runs; this
+        // is the plain braced-body descent, whose caps were hand-picked at
+        // 256 and wanted about 4.6 MiB to reach it.
+        //
+        // Past the cap the analyser abstains with a notice rather than
+        // truncating in silence, so the assertion is E207 and a returned
+        // result — not a resolution of anything inside.
+        let src: String = (0..400)
+            .map(|i| format!("foreach v{i} {{a b}} {{\n"))
+            .chain(std::iter::once("set inner 1\n".to_owned()))
+            .chain((0..400).map(|_| "}\n".to_owned()))
+            .collect();
+        let codes: Vec<_> = analysis(&src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect();
+        assert!(
+            codes.iter().any(|code| code == "E207"),
+            "past the cap the walk must say it stopped; got {codes:?}"
+        );
+    }
+
+    #[test]
     fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
         // Native-stack safety net (#996's family) for the relaxation above:
         // the fall-through walk re-enters itself once per control body it
@@ -5749,13 +5778,14 @@ mod class_factories {
         // direction it already takes for anything it cannot read — so this
         // asserts termination and a well-formed result, not a resolution.
         //
-        // 64 is many times the cap (8) and far below the analyser's own
-        // whole-body nesting limit (`MAX_BODY_DEPTH`, 256), so a failure here
-        // is this walk's recursion and not the generic one's.
-        let nest: String = (0..64)
+        // 40 is many times this walk's cap (8) and comfortably below the
+        // braced-body descent's own limit (`MAX_BODY_DEPTH`, derived from a
+        // stack budget in `depth_guard` — see issue #1654), so a failure
+        // here is this walk's recursion and not the generic one's.
+        let nest: String = (0..40)
             .map(|i| format!("    foreach v{i} {{a b}} {{\n"))
             .chain(std::iter::once("    set zz 1\n".to_owned()))
-            .chain((0..64).map(|_| "    }\n".to_owned()))
+            .chain((0..40).map(|_| "    }\n".to_owned()))
             .collect();
         let src = COMPUTED_METACLASS.replace(
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
@@ -5861,6 +5891,160 @@ mod class_factories {
             !result.all_classes.contains_key("::T::${ns}::class"),
             "the unresolved placeholder must be retracted; got {:?}",
             result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn a_later_define_stub_does_not_cost_the_metaclass_its_factory() {
+        // TP (#1653) — an `oo::define` on the computed-name class creates a
+        // stub whose `metaclass` was never written, so it holds
+        // `ClassDef::default()`'s `"oo::class"`. That default is not an
+        // observation: joining it against the proved `::T::Mother` must not
+        // read as two walks disagreeing, which used to abstain the record
+        // down to `factory: None` with no superclasses.
+        let src =
+            format!("{COMPUTED_METACLASS}::oo::define ::T::D::class {{ method m {{}} {{}} }}\n");
+        let result = analysis(&src, "tcl9.0");
+        let class = result
+            .all_classes
+            .get("::T::D::class")
+            .expect("the resolved metaclass must still be recorded");
+        assert_eq!(
+            class.superclasses.as_slice(),
+            &["::T::Mother".to_owned()][..],
+            "the proved superclass must survive the stub join"
+        );
+        assert!(
+            result.class_factories().contains_key("::T::D::class"),
+            "the resolved metaclass must keep its factory; factories={:?}",
+            result.class_factories().keys().collect::<Vec<_>>()
+        );
+        assert!(
+            class.metaclass.ends_with("T::Mother"),
+            "the joined record must name the metaclass the source wrote, \
+             not the default stand-in; got {:?}",
+            class.metaclass
+        );
+        assert!(
+            class.methods.contains_key("m"),
+            "the stub's own member must still land; methods={:?}",
+            class.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            !class.via_define,
+            "the class is created in this file, so it is not an extension stub"
+        );
+    }
+
+    #[test]
+    fn a_define_stub_replaces_a_member_the_creation_body_also_declared() {
+        // #1653 — the two records the join unions are ordered whenever one
+        // of them is an `oo::define`: the class has to exist before it can
+        // be extended, so the stub ran second and its `method m` replaces.
+        // tclsh 8.6.16 on the same shape answers `{a b} …` for
+        // `info class definition ::T::D::class m`.
+        let src = format!(
+            "{}::oo::define ::T::D::class {{ method m {{a b}} {{}} }}\n",
+            COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                "    ::T::Mother create ${NSPACE}::class {\n\
+                 \x20       superclass ::T::Mother\n\
+                 \x20       method m {a} {}\n\
+                 \x20   }\n",
+            )
+        );
+        let result = analysis(&src, "tcl9.0");
+        let method = result
+            .all_classes
+            .get("::T::D::class")
+            .and_then(|class| class.methods.get("m"))
+            .expect("the contested member is recorded once");
+        assert_eq!(
+            method.params.len(),
+            2,
+            "the `oo::define` body's declaration is the live one; got {:?}",
+            method.params
+        );
+    }
+
+    #[test]
+    fn two_creations_naming_one_class_under_different_metaclasses_abstain() {
+        // FP guard for #1653 at the source level: the gate added there must
+        // stay a statement about *unobserved* metaclasses only. Both of
+        // these creations read a head word, and they disagree, so the
+        // record must still abstain — no factory, inheritance unknown —
+        // exactly as it did before the gate existed. Without this, dropping
+        // the `metaclass_provenance: Observed` at the creation site is invisible.
+        let src = concat!(
+            "namespace eval ::T {}\n",
+            "oo::class create ::T::MotherA { superclass oo::class }\n",
+            "oo::class create ::T::MotherB { superclass oo::class }\n",
+            "::T::MotherA create ::T::D::class { method m {} {} }\n",
+            "proc ::T::mk {name} {\n",
+            "    ::T::MotherB create ${name}::class { method m {} {} }\n",
+            "}\n",
+            "::T::mk ::T::D\n",
+        );
+        let result = analysis(src, "tcl9.0");
+        let class = result
+            .all_classes
+            .get("::T::D::class")
+            .expect("the contested class is still recorded");
+        assert!(
+            class.superclasses.is_empty()
+                && class.metaclass_provenance == MetaclassProvenance::Observed,
+            "both bodies declare no superclass, so the metaclass is the only \
+             thing this pair disagrees about"
+        );
+        assert!(
+            class.inheritance_unknown,
+            "two observed, disagreeing metaclasses must abstain the record"
+        );
+        assert!(
+            class.factory.is_none(),
+            "an abstaining record must publish no factory"
+        );
+    }
+
+    #[test]
+    fn a_define_stub_that_wins_the_join_still_sheds_its_stub_provenance() {
+        // The mirror of the case above (#1653): the stub declares the
+        // superclass and the creation body does not, so the *stub* is the
+        // more complete observation and wins the join. It is still not a
+        // cross-file extension record — this file creates the class — and
+        // the creation observation's own facts must survive underneath it.
+        let src = format!(
+            "{}::oo::define ::T::D::class {{ superclass ::T::Mother }}\n",
+            COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                "    ::T::Mother create ${NSPACE}::class { method m {} {} }\n",
+            )
+        );
+        let result = analysis(&src, "tcl9.0");
+        let class = result
+            .all_classes
+            .get("::T::D::class")
+            .expect("the resolved metaclass must still be recorded");
+        assert_eq!(
+            class.superclasses.as_slice(),
+            &["::T::Mother".to_owned()][..],
+            "the stub's superclass must survive"
+        );
+        assert!(
+            class.methods.contains_key("m"),
+            "the creation body's member must survive the stub winning; methods={:?}",
+            class.methods.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            class.metaclass.ends_with("T::Mother")
+                && class.metaclass_provenance == MetaclassProvenance::Observed,
+            "the winning stub never read a metaclass, so it must adopt the \
+             one the creation observed; got {:?}",
+            class.metaclass
+        );
+        assert!(
+            !class.via_define,
+            "a record one of whose observations is the creation is not a stub"
         );
     }
 

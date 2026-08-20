@@ -1193,6 +1193,28 @@ fn rehome_member(
     })
 }
 
+/// Where a [`ClassDef::metaclass`] value came from — issue #1653.
+///
+/// An enum rather than a bare flag because the interesting half is what the
+/// *default* means: `"oo::class"` sitting in a record no creation command
+/// ever touched is a placeholder, and a join that reads it as evidence
+/// invents a disagreement out of nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MetaclassProvenance {
+    /// Left at [`ClassDef::default()`]'s `"oo::class"` — no walk read it.
+    ///
+    /// The abstaining direction, and therefore the default: a record that
+    /// cannot say where its metaclass came from constrains nothing in a
+    /// join, while every consumer that simply reads `metaclass` keeps the
+    /// stand-in it always had.
+    #[default]
+    StandIn,
+    /// Read from a creation command's own head word — `oo::class create`
+    /// and the other `TclOO` metaclasses, `snit::type` / `snit::widget`,
+    /// `itcl::class`. The only spelling that is evidence.
+    Observed,
+}
+
 /// Class definition record.
 ///
 /// The structural fields (`superclasses`, `mixins`, `methods`,
@@ -1214,7 +1236,26 @@ pub struct ClassDef {
     /// Metaclass — one of ``"oo::class"`` / ``"oo::configurable"``
     /// / ``"oo::abstract"`` / ``"oo::singleton"``.  Defaults to
     /// ``"oo::class"``.
+    ///
+    /// The default is a *stand-in*, not a reading of the source: a record
+    /// built by anything other than a creation command — an
+    /// ``oo::define`` stub, the ``oo::objdefine`` holder — carries it
+    /// having observed nothing. [`Self::metaclass_provenance`] is what
+    /// tells the two apart.
     pub metaclass: String,
+    /// Where [`Self::metaclass`] came from — the observed-fields mask this
+    /// record needs, and the only entry it needs.
+    ///
+    /// Every other field defaults to a value that *is* its own "nothing
+    /// observed" reading — empty tables, empty superclass list, `None`,
+    /// `false`, a zero span — so a join can treat the default as a lower
+    /// bound and take the other side's. `metaclass` alone defaults to a
+    /// fabricated concrete name, which a join comparing it as evidence
+    /// reads as a walk having *proved* `oo::class`; a `via_define` stub for
+    /// a computed-name class made by `::T::Mother` then looked like two
+    /// walks disagreeing about the metaclass, and the record abstained down
+    /// to no factory and no superclasses (issue #1653).
+    pub metaclass_provenance: MetaclassProvenance,
     /// Direct superclasses in declaration order.  Each entry
     /// is a fully-qualified class name with leading ``::``.
     pub superclasses: Vec<String>,
@@ -1425,12 +1466,322 @@ pub struct ClassDef {
     pub factory: Option<ClassFactory>,
 }
 
+/// Concatenate an **appended** ordered slot (`variable`, `filter`) from a
+/// record whose words ran `from_ran_second` relative to `into`'s.
+///
+/// These slots accumulate rather than replace: on 8.6.16 and 9.0.4,
+/// `oo::class create C { filter f; variable x }` then
+/// `oo::define C { filter g; variable y }` reports filters `f g` and
+/// variables `x y`. A name the slot already carries is not repeated —
+/// declaring `variable x` twice leaves one `x` — and the surviving order
+/// is run order, which is why the earlier record's entries lead.
+///
+/// See [`ClassDef::absorb_declarations`] for the slots that replace instead.
+fn append_ordered_slot(into: &mut Vec<String>, from: &[String], from_ran_second: bool) {
+    let (mut merged, tail) = if from_ran_second {
+        (std::mem::take(into), from.to_vec())
+    } else {
+        (from.to_vec(), std::mem::take(into))
+    };
+    for name in tail {
+        if !merged.contains(&name) {
+            merged.push(name);
+        }
+    }
+    *into = merged;
+}
+
+/// Add `key`'s declaration to `table`, replacing an existing entry only
+/// when the contributing record is the one that ran second — see
+/// [`ClassDef::absorb_declarations`].
+fn insert_declaration<V: Clone>(
+    table: &mut HashMap<String, V>,
+    key: &str,
+    value: &V,
+    replace: bool,
+) {
+    match table.entry(key.to_owned()) {
+        std::collections::hash_map::Entry::Occupied(mut slot) => {
+            if replace {
+                slot.insert(value.clone());
+            }
+        }
+        std::collections::hash_map::Entry::Vacant(slot) => {
+            slot.insert(value.clone());
+        }
+    }
+}
+
+impl ClassDef {
+    /// Take every declaration `other` makes that this record does not
+    /// already carry.
+    ///
+    /// Two records can describe one class: the computed-name creation
+    /// observed inside a procedure body, and whatever the ordinary walk
+    /// already built under the proved name — in particular an
+    /// [`oo::define` stub](Self::via_define), whose members are a real
+    /// additional contribution to the same class rather than a second
+    /// reading of the same body. A join that simply picked the more
+    /// complete record therefore silently dropped the other's members,
+    /// which is how a stub's `method m` disappeared the moment the join
+    /// stopped abstaining (issue #1653).
+    ///
+    /// **This join knows the order.** An `oo::define` extending a class
+    /// necessarily runs after the creation it extends, so
+    /// [`via_define`](Self::via_define) tells the two records apart *and*
+    /// tells us which ran second. Every rule below is that ordering applied
+    /// to one kind of field, and each kind takes it differently — so the
+    /// rules are per-slot facts read off a real interpreter, not one
+    /// pattern assumed to generalise. Measured identically on tclsh 8.6.16
+    /// and 9.0.4, `oo::class create C {…}` followed by `oo::define C {…}`:
+    ///
+    /// | field | second definition supplies | result |
+    /// |---|---|---|
+    /// | `method m {a}` → `method m {a b}` | a new body | `{a b} …` — replace |
+    /// | `export m` → `unexport m` | the opposite bit | unexported; `m` leaves the public table |
+    /// | `mixin ::A` → `mixin ::B` | a new list | `::B` — replace (`mixin -append` is the additive form) |
+    /// | `superclass ::S0` → `superclass ::S9` | a new list | `::S9` — replace |
+    /// | `filter f` → `filter g` | another filter | `f g` — **append** |
+    /// | `variable x` → `variable y` | another name | `x y` — **append**, de-duplicated |
+    /// | `method m` → `deletemethod m` | a retraction | `m` is gone; dispatch raises `unknown method "m"` |
+    ///
+    /// So:
+    ///
+    /// * **Keyed tables** (`methods`, `class_methods`, `properties`,
+    ///   `linked_members`) union, and a key both records declare goes to
+    ///   whichever ran second. Where neither side is a stub the choice
+    ///   cannot matter: a second creation under a name already taken never
+    ///   runs (`can't create object "::D::class": command already exists
+    ///   with that name`, same tclsh), so two non-stub observations are two
+    ///   readings of one body and a colliding key holds the same
+    ///   declaration either way. This record then keeps its own, being the
+    ///   observation the caller judged more complete.
+    /// * **Visibility** (`exports`/`unexports` and the class-side pair) is
+    ///   one bit per member, not two independent sets, so a union can leave
+    ///   a member in both — and a workspace consumer reads an `exports`
+    ///   entry as decisive, which would advertise a method the later
+    ///   definition took away. The later record's bit wins and clears its
+    ///   opposite, the same last-writer-exclusive update
+    ///   `oo::apply_visibility_member` performs while walking one body.
+    /// * **Replaced ordered slots** (`mixins`) take the later record's list
+    ///   whole when it has one, and the earlier record's only when the
+    ///   later never set the slot.
+    /// * **Appended ordered slots** (`variables`, `filters`,
+    ///   `class_filters`) concatenate in run order, dropping a name the
+    ///   list already carries — `variable x` twice leaves one `x`.
+    /// * **Whole-body singletons** (`constructors`, `destructor`) follow the
+    ///   replace rule, taking the earlier record's only when the later
+    ///   declares none.
+    /// * **Retractions** are *applied*, not merely carried. A `deletemethod`
+    ///   in the later record removes the member from the joined table and a
+    ///   `renamemethod` moves it, because this join is the point where the
+    ///   ordering is known. The tombstones ride along as well, for the
+    ///   cross-file consumer that still needs them, but compiler-side
+    ///   consumers of `all_classes` never apply the workspace retraction
+    ///   fold and would otherwise treat a deleted member as live.
+    ///
+    /// Two observations of one identical body — the case this join was
+    /// written for, where neither record is a stub — remain a no-op under
+    /// every rule above.
+    ///
+    /// Identity, spans, provenance flags and `definition_aborts` are not
+    /// declarations and are left to the caller;
+    /// [`definition_aborts`](Self::definition_aborts) in particular is
+    /// transient and already consumed by W315 before either record reaches
+    /// a join.
+    pub(crate) fn absorb_declarations(&mut self, other: &Self) {
+        // Destructured exhaustively on purpose: a field added to
+        // `ClassDef` fails to compile here until it has been classified,
+        // rather than being quietly dropped by every join.
+        let Self {
+            name: _,
+            qualified_name: _,
+            name_span: _,
+            body_span: _,
+            metaclass: _,
+            metaclass_provenance: _,
+            superclasses: _,
+            mixins,
+            methods,
+            class_methods,
+            constructors,
+            destructor,
+            variables,
+            properties,
+            filters,
+            class_filters,
+            exports,
+            unexports,
+            class_exports,
+            class_unexports,
+            retracted_members,
+            definition_aborts: _,
+            renamed_members,
+            linked_members,
+            doc,
+            via_define,
+            inheritance_unknown: _,
+            class_command_fallback: _,
+            member_set_incomplete: _,
+            factory: _,
+        } = other;
+
+        // `other` is the `oo::define` that extends what this record created,
+        // so it ran second and its declarations replace rather than add.
+        // When *this* record is the stub the ordering is simply reversed:
+        // `other` ran first and only fills what this one never mentions.
+        let other_ran_second = *via_define && !self.via_define;
+        for (key, def) in methods {
+            insert_declaration(&mut self.methods, key, def, other_ran_second);
+        }
+        for (key, def) in class_methods {
+            insert_declaration(&mut self.class_methods, key, def, other_ran_second);
+        }
+        for (key, def) in properties {
+            insert_declaration(&mut self.properties, key, def, other_ran_second);
+        }
+        for (key, target) in linked_members {
+            insert_declaration(&mut self.linked_members, key, target, other_ran_second);
+        }
+
+        for side in [MemberSide::Instance, MemberSide::ClassObject] {
+            let (other_exports, other_unexports) = match side {
+                MemberSide::Instance => (exports, unexports),
+                MemberSide::ClassObject => (class_exports, class_unexports),
+            };
+            self.absorb_visibility(side, other_exports, other_unexports, other_ran_second);
+        }
+
+        // `mixin` (and the whole-body singletons) replace the slot;
+        // `variable` / `filter` append to it. Both confirmed on 8.6.16 and
+        // 9.0.4 — see this function's table.
+        if other_ran_second && !mixins.is_empty() || self.mixins.is_empty() {
+            self.mixins.clone_from(mixins);
+        }
+        for (into, from) in [
+            (&mut self.variables, variables),
+            (&mut self.filters, filters),
+            (&mut self.class_filters, class_filters),
+        ] {
+            append_ordered_slot(into, from, other_ran_second);
+        }
+        if other_ran_second && !constructors.is_empty() || self.constructors.is_empty() {
+            self.constructors.clone_from(constructors);
+        }
+        if other_ran_second && destructor.is_some() || self.destructor.is_none() {
+            self.destructor.clone_from(destructor);
+        }
+
+        for record in retracted_members {
+            if !self.retracted_members.contains(record) {
+                self.retracted_members.push(record.clone());
+            }
+        }
+        for record in renamed_members {
+            if !self.renamed_members.contains(record) {
+                self.renamed_members.push(record.clone());
+            }
+        }
+        if other_ran_second {
+            self.apply_retractions(retracted_members);
+        }
+        if self.doc.is_empty() {
+            self.doc.clone_from(doc);
+        }
+    }
+
+    /// Merge one side's `export` / `unexport` pair from a record whose
+    /// words ran `other_ran_second` relative to this one's.
+    ///
+    /// `TclOO` keeps one visibility *bit* per member, not two independent
+    /// sets: `export m` sets it and `unexport m` clears it, so the later
+    /// word wins outright and the earlier one leaves no trace. Confirmed on
+    /// 8.6.16 and 9.0.4 — after `oo::class create E1 { method m {} {};
+    /// export m }` then `oo::define E1 { unexport m }`,
+    /// `info class methods E1` is empty while `-private` still lists `m`,
+    /// and `[E1 new] m` raises `unknown method "m"`; the reverse order
+    /// re-exports it.
+    ///
+    /// The same last-writer-exclusive update
+    /// [`oo::apply_visibility_member`](crate::analyser::oo) performs while
+    /// walking a single body, applied across the two records this join
+    /// holds. A plain union would leave a member in both sets, and the
+    /// workspace reads an `exports` entry as decisive — so it would go on
+    /// advertising a method the later definition took away.
+    fn absorb_visibility(
+        &mut self,
+        side: MemberSide,
+        other_exports: &HashSet<String>,
+        other_unexports: &HashSet<String>,
+        other_ran_second: bool,
+    ) {
+        for (from, exported) in [(other_exports, true), (other_unexports, false)] {
+            for name in from {
+                let (exports, unexports) = side.visibility_sets(self);
+                let (mine, opposite) = if exported {
+                    (exports, unexports)
+                } else {
+                    (unexports, exports)
+                };
+                // Skip only a name this record already decided *and*
+                // decided later; otherwise `other`'s bit is the live one.
+                if !other_ran_second && (mine.contains(name) || opposite.contains(name)) {
+                    continue;
+                }
+                mine.insert(name.clone());
+                opposite.remove(name);
+            }
+        }
+    }
+
+    /// Apply retractions recorded by a definition that ran **after** this
+    /// record's members were declared.
+    ///
+    /// A `via_define` stub for a class created elsewhere finds nothing to
+    /// remove while it is walked, so `deletemethod m` / `renamemethod m n`
+    /// can only be written down as a tombstone. Across files that is all
+    /// anyone can say — load order is unknowable, which is why
+    /// [`Self::retracted_members`] is documented as unordered and the
+    /// workspace applies it as a fold. Here the order *is* known, and the
+    /// tombstone alone is not enough: compiler-side consumers of
+    /// `AnalysisResult::all_classes` never run that fold, so a deleted
+    /// member would stay dispatchable, keep answering method-existence
+    /// checks, and feed derived factory facts.
+    ///
+    /// tclsh 8.6.16 and 9.0.4 agree on both shapes: after
+    /// `oo::class create D1 { method m …; method keep … }` then
+    /// `oo::define D1 { deletemethod m }`, `info class methods D1` is
+    /// `keep` and `[D1 new] m` raises `unknown method "m"`; after
+    /// `renamemethod m n` the table holds `n` alone.
+    fn apply_retractions(&mut self, retractions: &[MemberRetractionRecord]) {
+        for record in retractions {
+            let table = record.side.table(self);
+            let Some(mut moved) = table.remove(&record.member) else {
+                continue;
+            };
+            // A move re-homes the member under the arrival name, whose
+            // declaration site is the `renamemethod` destination word — the
+            // token go-to-definition must answer with, and the only one a
+            // rename of the arrived member may rewrite.
+            let (Some(arrival), Some(span)) = (&record.arrival, record.arrival_span) else {
+                continue;
+            };
+            arrival.clone_into(&mut moved.name);
+            moved.name_span = span;
+            table.insert(arrival.clone(), moved);
+        }
+    }
+}
+
 impl Default for ClassDef {
     /// Default-construct a [`ClassDef`].
     ///
     /// All names default to empty strings, both spans default to
     /// ``Span::new(0, 0)``, and the metaclass defaults to
-    /// ``"oo::class"``.
+    /// ``"oo::class"`` — with
+    /// [`metaclass_provenance`](ClassDef::metaclass_provenance)
+    /// [`StandIn`](MetaclassProvenance::StandIn), so
+    /// that stand-in is never mistaken for a reading of the source.
     /// Used by handlers that build a class record incrementally
     /// (most common shape — only `name` / `qualified_name` /
     /// `name_span` / `body_span` need explicit values).
@@ -1442,6 +1793,7 @@ impl Default for ClassDef {
             name_span: zero,
             body_span: zero,
             metaclass: "oo::class".to_string(),
+            metaclass_provenance: MetaclassProvenance::StandIn,
             superclasses: Vec::new(),
             mixins: Vec::new(),
             methods: HashMap::new(),
@@ -2744,6 +3096,8 @@ mod tests {
         // the analyser depends on.
         let c = ClassDef::default();
         assert_eq!(c.metaclass, "oo::class");
+        // …and it is a stand-in, not an observation (issue #1653).
+        assert_eq!(c.metaclass_provenance, MetaclassProvenance::StandIn);
         assert!(c.constructors.is_empty());
         assert!(c.destructor.is_none());
         assert!(c.variables.is_empty());
@@ -2752,5 +3106,333 @@ mod tests {
         assert!(c.exports.is_empty());
         assert!(c.unexports.is_empty());
         assert!(c.doc.is_empty());
+    }
+
+    fn strings(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn string_set(items: &[&str]) -> HashSet<String> {
+        items.iter().map(|s| (*s).to_owned()).collect()
+    }
+
+    fn method(name: &str, params: &[&str]) -> MethodDef {
+        MethodDef {
+            name: name.to_owned(),
+            params: params
+                .iter()
+                .map(|p| crate::signature_scan::types::ParamDef {
+                    name: (*p).to_owned(),
+                    has_default: false,
+                    default_value: None,
+                })
+                .collect(),
+            params_computed: false,
+            name_span: Span::new(0, 0),
+            body_span: Span::new(0, 0),
+            kind: "method".to_owned(),
+            is_self_method: false,
+            visibility: "public".to_owned(),
+            doc: String::new(),
+            forward_target: None,
+        }
+    }
+
+    /// The pair this join sees: a computed-name creation and the
+    /// `oo::define` stub that extends it, the stub having run second.
+    fn creation_and_stub(creation: ClassDef, stub: ClassDef) -> (ClassDef, ClassDef) {
+        (
+            creation,
+            ClassDef {
+                via_define: true,
+                ..stub
+            },
+        )
+    }
+
+    #[test]
+    fn absorb_declarations_lets_the_later_definition_set_visibility() {
+        // Issue #1653 review (thread r3820723173). `export` / `unexport`
+        // are one bit per member, not two sets: on 8.6.16 and 9.0.4,
+        // `oo::class create E1 { method m {} {}; export m }` then
+        // `oo::define E1 { unexport m }` leaves `info class methods E1`
+        // empty while `-private` still lists `m`, and `[E1 new] m` raises
+        // `unknown method "m"`. The reverse order re-exports it. A union
+        // would leave `m` in both sets, and workspace dispatch reads an
+        // `exports` entry as decisive.
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                exports: string_set(&["m"]),
+                class_exports: string_set(&["cm"]),
+                ..ClassDef::default()
+            },
+            ClassDef {
+                unexports: string_set(&["m"]),
+                class_unexports: string_set(&["cm"]),
+                ..ClassDef::default()
+            },
+        );
+        creation.absorb_declarations(&stub);
+        assert!(
+            creation.exports.is_empty() && creation.unexports == string_set(&["m"]),
+            "the later `unexport m` must clear the earlier `export m`; \
+             exports={:?} unexports={:?}",
+            creation.exports,
+            creation.unexports
+        );
+        assert!(
+            creation.class_exports.is_empty() && creation.class_unexports == string_set(&["cm"]),
+            "the class-object side takes the identical update"
+        );
+
+        // Reverse: the creation unexports, the later define re-exports.
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                unexports: string_set(&["m"]),
+                ..ClassDef::default()
+            },
+            ClassDef {
+                exports: string_set(&["m"]),
+                ..ClassDef::default()
+            },
+        );
+        creation.absorb_declarations(&stub);
+        assert!(
+            creation.unexports.is_empty() && creation.exports == string_set(&["m"]),
+            "the later `export m` must clear the earlier `unexport m`"
+        );
+
+        // …and with the stub as the *winner* of the join, the creation it
+        // absorbs ran first, so the stub's own bit stands.
+        let mut stub = ClassDef {
+            via_define: true,
+            unexports: string_set(&["m"]),
+            ..ClassDef::default()
+        };
+        stub.absorb_declarations(&ClassDef {
+            exports: string_set(&["m", "untouched"]),
+            ..ClassDef::default()
+        });
+        assert!(
+            stub.unexports == string_set(&["m"]) && stub.exports == string_set(&["untouched"]),
+            "the stub ran second whichever side won the join; \
+             exports={:?} unexports={:?}",
+            stub.exports,
+            stub.unexports
+        );
+    }
+
+    #[test]
+    fn absorb_declarations_replaces_mixins_but_appends_variables_and_filters() {
+        // Issue #1653 review (thread r3820723184). The ordered slots are
+        // *not* uniform, which is why each was measured rather than
+        // assumed. On 8.6.16 and 9.0.4, a class created with
+        // `mixin ::FH ::A; filter f; variable x` and then
+        // `oo::define … { mixin ::FH ::B; filter g; variable y }` reports
+        // mixins `::FH ::B` (replaced — `mixin -append` is the additive
+        // form), filters `f g` and variables `x y` (both appended).
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                mixins: strings(&["::FH", "::A"]),
+                filters: strings(&["f"]),
+                class_filters: strings(&["cf"]),
+                variables: strings(&["x"]),
+                ..ClassDef::default()
+            },
+            ClassDef {
+                mixins: strings(&["::FH", "::B"]),
+                filters: strings(&["g"]),
+                class_filters: strings(&["cg"]),
+                variables: strings(&["y"]),
+                ..ClassDef::default()
+            },
+        );
+        creation.absorb_declarations(&stub);
+        assert_eq!(creation.mixins, strings(&["::FH", "::B"]), "mixin replaces");
+        assert_eq!(creation.filters, strings(&["f", "g"]), "filter appends");
+        assert_eq!(creation.class_filters, strings(&["cf", "cg"]));
+        assert_eq!(creation.variables, strings(&["x", "y"]), "variable appends");
+
+        // Appends keep run order when the *stub* won the join, and never
+        // duplicate a name the slot already carries (`variable x` twice
+        // leaves one `x` on both interpreters).
+        let mut stub = ClassDef {
+            via_define: true,
+            filters: strings(&["g"]),
+            variables: strings(&["x", "y"]),
+            ..ClassDef::default()
+        };
+        stub.absorb_declarations(&ClassDef {
+            filters: strings(&["f"]),
+            variables: strings(&["x"]),
+            ..ClassDef::default()
+        });
+        assert_eq!(stub.filters, strings(&["f", "g"]), "earlier filter first");
+        assert_eq!(
+            stub.variables,
+            strings(&["x", "y"]),
+            "declared twice, kept once"
+        );
+
+        // A slot the later definition never sets keeps the earlier list.
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                mixins: strings(&["::A"]),
+                ..ClassDef::default()
+            },
+            ClassDef::default(),
+        );
+        creation.absorb_declarations(&stub);
+        assert_eq!(creation.mixins, strings(&["::A"]));
+    }
+
+    #[test]
+    fn absorb_declarations_applies_a_later_retraction_to_the_member_table() {
+        // Issue #1653 review (thread r3820723192). A stub records
+        // `deletemethod m` as a tombstone because it has no table to remove
+        // from; the join is where the ordering is known, and compiler-side
+        // consumers of `all_classes` never run the workspace fold. On
+        // 8.6.16 and 9.0.4, `oo::class create D1 { method m …; method keep … }`
+        // then `oo::define D1 { deletemethod m }` reports `info class
+        // methods D1` = `keep`, and `[D1 new] m` raises `unknown method`.
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                methods: [
+                    ("m".to_owned(), method("m", &[])),
+                    ("keep".to_owned(), method("keep", &[])),
+                ]
+                .into_iter()
+                .collect(),
+                ..ClassDef::default()
+            },
+            ClassDef {
+                retracted_members: vec![MemberRetractionRecord::deletion(
+                    "m".to_owned(),
+                    MemberSide::Instance,
+                )],
+                ..ClassDef::default()
+            },
+        );
+        creation.absorb_declarations(&stub);
+        assert_eq!(
+            creation
+                .methods
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            vec!["keep"],
+            "the retracted member must leave the joined table"
+        );
+        assert_eq!(
+            creation.retracted_members.len(),
+            1,
+            "the tombstone still rides along for the cross-file consumer"
+        );
+
+        // A move re-homes the member under its arrival name, taking the
+        // destination word as its declaration site — `renamemethod m n`
+        // leaves `n` alone in the table on both interpreters.
+        let (mut creation, stub) = creation_and_stub(
+            ClassDef {
+                methods: [("m".to_owned(), method("m", &["a"]))]
+                    .into_iter()
+                    .collect(),
+                ..ClassDef::default()
+            },
+            ClassDef {
+                retracted_members: vec![MemberRetractionRecord {
+                    member: "m".to_owned(),
+                    side: MemberSide::Instance,
+                    arrival: Some("n".to_owned()),
+                    arrival_span: Some(Span::new(40, 41)),
+                }],
+                ..ClassDef::default()
+            },
+        );
+        creation.absorb_declarations(&stub);
+        let moved = creation
+            .methods
+            .get("n")
+            .expect("the moved member arrives under its new name");
+        assert!(
+            !creation.methods.contains_key("m"),
+            "the source name is gone"
+        );
+        assert_eq!(moved.params.len(), 1, "the moved member keeps its body");
+        assert_eq!(moved.name, "n");
+        assert_eq!(moved.name_span, Span::new(40, 41));
+
+        // The reverse order retracts nothing: a `deletemethod` the creation
+        // body itself ran already emptied its own table, and the stub's
+        // members were declared afterwards.
+        let mut stub = ClassDef {
+            via_define: true,
+            methods: [("m".to_owned(), method("m", &[]))].into_iter().collect(),
+            ..ClassDef::default()
+        };
+        stub.absorb_declarations(&ClassDef {
+            retracted_members: vec![MemberRetractionRecord::deletion(
+                "m".to_owned(),
+                MemberSide::Instance,
+            )],
+            ..ClassDef::default()
+        });
+        assert!(
+            stub.methods.contains_key("m"),
+            "an earlier retraction must not remove a later declaration"
+        );
+    }
+
+    #[test]
+    fn absorb_declarations_unions_the_remaining_tables() {
+        // The rules with no ordering component: keyed tables union with the
+        // later record winning a collision, whole-body singletons follow
+        // the replace rule, and `doc` fills only where absent.
+        let mut into = ClassDef {
+            linked_members: [("shared".to_owned(), "::mine".to_owned())]
+                .into_iter()
+                .collect(),
+            doc: "mine".to_owned(),
+            ..ClassDef::default()
+        };
+        let other = ClassDef {
+            linked_members: [
+                ("shared".to_owned(), "::theirs".to_owned()),
+                ("only-theirs".to_owned(), "::theirs".to_owned()),
+            ]
+            .into_iter()
+            .collect(),
+            doc: "theirs".to_owned(),
+            ..ClassDef::default()
+        };
+        into.absorb_declarations(&other);
+        // Neither side is a stub, so this record keeps the colliding key.
+        assert_eq!(
+            into.linked_members.get("shared").map(String::as_str),
+            Some("::mine")
+        );
+        assert_eq!(
+            into.linked_members.get("only-theirs").map(String::as_str),
+            Some("::theirs")
+        );
+        assert_eq!(into.doc, "mine");
+
+        // …and with `other` the stub, the colliding key goes to it.
+        let mut into = ClassDef {
+            linked_members: [("shared".to_owned(), "::mine".to_owned())]
+                .into_iter()
+                .collect(),
+            ..ClassDef::default()
+        };
+        into.absorb_declarations(&ClassDef {
+            via_define: true,
+            ..other
+        });
+        assert_eq!(
+            into.linked_members.get("shared").map(String::as_str),
+            Some("::theirs")
+        );
+        // A record with no doc of its own takes the other's.
+        assert_eq!(into.doc, "theirs");
     }
 }
