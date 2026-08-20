@@ -868,11 +868,10 @@ fn emit_cmd_subst_arg_composite_and_special_forms() {
     // A braced arg carrying substitution markers (`{$x}`) is re-wrapped and
     // pushed as a single literal (braces suppress substitution).
     assert_eq!(arg_ops(true, &[], "{$x}", true), vec![Op::PUSH1]);
-    // The `$={name}` braced-scalar marker → push name; loadStk.
-    assert_eq!(
-        arg_ops(true, &["n"], "$={n}", false),
-        vec![Op::PUSH1, Op::LOAD_STK],
-    );
+    // `$={n}` is literal user text, not a marker: `$` before `=` is not a
+    // substitution trigger in any release, so the whole word is pushed
+    // (issue #1617). It used to load the variable `n`.
+    assert_eq!(arg_ops(true, &["n"], "$={n}", false), vec![Op::PUSH1]);
     // A bare `$name` form loads the scalar directly.
     assert_eq!(arg_ops(true, &["v"], "$v", false), vec![Op::LOAD_SCALAR1]);
 }

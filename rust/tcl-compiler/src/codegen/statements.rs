@@ -397,12 +397,6 @@ impl CodegenCtx<'_> {
     /// Full interpolation with command substitution requires the main
     /// emitter pipeline.
     pub fn emit_value_interpolated(&mut self, value: &str) {
-        // Braced scalar marker: $={name} → push + loadStk
-        if let Some(name) = super::values::parse_braced_scalar_ref(value) {
-            self.push_lit(name);
-            self.emit(Op::LOAD_STK, vec![]);
-            return;
-        }
         // Variable reference: ${var} → load
         if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
             self.load_var(var_name);
@@ -452,10 +446,6 @@ impl CodegenCtx<'_> {
                 match part {
                     SubstPart::Lit(text) => self.push_lit(text),
                     SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
-                    SubstPart::Scalar(name) => {
-                        self.push_lit(name);
-                        self.emit(Op::LOAD_STK, vec![]);
-                    }
                     SubstPart::Var(name) => self.load_var(name),
                 }
             }

@@ -1364,6 +1364,104 @@ fn compiled_composite_array_key_follows_the_emulated_release() {
     }
 }
 
+// ===========================================================================
+// Issue #1617 — `$={name}` is the user's literal text, not a compiler marker.
+//
+// The codegen used to decode a whole word spelt `$={name}` as an internal
+// "braced scalar" marker and compile it to `push "name"; loadStk`. Nothing in
+// this workspace has ever *produced* that spelling — the segmenter re-spells a
+// braced variable word verbatim from source — so the only words that ever
+// reached the decoder were the user's own, where `$=` is not a substitution
+// trigger in any release (`=` is not a name character; `Tcl_ParseVarName`,
+// tmp/tcl9.0.4/generic/tclParse.c). Every reach was wrong code, and because
+// producer and consumer were both release-blind in compatible ways no program
+// could tell the two halves apart — which is why mutation M3b (flip the marker
+// arm's close scan) survived the whole corpus.
+//
+// These vectors pin the literal reading on each route the marker decoder sat
+// on: a command word, a `set` value, the `switch` subject (`cfg_lower`), a
+// list argument, an array key, and a proc body (the LVT path).
+
+/// A bare command word.
+const DOLLAR_EQ_WORD_SCRIPT: &str = concat!("set y hi\n", "puts $={y}\n");
+
+/// The value half of a `set` — `emit_value` / `emit_value_interpolated`.
+const DOLLAR_EQ_SET_VALUE_SCRIPT: &str = concat!("set y hi\n", "set z $={y}\n", "puts $z\n");
+
+/// The `switch` subject, which `cfg_builder::cfg_lower` used to promote to a
+/// `Raw` (variable-reference) operand when it parsed as the marker.
+const DOLLAR_EQ_SWITCH_SUBJECT_SCRIPT: &str = concat!(
+    "set y hi\n",
+    "switch -- $={y} {\n",
+    "  hi { puts matched-var }\n",
+    "  default { puts literal }\n",
+    "}\n",
+);
+
+/// A list argument, so the literal is observable through list quoting.
+const DOLLAR_EQ_LIST_ARG_SCRIPT: &str = concat!("set y hi\n", "puts [list $={y}]\n");
+
+/// An array key — the `push_array_key` route.
+const DOLLAR_EQ_ARRAY_KEY_SCRIPT: &str = concat!(
+    "set y hi\n",
+    "set arr($={y}) V\n",
+    "puts [array names arr]\n",
+);
+
+/// Inside a proc, where a decoded name would have become an LVT slot load.
+const DOLLAR_EQ_IN_PROC_SCRIPT: &str = concat!("proc p {} { set y inner; puts $={y} }\n", "p\n");
+
+const DOLLAR_EQ_VECTORS: &[(&str, &str, &str)] = &[
+    ("command word", DOLLAR_EQ_WORD_SCRIPT, "$={y}"),
+    ("set value", DOLLAR_EQ_SET_VALUE_SCRIPT, "$={y}"),
+    ("switch subject", DOLLAR_EQ_SWITCH_SUBJECT_SCRIPT, "literal"),
+    ("list argument", DOLLAR_EQ_LIST_ARG_SCRIPT, "{$={y}}"),
+    ("array key", DOLLAR_EQ_ARRAY_KEY_SCRIPT, "{$={y}}"),
+    ("proc body", DOLLAR_EQ_IN_PROC_SCRIPT, "$={y}"),
+];
+
+/// The reading is the same at every release: `$=` never starts a substitution,
+/// so there is no release axis here to get wrong.
+#[test]
+fn compiled_dollar_equals_word_is_literal_at_every_release() {
+    for (label, script, want) in DOLLAR_EQ_VECTORS {
+        for version in [
+            TclVersion::V8_4,
+            TclVersion::V8_5,
+            TclVersion::V8_6,
+            TclVersion::V9_0,
+            TclVersion::V9_1,
+        ] {
+            assert_eq!(
+                vm_output(script, version),
+                *want,
+                "`$={{y}}` ({label}) at {version:?} must stay literal, not load a variable"
+            );
+        }
+    }
+}
+
+#[test]
+fn compiled_dollar_equals_word_matches_real_tclsh() {
+    let mut ran = 0;
+    for (_, script, _) in DOLLAR_EQ_VECTORS {
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH86", &["tclsh8.6"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V8_6));
+            ran += 1;
+        }
+        if let Some(got) = tclsh_output("TCL_LSP_TCLSH90", &["tclsh9.0"], script) {
+            assert_eq!(got, vm_output(script, TclVersion::V9_0));
+            ran += 1;
+        }
+    }
+    if ran == 0 {
+        eprintln!(
+            "SKIPPING the tclsh oracle comparison: neither tclsh8.6 (or \
+             $TCL_LSP_TCLSH86) nor tclsh9.0 (or $TCL_LSP_TCLSH90) was found"
+        );
+    }
+}
+
 #[test]
 fn compiled_composite_array_key_matches_real_tclsh() {
     let mut ran = 0;

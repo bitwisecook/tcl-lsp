@@ -25,7 +25,7 @@
 use tcl_registry::hooks::InlineCodegenHookId;
 
 use super::helpers::{SubstPart, parse_subst_template, regexp_to_glob};
-use super::values::{is_qualified, parse_braced_scalar_ref, parse_simple_var_ref, split_array_ref};
+use super::values::{is_qualified, parse_simple_var_ref, split_array_ref};
 use super::{CodegenCtx, INDEX_END, Op, Operand, bytecode_imm, parse_tcl_index, str_class_id};
 
 // Free functions — pure parsing, no emission state needed
@@ -391,10 +391,6 @@ impl CodegenCtx<'_> {
                 match part {
                     SubstPart::Lit(text) => self.push_lit(text),
                     SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
-                    SubstPart::Scalar(name) => {
-                        self.push_lit(name);
-                        self.emit(Op::LOAD_STK, vec![]);
-                    }
                     SubstPart::Var(name) => self.load_var(name),
                 }
             }
@@ -405,12 +401,6 @@ impl CodegenCtx<'_> {
             return;
         }
         if !braced && arg.starts_with('$') {
-            // Braced scalar marker: $={name} → push + loadStk
-            if let Some(name) = parse_braced_scalar_ref(arg) {
-                self.push_lit(name);
-                self.emit(Op::LOAD_STK, vec![]);
-                return;
-            }
             // ${var} form
             if let Some(var_name) = parse_simple_var_ref(arg, self.braced_var) {
                 self.load_var(var_name);
@@ -515,10 +505,7 @@ impl CodegenCtx<'_> {
             self.emit_inline_cmd_subst(word);
             self.place_label(&end_label);
         } else if !braced && word.starts_with('$') {
-            if let Some(name) = parse_braced_scalar_ref(word) {
-                self.push_lit(name);
-                self.emit(Op::LOAD_STK, vec![]);
-            } else if let Some(var_name) = parse_simple_var_ref(word, self.braced_var) {
+            if let Some(var_name) = parse_simple_var_ref(word, self.braced_var) {
                 self.load_var(var_name);
             } else {
                 // Bare `$name` / `$name(idx)` — load the variable rather than
@@ -671,12 +658,6 @@ impl CodegenCtx<'_> {
     /// Extends the simplified `emit_value_interpolated` with command
     /// substitution inlining and `parse_subst_template` decomposition.
     pub fn emit_value(&mut self, value: &str, interpolate: bool) {
-        // Braced scalar marker: $={name} → push + loadStk
-        if let Some(name) = parse_braced_scalar_ref(value) {
-            self.push_lit(name);
-            self.emit(Op::LOAD_STK, vec![]);
-            return;
-        }
         // Variable reference: ${var} → load
         if let Some(var_name) = parse_simple_var_ref(value, self.braced_var) {
             self.load_var(var_name);
@@ -714,10 +695,6 @@ impl CodegenCtx<'_> {
                     SubstPart::Lit(text) => self.push_lit(text),
                     SubstPart::Cmd(cmd_text) => {
                         self.emit_inline_cmd_subst(cmd_text);
-                    }
-                    SubstPart::Scalar(name) => {
-                        self.push_lit(name);
-                        self.emit(Op::LOAD_STK, vec![]);
                     }
                     SubstPart::Var(name) => {
                         self.load_var(name);

@@ -116,9 +116,7 @@ fn literal_true_expr() -> ExprNode {
 /// So the arm-pruning behaviour is unchanged, and an unsubstituted subject word
 /// can never be compared as if it were its own literal text.
 fn switch_subject_operand(subject: &str) -> ExprNode {
-    use crate::codegen::values::parse_braced_scalar_ref;
-
-    if parse_braced_scalar_ref(subject).is_some() || is_whole_var_ref(subject) {
+    if is_whole_var_ref(subject) {
         return ExprNode::Raw {
             text: subject.to_owned(),
         };

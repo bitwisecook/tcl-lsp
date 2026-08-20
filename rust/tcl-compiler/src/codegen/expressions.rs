@@ -25,7 +25,7 @@
 use tcl_lexer::backslash_subst_in;
 use tcl_registry::expr_surface::RuntimeExprSurface;
 
-use super::values::{parse_braced_scalar_ref, parse_simple_var_ref};
+use super::values::parse_simple_var_ref;
 use super::{CodegenCtx, Op, Operand, bytecode_imm};
 use crate::depth_guard::MAX_EXPR_NODE_DEPTH;
 use crate::expr_ast::{BinOp, ExprNode, UnaryOp, render_expr};
@@ -246,10 +246,6 @@ impl CodegenCtx<'_> {
             match part {
                 SubstPart::Lit(t) => self.push_lit(t),
                 SubstPart::Var(name) => self.load_var(name),
-                SubstPart::Scalar(name) => {
-                    self.push_lit(name);
-                    self.emit(Op::LOAD_STK, vec![]);
-                }
                 SubstPart::Cmd(cmd_text) => self.emit_inline_cmd_subst(cmd_text),
             }
         }
@@ -456,11 +452,7 @@ impl CodegenCtx<'_> {
             }
 
             ExprNode::Raw { text } => {
-                // Braced scalar: $={name} → push name + loadStk
-                if let Some(name) = parse_braced_scalar_ref(text) {
-                    self.push_lit(name);
-                    self.emit(Op::LOAD_STK, vec![]);
-                } else if let Some(var_name) = parse_simple_var_ref(text, self.braced_var) {
+                if let Some(var_name) = parse_simple_var_ref(text, self.braced_var) {
                     self.load_var(var_name);
                 } else {
                     self.push_lit(text);
@@ -1016,8 +1008,12 @@ mod tests {
         assert_eq!(opcodes(&ctx), vec![Op::LOAD_SCALAR1]);
     }
 
+    /// `$={a(1)}` is not a variable reference — it is literal text in every
+    /// supported release, so a `Raw` operand spelling it takes the generic
+    /// `exprStk` fallback rather than the retired braced-scalar marker's
+    /// `push name; loadStk` (issue #1617).
     #[test]
-    fn emit_raw_braced_scalar() {
+    fn emit_raw_dollar_equals_is_not_a_var_ref() {
         let registry = CommandRegistry::build_default();
         let mut ctx = CodegenCtx::new(false, &[], &registry);
         let node = ExprNode::Raw {
@@ -1025,8 +1021,7 @@ mod tests {
         };
         let numeric = ctx.emit_expr(&node);
         assert!(!numeric);
-        // push name + loadStk
-        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::LOAD_STK]);
+        assert_eq!(opcodes(&ctx), vec![Op::PUSH1, Op::EXPR_STK]);
     }
 
     #[test]

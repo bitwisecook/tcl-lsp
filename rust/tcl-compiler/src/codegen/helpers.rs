@@ -134,14 +134,18 @@ pub fn tcl_list_element(s: &str) -> String {
 }
 
 /// A part of a parsed substitution template.
+///
+/// There is deliberately **no** variant for the retired `$={name}`
+/// braced-scalar marker: nothing in this workspace ever emitted that spelling,
+/// so every word that reached its decoder came from the user's own source,
+/// where `$={y}` is plain literal text in every supported release (issue
+/// #1617).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubstPart {
     /// Literal text.
     Lit(String),
     /// Variable reference (`$varname`).
     Var(String),
-    /// Braced scalar reference (`$={name}`).
-    Scalar(String),
     /// Command substitution (`[cmd ...]`).
     Cmd(String),
 }
@@ -261,17 +265,7 @@ pub fn parse_subst_template(
             if i >= n {
                 return None;
             }
-            if bytes[i] == b'=' && i + 1 < n && bytes[i + 1] == b'{' {
-                // Braced scalar: $={name}. The compiler's own marker for "load
-                // this name as a scalar", but its name is spelt by the same
-                // brace form, so it closes by the same release rule.
-                let end = match tcl_lexer::braced_var_name_end(bytes, i + 2, braced_var) {
-                    tcl_lexer::BracedVarEnd::Closed(end) => end,
-                    tcl_lexer::BracedVarEnd::Unterminated => return None,
-                };
-                parts.push(SubstPart::Scalar(template[i + 2..end].to_owned()));
-                i = end + 1;
-            } else if bytes[i] == b'{' {
+            if bytes[i] == b'{' {
                 // Braced variable: ${name}, closed by the target release's
                 // `Tcl_ParseVarName` rule. This used to be `find('}')` — the
                 // 8.x first-close rule applied at every release, disagreeing
@@ -873,12 +867,19 @@ mod tests {
         assert!(template("").is_none());
     }
 
+    /// `$=` is not a substitution trigger in any release: `=` is not a name
+    /// character, so `Tcl_ParseVarName` leaves the `$` literal. This decoder
+    /// used to read `$={name}` as the compiler's "braced scalar" marker — a
+    /// producer-less port artifact that only ever fired on the user's own text
+    /// (issue #1617). Both tclsh oracles print `$={y}` for `puts $={y}`.
     #[test]
-    fn subst_template_scalar() {
-        let parts = template("$={a(1)}rest").unwrap();
-        assert_eq!(parts.len(), 2);
-        assert_eq!(parts[0], SubstPart::Scalar("a(1)".into()));
-        assert_eq!(parts[1], SubstPart::Lit("rest".into()));
+    fn subst_template_dollar_equals_is_not_a_marker() {
+        // No name follows the `$`, so the word has no decomposable
+        // substitution at all and the caller pushes it as a literal.
+        assert!(template("$={a(1)}rest").is_none());
+        assert!(template("$={y}").is_none());
+        // The neighbouring real form is untouched.
+        assert_eq!(template("${y}"), Some(vec![SubstPart::Var("y".into())]),);
     }
 
     // -- parse_subst_template: full backslash decoding (issue #1441) --

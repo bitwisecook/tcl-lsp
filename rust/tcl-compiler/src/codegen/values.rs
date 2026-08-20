@@ -332,10 +332,6 @@ impl CodegenCtx<'_> {
                 match part {
                     super::helpers::SubstPart::Lit(text) => self.push_lit(text),
                     super::helpers::SubstPart::Cmd(cmd) => self.emit_inline_cmd_subst(cmd),
-                    super::helpers::SubstPart::Scalar(name) => {
-                        self.push_lit(name);
-                        self.emit(Op::LOAD_STK, vec![]);
-                    }
                     super::helpers::SubstPart::Var(name) => self.load_var(name),
                 }
             }
@@ -631,15 +627,36 @@ pub fn parse_simple_var_ref(value: &str, style: tcl_dialect::BracedVarStyle) -> 
     }
 }
 
-/// Extract variable name from a braced-scalar marker `$={name}`.
-///
-/// In Tcl, braces prevent array interpretation, so `${a(1)}` must be
-/// loaded as a scalar via `push + loadStk`.  The compiler marks these
-/// with `$={name}`.
-#[must_use]
-pub fn parse_braced_scalar_ref(value: &str) -> Option<&str> {
-    value.strip_prefix("$={").and_then(|s| s.strip_suffix('}'))
-}
+// The `$={name}` "braced scalar" marker used to be decoded here, by a
+// `strip_prefix("$={")` + `strip_suffix('}')` pair. It is gone (issue #1617).
+//
+// It was a port artifact: no pass in this workspace has ever *produced* that
+// spelling — the segmenter re-spells a braced variable word verbatim from
+// source (`${…}`, see `segmenter::word_piece`), and nothing else writes a `$=`
+// prefix. A marker with no producer is not an internal encoding at all: every
+// word that reached the decoder was the user's own text, and `$={y}` is
+// literal text in every supported release —
+//
+// ```tcl
+// set y hi
+// puts $={y}     ;# 8.4-9.0: $={y}   — we compiled it to `push y; loadStk` → hi
+// ```
+//
+// (`$` is only a substitution trigger before a name character, and `=` is not
+// one; `Tcl_ParseVarName`, tmp/tcl9.0.4/generic/tclParse.c). So the decoder was
+// pure wrong-code: a whole-word `$={name}` loaded the variable `name` instead
+// of pushing the literal. It was also unpinnable — the mutation inventory's
+// M3b (flip the marker arm's close scan) survived the whole corpus precisely
+// because no *real* program could tell the two halves apart (#1615).
+//
+// Nothing is lost by dropping it: the form it existed to spell, `${a(1)}`,
+// reaches `parse_simple_var_ref` and `load_var`, which agree with both tclsh
+// oracles (`set {a(1)} S; array set a {1 A}; puts ${a(1)}` → `A`, because
+// `TclObjLookupVar` parses the parens out of the *name* at lookup time).
+//
+// Do not reintroduce a marker in the `$…` space: any spelling a user can type
+// collides with real source. A future internal marker needs an out-of-band
+// channel (an IR node or a word flag), not a string prefix.
 
 /// Check if a string is an integer literal (optionally negative).
 fn is_integer_literal(s: &str) -> bool {
@@ -785,16 +802,31 @@ mod tests {
         assert_eq!(whole_var_reference("a$b"), None);
     }
 
-    // -- parse_braced_scalar_ref --
+    // -- the retired `$={name}` marker (issue #1617) --
 
+    /// A whole word spelt `$={name}` is the *user's* literal text — `=` is not
+    /// a name character, so `Tcl_ParseVarName` never starts a substitution
+    /// there and both tclsh oracles print `$={y}` for `puts $={y}`. The
+    /// producer-less "braced scalar" marker that used to claim this spelling
+    /// compiled it to `push "y"; loadStk`, silently reading a variable.
     #[test]
-    fn parse_braced_scalar_basic() {
-        assert_eq!(parse_braced_scalar_ref("$={a(1)}"), Some("a(1)"));
-    }
-
-    #[test]
-    fn parse_braced_scalar_no_match() {
-        assert_eq!(parse_braced_scalar_ref("${x}"), None);
+    fn dollar_equals_word_is_a_literal_not_a_variable_load() {
+        let registry = CommandRegistry::build_default();
+        let mut ctx = CodegenCtx::new(true, &["y"], &registry);
+        ctx.emit_value("$={y}", true);
+        assert_eq!(
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<_>>(),
+            vec![Op::PUSH1],
+            "`$={{y}}` must be pushed whole, not decoded as a variable load"
+        );
+        assert!(ctx.literals.entries().iter().any(|l| l == "$={y}"));
+        // The real braced form still loads.
+        let mut ctx = CodegenCtx::new(true, &["y"], &registry);
+        ctx.emit_value("${y}", true);
+        assert_eq!(
+            ctx.instructions.iter().map(|i| i.op).collect::<Vec<_>>(),
+            vec![Op::LOAD_SCALAR1],
+        );
     }
 
     // -- is_integer_literal --
