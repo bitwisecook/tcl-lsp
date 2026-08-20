@@ -4723,31 +4723,79 @@ struct EditOrder {
     next_ticket: std::sync::atomic::AtomicU64,
     now_serving: std::sync::atomic::AtomicU64,
     advanced: tokio::sync::Notify,
+    /// Tickets whose waiter went away before its turn came round.
+    ///
+    /// A drawn ticket is a reservation in a strictly increasing sequence, so
+    /// nothing after it can run until it has been accounted for. If its handler
+    /// simply vanishes there is no guard to release it and `now_serving` stops
+    /// at that number **for ever** — see [`EditTicket`]. Recording it here lets
+    /// [`Self::drain_abandoned`] step over it when the sequence reaches it.
+    ///
+    /// A `std::sync::Mutex`, deliberately: every critical section touching it is
+    /// a few integer operations with no `await` inside, which is exactly the
+    /// case a blocking mutex is for. Holding it across an await is what would
+    /// make it a hazard, and nothing here does.
+    abandoned: std::sync::Mutex<std::collections::BTreeSet<u64>>,
 }
 
 impl EditOrder {
     /// Draw the next ticket. **Must** be called before the handler's first
     /// `await`, while the future is still being first-polled in stream order.
-    fn take_ticket(&self) -> u64 {
-        self.next_ticket
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    ///
+    /// The returned [`EditTicket`] is a reservation that must be accounted for
+    /// however the handler ends — see its docs.
+    fn take_ticket(&self) -> EditTicket<'_> {
+        EditTicket {
+            order: self,
+            ticket: self
+                .next_ticket
+                .fetch_add(1, std::sync::atomic::Ordering::AcqRel),
+            armed: true,
+        }
     }
 
-    /// Wait for `ticket`'s turn. The guard releases it on drop — including on an
-    /// early return or a dropped (cancelled) handler future, so a turn is never
-    /// lost.
-    async fn wait_turn(&self, ticket: u64) -> EditTurn<'_> {
+    /// Wait for `ticket`'s turn, consuming the reservation and returning the
+    /// guard that holds it.
+    ///
+    /// Cancel-safe in the way the sequence needs: `ticket` is moved into this
+    /// future, so a caller dropped while parked here drops the reservation with
+    /// it, and [`EditTicket::drop`] records the abandonment rather than leaving
+    /// the sequence stuck on a number nobody will ever release.
+    async fn wait_turn<'a>(&'a self, mut ticket: EditTicket<'a>) -> EditTurn<'a> {
         loop {
             let advanced = self.advanced.notified();
             tokio::pin!(advanced);
             // Register before re-reading, so a turn granted between the check and
             // the await cannot be missed.
             advanced.as_mut().enable();
-            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) == ticket {
+            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) == ticket.ticket {
+                // The turn is ours; the guard below now owns the release, so the
+                // reservation must not also account for it.
+                ticket.armed = false;
                 return EditTurn { order: self };
             }
             advanced.await;
         }
+    }
+
+    /// Step `now_serving` over any run of consecutive abandoned tickets that
+    /// now sits at the head of the queue, and wake whoever that admits.
+    ///
+    /// Called from both ends: when a turn is handed on normally, and when a
+    /// ticket is abandoned. Either can be the event that makes an abandoned
+    /// ticket current.
+    fn drain_abandoned(&self) {
+        {
+            let mut abandoned = self
+                .abandoned
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            while abandoned.remove(&self.now_serving.load(std::sync::atomic::Ordering::Acquire)) {
+                self.now_serving
+                    .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            }
+        }
+        self.advanced.notify_waiters();
     }
 
     /// Wait until every edit that had drawn a ticket *before this call* has been
@@ -4766,6 +4814,54 @@ impl EditOrder {
     }
 }
 
+/// A drawn but not-yet-granted place in the [`EditOrder`] sequence.
+///
+/// # Why this is a guard and not a bare number
+///
+/// A ticket is a reservation in a strictly increasing sequence: `now_serving`
+/// advances one at a time, so nothing after ticket N can run until N has been
+/// accounted for. [`EditTurn`] accounts for a ticket that was *granted*. Before
+/// the grant there was nothing, and a handler future dropped while parked in
+/// [`EditOrder::wait_turn`] therefore left `now_serving` pointing at a number
+/// no guard would ever release.
+///
+/// The result is not a lost edit but a stopped server. Every later
+/// document-sync notification blocks in `wait_turn`, every request handler
+/// blocks in [`EditOrder::settled`] and holds one of the four
+/// [`crate::transport_liveness::DeferredConcurrency`] permits, and the process
+/// sits at zero CPU answering nothing while its stdin reader — which the
+/// unbounded transport keeps running — goes on draining input it will never
+/// act on. That is precisely the steady state issue #1657 records.
+///
+/// So the reservation itself is the guard. `wait_turn` takes it by value, which
+/// puts it inside the very future that might be dropped; if that happens,
+/// `Drop` records the abandonment and the sequence steps over it.
+struct EditTicket<'a> {
+    order: &'a EditOrder,
+    ticket: u64,
+    /// Still owing an accounting. Cleared when [`EditOrder::wait_turn`] hands
+    /// ownership to the [`EditTurn`] it returns.
+    armed: bool,
+}
+
+impl Drop for EditTicket<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        {
+            let mut abandoned = self
+                .order
+                .abandoned
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            abandoned.insert(self.ticket);
+        }
+        // This ticket may be the one the sequence is waiting on right now.
+        self.order.drain_abandoned();
+    }
+}
+
 /// A held turn in the [`EditOrder`] sequence; hands it on when dropped.
 struct EditTurn<'a> {
     order: &'a EditOrder,
@@ -4776,7 +4872,10 @@ impl Drop for EditTurn<'_> {
         self.order
             .now_serving
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-        self.order.advanced.notify_waiters();
+        // Handing this turn on may make an abandoned ticket current, in which
+        // case the sequence must step over it rather than stop there.
+        // `drain_abandoned` wakes the waiters either way.
+        self.order.drain_abandoned();
     }
 }
 
@@ -32241,6 +32340,70 @@ mod tests {
     /// wait for the outstanding edit rather than racing ahead and answering from
     /// the pre-edit text (which yielded semantic tokens whose lines/lengths
     /// described text the client had already replaced).
+    /// #1657, the latent half: a ticket whose waiter is dropped *before* its
+    /// turn is granted must not stop the sequence for ever.
+    ///
+    /// [`EditOrder::wait_turn`]'s own docs claim this already holds — "the guard
+    /// releases it on drop — including on ... a dropped (cancelled) handler
+    /// future, so a turn is never lost". That is true only once the guard
+    /// exists, and the guard is created at the *grant*, not at the draw. A
+    /// future dropped while parked in the wait leaves `now_serving` pointing at
+    /// a ticket nobody holds and nobody will ever release.
+    ///
+    /// The consequence is total and permanent: every later document-sync
+    /// notification blocks in `wait_turn`, and every request handler blocks in
+    /// `edits_settled`, which is exactly the steady state #1657 records — no
+    /// CPU, no output, stdin still draining.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_dropped_waiter_does_not_wedge_the_edit_order() {
+        let order = EditOrder::default();
+
+        // Ticket 0 is held by an edit that is getting on with its work.
+        let first = order.take_ticket();
+        let first_turn = order.wait_turn(first).await;
+
+        // Ticket 1's handler is dropped while parked — it never reaches the
+        // grant, so it never owns an `EditTurn`.
+        let abandoned = order.take_ticket();
+        let abandoned_n = abandoned.ticket;
+        {
+            let mut waiting = Box::pin(order.wait_turn(abandoned));
+            // Poll it so it really is registered and parked, then drop it.
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_millis(50), &mut waiting)
+                    .await
+                    .is_err(),
+                "ticket {abandoned_n} must not be granted while an earlier ticket holds the turn",
+            );
+        }
+
+        // Ticket 2 is a later edit, waiting its turn behind the abandoned one.
+        let third = order.take_ticket();
+        let third_n = third.ticket;
+        let next = order.wait_turn(third);
+
+        drop(first_turn);
+
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), next)
+                .await
+                .is_ok(),
+            "a waiter dropped before its turn was granted stopped the edit order for ever: \
+             ticket {third_n} never ran behind abandoned ticket {abandoned_n}. Every later edit \
+             and every request handler waiting on `edits_settled` would now be blocked \
+             permanently (#1657)",
+        );
+
+        // And the sequence is genuinely caught up, not merely unblocked: a
+        // request barrier taken now must see every drawn ticket accounted for.
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), order.settled())
+                .await
+                .is_ok(),
+            "`settled` must not still be waiting on the abandoned ticket",
+        );
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn read_document_waits_for_an_in_flight_edit() {
         let backend = Arc::new(test_backend());
