@@ -197,3 +197,7 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 ## 2026-08-20 16:05Z — DEPLOY GREEN AGAIN (run 288)
 - Pages deploy run 288 SUCCESS on the #1665 hotfix merge push. The user's deploy signal is restored; regression window was runs 287 only (one red push, caught and hotfixed same-day within ~90 min of the user's report).
 - F6v2 free to resume the census (revised lost-wakeup design, branch f6c @2be98b045). F8's Codex-fix head in CI (fresh run 16:01, no failures so far).
+
+## 2026-08-20 16:10Z — restart #7 (no rollback)
+- Worker restart killed F8 mid-Codex-round; NO filesystem rollback this time (worktrees + state intact, disk 17G). F8's fix committed at da2c13463 (orphan keeps consuming, stops contributing) atop the #1665 hotfix merge; tree clean. RESUMED via SendMessage: verify push, check CI outcome on #1666 (wedge policy applies), finish thread reply/resolve, report.
+- Deploy green (run 288) confirmed pre-restart. F6v2 idle-resumable for census when pinged.
