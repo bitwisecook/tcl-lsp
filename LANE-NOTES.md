@@ -9,8 +9,26 @@ is opened**; its content becomes the PR body.
 |---|---|
 | #1651 root cause | found, fixed, unit-test pinned, mutation-verified |
 | #1600 root cause | found, fixed, unit-test pinned |
-| full ext-host suite under xvfb | **not yet run** — the remaining gate |
-| pre-push gates (fmt/clippy/check/e2e) | not yet run |
+| ext-host suite, fixed tree | **920 passing, 0 failing, 1 pending** (single-root) + **14/14** (multi-root) |
+| ext-host suite, baseline (epoch check removed only) | **651 passing, 8 failing, 241 pending** — #1651 reproduced verbatim (`got [O111,O120]`) *and* the run truncated |
+| pre-push gates (fmt/clippy/check/e2e) | fmt clean both trees; clippy/check/e2e outstanding |
+
+### A/B evidence
+
+Same commit, same binary path, same host, only `|| slot.inputs_epoch != epoch`
+removed from `schedule_diagnostics_impl`:
+
+| run | result |
+|---|---|
+| fixed | 920 passing, 0 failing, 1 pending (`3m`) |
+| baseline | 651 passing, **8 failing**, 241 pending (`8m`), first failure `Configuration Settings disabling optimiser.enabled suppresses O1xx diagnostics: AssertionError … got [O111,O120]` |
+
+The 241 pending in the baseline run is the wedge latch truncating the rest —
+i.e. **both** halves of #1600 reproduce from the single #1651 defect. Under
+investigation: whether the latch fired on genuinely-all-three-failed evidence
+(so the corroboration fix is working as designed and the wedge was a real
+starvation event) or on something the fix should also cover. A second baseline
+run capturing full output is in flight for the `LIVENESS:` lines.
 
 ## #1651 (and #1600 item 1) — the optimiser-disable test
 
