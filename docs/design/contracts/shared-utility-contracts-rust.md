@@ -34,7 +34,7 @@ entry point, or gate moves without this contract being updated.
 | --- | --- | --- | --- | --- |
 | names / namespaces | `rust/tcl-syntax/src/naming.rs`; `rust/tcl-cmd-core/src/namespace.rs` | `qualifier_segments`; `command_resolution_candidates`; `qualifiers`; `tail`; `which_command`; `which_command_bytes`; `which_variable`; `variable_fqn`; `variable_fqn_bytes`; `origin`; `origin_bytes` | invariant, except `which_variable`'s alternate (global) candidate, which 9.0 drops; absolute-marker contract from #1493 | `xtask-resolution-drift` |
 | lists | `rust/tcl-syntax/src/list.rs` | `find_element`; `split_list`; `list_element`; `join_list`; `append_list_element`; `junk_fragment` | invariant | none |
-| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `find_element`; `split_list`; `ValueOps::dict_pairs` | invariant | none |
+| dicts | `rust/tcl-syntax/src/list.rs`; `rust/tcl-syntax/src/value.rs` | `find_element`; `split_list`; `canonical_dict_slots`; `ValueOps::dict_pairs` | invariant | none |
 | glob matching | `rust/tcl-syntax/src/glob.rs` | `string_match`; `string_case_match` | invariant | none |
 | switch body grammar | `rust/tcl-syntax/src/switch_body.rs` | `tokenise_switch_body`; `parse_braced_pairs` | invariant | none |
 | numbers | `rust/tcl-syntax/src/number.rs`; `rust/tcl-dialect/src/expr_number.rs`; `rust/tcl-dialect/src/grammar.rs` | `parse`; `parse_whole_with`; `is_expr_number`; `scan_expr_number`; `scan_nan_payload`; `NumberSyntax` | `NumberSyntax` and expression-word grammar per release | `xtask-number-drift` |
@@ -577,6 +577,21 @@ helper without reading the rationale:
   `dict_parse_errors_use_the_dict_noun_and_error_code` (#1573);
   `rust/tcl-vm/tests/cross_version_command_surface_e2e.rs` — the
   *foldable* `dict create` availability vector.
+- `rust/tcl-vm/tests/dict_canonicalisation_parity.rs` — the cross-crate
+  gate for `canonical_dict_slots` (#1608). The canonicalisation rule
+  ("first-occurrence key position, last value wins") had three
+  independent implementations plus one surface that had *missed* it, and
+  `owner-resolution` cannot see that class of drift: it validates the
+  manifest, not whether a surface calls the owner at all. The rule is now
+  one function, and this suite feeds a duplicate-key / odd-shape corpus
+  through every binding — the `ValueOps` seam, the registry `dict`
+  const-folds via `run_const_fold`, and the codegen's
+  `fold_dict_create_cmd` — asserting byte identity against each other and
+  against real tclsh8.6/9.0. The WASM runtime's native dict rep
+  (`runtime/rust/src/dict.rs`) canonicalises *incrementally* across
+  mutation instead, so it binds the rule by agreement rather than by
+  construction; `duplicate_keys_canonicalise_like_the_shared_owner` there
+  is its leg of the same gate.
 - `rust/tcl-lexer/src/ranges.rs` —
   `braced_var_name_end_follows_the_release_rule`;
   `rust/tcl-vm/tests/cross_version_vars_e2e.rs` —

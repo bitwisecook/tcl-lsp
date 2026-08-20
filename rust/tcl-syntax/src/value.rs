@@ -131,6 +131,68 @@ impl core::fmt::Display for ValueError {
 
 impl std::error::Error for ValueError {}
 
+/// Tcl's dict canonicalisation rule, as slot indices — **the** implementation of
+/// "first-occurrence key position, last value wins".
+///
+/// `keys` is one key string per key/value slot, in source order: slot `i` is
+/// elements `2i` / `2i + 1` of the flat list rep, or arguments `2i` / `2i + 1`
+/// of `dict create`. The result is one `(key_slot, value_slot)` entry per
+/// *surviving* key, in canonical order — the slot whose key spelling and
+/// position the dict keeps, and the slot whose value it keeps. With no
+/// duplicate key that is `[(0, 0), (1, 1), …]`; for `a 1 b 2 a 3` it is
+/// `[(0, 2), (1, 1)]`.
+///
+/// This is `SetDictFromAny` (`tmp/tcl9.0.4/generic/tclDictObj.c:589`) walking
+/// the list rep and `Tcl_DictObjPut`ing each pair: the hash entry for a
+/// repeated key already exists, so the *value* is overwritten while the entry
+/// keeps its original chain position. `DictCreateCmd` walks its arguments the
+/// same way, which is why one function answers for both.
+///
+/// Working in indices rather than values is what lets every layer share it:
+/// the runtime seam ([`ValueOps::dict_pairs`]) maps them back onto its own
+/// value handles, and the compile-time folders (`tcl_registry::const_fold`'s
+/// `parse_dict` / `fold_dict_create`, `tcl_compiler`'s `fold_dict_create_cmd`)
+/// map them onto their own strings — none of them re-derives the rule.
+///
+/// That mattered: the rule existed in three independent copies plus one place
+/// it had been *missed*, where `dict get {a 1 a 2} a` folded to `1` while both
+/// tclsh oracles say `2` (issues #1427, #1591, #1608). Callers must not
+/// re-implement the walk; the cross-crate parity gate
+/// `dict_canonicalisation_parity` fails when a copy reappears and diverges.
+///
+/// The odd-length check belongs to the caller: what an unpaired trailing
+/// element means (an error, or a declined fold) differs per layer.
+///
+/// The key type is borrowed and only `Eq + Hash`, so a byte-oriented value
+/// model can bind this with `&[u8]` keys as readily as a string one does with
+/// `&str` — keys are compared by their exact rep either way, which is what
+/// `Tcl_DictObjPut`'s hash does.
+///
+/// The WASM runtime's *native* dict rep (`runtime/rust/src/dict.rs`)
+/// deliberately does not call this: it maintains a live key index across
+/// mutation, so it canonicalises incrementally (one `Tcl_DictObjPut` per
+/// insert) rather than in one walk. Its agreement with this rule is pinned by
+/// its own parity test rather than by construction.
+#[must_use]
+pub fn canonical_dict_slots<'a, K>(keys: impl IntoIterator<Item = &'a K>) -> Vec<(usize, usize)>
+where
+    K: ?Sized + Eq + std::hash::Hash + 'a,
+{
+    // Key → its slot's position in `slots`, so a duplicate is O(1) to find: a
+    // linear re-scan per element made this O(N²) on every dict operation (D3).
+    let mut first_seen: std::collections::HashMap<&'a K, usize> = std::collections::HashMap::new();
+    let mut slots: Vec<(usize, usize)> = Vec::new();
+    for (slot, key) in keys.into_iter().enumerate() {
+        if let Some(&position) = first_seen.get(key) {
+            slots[position].1 = slot; // last value wins, first position kept
+        } else {
+            first_seen.insert(key, slots.len());
+            slots.push((slot, slot));
+        }
+    }
+    slots
+}
+
 /// The value operations a Tcl command core supplies its runtime.
 ///
 /// The shared command bodies in `tcl-cmd-core` drive these; construction,
@@ -277,21 +339,21 @@ pub trait ValueOps {
                 "missing value to go with key".to_string(),
             ));
         }
-        // Index keys → position for O(1) dedup (D3): a linear `Vec::position`
-        // scan per element made this O(N²) on every dict operation.
-        let mut index: std::collections::HashMap<Rc<str>, usize> =
-            std::collections::HashMap::with_capacity(elems.len() / 2);
-        let mut pairs: Vec<(Self::Value, Self::Value)> = Vec::new();
-        for chunk in elems.chunks_exact(2) {
-            let key = self.as_str(&chunk[0]);
-            if let Some(&pos) = index.get(&key) {
-                pairs[pos].1 = chunk[1].clone(); // last value wins, keep position
-            } else {
-                index.insert(key, pairs.len());
-                pairs.push((chunk[0].clone(), chunk[1].clone()));
-            }
-        }
-        Ok(pairs)
+        // The canonicalisation rule itself lives in `canonical_dict_slots` —
+        // this method binds it to a value model, it does not restate it.
+        let keys: Vec<Rc<str>> = elems
+            .chunks_exact(2)
+            .map(|chunk| self.as_str(&chunk[0]))
+            .collect();
+        Ok(canonical_dict_slots(keys.iter().map(AsRef::as_ref))
+            .into_iter()
+            .map(|(key_slot, value_slot)| {
+                (
+                    elems[key_slot * 2].clone(),
+                    elems[value_slot * 2 + 1].clone(),
+                )
+            })
+            .collect())
     }
 
     /// Build a dict value from canonical key/value pairs. The default interleaves

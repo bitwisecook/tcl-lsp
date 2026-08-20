@@ -365,13 +365,13 @@ pub fn regexp_to_glob(pattern: &str) -> Option<String> {
 /// doesn't match or contains substitutions.
 #[must_use]
 pub fn fold_cmd_args(value: &str, prefix: &str) -> Option<String> {
-    Some(
-        fold_cmd_arg_values(value, prefix)?
-            .iter()
-            .map(|a| tcl_list_element(a))
-            .collect::<Vec<_>>()
-            .join(" "),
-    )
+    // `Tcl_Merge`, not a per-element `Tcl_ConvertElement` loop: a leading `#`
+    // is comment-unsafe only in list position 0, so mapping the single-element
+    // quoter over every argument rendered `[list a #]` as `a {#}` where both
+    // tclsh oracles print `a #` (issues #1439 / #1608).
+    Some(tcl_syntax::list::join_list(fold_cmd_arg_values(
+        value, prefix,
+    )?))
 }
 
 /// [`fold_cmd_args`]'s foldability check, stopping at the **argument values**
@@ -460,8 +460,16 @@ pub fn fold_list_cmd(value: &str) -> Option<String> {
 /// **Not** a plain list join of the arguments. `dict create` builds a
 /// dictionary, so it canonicalises: a repeated key keeps its
 /// **first-occurrence position** and its **last value**
-/// (`Tcl_DictObjPut` over `DictCreateCmd`'s argument walk), exactly the rule
-/// [`tcl_syntax::value::ValueOps::dict_pairs`] applies at runtime.
+/// (`Tcl_DictObjPut` over `DictCreateCmd`'s argument walk).
+///
+/// The walk is the shared owner's,
+/// [`tcl_syntax::value::canonical_dict_slots`] — the same function behind the
+/// runtime seam `ValueOps::dict_pairs` and the registry's `dict` const-folds.
+/// This site used to carry its own (`Vec::iter_mut().find`, O(N²)) copy; three
+/// correct copies and one place the rule had been missed is what issue #1608
+/// was filed about, and the cross-crate `dict_canonicalisation_parity` gate now
+/// fails if a copy reappears and diverges. Only the *rendering* is local: a
+/// folded `dict create` is re-quoted element by element here.
 ///
 /// Joining instead froze `[dict create a 1 a 2]` into the literal `a 1 a 2`,
 /// whose *string representation* is a dict nothing canonicalises — `dict size`
@@ -478,22 +486,19 @@ pub fn fold_dict_create_cmd(value: &str) -> Option<String> {
     if args.len() % 2 != 0 {
         return None;
     }
-    let mut pairs: Vec<(&str, &str)> = Vec::with_capacity(args.len() / 2);
-    for pair in args.chunks_exact(2) {
-        let (k, v) = (pair[0].as_str(), pair[1].as_str());
-        if let Some(slot) = pairs.iter_mut().find(|(pk, _)| *pk == k) {
-            slot.1 = v; // last value wins, position preserved
-        } else {
-            pairs.push((k, v));
-        }
-    }
-    Some(
-        pairs
-            .iter()
-            .flat_map(|(k, v)| [tcl_list_element(k), tcl_list_element(v)])
-            .collect::<Vec<_>>()
-            .join(" "),
-    )
+    let canonical: Vec<&str> =
+        tcl_syntax::value::canonical_dict_slots(args.iter().step_by(2).map(String::as_str))
+            .into_iter()
+            .flat_map(|(key_slot, value_slot)| {
+                [
+                    args[key_slot * 2].as_str(),
+                    args[value_slot * 2 + 1].as_str(),
+                ]
+            })
+            .collect();
+    // Rendered by the shared `Tcl_Merge` owner — the position-0-only `#` rule
+    // matters here too (`[dict create a #]` is `a #`, not `a {#}`).
+    Some(tcl_syntax::list::join_list(canonical))
 }
 
 /// Constant-fold `[format "..." arg ...]` → result string.
