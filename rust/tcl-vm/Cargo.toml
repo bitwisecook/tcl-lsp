@@ -65,6 +65,14 @@ num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"
 
+# The browser half of the capability seam (`src/host_wasm.rs`), which is the
+# `Vm`'s default host on `wasm32-unknown-unknown`: there is no OS under that
+# target and `std::time::SystemTime::now` panics, so the wall clock has to come
+# from JavaScript's `Date.now()` (issue #1661). Target-gated so no native build
+# — and no `wasm32-wasip1` build, where std time works — carries wasm-bindgen.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = "0.3"
+
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).

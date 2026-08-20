@@ -34,6 +34,11 @@ pub mod debug;
 pub mod embed;
 pub mod error;
 pub mod host_native;
+// The `wasm32-unknown-unknown` half of the capability seam. Gated rather than
+// always-compiled because its clock is a JavaScript import (`js-sys`), which is
+// a dependency no native build should carry.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub mod host_wasm;
 pub mod value;
 mod value_ops;
 

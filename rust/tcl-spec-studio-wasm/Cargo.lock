@@ -1217,6 +1217,7 @@ version = "0.1.0"
 name = "tcl-vm"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "num-bigint 0.5.1",
  "num-integer",
  "num-traits",
@@ -1225,6 +1226,7 @@ dependencies = [
  "tcl-core-types",
  "tcl-dialect",
  "tcl-host-native",
+ "tcl-lexer",
  "tcl-platform",
  "tcl-regex",
  "tcl-registry",
