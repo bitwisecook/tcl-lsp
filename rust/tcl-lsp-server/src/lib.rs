@@ -13726,21 +13726,6 @@ impl Backend {
         .unwrap_or_default();
         self.publish_spec_pack_notices(&packs, &collisions).await;
 
-        // The claimed-extension set has to be reconciled on **every** reload,
-        // not only a `changed` one: `changed` compares the pack *content* key,
-        // and a reload that leaves content identical can still be the first
-        // one to reach a client that had not yet registered (a restarted
-        // client, a folder added). The refresh is a no-op when the set has
-        // genuinely not moved, so this costs a vec comparison.
-        let extensions_changed = self.refresh_pack_extension_registrations().await;
-        // The files already on disk under a newly-claimed extension are
-        // invisible to the index until something walks them again — except at
-        // startup, where `initialized` scans immediately after this returns
-        // and a scan here would be the same walk twice.
-        if extensions_changed && trigger != ReloadTrigger::Startup {
-            self.scan_workspace_folders().await;
-        }
-
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
             self.client
@@ -13757,24 +13742,48 @@ impl Backend {
                 .await;
         }
 
-        // Tell the client the reload is *finished*, after every consequence of
-        // it has landed. A client that reacts to the same filesystem event the
-        // server did has no way to know when the server is done with it, so it
-        // races: it asks for the new pack set and is answered from the old one,
-        // with nothing scheduled to ask again. A client watching only its
-        // workspace folders cannot even see an edit to an absolute
-        // `tclLsp.specPacks` root, which the server watches and it does not.
-        // One push after the fact settles both (issue #1626, review finding
-        // P1-2). Sent unconditionally, since "nothing changed" is exactly the
-        // answer a racing client needs to hear to stop waiting.
+        self.settle_pack_reload(changed, trigger).await;
+        changed
+    }
+
+    /// Everything that has to happen *after* a pack set is published, in the
+    /// order a client can rely on.
+    ///
+    /// Split from [`Backend::reload_spec_packs`] because it is a distinct
+    /// phase with a contract of its own: by the time the notification at the
+    /// end is sent, every consequence of the reload has already landed.
+    async fn settle_pack_reload(&self, changed: bool, trigger: ReloadTrigger) {
+        // Reconciled on **every** reload, not only a `changed` one: `changed`
+        // compares the pack *content* key, and a reload leaving content
+        // identical can still be the first to reach a client that had not yet
+        // registered (a restarted client, a folder added). The refresh is a
+        // no-op when the set has genuinely not moved, so this costs a vec
+        // comparison.
+        let extensions_changed = self.refresh_pack_extension_registrations().await;
+        // Files already on disk under a newly-claimed extension are invisible
+        // to the index until something walks them again — except at startup,
+        // where `initialized` scans immediately after the reload returns and a
+        // scan here would be the same walk twice.
+        if extensions_changed && trigger != ReloadTrigger::Startup {
+            self.scan_workspace_folders().await;
+        }
+
+        // Tell the client the reload is finished. A client that reacts to the
+        // same filesystem event the server did has no way to know when the
+        // server is done with it, so it races: it asks for the new pack set,
+        // is answered from the old one, and has nothing scheduled to ask
+        // again. A client watching only its workspace folders cannot even see
+        // an edit under an absolute `tclLsp.specPacks` root, which the server
+        // watches and it does not. One push after the fact settles both
+        // (issue #1626, review finding P1-2). Sent unconditionally: "nothing
+        // changed" is exactly what a racing client needs to hear to stop
+        // waiting.
         self.client
             .send_notification::<SpecPacksReloaded>(serde_json::json!({
                 "changed": changed,
                 "pack_file_extensions": self.pack_file_extension_report().await,
             }))
             .await;
-
-        changed
     }
 
     /// Bring the registrations and the index into line with the extensions
