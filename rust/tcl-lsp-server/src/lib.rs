@@ -345,6 +345,130 @@ const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_s
 /// `VSCODE-WAIT-TIMEOUT`.
 const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
 
+/// Live salsa database snapshots, so a stalled barrier can name what it is
+/// waiting for.
+///
+/// # Why this exists
+///
+/// Salsa grants `&mut` on the database through `Storage::cancel_others`, which
+/// parks on a condvar until every *other* `DatabaseImpl` clone has been
+/// dropped. [`Backend::db_set_source`] reaches that from `did_open` /
+/// `did_change` **while they hold the [`EditOrder`] turn**, so one slow-to-drop
+/// snapshot stops the whole server (issue #1657).
+///
+/// The stall report could already say the barrier had stopped and which handler
+/// held it. It could not say *what the handler was waiting for*, because a
+/// snapshot leaves no trace — and the process is gone by the time anyone looks.
+/// This is that trace: every clone registers here with the site that made it and
+/// when, and retires on drop.
+///
+/// # Cost
+///
+/// One `HashMap` insert and one remove per salsa query, under a
+/// `std::sync::Mutex` whose critical sections contain no `await` and no
+/// allocation beyond the entry itself. Against the query it accompanies — a
+/// file analysis, a semantic-token pass, a whole-project arity walk — that is
+/// not measurable. A process-global rather than a `Backend` field on purpose:
+/// several of the clone sites are free functions that are handed
+/// `Arc<Mutex<TclDatabase>>` and no `&self`, and threading a census through them
+/// would be a lot of plumbing for a diagnostic.
+static SNAPSHOT_CENSUS: std::sync::LazyLock<SnapshotCensus> =
+    std::sync::LazyLock::new(SnapshotCensus::default);
+
+/// See [`SNAPSHOT_CENSUS`].
+#[derive(Default)]
+struct SnapshotCensus {
+    live: std::sync::Mutex<HashMap<u64, (&'static str, crate::rt::Instant)>>,
+    next_id: std::sync::atomic::AtomicU64,
+}
+
+/// What the census can say about the snapshots outstanding right now.
+struct SnapshotReport {
+    outstanding: usize,
+    /// The site and age of the longest-lived one — the one a blocked
+    /// `cancel_others` is really waiting for.
+    oldest: Option<(&'static str, std::time::Duration)>,
+}
+
+impl SnapshotCensus {
+    /// Clone `db` into a tracked snapshot, tagged with the site that took it.
+    ///
+    /// Takes `&'static self` so the handle retires into *this* census rather
+    /// than a hard-coded global — which is what lets a test drive an isolated
+    /// one instead of asserting on a counter every other test in the binary is
+    /// also moving.
+    fn take(&'static self, db: &tcl_lsp_db::TclDatabase, site: &'static str) -> DbSnapshot {
+        let id = self
+            .next_id
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(id, (site, crate::rt::Instant::now()));
+        DbSnapshot {
+            db: db.clone(),
+            census: self,
+            id,
+        }
+    }
+
+    fn retire(&self, id: u64) {
+        self.live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&id);
+    }
+
+    fn report(&self) -> SnapshotReport {
+        let live = self
+            .live
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Ordered by *age*, not by the instants themselves. The wasm arm of
+        // `crate::rt::Instant` is `f64` milliseconds from `performance.now()`,
+        // so it is `PartialOrd` and deliberately not `Ord` — floats have no
+        // total order, and manufacturing one for a clock would be a lie about
+        // NaN rather than a convenience. `Duration` is `Ord` on both targets.
+        //
+        // It also reads each clock exactly once, so the age this reports is the
+        // same number the comparison was decided on.
+        let oldest = live
+            .values()
+            .map(|(site, since)| (*site, since.elapsed()))
+            .max_by_key(|(_, age)| *age);
+        SnapshotReport {
+            outstanding: live.len(),
+            oldest,
+        }
+    }
+}
+
+/// A salsa database snapshot that retires itself from [`SNAPSHOT_CENSUS`].
+///
+/// Derefs to the database, so a call site reads `&*snapshot` where it used to
+/// read `&snapshot` and is otherwise unchanged. Move it into the worker it was
+/// cloned for and let it drop there — see [`Backend::db_set_source`] for what
+/// holding one across an unrelated `await` costs.
+struct DbSnapshot {
+    db: tcl_lsp_db::TclDatabase,
+    census: &'static SnapshotCensus,
+    id: u64,
+}
+
+impl std::ops::Deref for DbSnapshot {
+    type Target = tcl_lsp_db::TclDatabase;
+
+    fn deref(&self) -> &Self::Target {
+        &self.db
+    }
+}
+
+impl Drop for DbSnapshot {
+    fn drop(&mut self) {
+        self.census.retire(self.id);
+    }
+}
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -1680,11 +1804,11 @@ async fn compute_base_analysis(
         // Clone a fresh, short-lived snapshot for just this read and move it
         // into the worker; it drops when the read finishes, so it never holds
         // exclusive-access-blocking references across the debounce sleep.
-        let snapshot = db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_base_analysis");
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                    tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                 })
                 .ok()
             })
@@ -1969,10 +2093,10 @@ async fn compute_project_diags(
     let (Some(project), Some(file)) = (project, file) else {
         return ControlFlow::Continue(None);
     };
-    let snapshot = db.lock().await.clone();
+    let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_project_diags");
     match crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(|| {
-            (*tcl_lsp_db::project_callback_diagnostics(&snapshot, file, config, project)).clone()
+            (*tcl_lsp_db::project_callback_diagnostics(&*snapshot, file, config, project)).clone()
         })
         .ok()
     })
@@ -2014,11 +2138,11 @@ async fn compute_compiler_diags(
         dialect,
     } = ctx;
     if let Some(file) = file {
-        let snapshot = db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "compute_compiler_diags");
         match crate::rt::spawn_blocking(move || {
             with_pack_hooks(|| {
                 salsa::Cancelled::catch(|| {
-                    tcl_lsp_db::compiler_check_diagnostics(&snapshot, file, config)
+                    tcl_lsp_db::compiler_check_diagnostics(&*snapshot, file, config)
                 })
                 .ok()
             })
@@ -2584,7 +2708,11 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (db.clone(), files, project)
+        (
+            SNAPSHOT_CENSUS.take(&db, "sync_cross_file_evidence"),
+            files,
+            project,
+        )
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
@@ -2595,7 +2723,7 @@ async fn sync_cross_file_evidence(handles: &EvidenceHandles) -> Vec<Uri> {
                 .into_iter()
                 .filter_map(|(uri, file)| {
                     let want = wanted_call_site_evidence(&snapshot, &uri, file, project, &covered);
-                    let have = file.external_call_sites(&snapshot).as_ref();
+                    let have = file.external_call_sites(&*snapshot).as_ref();
                     (!call_site_evidence_matches(have, want.as_ref())).then_some((uri, file, want))
                 })
                 .collect::<Vec<_>>()
@@ -2808,19 +2936,23 @@ async fn sync_workspace_class_factories_round(handles: &EvidenceHandles) -> Clas
         };
         let files: Vec<(Uri, tcl_lsp_db::SourceFile)> =
             db_files.iter().map(|(u, &f)| (u.clone(), f)).collect();
-        (db.clone(), files, project)
+        (
+            SNAPSHOT_CENSUS.take(&db, "sync_workspace_class_factories_round"),
+            files,
+            project,
+        )
     };
     // `AssertUnwindSafe`: the closure only *reads* the database, and a
     // cancellation unwind discards the whole `pending` list without applying
     // anything, so no torn state can be observed afterwards.
     let computed = crate::rt::spawn_blocking(move || {
         salsa::Cancelled::catch(std::panic::AssertUnwindSafe(|| {
-            let index = tcl_lsp_db::project_class_factories(&snapshot, project);
+            let index = tcl_lsp_db::project_class_factories(&*snapshot, project);
             let want = (!index.is_empty()).then_some(index);
             let pending: Vec<(Uri, tcl_lsp_db::SourceFile)> = files
                 .into_iter()
                 .filter(|(_, file)| {
-                    file.workspace_class_factories(&snapshot).as_deref() != want.as_deref()
+                    file.workspace_class_factories(&*snapshot).as_deref() != want.as_deref()
                 })
                 .collect();
             (want, pending)
@@ -4866,6 +4998,21 @@ struct TurnHolder {
     /// aborts the browser worker and takes the page with it. The shim reads
     /// `performance.now()` there and is a plain re-export of Tokio's natively.
     since: crate::rt::Instant,
+    /// The `await` the holder last reached, named after the call it is about to
+    /// suspend on — see [`EditTurn::at`].
+    ///
+    /// Naming the *handler* narrowed issue #1657 from "the server" to
+    /// `did_open`; it did not narrow it any further, and a stack trace taken
+    /// during the wedge is why. Every Tokio worker was parked with an empty run
+    /// queue, so the holder is not running and not blocked in any OS primitive:
+    /// it is a suspended future whose wakeup never arrived. A suspended future
+    /// has no thread and therefore appears in no backtrace, which is exactly why
+    /// the suspension point has to be recorded on the way in rather than
+    /// recovered afterwards.
+    phase: &'static str,
+    /// When [`Self::phase`] was entered. Read against [`Self::since`]: a phase
+    /// as old as the turn means the holder never got past its first `await`.
+    phase_since: crate::rt::Instant,
 }
 
 impl EditOrder {
@@ -4904,6 +5051,11 @@ impl EditOrder {
                 // The turn is ours; the guard below now owns the release, so the
                 // reservation must not also account for it.
                 ticket.armed = false;
+                // One reading of the clock for both fields, so "the phase is as
+                // old as the turn" — the reading that says the holder never got
+                // past its first await — is exact equality rather than a
+                // sub-millisecond difference a reader has to squint at.
+                let granted = crate::rt::Instant::now();
                 *self
                     .holder
                     .lock()
@@ -4911,7 +5063,9 @@ impl EditOrder {
                     what: ticket.what,
                     uri: std::mem::take(&mut ticket.uri),
                     ticket: ticket.ticket,
-                    since: crate::rt::Instant::now(),
+                    since: granted,
+                    phase: TURN_PHASE_GRANTED,
+                    phase_since: granted,
                 });
                 return EditTurn { order: self };
             }
@@ -5023,9 +5177,55 @@ impl Drop for EditTicket<'_> {
     }
 }
 
+/// The phase a turn is in between its grant and its first marked `await`.
+///
+/// Distinct from any call name on purpose: seeing it in a stall line means the
+/// holder is stuck in code that draws no marker, which points at the
+/// instrumentation before it points at the handler.
+const TURN_PHASE_GRANTED: &str = "granted (no await reached yet)";
+
 /// A held turn in the [`EditOrder`] sequence; hands it on when dropped.
 struct EditTurn<'a> {
     order: &'a EditOrder,
+}
+
+impl EditTurn<'_> {
+    /// Record the `await` this turn is about to suspend on.
+    ///
+    /// Call it **immediately before** the `await`, naming that call: the marker
+    /// answers "where did the holder stop", so it has to be in place before the
+    /// suspension it is describing, not after the resume that may never come.
+    ///
+    /// # Why a marker rather than a stack trace
+    ///
+    /// Issue #1657's wedge produces no stack to read. A backtrace of the wedged
+    /// process shows every Tokio worker parked with an empty run queue — the
+    /// holder is a *suspended future*, owned by no thread, waiting on a wakeup
+    /// that never came. Its suspension point exists only as a discriminant
+    /// inside a generator on the heap, which no debugger will name. Writing it
+    /// down on the way in is the only way to have it afterwards.
+    ///
+    /// # Cost
+    ///
+    /// An uncontended `std::sync::Mutex` and two stores, a handful of times per
+    /// document-sync notification, on a path that is *already* serialised by the
+    /// very lock being taken — the turn holder is unique by construction, so
+    /// nothing else can be contending for it. That is orders of magnitude below
+    /// the salsa work each marked `await` guards, and it is paid only by
+    /// document-sync handlers, never by a request handler's `edits_settled`
+    /// fast path.
+    fn at(&self, phase: &'static str) {
+        if let Some(holder) = self
+            .order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.phase = phase;
+            holder.phase_since = crate::rt::Instant::now();
+        }
+    }
 }
 
 impl Drop for EditTurn<'_> {
@@ -6097,9 +6297,9 @@ impl Backend {
     ) -> Option<Vec<tcl_lsp_core::document_symbols::DocumentSymbol>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = *self.db_config.lock().await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_document_symbols");
         crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&snapshot, file, config)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_symbols(&*snapshot, file, config)).ok()
         })
         .await
         .ok()
@@ -6120,9 +6320,9 @@ impl Backend {
         uri: &Uri,
     ) -> Option<Vec<tcl_lsp_core::folding::FoldingRange>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_folding_ranges");
         crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::folding_ranges(&*snapshot, file)).ok()
         })
         .await
         .ok()
@@ -6185,10 +6385,11 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::analyser::AnalysisResult>>>> {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
         let config = self.resolved_db_config(uri).await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot =
+            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_file_analysis_handle");
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| {
-                tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
             })
             .ok()
         }))
@@ -6203,9 +6404,10 @@ impl Backend {
     ) -> Option<crate::rt::JoinHandle<Option<Arc<tcl_compiler::compilation_unit::CompilationUnit>>>>
     {
         let file = (*self.db_files.lock().await).get(uri).copied()?;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot =
+            SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_compilation_unit_handle");
         Some(crate::rt::spawn_blocking(move || {
-            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&snapshot, file)).ok()
+            salsa::Cancelled::catch(|| tcl_lsp_db::document_compilation_unit(&*snapshot, file)).ok()
         }))
     }
 
@@ -6248,13 +6450,13 @@ impl Backend {
         // a class defined in another file highlights; otherwise fall back to the
         // local (single-file) hierarchy.
         let project = *self.db_project.lock().await;
-        let snapshot = self.db.lock().await.clone();
+        let snapshot = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "db_semantic_tokens");
         Some(crate::rt::spawn_blocking(move || {
             salsa::Cancelled::catch(|| match project {
                 Some(project) => {
-                    tcl_lsp_db::semantic_tokens_project(&snapshot, file, project, config)
+                    tcl_lsp_db::semantic_tokens_project(&*snapshot, file, project, config)
                 }
-                None => tcl_lsp_db::semantic_tokens(&snapshot, file, config),
+                None => tcl_lsp_db::semantic_tokens(&*snapshot, file, config),
             })
             .ok()
         }))
@@ -6740,22 +6942,48 @@ impl Backend {
             },
             |h| {
                 format!(
-                    "held by {} for {:.1}s on {} (ticket {})",
+                    "held by {} for {:.1}s on {} (ticket {}), suspended at `{}` for {:.1}s",
                     h.what,
                     h.since.elapsed().as_secs_f64(),
                     h.uri,
                     h.ticket,
+                    h.phase,
+                    h.phase_since.elapsed().as_secs_f64(),
                 )
             },
         );
+        // A second, independent reading of the same moment. `did_open` /
+        // `did_change` both reach `db_set_source` inside the turn, and salsa's
+        // `cancel_others` blocks there until every other database snapshot has
+        // been dropped, so an outstanding snapshot older than the stall is the
+        // one thing that could hold that call.
+        //
+        // Stated as evidence, not as a verdict. The census counts live database
+        // clones; it cannot see whether the holder is in `set_text` at all — the
+        // phase marker above is what answers that, and the two are printed
+        // together precisely so a reader can check them against each other. A
+        // stale-looking snapshot next to a phase that never reached
+        // `db_set_source` means the snapshot is a bystander (issue #1657).
+        let census = SNAPSHOT_CENSUS.report();
+        let waiting_on = match census.oldest {
+            Some((site, age)) => format!(
+                "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s ago",
+                census.outstanding,
+                age.as_secs_f64(),
+            ),
+            None => "no salsa snapshot is outstanding, so nothing can be parked in \
+                     `cancel_others`"
+                .to_owned(),
+        };
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
-                     The turn is {culprit}. Every request handler is blocked on this barrier \
-                     and the server will answer nothing until it moves (issue #1657).",
+                     The turn is {culprit}. {waiting_on}. Every request handler is blocked on \
+                     this barrier and the server will answer nothing until it moves \
+                     (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
                 ),
@@ -13487,8 +13715,8 @@ impl Backend {
         // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
         let p = project?;
-        let db = self.db.lock().await.clone();
-        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+        let db = SNAPSHOT_CENSUS.take(&self.db.lock().await.clone(), "project_callback_arities_if");
+        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&*db, p))
             .await
             .ok()
     }
@@ -15384,10 +15612,11 @@ impl Backend {
                 // Clone the snapshot only after the permit is held, so
                 // `set_text` never waits on more than `concurrency` in-flight
                 // reads.
-                let snapshot = db.lock().await.clone();
+                let snapshot =
+                    SNAPSHOT_CENSUS.take(&db.lock().await.clone(), "warm_open_documents");
                 let _ = crate::rt::spawn_blocking(move || {
                     let _ = salsa::Cancelled::catch(|| {
-                        tcl_lsp_db::file_analysis_incremental(&snapshot, file, config)
+                        tcl_lsp_db::file_analysis_incremental(&*snapshot, file, config)
                     });
                 })
                 .await;
@@ -15849,6 +16078,10 @@ impl LanguageServer for Backend {
             .edit_order
             .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
+        // Phase markers (see `EditTurn::at`): `did_open` is the handler issue
+        // #1657's captures name as the holder, so every `await` it reaches
+        // inside the turn is marked before it is entered.
+        turn.at("did_open: dialect_for_open");
         let dialect = self
             .dialect_for_open(
                 &params.text_document.uri,
@@ -15866,6 +16099,7 @@ impl LanguageServer for Backend {
             // global gate): a reader must never see the new `doc.text` with a
             // stale query result for the old text, and no diagnostics run may
             // re-add a stale index entry between them.
+            turn.at("did_open: documents.lock");
             let mut docs = self.documents.lock().await;
             docs.insert(
                 uri.clone(),
@@ -15895,12 +16129,15 @@ impl LanguageServer for Backend {
             // oracle until this document's own publish replaces it a debounce
             // later. That is strictly better than the entry being *absent* for
             // that same window, which is what it was before.
+            turn.at("did_open: db_source_matches");
             let matches_indexed_source = self
                 .db_source_matches(&uri, &text, &dialect_for_diags)
                 .await;
+            turn.at("did_open: db_set_source");
             self.db_set_source(&uri, &text, dialect_for_diags.clone())
                 .await;
             if !matches_indexed_source {
+                turn.at("did_open: workspace_index.write");
                 self.workspace_index
                     .write()
                     .await
@@ -15956,6 +16193,8 @@ impl LanguageServer for Backend {
         }
         let change_version = params.text_document.version;
         let (dialect, language_id, dialect_hint_may_have_changed) = {
+            // Phase marker — see `EditTurn::at`.
+            turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock().await;
             // tower-lsp-server 0.23 dispatches notification handlers
             // concurrently (`buffer_unordered(4)`), so a `didChange` can be
@@ -16032,6 +16271,7 @@ impl LanguageServer for Backend {
             // the workspace already carries between publishes, and strictly less
             // misleading than the alternative (a mid-keystroke window where the
             // file contributes no procs, classes or call sites at all).
+            turn.at("did_change: db_set_source");
             self.db_set_source(&uri, &text, dialect.clone()).await;
             drop(docs);
             (dialect, language_id, dialect_hint_may_have_changed)
@@ -16164,8 +16404,11 @@ impl LanguageServer for Backend {
             // replaced the global gate): an in-flight diagnostics run re-checks
             // currency under `documents` and, finding the doc gone, will not
             // re-add a stale index entry or publish for it.
+            // Phase markers — see `EditTurn::at`.
+            turn.at("did_close: documents.lock");
             let mut docs = self.documents.lock().await;
             docs.remove(uri);
+            turn.at("did_close: workspace_index.write");
             self.workspace_index
                 .write()
                 .await
@@ -16177,13 +16420,17 @@ impl LanguageServer for Backend {
         // resolves the inputs unconditionally (`reschedule_diagnostics`, #104),
         // so a reopened document never reads the retained ones — while every
         // browsed-and-closed file left its `DiagInputs` behind for good.
+        turn.at("did_close: evict_diag_slot");
         self.evict_diag_slot(uri).await;
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
+        turn.at("did_close: last_semantic_tokens.lock");
         self.last_semantic_tokens.lock().await.remove(uri);
+        turn.at("did_close: semantic_tokens_refresh_asked.lock");
         self.semantic_tokens_refresh_asked.lock().await.remove(uri);
         // The workspace-class analysis memo is keyed by URI; a closed
         // document's entry would otherwise linger for the process's life.
+        turn.at("did_close: workspace_class_analyses.lock");
         self.workspace_class_analyses.lock().await.remove(uri);
         // Everything the ordering ticket exists to protect is now applied, so
         // hand the turn on before the heavy tail below (#1150).  `EditOrder` is
@@ -32971,6 +33218,169 @@ mod tests {
             "a genuine stall must still be reported and recorded",
         );
         drop(queued);
+    }
+
+    /// The snapshot census must count what is live and retire what is not.
+    ///
+    /// This is the reading that names what a stalled turn is waiting for: salsa
+    /// parks `set_text` in `cancel_others` until every other database clone
+    /// drops, so the oldest outstanding snapshot is the thing at the bottom of
+    /// the stack. A census that over-counts would accuse an innocent site; one
+    /// that under-counts would report "nothing outstanding" and send the next
+    /// reader looking somewhere else entirely (issue #1657).
+    ///
+    /// Driven against an isolated census rather than the process-global one:
+    /// the whole test binary shares that global, so asserting on its counts
+    /// would be asserting on whatever every other test happened to be doing.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_snapshot_census_tracks_live_clones_and_retires_dropped_ones() {
+        let db = tcl_lsp_db::TclDatabase::default();
+        // `&'static` because a snapshot retires into the census that made it,
+        // and production's is a `LazyLock` static.
+        let census: &'static SnapshotCensus = Box::leak(Box::new(SnapshotCensus::default()));
+        assert_eq!(census.report().outstanding, 0, "a fresh census is empty");
+
+        let first = census.take(&db, "test-first");
+        // Distinguishable ages, so "oldest" means something to assert on.
+        crate::rt::sleep(std::time::Duration::from_millis(20)).await;
+        let second = census.take(&db, "test-second");
+
+        let report = census.report();
+        assert_eq!(report.outstanding, 2, "both live snapshots must be counted");
+        assert_eq!(
+            report
+                .oldest
+                .expect("a live snapshot must have an oldest")
+                .0,
+            "test-first",
+            "the census must name the *longest-lived* snapshot, not the newest — \
+             that is the one a blocked `cancel_others` is waiting for",
+        );
+
+        drop(first);
+        let report = census.report();
+        assert_eq!(
+            report.outstanding, 1,
+            "a dropped snapshot must retire, or a wedge would be blamed on a query \
+             that finished long ago",
+        );
+        assert_eq!(
+            report.oldest.expect("one snapshot is still live").0,
+            "test-second",
+            "retiring the oldest must promote the next one",
+        );
+
+        drop(second);
+        let report = census.report();
+        assert_eq!(report.outstanding, 0, "the census must return to empty");
+        assert!(
+            report.oldest.is_none(),
+            "an empty census reports no oldest, which is what tells the stall line \
+             the holder is parked on something other than `cancel_others`",
+        );
+
+        // And the handle really is the database: the deref is what lets every
+        // call site pass `&*snapshot` where it passed `&snapshot` before.
+        let third = census.take(&db, "test-deref");
+        let _: &tcl_lsp_db::TclDatabase = &third;
+        drop(third);
+    }
+
+    /// A stalled turn must name the `await` it is suspended at, not merely the
+    /// handler that holds it.
+    ///
+    /// Naming the handler took issue #1657 from "the server is wedged" to
+    /// "`did_open` is wedged" and then stopped: a backtrace of the wedged
+    /// process shows every Tokio worker parked with an empty run queue, so the
+    /// holder is a suspended future that appears in no stack. The phase marker
+    /// is the only reading that can close that gap, and this test is what says
+    /// it is telling the truth rather than reporting a stale or default value.
+    ///
+    /// Constructed, not raced: the test itself holds the `documents` lock that
+    /// `did_open` must take *inside* its turn, so the handler is granted the
+    /// turn, suspends at exactly one known point, and stays there for as long
+    /// as the assertion needs. Nothing but this test can release it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_stalled_turn_names_the_await_it_is_suspended_at() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/phase.tcl").unwrap();
+
+        let held_documents = backend.documents.lock().await;
+
+        let opener = {
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            tokio::spawn(async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "set x 1\n".to_owned(),
+                        },
+                    })
+                    .await;
+            })
+        };
+
+        let holder_now = || {
+            backend
+                .edit_order
+                .holder
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        };
+        let reached = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(h) = holder_now()
+                    && h.phase == "did_open: documents.lock"
+                {
+                    return h;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        let Ok(holder) = reached else {
+            panic!(
+                "the turn holder never reported the `await` it is suspended at. `did_open` is \
+                 parked on the `documents` lock this test holds and cannot be anywhere else, so \
+                 the marker is missing or stale. Without it a #1657 stall line names only the \
+                 handler, which is where the investigation already was. Last observed holder: \
+                 {:?}",
+                holder_now(),
+            )
+        };
+
+        assert_eq!(
+            holder.what, "didOpen",
+            "the phase must be attributed to the handler that actually holds the turn",
+        );
+        assert_eq!(holder.uri, uri.as_str(), "…and to the document it is for");
+        assert!(
+            holder.phase != TURN_PHASE_GRANTED,
+            "a holder past its first marked await must not still read as freshly granted",
+        );
+        // The phase was entered after the grant, so a reader can tell "stuck at
+        // its first await" from "got several awaits in and then stopped".
+        assert!(
+            holder.since.elapsed() >= holder.phase_since.elapsed(),
+            "the phase cannot predate the turn that owns it",
+        );
+
+        // Release it and let the handler finish, so the test leaves no wedged
+        // task behind — and so this really was a suspension, not a deadlock.
+        drop(held_documents);
+        crate::rt::timeout(std::time::Duration::from_secs(5), opener)
+            .await
+            .expect("did_open must complete once the lock is released")
+            .expect("the did_open task must not panic");
+        assert!(
+            holder_now().is_none(),
+            "the turn must be handed on, clearing the holder with it",
+        );
     }
 
     /// Wait for the single document-sync handler under test to draw its

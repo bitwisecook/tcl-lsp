@@ -106,6 +106,49 @@ child process where `serverProcessId` looks (`helper.ts`) — a
 vscode-languageclient upgrade is the usual cause. `waitDiscipline.test.ts` has
 an assertion that fails on exactly that, so it should not reach you silently.
 
+## Reading the `[stall]` line
+
+If the server log tail contains a line beginning `[stall] document-sync barrier
+has not advanced`, stop reading the counters above and read that instead. It is
+the server's own account of the same event, and it names things no external
+measurement can reach.
+
+Two more terms first. The **document-sync barrier** is the queue that makes the
+server apply the editor's edits in the order they were sent: each `didOpen` /
+`didChange` / `didClose` takes a numbered place in line, and every other request
+waits until the edits ahead of it have been applied. A **suspended task** is a
+piece of the server's work that has paused at a point where it is waiting for
+something and given its thread back — it is not running, and it is not stopped
+either, so it appears in no list of what the threads are doing.
+
+The line reads, in order:
+
+1. **`now_serving=N, waiting for M`** — how far the queue has got, and where it
+   needs to get to. `M - N` is the number of document-sync notifications piled
+   up behind the stall.
+2. **`The turn is held by X for T on U (ticket K)`** — which notification is at
+   the head of the queue and has not finished, for how long, and on which file.
+   `held by nobody` instead means the queue is stuck on a place in line whose
+   handler disappeared before it reached the front — a different fault, fixed in
+   [issue #1657](https://github.com/bitwisecook/tcl-lsp/issues/1657) by making
+   the place in line release itself.
+3. **`suspended at P for S`** — the **phase marker**: the exact point inside that
+   handler where it paused, and how long it has been there. This is the reading
+   to act on. Compare `S` with `T` from the previous field: if they are the same,
+   the handler paused at its very first waiting point and never moved; if `S` is
+   much smaller, it got most of the way through and stopped near the end.
+4. **`N salsa snapshot(s) are outstanding; the oldest was taken by Q`** — how
+   many copies of the analysis database are still in use, and which piece of
+   code took the longest-lived one. Treat this as a *second opinion*, not a
+   verdict: it counts database copies and cannot see where the handler actually
+   is. Check it against the phase marker. An old snapshot next to a phase that
+   never reached `db_set_source` is a bystander, not the cause.
+
+What the line cannot tell you is why the resumption never came, only where it
+was awaited. A stack trace will not fill that in — a suspended task has no
+thread and so appears in no backtrace, which is the whole reason the phase is
+recorded on the way in.
+
 ## Why the first question carries no file name
 
 The first question is asked with **no file name** (`tcl-lsp.getEffectiveConfig`
