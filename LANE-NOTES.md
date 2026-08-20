@@ -23,12 +23,32 @@ removed from `schedule_diagnostics_impl`:
 | fixed | 920 passing, 0 failing, 1 pending (`3m`) |
 | baseline | 651 passing, **8 failing**, 241 pending (`8m`), first failure `Configuration Settings disabling optimiser.enabled suppresses O1xx diagnostics: AssertionError … got [O111,O120]` |
 
-The 241 pending in the baseline run is the wedge latch truncating the rest —
-i.e. **both** halves of #1600 reproduce from the single #1651 defect. Under
-investigation: whether the latch fired on genuinely-all-three-failed evidence
-(so the corroboration fix is working as designed and the wedge was a real
-starvation event) or on something the fix should also cover. A second baseline
-run capturing full output is in flight for the `LIVENESS:` lines.
+The 241 pending in the baseline run is the wedge latch truncating the rest
+(`index.ts:124` `skipWhenServerWedged` is the only such skip site in the suite),
+so **both** halves of #1600 are reachable from load on this host.
+
+**Baseline run 2** (full capture, `scratchpad/baseline-full.log`) is the more
+informative one and directly supports the #1600 fix:
+
+* the `optimiser.enabled` test **passed** — so the #1651 failure is
+  load-dependent even at baseline, matching #1600's own "2 in 4". Single runs
+  prove nothing; rates do. Loops are running.
+* seven `SpecTcl pack torture` tests failed, and the failing probe is
+  `a hover on an undriven document`, timing out at **57803ms** with
+  `PROBE: could not confirm starvation` — while `getEffectiveConfig("")`, asked
+  immediately before it in the same helper, **answered**.
+* `SERVER WEDGED` appears **zero** times in that log, and the run continued
+  past the pack suite.
+
+That is the #1600 fix working, observed live: transport alive + document
+pipeline stuck is now reported (and tolerated) as what it is. With the old
+probe, the same situation would have had `getEffectiveConfig(docUri)` blocked on
+the very same stalled pipeline, all three probes failing, `SERVER WEDGED`
+latching, and the remainder of the run skipped.
+
+Open: whether the pack-torture stall itself is pre-existing (likely; it is the
+condition that suite exists to catch) or somehow arm-dependent. The fixed arm's
+single run had it green. Rates needed — see the loops.
 
 ## #1651 (and #1600 item 1) — the optimiser-disable test
 
