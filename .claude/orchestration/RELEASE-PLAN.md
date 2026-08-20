@@ -5,8 +5,10 @@ No history. Delete items as they complete. Issues carry per-task detail.
 ## Merge queue
 
 1. **PR #1673** — metaclass deferred-verdict replay (`claude/f9-fix-1660`,
-   `Fixes #1660`). Locally green incl. tcllib-corpus clay test; CI + Codex
-   round pending. Merge on green + resolved feedback, manually close #1660.
+   `Fixes #1660`). Locally green incl. tcllib-corpus clay test. Open Codex
+   P2 with lane: deferred-creation buffer missing from
+   `AnalyserSnapshot::snapshot`/`restore` (chunked analysis could lose the
+   replay). Merge when thread settled + CI green; manually close #1660.
 
 ## Pre-release issues
 
