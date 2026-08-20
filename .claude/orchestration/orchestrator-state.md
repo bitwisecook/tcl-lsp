@@ -201,3 +201,10 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 ## 2026-08-20 16:10Z — restart #7 (no rollback)
 - Worker restart killed F8 mid-Codex-round; NO filesystem rollback this time (worktrees + state intact, disk 17G). F8's fix committed at da2c13463 (orphan keeps consuming, stops contributing) atop the #1665 hotfix merge; tree clean. RESUMED via SendMessage: verify push, check CI outcome on #1666 (wedge policy applies), finish thread reply/resolve, report.
 - Deploy green (run 288) confirmed pre-restart. F6v2 idle-resumable for census when pinged.
+- 16:20Z: F8's Codex-fix thread reply posted (da2c13463): roles SEPARATED not filter weakened — contribution unchanged (orphan stays out of index via remove_document); NEW orphaned_fact_consumers set for consumption wakes (signature changes wake only orphans whose text mentions the name — conservative substring, can't miss a real call, worst case one redundant re-analysis; unfilterable move events wake all orphans, rare). #1624 self-limiting property intact (transient set stays orphan-free). 3 side-by-side tests all green together; mutations both directions + original #1624 mutant re-run. Gates green (478 lib). Awaiting F8's post-restart report + CI verdict on #1666.
+
+## 2026-08-20 16:32Z — #1666 MERGED, F9 launched, census resumed
+- #1666 MERGED at f45e7fc18d92852c96fe632e606ec7e19adcf9be (all 25 green incl. test-ext no-wedge). Closed #1624 #1606 with evidence. TALLY: 25 PRs merged, 55 issues closed this session. F8 self-cleans and retires on its next poll.
+- Lane F9 LAUNCHED (a85000918a6c310be, opus, worktree): #1608+#1617, branch claude/f9-fixes-1608-1617. Brief now includes the WASM-SAFETY doctrine (crate::rt::Instant + make lsp-server-wasm-test for server-touching changes — codifying the #1661/#1665 lesson) alongside wedge policy + durability rules.
+- F6v2 told to RESUME the #1657 census with the revised lost-wakeup design (phase marker on TurnHolder + snapshot count/age), rebased on current rust, wasm-discipline on all instrumentation.
+- Queue after F9: findings pool #1644 #1656 #1660; E1 finish low. Remaining pre-release pool is thinning fast.
