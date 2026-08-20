@@ -218,3 +218,6 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - ROUTING ITEM 1: pr-gate RED REPO-WIDE — Rust 1.98.0 on floating stable pin; chunks_exact_to_as_chunks + widened needless_late_init in tcl-syntax (list.rs:221, value.rs:285). Blocks ALL PRs. → Lane F10 LAUNCHED (a7325f24854c3df02, opus, worktree, claude/f10-rust-198-clippy): install 1.98, full workspace clippy sweep both feature sets, mechanical fixes only, owner-contract caution, urgent.
 - ROUTING ITEM 2: #1667's test-ext red = #1657 reproduced (evidence IS the headline capture, banked) → one re-run after F10 lands / with the run finished.
 - Merge order: F10 hotfix FIRST (unblocks gate), then #1667 (needs pr-gate green + test-ext re-run), then F9's PR when it lands.
+
+## 2026-08-20 18:26Z — check-in (light)
+- F9 @8fdd781f1 (advanced — active). F10 launched 18:19, no push yet (toolchain install phase, normal). Disk 7.9G, three lanes. Labelling compliant. All else covered at 18:19 entry.
