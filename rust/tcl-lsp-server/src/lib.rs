@@ -1705,6 +1705,28 @@ impl DeliveryCtx<'_> {
     /// on timeout: a `textDocument/diagnostic` request can then serve this
     /// revision immediately, which is the one delivery channel a parked push
     /// does not block.
+    ///
+    /// # What this does not fix, and why it cannot be reported
+    ///
+    /// If the outbound path is *dead* rather than slow, every rescheduled pass
+    /// times out again, so the document is re-analysed once per cycle for as
+    /// long as the session lasts (throttled by [`DIAGNOSTICS_DEBOUNCE`], since
+    /// the reschedule goes through the ordinary scheduler). That is wasteful,
+    /// and it is still strictly better than the alternative: the server keeps
+    /// answering everything else instead of wedging.
+    ///
+    /// It is deliberately *not* announced with a log line. Every log the server
+    /// emits goes to the client down the very channel that is stuck, so a
+    /// "delivery is not draining" warning is precisely the message that cannot
+    /// be delivered when it would be true. The condition is visible the moment
+    /// the transport recovers — the `[timing]` markers resume — and if it never
+    /// recovers the client is gone and there is nobody left to tell.
+    ///
+    /// Losing the stall line is the real cost here. Before this change a stuck
+    /// publish announced itself loudly, by wedging the barrier until
+    /// [`Backend::report_edit_barrier_stall`] described it. Now it does not
+    /// wedge, so it does not announce. That is the right trade — a wedged server
+    /// is not an acceptable diagnostic channel — but it is a trade.
     async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
@@ -1721,8 +1743,18 @@ impl DeliveryCtx<'_> {
         // has committed to publishing version N" without consuming version N's
         // publish, which is what `diagnostics_delivery_smoke`'s burst phase
         // needs to hold two publishes in flight at once (review of #1100).
-        // Emitted after the currency check, so a marker is always followed by
-        // its publish.
+        // Emitted after the currency check, so a marker is followed by its
+        // publish.
+        //
+        // "Followed by" rather than "immediately followed by", since #1657: if
+        // the publish below times out, this marker has been sent and its publish
+        // has not, and the pairing is restored only when the rescheduled pass
+        // emits a fresh marker and publish together. A consumer that waits for a
+        // publish after a marker still gets one; a consumer that counts markers
+        // 1:1 against publishes would see one extra. That can only happen when a
+        // send parks for whole seconds, which is the failure this cap exists to
+        // survive — under any client that is draining at all, the two still go
+        // out back to back.
         let marker = crate::rt::timeout(
             DELIVERY_SEND_BUDGET,
             self.client.log_message(
