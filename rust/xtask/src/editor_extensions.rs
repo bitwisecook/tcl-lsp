@@ -246,6 +246,65 @@ fn languages() -> Result<Vec<Language>> {
 /// Rebuild `contributes.languages` and `contributes.grammars`: generated
 /// entries from the model, hand-maintained entries (`tcl-apl`) preserved
 /// verbatim in their original positions at the tail.
+/// One `contributes.languages` entry: the two file-recognition axes plus the
+/// shared language configuration.
+///
+/// The basename axis is contributed **twice**, on purpose. `filenames` is an
+/// exact, case-*sensitive* match on a case-sensitive filesystem, while the
+/// catalogue and the server deliberately compare basenames case-insensitively
+/// — so a `BIGIP.CONF` matched nothing, opened as plaintext, and never even
+/// activated the extension, leaving the client's own case-insensitive lookup
+/// unreachable (issue #1625, review finding P2-2).
+///
+/// `filenamePatterns` is the fix, folding case per character rather than by
+/// listing variants: `bigip.conf` has 2^9 casings, and the `[bB]` class
+/// matches all of them exactly with no extra matches. It is the same trick the
+/// `workspaceContains` activation glob uses for the same reason (issue #1215),
+/// from the same registry helper, so the two can never disagree.
+///
+/// `filenames` stays beside it because it is the axis VS Code shows in
+/// "Configure File Association" and the one older clients understand; the
+/// pattern is the superset that makes the promise true.
+fn contributed_language(lang: &Language, configuration: &str) -> Value {
+    let mut entry = serde_json::Map::new();
+    entry.insert("id".to_owned(), Value::String(lang.id.clone()));
+    entry.insert(
+        "aliases".to_owned(),
+        Value::Array(lang.aliases.iter().cloned().map(Value::String).collect()),
+    );
+    if !lang.extensions.is_empty() {
+        entry.insert(
+            "extensions".to_owned(),
+            Value::Array(
+                lang.extensions
+                    .iter()
+                    .map(|e| Value::String(format!(".{e}")))
+                    .collect(),
+            ),
+        );
+    }
+    if !lang.filenames.is_empty() {
+        entry.insert(
+            "filenames".to_owned(),
+            Value::Array(lang.filenames.iter().cloned().map(Value::String).collect()),
+        );
+        entry.insert(
+            "filenamePatterns".to_owned(),
+            Value::Array(
+                lang.filenames
+                    .iter()
+                    .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
+                    .collect(),
+            ),
+        );
+    }
+    entry.insert(
+        "configuration".to_owned(),
+        Value::String(configuration.to_owned()),
+    );
+    Value::Object(entry)
+}
+
 fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
     let mut root: Value = serde_json::from_str(original).context("parsing VS Code package.json")?;
 
@@ -259,67 +318,10 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
         .unwrap_or("./language-configuration.json")
         .to_owned();
 
-    let mut out: Vec<Value> = Vec::new();
-    for lang in langs {
-        let mut entry = serde_json::Map::new();
-        entry.insert("id".to_owned(), Value::String(lang.id.clone()));
-        entry.insert(
-            "aliases".to_owned(),
-            Value::Array(lang.aliases.iter().cloned().map(Value::String).collect()),
-        );
-        if !lang.extensions.is_empty() {
-            entry.insert(
-                "extensions".to_owned(),
-                Value::Array(
-                    lang.extensions
-                        .iter()
-                        .map(|e| Value::String(format!(".{e}")))
-                        .collect(),
-                ),
-            );
-        }
-        // The whole-basename axis, contributed twice on purpose.
-        //
-        // `filenames` is an exact, case-**sensitive** match on a
-        // case-sensitive filesystem, while the catalogue and the server
-        // deliberately compare basenames case-insensitively — so a
-        // `BIGIP.CONF` matched nothing, opened as plaintext, and never even
-        // activated the extension, leaving the client's own case-insensitive
-        // lookup unreachable (issue #1625, review finding P2-2).
-        //
-        // `filenamePatterns` is the fix, and the case-folding is per
-        // character rather than by listing variants: `bigip.conf` has 2^9
-        // casings, and the `[bB]` class matches all of them exactly, with no
-        // extra matches. It is the same trick the `workspaceContains`
-        // activation glob uses for exactly the same reason (issue #1215), and
-        // it comes from the same registry helper so the two can never
-        // disagree.
-        //
-        // `filenames` stays alongside it because it is the axis VS Code shows
-        // in "Configure File Association" and the one older clients
-        // understand; the pattern is the superset that makes the promise
-        // true.
-        if !lang.filenames.is_empty() {
-            entry.insert(
-                "filenames".to_owned(),
-                Value::Array(lang.filenames.iter().cloned().map(Value::String).collect()),
-            );
-            entry.insert(
-                "filenamePatterns".to_owned(),
-                Value::Array(
-                    lang.filenames
-                        .iter()
-                        .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
-                        .collect(),
-                ),
-            );
-        }
-        entry.insert(
-            "configuration".to_owned(),
-            Value::String(configuration.clone()),
-        );
-        out.push(Value::Object(entry));
-    }
+    let mut out: Vec<Value> = langs
+        .iter()
+        .map(|lang| contributed_language(lang, &configuration))
+        .collect();
     for entry in &existing {
         let id = entry["id"].as_str().unwrap_or_default();
         if HAND_MAINTAINED_LANGUAGES.contains(&id) {
