@@ -975,6 +975,13 @@ pub struct ExistenceFrame<'a> {
 /// dynamic `Params($k)`), `None` for every other shape.  Only a simple local
 /// base qualifies: a namespaced array (`::env(PATH)`) may be populated
 /// outside the function's view.
+///
+/// Deliberately **not**
+/// [`split_element_ref`](tcl_syntax::naming::split_element_ref) (issue #1606):
+/// this is a narrower *fold-safety* predicate, and its extra tests — non-empty
+/// base, bareword base — are the point. The owner admits the zero-length array
+/// name `(k)` that `TclObjLookupVarEx` admits, which is not a name this fold
+/// may reason about.
 fn array_element_base(var: &str) -> Option<&str> {
     let (base, rest) = var.split_once('(')?;
     if base.is_empty() || !rest.ends_with(')') {

@@ -3790,14 +3790,98 @@ impl IndexedDiagnosticChange {
 /// set this can draw from strictly shrinks, and a peer that moves no workspace
 /// fact of its own — the common case, a caller that defines nothing — wakes
 /// nobody.
+///
+/// Orphaned buffers are excluded (issue #1624) — this is the **transient**
+/// set, and only transience makes it self-limiting: a document is in it just
+/// between its `didOpen` and its first debounced publish, after which
+/// `replace_document` puts it in the index and it leaves for good. A buffer
+/// whose backing file was deleted out of band is the one way to be in it
+/// permanently, because [`publish_diagnostics_result`] deliberately calls
+/// `remove_document` for those rather than re-adding them (re-adding is what
+/// used to resurrect the ghost `did_change_watched_files` had just retired), so
+/// it is open and never indexed for as long as it stays open. Blanket-waking it
+/// on every fact-moving publish anywhere in the workspace is the waste #1624
+/// describes.
+///
+/// That exclusion is **not** a ruling that an orphan needs no diagnostics
+/// refresh — it still consumes workspace facts, and losing that was the defect
+/// the #1666 review caught. [`orphaned_fact_consumers`] carries the consumption
+/// half, targeted by what actually moved; the two sets are disjoint by
+/// construction and are extended together at the one call site.
 fn unindexed_open_documents(
     index: &core_workspace_index::WorkspaceIndex,
     docs: &HashMap<Uri, DocumentState>,
 ) -> Vec<String> {
-    docs.keys()
-        .map(|uri| uri.as_str())
+    docs.iter()
+        .filter(|(_, doc)| !doc.backing_file_deleted)
+        .map(|(uri, _)| uri.as_str())
         .filter(|uri| !index.contains_document(uri))
         .map(ToOwned::to_owned)
+        .collect()
+}
+
+/// The **orphaned** open buffers a fact-moving publish must still wake.
+///
+/// Absence from the index is two separate facts about such a buffer, and
+/// [`unindexed_open_documents`] alone conflates them (#1666 review):
+///
+/// * It must not **contribute** facts. Its path is dead, so re-indexing it
+///   duplicates every proc of the file it was renamed to and sends
+///   go-to-definition somewhere the editor cannot open — the ghost
+///   `did_change_watched_files` had just retired. `publish_diagnostics_result`
+///   keeps calling `remove_document` for it, and that stays true.
+/// * It does still **consume** them. The buffer is on screen and its squiggles
+///   are read like any other's, so when a peer changes the arity of a proc it
+///   calls, its `E002`/`W123` are wrong until something recomputes them. No
+///   other set can name it: [`command_diagnostic_consumers`] and the source
+///   walkers all read the consumer's own records *from* the index, and it has
+///   none there for as long as it stays open.
+///
+/// So the contribution filter lives on the index write, and this is the
+/// consumption half — deliberately a *separate* set rather than a relaxation
+/// of [`unindexed_open_documents`], which must stay orphan-free to keep the
+/// property #1624 asked for: that set is the transient-race fallback, and it is
+/// self-limiting only because every document in it leaves at its first publish.
+///
+/// Targeted, not blanket — which is what makes this compatible with #1624's
+/// complaint rather than a revert of it:
+///
+/// * A **source or package** move can change what the orphan's own calls
+///   resolve to without renaming anything, so it is not filterable by name and
+///   wakes every orphan. These are rare (a `source`/`package require` edit),
+///   not the per-keystroke firehose.
+/// * A **command-signature** change wakes only orphans whose text mentions the
+///   changed name. A conservative substring test on purpose: any real call
+///   spells the name, so this cannot miss a consumer, and the worst case is a
+///   redundant re-analysis for a name that appears only in a comment. The
+///   precise index rule is unavailable here — its input is exactly the call-site
+///   records this document does not have — so it is approximated rather than
+///   re-derived, and approximated on the safe side.
+///
+/// Terminating for the same reason the transient set is: an orphan's own
+/// publish has `before = absent, after = absent`, so it moves no fact and wakes
+/// nobody.
+fn orphaned_fact_consumers(
+    docs: &HashMap<Uri, DocumentState>,
+    change: &IndexedDiagnosticChange,
+) -> Vec<String> {
+    // Match the index rule's key: it compares invocation names against the
+    // changed names' unqualified tails, and a call site spells the tail.
+    let tails: Vec<&str> = change
+        .command_names
+        .iter()
+        .map(|name| {
+            let qualified = name.trim_start_matches("::");
+            qualified.rsplit("::").next().unwrap_or(qualified)
+        })
+        .filter(|tail| !tail.is_empty())
+        .collect();
+    docs.iter()
+        .filter(|(_, doc)| doc.backing_file_deleted)
+        .filter(|(_, doc)| {
+            change.source_or_package_changed || tails.iter().any(|tail| doc.text.contains(tail))
+        })
+        .map(|(uri, _)| uri.as_str().to_owned())
         .collect()
 }
 
@@ -4012,10 +4096,15 @@ async fn publish_diagnostics_result(
                 consumers.extend(before.stale_source_consumers(&index, delivery.uri.as_str()));
                 consumers.extend(source_diagnostic_consumers(&index, delivery.uri.as_str()));
             }
-            // …plus the open documents this write could have raced — see
-            // [`unindexed_open_documents`] (issue #1619).
+            // …plus the open documents no index query can reach. Two disjoint
+            // sets, one per role: documents the index does not hold *yet*
+            // (the #1619 race, transient), and orphaned buffers it will never
+            // hold again but which still consume what this write moved (#1666
+            // review). Neither can be found by the queries above, for opposite
+            // reasons.
             if change.moved_workspace_facts() {
                 consumers.extend(unindexed_open_documents(&index, &docs));
+                consumers.extend(orphaned_fact_consumers(&docs, &change));
             }
             (change, consumers)
         };
@@ -24194,6 +24283,139 @@ mod tests {
         assert_eq!(
             source_diagnostic_consumers(&index, child.as_str()),
             HashSet::from([root.as_str().to_owned(), grandchild.as_str().to_owned(),]),
+        );
+    }
+
+    /// **TP/TN for the hand-built wake set** (issues #1619, #1624).  A document
+    /// that is open but not in the index is woken — that is the race #1619
+    /// closed — *unless* its backing file was deleted out of band, in which case
+    /// it is unindexed permanently rather than transiently: the publish path
+    /// removes rather than replaces it, so it would otherwise be re-woken by
+    /// every fact-moving publish anywhere in the workspace, for ever, to
+    /// re-derive the same answer.  An indexed document is never in this set at
+    /// all — the index-driven consumer queries find those.
+    #[test]
+    fn the_wake_set_skips_a_buffer_whose_backing_file_was_deleted() {
+        let indexed = Uri::from_file_path("/proj/indexed.tcl").unwrap();
+        let just_opened = Uri::from_file_path("/proj/just-opened.tcl").unwrap();
+        let orphaned = Uri::from_file_path("/proj/orphaned.tcl").unwrap();
+        let index = ws_index(&[(&indexed, "proc helper {a} {}\n")]);
+
+        let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
+        for uri in [&indexed, &just_opened, &orphaned] {
+            docs.insert(
+                uri.clone(),
+                DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned()),
+            );
+        }
+        docs.get_mut(&orphaned).unwrap().backing_file_deleted = true;
+
+        let woken: HashSet<String> = unindexed_open_documents(&index, &docs)
+            .into_iter()
+            .collect();
+        assert_eq!(
+            woken,
+            HashSet::from([just_opened.as_str().to_owned()]),
+            "only the transiently unindexed buffer is woken by hand",
+        );
+    }
+
+    /// **The other half of the same buffer's story** (#1666 review). Being
+    /// absent from the index is two facts about an orphan, not one: it must
+    /// not *contribute* — its path is dead, and re-adding it resurrects the
+    /// ghost `did_change_watched_files` retired — but it does still *consume*.
+    /// The buffer is on screen and its squiggles are read, so when a peer
+    /// changes the arity of a proc it calls, its E002/W123 must be recomputed.
+    /// Nothing else can name it: the index-driven consumer queries read its
+    /// call-site records from the index, and it has none there.
+    ///
+    /// TP: the orphan calls `helper`, whose signature moved. TN: a change to
+    /// an unrelated name leaves it alone, so this stays a targeted wake and
+    /// not the blanket re-wake #1624 removed.
+    #[test]
+    fn an_orphan_is_still_woken_by_a_signature_it_consumes() {
+        let orphan = Uri::from_file_path("/proj/orphan.tcl").unwrap();
+        let live = Uri::from_file_path("/proj/live.tcl").unwrap();
+        let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
+        docs.insert(
+            orphan.clone(),
+            DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        docs.insert(
+            live.clone(),
+            DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        docs.get_mut(&orphan).unwrap().backing_file_deleted = true;
+
+        let consumed = IndexedDiagnosticChange {
+            command_names: HashSet::from(["::helper".to_owned()]),
+            source_or_package_changed: false,
+        };
+        assert_eq!(
+            orphaned_fact_consumers(&docs, &consumed),
+            vec![orphan.as_str().to_owned()],
+            "the orphan calls `helper`, so a change to its signature reaches it",
+        );
+
+        let unrelated = IndexedDiagnosticChange {
+            command_names: HashSet::from(["::unrelated".to_owned()]),
+            source_or_package_changed: false,
+        };
+        assert!(
+            orphaned_fact_consumers(&docs, &unrelated).is_empty(),
+            "a name the orphan never mentions must not wake it",
+        );
+
+        // A source-graph or package move can change what the orphan's own
+        // calls resolve to without renaming anything, so it is not filterable
+        // by name.
+        let graph_moved = IndexedDiagnosticChange {
+            command_names: HashSet::new(),
+            source_or_package_changed: true,
+        };
+        assert_eq!(
+            orphaned_fact_consumers(&docs, &graph_moved),
+            vec![orphan.as_str().to_owned()],
+        );
+    }
+
+    /// The same defect stated where it bites, over the **union** of every
+    /// consumer set a publish builds (#1666 review). `live.tcl` changes
+    /// `helper`'s arity; the orphan calls `helper 1` and is on screen with a
+    /// now-wrong E002. It is absent from the index, so
+    /// [`command_diagnostic_consumers`] cannot see its call site, and it is
+    /// excluded from [`unindexed_open_documents`] by #1624 — without
+    /// [`orphaned_fact_consumers`] no set names it and its squiggles stay
+    /// stale with no signal.
+    #[test]
+    fn every_consumer_set_together_still_names_an_orphaned_caller() {
+        let live = Uri::from_file_path("/proj/live.tcl").unwrap();
+        let orphan = Uri::from_file_path("/proj/orphan.tcl").unwrap();
+        // The index holds the publishing document only: the orphan was removed
+        // from it by its own publish, exactly as `remove_document` leaves it.
+        let index = ws_index(&[(&live, "proc helper {a b} {}\n")]);
+
+        let mut docs: HashMap<Uri, DocumentState> = HashMap::new();
+        docs.insert(
+            live.clone(),
+            DocumentState::new("proc helper {a b} {}\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        docs.insert(
+            orphan.clone(),
+            DocumentState::new("helper 1\n".to_owned(), "tcl8.6".to_owned()),
+        );
+        docs.get_mut(&orphan).unwrap().backing_file_deleted = true;
+
+        let change = IndexedDiagnosticChange {
+            command_names: HashSet::from(["::helper".to_owned()]),
+            source_or_package_changed: false,
+        };
+        let mut consumers = command_diagnostic_consumers(&index, &change.command_names);
+        consumers.extend(unindexed_open_documents(&index, &docs));
+        consumers.extend(orphaned_fact_consumers(&docs, &change));
+        assert!(
+            consumers.contains(orphan.as_str()),
+            "an on-screen orphan consuming the changed signature must be woken; got {consumers:?}",
         );
     }
 

@@ -92,6 +92,23 @@ entry point, or gate moves without this contract being updated.
   may sit at offset 0, so a zero-length array name is legal — `set (x) 5`
   writes element `x` of the array named `""`. Both runtimes' element
   splitters bind it (#1458).
+
+  Consumers: `tcl-vm` (`interp::elem_ref`, `command::looks_like_element`,
+  `command::parent_namespace_of`, `exec`'s `ARRAY_MAKE_STK` guard),
+  `tcl-compiler` (`codegen::values::split_array_ref` / `is_array_ref`, the
+  facade the whole codegen layer calls, and
+  `analyser::diagnostics::var_command`'s array-element harvest), and — inside
+  the owner's own file — `split_array_name_for_style` and
+  `split_array_name_braced_for_style`. The last four re-derived the split
+  rather than calling it until #1606; none could diverge on any input
+  (`ends_with(')') && contains('(')` cannot be satisfied by a one-byte name),
+  which is exactly why the drift went unnoticed. `cargo xtask
+  owner-resolution` validates the manifest, not call graphs, so it cannot
+  catch a listed consumer that never calls its owner.
+
+  Deliberately **not** a consumer: `tcl-compiler`'s
+  `sccp::array_element_base` is a narrower fold-safety predicate (documented
+  at the site) that excludes the zero-length array name this owner admits.
 - `boolean` — `Tcl_GetBoolean` word recognition (unique prefixes of
   `true`/`yes`/`on`/`false`/`no`/`off`). Its prefix rule is *not* the
   option-table matcher below — boolean words have a fixed six-word
