@@ -5587,6 +5587,35 @@ impl Backend {
     /// own a separate copy of it.  The salsa `SourceFile::text` input is a
     /// `String`, so exactly one copy is made here — the same single copy the
     /// caller used to make before handing it over (issue #1184).
+    /// # INVARIANT (no wedged sessions): never hold a salsa snapshot across an await
+    ///
+    /// The `set_text` / `SourceFile` calls below take `&mut` on the database,
+    /// which salsa 0.28 grants through `Storage::cancel_others`:
+    ///
+    /// ```text
+    /// let mut clones = self.handle.coordinate.clones.lock();
+    /// while *clones != 1 { clones = self.handle.coordinate.cvar.wait(clones); }
+    /// ```
+    ///
+    /// That is a **blocking** condvar wait, on a Tokio worker thread, for every
+    /// other `DatabaseImpl` clone in the process to be dropped. And this
+    /// function is called from `did_open` / `did_change` **while they hold the
+    /// [`EditOrder`] turn**, so for as long as it waits:
+    ///
+    /// * `now_serving` does not advance, so every later document-sync
+    ///   notification blocks in `wait_turn`;
+    /// * every request handler blocks in [`Backend::edits_settled`] and holds
+    ///   one of `DeferredConcurrency`'s four permits;
+    /// * the server answers nothing, writes nothing, and burns no CPU, while
+    ///   its stdin reader goes on draining input.
+    ///
+    /// That is issue #1657's signature exactly. So a `db.lock().await.clone()`
+    /// anywhere in this crate must be **moved straight into the worker it was
+    /// cloned for** and never held across an unrelated `.await`: a snapshot that
+    /// outlives its query does not slow one request down, it stops the server.
+    /// `scratchpad`-style audits will not catch it either — the mutex is
+    /// released the instant the clone is made, so it is invisible to a
+    /// lock-guard analysis; it is the *clone* salsa waits on.
     async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
         use salsa::Setter as _;
         // Salsa's `SourceFile.text` is the analyser's input, so it stores the
@@ -13330,16 +13359,27 @@ impl Backend {
         if !cross_file_on {
             return None;
         }
-        let db = self.db.lock().await.clone();
+        // Resolve everything else *before* cloning the database, and clone it
+        // only on the branch that immediately hands it to a worker.
+        //
+        // A salsa snapshot is not an ordinary handle. `set_text` (and creating a
+        // `SourceFile`) goes through `Storage::cancel_others`, which parks on a
+        // condvar until every **other** clone has been dropped — a blocking
+        // wait, taken on a Tokio worker, from inside the `EditOrder` turn that
+        // `did_open` / `did_change` hold. So a live snapshot does not merely
+        // delay one query: it stalls the document-sync barrier, and with it
+        // every request handler in the server (issue #1657).
+        //
+        // Holding one across an unrelated `.await` — as this did across the
+        // `db_project` lock, and on the `None` branch across the whole
+        // function — widens that window for no benefit. Cloning last keeps the
+        // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
-        match project {
-            Some(p) => {
-                crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
-                    .await
-                    .ok()
-            }
-            None => None,
-        }
+        let p = project?;
+        let db = self.db.lock().await.clone();
+        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+            .await
+            .ok()
     }
 
     /// Run the compiler-check diagnostics for `text` off the event-loop thread.
