@@ -4,25 +4,27 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1670** — wedge hardening + holder tag (`claude/f6e-1657-endgame`,
-   `Refs #1657`). Codex P1 fixed (3d9e286e3, closed-file retries). Merge on
-   green — it is hardening + conviction instrumentation, NOT the cure: the
-   tag named `publish_diagnostics_result` holding the map 103.7s, past the
-   2s send caps. Do **not** close #1657.
+1. **PR #1673** — metaclass deferred-verdict replay (`claude/f9-fix-1660`,
+   `Fixes #1660`). Locally green incl. tcllib-corpus clay test; CI + Codex
+   round pending. Merge on green + resolved feedback, manually close #1660.
 
 ## Pre-release issues
 
-- **#1657** — wedge endgame, ACTIVE (census lane). Holder CONVICTED:
-  `publish_diagnostics_result` held the map 103.7s — not the client sends
-  (capped 2s in #1670, hold persisted). Standing hypothesis: deadlock cycle
-  via `workspace_index.write()` under `documents` (checkpoint 6 on issue);
-  per-await retag markers landed, lane re-running loaded loop to name the
-  exact await. Repro is FAST now (~run 2 of loop). Close only when fix
-  survives the loop.
-- **#1660** — ACTIVE (F9 lane, `claude/f9-fix-1660`). Metaclass can't
-  classify same-file creation call; deferred-verdict shape in issue.
-- **#1644** — QUEUED for F9 after #1660. Per-arg lifecycle wiring;
-  layering decision + acceptance criteria in issue.
+- **#1657** — wedge endgame, ACTIVE (census lane,
+  `claude/f6e-1657-endgame`). #1670 merged (8902ca746): send caps,
+  closed-file retries, holder tag + retags — hardening, not the cure.
+  Hold narrowed to `cache_and_deliver`'s two uncapped awaits
+  (`pull_diag_cache.lock` / `diag_slots.lock` via `redeliver_later`;
+  the latter is new in #1670 and NOT excluded as cause). Lane looping for
+  the naming capture (~2-in-20 loaded runs reproduce). A green loop alone
+  does not close this — repro rate too low.
+- **#1644** — ACTIVE (F9 lane, `claude/f9-fix-1644`). Per-arg lifecycle
+  wiring; layering design comment on issue before code; acceptance criteria
+  in issue.
+- **#1672** — UNASSIGNED. Readable-but-untyped body arm walked past
+  (`uplevel 1 {error stop}` twin of #1652/#1656). Fix direction + oracle
+  rows in issue; needs deliberate tcllib clay-corpus run (#1571 test).
+  Natural follow-on for F9 after #1644.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
