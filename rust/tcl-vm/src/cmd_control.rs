@@ -269,7 +269,7 @@ fn each_loop(vm: &mut Vm, args: &[Value], collect: bool) -> Completion<Value> {
     // Parse each group's variable names + values; track the iteration count.
     let mut groups: Vec<crate::exec::EachLoopGroup> = Vec::new();
     let mut iterations = 0usize;
-    for pair in args[..args.len() - 1].chunks_exact(2) {
+    for pair in args[..args.len() - 1].as_chunks::<2>().0 {
         let vars: Vec<String> = match pair[0].as_list() {
             Ok(v) => v.iter().map(|n| n.to_str().to_string()).collect(),
             Err(e) => return err(e.message),

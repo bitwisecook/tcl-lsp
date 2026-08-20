@@ -347,7 +347,9 @@ pub trait ValueOps {
         // The canonicalisation rule itself lives in `canonical_dict_slots` —
         // this method binds it to a value model, it does not restate it.
         let keys: Vec<Rc<str>> = elems
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| self.as_str(&chunk[0]))
             .collect();
         Ok(canonical_dict_slots(keys.iter().map(AsRef::as_ref))

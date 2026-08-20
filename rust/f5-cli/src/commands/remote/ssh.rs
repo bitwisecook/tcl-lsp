@@ -147,16 +147,16 @@ struct AcceptServerKey {
 impl client::Handler for AcceptServerKey {
     type Error = russh::Error;
 
-    async fn check_server_key(
+    fn check_server_key(
         &mut self,
         server_public_key: &ssh_key::PublicKey,
-    ) -> Result<bool, Self::Error> {
-        Ok(accept_host_key(
+    ) -> impl Future<Output = Result<bool, Self::Error>> {
+        std::future::ready(Ok(accept_host_key(
             &self.host,
             self.port,
             server_public_key,
             &self.known_hosts_path,
-        ))
+        )))
     }
 }
 

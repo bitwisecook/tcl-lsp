@@ -101,7 +101,11 @@ fn object_token_type() -> u32 {
 /// `length`, `tokenType`, `tokenModifiers` — so the type is every fourth
 /// element starting at index 3.
 fn count_of_type(data: &[u32], kind: u32) -> usize {
-    data.chunks_exact(5).filter(|t| t[3] == kind).count()
+    data.as_chunks::<5>()
+        .0
+        .iter()
+        .filter(|t| t[3] == kind)
+        .count()
 }
 
 /// `semantic_tokens` (single-file) must resolve the document's dialect to the

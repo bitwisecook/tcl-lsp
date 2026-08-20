@@ -457,7 +457,9 @@ fn string_map(pairs: &Value, s: &str, nocase: bool) -> Completion<Value> {
         return err("char map list unbalanced");
     }
     let map: Vec<(String, String)> = items
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| (c[0].to_str().to_string(), c[1].to_str().to_string()))
         .collect();
     ok(Value::string(map_apply(&map, s, nocase)))

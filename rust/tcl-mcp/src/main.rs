@@ -62,11 +62,11 @@ impl ServerHandler for TclMcp {
         info
     }
 
-    async fn list_tools(
+    fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
-    ) -> Result<ListToolsResult, ErrorData> {
+    ) -> impl Future<Output = Result<ListToolsResult, ErrorData>> {
         let tools = tools::tool_schemas()
             .into_iter()
             .map(|(name, description, schema)| {
@@ -77,26 +77,26 @@ impl ServerHandler for TclMcp {
                 Tool::new(name, description, Arc::new(object))
             })
             .collect();
-        Ok(tool_list_result(
+        std::future::ready(Ok(tool_list_result(
             tools,
             context
                 .protocol_version()
                 .is_some_and(|version| version >= ProtocolVersion::V_2026_07_28),
-        ))
+        )))
     }
 
-    async fn call_tool(
+    fn call_tool(
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResponse, ErrorData> {
+    ) -> impl Future<Output = Result<CallToolResponse, ErrorData>> {
         // rmcp 3 widened the `call_tool` return type from `CallToolResult` to
         // the `CallToolResponse` enum, so a handler can also answer
         // "input required" or "task materialised". Every tool here answers
         // synchronously, so they all take the `Complete` arm — which is what
         // `From<CallToolResult>` gives.
         let args = request.arguments.map_or_else(|| json!({}), Value::Object);
-        match tools::dispatch(&request.name, &args) {
+        std::future::ready(match tools::dispatch(&request.name, &args) {
             Some(result) => {
                 Ok(CallToolResult::success(vec![ContentBlock::text(result.to_string())]).into())
             }
@@ -104,7 +104,7 @@ impl ServerHandler for TclMcp {
                 json!({ "error": format!("Unknown tool: {}", request.name) }).to_string(),
             )])
             .into()),
-        }
+        })
     }
 }
 

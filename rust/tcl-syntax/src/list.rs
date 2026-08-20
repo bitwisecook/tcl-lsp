@@ -218,20 +218,20 @@ pub fn find_element(s: &str, start: usize) -> Result<Option<Element>, ListError>
     let mut in_quotes = false;
     let mut literal = true;
     let braced = bytes[pos] == b'{';
-    let elem_start;
-    match bytes[pos] {
+
+    let elem_start = match bytes[pos] {
         b'{' => {
             open_braces = 1;
             pos += 1;
-            elem_start = pos;
+            pos
         }
         b'"' => {
             in_quotes = true;
             pos += 1;
-            elem_start = pos;
+            pos
         }
-        _ => elem_start = pos,
-    }
+        _ => pos,
+    };
 
     let size;
     loop {
