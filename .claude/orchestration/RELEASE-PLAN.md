@@ -6,17 +6,13 @@ completed item is deleted from this file. Kept current on
 Issues carry the per-task detail: every lane posts its branch name and
 discoveries as comments on the issues it works.
 
-## Merge queue (strict order — the 1.98 hotfix gates the rest)
+## Merge queue (strict order)
 
-1. **PR #1669** — Rust 1.98.0 clippy hotfix (`claude/f10-rust-198-clippy`).
-   `pr-gate` already green on it; `test-ext` re-run in flight (one exonerated
-   re-run authorised — earlier failure matched the #1657 wedge profile).
-   Merge on green. This unblocks `pr-gate` for every other PR.
-2. **PR #1667** — wedge census instrumentation (`claude/f6c-1657-census`,
-   `Refs #1657`). After #1669 merges: update branch to the fixed base, re-run
-   CI (`test-ext` has one authorised re-run; its wedge evidence is already
-   banked on #1657). Merge. Do **not** close #1657.
-3. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
+1. **PR #1667** — wedge census instrumentation (`claude/f6c-1657-census`,
+   `Refs #1657`). Branch updated to the 1.98-fixed base; CI re-running
+   (`test-ext` has one authorised re-run; its wedge evidence is already
+   banked on #1657). Merge on green. Do **not** close #1657.
+2. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
    (`claude/f9-fixes-1608-1617`, `Fixes #1608 #1617`). Codex round in
    progress (literal-`$` must join the literal run instead of aborting the
    template parse — mixed-shape oracle vectors required). Then branch update,
