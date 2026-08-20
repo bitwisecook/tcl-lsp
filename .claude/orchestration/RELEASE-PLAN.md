@@ -4,23 +4,19 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1667** — wedge census (`claude/f6c-1657-census`, `Refs #1657`).
-   Branch updated to 1.98-fixed base; CI re-running. One `test-ext` re-run
-   authorised. Merge on green; do **not** close #1657.
-2. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
-   (`claude/f9-fixes-1608-1617`). Codex fix done (d66b82aeb). Lane resolving
-   merge conflict with post-#1669 `rust`, re-running gates under 1.98. Then
-   green CI, merge, manually close #1608 #1617.
+1. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
+   (`claude/f9-fixes-1608-1617`). Conflict with post-#1669 base resolved,
+   gates green under 1.98, Codex thread resolved; CI running on cbc127e8f.
+   Merge on green, manually close #1608 #1617.
 
-## Pre-release issues (assign as lanes free)
+## Pre-release issues
 
-- **#1657** — wedge endgame. Suspect: `deliver_if_current` holds `documents`
-  lock across unbounded client send; sibling `deliver_fast_tier_if_current`
-  uses a timeout. Lock-across-send is documented load-bearing for a
-  `did_close` race in `main.rs` → needs design, not a patch. First step: a
-  holder tag on the `documents` lock to convict, not just localise. Spawn after
-  #1667 merges (census lane is natural owner). Close only when fix survives
-  loaded-loop repro.
+- **#1657** — wedge endgame, ACTIVE (census lane, branch
+  `claude/f6e-1657-endgame`). Step 1: holder tag on `documents` lock.
+  Step 2: design around `deliver_if_current`'s unbounded send under the
+  lock — the hold is documented load-bearing for a `did_close` race in
+  `main.rs`; design goes on the issue before code. Close only when fix
+  survives loaded-loop repro. Census is on `rust` (bad41e1df).
 - **#1644** — per-arg lifecycle wiring. Layering decision + acceptance
   criteria in issue.
 - **#1656** — `apply $lambda` invisible to fall-through walk. Use
