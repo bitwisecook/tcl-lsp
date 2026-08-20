@@ -209,3 +209,6 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - F6v2 told to RESUME the #1657 census with the revised lost-wakeup design (phase marker on TurnHolder + snapshot count/age), rebased on current rust, wasm-discipline on all instrumentation.
 - Queue after F9: findings pool #1644 #1656 #1660; E1 finish low. Remaining pre-release pool is thinning fast.
 - 16:46Z: Deploy run 289 SUCCESS on #1666's merge push — two consecutive green deploys; the wake-set server change is wasm-clean. Board steady: F6v2 (census), F9 (#1608+#1617). 17:29Z check-in armed.
+
+## 2026-08-20 17:29Z — check-in (light)
+- F6c census @edd6319c2 (moved — revised instrument in progress), F9 @7e069d9ee (first push). No PRs yet; branch movement = health. Deploy green ×2 (runs 288, 289). Disk 7.3G — two build lanes, above gate, watching. Labelling compliant. Queue: #1644 #1656 #1660; E1 low.
