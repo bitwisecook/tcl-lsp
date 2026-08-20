@@ -19,7 +19,7 @@
 //! [`BrowserHost`] — the capability [`Host`] for `wasm32-unknown-unknown`.
 //!
 //! The other half of the seam [`host_native`](crate::host_native) owns, and the
-//! [`Vm`](crate::interp::Vm)'s default host wherever there is no operating
+//! [`Vm`](crate::Vm)'s default host wherever there is no operating
 //! system underneath: a browser tab, a Web Worker, a bare `WebAssembly`
 //! instantiation under node. `runtime/rust` has had this split since it learnt
 //! to link for wasm (`runtime/rust/src/host_wasm.rs`); this is the bytecode
@@ -43,7 +43,7 @@
 //! ## What each capability does here
 //!
 //! - **Clock** — real under the default `js-clock` feature, and the reason this
-//!   module is not a stub: the browser has a wall clock, so [`BrowserClock`]
+//!   module is not a stub: the browser has a wall clock, so `BrowserClock`
 //!   reads JavaScript's `Date.now()`. Millisecond resolution (what `Date.now()`
 //!   reports, and what browsers clamp to anyway), so `now_micros` keeps the
 //!   trait's `now_millis() * 1000` default rather than pretending to a
@@ -55,14 +55,13 @@
 //!   worker's `puts`; a host that wants the output owns the decision of where
 //!   it goes and can install its own [`Host`] with [`Vm::set_host`].
 //! - **Env** — empty, with `/` as the working directory. `std::env::vars` is
-//!   another `unsupported.rs` panic on this target, which is why
-//!   [`Vm::write_platform_globals`] already skips it here.
+//!   another `unsupported.rs` panic on this target, which is why the VM's
+//!   `write_platform_globals` already skips it here.
 //! - **Filesystem / process / sockets** — absent, so `tcl-cmd-core`'s portable
 //!   bodies take their documented "the platform cannot do this" path instead of
 //!   failing at a syscall.
 //!
-//! [`Vm::set_host`]: crate::interp::Vm::set_host
-//! [`Vm::write_platform_globals`]: crate::interp::Vm
+//! [`Vm::set_host`]: crate::Vm::set_host
 
 use tcl_platform::{Capabilities, Clock, Env, Host, HostError, StdIo};
 
