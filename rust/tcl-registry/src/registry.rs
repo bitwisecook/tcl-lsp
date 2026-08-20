@@ -2121,6 +2121,28 @@ impl CommandRegistry {
             }
             LoweringHookId::Switch => Some(ControlArmSemantics::Selected),
             LoweringHookId::NamespaceEval => Some(ControlArmSemantics::FrameBoundary),
+            // `apply`'s lambda runs **now**, in a fresh procedure frame that
+            // inherits none of the caller's locals — a frame boundary, and the
+            // only [`ArgRole::LambdaLiteral`] position in the registry today
+            // (issue #1656). The role is one level removed from a body (the
+            // argument is the `{argList body ?ns?}` *list*), so the index is
+            // gated on the role rather than assumed, exactly as the `if` arm
+            // above gates on `ArgRole::Body`.
+            //
+            // The boundary is not symmetric with `namespace eval`'s on one
+            // point, and a consumer reading completion out of this descriptor
+            // should know it: a `return` inside the lambda completes the
+            // *lambda*, so control does reach the statement after the `apply`,
+            // whereas `namespace eval`'s script propagates its `return` to the
+            // enclosing procedure (tclsh 8.6.16 / 9.0.4 agree on both). Errors
+            // propagate from either. The compiler's fall-through walk does not
+            // separate an early *normal* completion from an abnormal one — a
+            // limit recorded on PR #1652 — so it reads a lambda that returns
+            // as one it cannot walk past, which is conservative and sound.
+            LoweringHookId::Apply => self
+                .arg_indices_for_role(name, args, ArgRole::LambdaLiteral)
+                .contains(&body_index)
+                .then_some(ControlArmSemantics::FrameBoundary),
             LoweringHookId::Catch => Some(ControlArmSemantics::CompletionBoundary),
             // A collection loop iterates a value the invocation itself
             // supplies, so it runs a *finite* number of times: it terminates
@@ -6883,8 +6905,10 @@ mod tests {
     /// `BodyKind` cannot answer this — `proc` and `uplevel` are both
     /// `Structural`, because that descriptor answers *which frame*, not
     /// *when* — and neither can the absence of `control_arm_semantics`, which
-    /// `uplevel` / `apply` / `oo::define` share with `proc` (issue #1571,
-    /// PR #1652 review).
+    /// `uplevel` / `oo::define` share with `proc` (issue #1571, PR #1652
+    /// review). (`apply` was in that list until issue #1656 gave its lambda
+    /// position a typed frame boundary; it still declares no `DEFERS_BODY`,
+    /// which is what this test checks.)
     #[test]
     fn defers_body_marks_only_stored_bodies() {
         use crate::body_kind::BodyKind;
@@ -6927,9 +6951,77 @@ mod tests {
         );
     }
 
+    /// `apply`'s lambda position is a typed **frame boundary**: the script
+    /// runs as part of this call, in a fresh procedure frame (issue #1656).
+    ///
+    /// The declaration is what lets a consumer walking a statement stream
+    /// treat an unreadable `apply $lambda` as the missing answer it is — the
+    /// role alone never reached the question, so the walk claimed past a
+    /// lambda that can raise.
+    ///
+    /// Gated on the role, not on the argument number: only the
+    /// [`ArgRole::LambdaLiteral`] word is the script. `apply`'s trailing
+    /// `arg1 arg2 …` are ordinary values bound to the lambda's parameters.
+    #[test]
+    fn apply_types_its_lambda_position_as_a_frame_boundary() {
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.control_arm_semantics("apply", &["{{} {puts hi}}"], 0),
+            Some(ControlArmSemantics::FrameBoundary),
+            "`apply`'s lambda runs now, in a fresh frame"
+        );
+        for index in 1..4 {
+            assert_eq!(
+                reg.control_arm_semantics("apply", &["{{a b} {puts hi}}", "1", "2"], index),
+                None,
+                "argument {index} is a value bound to a parameter, not a script"
+            );
+        }
+        // The role is what the declaration keys on, so it survives a rename of
+        // the position and answers for any future command sharing the shape.
+        assert_eq!(
+            reg.arg_indices_for_role("apply", &["{{} {puts hi}}"], ArgRole::LambdaLiteral),
+            vec![0]
+        );
+    }
+
+    /// Every shipped command carrying [`ArgRole::LambdaLiteral`] types that
+    /// position, so the analyser's "read the body only where the registry says
+    /// what running it means" gate is never the thing deciding a shipped
+    /// command's fate.
+    ///
+    /// Pinned rather than assumed (issue #1656): `apply` is the only such
+    /// command today, so dropping that gate would change nothing here — but a
+    /// pack, or a future built-in, can carry the role without typing it, and
+    /// then the gate is what keeps an untyped script that runs *now* from
+    /// being walked into and claimed. This test says out loud that the shipped
+    /// set does not exercise it.
+    #[test]
+    fn every_shipped_lambda_position_is_typed() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        let mut seen = 0usize;
+        for name in names {
+            for argc in 1..=4 {
+                let args = vec!["{{} {puts hi}}"; argc];
+                for index in reg.arg_indices_for_role(&name, &args, ArgRole::LambdaLiteral) {
+                    seen += 1;
+                    assert!(
+                        reg.control_arm_semantics(&name, &args, index).is_some(),
+                        "{name}/{argc} carries a lambda at {index} without typing what running \
+                         it means"
+                    );
+                }
+            }
+        }
+        assert!(seen > 0, "the sweep must not be vacuous");
+    }
+
     /// `DEFERS_BODY` and typed control-arm semantics are answers to different
     /// questions, and today no command gives both: everything the registry
-    /// types (`if`, `switch`, `namespace eval`, `catch`, `try`, the loops)
+    /// types (`if`, `switch`, `namespace eval`, `catch`, `try`, the loops,
+    /// `apply`'s lambda)
     /// runs the arm it types.
     ///
     /// That is *why* a consumer cannot currently observe which of the two
