@@ -653,7 +653,11 @@ export function resetServerTransportWedged(): void {
  * an answer out of a dying server cannot un-diagnose an earlier wedge.
  */
 export function latchFromOutcomes(outcomes: LivenessOutcomes): void {
-  if (!outcomes.transport.answered && !outcomes.otherDocument.answered && !outcomes.retry.answered) {
+  if (
+    !outcomes.transport.answered &&
+    !outcomes.otherDocument.answered &&
+    !outcomes.retry.answered
+  ) {
     transportWedgeConfirmed = true;
   }
 }
