@@ -2641,7 +2641,9 @@ fn harvest_array_element_set_constants(
 ) {
     use crate::ir::Statement;
     let is_literal = |s: &str| !s.contains('$') && !s.contains('[');
-    let is_array_elem = |name: &str| name.contains('(') && name.ends_with(')');
+    // `TclObjLookupVarEx`'s element rule, from the one owner rather than a
+    // local re-spelling of its two char tests (issue #1606).
+    let is_array_elem = |name: &str| tcl_syntax::naming::split_element_ref(name).is_some();
     let units = std::iter::once(&cu.top_level).chain(cu.procedures.values());
     for fu in units {
         for block in fu.cfg.blocks.values() {
