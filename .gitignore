@@ -124,3 +124,4 @@ editors/vscode/testFixture/.vscode/
 /editors/zed/extension.wasm
 /editors/zed/grammars/
 editors/vscode/testFixture/specPackTortureScratch/
+editors/vscode/testFixture/packExtensionScratch/

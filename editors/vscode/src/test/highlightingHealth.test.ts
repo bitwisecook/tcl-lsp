@@ -30,6 +30,12 @@ import {
   runHighlightingHealthChecks,
   tclLanguageIdForExtension,
 } from "../highlightingHealth";
+import {
+  EXTENSION_LANGUAGE_IDS,
+  FILENAME_LANGUAGE_IDS,
+  isTclLanguage,
+  tclLanguageIdForPath,
+} from "../languageIds";
 
 // A minimal TextDocument stand-in — the checks only read uri.scheme,
 // languageId, and fileName.
@@ -128,6 +134,48 @@ suite("Highlighting Health — helpers", () => {
     assert.strictEqual(tclLanguageIdForExtension(".irule"), "tcl-irule");
     assert.strictEqual(tclLanguageIdForExtension(".iapp"), "tcl-iapp");
     assert.strictEqual(tclLanguageIdForExtension(".iappimpl"), "tcl-iapp");
+  });
+
+  // Issue #1625: the hand-written switch this replaced knew 4 of the 25
+  // registered extensions, so "Switch to Tcl" on a `.sdc` file offered plain
+  // `tcl` — dropping the file's whole dialect on the way.
+  test("covers every registered extension, not just the F5 ones", () => {
+    assert.strictEqual(tclLanguageIdForExtension(".sdc"), "tcl-synopsys");
+    assert.strictEqual(tclLanguageIdForExtension(".xdc"), "tcl-xilinx");
+    assert.strictEqual(tclLanguageIdForExtension(".tmsh"), "tcl-tmsh");
+    assert.strictEqual(tclLanguageIdForExtension(".irules"), "tcl-irule");
+    assert.strictEqual(tclLanguageIdForExtension(".expect"), "tcl-expect");
+    assert.strictEqual(tclLanguageIdForExtension(".tclspec"), "tclspec");
+    // Case-folded, and an extension we do not own still falls back to `tcl`.
+    assert.strictEqual(tclLanguageIdForExtension(".SDC"), "tcl-synopsys");
+    assert.strictEqual(tclLanguageIdForExtension(".rs"), "tcl");
+  });
+});
+
+suite("Language-id projection", () => {
+  test("resolves a path by whole basename before extension", () => {
+    // The BIG-IP config files are claimed by *name*: a bare `.conf` belongs
+    // to every unrelated config file, so the extension tier must not see it.
+    assert.strictEqual(tclLanguageIdForPath("/config/bigip.conf"), "tcl-bigip");
+    assert.strictEqual(tclLanguageIdForPath("C:\\config\\BIGIP_BASE.CONF"), "tcl-bigip");
+    assert.strictEqual(tclLanguageIdForPath("/etc/httpd.conf"), undefined);
+    // The extension tier still answers for everything else.
+    assert.strictEqual(tclLanguageIdForPath("/w/foo.irules"), "tcl-irule");
+    assert.strictEqual(tclLanguageIdForPath("foo.tcl"), "tcl");
+    assert.strictEqual(tclLanguageIdForPath("Makefile"), undefined);
+  });
+
+  test("every registered language id is one we recognise as Tcl", () => {
+    // The two generated maps and the generated id set are projections of one
+    // catalogue; a mapping that named an id outside `TCL_LANGUAGE_IDS` would
+    // associate a file with a language our own client refuses to attach to.
+    for (const id of [
+      ...Object.values(EXTENSION_LANGUAGE_IDS),
+      ...Object.values(FILENAME_LANGUAGE_IDS),
+    ]) {
+      assert.ok(isTclLanguage(id), `${id} is not a Tcl language id`);
+    }
+    assert.ok(Object.keys(EXTENSION_LANGUAGE_IDS).length >= 24);
   });
 });
 

@@ -88,6 +88,7 @@ fn notify_pack_changed(lsp: &mut Lsp, path: &Path, kind: i64) {
 
 const CREATED: i64 = 1;
 const CHANGED: i64 = 2;
+const DELETED: i64 = 3;
 
 /// The packs the server reports as loaded, from `tcl-lsp.getEffectiveConfig`.
 ///
@@ -872,6 +873,113 @@ fn a_stale_startup_snapshot_cannot_overwrite_a_newer_pack_set() {
         hover.contains("Run a script with a caller variable bound."),
         "the pack on disk is the one that survives the race; got:\n{hover}"
     );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// A pack declaring a file extension nothing in the shipped catalogue owns,
+/// alongside one that declares no dialect at all.
+const EXTENSION_PACK: &str = r"
+speclib extlib 1 {
+    file_extension irulex -name {Extension Pack Rules} -dialect f5-irules
+    file_extension packplain -name {Plain Pack Script}
+
+    command extlib::noop {
+        arity 1
+    }
+}
+";
+
+/// Issue #1626: the server advertises the extensions its discovered packs
+/// claim, each resolved to an editor language id a client can actually
+/// associate with.
+///
+/// The server half of lazy registration was already done — pack routing is
+/// consulted ahead of the static catalogue by `dialect_from_extension` — but
+/// an editor learns associations from a manifest written long before the
+/// user's pack existed, so it has to be *told*. This is that channel.
+#[test]
+fn the_server_advertises_the_extensions_its_packs_claim() {
+    let root = workspace("extensions");
+    write(&root.join(".tcl-lsp/extlib.tclspec"), EXTENSION_PACK);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    await_pack_named(&mut lsp, "extlib");
+
+    let advertised = lsp
+        .effective_config("")
+        .get("pack_file_extensions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let row = |ext: &str| -> Option<Value> {
+        advertised
+            .iter()
+            .find(|row| row.get("extension").and_then(Value::as_str) == Some(ext))
+            .cloned()
+    };
+
+    // A row with a `-dialect` lands on that dialect's own editor language —
+    // no new language id can be created at runtime, so this is the whole
+    // range of choice a client has.
+    let irulex = row("irulex").expect("the pack's `irulex` row must be advertised");
+    assert_eq!(irulex["dialect"], json!("f5-irules"));
+    assert_eq!(irulex["language_id"], json!("tcl-irule"));
+    assert_eq!(irulex["pack"], json!("extlib"));
+
+    // A row with no `-dialect` rides plain `tcl`; the server's own detection
+    // decides the dialect once the file is open.
+    let plain = row("packplain").expect("a dialect-less row must still be advertised");
+    assert_eq!(plain["dialect"], Value::Null);
+    assert_eq!(plain["language_id"], json!("tcl"));
+
+    // NEGATIVE control: everything the shipped catalogue owns is already
+    // registered statically by every editor, so it is never advertised —
+    // otherwise a client could not tell its own dynamic entries from the
+    // static ones when a pack goes away.
+    for statically_owned in ["irule", "tmsh", "sdc", "upf"] {
+        assert!(
+            row(statically_owned).is_none(),
+            "catalogue-owned .{statically_owned} must not be advertised: {advertised:?}"
+        );
+    }
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// The advertisement follows the packs: retire the pack and the extension
+/// stops being advertised, so a client's association is retired with it.
+#[test]
+fn a_removed_pack_stops_advertising_its_extension() {
+    let root = workspace("extensions-removed");
+    let pack = root.join(".tcl-lsp/extlib.tclspec");
+    write(&pack, EXTENSION_PACK);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    await_pack_named(&mut lsp, "extlib");
+
+    let claims = |lsp: &mut Lsp| -> bool {
+        lsp.effective_config("")
+            .get("pack_file_extensions")
+            .and_then(Value::as_array)
+            .is_some_and(|rows| {
+                rows.iter()
+                    .any(|row| row.get("extension").and_then(Value::as_str) == Some("irulex"))
+            })
+    };
+    assert!(claims(&mut lsp), "the pack's extension must start advertised");
+
+    std::fs::remove_file(&pack).expect("remove pack");
+    notify_pack_changed(&mut lsp, &pack, DELETED);
+
+    let deadline = std::time::Instant::now() + scaled_timeout(std::time::Duration::from_secs(30));
+    while claims(&mut lsp) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the extension was still advertised after its pack was deleted"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
 
     let _ = std::fs::remove_dir_all(&root);
 }

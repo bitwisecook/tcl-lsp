@@ -65,6 +65,7 @@ const JETBRAINS_FILETYPE: &str =
     "editors/jetbrains/src/main/kotlin/com/tcllsp/jetbrains/TclFileType.kt";
 const SUBLIME_SYNTAX: &str = "editors/sublime-text/Tcl.sublime-syntax";
 const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
+const HELIX_README: &str = "editors/helix/README.md";
 
 /// The per-dialect editor surfaces: one file, one canonical dialect whose
 /// extensions it registers.
@@ -644,6 +645,59 @@ fn render_zed(original: &str, langs: &[Language]) -> Result<String> {
     set_zed_suffixes(original, &all_extensions(langs))
 }
 
+/// Helix has no extension of its own: its support is a block of `languages.toml`
+/// users copy out of the README, one `[[language]]` entry per dialect. So the
+/// README *is* the configuration surface, and a stale `file-types` line there
+/// is a real routing bug rather than a documentation nit — it was missing
+/// `scf` and `test` (issue #1625).
+///
+/// Every `[[language]]` block whose `name` is a catalog dialect (or plain
+/// `tcl`) has its `file-types` rewritten from the catalog; a dialect that owns
+/// extensions and has **no** block is a hard error, so adding a profile can
+/// never silently leave Helix behind.
+fn render_helix_readme(original: &str, langs: &[Language]) -> Result<String> {
+    let mut out = original.to_owned();
+    for lang in langs {
+        let dialect = lang.dialect.as_deref().unwrap_or("tcl");
+        let mut extensions = lang.extensions.clone();
+        // The iApp presentation language has no Helix entry of its own (nor a
+        // dialect profile); its files analyse as `f5-iapps`, so that is the
+        // block they ride — the arrangement `render_jetbrains` uses for the
+        // same sublanguage.
+        if dialect == "f5-iapps" {
+            extensions.extend(HAND_MAINTAINED_EXTENSIONS.iter().map(|e| (*e).to_owned()));
+        }
+        let anchor = format!("\nname = \"{dialect}\"\n");
+        let Some(start) = out.find(&anchor) else {
+            if extensions.is_empty() {
+                continue;
+            }
+            bail!(
+                "editors/helix/README.md has no `[[language]]` block for {dialect:?}, \
+                 which owns {extensions:?} — add one beside the others"
+            );
+        };
+        if extensions.is_empty() {
+            continue;
+        }
+        let key = "\nfile-types = [";
+        let line_start = out[start..]
+            .find(key)
+            .map(|n| start + n + 1)
+            .with_context(|| format!("the {dialect:?} Helix block has no file-types"))?;
+        let line_end = out[line_start..]
+            .find('\n')
+            .map(|n| line_start + n)
+            .with_context(|| format!("the {dialect:?} Helix file-types line is unterminated"))?;
+        let quoted: Vec<String> = extensions.iter().map(|e| format!("\"{e}\"")).collect();
+        out.replace_range(
+            line_start..line_end,
+            &format!("file-types = [{}]", quoted.join(", ")),
+        );
+    }
+    Ok(out)
+}
+
 /// One per-dialect surface: exactly the extensions its dialect owns, in
 /// catalog order.
 fn render_dialect_surface(
@@ -680,6 +734,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         (JETBRAINS_FILETYPE, Box::new(render_jetbrains_kotlin)),
         (SUBLIME_SYNTAX, Box::new(render_sublime)),
         (ZED_CONFIG, Box::new(render_zed)),
+        (HELIX_README, Box::new(render_helix_readme)),
     ];
     for (rel, dialect, surface) in DIALECT_SURFACES {
         renders.push((
