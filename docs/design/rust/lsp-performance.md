@@ -39,6 +39,23 @@ whenever their lexer configs coincide — every dialect but `tcl8.4` and
 per-URI generation check. Post-edit interactive latency on an 8.5k-line file is
 1–20 ms rather than the ~1 s the awaited run cost.
 
+**The scheduler's config cache is epoch-stamped.** Resolving `DiagInputs` — a
+dozen config mutexes, the per-folder overlay, the dialect's command registry —
+is the expensive half of scheduling, so an ordinary keystroke reuses what the
+slot already holds. That reuse is only sound while the configuration it was read
+from is still current, which is what `Backend::diag_inputs_epoch` and
+`DiagSlot::inputs_epoch` enforce: any path that writes state `diag_inputs` reads
+calls `invalidate_diag_inputs`, and a schedule whose stamp is stale re-resolves
+whether or not it asked to.
+
+Without the stamp the config reload left a real window open. It applies the
+switches first — which is also the instant `tcl-lsp.getEffectiveConfig` starts
+reporting them — then walks the disk for `SpecTcl` packs, and only then
+reschedules every open document. A keystroke arriving in between analysed under
+the *previous* configuration, so O-codes a user had just disabled came back for
+that one publish and cleared a moment later (issue #1651). Widening the
+reschedule cannot close that window; only what the edit itself reads can.
+
 The diagnostics path takes its base analysis through the **cancellable per-item
 query** (`file_analysis_incremental`), not the coarse whole-file one. That is a
 liveness requirement, not a preference: salsa's `set_text` takes global write
