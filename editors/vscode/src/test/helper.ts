@@ -637,13 +637,118 @@ interface ProcSample {
    * in its own right: if nothing at all was read or written, that necessarily
    * includes stdin and stdout.
    *
-   * Narrowing this to the two transport descriptors would need per-fd counters
-   * (`/proc/<pid>/fdinfo/0` and `/1` positions); noted as the next step on the
-   * wedge this capture exists for, issue #1657.
+   * Narrowing this to the two transport descriptors by reading per-descriptor
+   * byte counts is **not possible**: `/proc/<pid>/fdinfo/N` reports `pos: 0`
+   * for a pipe and never advances, because a pipe is not seekable. What answers
+   * the question instead is [`threadSyscalls`], which says what each thread is
+   * blocked *in* — including the descriptor number a blocked `read` or `write`
+   * names.
    */
   readBytes: number;
   writeBytes: number;
   threads: number;
+  /** What each thread is blocked in — see [`threadSyscalls`]. */
+  syscalls: ThreadSyscalls;
+}
+
+/** Linux syscall numbers this capture cares about, per architecture.
+ *
+ *  Deliberately tiny: the point is to name the handful of waits an LSP server
+ *  can be sitting in, not to decode the whole table. Anything unlisted is
+ *  reported by number, which is still enough to look up. */
+const SYSCALL_NAMES: Record<string, Record<number, string>> = {
+  x64: {
+    0: "read",
+    1: "write",
+    7: "poll",
+    23: "select",
+    202: "futex",
+    230: "clock_nanosleep",
+    232: "epoll_wait",
+    271: "ppoll",
+    281: "epoll_pwait",
+  },
+  arm64: {
+    63: "read",
+    64: "write",
+    73: "ppoll",
+    98: "futex",
+    115: "clock_nanosleep",
+    22: "epoll_pwait",
+  },
+};
+
+/** What the server's threads are blocked in, and the two conclusions that
+ *  follow from it. */
+interface ThreadSyscalls {
+  /** One entry per thread, e.g. `read(fd 0)`, `futex`, `epoll_wait`. */
+  descriptions: string[];
+  /** A thread is blocked reading descriptor 0 — the server is waiting for the
+   *  editor to send it something, i.e. its stdin reader is alive and idle. */
+  readingStdin: boolean;
+  /** A thread is blocked writing descriptor 1 — the server has output it
+   *  cannot get rid of, i.e. the *client* is not draining. */
+  blockedWritingStdout: boolean;
+}
+
+/**
+ * Read `/proc/<pid>/task/<tid>/syscall` for every thread.
+ *
+ * This is the per-descriptor answer the aggregate byte counters cannot give.
+ * The file reports the syscall number followed by its arguments, so a thread
+ * parked in `read` or `write` names the descriptor it is parked on — which is
+ * exactly the "is anything still reading stdin / stuck writing stdout"
+ * question issue #1657 turns on.
+ *
+ * Syscall numbers are architecture-specific, so an unrecognised architecture
+ * degrades to bare numbers rather than guessing wrong names. A thread that is
+ * running rather than blocked reports `running`.
+ */
+function threadSyscalls(pid: number): ThreadSyscalls {
+  const names = SYSCALL_NAMES[process.arch] ?? {};
+  const descriptions: string[] = [];
+  let readingStdin = false;
+  let blockedWritingStdout = false;
+  try {
+    for (const tid of fs.readdirSync(`/proc/${pid}/task`)) {
+      let raw: string;
+      try {
+        raw = fs.readFileSync(`/proc/${pid}/task/${tid}/syscall`, "utf8").trim();
+      } catch {
+        continue;
+      }
+      // "running" for a thread that is not in a syscall; otherwise
+      // "<nr> <arg0> <arg1> …".
+      if (raw.startsWith("running") || raw === "-1") {
+        descriptions.push("running");
+        continue;
+      }
+      const fields = raw.split(/\s+/);
+      const nr = Number(fields[0]);
+      const name = names[nr] ?? `syscall ${nr}`;
+      if (name === "read" || name === "write") {
+        const fd = Number(fields[1]);
+        descriptions.push(`${name}(fd ${fd})`);
+        if (name === "read" && fd === 0) readingStdin = true;
+        if (name === "write" && fd === 1) blockedWritingStdout = true;
+      } else {
+        descriptions.push(name);
+      }
+    }
+  } catch {
+    // No /proc, or the process went away — the caller renders the empty case.
+  }
+  return { descriptions, readingStdin, blockedWritingStdout };
+}
+
+/** Collapse the per-thread list into `2x futex, 1x read(fd 0)` form. */
+function summariseSyscalls(descriptions: string[]): string {
+  const counts = new Map<string, number>();
+  for (const d of descriptions) counts.set(d, (counts.get(d) ?? 0) + 1);
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, n]) => `${n}x ${name}`)
+    .join(", ");
 }
 
 /** The server's pid, via the language client's child process.
@@ -683,6 +788,7 @@ function readProcSample(pid: number): ProcSample | undefined {
       readBytes: field("rchar"),
       writeBytes: field("wchar"),
       threads,
+      syscalls: threadSyscalls(pid),
     };
   } catch {
     return undefined;
@@ -752,6 +858,28 @@ export async function serverStateEvidence(): Promise<string> {
             "stdout: nothing is being read from or written to the LSP pipes. This is the " +
             "stdin-reader-stopped shape, and it is the one conclusive reading here.",
     );
+    // What each thread is parked in. This is the per-descriptor answer the
+    // aggregate counters above cannot give, and the one that separates a
+    // wedged *transport* from wedged *handlers*: the byte counters cannot say
+    // which descriptor moved, but a thread blocked in `read` names its fd.
+    const { descriptions, readingStdin, blockedWritingStdout } = after.syscalls;
+    if (descriptions.length === 0) {
+      lines.push("server threads: /proc/<pid>/task is unreadable, so no per-thread reading");
+    } else {
+      lines.push(`server threads: ${summariseSyscalls(descriptions)}`);
+      lines.push(
+        blockedWritingStdout
+          ? "  -> a thread is blocked WRITING descriptor 1, so the server has output it cannot " +
+              "get rid of: the client is not draining stdout. The fault is downstream of the server."
+          : readingStdin
+            ? "  -> a thread is blocked READING descriptor 0, so the server's input path is alive " +
+              "and simply has nothing to do. It is not deaf; it has already consumed everything " +
+              "sent and is answering none of it, which points at the handlers rather than the " +
+              "transport — a barrier or a permit nothing releases."
+            : "  -> nothing is parked on either LSP descriptor. The server is neither waiting for " +
+              "input nor stuck writing output, so whatever it is waiting on is internal.",
+      );
+    }
   }
   const log = getServerLog();
   const tail = log.slice(-SERVER_LOG_TAIL_LINES);

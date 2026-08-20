@@ -331,6 +331,20 @@ const DIAGNOSTICS_DEBOUNCE: std::time::Duration = std::time::Duration::from_mill
 /// next schedule therefore re-resolves.
 const DIAG_INPUTS_RESOLVE_ATTEMPTS: u32 = 4;
 
+/// How long a request may wait on the document-sync barrier before the server
+/// says so on its log channel.
+///
+/// Well past any honest wait — the barrier covers a buffer splice and a salsa
+/// input set, which are milliseconds — and well inside the budgets the editor
+/// harness allows a request, so the line lands while the run is still going
+/// rather than after it has given up.
+const EDIT_BARRIER_STALL_WARN: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Greppable marker on the stall line, so a CI log scan can classify a wedged
+/// run without reading the prose. Mirrors the harness's own
+/// `VSCODE-WAIT-TIMEOUT`.
+const EDIT_BARRIER_STALL_LOG: &str = "[stall] document-sync barrier has not advanced";
+
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
 /// (SSA/SCCP-informed: regex-source retagging, user-class object-method
 /// resolution) token stream before falling back to the cheap coarse tier
@@ -4433,6 +4447,10 @@ pub struct Backend {
     /// Monotonic stamp for "the configuration the diagnostics scheduler caches
     /// has moved".  See [`Backend::invalidate_diag_inputs`].
     diag_inputs_epoch: std::sync::atomic::AtomicU64,
+    /// The `now_serving` position the last document-sync barrier stall was
+    /// reported at, so a wedge logs once rather than once per blocked request.
+    /// See [`Backend::report_edit_barrier_stall`].
+    edit_barrier_stall_reported: std::sync::atomic::AtomicU64,
     /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
     /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
     /// on.
@@ -4723,37 +4741,131 @@ struct EditOrder {
     next_ticket: std::sync::atomic::AtomicU64,
     now_serving: std::sync::atomic::AtomicU64,
     advanced: tokio::sync::Notify,
+    /// Tickets whose waiter went away before its turn came round.
+    ///
+    /// A drawn ticket is a reservation in a strictly increasing sequence, so
+    /// nothing after it can run until it has been accounted for. If its handler
+    /// simply vanishes there is no guard to release it and `now_serving` stops
+    /// at that number **for ever** — see [`EditTicket`]. Recording it here lets
+    /// [`Self::drain_abandoned`] step over it when the sequence reaches it.
+    ///
+    /// A `std::sync::Mutex`, deliberately: every critical section touching it is
+    /// a few integer operations with no `await` inside, which is exactly the
+    /// case a blocking mutex is for. Holding it across an await is what would
+    /// make it a hazard, and nothing here does.
+    abandoned: std::sync::Mutex<std::collections::BTreeSet<u64>>,
+    /// Who currently holds the turn, and since when.
+    ///
+    /// "The barrier has stopped" is only half a diagnosis — the other half is
+    /// *which handler* stopped it, and that cannot be recovered afterwards
+    /// because a wedged server writes nothing. Recording it at the grant makes
+    /// [`Backend::report_edit_barrier_stall`] able to name the culprit in the
+    /// one line it gets out (issue #1657).
+    holder: std::sync::Mutex<Option<TurnHolder>>,
+}
+
+/// The handler currently holding an [`EditOrder`] turn.
+#[derive(Debug, Clone)]
+struct TurnHolder {
+    /// The notification that drew the ticket — `didOpen`, `didChange`, `didClose`.
+    what: &'static str,
+    /// The document it is for.
+    uri: String,
+    ticket: u64,
+    since: std::time::Instant,
 }
 
 impl EditOrder {
     /// Draw the next ticket. **Must** be called before the handler's first
     /// `await`, while the future is still being first-polled in stream order.
-    fn take_ticket(&self) -> u64 {
-        self.next_ticket
-            .fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    ///
+    /// The returned [`EditTicket`] is a reservation that must be accounted for
+    /// however the handler ends — see its docs.
+    fn take_ticket(&self, what: &'static str, uri: &Uri) -> EditTicket<'_> {
+        EditTicket {
+            order: self,
+            ticket: self
+                .next_ticket
+                .fetch_add(1, std::sync::atomic::Ordering::AcqRel),
+            armed: true,
+            what,
+            uri: uri.as_str().to_owned(),
+        }
     }
 
-    /// Wait for `ticket`'s turn. The guard releases it on drop — including on an
-    /// early return or a dropped (cancelled) handler future, so a turn is never
-    /// lost.
-    async fn wait_turn(&self, ticket: u64) -> EditTurn<'_> {
+    /// Wait for `ticket`'s turn, consuming the reservation and returning the
+    /// guard that holds it.
+    ///
+    /// Cancel-safe in the way the sequence needs: `ticket` is moved into this
+    /// future, so a caller dropped while parked here drops the reservation with
+    /// it, and [`EditTicket::drop`] records the abandonment rather than leaving
+    /// the sequence stuck on a number nobody will ever release.
+    async fn wait_turn<'a>(&'a self, mut ticket: EditTicket<'a>) -> EditTurn<'a> {
         loop {
             let advanced = self.advanced.notified();
             tokio::pin!(advanced);
             // Register before re-reading, so a turn granted between the check and
             // the await cannot be missed.
             advanced.as_mut().enable();
-            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) == ticket {
+            if self.now_serving.load(std::sync::atomic::Ordering::Acquire) == ticket.ticket {
+                // The turn is ours; the guard below now owns the release, so the
+                // reservation must not also account for it.
+                ticket.armed = false;
+                *self
+                    .holder
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(TurnHolder {
+                    what: ticket.what,
+                    uri: std::mem::take(&mut ticket.uri),
+                    ticket: ticket.ticket,
+                    since: std::time::Instant::now(),
+                });
                 return EditTurn { order: self };
             }
             advanced.await;
         }
     }
 
-    /// Wait until every edit that had drawn a ticket *before this call* has been
-    /// applied. Edits arriving later do not hold the caller up.
-    async fn settled(&self) {
-        let target = self.next_ticket.load(std::sync::atomic::Ordering::Acquire);
+    /// Step `now_serving` over any run of consecutive abandoned tickets that
+    /// now sits at the head of the queue, and wake whoever that admits.
+    ///
+    /// Called from both ends: when a turn is handed on normally, and when a
+    /// ticket is abandoned. Either can be the event that makes an abandoned
+    /// ticket current.
+    fn drain_abandoned(&self) {
+        {
+            let mut abandoned = self
+                .abandoned
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            while abandoned.remove(&self.now_serving.load(std::sync::atomic::Ordering::Acquire)) {
+                self.now_serving
+                    .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+            }
+        }
+        self.advanced.notify_waiters();
+    }
+
+    /// The ticket number a barrier taken *now* would have to reach.
+    ///
+    /// Split out so a caller can snapshot the target, wait on it with a
+    /// timeout, and then resume waiting on the **same** target — re-calling
+    /// [`Self::settled`] would re-read this and start waiting for edits that
+    /// arrived in the meantime, which is a different (and stricter) question.
+    fn settle_target(&self) -> u64 {
+        self.next_ticket.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// How far the sequence has actually got.
+    fn served(&self) -> u64 {
+        self.now_serving.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// Wait until every edit that had drawn a ticket before `target` has been
+    /// applied. Edits arriving later do not hold the caller up, which is why
+    /// the target is snapshotted by the caller ([`Self::settle_target`]) rather
+    /// than re-read here.
+    async fn settled_to(&self, target: u64) {
         loop {
             let advanced = self.advanced.notified();
             tokio::pin!(advanced);
@@ -4766,6 +4878,58 @@ impl EditOrder {
     }
 }
 
+/// A drawn but not-yet-granted place in the [`EditOrder`] sequence.
+///
+/// # Why this is a guard and not a bare number
+///
+/// A ticket is a reservation in a strictly increasing sequence: `now_serving`
+/// advances one at a time, so nothing after ticket N can run until N has been
+/// accounted for. [`EditTurn`] accounts for a ticket that was *granted*. Before
+/// the grant there was nothing, and a handler future dropped while parked in
+/// [`EditOrder::wait_turn`] therefore left `now_serving` pointing at a number
+/// no guard would ever release.
+///
+/// The result is not a lost edit but a stopped server. Every later
+/// document-sync notification blocks in `wait_turn`, every request handler
+/// blocks in [`EditOrder::settled`] and holds one of the four
+/// [`crate::transport_liveness::DeferredConcurrency`] permits, and the process
+/// sits at zero CPU answering nothing while its stdin reader — which the
+/// unbounded transport keeps running — goes on draining input it will never
+/// act on. That is precisely the steady state issue #1657 records.
+///
+/// So the reservation itself is the guard. `wait_turn` takes it by value, which
+/// puts it inside the very future that might be dropped; if that happens,
+/// `Drop` records the abandonment and the sequence steps over it.
+struct EditTicket<'a> {
+    order: &'a EditOrder,
+    ticket: u64,
+    /// Still owing an accounting. Cleared when [`EditOrder::wait_turn`] hands
+    /// ownership to the [`EditTurn`] it returns.
+    armed: bool,
+    /// Carried so the grant can publish who holds the turn — see
+    /// [`EditOrder::holder`].
+    what: &'static str,
+    uri: String,
+}
+
+impl Drop for EditTicket<'_> {
+    fn drop(&mut self) {
+        if !self.armed {
+            return;
+        }
+        {
+            let mut abandoned = self
+                .order
+                .abandoned
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            abandoned.insert(self.ticket);
+        }
+        // This ticket may be the one the sequence is waiting on right now.
+        self.order.drain_abandoned();
+    }
+}
+
 /// A held turn in the [`EditOrder`] sequence; hands it on when dropped.
 struct EditTurn<'a> {
     order: &'a EditOrder,
@@ -4773,10 +4937,18 @@ struct EditTurn<'a> {
 
 impl Drop for EditTurn<'_> {
     fn drop(&mut self) {
+        *self
+            .order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
         self.order
             .now_serving
             .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
-        self.order.advanced.notify_waiters();
+        // Handing this turn on may make an abandoned ticket current, in which
+        // case the sequence must step over it rather than stop there.
+        // `drain_abandoned` wakes the waiters either way.
+        self.order.drain_abandoned();
     }
 }
 
@@ -5356,6 +5528,7 @@ impl Backend {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -5414,6 +5587,35 @@ impl Backend {
     /// own a separate copy of it.  The salsa `SourceFile::text` input is a
     /// `String`, so exactly one copy is made here — the same single copy the
     /// caller used to make before handing it over (issue #1184).
+    /// # INVARIANT (no wedged sessions): never hold a salsa snapshot across an await
+    ///
+    /// The `set_text` / `SourceFile` calls below take `&mut` on the database,
+    /// which salsa 0.28 grants through `Storage::cancel_others`:
+    ///
+    /// ```text
+    /// let mut clones = self.handle.coordinate.clones.lock();
+    /// while *clones != 1 { clones = self.handle.coordinate.cvar.wait(clones); }
+    /// ```
+    ///
+    /// That is a **blocking** condvar wait, on a Tokio worker thread, for every
+    /// other `DatabaseImpl` clone in the process to be dropped. And this
+    /// function is called from `did_open` / `did_change` **while they hold the
+    /// [`EditOrder`] turn**, so for as long as it waits:
+    ///
+    /// * `now_serving` does not advance, so every later document-sync
+    ///   notification blocks in `wait_turn`;
+    /// * every request handler blocks in [`Backend::edits_settled`] and holds
+    ///   one of `DeferredConcurrency`'s four permits;
+    /// * the server answers nothing, writes nothing, and burns no CPU, while
+    ///   its stdin reader goes on draining input.
+    ///
+    /// That is issue #1657's signature exactly. So a `db.lock().await.clone()`
+    /// anywhere in this crate must be **moved straight into the worker it was
+    /// cloned for** and never held across an unrelated `.await`: a snapshot that
+    /// outlives its query does not slow one request down, it stops the server.
+    /// `scratchpad`-style audits will not catch it either — the mutex is
+    /// released the instant the clone is made, so it is invisible to a
+    /// lock-guard analysis; it is the *clone* salsa waits on.
     async fn db_set_source(&self, uri: &Uri, text: &str, dialect: String) {
         use salsa::Setter as _;
         // Salsa's `SourceFile.text` is the analyser's input, so it stores the
@@ -6356,11 +6558,116 @@ impl Backend {
     /// offsets. LSP requires a request to observe every notification that
     /// preceded it.
     ///
-    /// Waits only for the edits that had already arrived ([`EditOrder::settled`]),
-    /// so a later edit does not hold this reader up and readers never serialise
-    /// against one another.
+    /// Waits only for the edits that had already arrived
+    /// ([`EditOrder::settled_to`]), so a later edit does not hold this reader up
+    /// and readers never serialise against one another.
+    ///
+    /// A wait here that never ends is the shape of issue #1657 — the whole
+    /// server stops answering while burning no CPU — and from the outside it is
+    /// indistinguishable from any other stall. So a wait that overruns
+    /// [`EDIT_BARRIER_STALL_WARN`] says so on the client's log channel before
+    /// resuming, which names the barrier as the culprit and says exactly where
+    /// the sequence stopped. The extension-host capture quotes the tail of that
+    /// channel, so the next occurrence carries this line with it.
+    ///
+    /// That reporting must not be paid for on the hot path. **Every** request
+    /// handler calls this, and in the overwhelmingly common case there is no
+    /// edit in flight at all, so the barrier is already satisfied: the check
+    /// below settles it in two atomic loads, allocating nothing and registering
+    /// no timer. Only a wait that genuinely has to block reaches the timeout —
+    /// which is cheaper than the previous unconditional `settled()`, since that
+    /// built a `Notified` even when it had nothing to wait for.
     async fn edits_settled(&self) {
-        self.edit_order.settled().await;
+        // Snapshot the target so the resumed wait asks the same question the
+        // timed-out one did, rather than a stricter one that includes edits
+        // which arrived while we waited.
+        let target = self.edit_order.settle_target();
+        if self.edit_order.served() >= target {
+            return;
+        }
+        if crate::rt::timeout(EDIT_BARRIER_STALL_WARN, self.edit_order.settled_to(target))
+            .await
+            .is_ok()
+        {
+            return;
+        }
+        self.report_edit_barrier_stall(target).await;
+        self.edit_order.settled_to(target).await;
+    }
+
+    /// Announce that the document-sync barrier has stopped advancing.
+    ///
+    /// Rate-limited to one line per stuck position: in a real wedge *every*
+    /// request handler arrives here, and a log storm would push the very lines
+    /// a reader needs out of the captured tail. Reporting again once the
+    /// sequence has moved on is intentional — a barrier that stalls repeatedly
+    /// at successive positions is a different story from one that stopped dead.
+    ///
+    /// # The barrier is re-read before anything is claimed
+    ///
+    /// The caller's timeout can win its race by a hair: the wait expires, and
+    /// the edit it was waiting for lands before this runs. Reporting on the
+    /// strength of "the timeout fired" would then announce a permanent wedge
+    /// that is already over — with no holder and zero notifications queued,
+    /// which is the *ticket-loss* shape and so actively misleading.
+    ///
+    /// Worse than the noise is what it would do to the rate limiter. Recording
+    /// that position would make a later, genuine stall at the same position
+    /// suppress itself, so the false report could hide the real one. Both
+    /// failures land in the one diagnosis stream issue #1657 depends on, so the
+    /// re-read comes first and the suppression slot is only ever written for a
+    /// stall that is real at the moment it is claimed.
+    async fn report_edit_barrier_stall(&self, target: u64) {
+        let serving = self.edit_order.served();
+        if serving >= target {
+            return;
+        }
+        if self
+            .edit_barrier_stall_reported
+            .swap(serving, std::sync::atomic::Ordering::AcqRel)
+            == serving
+        {
+            return;
+        }
+        let holder = self
+            .edit_order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        // Naming the holder is the difference between "the barrier stopped" and
+        // a diagnosis. No holder at all is itself informative: nobody is in the
+        // turn, so the sequence is stuck on a ticket whose handler never
+        // reached its grant.
+        let culprit = holder.map_or_else(
+            || {
+                "held by nobody — the sequence is stuck on a ticket whose handler never \
+                 reached its grant"
+                    .to_owned()
+            },
+            |h| {
+                format!(
+                    "held by {} for {:.1}s on {} (ticket {})",
+                    h.what,
+                    h.since.elapsed().as_secs_f64(),
+                    h.uri,
+                    h.ticket,
+                )
+            },
+        );
+        self.client
+            .log_message(
+                MessageType::WARNING,
+                format!(
+                    "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
+                     {target}, so {} document-sync notification(s) are queued behind it. \
+                     The turn is {culprit}. Every request handler is blocked on this barrier \
+                     and the server will answer nothing until it moves (issue #1657).",
+                    EDIT_BARRIER_STALL_WARN.as_secs(),
+                    target.saturating_sub(serving),
+                ),
+            )
+            .await;
     }
 
     /// A snapshot of `url`'s text, **normalised for analysis**: every lone
@@ -7317,6 +7624,7 @@ impl Backend {
             feature_toggles: _,
             optimiser_enabled: _,
             diag_inputs_epoch: _,
+            edit_barrier_stall_reported: _,
             shimmer_enabled: _,
             optimiser_profile: _,
             optimiser_code_overrides: _,
@@ -13069,16 +13377,27 @@ impl Backend {
         if !cross_file_on {
             return None;
         }
-        let db = self.db.lock().await.clone();
+        // Resolve everything else *before* cloning the database, and clone it
+        // only on the branch that immediately hands it to a worker.
+        //
+        // A salsa snapshot is not an ordinary handle. `set_text` (and creating a
+        // `SourceFile`) goes through `Storage::cancel_others`, which parks on a
+        // condvar until every **other** clone has been dropped — a blocking
+        // wait, taken on a Tokio worker, from inside the `EditOrder` turn that
+        // `did_open` / `did_change` hold. So a live snapshot does not merely
+        // delay one query: it stalls the document-sync barrier, and with it
+        // every request handler in the server (issue #1657).
+        //
+        // Holding one across an unrelated `.await` — as this did across the
+        // `db_project` lock, and on the `None` branch across the whole
+        // function — widens that window for no benefit. Cloning last keeps the
+        // snapshot's life exactly the worker's.
         let project = *self.db_project.lock().await;
-        match project {
-            Some(p) => {
-                crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
-                    .await
-                    .ok()
-            }
-            None => None,
-        }
+        let p = project?;
+        let db = self.db.lock().await.clone();
+        crate::rt::spawn_blocking(move || tcl_lsp_db::project_command_arities(&db, p))
+            .await
+            .ok()
     }
 
     /// Run the compiler-check diagnostics for `text` off the event-loop thread.
@@ -15433,7 +15752,9 @@ impl LanguageServer for Backend {
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
         // Apply document-sync mutations in arrival order (see `EditOrder`). The
         // ticket must be drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let dialect = self
             .dialect_for_open(
@@ -15532,7 +15853,9 @@ impl LanguageServer for Backend {
         // Apply document-sync mutations in arrival order (see `EditOrder`) —
         // otherwise two rapid incremental edits splice out of order and corrupt
         // the buffer. The ticket must be drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didChange", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = params.text_document.uri.clone();
         if params.content_changes.is_empty() {
@@ -15737,7 +16060,9 @@ impl LanguageServer for Backend {
         // Apply document-sync mutations in arrival order (see `EditOrder`) so a
         // close can't be reordered ahead of an in-flight edit. The ticket must be
         // drawn before the first await.
-        let ticket = self.edit_order.take_ticket();
+        let ticket = self
+            .edit_order
+            .take_ticket("didClose", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
         let uri = &params.text_document.uri;
         {
@@ -27532,6 +27857,7 @@ mod tests {
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
             diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
+            edit_barrier_stall_reported: std::sync::atomic::AtomicU64::new(u64::MAX),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -32249,7 +32575,7 @@ mod tests {
 
         // Stand in for a `didChange` that has arrived and taken its turn, but has
         // not yet spliced the buffer.
-        let ticket = backend.edit_order.take_ticket();
+        let ticket = backend.edit_order.take_ticket("didChange", &uri);
         let edit_in_flight = backend.edit_order.wait_turn(ticket).await;
 
         let mut reader = crate::rt::spawn({
@@ -32276,6 +32602,149 @@ mod tests {
             .expect("read_document must resolve once the edit lands")
             .expect("reader task panicked");
         assert_eq!(text.as_deref(), Some("set x 2\n"));
+    }
+
+    /// #1657, the latent half: a ticket whose waiter is dropped *before* its
+    /// turn is granted must not stop the sequence for ever.
+    ///
+    /// [`EditOrder::wait_turn`]'s own docs claim this already holds — "the guard
+    /// releases it on drop — including on ... a dropped (cancelled) handler
+    /// future, so a turn is never lost". That is true only once the guard
+    /// exists, and the guard is created at the *grant*, not at the draw. A
+    /// future dropped while parked in the wait leaves `now_serving` pointing at
+    /// a ticket nobody holds and nobody will ever release.
+    ///
+    /// The consequence is total and permanent: every later document-sync
+    /// notification blocks in `wait_turn`, and every request handler blocks in
+    /// `edits_settled`, which is exactly the steady state #1657 records — no
+    /// CPU, no output, stdin still draining.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_dropped_waiter_does_not_wedge_the_edit_order() {
+        let order = EditOrder::default();
+        let uri = Uri::from_str("file:///w/ordering.tcl").unwrap();
+
+        // Ticket 0 is held by an edit that is getting on with its work.
+        let first = order.take_ticket("didChange", &uri);
+        let first_turn = order.wait_turn(first).await;
+
+        // Ticket 1's handler is dropped while parked — it never reaches the
+        // grant, so it never owns an `EditTurn`.
+        let abandoned = order.take_ticket("didChange", &uri);
+        let abandoned_n = abandoned.ticket;
+        {
+            let mut waiting = Box::pin(order.wait_turn(abandoned));
+            // Poll it so it really is registered and parked, then drop it.
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_millis(50), &mut waiting)
+                    .await
+                    .is_err(),
+                "ticket {abandoned_n} must not be granted while an earlier ticket holds the turn",
+            );
+        }
+
+        // Ticket 2 is a later edit, waiting its turn behind the abandoned one.
+        let third = order.take_ticket("didChange", &uri);
+        let third_n = third.ticket;
+        let next = order.wait_turn(third);
+
+        drop(first_turn);
+
+        assert!(
+            crate::rt::timeout(std::time::Duration::from_secs(5), next)
+                .await
+                .is_ok(),
+            "a waiter dropped before its turn was granted stopped the edit order for ever: \
+             ticket {third_n} never ran behind abandoned ticket {abandoned_n}. Every later edit \
+             and every request handler waiting on `edits_settled` would now be blocked \
+             permanently (#1657)",
+        );
+
+        // And the sequence is genuinely caught up, not merely unblocked: a
+        // request barrier taken now must see every drawn ticket accounted for.
+        assert!(
+            crate::rt::timeout(
+                std::time::Duration::from_secs(5),
+                order.settled_to(order.settle_target()),
+            )
+            .await
+            .is_ok(),
+            "`settled` must not still be waiting on the abandoned ticket",
+        );
+    }
+
+    /// The stall reporter must not announce a wedge that is already over.
+    ///
+    /// `edits_settled`'s timeout can win its race by a hair: the wait expires,
+    /// and the edit it was waiting for lands before the report runs. Reporting
+    /// on the strength of "the timeout fired" would then describe a permanent
+    /// wedge with no holder and zero notifications queued — which is the
+    /// *ticket-loss* shape, so the line would not merely be noise but point at
+    /// the wrong defect.
+    ///
+    /// The second half matters as much: recording that position in the rate
+    /// limiter would make a later, genuine stall at the same position suppress
+    /// itself. A false report could then hide the real one, in the single
+    /// diagnosis stream issue #1657 depends on.
+    ///
+    /// Constructed directly rather than by racing a ten-second timeout: the
+    /// state that race produces is simply "the reporter is called with a target
+    /// the barrier has already reached", which is what this hands it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_barrier_that_has_caught_up_is_not_reported_as_a_stall() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/caught-up.tcl").unwrap();
+
+        // One edit drawn and handed on, so the barrier has reached its target —
+        // exactly the state the timeout can lose its race against.
+        let target = {
+            let ticket = backend.edit_order.take_ticket("didChange", &uri);
+            let target = backend.edit_order.settle_target();
+            drop(backend.edit_order.wait_turn(ticket).await);
+            target
+        };
+        assert!(
+            backend.edit_order.served() >= target,
+            "the barrier must have caught up, or this test proves nothing",
+        );
+
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.report_edit_barrier_stall(target),
+        )
+        .await
+        .expect("the reporter must return promptly rather than block");
+
+        assert_eq!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            u64::MAX,
+            "a barrier that has caught up must not be reported, and must not \
+             claim the rate limiter's slot — doing so would suppress the next \
+             genuine stall at this position (#1657)",
+        );
+
+        // The positive case still works: a turn that is genuinely held is
+        // reported, and only then does the position get recorded.
+        let held = backend.edit_order.take_ticket("didOpen", &uri);
+        let held_at = backend.edit_order.served();
+        let _turn = backend.edit_order.wait_turn(held).await;
+        let queued = backend.edit_order.take_ticket("didChange", &uri);
+        let stalled_target = backend.edit_order.settle_target();
+        crate::rt::timeout(
+            std::time::Duration::from_secs(5),
+            backend.report_edit_barrier_stall(stalled_target),
+        )
+        .await
+        .expect("the reporter must return promptly rather than block");
+        assert_eq!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            held_at,
+            "a genuine stall must still be reported and recorded",
+        );
+        drop(queued);
     }
 
     /// Wait for the single document-sync handler under test to draw its
