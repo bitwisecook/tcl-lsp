@@ -687,6 +687,11 @@ export interface LivenessOutcomes {
  *
  * Ordered most-general fault first: a server that answers nothing subsumes a
  * pipeline that answers nothing, which subsumes one document being stuck.
+ *
+ * With one guard on that ordering: "most general" is only allowed to win on
+ * evidence that does not contradict it. The general verdict claims the whole
+ * client → server → client path is dead, so any probe that *did* get a reply
+ * back over that path refutes it, however severe the unanswered one looks.
  */
 export function classifyLiveness(outcomes: LivenessOutcomes): string {
   if (!outcomes.transport.answered) {
