@@ -555,7 +555,10 @@ mod tests {
                     .into_iter()
                     .map(|(k, val)| (k.as_bytes().to_vec(), val.as_bytes().to_vec()))
                     .collect();
-                assert_eq!(got, want, "native dict rep diverges from the owner on {source:?}");
+                assert_eq!(
+                    got, want,
+                    "native dict rep diverges from the owner on {source:?}"
+                );
                 unsafe { obj::decr_ref_count(v) };
             }
         });
