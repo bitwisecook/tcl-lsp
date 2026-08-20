@@ -5524,6 +5524,101 @@ mod tests {
         );
     }
 
+    /// A `-appends` row is a per-argument row like any other, so its
+    /// **command-prefix** position is gated too — on both legs (PR #1674
+    /// review).
+    ///
+    /// The loader gives a `-appends` row `ArgRole::CommandPrefix` when the
+    /// index has no role of its own, so the position reaches consumers through
+    /// the prefix query rather than the plain role table. That query answers
+    /// the role list *and* the appended arity the callback-arity check reads,
+    /// which is why the role lookup delegates to it: filtering one and not the
+    /// other would let a call site's position and its arity disagree about
+    /// which release they belong to.
+    #[test]
+    fn a_gated_appends_row_is_gated_on_both_legs() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n \
+             arity 3\n \
+             arg 0 -appends {Exactly 1}\n \
+             arg 1 -appends {Exactly 2} -introduced 3.0\n \
+             subcommand run {\n \
+             arity 3\n \
+             arg 0 -appends {Exactly 1}\n \
+             arg 1 -appends {Exactly 2} -introduced 3.0\n \
+             }\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let mut registry = tcl_registry::registry::CommandRegistry::build_default();
+        registry.insert(pack.command("demo").expect("demo loads").spec.clone());
+
+        // Command leg: the 3.0 prefix position is absent at 1.0 — from the
+        // arity-bearing query and from the role list that delegates to it.
+        let args = ["a", "b", "c"];
+        assert_eq!(
+            registry.command_prefixes_at("demo", &args, Some("1.0")),
+            vec![(0, tcl_registry::arg_role::AppendedArity::Exactly(1))],
+            "the 3.0 prefix row must not appear at a 1.0 floor"
+        );
+        assert_eq!(
+            registry.arg_indices_for_role_at("demo", &args, ArgRole::CommandPrefix, Some("1.0")),
+            vec![0],
+            "and the role list must agree with it"
+        );
+        assert_eq!(
+            registry.command_prefixes_at("demo", &args, Some("3.0")),
+            vec![
+                (0, tcl_registry::arg_role::AppendedArity::Exactly(1)),
+                (1, tcl_registry::arg_role::AppendedArity::Exactly(2)),
+            ],
+            "both apply from 3.0"
+        );
+        assert_eq!(
+            registry.arg_indices_for_role_at("demo", &args, ArgRole::CommandPrefix, Some("3.0")),
+            vec![0, 1]
+        );
+        // FN guard: an unresolved floor stays permissive.
+        assert_eq!(
+            registry.arg_indices_for_role("demo", &args, ArgRole::CommandPrefix),
+            vec![0, 1],
+            "no floor resolved means no gating"
+        );
+
+        // Subcommand leg: same rows, one position further along.
+        let sub_args = ["run", "a", "b", "c"];
+        assert_eq!(
+            registry.command_prefixes_at("demo", &sub_args, Some("1.0")),
+            vec![(1, tcl_registry::arg_role::AppendedArity::Exactly(1))],
+            "a subcommand's gated prefix row is gated too"
+        );
+        assert_eq!(
+            registry.arg_indices_for_role_at(
+                "demo",
+                &sub_args,
+                ArgRole::CommandPrefix,
+                Some("1.0")
+            ),
+            vec![1]
+        );
+        assert_eq!(
+            registry.command_prefixes_at("demo", &sub_args, Some("3.0")),
+            vec![
+                (1, tcl_registry::arg_role::AppendedArity::Exactly(1)),
+                (2, tcl_registry::arg_role::AppendedArity::Exactly(2)),
+            ]
+        );
+        assert_eq!(
+            registry.arg_indices_for_role_at(
+                "demo",
+                &sub_args,
+                ArgRole::CommandPrefix,
+                Some("3.0")
+            ),
+            vec![1, 2]
+        );
+    }
+
     /// Windows and gated argument rows join the containment pass every other
     /// lifecycle already goes through: a row that outlives the command
     /// declaring it is a pack defect the author can only find if told.

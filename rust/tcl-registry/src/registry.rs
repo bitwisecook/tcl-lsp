@@ -2987,7 +2987,7 @@ impl CommandRegistry {
         // inference, and the call-reference extractor all read one source.
         if role == ArgRole::CommandPrefix {
             return self
-                .command_prefixes(name, args)
+                .command_prefixes_at(name, args, package_version)
                 .into_iter()
                 .map(|(i, _)| i)
                 .collect();
@@ -3546,9 +3546,43 @@ impl CommandRegistry {
     /// call-graph recording, and the callback-arity check.
     ///
     /// For subcommand-based commands pass the subcommand as `args[0]`.
+    ///
+    /// A per-argument row a pack gated with a lifecycle is honoured only by
+    /// [`Self::command_prefixes_at`]; this form answers at no floor, the
+    /// permissive reading every other lifecycle query gives an unresolved
+    /// version.
     #[must_use]
     pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
-        self.command_prefixes_with_arguments(name, CommandPrefixArguments::literals(args))
+        self.command_prefixes_at(name, args, None)
+    }
+
+    /// [`Self::command_prefixes`] at a resolved package floor (issue #1644,
+    /// PR #1674 review).
+    ///
+    /// A `-appends` row *is* a per-argument row — the loader gives it
+    /// [`ArgRole::CommandPrefix`] as its role — so a prefix position a later
+    /// release introduced must vanish at an older floor, both from the role
+    /// list and from the appended arity the callback-arity check reads. The
+    /// role query delegates here rather than filtering afterwards, so the
+    /// position and its arity can never disagree about which release they
+    /// belong to.
+    ///
+    /// Only the static table moves: a `command_prefix_resolver` is authored
+    /// code rather than rows, and an option-declared prefix carries the
+    /// option's own lifecycle, which `push_command_prefix_options` already
+    /// respects.
+    #[must_use]
+    pub fn command_prefixes_at(
+        &self,
+        name: &str,
+        args: &[&str],
+        package_version: Option<&str>,
+    ) -> Vec<(usize, AppendedArity)> {
+        self.command_prefixes_with_arguments(
+            name,
+            CommandPrefixArguments::literals(args),
+            package_version,
+        )
     }
 
     /// Source-aware command-prefix resolution.
@@ -3566,13 +3600,14 @@ impl CommandRegistry {
         let Some(arguments) = CommandPrefixArguments::structured(spellings, words) else {
             return Vec::new();
         };
-        self.command_prefixes_with_arguments(name, arguments)
+        self.command_prefixes_with_arguments(name, arguments, None)
     }
 
     fn command_prefixes_with_arguments(
         &self,
         name: &str,
         args: CommandPrefixArguments<'_>,
+        package_version: Option<&str>,
     ) -> Vec<(usize, AppendedArity)> {
         let Some(spec) = self.get(name) else {
             return Vec::new();
@@ -3593,7 +3628,8 @@ impl CommandRegistry {
                 );
             } else {
                 out.extend(
-                    sub.command_prefixes
+                    sub.arg_tables_at(package_version)
+                        .prefixes()
                         .iter()
                         .map(|(i, a)| (*i as usize + 1, *a)),
                 );
@@ -3606,7 +3642,12 @@ impl CommandRegistry {
         if let Some(resolver) = spec.command_prefix_resolver {
             out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
         } else {
-            out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+            out.extend(
+                spec.arg_tables_at(package_version)
+                    .prefixes()
+                    .iter()
+                    .map(|(i, a)| (*i as usize, *a)),
+            );
         }
         push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
         out.retain(|&(idx, _)| idx < n);
