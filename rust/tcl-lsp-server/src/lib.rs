@@ -988,14 +988,25 @@ struct DiagSlot {
     generation: u64,
     /// A worker task is currently draining this document.
     running: bool,
-    /// The freshest analyser inputs (registry + per-URI config toggles),
-    /// refreshed by every [`Backend::schedule_diagnostics`] call.  The worker
-    /// reads this at drain time rather than a snapshot captured when it spawned,
-    /// so a config change (optimiser / diagnostics toggle) that arrives while
-    /// the worker is mid-flight is analysed under the *new* toggles, not the
-    /// stale ones — otherwise a disabled optimiser would keep emitting O-codes
-    /// until the next document edit.
+    /// The freshest analyser inputs (registry + per-URI config toggles).  The
+    /// worker reads this at drain time rather than a snapshot captured when it
+    /// spawned, so a config change (optimiser / diagnostics toggle) that arrives
+    /// while the worker is mid-flight is analysed under the *new* toggles, not
+    /// the stale ones — otherwise a disabled optimiser would keep emitting
+    /// O-codes until the next document edit.
+    ///
+    /// Resolving these is the expensive half of scheduling, so an ordinary edit
+    /// reuses what is here rather than re-reading a dozen config mutexes per
+    /// keystroke.  [`Self::inputs_epoch`] is what keeps that reuse honest.
     latest_inputs: Option<DiagInputs>,
+    /// The [`Backend::diag_inputs_epoch`] value `latest_inputs` was resolved at.
+    ///
+    /// The cache above may only be reused while the configuration it was read
+    /// from is still current.  Without this stamp the edit path (which does not
+    /// force a refresh) silently analysed under whatever config was in force at
+    /// the *previous* schedule — see [`Backend::invalidate_diag_inputs`] for the
+    /// window that made observable (issue #1651).
+    inputs_epoch: u64,
 }
 
 impl DiagSlot {
@@ -4400,6 +4411,9 @@ pub struct Backend {
     /// `false`, the `tcl-lsp.optimiseDocument` command yields no
     /// rewrites.  Default on.
     optimiser_enabled: Mutex<bool>,
+    /// Monotonic stamp for "the configuration the diagnostics scheduler caches
+    /// has moved".  See [`Backend::invalidate_diag_inputs`].
+    diag_inputs_epoch: std::sync::atomic::AtomicU64,
     /// Shimmer-detection master switch (`tclLsp.shimmer.enabled`). When off,
     /// the Shimmer-family diagnostics (`S100`–`S110`) are suppressed. Default
     /// on.
@@ -5322,6 +5336,7 @@ impl Backend {
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
@@ -7282,6 +7297,7 @@ impl Backend {
             formatting_settings: _,
             feature_toggles: _,
             optimiser_enabled: _,
+            diag_inputs_epoch: _,
             shimmer_enabled: _,
             optimiser_profile: _,
             optimiser_code_overrides: _,
@@ -11853,6 +11869,11 @@ impl Backend {
         // Mirror the applied analyser knobs onto the salsa config input so the
         // query graph recomputes against the latest settings.
         self.sync_db_config().await;
+        // Everything above is an input to `diag_inputs`, so no diagnostics run
+        // scheduled before this point may keep its cached copy — including one
+        // an edit schedules between here and the reload's own reschedule
+        // (issue #1651).
+        self.invalidate_diag_inputs();
     }
 
     /// `tclLsp.libraryPaths` — the editor layer of the package database's
@@ -12186,6 +12207,10 @@ impl Backend {
             *handles = next;
         }
         *self.folder_configs.lock().await = parsed;
+        // The folder chain is what every per-URI knob in `diag_inputs` resolves
+        // through, so a replaced chain retires the scheduler's cached copies for
+        // the same reason `apply_global_config` does.
+        self.invalidate_diag_inputs();
     }
 
     /// The feature toggles in effect for `uri` — the process-global set with
@@ -13381,9 +13406,58 @@ impl Backend {
     /// on a loaded machine, and never runs two analyses for one document
     /// concurrently (so an edit's write is never blocked behind a stale read).
     async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
-        // Edit path: config is unchanged, so reuse the slot's cached inputs (the
-        // worker still reads the document's *current* content at drain time).
+        // Edit path: reuse the slot's cached inputs *if the configuration they
+        // were read from is still current* (the worker still reads the
+        // document's own content at drain time regardless).  Currency is the
+        // epoch check inside the impl, not an assumption — see
+        // [`Self::invalidate_diag_inputs`].
         self.schedule_diagnostics_impl(uri, dialect, false).await;
+    }
+
+    /// Retire every cached [`DiagSlot::latest_inputs`], so the next scheduled
+    /// run — **including one an ordinary edit schedules** — resolves its
+    /// analyser inputs from the configuration as it stands now.
+    ///
+    /// # The contract
+    ///
+    /// Call this from every path that writes state [`Self::diag_inputs`] reads:
+    /// the feature toggles, the optimiser switch / profile / per-code
+    /// overrides, the disabled-diagnostic and severity-override sets, the
+    /// non-ASCII mode, `extraCommands`, `genericVariablePatterns`, the style
+    /// line length, the diagnostics exclude globs, the per-folder configs, and
+    /// the `SpecTcl` pack set (which decides the command registry).  It is a
+    /// single relaxed increment — cheap enough that erring towards calling it is
+    /// always right, and the only cost of a spurious call is one extra
+    /// `diag_inputs` resolve on the next schedule.
+    ///
+    /// # Why an epoch and not just `reschedule_all_open_documents`
+    ///
+    /// The config reload already reschedules every open document under the new
+    /// toggles — but only at the *end* of [`Self::run_config_reload`], after the
+    /// pack-discovery walk.  The switches themselves are applied at the start,
+    /// which is also the instant `tcl-lsp.getEffectiveConfig` starts reporting
+    /// them.  A client that (reasonably) treats that command as the settle
+    /// signal and then types a character lands inside that window, and the
+    /// keystroke's `schedule_diagnostics` reused inputs resolved *before* the
+    /// apply: the optimiser was off in the reported config and still on in the
+    /// analysis, so O-codes the user had just disabled came back on that
+    /// publish and only cleared on the reschedule a moment later.
+    ///
+    /// Issue #1651 is that window, seen from the VS Code suite: the
+    /// `optimiser.enabled` test failed exactly when its post-toggle edit landed
+    /// before the reschedule, which is why a slower local runner reproduced it
+    /// and CI (with a shorter pack walk) did not.  Widening the reschedule's
+    /// reach cannot fix it — the edit arrives *during* the window, so the only
+    /// thing that can be right is what the edit itself reads.
+    fn invalidate_diag_inputs(&self) {
+        self.diag_inputs_epoch
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// The current [`Self::diag_inputs_epoch`].
+    fn diag_inputs_epoch(&self) -> u64 {
+        self.diag_inputs_epoch
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Like [`Self::schedule_diagnostics`] but forces a re-resolve of the
@@ -13396,13 +13470,22 @@ impl Backend {
     }
 
     async fn schedule_diagnostics_impl(&self, uri: Uri, dialect: String, force_refresh: bool) {
+        // Read the epoch *before* the resolve below and stamp that value, not a
+        // re-read afterwards: an invalidation landing while `diag_inputs` runs
+        // may or may not be reflected in what it read, so recording the earlier
+        // epoch costs at most one extra resolve on the next schedule and can
+        // never mark stale inputs current.
+        let epoch = self.diag_inputs_epoch();
         // Only (re)resolve the relatively expensive `diag_inputs` when the
-        // worker has none yet or a config change forces it — an edit reuses the
-        // cached inputs.  Peek that decision under the lock without mutating.
+        // worker has none yet, a config change forces it, or the cached ones
+        // were read from a configuration that has since moved
+        // ([`Self::invalidate_diag_inputs`]) — an edit under an unchanged
+        // configuration reuses them.  Peek that decision under the lock without
+        // mutating.
         let need_inputs = {
             let mut slots = self.diag_slots.lock().await;
             let slot = slots.entry(uri.clone()).or_default();
-            force_refresh || slot.latest_inputs.is_none()
+            force_refresh || slot.latest_inputs.is_none() || slot.inputs_epoch != epoch
         };
         // Resolve the fresh inputs *before* marking the slot dirty. Marking
         // dirty first and storing `latest_inputs` only after the `await` let a
@@ -13428,6 +13511,7 @@ impl Backend {
             let slot = slots.entry(uri.clone()).or_default();
             if let Some(inputs) = fresh_inputs {
                 slot.latest_inputs = Some(inputs);
+                slot.inputs_epoch = epoch;
             }
             slot.mark_dirty();
             if slot.running {
@@ -13673,6 +13757,11 @@ impl Backend {
             }
             changed
         };
+        if changed {
+            // The pack set decides `registry_for_dialect`, which every cached
+            // `DiagInputs` holds a resolved handle to.
+            self.invalidate_diag_inputs();
+        }
 
         let packs = self.spec_packs().await;
         if changed && !packs.is_empty() {
@@ -15577,6 +15666,12 @@ impl LanguageServer for Backend {
         if let Some(overrides) = settings_severity_overrides(&params.settings) {
             *self.severity_overrides.lock().await = overrides;
         }
+        // The three writes above land immediately, ahead of the coalesced
+        // re-pull below, so they retire the scheduler's cached inputs on their
+        // own — the flat MCP-bridge payload is the only thing that carries them
+        // and it must not need a second notification to take effect on the next
+        // keystroke.
+        self.invalidate_diag_inputs();
         // VS Code (and the e2e harness) push an empty/partial payload as a
         // signal to re-pull the full resolved config via
         // `workspace/configuration`.  Always re-pull so `features.*`, the
@@ -27386,6 +27481,7 @@ mod tests {
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
             optimiser_enabled: Mutex::new(true),
+            diag_inputs_epoch: std::sync::atomic::AtomicU64::new(0),
             shimmer_enabled: Mutex::new(true),
             optimiser_profile: Mutex::new(default_optimiser_profile()),
             optimiser_code_overrides: Mutex::new(HashMap::new()),
