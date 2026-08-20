@@ -424,10 +424,18 @@ impl SnapshotCensus {
             .live
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        // Ordered by *age*, not by the instants themselves. The wasm arm of
+        // `crate::rt::Instant` is `f64` milliseconds from `performance.now()`,
+        // so it is `PartialOrd` and deliberately not `Ord` — floats have no
+        // total order, and manufacturing one for a clock would be a lie about
+        // NaN rather than a convenience. `Duration` is `Ord` on both targets.
+        //
+        // It also reads each clock exactly once, so the age this reports is the
+        // same number the comparison was decided on.
         let oldest = live
             .values()
-            .min_by_key(|(_, since)| *since)
-            .map(|(site, since)| (*site, since.elapsed()));
+            .map(|(site, since)| (*site, since.elapsed()))
+            .max_by_key(|(_, age)| *age);
         SnapshotReport {
             outstanding: live.len(),
             oldest,
@@ -4990,6 +4998,21 @@ struct TurnHolder {
     /// aborts the browser worker and takes the page with it. The shim reads
     /// `performance.now()` there and is a plain re-export of Tokio's natively.
     since: crate::rt::Instant,
+    /// The `await` the holder last reached, named after the call it is about to
+    /// suspend on — see [`EditTurn::at`].
+    ///
+    /// Naming the *handler* narrowed issue #1657 from "the server" to
+    /// `did_open`; it did not narrow it any further, and a stack trace taken
+    /// during the wedge is why. Every Tokio worker was parked with an empty run
+    /// queue, so the holder is not running and not blocked in any OS primitive:
+    /// it is a suspended future whose wakeup never arrived. A suspended future
+    /// has no thread and therefore appears in no backtrace, which is exactly why
+    /// the suspension point has to be recorded on the way in rather than
+    /// recovered afterwards.
+    phase: &'static str,
+    /// When [`Self::phase`] was entered. Read against [`Self::since`]: a phase
+    /// as old as the turn means the holder never got past its first `await`.
+    phase_since: crate::rt::Instant,
 }
 
 impl EditOrder {
@@ -5036,6 +5059,8 @@ impl EditOrder {
                     uri: std::mem::take(&mut ticket.uri),
                     ticket: ticket.ticket,
                     since: crate::rt::Instant::now(),
+                    phase: TURN_PHASE_GRANTED,
+                    phase_since: crate::rt::Instant::now(),
                 });
                 return EditTurn { order: self };
             }
@@ -5147,9 +5172,55 @@ impl Drop for EditTicket<'_> {
     }
 }
 
+/// The phase a turn is in between its grant and its first marked `await`.
+///
+/// Distinct from any call name on purpose: seeing it in a stall line means the
+/// holder is stuck in code that draws no marker, which points at the
+/// instrumentation before it points at the handler.
+const TURN_PHASE_GRANTED: &str = "granted (no await reached yet)";
+
 /// A held turn in the [`EditOrder`] sequence; hands it on when dropped.
 struct EditTurn<'a> {
     order: &'a EditOrder,
+}
+
+impl EditTurn<'_> {
+    /// Record the `await` this turn is about to suspend on.
+    ///
+    /// Call it **immediately before** the `await`, naming that call: the marker
+    /// answers "where did the holder stop", so it has to be in place before the
+    /// suspension it is describing, not after the resume that may never come.
+    ///
+    /// # Why a marker rather than a stack trace
+    ///
+    /// Issue #1657's wedge produces no stack to read. A backtrace of the wedged
+    /// process shows every Tokio worker parked with an empty run queue — the
+    /// holder is a *suspended future*, owned by no thread, waiting on a wakeup
+    /// that never came. Its suspension point exists only as a discriminant
+    /// inside a generator on the heap, which no debugger will name. Writing it
+    /// down on the way in is the only way to have it afterwards.
+    ///
+    /// # Cost
+    ///
+    /// An uncontended `std::sync::Mutex` and two stores, a handful of times per
+    /// document-sync notification, on a path that is *already* serialised by the
+    /// very lock being taken — the turn holder is unique by construction, so
+    /// nothing else can be contending for it. That is orders of magnitude below
+    /// the salsa work each marked `await` guards, and it is paid only by
+    /// document-sync handlers, never by a request handler's `edits_settled`
+    /// fast path.
+    fn at(&self, phase: &'static str) {
+        if let Some(holder) = self
+            .order
+            .holder
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_mut()
+        {
+            holder.phase = phase;
+            holder.phase_since = crate::rt::Instant::now();
+        }
+    }
 }
 
 impl Drop for EditTurn<'_> {
@@ -6866,30 +6937,37 @@ impl Backend {
             },
             |h| {
                 format!(
-                    "held by {} for {:.1}s on {} (ticket {})",
+                    "held by {} for {:.1}s on {} (ticket {}), suspended at `{}` for {:.1}s",
                     h.what,
                     h.since.elapsed().as_secs_f64(),
                     h.uri,
                     h.ticket,
+                    h.phase,
+                    h.phase_since.elapsed().as_secs_f64(),
                 )
             },
         );
-        // What the holder is itself waiting for. `did_open` / `did_change` reach
-        // `db_set_source` inside the turn, and salsa's `cancel_others` parks
-        // there until every other database snapshot has been dropped — so the
-        // outstanding census, and above all the *oldest* entry, names the thing
-        // at the bottom of the stack (issue #1657).
+        // A second, independent reading of the same moment. `did_open` /
+        // `did_change` both reach `db_set_source` inside the turn, and salsa's
+        // `cancel_others` blocks there until every other database snapshot has
+        // been dropped, so an outstanding snapshot older than the stall is the
+        // one thing that could hold that call.
+        //
+        // Stated as evidence, not as a verdict. The census counts live database
+        // clones; it cannot see whether the holder is in `set_text` at all — the
+        // phase marker above is what answers that, and the two are printed
+        // together precisely so a reader can check them against each other. A
+        // stale-looking snapshot next to a phase that never reached
+        // `db_set_source` means the snapshot is a bystander (issue #1657).
         let census = SNAPSHOT_CENSUS.report();
         let waiting_on = match census.oldest {
             Some((site, age)) => format!(
-                "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s \
-                 ago, so a `set_text` inside the turn is parked in `cancel_others` until it \
-                 drops",
+                "{} salsa snapshot(s) are outstanding; the oldest was taken by {site} {:.1}s ago",
                 census.outstanding,
                 age.as_secs_f64(),
             ),
-            None => "no salsa snapshot is outstanding, so the holder is parked on something \
-                     other than `cancel_others`"
+            None => "no salsa snapshot is outstanding, so nothing can be parked in \
+                     `cancel_others`"
                 .to_owned(),
         };
         self.client
@@ -15995,6 +16073,10 @@ impl LanguageServer for Backend {
             .edit_order
             .take_ticket("didOpen", &params.text_document.uri);
         let turn = self.edit_order.wait_turn(ticket).await;
+        // Phase markers (see `EditTurn::at`): `did_open` is the handler issue
+        // #1657's captures name as the holder, so every `await` it reaches
+        // inside the turn is marked before it is entered.
+        turn.at("did_open: dialect_for_open");
         let dialect = self
             .dialect_for_open(
                 &params.text_document.uri,
@@ -16012,6 +16094,7 @@ impl LanguageServer for Backend {
             // global gate): a reader must never see the new `doc.text` with a
             // stale query result for the old text, and no diagnostics run may
             // re-add a stale index entry between them.
+            turn.at("did_open: documents.lock");
             let mut docs = self.documents.lock().await;
             docs.insert(
                 uri.clone(),
@@ -16041,12 +16124,15 @@ impl LanguageServer for Backend {
             // oracle until this document's own publish replaces it a debounce
             // later. That is strictly better than the entry being *absent* for
             // that same window, which is what it was before.
+            turn.at("did_open: db_source_matches");
             let matches_indexed_source = self
                 .db_source_matches(&uri, &text, &dialect_for_diags)
                 .await;
+            turn.at("did_open: db_set_source");
             self.db_set_source(&uri, &text, dialect_for_diags.clone())
                 .await;
             if !matches_indexed_source {
+                turn.at("did_open: workspace_index.write");
                 self.workspace_index
                     .write()
                     .await
@@ -16102,6 +16188,8 @@ impl LanguageServer for Backend {
         }
         let change_version = params.text_document.version;
         let (dialect, language_id, dialect_hint_may_have_changed) = {
+            // Phase marker — see `EditTurn::at`.
+            turn.at("did_change: documents.lock");
             let mut docs = self.documents.lock().await;
             // tower-lsp-server 0.23 dispatches notification handlers
             // concurrently (`buffer_unordered(4)`), so a `didChange` can be
@@ -16178,6 +16266,7 @@ impl LanguageServer for Backend {
             // the workspace already carries between publishes, and strictly less
             // misleading than the alternative (a mid-keystroke window where the
             // file contributes no procs, classes or call sites at all).
+            turn.at("did_change: db_set_source");
             self.db_set_source(&uri, &text, dialect.clone()).await;
             drop(docs);
             (dialect, language_id, dialect_hint_may_have_changed)
@@ -16310,8 +16399,11 @@ impl LanguageServer for Backend {
             // replaced the global gate): an in-flight diagnostics run re-checks
             // currency under `documents` and, finding the doc gone, will not
             // re-add a stale index entry or publish for it.
+            // Phase markers — see `EditTurn::at`.
+            turn.at("did_close: documents.lock");
             let mut docs = self.documents.lock().await;
             docs.remove(uri);
+            turn.at("did_close: workspace_index.write");
             self.workspace_index
                 .write()
                 .await
@@ -16323,13 +16415,17 @@ impl LanguageServer for Backend {
         // resolves the inputs unconditionally (`reschedule_diagnostics`, #104),
         // so a reopened document never reads the retained ones — while every
         // browsed-and-closed file left its `DiagInputs` behind for good.
+        turn.at("did_close: evict_diag_slot");
         self.evict_diag_slot(uri).await;
         // Drop the cached semantic-token baseline so a reopened document starts
         // from a fresh `full` rather than diffing against a stale stream.
+        turn.at("did_close: last_semantic_tokens.lock");
         self.last_semantic_tokens.lock().await.remove(uri);
+        turn.at("did_close: semantic_tokens_refresh_asked.lock");
         self.semantic_tokens_refresh_asked.lock().await.remove(uri);
         // The workspace-class analysis memo is keyed by URI; a closed
         // document's entry would otherwise linger for the process's life.
+        turn.at("did_close: workspace_class_analyses.lock");
         self.workspace_class_analyses.lock().await.remove(uri);
         // Everything the ordering ticket exists to protect is now applied, so
         // hand the turn on before the heavy tail below (#1150).  `EditOrder` is
@@ -33183,6 +33279,103 @@ mod tests {
         let third = census.take(&db, "test-deref");
         let _: &tcl_lsp_db::TclDatabase = &third;
         drop(third);
+    }
+
+    /// A stalled turn must name the `await` it is suspended at, not merely the
+    /// handler that holds it.
+    ///
+    /// Naming the handler took issue #1657 from "the server is wedged" to
+    /// "`did_open` is wedged" and then stopped: a backtrace of the wedged
+    /// process shows every Tokio worker parked with an empty run queue, so the
+    /// holder is a suspended future that appears in no stack. The phase marker
+    /// is the only reading that can close that gap, and this test is what says
+    /// it is telling the truth rather than reporting a stale or default value.
+    ///
+    /// Constructed, not raced: the test itself holds the `documents` lock that
+    /// `did_open` must take *inside* its turn, so the handler is granted the
+    /// turn, suspends at exactly one known point, and stays there for as long
+    /// as the assertion needs. Nothing but this test can release it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_stalled_turn_names_the_await_it_is_suspended_at() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/phase.tcl").unwrap();
+
+        let held_documents = backend.documents.lock().await;
+
+        let opener = {
+            let backend = Arc::clone(&backend);
+            let uri = uri.clone();
+            tokio::spawn(async move {
+                backend
+                    .did_open(DidOpenTextDocumentParams {
+                        text_document: tower_lsp_server::ls_types::TextDocumentItem {
+                            uri,
+                            language_id: "tcl".to_owned(),
+                            version: 1,
+                            text: "set x 1\n".to_owned(),
+                        },
+                    })
+                    .await;
+            })
+        };
+
+        let holder_now = || {
+            backend
+                .edit_order
+                .holder
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .clone()
+        };
+        let reached = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(h) = holder_now()
+                    && h.phase == "did_open: documents.lock"
+                {
+                    return h;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await;
+        let Ok(holder) = reached else {
+            panic!(
+                "the turn holder never reported the `await` it is suspended at. `did_open` is \
+                 parked on the `documents` lock this test holds and cannot be anywhere else, so \
+                 the marker is missing or stale. Without it a #1657 stall line names only the \
+                 handler, which is where the investigation already was. Last observed holder: \
+                 {:?}",
+                holder_now(),
+            )
+        };
+
+        assert_eq!(
+            holder.what, "didOpen",
+            "the phase must be attributed to the handler that actually holds the turn",
+        );
+        assert_eq!(holder.uri, uri.as_str(), "…and to the document it is for");
+        assert!(
+            holder.phase != TURN_PHASE_GRANTED,
+            "a holder past its first marked await must not still read as freshly granted",
+        );
+        // The phase was entered after the grant, so a reader can tell "stuck at
+        // its first await" from "got several awaits in and then stopped".
+        assert!(
+            holder.since.elapsed() >= holder.phase_since.elapsed(),
+            "the phase cannot predate the turn that owns it",
+        );
+
+        // Release it and let the handler finish, so the test leaves no wedged
+        // task behind — and so this really was a suspension, not a deadlock.
+        drop(held_documents);
+        crate::rt::timeout(std::time::Duration::from_secs(5), opener)
+            .await
+            .expect("did_open must complete once the lock is released")
+            .expect("the did_open task must not panic");
+        assert!(
+            holder_now().is_none(),
+            "the turn must be handed on, clearing the holder with it",
+        );
     }
 
     /// Wait for the single document-sync handler under test to draw its
