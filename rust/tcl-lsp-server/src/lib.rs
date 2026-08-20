@@ -5051,6 +5051,11 @@ impl EditOrder {
                 // The turn is ours; the guard below now owns the release, so the
                 // reservation must not also account for it.
                 ticket.armed = false;
+                // One reading of the clock for both fields, so "the phase is as
+                // old as the turn" — the reading that says the holder never got
+                // past its first await — is exact equality rather than a
+                // sub-millisecond difference a reader has to squint at.
+                let granted = crate::rt::Instant::now();
                 *self
                     .holder
                     .lock()
@@ -5058,9 +5063,9 @@ impl EditOrder {
                     what: ticket.what,
                     uri: std::mem::take(&mut ticket.uri),
                     ticket: ticket.ticket,
-                    since: crate::rt::Instant::now(),
+                    since: granted,
                     phase: TURN_PHASE_GRANTED,
-                    phase_since: crate::rt::Instant::now(),
+                    phase_since: granted,
                 });
                 return EditTurn { order: self };
             }
