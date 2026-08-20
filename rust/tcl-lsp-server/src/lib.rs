@@ -13754,14 +13754,14 @@ impl Backend {
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
                 *guard = PublishedPackSet { seq, packs: loaded };
+                // The new set decides `registry_for_dialect`, and every cached
+                // `DiagInputs` holds a registry handle resolved from the old
+                // one.  Retired here, with the swap, so the next scheduled run
+                // resolves against what is now published.
+                self.invalidate_diag_inputs();
             }
             changed
         };
-        if changed {
-            // The pack set decides `registry_for_dialect`, which every cached
-            // `DiagInputs` holds a resolved handle to.
-            self.invalidate_diag_inputs();
-        }
 
         let packs = self.spec_packs().await;
         if changed && !packs.is_empty() {
