@@ -940,10 +940,13 @@ fn verify_every_per_dialect_surface_is_generated(root: &std::path::Path) -> Resu
 
 type Render = Box<dyn Fn(&str, &[Language]) -> Result<String>>;
 
-pub fn run(check: bool) -> Result<ExitCode> {
-    let root = repo_root();
-    let langs = languages()?;
-
+/// Every file this generator owns, paired with the render that rebuilds it.
+///
+/// Extracted from [`run`] so a test can assert on the *set* of targets. The
+/// drift gate cannot: deleting a target leaves its committed file matching
+/// itself, so the projection silently reverts to hand-maintained — which is
+/// exactly the state issue #1625 found six surfaces in.
+fn render_targets() -> Vec<(&'static str, Render)> {
     let mut renders: Vec<(&str, Render)> = vec![
         (VSCODE_PACKAGE, Box::new(render_vscode_package)),
         (VSCODE_LANGUAGE_IDS, Box::new(render_language_ids)),
@@ -964,6 +967,13 @@ pub fn run(check: bool) -> Result<ExitCode> {
             }),
         ));
     }
+    renders
+}
+
+pub fn run(check: bool) -> Result<ExitCode> {
+    let root = repo_root();
+    let langs = languages()?;
+    let renders = render_targets();
 
     let mut drifted: Vec<&str> = Vec::new();
     for (rel, render) in renders {
@@ -1132,6 +1142,91 @@ mod tests {
             original,
             "the render must restore the dropped Helix file type"
         );
+    }
+
+    /// The generator's *coverage* — which files it owns at all.
+    ///
+    /// The drift gate is blind here: a target dropped from the list leaves its
+    /// committed file matching itself, so a projection can silently revert to
+    /// hand-maintained without anything failing. Naming the roster explicitly
+    /// is what makes that deletion a test failure, and the list is short
+    /// enough that a reviewer can check it against the surfaces that exist.
+    #[test]
+    fn every_generated_surface_has_a_render_target() {
+        let mut covered: Vec<&str> = render_targets().iter().map(|(rel, _)| *rel).collect();
+        covered.sort_unstable();
+        covered.dedup();
+
+        let mut expected: Vec<&str> = vec![
+            VSCODE_PACKAGE,
+            VSCODE_LANGUAGE_IDS,
+            VSCODE_RUNTIME,
+            JETBRAINS_PLUGIN,
+            JETBRAINS_FILETYPE,
+            SUBLIME_SYNTAX,
+            ZED_CONFIG,
+            HELIX_README,
+            INSTALL_EDITORS,
+        ];
+        expected.extend(DIALECT_SURFACES.iter().map(|(rel, _, _)| *rel));
+        expected.sort_unstable();
+        expected.dedup();
+
+        assert_eq!(
+            covered, expected,
+            "a generated surface lost (or gained) its render target"
+        );
+        // And every one of them is a file that actually exists, so a renamed
+        // surface fails here rather than at the next regeneration.
+        for rel in &covered {
+            assert!(
+                repo_root().join(rel).is_file(),
+                "{rel} is a render target but not a file"
+            );
+        }
+    }
+
+    /// The structural gate over the committed tree, as a test rather than only
+    /// a CLI check — this is what catches a per-dialect surface dropping out
+    /// of `DIALECT_SURFACES` and quietly going back to hand-maintained.
+    #[test]
+    fn every_per_dialect_surface_on_disk_is_generated() {
+        verify_every_per_dialect_surface_is_generated(&repo_root())
+            .expect("every per-dialect editor surface must be one the generator owns");
+    }
+
+    /// Review finding P2-2: the contributed basename axis has to match any
+    /// casing, or a `BIGIP.CONF` opens as plaintext on a case-sensitive
+    /// filesystem and never even activates the extension.
+    #[test]
+    fn contributed_filenames_carry_case_folded_patterns() {
+        let manifest: Value =
+            serde_json::from_str(&committed(VSCODE_PACKAGE)).expect("manifest parses");
+        let bigip = manifest["contributes"]["languages"]
+            .as_array()
+            .expect("languages")
+            .iter()
+            .find(|l| l["id"] == "tcl-bigip")
+            .expect("tcl-bigip is contributed");
+        let patterns: Vec<&str> = bigip["filenamePatterns"]
+            .as_array()
+            .expect("tcl-bigip must contribute filenamePatterns")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert!(
+            patterns.contains(&"[bB][iI][gG][iI][pP].[cC][oO][nN][fF]"),
+            "the BIG-IP basenames must be contributed case-folded; got {patterns:?}"
+        );
+        // Every plain `filenames` entry has a folded pattern beside it.
+        for name in bigip["filenames"].as_array().expect("filenames") {
+            let folded =
+                tcl_registry::dialects::fold_case_in_glob(name.as_str().unwrap_or_default());
+            assert!(
+                patterns.contains(&folded.as_str()),
+                "{name} has no case-folded pattern"
+            );
+        }
     }
 
     /// A profile that owns extensions and has no Helix block is a hard error,
