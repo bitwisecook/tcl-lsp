@@ -155,7 +155,7 @@ pub(crate) fn to_json(findings: &[Finding]) -> String {
             "    {{\n      \"ruleId\": {},\n      \"severity\": {},\n      \"category\": {},\n      \"fullPath\": {},\n      \"message\": {}\n    }}",
             q(&f.rule_id),
             q(f.severity),
-            q(f.category),
+            q(f.category.as_str()),
             q(&f.full_path),
             q(&f.message),
         );

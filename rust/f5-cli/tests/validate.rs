@@ -60,6 +60,34 @@ fn lint_alias_matches_validate() {
     assert_eq!(vc, lc, "lint alias exit code differs from validate");
 }
 
+// JSON output pins the `"category"` field's wire spelling (issue #1614: the
+// enum backing this must not change what's on the wire).
+
+#[test]
+fn json_category_field_is_config_or_irule() {
+    let dir = fixtures_dir();
+    let conf = dir.join("validate-rules.conf");
+    let conf = conf.to_str().unwrap();
+    let (code, stdout, _) = run(&["validate", conf, "--format", "json"]);
+    assert_eq!(code, 1, "expected exit 1 for warning-severity findings");
+    assert!(
+        stdout.contains("\"category\": \"config\""),
+        "expected a config-category finding in JSON output: {stdout}"
+    );
+    assert!(
+        stdout.contains("\"category\": \"irule\""),
+        "expected an irule-category finding in JSON output: {stdout}"
+    );
+    // Every category value in the output must be one of the two — no stray
+    // spelling leaked from the enum's Debug/variant names.
+    for line in stdout.lines().filter(|l| l.contains("\"category\":")) {
+        assert!(
+            line.contains("\"config\"") || line.contains("\"irule\""),
+            "unexpected category spelling: {line}"
+        );
+    }
+}
+
 // Input error: missing file → `error: not a file: <path>` on stderr,
 //    exit 2 (the OS-error path).
 
