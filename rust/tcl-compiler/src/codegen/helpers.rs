@@ -213,7 +213,8 @@ enum DollarScan {
 /// Form 2 is a bare name of letters/digits/underscores and `::` runs,
 /// optionally followed by an array index — including the **empty** name of
 /// `$(idx)`, which C admits explicitly ("Support for empty array names here",
-/// `tclParse.c:1449-1453`), so `$(k)` reads array `` element `k`.
+/// `tclParse.c:1449-1453`), so `$(k)` reads element `k` of the array whose
+/// name is the empty string.
 ///
 /// Form 3 is everything else: a `$` before any other byte, or at the end of the
 /// string, is **not** a reference — `tclParse.c:1454` and `:1360` both jump to
