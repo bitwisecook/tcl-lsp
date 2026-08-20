@@ -670,6 +670,20 @@ mod tests {
         assert_eq!(split_array_ref("arr(${inner})"), Some(("arr", "${inner}")));
     }
 
+    /// The owner's edge cases hold through this facade (issues #1458, #1606):
+    /// both halves may be empty, and a `(` with nothing closing it is not a
+    /// reference. A local re-spelling that adds a "base must be non-empty"
+    /// test would silently demote `set (x) 5` to a scalar.
+    #[test]
+    fn split_array_ref_matches_the_owners_edges() {
+        assert_eq!(split_array_ref("(x)"), Some(("", "x")));
+        assert_eq!(split_array_ref("arr()"), Some(("arr", "")));
+        assert_eq!(split_array_ref("()"), Some(("", "")));
+        assert_eq!(split_array_ref(")"), None);
+        assert_eq!(split_array_ref("a(b"), None);
+        assert!(is_array_ref("(x)"));
+    }
+
     // -- is_array_ref, is_qualified --
 
     #[test]
