@@ -83,15 +83,18 @@ use crate::compilation_unit::CompilationUnit;
 ///
 /// In the normal pipeline these passes only ever see IR produced by
 /// [`crate::lowering`], which already caps *its own* recursive descent at
-/// `MAX_LOWER_NEST_DEPTH` (256) and emits a `Statement::Barrier` (a leaf, not
-/// a further-nested body) past that point — so a pass walking
-/// lowering-produced IR can never actually be handed more than 256 levels of
-/// nesting today. This constant guards each pass independently anyway
-/// (matching the number, so it never trips before lowering's own cap would
-/// have already flattened the input): defence in depth against any future or
-/// test-only caller that builds a `Script` directly rather than through
-/// [`crate::lowering`], and — unlike relying solely on the caller's cap —
-/// keeps each pass safe to reason about in isolation.
+/// `MAX_LOWER_NEST_DEPTH` and emits a `Statement::Barrier` (a leaf, not a
+/// further-nested body) past that point — so a pass walking
+/// lowering-produced IR can never actually be handed more than that many
+/// levels of nesting today, and since issue #1654 that is
+/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], comfortably under this
+/// number rather than equal to it. This constant guards each pass
+/// independently anyway (at or above lowering's, so it never trips before
+/// lowering's own cap would have already flattened the input): defence in
+/// depth against any future or test-only caller that builds a `Script`
+/// directly rather than through [`crate::lowering`], and — unlike relying
+/// solely on the caller's cap — keeps each pass safe to reason about in
+/// isolation.
 pub(crate) const MAX_OPTIMISER_WALK_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
 use crate::interprocedural::InterproceduralAnalysis;

@@ -5739,6 +5739,35 @@ mod class_factories {
     }
 
     #[test]
+    fn four_hundred_nested_foreach_bodies_do_not_abort_the_process() {
+        // Issue #1654, on this test's own default-sized thread — which is
+        // the whole point: the walks this drives must contain themselves on
+        // the 2 MiB every unremarkable caller gets, not only on the 64 MiB
+        // the CLI and the LSP worker ask for. No parameterised creation
+        // anywhere in the file, so none of the machinery above runs; this
+        // is the plain braced-body descent, whose caps were hand-picked at
+        // 256 and wanted about 4.6 MiB to reach it.
+        //
+        // Past the cap the analyser abstains with a notice rather than
+        // truncating in silence, so the assertion is E207 and a returned
+        // result — not a resolution of anything inside.
+        let src: String = (0..400)
+            .map(|i| format!("foreach v{i} {{a b}} {{\n"))
+            .chain(std::iter::once("set inner 1\n".to_owned()))
+            .chain((0..400).map(|_| "}\n".to_owned()))
+            .collect();
+        let codes: Vec<_> = analysis(&src, "tcl9.0")
+            .diagnostics
+            .iter()
+            .map(|d| d.code.to_string())
+            .collect();
+        assert!(
+            codes.iter().any(|code| code == "E207"),
+            "past the cap the walk must say it stopped; got {codes:?}"
+        );
+    }
+
+    #[test]
     fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
         // Native-stack safety net (#996's family) for the relaxation above:
         // the fall-through walk re-enters itself once per control body it
@@ -5749,13 +5778,14 @@ mod class_factories {
         // direction it already takes for anything it cannot read — so this
         // asserts termination and a well-formed result, not a resolution.
         //
-        // 64 is many times the cap (8) and far below the analyser's own
-        // whole-body nesting limit (`MAX_BODY_DEPTH`, 256), so a failure here
-        // is this walk's recursion and not the generic one's.
-        let nest: String = (0..64)
+        // 40 is many times this walk's cap (8) and comfortably below the
+        // braced-body descent's own limit (`MAX_BODY_DEPTH`, derived from a
+        // stack budget in `depth_guard` — see issue #1654), so a failure
+        // here is this walk's recursion and not the generic one's.
+        let nest: String = (0..40)
             .map(|i| format!("    foreach v{i} {{a b}} {{\n"))
             .chain(std::iter::once("    set zz 1\n".to_owned()))
-            .chain((0..64).map(|_| "    }\n".to_owned()))
+            .chain((0..40).map(|_| "    }\n".to_owned()))
             .collect();
         let src = COMPUTED_METACLASS.replace(
             "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",

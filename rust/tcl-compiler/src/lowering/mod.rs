@@ -867,8 +867,17 @@ pub struct Lowerer<'r> {
 /// `tcl_compiler::analyser::commands::MAX_BODY_DEPTH` — all three
 /// independently-recursive walkers over the same source cap at the same
 /// depth, so no consumer of this crate depends on one pass reaching a
-/// deeper nesting level than another.
-const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::RecursionLimit(256);
+/// deeper nesting level than another. All three now read that depth from
+/// [`crate::depth_guard::MAX_SOURCE_NEST_DEPTH`], which is where the three
+/// stopped being a shared *convention* and became a shared *budget*
+/// (issue #1654).
+///
+/// This walk is the one the budget is sized by: at eight Rust frames per
+/// nesting level it costs about 18.4 KiB a level, more than twice either
+/// sibling, and it is the walk whose recursion the ~400-nested-`foreach`
+/// reproducer aborted on.
+const MAX_LOWER_NEST_DEPTH: tcl_core_types::RecursionLimit =
+    crate::depth_guard::MAX_SOURCE_NEST_DEPTH;
 
 impl<'r> Lowerer<'r> {
     /// Create a new lowerer with the default (Tcl-8.5+) lexer config.

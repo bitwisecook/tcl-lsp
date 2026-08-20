@@ -21,8 +21,9 @@
 //! nested 100-150 levels deep.
 //!
 //! Root cause (confirmed empirically, not just inferred): the analyser's
-//! `analyse_body` recursion is correctly bounded by `MAX_BODY_DEPTH` (256),
-//! but 256 real Rust stack frames of that recursive chain need more stack
+//! `analyse_body` recursion is correctly bounded by `MAX_BODY_DEPTH` (256 at
+//! the time), but 256 real Rust stack frames of that recursive chain need
+//! more stack
 //! than Tokio's default 2 MiB worker-thread stack provides — the thread the
 //! native LSP server actually runs analysis on via `tokio::spawn`. `ulimit -s
 //! 2048` against the *unfixed* binary reproduces a crash at nesting depth
@@ -30,6 +31,14 @@
 //! main.rs` now builds its Tokio runtime with a 64 MiB `thread_stack_size`,
 //! which eliminates it (verified: the same pathological input survives at
 //! every depth up to and well past the analyser's own cap).
+//!
+//! Issue #1654 later closed the other half: a big stack made the *shipped*
+//! entry points safe, but the cap itself still did not fit the 2 MiB any
+//! ordinary caller gets, and the lowering walk — fatter per level than
+//! `analyse_body`, and never in this suite's frame — aborted on ~400 nested
+//! `foreach` bodies. The braced-body caps are now derived from that budget
+//! in `tcl_compiler::depth_guard`, so they trip before the stack runs out
+//! rather than long after; the 64 MiB here remains as headroom.
 //!
 //! This suite drives the real, packaged native server (not the analyser
 //! library function directly — a unit test calling `Analyser::analyse` runs
@@ -88,7 +97,7 @@ fn nested_if_at_reported_crash_depth_survives_and_returns_diagnostics() {
     lsp.await_diagnostics(&other_uri);
 }
 
-/// Depth well past the analyser's own `MAX_BODY_DEPTH` cap (256) — the
+/// Depth well past the analyser's own `MAX_BODY_DEPTH` cap — the
 /// adversarial/`DoS` shape the issue calls out (deeply-nested generated /
 /// minified Tcl). Must still survive and respond within the harness's
 /// default timeout, not hang or abort.

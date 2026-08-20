@@ -283,19 +283,55 @@ walker's actual runtime environment can guarantee:
    parse degrades gracefully (a slightly-imprecise span for the
    pathological tail) instead of erroring the whole parse out.
 
+5. **A cap over a source-nesting walk is arithmetic against a stack
+   budget, not a convention number** — issue #1654, the third strategy,
+   added after the two above left a hole between them. Strategy 1 gives
+   *our* binaries 64 MiB; strategy 2 gives WASM-reachable walkers a small
+   calibrated cap. The braced-body walks fell between: not WASM-reachable,
+   so they kept the crate's conventional 256 — a number that matched three
+   sibling constants and nothing else. Re-measured with a stack-pointer
+   probe at each walk's depth-guarded entry (dev profile, x86-64 Linux),
+   `lowering`'s chain costs **18,864 bytes a level** (eight Rust frames),
+   `cfg_builder`'s **8,288**, `analyse_body`'s **3,840**. 256 lowering
+   levels therefore want ~4.6 MiB, so ~400 nested `foreach` bodies aborted
+   the process at about level 112 with the cap still 144 levels away: the
+   containment the cap exists to provide, absent exactly where it was
+   claimed, on any thread that had not opted into strategy 1. This is the
+   drift the "Problem 1" note above predicted, observed.
+
+   `tcl_compiler::depth_guard` now states the budget's three inputs
+   separately — `MIN_SOURCE_WALK_STACK` (2 MiB, the platform default
+   thread; a cap is a property of the walk, not of the callers we happen
+   to ship), `SOURCE_WALK_STACK_RESERVE` (a quarter, for everything on the
+   stack that is not the descent), and `SOURCE_WALK_BYTES_PER_LEVEL`
+   (20 KiB, the worst measured cost rounded up) — and
+   `MAX_SOURCE_NEST_DEPTH` is what they pay for. All three braced-body
+   caps read it, so the trio stays in lockstep as before while the number
+   itself can be re-derived from re-measured inputs.
+
+   The derivation is re-checked rather than asserted:
+   `depth_guard::tests::the_source_walk_cap_fits_its_stack_budget`
+   analyses a document nested past the cap on a thread sized to the
+   budget, so frame growth in any of the three walks fails a test instead
+   of resurfacing as an abort. It is given
+   `MIN_SOURCE_WALK_STACK - SOURCE_WALK_STACK_RESERVE` rather than the
+   whole 2 MiB, which is what makes passing it evidence that the reserve
+   is spare. Behaviour past the cap is unchanged — see (4).
+
+
 ## Guarded walkers — original pass
 
 | Walker | Cap constant / value | Stack strategy | Notes |
 |---|---|---|---|
-| `tcl_compiler::analyser::commands::analyse_body` | `MAX_BODY_DEPTH` = 256 | Big-stack entry points | Emits `E207` once per run when tripped. |
-| `tcl_compiler::cfg_builder::CfgBuilder::lower_script` | `MAX_LOWER_DEPTH` = 256 | Big-stack entry points | Pre-existing; stops descending, truncated-but-valid CFG. |
-| `tcl_compiler::lowering::Lowerer::lower_script`/`lower_body` | `MAX_LOWER_NEST_DEPTH` = 256 | Big-stack entry points | Emits a `Statement::Barrier` past the cap. |
+| `tcl_compiler::analyser::commands::analyse_body` | `MAX_BODY_DEPTH` = `depth_guard::MAX_SOURCE_NEST_DEPTH` | Derived stack budget (#1654) + big-stack entry points | Emits `E207` once per run when tripped. |
+| `tcl_compiler::cfg_builder::CfgBuilder::lower_script` | `MAX_LOWER_DEPTH` = `depth_guard::MAX_SOURCE_NEST_DEPTH` | Derived stack budget (#1654) + big-stack entry points | Pre-existing; stops descending, truncated-but-valid CFG. |
+| `tcl_compiler::lowering::Lowerer::lower_script`/`lower_body` | `MAX_LOWER_NEST_DEPTH` = `depth_guard::MAX_SOURCE_NEST_DEPTH` | Derived stack budget (#1654) + big-stack entry points | Emits a `Statement::Barrier` past the cap. The **fattest** of the three at ~18.4 KiB a level, so it sets the budget. |
 | `tcl_compiler::analyser::param_traits::scan_deep` / `infer_param_traits_deep_at_depth` | `MAX_DEPTH` = 8 | Big-stack entry points | `apply`-reset bypass fixed by this change. |
 | `tcl_compiler::optimiser::{propagation, expr_simplify, pattern_recognition, structure_elimination, code_sinking}` | `MAX_OPTIMISER_WALK_DEPTH` = 256 (shared, `optimiser/mod.rs`) | Big-stack entry points | Defence in depth: `lowering`'s cap already bounds the IR these passes see in the normal pipeline to 256 levels before they run. `code_sinking` additionally caps three more mutually-recursive query families, each answering conservatively past the cap. |
 | `tcl_compiler::codegen::structured::{walk_stmt, emit_if, emit_loop}` | `MAX_STRUCTURED_DEPTH` = 256 | Big-stack entry points | Covers both nested-body depth *and*, independently, `emit_if`'s own `elseif`-chain self-recursion. |
 | `tcl_lsp_core::references` (`scan_my_method_region`, `scan_obj_method_region`, `scan_next_dispatch_region`) | `MAX_DISPATCH_SCAN_DEPTH` = 256 | Big-stack entry points | Pre-existing; audited, no bypass found. |
 | `tcl_lsp_core::folding` | `MAX_FOLD_DEPTH` = 256 | Big-stack entry points | Pre-existing. |
-| `tcl_lsp_core::declaration` | `MAX_BODY_DEPTH` = 256 (local copy) | Big-stack entry points | Pre-existing. |
+| `tcl_lsp_core::declaration` | `MAX_BODY_DEPTH` = 256 (local copy) | Big-stack entry points | Pre-existing. No longer numerically tied to the compiler's cap (#1654 lowered that one); kept as defence-in-depth for a tree built some other way. |
 | `tcl_lsp_core::refactor` | `MAX_COMMAND_SEARCH_DEPTH` = 256 | Big-stack entry points | Pre-existing. |
 | `tcl_lsp_core::semantic_tokens` (`collect_lambda_literal` family) | `MAX_TOKEN_RECURSION` = 32 | Big-stack entry points | Pre-existing; audited, no bypass found. |
 | `tcl_lsp_core::formatting::engine::format_body`/`format_switch_body` | `MAX_FORMAT_DEPTH` = 128 | **Conservative cap** (WASM host: `bigip-query-wasm`) | Empirically measured 2 MiB-stack crash range: depth 800-1200. |
