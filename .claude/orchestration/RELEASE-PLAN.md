@@ -4,7 +4,9 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-(empty — merge PRs as lanes open them, on green + resolved feedback)
+1. **PR #1674** — per-arg lifecycle accessors (`claude/f9-fix-1644`,
+   `Fixes #1644`). Locally green incl. wasm 16/16; CI + Codex round
+   pending. Merge on green + settled feedback, manually close #1644.
 
 ## Pre-release issues
 
@@ -16,16 +18,12 @@ No history. Delete items as they complete. Issues carry per-task detail.
   the latter is new in #1670 and NOT excluded as cause). Lane looping for
   the naming capture (~2-in-20 loaded runs reproduce). A green loop alone
   does not close this — repro rate too low.
-- **#1644** — ACTIVE (F9 lane, `claude/f9-fix-1644`). Per-arg lifecycle
-  wiring; layering design comment on issue before code; acceptance criteria
-  in issue.
 - **#1614** — ACTIVE (F11 lane, `claude/f11-enums-1614`). Closed string
   vocabularies → enums; 7 independent sites inventoried in issue (taint
   basis highest value); wire formats must not change.
-- **#1672** — UNASSIGNED. Readable-but-untyped body arm walked past
-  (`uplevel 1 {error stop}` twin of #1652/#1656). Fix direction + oracle
-  rows in issue; needs deliberate tcllib clay-corpus run (#1571 test).
-  Natural follow-on for F9 after #1644.
+- **#1672** — ACTIVE (F9 lane, `claude/f9-fix-1672`). Untyped material arm:
+  prove fall-through or abstain unless DEFERS_BODY. Deliberate tcllib
+  clay-corpus run required; corpus shifts are findings to report.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
