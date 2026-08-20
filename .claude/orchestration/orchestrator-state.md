@@ -173,3 +173,8 @@ tee to /tmp/, grep the log: make prep-pr; make test-rust; cargo test -p tcl-lsp-
 - #1664 MERGED at 075d7eeb7292acd7317a62f954f0f81da527b895 (all 25 green after authorised re-run). #1657 stays OPEN (Refs disposition — wedge still reproduces; two real fixes + self-diagnosis landed). TALLY: 23 PRs merged, 53 issues closed (#1657 counts when the census names+fixes the holder).
 - F6v2 assigned continuation: claude/f6c-1657-census — Drop-counting clone handle (count + oldest age + creation-site tag) in the stall line; loaded-loop repro round (fix in-PR + Fixes if named; census-alone + Refs if not in ~10-14 runs); one code pass over pack-reload-spawned long analyses.
 - Board: F6v2 (census) sole active lane. Queue: #1624 #1606 #1608 #1617 (+#1644 #1656 #1660); E1 low. 14:42Z check-in armed (its #1661/#1664 items already done — will launch next queue lane).
+
+## 2026-08-20 14:42Z — check-in: F8 launched
+- Items 1-2 pre-completed (#1661 closed on deploy green; #1664 merged; census assigned to F6v2).
+- Lane F8 LAUNCHED (ac025765f8aec5519, opus, worktree): #1624+#1606, branch claude/f8-fixes-1624-1606. Brief includes the #1657 wedge CI hazard (report, don't self-rerun — failure block is census evidence) + all durability doctrines.
+- Disk 22G. Board: F6v2 (census), F8 (#1624+#1606). Queue: #1608 #1617, findings pool #1644 #1656 #1660; E1 low. Labelling compliant.
