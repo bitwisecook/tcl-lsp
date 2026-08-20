@@ -8,9 +8,9 @@ No history. Delete items as they complete. Issues carry per-task detail.
    Branch updated to 1.98-fixed base; CI re-running. One `test-ext` re-run
    authorised. Merge on green; do **not** close #1657.
 2. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
-   (`claude/f9-fixes-1608-1617`). Waiting on lane fix: literal-`$` must join
-   the literal run (Tcl_ParseVarName), mixed-shape oracle vectors. Then green
-   CI, merge, manually close #1608 #1617.
+   (`claude/f9-fixes-1608-1617`). Codex fix done (d66b82aeb). Lane resolving
+   merge conflict with post-#1669 `rust`, re-running gates under 1.98. Then
+   green CI, merge, manually close #1608 #1617.
 
 ## Pre-release issues (assign as lanes free)
 
