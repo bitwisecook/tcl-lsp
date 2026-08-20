@@ -109,6 +109,15 @@ pub struct AnalyserSnapshot {
     /// `pending_arity` post-walk). Snapshotted for the same rollback reason.
     pub(in crate::analyser) pending_option_conflicts:
         Vec<super::diagnostics::version_gate::GatedOptionConflict>,
+    /// Creation calls awaiting the parameterised-metaclass join (issue #1660,
+    /// PR #1673 review). Pending-verdict state like the buffers above, and
+    /// snapshotted for the same reason with one extra consequence: the
+    /// evidence that settles these calls — the placeholder class and the
+    /// load-time call site — travels in `result`, so a snapshot carrying that
+    /// evidence without the calls it settles makes the restored walk record
+    /// strictly less than a full one. That divergence is a wrong answer in
+    /// the incremental path, not merely a stale diagnostic.
+    pub(in crate::analyser) deferred_class_creations: Vec<super::types::DeferredClassCreation>,
 }
 
 impl Analyser {
@@ -145,6 +154,7 @@ impl Analyser {
             pending_ctor_arity: self.pending_ctor_arity.clone(),
             pending_next_arity: self.pending_next_arity.clone(),
             pending_option_conflicts: self.pending_option_conflicts.clone(),
+            deferred_class_creations: self.deferred_class_creations.clone(),
         }
     }
 
@@ -179,6 +189,7 @@ impl Analyser {
         self.pending_ctor_arity = snap.pending_ctor_arity;
         self.pending_next_arity = snap.pending_next_arity;
         self.pending_option_conflicts = snap.pending_option_conflicts;
+        self.deferred_class_creations = snap.deferred_class_creations;
     }
 }
 

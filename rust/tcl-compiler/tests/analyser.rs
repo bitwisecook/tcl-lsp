@@ -5827,6 +5827,75 @@ mod class_factories {
     }
 
     #[test]
+    fn the_incremental_path_records_the_same_classes_as_a_full_analysis() {
+        // The deferred creation is *pending verdict* state, so it has to
+        // survive a snapshot/restore exactly as the pending-arity buffers do
+        // (PR #1673 review, thread r3825697165). The LSP's incremental path
+        // restores a snapshot covering the clean prefix and re-walks only the
+        // dirty chunk: if the buffer is not in the snapshot, a creation call
+        // written in that prefix is gone, while the evidence that proves its
+        // metaclass — the placeholder and the load-time call — is restored
+        // with the result. The join then proves `::T::D::class` and nothing
+        // recreates `::T::W`, so the same document answers differently
+        // depending on which entry point analysed it.
+        let src = format!(
+            "{COMPUTED_METACLASS}\
+             ::T::D::class create ::T::W {{ method go {{}} {{ return went }} }}\n\
+             set unrelated 1\n"
+        );
+        let full = analysis(&src, "tcl9.0");
+        assert!(
+            full.all_classes.contains_key("::T::W"),
+            "precondition: the full analysis records the class"
+        );
+
+        let commands = tcl_compiler::segmenter::segment_commands(&src);
+        let split = commands.len() - 1;
+        let (prefix, dirty) = commands.split_at(split);
+        let mut analyser = Analyser::new();
+        let (_, snapshots) =
+            analyser.analyse_chunked(&src, vec![prefix.to_vec(), dirty.to_vec()], "tcl9.0");
+        // Re-analyse the dirty chunk from the clean prefix's snapshot, which
+        // is what an edit to the last line does.
+        let mut incremental = Analyser::new();
+        incremental.restore(snapshots[0].clone());
+        let restored = incremental.analyse_commands(&src, dirty, "tcl9.0", true);
+
+        let mut full_classes: Vec<&String> = full.all_classes.keys().collect();
+        let mut restored_classes: Vec<&String> = restored.all_classes.keys().collect();
+        full_classes.sort();
+        restored_classes.sort();
+        assert_eq!(
+            restored_classes, full_classes,
+            "incremental analysis must record the same classes as a full one"
+        );
+    }
+
+    #[test]
+    fn a_deferred_creation_never_leaks_into_the_next_document() {
+        // The other half of owning per-run state: an analyser is reused, and
+        // a walk that never runs the post-walk tail (`finalise: false`, the
+        // partial-snapshot path) leaves the buffer full. Those calls belong
+        // to a document that is over — their tokens index its source — so
+        // carrying them forward would let the *next* document, which happens
+        // to prove the same metaclass, record a class it never wrote.
+        let mut analyser = Analyser::new();
+        let first =
+            format!("{COMPUTED_METACLASS}::T::D::class create ::T::W {{ method go {{}} {{}} }}\n");
+        let first_commands = tcl_compiler::segmenter::segment_commands(&first);
+        let _ = analyser.analyse_commands(&first, &first_commands, "tcl9.0", false);
+
+        let second = COMPUTED_METACLASS.to_owned();
+        let second_commands = tcl_compiler::segmenter::segment_commands(&second);
+        let result = analyser.analyse_commands(&second, &second_commands, "tcl9.0", true);
+        assert!(
+            !result.all_classes.contains_key("::T::W"),
+            "the second document writes no creation call; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn a_creation_written_before_its_metaclass_is_proved_stays_unrecorded() {
         // The limit this deliberately keeps. Written in this order the
         // program does not run at all: tclsh 8.6.16 / 9.0.4 both raise

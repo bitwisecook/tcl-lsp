@@ -2739,6 +2739,11 @@ impl Analyser {
         self.minted_synthetic_names.clear();
         self.pending_instances = None;
         self.deferred_instance_replays.clear();
+        // Normally drained by the replay, but a walk that never runs the
+        // post-walk tail (`analyse_commands` with `finalise: false`) leaves
+        // entries behind, and a reused analyser must not carry one document's
+        // deferred calls into the next.
+        self.deferred_class_creations.clear();
         self.pending_bareword_dispatch_sites = None;
         self.line_offsets = None;
         self.cached_line_index = tcl_lexer::LineIndex::new("");
