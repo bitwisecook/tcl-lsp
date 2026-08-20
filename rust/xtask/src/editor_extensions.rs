@@ -1200,8 +1200,31 @@ mod tests {
     /// filesystem and never even activates the extension.
     #[test]
     fn contributed_filenames_carry_case_folded_patterns() {
-        let manifest: Value =
-            serde_json::from_str(&committed(VSCODE_PACKAGE)).expect("manifest parses");
+        // Asserted on the **render**, not the committed bytes. Reading the
+        // committed manifest would pass even with the projection deleted —
+        // the same blindness the drift gate has, and the reason the other
+        // render tests here break their input first.
+        let original = committed(VSCODE_PACKAGE);
+        let stripped: Value = {
+            let mut manifest: Value = serde_json::from_str(&original).expect("manifest parses");
+            for lang in manifest["contributes"]["languages"]
+                .as_array_mut()
+                .expect("languages")
+            {
+                if let Some(obj) = lang.as_object_mut() {
+                    obj.remove("filenamePatterns");
+                }
+            }
+            manifest
+        };
+        let broken = serde_json::to_string_pretty(&stripped).expect("serialise") + "\n";
+        assert_ne!(
+            broken, original,
+            "the manifest must carry patterns to strip"
+        );
+
+        let rendered = render_vscode_package(&broken, &languages().unwrap()).unwrap();
+        let manifest: Value = serde_json::from_str(&rendered).expect("rendered parses");
         let bigip = manifest["contributes"]["languages"]
             .as_array()
             .expect("languages")
