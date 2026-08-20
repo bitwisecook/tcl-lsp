@@ -1135,7 +1135,10 @@ mod detect_tests {
             "tcl9.0"
         );
         // Bare `wish`: no version, no opinion.
-        assert_eq!(detect_dialect("#!/usr/bin/wish\nbutton .b\n", None, DEF), DEF);
+        assert_eq!(
+            detect_dialect("#!/usr/bin/wish\nbutton .b\n", None, DEF),
+            DEF
+        );
         // The `tclsh` half is unchanged.
         assert_eq!(
             detect_dialect("#!/usr/bin/tclsh8.4\nputs hi\n", None, DEF),

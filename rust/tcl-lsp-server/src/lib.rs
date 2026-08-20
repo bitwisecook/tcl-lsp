@@ -12776,10 +12776,11 @@ impl Backend {
                 // A statically-registered extension needs no dynamic
                 // association; the catalogue's own routing is what the
                 // editors already ship.
-                if tcl_dialect::DialectProfile::all()
-                    .iter()
-                    .any(|p| p.file_extensions.iter().any(|e| e.extension == row.extension))
-                {
+                if tcl_dialect::DialectProfile::all().iter().any(|p| {
+                    p.file_extensions
+                        .iter()
+                        .any(|e| e.extension == row.extension)
+                }) {
                     continue;
                 }
                 seen.push(row.extension.clone());

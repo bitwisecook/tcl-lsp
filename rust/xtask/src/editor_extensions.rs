@@ -66,6 +66,7 @@ const JETBRAINS_FILETYPE: &str =
 const SUBLIME_SYNTAX: &str = "editors/sublime-text/Tcl.sublime-syntax";
 const ZED_CONFIG: &str = "editors/zed/languages/tcl/config.toml";
 const HELIX_README: &str = "editors/helix/README.md";
+const INSTALL_EDITORS: &str = "INSTALL-editors.md";
 
 /// The per-dialect editor surfaces: one file, one canonical dialect whose
 /// extensions it registers.
@@ -458,13 +459,17 @@ fn render_extension_language_ids(original: &str, langs: &[Language]) -> Result<S
         original,
         "// @generated:extension-language-ids:begin",
         "// @generated:extension-language-ids:end",
-        &format!("export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {{\n{ext_rows}}};\n"),
+        &format!(
+            "export const EXTENSION_LANGUAGE_IDS: Record<string, string> = {{\n{ext_rows}}};\n"
+        ),
     )?;
     replace_marked_block(
         &text,
         "// @generated:filename-language-ids:begin",
         "// @generated:filename-language-ids:end",
-        &format!("export const FILENAME_LANGUAGE_IDS: Record<string, string> = {{\n{name_rows}}};\n"),
+        &format!(
+            "export const FILENAME_LANGUAGE_IDS: Record<string, string> = {{\n{name_rows}}};\n"
+        ),
     )
 }
 
@@ -698,6 +703,75 @@ fn render_helix_readme(original: &str, langs: &[Language]) -> Result<String> {
     Ok(out)
 }
 
+/// The generic-client extension lists in the installation guide — Vim/Neovim
+/// `au BufRead`, coc-settings' `fileExtensions`, and the Lua `file_patterns`.
+///
+/// Four identical stale nine-item lists, hand-maintained (issue #1625). They
+/// are configuration users paste, so a missing entry is a client that never
+/// attaches, not a documentation nit.
+///
+/// These name [`tcl_registry::dialects::TCL_SOURCE_EXTENSIONS`] rather than
+/// the full registered union, and deliberately: each attaches **one** filetype
+/// or language to everything it lists, which is the "project source we index"
+/// question, not the "which dialect owns this suffix" one. That is also what
+/// keeps the vendor suffixes that collide with foreign files (`.do`,
+/// `.globals`, `.sdc`) out of a blanket `set filetype=tcl`.
+fn render_install_editors(original: &str, _langs: &[Language]) -> Result<String> {
+    let extensions = tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
+    let mut out = original.to_owned();
+    let renders: [(&str, &str, String); 3] = [
+        (
+            "au BufRead,BufNewFile ",
+            " set filetype=tcl",
+            extensions
+                .iter()
+                .map(|e| format!("*.{e}"))
+                .collect::<Vec<_>>()
+                .join(","),
+        ),
+        (
+            "      \"fileExtensions\": [",
+            "],",
+            extensions
+                .iter()
+                .map(|e| format!("\".{e}\""))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+        (
+            "  file_patterns = { ",
+            " },",
+            extensions
+                .iter()
+                .map(|e| format!("\"%.{e}$\""))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ),
+    ];
+    for (prefix, suffix, body) in &renders {
+        let mut at = 0;
+        let mut rewrote = false;
+        while let Some(found) = out[at..].find(prefix) {
+            let list_start = at + found + prefix.len();
+            let Some(list_end) = out[list_start..]
+                .find(suffix)
+                .map(|n| list_start + n)
+                .filter(|end| !out[list_start..*end].contains('\n'))
+            else {
+                at = list_start;
+                continue;
+            };
+            out.replace_range(list_start..list_end, body);
+            at = list_start + body.len();
+            rewrote = true;
+        }
+        if !rewrote {
+            bail!("{INSTALL_EDITORS} has no `{prefix}…{suffix}` extension list to generate");
+        }
+    }
+    Ok(out)
+}
+
 /// One per-dialect surface: exactly the extensions its dialect owns, in
 /// catalog order.
 fn render_dialect_surface(
@@ -719,6 +793,106 @@ fn render_dialect_surface(
     }
 }
 
+/// Every language the manifest contributes must also have an `onLanguage:`
+/// activation event, and nothing else may — or opening a file of that language
+/// activates nothing (16 of 19 were named, hand-written: issue #1625).
+fn verify_every_language_activates(root: &std::path::Path, langs: &[Language]) -> Result<()> {
+    let manifest: Value = serde_json::from_str(&fs::read_to_string(root.join(VSCODE_PACKAGE))?)
+        .context("parsing VS Code package.json")?;
+    let events: Vec<&str> = manifest["activationEvents"]
+        .as_array()
+        .context("activationEvents must be an array")?
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    let contributed: Vec<&str> = manifest["contributes"]["languages"]
+        .as_array()
+        .context("contributes.languages must be an array")?
+        .iter()
+        .filter_map(|l| l["id"].as_str())
+        .collect();
+    for id in &contributed {
+        let event = format!("{ON_LANGUAGE_PREFIX}{id}");
+        if !events.contains(&event.as_str()) {
+            bail!(
+                "{VSCODE_PACKAGE} contributes language {id:?} but has no {event:?} \
+                 activation event — a file of that language would activate nothing"
+            );
+        }
+    }
+    // And nothing the other way round: an `onLanguage:` for a language we do
+    // not contribute activates us on somebody else's files.
+    for event in &events {
+        let Some(id) = event.strip_prefix(ON_LANGUAGE_PREFIX) else {
+            continue;
+        };
+        if !contributed.contains(&id) {
+            bail!("{VSCODE_PACKAGE} activates on language {id:?}, which it does not contribute");
+        }
+    }
+    if contributed.len() != langs.len() + HAND_MAINTAINED_LANGUAGES.len() {
+        bail!(
+            "{VSCODE_PACKAGE} contributes {} languages; the catalog model has {}",
+            contributed.len(),
+            langs.len() + HAND_MAINTAINED_LANGUAGES.len()
+        );
+    }
+    Ok(())
+}
+
+/// Every per-dialect editor surface on disk must be one this generator owns.
+///
+/// The inverse of the drift check, and the half it cannot do: a surface that
+/// quietly drops out of [`DIALECT_SURFACES`] goes back to being
+/// hand-maintained and nothing ever notices — exactly the state issue #1625
+/// found Zed's secondary configs and Sublime's `iRule` / `Expect` syntaxes in.
+fn verify_every_per_dialect_surface_is_generated(root: &std::path::Path) -> Result<()> {
+    let generated: Vec<&str> = DIALECT_SURFACES.iter().map(|(rel, _, _)| *rel).collect();
+
+    // Zed: every secondary language directory beside `tcl/`.
+    let zed = root.join("editors/zed/languages");
+    for entry in fs::read_dir(&zed).with_context(|| format!("reading {}", zed.display()))? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        let rel = format!("editors/zed/languages/{name}/config.toml");
+        // `apl` is the iApp presentation sublanguage: no dialect profile, so
+        // no catalog row to project — the one hand-maintained Zed config.
+        if !root.join(&rel).is_file() || rel == ZED_CONFIG || name == "apl" {
+            continue;
+        }
+        if !generated.contains(&rel.as_str()) {
+            bail!(
+                "{rel} registers extensions but is not in DIALECT_SURFACES — \
+                 add it (with its dialect) or record the exemption there"
+            );
+        }
+    }
+
+    // Sublime: every syntax that declares a `file_extensions:` block.
+    let sublime = root.join("editors/sublime-text");
+    for entry in fs::read_dir(&sublime).with_context(|| format!("reading {}", sublime.display()))? {
+        let name = entry?.file_name().to_string_lossy().into_owned();
+        if !name.ends_with(".sublime-syntax") {
+            continue;
+        }
+        let rel = format!("editors/sublime-text/{name}");
+        if rel == SUBLIME_SYNTAX || name == "APL.sublime-syntax" {
+            continue;
+        }
+        // The EDA / Tcl-version syntaxes claim nothing; see the note on
+        // DIALECT_SURFACES for why that stays a decision, not drift.
+        if !fs::read_to_string(root.join(&rel))?.contains("\nfile_extensions:\n") {
+            continue;
+        }
+        if !generated.contains(&rel.as_str()) {
+            bail!(
+                "{rel} declares file_extensions but is not in DIALECT_SURFACES — \
+                 add it (with its dialect) or record the exemption there"
+            );
+        }
+    }
+    Ok(())
+}
+
 type Render = Box<dyn Fn(&str, &[Language]) -> Result<String>>;
 
 pub fn run(check: bool) -> Result<ExitCode> {
@@ -735,6 +909,7 @@ pub fn run(check: bool) -> Result<ExitCode> {
         (SUBLIME_SYNTAX, Box::new(render_sublime)),
         (ZED_CONFIG, Box::new(render_zed)),
         (HELIX_README, Box::new(render_helix_readme)),
+        (INSTALL_EDITORS, Box::new(render_install_editors)),
     ];
     for (rel, dialect, surface) in DIALECT_SURFACES {
         renders.push((
@@ -790,6 +965,13 @@ pub fn run(check: bool) -> Result<ExitCode> {
         }
     }
 
+    // The drift gate compares each render against the file it owns, which
+    // catches a *stale* projection but not a *missing* one. These two assert
+    // the structural facts the projections exist to guarantee, against the
+    // committed tree, in both modes.
+    verify_every_language_activates(&root, &langs)?;
+    verify_every_per_dialect_surface_is_generated(&root)?;
+
     if check && !drifted.is_empty() {
         for rel in &drifted {
             eprintln!("gen-editor-extensions: {rel} is out of sync");
@@ -803,4 +985,120 @@ pub fn run(check: bool) -> Result<ExitCode> {
         if check { " — in sync" } else { "" }
     );
     Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Each of these takes the **committed** surface, breaks it the way it was
+    /// found broken in issue #1625, and asserts the render repairs it.
+    ///
+    /// That is deliberately not what `--check` proves. `--check` compares a
+    /// render against the file it owns, so deleting the render leaves the
+    /// committed file trivially matching itself and the gate stays green —
+    /// the projection is gone and nothing says so. Breaking the input first is
+    /// what makes the render itself the thing under test.
+    fn committed(rel: &str) -> String {
+        fs::read_to_string(repo_root().join(rel)).expect("committed surface")
+    }
+
+    #[test]
+    fn the_render_restores_a_missing_on_language_activation() {
+        let original = committed(VSCODE_PACKAGE);
+        // The exact shape the hand-written list was in: a contributed
+        // language with no activation event, so a lone `.tmsh` file activated
+        // nothing at all.
+        let broken = original.replace("    \"onLanguage:tcl-tmsh\",\n", "");
+        assert_ne!(
+            broken, original,
+            "the manifest must carry the event to drop"
+        );
+
+        let rendered = render_vscode_package(&broken, &languages().unwrap()).unwrap();
+        assert!(
+            rendered.contains("\"onLanguage:tcl-tmsh\""),
+            "the render must restore the dropped activation event"
+        );
+        // And it is the *catalog* that decides, not the input: an event for a
+        // language we no longer contribute is dropped rather than preserved.
+        let stray = original.replace(
+            "    \"onLanguage:tcl\",\n",
+            "    \"onLanguage:tcl\",\n    \"onLanguage:tcl-nonesuch\",\n",
+        );
+        let rendered = render_vscode_package(&stray, &languages().unwrap()).unwrap();
+        assert!(
+            !rendered.contains("tcl-nonesuch"),
+            "the render must drop an activation event for a language we do not contribute"
+        );
+    }
+
+    #[test]
+    fn the_render_restores_a_missing_per_dialect_extension() {
+        let langs = languages().unwrap();
+        for (rel, dialect, surface) in DIALECT_SURFACES {
+            let original = committed(rel);
+            let lang = langs
+                .iter()
+                .find(|l| l.dialect.as_deref() == Some(*dialect))
+                .expect("a language for every surface's dialect");
+            let last = lang.extensions.last().expect("extensions");
+
+            // Drop the dialect's last extension the way `iRule.sublime-syntax`
+            // was missing `irules` and `Expect.sublime-syntax` was missing
+            // `expect` — registered by the catalog, absent from the surface.
+            // A surface whose dialect owns exactly one extension has nothing
+            // to drop without emptying the list (which the renders reject on
+            // its own account), so its single entry is corrupted instead.
+            let broken = if lang.extensions.len() > 1 {
+                match surface {
+                    Surface::SublimeSyntax => original.replace(&format!("  - {last}\n"), ""),
+                    Surface::ZedConfig => original.replace(&format!(", \"{last}\"]"), "]"),
+                }
+            } else {
+                match surface {
+                    Surface::SublimeSyntax => {
+                        original.replace(&format!("  - {last}\n"), "  - zzbogus\n")
+                    }
+                    Surface::ZedConfig => {
+                        original.replace(&format!("[\"{last}\"]"), "[\"zzbogus\"]")
+                    }
+                }
+            };
+            assert_ne!(broken, original, "{rel}: nothing was broken");
+
+            let rendered = render_dialect_surface(&broken, &langs, dialect, *surface).unwrap();
+            assert_eq!(rendered, original, "{rel}: the render must restore .{last}");
+        }
+    }
+
+    #[test]
+    fn the_render_restores_a_missing_helix_file_type() {
+        let original = committed(HELIX_README);
+        // Helix's README *is* the configuration users copy out, so a stale
+        // `file-types` there is a routing bug: it was missing `test`.
+        let broken = original.replace(
+            "file-types = [\"tcl\", \"tk\", \"itcl\", \"tm\", \"test\"]",
+            "file-types = [\"tcl\", \"tk\", \"itcl\", \"tm\"]",
+        );
+        assert_ne!(broken, original, "the README must carry the entry to drop");
+        assert_eq!(
+            render_helix_readme(&broken, &languages().unwrap()).unwrap(),
+            original,
+            "the render must restore the dropped Helix file type"
+        );
+    }
+
+    /// A profile that owns extensions and has no Helix block is a hard error,
+    /// so adding one can never silently leave Helix behind — that is how
+    /// `f5-bigip` came to have no entry at all.
+    #[test]
+    fn a_dialect_with_no_helix_block_is_an_error() {
+        let original = committed(HELIX_README);
+        let without_bigip = original.replace("name = \"f5-bigip\"", "name = \"f5-nonesuch\"");
+        assert_ne!(without_bigip, original);
+        let err = render_helix_readme(&without_bigip, &languages().unwrap())
+            .expect_err("a missing Helix block must fail the generator");
+        assert!(format!("{err}").contains("f5-bigip"), "{err}");
+    }
 }

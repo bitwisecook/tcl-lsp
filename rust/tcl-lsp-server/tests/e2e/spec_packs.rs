@@ -967,7 +967,10 @@ fn a_removed_pack_stops_advertising_its_extension() {
                     .any(|row| row.get("extension").and_then(Value::as_str) == Some("irulex"))
             })
     };
-    assert!(claims(&mut lsp), "the pack's extension must start advertised");
+    assert!(
+        claims(&mut lsp),
+        "the pack's extension must start advertised"
+    );
 
     std::fs::remove_file(&pack).expect("remove pack");
     notify_pack_changed(&mut lsp, &pack, DELETED);

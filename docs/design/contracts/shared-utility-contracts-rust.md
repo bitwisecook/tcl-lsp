@@ -51,7 +51,7 @@ entry point, or gate moves without this contract being updated.
 | iRules execution boundaries and placement | `rust/tcl-syntax/src/event_handler.rs`; `rust/tcl-registry/src/events.rs`; `rust/tcl-registry/src/registry.rs`; `rust/tcl-irules/src/when_block.rs`; `rust/tcl-irules/src/executable.rs` | `event_handlers`; `event_handlers_with_head_predicate`; `script_commands`; `top_level_when_handlers_with_registry_and_head_resolver`; `IrulesDeclarationArguments`; `IrulesExecutionContext`; `IrulesCommandPlacement`; `IrulesTopLevelDeclaration`; `IrulesTopLevelEffect`; `CommandRegistry::irules_command_placement`; `CommandRegistry::irules_event_declaration`; `CommandRegistry::irules_top_level_declaration`; `CommandRegistry::irules_top_level_declaration_shape`; `CommandRegistry::irules_top_level_effect`; `when_blocks`; `irules_executable_commands` | caller-supplied `LexerConfig`; offset-keyed resolved command identity; exact single-braced declaration body; declaration-only top level; known-event roots; call-reachable procedure bodies; stateful priority (`0..=1000`, default 500) | `xtask-gen-ai-diagnostics` |
 | text similarity | `rust/tcl-compiler/src/text.rs` | `edit_distance`; `rank_suggestions`; `rank_containment_suggestions` | invariant | none |
 | per-command knowledge | `rust/tcl-registry/src/spec.rs`; `rust/tcl-registry/src/hooks.rs`; `rust/tcl-registry/src/registry.rs` | `CommandSpec`; `SubCommand`; `CommandRegistry` | per release/dialect | `xtask-command-backing` |
-| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name`; `resolve_known`; `availability_for_name` | the resolved dialect/release axis | none |
+| dialect / release facts | `rust/tcl-dialect/src/profile.rs`; `rust/tcl-dialect/src/grammar.rs` | `DialectProfile`; `LexerGrammar`; `by_name`; `resolve_known`; `availability_for_name` | the resolved dialect/release axis | `xtask-editor-extensions` |
 | shared plain types | `rust/tcl-core-types/src/diag_code.rs` | `DiagCode` | invariant | `xtask-diag-tables` |
 <!-- end-owner-resolution-manifest -->
 
@@ -122,6 +122,20 @@ entry point, or gate moves without this contract being updated.
   `tcl_lsp_core::profile_for_dialect`, which composes the two (`resolve_known`
   first, `by_name` as the sink) so a `wish` document keeps its Tk surface; that
   is a policy over these owners, not a third resolver. See issue #1405.
+
+- `tcl_dialect::DialectProfile`'s `file_extensions` and `filenames` — the two axes
+  of **file** recognition, and the single source every editor's registration
+  list and every extension→dialect route projects. They answer different
+  questions and neither substitutes for the other: `file_extensions` claims a
+  trailing suffix (`xdc` → `xilinx-eda-tcl`), while `filenames` claims a whole
+  basename (`bigip.conf` → `f5-bigip`) because the files it names have no
+  suffix worth claiming — a bare `.conf` belongs to every unrelated config file
+  on the machine. `tcl_registry::dialects::dialect_from_extension` consults the
+  basename axis **first** (a name claim is the more specific one), and
+  `cargo xtask gen-editor-extensions` projects both into every editor. Both are
+  one-owner-per-key across the catalogue, invariant-tested in `profile.rs`.
+  A consumer that restates either list rather than projecting it is the drift
+  issue #1625 catalogued: six hand-maintained surfaces, three of them wrong.
 
 - `tcl_dialect::DialectProfile::availability_for_name` — the third leg of the
   same axis, and the one the **analyser** actually travels. It answers the

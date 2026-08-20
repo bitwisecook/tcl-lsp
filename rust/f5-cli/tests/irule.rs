@@ -70,6 +70,30 @@ fn extract_rejects_standalone_irule() {
     );
 }
 
+/// Issue #1625: `.irules` is the long spelling the dialect catalogue owns and
+/// every editor registers, but this command's three suffix lists were
+/// hand-written with only `.irul` and `.irule` — so `foo.irules` was not
+/// recognised as a standalone iRule, and `extract` cheerfully tried to parse
+/// one as a BIG-IP configuration instead of refusing it.
+#[test]
+fn extract_rejects_the_long_irules_spelling_too() {
+    let (code, _out, stderr) = run(&[
+        "irule",
+        "extract",
+        &fixture("irule-sample.irules"),
+        "/tmp/_x",
+    ]);
+    assert_eq!(code, 2, "stderr: {stderr}");
+    assert!(
+        stderr.contains("extract only accepts bigip.conf / SCF / UCS"),
+        "stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("irule-sample.irules"),
+        "the refusal must name the file it refused; stderr: {stderr}"
+    );
+}
+
 #[test]
 fn no_input_errors_exit_2() {
     let (code, _out, stderr) = run(&["irule", "format"]);

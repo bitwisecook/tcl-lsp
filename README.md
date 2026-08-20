@@ -92,10 +92,19 @@ All editors connect to the native Rust binary `tcl-lsp-server` over stdio
   `tcl-lsp-server` binary) — Vim (vim-lsp or coc.nvim), Kate, Kakoune, Notepad++, Geany,
   Lite XL, micro, CudaText, JupyterLab, Doom Emacs, and Spacemacs.
 
-**File types recognised:** `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`,
-`.iapp`, `.iappimpl`, `.impl`, `.apl`, `.exp`, plus shebang detection for
-`#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`.
-Files named `presentation` (no extension) are auto-detected as APL.
+**File types recognised:** the Tcl family — `.tcl`, `.tk`, `.itcl`, `.tm`,
+`.test`, `.exp`, `.expect`, `.apl`, `.tclspec` — the F5 surfaces — `.irul`,
+`.irule`, `.irules`, `.iapp`, `.iappimpl`, `.impl`, `.tmsh`, `.scf` — and the
+EDA vendors' constraint and script suffixes — `.sdc`, `.upf`, `.xdc`, `.qsf`,
+`.qpf`, `.qip`, `.do`, `.globals`. Every editor's registration list is
+generated from one catalogue (`cargo xtask gen-editor-extensions`), so they
+never disagree.
+
+Two further axes: whole filenames — `bigip.conf` and its siblings are
+recognised by *name*, since a bare `.conf` belongs to every unrelated config
+file, and a file named `presentation` (no extension) is APL — and shebangs,
+`#!/usr/bin/tclsh`, `#!/usr/bin/wish`, and `#!/usr/bin/expect`, where a
+versioned shell name (`tclsh8.6`, `wish9.0`) also pins the release.
 Per-file `# tcl-dialect:` comment directives pin a specific dialect.
 Every `tcl` CLI verb applies the same detection (directive, shebang,
 `package require Tcl` guard, content signals such as a `when EVENT {`
@@ -1660,8 +1669,8 @@ See [INSTALL-cli.md](INSTALL-cli.md) for the one-line `curl | sh`
 installer, manual install steps for macOS/Debian/Ubuntu/RHEL/CentOS/
 Fedora, source builds, and shell completion (`bash`, `zsh`, `fish`)
 that covers every verb, dialect, optimiser profile, and source-path
-glob (`*.tcl`, `*.tk`, `*.itcl`, `*.tm`, `*.irul`, `*.irule`,
-`*.iapp`, `*.iappimpl`).
+glob — the same indexed-source extension set the server walks, from the
+one catalogue, rather than a list of its own.
 
 ![Unified Tcl verb CLI](docs/screenshots/30-tcl-verb-cli.png)
 

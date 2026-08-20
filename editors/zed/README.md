@@ -40,15 +40,26 @@ operations (`workspace/willRenameFiles` /
 
 ## Supported languages
 
+The `path_suffixes` in each `languages/*/config.toml` are generated from the
+dialect catalogue by `cargo xtask gen-editor-extensions` and gated in CI, so
+this table follows them rather than the other way round.
+
 | Language | Extensions |
 |----------|-----------|
-| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm`, `.tclspec` |
-| iRules | `.irul`, `.irule` |
+| Tcl | `.tcl`, `.tk`, `.itcl`, `.tm`, `.test`, `.tclspec`, and every extension below (Zed's `tcl` config registers the whole union) |
+| iRules | `.irul`, `.irule`, `.irules` |
 | iApps | `.iapp`, `.iappimpl`, `.impl` |
-| Expect | `.exp` |
+| Expect | `.exp`, `.expect` |
+| TMSH | `.tmsh` |
+| APL | `.apl`, and the extensionless `presentation` file |
+
+The EDA and BIG-IP suffixes the catalogue owns (`.sdc`, `.upf`, `.xdc`,
+`.qsf`, `.qpf`, `.qip`, `.do`, `.globals`, `.scf`) ride the `Tcl` language;
+the server routes them to their dialect once open.
 
 Shebang detection: files starting with `#!/usr/bin/tclsh`, `#!/usr/bin/wish`,
-or `#!/usr/bin/expect` are recognised as Tcl/Expect.
+or `#!/usr/bin/expect` are recognised as Tcl/Expect. A *versioned* shell name
+(`tclsh8.6`, `wish9.0`) additionally pins the Tcl release.
 
 ## Prerequisites
 
