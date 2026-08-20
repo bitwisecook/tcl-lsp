@@ -2473,14 +2473,20 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         push_lifecycle_flags(&mut words, &mut lost, row);
         // A second-level operation with its own option table (`namespace
         // ensemble create` vs `configure`, issue #1610) takes a block body,
-        // exactly as a subcommand does; without one it stays a flag row, so
-        // the shape a reader sees still matches what the operation carries.
+        // exactly as a subcommand does. An operation that declares *nothing*
+        // about options — the JSON `null` — keeps the flag row and inherits;
+        // an operation declaring an empty table gets an empty block, because
+        // "no options here" and "ask the parent" are different claims and the
+        // DSL has to be able to make both.
+        let declared = row.get("options").filter(|v| !v.is_null());
         let mut ops = Out::at(out_body.indent + 1);
-        for option in as_array(row.get("options").unwrap_or(&Value::Null)).to_vec() {
+        for option in as_array(declared.unwrap_or(&Value::Null)).to_vec() {
             option_row(&mut ops, ctx, &option);
         }
-        if lost || ops.text.is_empty() {
+        if lost || declared.is_none() {
             emit_row(out_body, "sub_subcommands", &words, lost, "-detail");
+        } else if ops.text.is_empty() {
+            out_body.line(&format!("{} {{}}", words.join(" ")));
         } else {
             out_body.line(&format!("{} {{", words.join(" ")));
             out_body.block(&ops);

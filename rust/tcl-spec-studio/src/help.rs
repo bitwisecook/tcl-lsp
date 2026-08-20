@@ -980,9 +980,11 @@ Arity stays on the owning subcommand. An operation may also carry its own \
 **option table**, and should whenever the operations disagree about which \
 options exist: `namespace ensemble create` takes `-command`, `configure` \
 takes `-namespace`, and each rejects the other's. A table here replaces the \
-subcommand's for that operation rather than adding to it, so declare it on \
-every operation that takes options, or leave it empty and let the \
-subcommand's table answer.",
+subcommand's for that operation rather than adding to it. Leaving it unset \
+inherits the subcommand's table; setting it to an *empty* table says the \
+operation takes no options at all, which is a different claim — \
+`namespace ensemble exists` needs the second, or it is offered flags that \
+are not options there.",
     ),
     (
         "max_leading_option_words",

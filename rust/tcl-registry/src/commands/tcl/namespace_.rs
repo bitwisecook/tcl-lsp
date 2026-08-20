@@ -310,26 +310,36 @@ const ENSEMBLE_SUB_SUBCOMMANDS: &[SubSubCommand] = &[
         name: "create",
         detail: "Create an ensemble command for the current namespace.",
         synopsis: "namespace ensemble create ?-option value ...?",
-        options: ENSEMBLE_CREATE_OPTIONS,
+        options: Some(ENSEMBLE_CREATE_OPTIONS),
         ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "configure",
         detail: "Query or update an existing ensemble command.",
         synopsis: "namespace ensemble configure command ?-option? ?value ...?",
-        options: ENSEMBLE_CONFIG_OPTIONS,
+        options: Some(ENSEMBLE_CONFIG_OPTIONS),
         ..SubSubCommand::DEFAULT
     },
     SubSubCommand {
         name: "exists",
-        // `exists` takes no options at all — an empty table here would read as
-        // "declares none, ask the parent", which is the abstain answer and
-        // wrong for an operation whose whole argument list is one command
-        // name. There is nothing to declare either way, so it stays empty and
-        // the parent's union table applies; `exists` never reaches an option
-        // scan because it has no `-`-shaped word to scan.
+        // `exists` takes **no options**, and says so explicitly rather than
+        // inheriting the parent's union. `ENS_EXISTS` (`tclEnsemble.c`) is
+        // `if (objc != 3) { Tcl_WrongNumArgs(…, "cmdname"); }` and then
+        // `Tcl_FindEnsemble` — it never reaches an option table, so a
+        // `-`-shaped word here is the *command name*, not a flag. Pinned on
+        // tclsh 8.6.16 and 9.0.4, byte identical:
+        //
+        //     namespace ensemble exists -namespace      → 0
+        //     namespace ensemble exists -namespace foo  → wrong # args: should be
+        //         "namespace ensemble exists cmdname"
+        //
+        // The first line is why the empty table has to be explicit: offering
+        // `-namespace` here does not merely suggest a rejected option, it
+        // suggests a word that silently changes the call into "is there an
+        // ensemble named `-namespace`".
         detail: "Return whether command is an ensemble command.",
         synopsis: "namespace ensemble exists command",
+        options: Some(&[]),
         ..SubSubCommand::DEFAULT
     },
 ];

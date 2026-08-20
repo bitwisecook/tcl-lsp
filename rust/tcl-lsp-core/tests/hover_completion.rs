@@ -1185,3 +1185,65 @@ fn hover_declines_an_option_the_other_ensemble_operation_owns() {
         "`-namespace` is not a `create` option"
     );
 }
+
+/// `namespace ensemble exists` takes no options, so none are offered — and an
+/// explicitly empty operation table is what makes that true.
+///
+/// `ENS_EXISTS` (`tclEnsemble.c`) is `if (objc != 3) { Tcl_WrongNumArgs(…,
+/// "cmdname"); }` followed by `Tcl_FindEnsemble`; it never reaches an option
+/// table. A `-`-shaped word there is the *command name*. Pinned on tclsh
+/// 8.6.16 and 9.0.4, byte identical:
+///
+/// ```text
+/// namespace ensemble exists -namespace      -> 0
+/// namespace ensemble exists -namespace foo  -> wrong # args: should be
+///     "namespace ensemble exists cmdname"
+/// ```
+///
+/// The first line is why this matters more than a rejected flag would:
+/// accepting the completion turns the call into "is there an ensemble named
+/// `-namespace`", which answers `0` and never complains.
+#[test]
+fn ensemble_exists_offers_no_options_at_all() {
+    let dashed = |src: &str, col: u32| -> Vec<String> {
+        ensemble_option_labels(src, col)
+            .into_iter()
+            .filter(|l| l.starts_with('-'))
+            .collect()
+    };
+
+    assert!(
+        dashed("namespace ensemble exists -\n", 27).is_empty(),
+        "`exists` takes no options, so none may be offered: {:?}",
+        dashed("namespace ensemble exists -\n", 27)
+    );
+    // …while its siblings still offer theirs, so this is the empty table
+    // talking and not a dead completion path.
+    assert!(!dashed("namespace ensemble create -\n", 27).is_empty());
+
+    // An option-less command falls through to the generic command-name
+    // context on a `-` partial — long-standing behaviour, unrelated to this
+    // issue. `exists` now takes exactly that path, as `namespace current`
+    // does, rather than being handed another subcommand's option table.
+    assert_eq!(
+        ensemble_option_labels("namespace ensemble exists -\n", 27).len(),
+        ensemble_option_labels("namespace current -\n", 19).len(),
+        "`exists` behaves like any other command that takes no options"
+    );
+}
+
+#[test]
+fn hover_declines_every_option_on_ensemble_exists() {
+    let reg = registry();
+    for src in [
+        "namespace ensemble exists -namespace\n",
+        "namespace ensemble exists -command\n",
+        "namespace ensemble exists -map\n",
+    ] {
+        let analysis = analyse(src);
+        assert!(
+            hover(src, 0, 28, &analysis, Some(&reg)).is_none(),
+            "`exists` has no options, so {src:?} must not hover one"
+        );
+    }
+}

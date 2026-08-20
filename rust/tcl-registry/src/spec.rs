@@ -3089,21 +3089,28 @@ pub struct SubSubCommand {
     pub lifecycle: Lifecycle,
     /// Options recognised by **this** second-level word only.
     ///
-    /// Empty — the usual case — means the second-level word narrows nothing
-    /// and the owning [`SubCommand::options`] table is the whole answer.
-    /// Declare a table here only when the operations genuinely disagree about
-    /// which options exist, and then declare it on **every** operation that
-    /// takes options: a consumer that resolves this word prefers this table
-    /// outright rather than merging it with the parent's, because "merged" is
-    /// exactly the wrong answer for the case this field exists for.
+    /// Three-valued on purpose, following the same `None`-inherits idiom as
+    /// [`Self::dialects`]:
     ///
-    /// `namespace ensemble` is that case (issue #1610). `create` and
+    /// * `None` — the usual case. This operation declares nothing about
+    ///   options, so the owning [`SubCommand::options`] table is the whole
+    ///   answer.
+    /// * `Some(&[])` — this operation takes **no options at all**. An empty
+    ///   table is a statement, not an absence: the parent's table must not
+    ///   leak into it.
+    /// * `Some(table)` — this table applies *instead of* the parent's, never
+    ///   merged with it, because merging is exactly the bug the field exists
+    ///   to fix.
+    ///
+    /// `namespace ensemble` needs all three (issue #1610). `create` and
     /// `configure` are two different C option tables — `ensembleCreateOptions`
     /// has `-command` and no `-namespace`, `ensembleConfigOptions` the reverse
     /// (`tclEnsemble.c`) — so one merged table simultaneously offers `create`'s
     /// `-command` to `configure` (a guaranteed `bad option "-command"`) and
-    /// hides `configure`'s readable `-namespace`.
-    pub options: &'static [OptionSpec],
+    /// hides `configure`'s readable `-namespace`. `exists` then needs the
+    /// empty table: its C arm takes `cmdname` and nothing else, so inheriting
+    /// the parent's union would offer flags that are not options there at all.
+    pub options: Option<&'static [OptionSpec]>,
 }
 
 /// The option table one call dispatches on, as resolved by
@@ -3141,7 +3148,7 @@ impl SubSubCommand {
         synopsis: "",
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
-        options: &[],
+        options: None,
     };
 
     /// Whether this second-level subcommand exists given the resolved
@@ -3328,10 +3335,15 @@ impl SubCommand {
     ///
     /// `next_word` is the literal word after the subcommand name, or `None`
     /// when the caller has no literal there (nothing typed yet, a `$var`, a
-    /// `{*}` expansion). `None`, an unresolvable word, and an operation that
-    /// declares no options of its own all fall back to this subcommand's own
-    /// table — the permissive answer, so a dynamic dispatch word never
-    /// narrows what is offered or accepted.
+    /// `{*}` expansion). `None` and an unresolvable word fall back to this
+    /// subcommand's own table — the permissive answer, so a dynamic dispatch
+    /// word never narrows what is offered or accepted.
+    ///
+    /// A resolved operation answers with whatever it declares, **including an
+    /// explicitly empty table**: `Some(&[])` means "no options here" and must
+    /// not fall back (issue #1610, Codex review). Only
+    /// [`SubSubCommand::options`] `== None` — declaring nothing either way —
+    /// inherits.
     ///
     /// `spec_dialects` is the owning [`CommandSpec::dialects`], for the
     /// standard option-gate inheritance chain (option → sub-sub → sub →
@@ -3348,10 +3360,10 @@ impl SubCommand {
         if let Some(word) = next_word.filter(|w| !w.is_empty())
             && !self.sub_subcommands.is_empty()
             && let Some(op) = self.resolve_sub_subcommand_gated(word, dialect, package_version)
-            && !op.options.is_empty()
+            && let Some(options) = op.options
         {
             return OptionScope {
-                options: op.options,
+                options,
                 dialects: op.dialects.or(inherited),
                 sub_subcommand: Some(op.name),
             };

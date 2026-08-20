@@ -3230,6 +3230,7 @@ fn the_ensemble_option_tables_match_their_owning_utility() {
             .resolve_sub_subcommand(op)
             .unwrap_or_else(|| panic!("`namespace ensemble {op}` is a second-level subcommand"))
             .options
+            .unwrap_or_default()
             .iter()
             .map(|o| o.name)
             .collect()
@@ -3255,4 +3256,54 @@ fn the_ensemble_option_tables_match_their_owning_utility() {
     let mut carried: Vec<&str> = ensemble.options.iter().map(|o| o.name).collect();
     carried.sort_unstable();
     assert_eq!(carried, union);
+}
+
+/// An operation's option table is three-valued, and `exists` needs the third
+/// state (issue #1610, Codex review).
+///
+/// `Some(&[])` says "no options here" and must not fall back to the parent;
+/// `None` says nothing and must. Collapsing the two is what offered
+/// `namespace ensemble exists` the whole union.
+#[test]
+fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
+    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let spec = registry
+        .get("namespace")
+        .expect("`namespace` is a core command");
+    let ensemble = spec
+        .resolve_subcommand("ensemble")
+        .expect("`namespace ensemble` is a subcommand");
+
+    let exists = ensemble
+        .resolve_sub_subcommand("exists")
+        .expect("`namespace ensemble exists`");
+    assert_eq!(
+        exists.options.map(<[_]>::len),
+        Some(0),
+        "`exists` declares an empty table, not an absent one"
+    );
+
+    // …and the selector honours it: an empty scope, not the parent's union.
+    let scope = ensemble.option_scope(Some("exists"), None, None, spec.dialects);
+    assert!(
+        scope.options.is_empty(),
+        "`exists` must resolve to no options: {:?}",
+        scope.options.iter().map(|o| o.name).collect::<Vec<_>>()
+    );
+    assert_eq!(scope.sub_subcommand, Some("exists"));
+
+    // The other second-level ensembles in the registry declare nothing, so
+    // they still inherit — the default must stay "inherit", or every one of
+    // them silently loses its parent's options.
+    let info = registry.get("info").expect("`info` is a core command");
+    let object = info
+        .resolve_subcommand("object")
+        .expect("`info object` is a subcommand");
+    for op in object.sub_subcommands {
+        assert!(
+            op.options.is_none(),
+            "`info object {}` declares nothing about options",
+            op.name
+        );
+    }
 }

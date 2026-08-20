@@ -570,7 +570,14 @@ pub(crate) fn sub_subcommand(sub: &SubSubCommand) -> (Value, bool) {
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("dialects".into(), dialects(sub.dialects));
     let mut lost = Unrecovered::default();
-    d.insert("options".into(), option_rows(sub.options, &mut lost));
+    // `null` — declares nothing, inherits the subcommand's table — is a
+    // different draft value from `[]`, which declares that there are no
+    // options here at all (issue #1610).
+    d.insert(
+        "options".into(),
+        sub.options
+            .map_or(Value::Null, |options| option_rows(options, &mut lost)),
+    );
     let complete = insert_lifecycle(&mut d, sub.lifecycle) && lost.is_empty();
     (Value::Object(d), complete)
 }

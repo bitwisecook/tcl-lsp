@@ -4621,8 +4621,14 @@ fn apply_subcommand_stmt(
 /// operation whose option table genuinely differs from its siblings'
 /// (`namespace ensemble create` has `-command`, `configure` has `-namespace`)
 /// declares its own, and a consumer that can see the dispatch word prefers it
-/// over the owning subcommand's (issue #1610). Everything else stays a flag
-/// row — the block is only written where there is a table to write.
+/// over the owning subcommand's (issue #1610).
+///
+/// **No block and an empty block mean different things.** No block leaves
+/// `options` at `None` — this operation says nothing, so the owning
+/// subcommand's table applies. An empty block `{}` sets `Some(&[])`: this
+/// operation takes no options at all, and the parent's table must not leak
+/// into it (`namespace ensemble exists`, whose C arm takes `cmdname` and
+/// nothing else).
 ///
 /// The block is recognised by being a **braced** word in a position where a
 /// flag name was expected, which no flag value can be: every flag here is
@@ -4644,7 +4650,11 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
             }
             other if !other.starts_with('-') && words[i].braced => {
                 log.v12(stmt.line, "an option block on `sub_subcommand`");
-                row.options = leak_slice(sub_subcommand_options(&words[i], row.name, tables, log));
+                // `Some`, even when the block is empty — that is the whole
+                // point of writing one.
+                row.options = Some(leak_slice(sub_subcommand_options(
+                    &words[i], row.name, tables, log,
+                )));
             }
             other => {
                 if lifecycle_flag(&mut row.lifecycle, other, words, &mut i) {

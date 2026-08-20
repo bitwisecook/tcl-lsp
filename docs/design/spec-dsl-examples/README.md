@@ -245,6 +245,15 @@ sub_subcommand configure -detail {…} -synopsis {…} {
 }
 ```
 
+**No block and an empty block are different claims.** No block means the
+operation says nothing about options, so the owning subcommand's table
+applies. An empty block means this operation takes *no* options, and the
+subcommand's table must not leak into it:
+
+```tcl
+sub_subcommand exists -detail {…} -synopsis {…} {}
+```
+
 `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?`
 is legal in a `command` body as well as in a `subcommand` one, and means the
 same thing at both: one literal value of one argument index, gated on the
@@ -1219,6 +1228,6 @@ schema order. "excluded" rows carry the reason.
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |
 | `cfg_rewrite_name` | `cfg_rewrite_name NAME` |  |
-| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V? ?{ option … }?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle`. The optional trailing block holds `option` rows and is `SubSubCommand.options` — write it only where the operation's option table genuinely differs from its siblings' (`namespace ensemble create` has `-command`, `configure` has `-namespace`), because a consumer that can read the dispatch word takes this table *instead of* the subcommand's, not merged with it |
+| `sub_subcommands` | `sub_subcommand NAME ?-detail {…}? ?-synopsis {…}? ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V? ?{ option … }?` | one row per second-level word; the three releases are `SubSubCommand.lifecycle`. The optional trailing block holds `option` rows and is `SubSubCommand.options` — write it only where the operation's option table genuinely differs from its siblings' (`namespace ensemble create` has `-command`, `configure` has `-namespace`), because a consumer that can read the dispatch word takes this table *instead of* the subcommand's, not merged with it. Omitting the block leaves the field unset and inherits; an **empty** block `{}` declares that the operation takes no options at all (`namespace ensemble exists`) |
 | `defines_command_at` | `defines_command_at N` |  |
 | `max_leading_option_words` | `max_leading_option_words N` |  |
