@@ -65,14 +65,18 @@ fn cmd_switch(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             return err(core_switch::extra_pattern_error(hint).into_message());
         }
         items
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| (c[0].clone(), c[1].clone()))
             .collect()
     } else {
         if !rest.len().is_multiple_of(2) {
             return err(core_switch::extra_pattern_error(false).into_message());
         }
-        rest.chunks_exact(2)
+        rest.as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| (c[0].clone(), c[1].clone()))
             .collect()
     };

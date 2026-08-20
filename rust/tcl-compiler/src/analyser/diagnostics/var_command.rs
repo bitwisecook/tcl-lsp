@@ -2698,7 +2698,7 @@ fn harvest_array_set_constants(
                 if !items.len().is_multiple_of(2) {
                     continue;
                 }
-                for pair in items.chunks_exact(2) {
+                for pair in items.as_chunks::<2>().0 {
                     let elem_name = format!("{arr_name}({})", pair[0]);
                     out.entry(elem_name).or_default().insert(pair[1].clone());
                 }
@@ -2748,7 +2748,7 @@ fn harvest_dict_with_constants(
                 if !items.len().is_multiple_of(2) {
                     continue;
                 }
-                for pair in items.chunks_exact(2) {
+                for pair in items.as_chunks::<2>().0 {
                     out.entry(pair[0].clone())
                         .or_default()
                         .insert(pair[1].clone());

@@ -16067,8 +16067,8 @@ impl LanguageServer for Backend {
             .await;
     }
 
-    async fn shutdown(&self) -> jsonrpc::Result<()> {
-        Ok(())
+    fn shutdown(&self) -> impl Future<Output = jsonrpc::Result<()>> {
+        std::future::ready(Ok(()))
     }
 
     async fn did_open(&self, params: DidOpenTextDocumentParams) {
@@ -23328,7 +23328,7 @@ fn next_semantic_tokens_id() -> String {
 fn lift_semantic_token_data(data: &[u32]) -> Vec<tower_lsp_server::ls_types::SemanticToken> {
     let mut tokens: Vec<tower_lsp_server::ls_types::SemanticToken> =
         Vec::with_capacity(data.len() / 5);
-    for chunk in data.chunks_exact(5) {
+    for chunk in data.as_chunks::<5>().0 {
         tokens.push(tower_lsp_server::ls_types::SemanticToken {
             delta_line: chunk[0],
             delta_start: chunk[1],

@@ -568,7 +568,7 @@ pub fn map<O: ValueOps>(ops: &mut O, args: &[O::Value]) -> Result<O::Value, CmdE
         return Err(CmdError::new("char map list unbalanced"));
     }
     let mut map: Vec<(String, String)> = Vec::with_capacity(items.len() / 2);
-    for c in items.chunks_exact(2) {
+    for c in items.as_chunks::<2>().0 {
         map.push((ops.as_str(&c[0]).to_string(), ops.as_str(&c[1]).to_string()));
     }
     let string = ops.as_str(text).to_string();
