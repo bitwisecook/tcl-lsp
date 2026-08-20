@@ -13404,9 +13404,14 @@ impl Backend {
     /// non-ASCII mode, `extraCommands`, `genericVariablePatterns`, the style
     /// line length, the diagnostics exclude globs, the per-folder configs, and
     /// the `SpecTcl` pack set (which decides the command registry).  It is a
-    /// single relaxed increment — cheap enough that erring towards calling it is
+    /// single atomic increment — cheap enough that erring towards calling it is
     /// always right, and the only cost of a spurious call is one extra
     /// `diag_inputs` resolve on the next schedule.
+    ///
+    /// `AcqRel` / `Acquire`, matching [`EditOrder`]: the writes this bump
+    /// announces are the config mutations that precede it, so a scheduler that
+    /// observes the new epoch must also observe them.  Relaxed would let the two
+    /// be reordered and reintroduce the window in miniature.
     ///
     /// # Why an epoch and not just `reschedule_all_open_documents`
     ///
@@ -13429,13 +13434,13 @@ impl Backend {
     /// thing that can be right is what the edit itself reads.
     fn invalidate_diag_inputs(&self) {
         self.diag_inputs_epoch
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            .fetch_add(1, std::sync::atomic::Ordering::AcqRel);
     }
 
     /// The current [`Self::diag_inputs_epoch`].
     fn diag_inputs_epoch(&self) -> u64 {
         self.diag_inputs_epoch
-            .load(std::sync::atomic::Ordering::Relaxed)
+            .load(std::sync::atomic::Ordering::Acquire)
     }
 
     /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
