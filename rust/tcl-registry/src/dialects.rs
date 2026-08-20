@@ -1293,6 +1293,40 @@ mod detect_tests {
         }
     }
 
+    /// The two views of "what a pack adds" must agree.
+    ///
+    /// One builds the watcher glob, the other decides per file whether the
+    /// scan indexes it. If they could disagree, a file would be indexed but
+    /// not watched (so external edits never refresh it) or watched but not
+    /// indexed (so its events are admitted and then dropped) — the exact
+    /// half-wired state review finding P1-3 was about.
+    ///
+    /// Asserts nothing about *which* packs are loaded, so it is safe beside
+    /// the process-global routing table other tests share.
+    #[test]
+    fn the_two_pack_source_views_agree() {
+        use super::{is_pack_source_extension, pack_source_extensions};
+        for ext in pack_source_extensions() {
+            assert!(
+                is_pack_source_extension(&ext),
+                ".{ext} is listed as pack source but the per-file predicate says no",
+            );
+            // Case-folded, since the scan meets any spelling on disk.
+            assert!(is_pack_source_extension(&ext.to_ascii_uppercase()));
+        }
+        // NEGATIVE control: neither view ever admits what the shipped
+        // catalogue already accounts for — `.upf` is catalogued Synopsys Tcl
+        // *and* deliberately not indexed, and a pack restating it must not
+        // overturn that.
+        for ext in ["tcl", "irule", "upf", "sdc", "xdc"] {
+            assert!(
+                !is_pack_source_extension(ext),
+                ".{ext} is the catalogue's, not a pack's addition",
+            );
+            assert!(!pack_source_extensions().iter().any(|e| e == ext));
+        }
+    }
+
     #[test]
     fn shared_sdc_verbs_do_not_misclassify_as_a_vendor() {
         // A portable constraint file using only shared SDC verbs must not be
