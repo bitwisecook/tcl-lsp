@@ -180,7 +180,7 @@ pub mod prelude {
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
+        ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
         DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
         OptionScope, SubCommand, SubSubCommand, VersionedArgValue, leading_option_word_count,
         leading_option_word_count_with, resolve_option_prefix, resolve_option_prefix_with,
@@ -268,7 +268,7 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
+    ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
     DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
     OptionScope, SubCommand, SubSubCommand, VersionedArgValue,
 };

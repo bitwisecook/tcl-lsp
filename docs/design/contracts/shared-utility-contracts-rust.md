@@ -445,19 +445,32 @@ entry point, or gate moves without this contract being updated.
    can be filtered out. A loader that tried to filter would have to pick
    one document's floor for every document that ever reads the registry.
 
-   **Not yet wired (issue #1644).** The re-projecting half of that division
-   currently has *no production implementation*: `project_arg_rows` is
-   called by the loader (at no floor) and by tests, and every analyser,
-   LSP and formatter consumer reads the parallel tables directly. A row
-   gated `-introduced 3.0` is therefore honoured at a 2.0 floor, and
-   per-argument lifecycle has no user-visible effect. The obstacle is not
-   volume but layering: the ~24 consuming sites take a `&CommandSpec` and
-   `tcl-registry` is deliberately document-agnostic, so there is no floor
-   at the call site to re-project with. Wiring it needs either a
-   floor-parameterised accessor surface or a per-document projected-spec
-   cache in the analyser — a design decision, tracked separately. The
-   *arity-window* axis of the same feature (invariant 7) is fully wired
-   and does resolve the floor.
+   **How a consumer re-projects (issue #1644).** Through the accessor
+   family every other lifecycle-bearing fact already uses:
+   `CommandSpec::arg_tables_at(package_version)` (and its `SubCommand`
+   twin) answers with the tables *as they exist at that floor*, and
+   `CommandRegistry::arg_indices_for_role_at` is the role query's
+   floor-aware form. The floor stays an **argument**, never registry
+   state — registry handles are cached per (profile, pack overlay) and
+   shared across documents, so one that remembered a floor would answer
+   the wrong document. `arg_rows.is_empty()` is the fast reject: no
+   shipped spec gates an argument, so those specs hand back their stored
+   `&'static` slices by reference and only a gated pack command ever
+   builds a projection.
+
+   The consumers wired to it are the **request-time** ones, which is the
+   only place the answer can be right: a document's floor is settled by
+   its `package require` lines, so it exists once the walk that records
+   them has finished. `document_floor::DocumentFloor` is the one place a
+   provider resolves it — completion's value offers go through
+   `available_arg_values_at`, which now applies the row gate before the
+   value gate, and the `expr`-argument context test resolves roles at the
+   floor. Consumers reading the tables **during** the walk keep the
+   permissive no-floor projection: their answers are formed before the
+   floor is knowable, which is exactly why the arity axis (invariant 7)
+   buffers its verdict and decides post-walk. Making a walk-time reader
+   floor-aware means giving it that same deferred-verdict treatment, and
+   is deliberately not done by pretending a floor exists mid-walk.
 7. A version floor is a lower bound and composes by taking the greatest.
    Three things can state one — a `package require` in the document, a
    `SpecTcl` pack's `ambient_package` row, and the profile's

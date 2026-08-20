@@ -250,7 +250,12 @@ fn command_start_in_region(text: &str) -> usize {
 
 /// Whether the command whose word list contains `probe` treats that word as
 /// an [`ArgRole::Expr`] argument, per the registry's own role map.
-fn word_at_is_expr_argument(source: &str, probe: usize, registry: &CommandRegistry) -> bool {
+fn word_at_is_expr_argument(
+    source: &str,
+    probe: usize,
+    registry: &CommandRegistry,
+    floor: crate::document_floor::DocumentFloor<'_>,
+) -> bool {
     let Some((words, word_idx)) = command_words_at(source, probe) else {
         return false;
     };
@@ -267,8 +272,14 @@ fn word_at_is_expr_argument(source: &str, probe: usize, registry: &CommandRegist
     while arg_strs.len() <= arg_idx {
         arg_strs.push("");
     }
+    // At the document's resolved floor: an argument a later release
+    // introduced is not an expression argument here, so the math-function
+    // vocabulary is not offered inside it (issue #1644). An unversioned
+    // command — every shipped one — resolves no floor and answers exactly as
+    // before.
+    let package_version = registry.get(head).and_then(|spec| floor.for_spec(spec));
     registry
-        .arg_indices_for_role(head, &arg_strs, ArgRole::Expr)
+        .arg_indices_for_role_at(head, &arg_strs, ArgRole::Expr, package_version)
         .contains(&arg_idx)
 }
 
@@ -295,15 +306,16 @@ pub fn expr_arg_context_at(
     character: u32,
     line_index: &tcl_lexer::LineIndex,
     registry: &CommandRegistry,
+    floor: crate::document_floor::DocumentFloor<'_>,
 ) -> bool {
     let cursor_off =
         crate::definition::byte_offset_at(line_index, source, line, character) as usize;
     match innermost_unclosed_opener(source, cursor_off) {
         // Inside a braced word: that word is the candidate argument.
-        Some((pos, '{')) => word_at_is_expr_argument(source, pos, registry),
+        Some((pos, '{')) => word_at_is_expr_argument(source, pos, registry, floor),
         // Command position inside a `[…]` substitution, or plain script
         // context: the cursor's own word is the candidate argument.
-        _ => word_at_is_expr_argument(source, cursor_off, registry),
+        _ => word_at_is_expr_argument(source, cursor_off, registry, floor),
     }
 }
 
@@ -319,7 +331,18 @@ mod tests {
     /// tests keep passing a bare source string.
     fn ctx(source: &str, line: u32, character: u32) -> bool {
         let line_index = tcl_lexer::LineIndex::new(source);
-        expr_arg_context_at(source, line, character, &line_index, reg())
+        let analysis = tcl_compiler::analyser::Analyser::new().analyse(source, "tcl8.6");
+        expr_arg_context_at(
+            source,
+            line,
+            character,
+            &line_index,
+            reg(),
+            crate::document_floor::DocumentFloor::new(
+                &analysis,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            ),
+        )
     }
 
     /// TP: the canonical incomplete-source shape from issue #974 defect 2.
