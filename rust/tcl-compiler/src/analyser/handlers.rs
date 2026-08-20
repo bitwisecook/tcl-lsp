@@ -7251,17 +7251,40 @@ impl Analyser {
             .arg_tokens()
             .iter()
             .position(|token| token.span == arm.body_span);
-        let body_index = direct.or_else(|| {
-            let (_, invocation) = registry.case_invocation(
-                arm.controller.name(),
-                &args,
-                self.profile.availability_mask,
-            )?;
-            let index = invocation.clause_list_index?;
-            let container = arm.controller.arg_tokens().get(index)?.span;
-            (container.start() <= arm.body_span.start() && arm.body_span.end() <= container.end())
+        let body_index = direct
+            .or_else(|| {
+                let (_, invocation) = registry.case_invocation(
+                    arm.controller.name(),
+                    &args,
+                    self.profile.availability_mask,
+                )?;
+                let index = invocation.clause_list_index?;
+                let container = arm.controller.arg_tokens().get(index)?.span;
+                (container.start() <= arm.body_span.start()
+                    && arm.body_span.end() <= container.end())
                 .then_some(index)
-        })?;
+            })
+            // …or one body nested inside a lambda literal, whose span likewise
+            // belongs to a list element rather than to the argv word
+            // (`apply {{} {…}}`, issue #1656).
+            .or_else(|| {
+                registry
+                    .arg_indices_for_role(
+                        arm.controller.name(),
+                        &args,
+                        tcl_registry::ArgRole::LambdaLiteral,
+                    )
+                    .into_iter()
+                    .find(|index| {
+                        arm.controller
+                            .arg_tokens()
+                            .get(*index)
+                            .is_some_and(|token| {
+                                token.span.start() <= arm.body_span.start()
+                                    && arm.body_span.end() <= token.span.end()
+                            })
+                    })
+            })?;
         registry.control_arm_semantics(arm.controller.name(), &args, body_index)
     }
 
@@ -7288,14 +7311,22 @@ impl Analyser {
     /// declared `DEFERS_BODY` is assumed to run its body now. The first
     /// version of this helper read the *absence* of control-arm semantics as
     /// proof of dormancy, which is not what that absence means —
-    /// `uplevel 1 $script`, `apply $lambda` and `oo::define $c $script` have
-    /// no control-arm semantics either, and every one of them executes its
-    /// argument immediately and can raise or return before the enclosing walk
-    /// reaches the statement it cares about. That let the computed-metaclass
-    /// walk materialise a class created after `uplevel 1 $script`
-    /// (PR #1652 review, issue #1571). `BodyKind` cannot answer it either:
-    /// `proc` and `uplevel` are both `Structural`, because that descriptor
-    /// answers *which frame*, not *when*.
+    /// `uplevel 1 $script` and `oo::define $c $script` have no control-arm
+    /// semantics either, and both execute their argument immediately and can
+    /// raise or return before the enclosing walk reaches the statement it
+    /// cares about. That let the computed-metaclass walk materialise a class
+    /// created after `uplevel 1 $script` (PR #1652 review, issue #1571).
+    /// `BodyKind` cannot answer it either: `proc` and `uplevel` are both
+    /// `Structural`, because that descriptor answers *which frame*, not
+    /// *when*.
+    ///
+    /// `body_index` may name an [`ArgRole::LambdaLiteral`] word as well as an
+    /// [`ArgRole::Body`] one — an unreadable lambda is unreadable script on
+    /// the same terms (issue #1656), and `apply` types that position, so it
+    /// stops at the first check.
+    ///
+    /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
+    /// [`ArgRole::LambdaLiteral`]: tcl_registry::ArgRole::LambdaLiteral
     fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
         let Some(registry) = self.registry.as_deref() else {
             return true;
@@ -7369,7 +7400,65 @@ impl Analyser {
                 complete &= !self.unreadable_body_is_material(seg, idx);
             }
         }
+        self.collect_lambda_arms(seg, &args, &mut arms, &mut complete);
         ControlArms { arms, complete }
+    }
+
+    /// The [`ArgRole::LambdaLiteral`] half of [`Self::control_arms_for_segment`]
+    /// (issue #1656).
+    ///
+    /// A lambda argument carries a script that runs *now* — `apply $lambda`
+    /// can raise before control ever reaches the next statement — but it is
+    /// not an [`ArgRole::Body`], so the loop above never sees it. The walk
+    /// therefore neither read such a lambda nor abstained on it, and claimed
+    /// past an aborting one: the same soundness class as the `uplevel` shape
+    /// PR #1652 closed, reached through the other role.
+    ///
+    /// The argument is one level removed from a body — a `{argList body ?ns?}`
+    /// **list** — so a readable one contributes its *body element*'s span,
+    /// split by the shared [`crate::lambda_literal`] owner rather than
+    /// re-segmented whole (the mis-read that named issue #954). A lambda whose
+    /// body cannot be located at exact source offsets — a computed word, a
+    /// malformed list, a body element that is not `{braced}` and so has its
+    /// escapes collapsed before `apply` sees it — is unreadable, and falls to
+    /// the same materiality question a `Body` word does.
+    ///
+    /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
+    /// [`ArgRole::LambdaLiteral`]: tcl_registry::ArgRole::LambdaLiteral
+    fn collect_lambda_arms(
+        &self,
+        seg: &SegmentedCommand,
+        args: &[&str],
+        arms: &mut Vec<ControlArm>,
+        complete: &mut bool,
+    ) {
+        let Some(registry) = self.registry.as_deref() else {
+            return;
+        };
+        let mut indices =
+            registry.arg_indices_for_role(seg.name(), args, tcl_registry::ArgRole::LambdaLiteral);
+        indices.sort_unstable();
+        indices.dedup();
+        for idx in indices {
+            // Read the body only where the registry says what running it
+            // means. `apply` types this position (a frame boundary that runs
+            // now); a command that carries the role without typing it has told
+            // the walk nothing, and an untyped script that runs now is exactly
+            // what `unreadable_body_is_material` abstains on.
+            let body = registry
+                .control_arm_semantics(seg.name(), args, idx)
+                .and_then(|_| seg.arg_tokens().get(idx).copied())
+                .and_then(|token| crate::lambda_literal::split_lambda_literal(&self.source, token))
+                .and_then(|elements| elements.braced_body());
+            if let Some(body_span) = body {
+                arms.push(ControlArm {
+                    controller: seg.clone(),
+                    body_span,
+                });
+            } else {
+                *complete &= !self.unreadable_body_is_material(seg, idx);
+            }
+        }
     }
 
     fn if_body_is_selected(
