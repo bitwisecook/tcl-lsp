@@ -509,6 +509,61 @@ mod tests {
         });
     }
 
+    /// Issue #1608 — this runtime's native dict rep is the one binding of the
+    /// canonicalisation rule that is *not* a call to the shared owner
+    /// [`tcl_syntax::value::canonical_dict_slots`]: it keeps a live key index
+    /// across mutation, so it canonicalises incrementally (one
+    /// `Tcl_DictObjPut` per insert) rather than in one walk over the elements.
+    /// That makes it exactly the shape the owner cannot enforce by
+    /// construction, so it is pinned by agreement instead — the same corpus
+    /// the cross-crate gate `rust/tcl-vm/tests/dict_canonicalisation_parity.rs`
+    /// drives through the other bindings.
+    #[test]
+    fn duplicate_keys_canonicalise_like_the_shared_owner() {
+        leak_free(|| {
+            for source in [
+                "a 1 a 2",
+                "a 1 b 2 a 3",
+                "x 1 x 2 y 3",
+                "a 1 a 2 a 3",
+                "{k k} 1 {k k} 2",
+                "a b b a a c",
+                "1 one 01 oh-one 1 uno",
+            ] {
+                // The owner's answer, from the same decoded elements.
+                let elements = tcl_syntax::list::split_list_lenient(source);
+                let keys: Vec<&str> = elements.iter().step_by(2).map(AsRef::as_ref).collect();
+                let want: Vec<(&str, &str)> =
+                    tcl_syntax::value::canonical_dict_slots(keys.iter().copied())
+                        .into_iter()
+                        .map(|(key_slot, value_slot)| {
+                            (
+                                elements[key_slot * 2].as_ref(),
+                                elements[value_slot * 2 + 1].as_ref(),
+                            )
+                        })
+                        .collect();
+
+                let v = new_string_bytes(source.as_bytes());
+                unsafe { obj::incr_ref_count(v) };
+                let got: Vec<(Vec<u8>, Vec<u8>)> = dict_pairs(v)
+                    .unwrap()
+                    .into_iter()
+                    .map(|(k, val)| (bytes(k), bytes(val)))
+                    .collect();
+                let want: Vec<(Vec<u8>, Vec<u8>)> = want
+                    .into_iter()
+                    .map(|(k, val)| (k.as_bytes().to_vec(), val.as_bytes().to_vec()))
+                    .collect();
+                assert_eq!(
+                    got, want,
+                    "native dict rep diverges from the owner on {source:?}"
+                );
+                unsafe { obj::decr_ref_count(v) };
+            }
+        });
+    }
+
     #[test]
     fn odd_length_string_is_an_error() {
         leak_free(|| {

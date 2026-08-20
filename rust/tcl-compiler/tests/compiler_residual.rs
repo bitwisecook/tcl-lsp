@@ -628,13 +628,18 @@ fn cmd_subst_arg_multipart_interpolation_concats() {
 }
 
 #[test]
-fn cmd_subst_arg_braced_scalar_marker() {
-    // The `$={name}` braced-scalar marker → push name; loadStk.
+fn cmd_subst_arg_dollar_equals_stays_literal() {
+    // `$={foo}` is *user text*, not a compiler marker: `=` is not a name
+    // character, so both tclsh oracles leave the `$` literal and print
+    // `$={foo}`. This used to decode as a "braced scalar" marker and compile
+    // to `push "foo"; loadStk` — a whole-word wrong-code path with no
+    // producer anywhere in the workspace (issue #1617).
     let reg = registry();
     let mut ctx = proc_ctx(&reg, &[]);
     ctx.emit_cmd_subst_arg("$={foo}", false);
-    assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1, Op::LOAD_STK]);
-    assert!(ctx.literals.entries().iter().any(|l| l == "foo"));
+    assert_eq!(ctx_ops(&ctx), vec![Op::PUSH1]);
+    assert!(ctx.literals.entries().iter().any(|l| l == "$={foo}"));
+    assert!(!ctx.literals.entries().iter().any(|l| l == "foo"));
 }
 
 #[test]

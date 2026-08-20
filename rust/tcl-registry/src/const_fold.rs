@@ -123,24 +123,29 @@ pub(crate) fn split_list(s: &str) -> Option<Vec<String>> {
     Some(out)
 }
 
-/// Quote one element for a Tcl list — bare when it has no list-special
-/// characters, brace-quoted when its braces are balanced and it does not
-/// end with a backslash, else backslash-escaped.
-pub(crate) fn list_element(s: &str) -> String {
-    // The canonical `Tcl_ScanElement`+`Tcl_ConvertElement` quoter, now shared
-    // with the runtime via `tcl-syntax` (and additionally correct on the
-    // leading-`#` and control-char cases the old local copy mis-quoted).
-    tcl_syntax::list::list_element(s)
-}
+// One element is quoted by the shared `Tcl_ScanElement`+`Tcl_ConvertElement`
+// owner, `tcl_syntax::list::list_element`, called directly where a lone element
+// is rendered. It quotes a leading `#` because it renders *list position 0*;
+// a whole list goes through [`list_join`] instead, which applies the rule
+// position by position.
 
-/// Join already-split elements into a Tcl list string (each element
-/// re-quoted via [`list_element`]).
+/// Join already-split elements into a Tcl list string — the shared `Tcl_Merge`
+/// owner [`tcl_syntax::list::join_list`], not a per-element loop over
+/// [`tcl_syntax::list::list_element`].
+///
+/// The difference is the comment-safety rule: `Tcl_ConvertElement` brace-quotes
+/// a leading `#` only in **list position 0**, because that is the only place a
+/// `#` could start a comment when the list is evaluated as a script.
+/// The single-element quoter always quotes it (it renders a *single* element,
+/// so it has to assume position 0), and mapping it over every element made every fold
+/// that re-renders a list disagree with C Tcl on any non-first `#`:
+/// `[dict keys {a 1 # 2}]` folded to `a {#}` where both tclsh oracles print
+/// `a #`, and likewise for `list`, `lrange`, `lreverse`, `lrepeat`, `split`
+/// and `dict create`/`values`/`merge`. Same elements, different *string* — and
+/// a fold bakes the string into the program (issues #1439 / #1608; found by
+/// the `dict_canonicalisation_parity` gate).
 pub(crate) fn list_join<S: AsRef<str>>(elems: &[S]) -> String {
-    elems
-        .iter()
-        .map(|e| list_element(e.as_ref()))
-        .collect::<Vec<_>>()
-        .join(" ")
+    tcl_syntax::list::join_list(elems)
 }
 
 /// Parse a Tcl index expression against a string/list of `length`, returning the
@@ -344,34 +349,34 @@ pub(crate) fn fold_lrange(args: &[&str]) -> Option<String> {
 ///
 /// Canonical means what `SetDictFromAny` (tclDictObj.c) produces: a repeated
 /// key keeps its **first-occurrence position** and its **last value**, because
-/// the `Tcl_DictObjPut` behind it overwrites on a hash collision. This is the
-/// same rule [`tcl_syntax::value::ValueOps::dict_pairs`] applies at runtime and
-/// that [`fold_dict_create`] below already applied — these folders were the
-/// odd ones out.
+/// the `Tcl_DictObjPut` behind it overwrites on a hash collision.
 ///
-/// It matters because these are *constant folds* feeding analyser and tooling
-/// evaluation: decoding the list rep straight into `chunks_exact(2)` pairs left
-/// both values of a duplicate key present, so every `find` read the **first**
-/// one and `[dict get {a 1 a 2} a]` folded to `1` where Tcl says `2` — an
-/// optimisation that changes program results (issue #1427).
+/// The rule is not restated here — it is
+/// [`tcl_syntax::value::canonical_dict_slots`], the same function the runtime
+/// seam [`tcl_syntax::value::ValueOps::dict_pairs`] and the compiler's
+/// `fold_dict_create_cmd` bind. That centralisation is the point of issue
+/// #1608: three hand-written copies of this walk plus one place it had been
+/// *missed* is what let these folders feed six `dict` folders first-match
+/// semantics, so `[dict get {a 1 a 2} a]` folded to `1` where both tclsh
+/// oracles say `2` — an "optimisation" that changed program results (issues
+/// #1427 / #1591). This layer keeps only what is local to it: how a malformed
+/// dict is reported (a declined fold, not an error).
 fn parse_dict(s: &str) -> Option<Vec<(String, String)>> {
     let elems = split_list(s)?;
     if elems.len() % 2 != 0 {
         return None;
     }
-    let mut index: std::collections::HashMap<String, usize> =
-        std::collections::HashMap::with_capacity(elems.len() / 2);
-    let mut pairs: Vec<(String, String)> = Vec::with_capacity(elems.len() / 2);
-    for kv in elems.as_chunks::<2>().0 {
-        let (k, v) = (&kv[0], &kv[1]);
-        if let Some(&pos) = index.get(k) {
-            pairs[pos].1.clone_from(v); // last value wins, position preserved
-        } else {
-            index.insert(k.clone(), pairs.len());
-            pairs.push((k.clone(), v.clone()));
-        }
-    }
-    Some(pairs)
+    Some(
+        tcl_syntax::value::canonical_dict_slots(elems.iter().step_by(2).map(String::as_str))
+            .into_iter()
+            .map(|(key_slot, value_slot)| {
+                (
+                    elems[key_slot * 2].clone(),
+                    elems[value_slot * 2 + 1].clone(),
+                )
+            })
+            .collect(),
+    )
 }
 
 /// `dict get dictionary ?key ...?`.
@@ -438,25 +443,20 @@ pub(crate) fn fold_dict_values(args: &[&str]) -> Option<String> {
 
 /// `dict create ?key value ...?` — canonicalise duplicate keys (last
 /// value wins, original insertion position preserved), matching Tcl 9's
-/// `Tcl_DictObjPut`.
+/// `Tcl_DictObjPut` over `DictCreateCmd`'s argument walk.
+///
+/// The walk is [`tcl_syntax::value::canonical_dict_slots`]'s, not a second
+/// copy of it (issue #1608): `DictCreateCmd` puts its arguments into a fresh
+/// dict pairwise, which is the same rule `SetDictFromAny` applies to a list
+/// rep, so the same function answers for both.
 pub(crate) fn fold_dict_create(args: &[&str]) -> Option<String> {
     if !args.len().is_multiple_of(2) {
         return None;
     }
-    let mut order: Vec<String> = Vec::new();
-    let mut pos: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
-    for kv in args.as_chunks::<2>().0 {
-        let (k, v) = (kv[0], kv[1]);
-        if let Some(&p) = pos.get(k) {
-            // Reuse the existing slot's allocation (clippy::assigning_clones).
-            order[p + 1].clear();
-            order[p + 1].push_str(v);
-        } else {
-            pos.insert(k, order.len());
-            order.push(k.to_owned());
-            order.push(v.to_owned());
-        }
-    }
+    let order: Vec<&str> = tcl_syntax::value::canonical_dict_slots(args.iter().step_by(2).copied())
+        .into_iter()
+        .flat_map(|(key_slot, value_slot)| [args[key_slot * 2], args[value_slot * 2 + 1]])
+        .collect();
     Some(list_join(&order))
 }
 
@@ -646,10 +646,33 @@ mod tests {
 
     #[test]
     fn list_element_quotes_like_tcl() {
+        use tcl_syntax::list::list_element;
         assert_eq!(list_element("foo"), "foo");
         assert_eq!(list_element(""), "{}");
         assert_eq!(list_element("a b"), "{a b}");
         assert_eq!(list_element("a$b"), "{a$b}");
+    }
+
+    /// A leading `#` is comment-unsafe only in **list position 0**
+    /// (`Tcl_Merge` passes `TCL_DONT_QUOTE_HASH` for every later element), so
+    /// the folds that re-render a list must not quote it everywhere. Each row
+    /// is the byte-exact output of `tclsh8.6.16` and `tclsh9.0.4`, which agree
+    /// (issues #1439 / #1608).
+    #[test]
+    fn folded_lists_quote_a_leading_hash_only_in_position_zero() {
+        assert_eq!(fold_list(&["a", "#"]).as_deref(), Some("a #"));
+        assert_eq!(fold_list(&["#", "a"]).as_deref(), Some("{#} a"));
+        assert_eq!(fold_lreverse(&["# a"]).as_deref(), Some("a #"));
+        assert_eq!(fold_lrepeat(&["2", "#"]).as_deref(), Some("{#} #"));
+        assert_eq!(fold_lrange(&["x # y", "1", "2"]).as_deref(), Some("{#} y"));
+        assert_eq!(fold_split(&["a-#", "-"]).as_deref(), Some("a #"));
+        assert_eq!(fold_concat(&["a", "#"]).as_deref(), Some("a #"));
+        assert_eq!(fold_dict_keys(&["a 1 # 2"]).as_deref(), Some("a #"));
+        assert_eq!(fold_dict_values(&["a # b 1"]).as_deref(), Some("{#} 1"));
+        assert_eq!(
+            fold_dict_create(&["a", "1", "#", "2"]).as_deref(),
+            Some("a 1 # 2")
+        );
     }
 
     #[test]
