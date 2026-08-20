@@ -610,6 +610,23 @@ const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duratio
 /// half that keeps trivial files a single publish regardless of cold-start.
 const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
 
+/// How long a single client send may park while the `documents` lock is held
+/// before [`DeliveryCtx::cache_and_deliver`] gives the lock back and reschedules
+/// (issue #1657).
+///
+/// Sized against the two things it sits between. Far above any healthy drain —
+/// the outbound path is `channel(1)` into `stdio_pump`, whose `poll_write` is
+/// always `Ready`, so a send that has not completed in whole seconds is not
+/// merely busy. Far below [`EDIT_BARRIER_STALL_WARN`], so the document-sync
+/// barrier cannot reach the point of reporting a stall on account of a slow
+/// publish: the wedge is prevented rather than merely diagnosed.
+///
+/// Not comparable to [`DIAGNOSTICS_FAST_TIER_BUDGET`], which is a *drop*
+/// deadline for a best-effort push the deep tier will supersede anyway. This one
+/// is a *reschedule* deadline for a publish that must not be lost, so it is
+/// generous where that one is tight.
+const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// Documents below this line count never get a fast tier — they go straight to
 /// the single deep publish.  This is the **timing-independent** floor of the
 /// debounce-skip: a trivial document's deep-pass wall-clock is dominated by
@@ -1645,6 +1662,49 @@ impl DeliveryCtx<'_> {
     /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
     /// `revision`, with a fresh `result_id`, then notify the client (push or
     /// refresh) — the publish half shared by every settled path.
+    ///
+    /// # The client sends here are time-bounded (issue #1657)
+    ///
+    /// Both callers — [`Self::deliver_if_current`] and
+    /// `publish_diagnostics_result` — run this **while holding the `documents`
+    /// lock**, deliberately: delivering inside the lock is what stops a
+    /// `did_close` that lands between the currency check and the send from
+    /// having its clearing publish overwritten by this run's late squiggles.
+    ///
+    /// Both sends below go through `tower-lsp-server`'s bounded
+    /// `futures::mpsc::channel(1)`, so both can park. Unbounded, that made a
+    /// *global* lock hostage to a *per-document* send: the open-document map
+    /// stops, the document-sync handler holding the [`EditOrder`] turn blocks on
+    /// it, every request handler blocks on the barrier behind that turn, and the
+    /// server answers nothing. That is issue #1657, caught on CI with the turn
+    /// holder suspended at `did_change: documents.lock` and no salsa snapshot
+    /// outstanding.
+    ///
+    /// So each send is capped at [`DELIVERY_SEND_BUDGET`] and, if the cap is
+    /// hit, this returns **without having delivered** and marks its own slot
+    /// dirty so the scheduler runs the whole publish again from scratch. The
+    /// retry re-checks currency on its own, so a superseded run simply finds
+    /// itself superseded — the same answer it would have given had it never
+    /// been delayed.
+    ///
+    /// Why reschedule rather than retry inline: `publish_diagnostics_result`
+    /// holds this same lock across a workspace-index write, and replaying that
+    /// write is neither cheap nor obviously idempotent. Handing the work back to
+    /// the scheduler re-runs a *complete, fresh* pass through machinery that is
+    /// already correct, and does it with the lock released.
+    ///
+    /// The delivery invariant in `main.rs` is preserved. Nothing is
+    /// fire-and-forget: delivery is still an inline `.await`, ordering per URI
+    /// still comes from the currency check, and nothing is dropped — a send that
+    /// times out is *retried*, not abandoned. Dropping a parked `channel(1)`
+    /// send is atomic (the item never enters the channel), which is what makes
+    /// the retry duplicate-free; `deliver_fast_tier_if_current` already relies
+    /// on exactly that property.
+    ///
+    /// The pull cache is primed *before* the sends and deliberately left primed
+    /// on timeout: a `textDocument/diagnostic` request can then serve this
+    /// revision immediately, which is the one delivery channel a parked push
+    /// does not block.
     async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
@@ -1663,8 +1723,9 @@ impl DeliveryCtx<'_> {
         // needs to hold two publishes in flight at once (review of #1100).
         // Emitted after the currency check, so a marker is always followed by
         // its publish.
-        self.client
-            .log_message(
+        let marker = crate::rt::timeout(
+            DELIVERY_SEND_BUDGET,
+            self.client.log_message(
                 MessageType::LOG,
                 format!(
                     "[timing] diagnostics.publish.enqueued (uri={}, version={})",
@@ -1672,16 +1733,42 @@ impl DeliveryCtx<'_> {
                     self.version
                         .map_or_else(|| "none".to_owned(), |v| v.to_string()),
                 ),
-            )
-            .await;
-        deliver_diagnostics(
-            self.client,
-            self.uri,
-            diags,
-            self.version,
-            self.client_supports_pull,
+            ),
         )
         .await;
+        if marker.is_err() {
+            self.redeliver_later().await;
+            return;
+        }
+        if crate::rt::timeout(
+            DELIVERY_SEND_BUDGET,
+            deliver_diagnostics(
+                self.client,
+                self.uri,
+                diags,
+                self.version,
+                self.client_supports_pull,
+            ),
+        )
+        .await
+        .is_err()
+        {
+            self.redeliver_later().await;
+        }
+    }
+
+    /// Hand this URI's publish back to the diagnostics scheduler, because a
+    /// client send timed out while the `documents` lock was held.
+    ///
+    /// Marks the slot dirty and starts a worker if none is running — the same
+    /// two steps [`reschedule_peers`] takes, for this document rather than its
+    /// peers. The worker re-runs the publish from scratch once the caller has
+    /// released the lock, so the delivery is deferred rather than lost.
+    ///
+    /// Touches only `diag_slots`, never `documents`, so it is safe to call from
+    /// under the very lock whose hold it exists to cut short.
+    async fn redeliver_later(&self) {
+        reschedule_self(self.diag_slots, self.uri).await;
     }
 }
 
@@ -2670,6 +2757,39 @@ async fn reindex_unopened_factory_consumers(
 
 /// Mark each peer dirty and start its worker if one is not already draining
 /// it. See [`spawn_diagnostics_worker`] for why this exists.
+/// Queue `uri`'s **own** publish to run again, and start a worker if none is.
+///
+/// [`reschedule_peers`] does this for the documents a publish invalidated and
+/// deliberately skips the publishing document itself. This is the case that one
+/// excludes: a run that could not finish delivering and wants another pass over
+/// its own URI (issue #1657 — see [`DeliveryCtx::cache_and_deliver`], whose
+/// client sends are time-bounded because they run under the `documents` lock).
+///
+/// Takes only `diag_slots`. That is what makes it callable from under the
+/// `documents` lock whose hold it exists to cut short — it must not need the
+/// very lock its caller is trying to give back.
+///
+/// A slot with no `latest_inputs` is left alone: nothing can re-derive the
+/// publish, so marking it dirty would spin a worker that immediately finds
+/// nothing to do. The next edit re-establishes the inputs.
+async fn reschedule_self(slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: &Uri) {
+    let start_worker = {
+        let mut guard = slots.lock().await;
+        match guard.get_mut(uri) {
+            Some(slot) if slot.latest_inputs.is_some() => {
+                slot.mark_dirty();
+                let start = !slot.running;
+                slot.running = true;
+                start
+            }
+            _ => false,
+        }
+    };
+    if start_worker {
+        spawn_diagnostics_worker(Arc::clone(slots), uri.clone());
+    }
+}
+
 async fn reschedule_peers(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     self_uri: &Uri,
@@ -33606,6 +33726,69 @@ mod tests {
                 "each acquisition must overwrite the tag",
             );
         }
+    }
+
+    /// A delivery that could not finish must queue itself for another pass.
+    ///
+    /// This is the recovery half of the #1657 fix. `cache_and_deliver` runs its
+    /// client sends under the `documents` lock, so those sends are capped; when
+    /// a cap is hit it gives the lock back **without having published**, and the
+    /// only thing standing between that and a silently lost diagnostic is this
+    /// reschedule. The delivery invariant in `main.rs` forbids dropping a
+    /// publish, so "returned early" must mean "will run again".
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_delivery_that_timed_out_queues_itself_again() {
+        let backend = test_backend();
+        let uri = Uri::from_str("file:///w/redeliver.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+
+        // A slot the scheduler has never seen has nothing to re-derive from, so
+        // it must be left alone rather than spun.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        assert!(
+            backend.diag_slots.lock().await.get(&uri).is_none(),
+            "rescheduling an unknown slot must not create one — a worker with no \
+             cached inputs would wake, find nothing to do, and stop",
+        );
+
+        // Give the URI a real slot with resolved inputs, the way an ordinary
+        // edit would, then let the worker settle.
+        backend
+            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
+            .await;
+        let settled = crate::rt::timeout(std::time::Duration::from_secs(10), async {
+            loop {
+                {
+                    let slots = backend.diag_slots.lock().await;
+                    if let Some(slot) = slots.get(&uri)
+                        && slot.latest_inputs.is_some()
+                        && !slot.running
+                        && !slot.dirty
+                    {
+                        return;
+                    }
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+            }
+        })
+        .await;
+        assert!(
+            settled.is_ok(),
+            "the scheduled publish must settle before this test can say anything \
+             about re-scheduling it",
+        );
+
+        // The timed-out-delivery case: the slot is queued again.
+        reschedule_self(&backend.diag_slots, &uri).await;
+        let slots = backend.diag_slots.lock().await;
+        let slot = slots.get(&uri).expect("the slot exists");
+        assert!(
+            slot.dirty || slot.running,
+            "a delivery that returned without publishing must leave its slot \
+             queued (dirty) or already being drained (running); neither means \
+             the diagnostics for this revision are lost, which the main.rs \
+             delivery invariant forbids",
+        );
     }
 
     /// Wait for the single document-sync handler under test to draw its
