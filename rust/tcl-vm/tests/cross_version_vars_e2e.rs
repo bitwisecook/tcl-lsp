@@ -1411,6 +1411,70 @@ const DOLLAR_EQ_ARRAY_KEY_SCRIPT: &str = concat!(
 /// Inside a proc, where a decoded name would have become an LVT slot load.
 const DOLLAR_EQ_IN_PROC_SCRIPT: &str = concat!("proc p {} { set y inner; puts $={y} }\n", "p\n");
 
+// The **mixed** shape: a literal `$` and a real substitution in the *same*
+// word. `Tcl_ParseVarName` reads a `$` that starts no reference as the text
+// `$` and keeps parsing (form 3, `justADollarSign`,
+// tmp/tcl9.0.4/generic/tclParse.c:1454 and :1502) — so the substitution after
+// it still happens.
+//
+// The lone-`$=` vectors above cannot see this: a top-level word reaches codegen
+// through the segmenter, which re-spells a bare `$x` as `${x}`, and the runtime
+// `subst_word` fallback resolves that even from a word pushed raw. Inside an
+// inline command substitution the argument text is the **raw source**, bare
+// `$x` and all, so a decoder that gives up on the whole word loses the
+// substitution outright: `[list $={y}$x]` yielded `{$={y}$x}` where both
+// oracles give `{$={y}X}` (#1668 review).
+
+/// The reported repro — a literal `$=` marker-shaped run then a real `$x`,
+/// inside an inline `[list …]`.
+const DOLLAR_EQ_MIXED_LIST_ARG_SCRIPT: &str =
+    concat!("set x X\n", "set y Y\n", "puts [list $={y}$x]\n");
+
+/// The same word measured, so the *string* is pinned and not just its list
+/// rendering.
+const DOLLAR_EQ_MIXED_LENGTH_SCRIPT: &str =
+    concat!("set x X\n", "set y Y\n", "puts [string length $={y}$x]\n");
+
+/// The bare command-word route.
+const DOLLAR_EQ_MIXED_WORD_SCRIPT: &str = concat!("set x X\n", "set y Y\n", "puts $={y}$x\n");
+
+/// The `set` value route.
+const DOLLAR_EQ_MIXED_SET_VALUE_SCRIPT: &str =
+    concat!("set x X\n", "set y Y\n", "set z $={y}$x\n", "puts $z\n",);
+
+/// The `switch` subject route: the subject is the *substituted* word, so it
+/// matches neither arm and falls to `default`.
+const DOLLAR_EQ_MIXED_SWITCH_SCRIPT: &str = concat!(
+    "set x X\n",
+    "set y Y\n",
+    "switch -- $={y}$x {\n",
+    "  X { puts matched-var }\n",
+    "  default { puts literal }\n",
+    "}\n",
+);
+
+/// The array-key route.
+const DOLLAR_EQ_MIXED_ARRAY_KEY_SCRIPT: &str = concat!(
+    "set x X\n",
+    "set y Y\n",
+    "set arr($={y}$x) V\n",
+    "puts [array names arr]\n",
+);
+
+/// A proc body, where the substituted half is an LVT slot.
+const DOLLAR_EQ_MIXED_IN_PROC_SCRIPT: &str =
+    concat!("proc p {} { set x X; puts [list $=$x] }\n", "p\n");
+
+/// `$(idx)` is the **empty-named** array, not a bare `$` — C admits it
+/// explicitly ("Support for empty array names here", `tclParse.c:1449-1453`),
+/// so the literal-`$` rule must not swallow it. This composite was un-decodable
+/// before the same fix.
+const DOLLAR_EMPTY_ARRAY_MIXED_SCRIPT: &str =
+    concat!("set (k) EMPTY\n", "set x X\n", "puts [list a$(k)b$x]\n",);
+
+/// A `$` that is a whole word of its own, beside a real reference.
+const DOLLAR_ALONE_BESIDE_VAR_SCRIPT: &str = concat!("set x X\n", "puts [list $ $x]\n");
+
 const DOLLAR_EQ_VECTORS: &[(&str, &str, &str)] = &[
     ("command word", DOLLAR_EQ_WORD_SCRIPT, "$={y}"),
     ("set value", DOLLAR_EQ_SET_VALUE_SCRIPT, "$={y}"),
@@ -1418,6 +1482,40 @@ const DOLLAR_EQ_VECTORS: &[(&str, &str, &str)] = &[
     ("list argument", DOLLAR_EQ_LIST_ARG_SCRIPT, "{$={y}}"),
     ("array key", DOLLAR_EQ_ARRAY_KEY_SCRIPT, "{$={y}}"),
     ("proc body", DOLLAR_EQ_IN_PROC_SCRIPT, "$={y}"),
+    // Mixed: literal `$` run, then a real substitution in the same word.
+    (
+        "mixed list argument",
+        DOLLAR_EQ_MIXED_LIST_ARG_SCRIPT,
+        "{$={y}X}",
+    ),
+    ("mixed string length", DOLLAR_EQ_MIXED_LENGTH_SCRIPT, "6"),
+    ("mixed command word", DOLLAR_EQ_MIXED_WORD_SCRIPT, "$={y}X"),
+    (
+        "mixed set value",
+        DOLLAR_EQ_MIXED_SET_VALUE_SCRIPT,
+        "$={y}X",
+    ),
+    (
+        "mixed switch subject",
+        DOLLAR_EQ_MIXED_SWITCH_SCRIPT,
+        "literal",
+    ),
+    (
+        "mixed array key",
+        DOLLAR_EQ_MIXED_ARRAY_KEY_SCRIPT,
+        "{$={y}X}",
+    ),
+    ("mixed proc body", DOLLAR_EQ_MIXED_IN_PROC_SCRIPT, "{$=X}"),
+    (
+        "empty-name array beside a var",
+        DOLLAR_EMPTY_ARRAY_MIXED_SCRIPT,
+        "aEMPTYbX",
+    ),
+    (
+        "lone dollar beside a var",
+        DOLLAR_ALONE_BESIDE_VAR_SCRIPT,
+        "{$} X",
+    ),
 ];
 
 /// The reading is the same at every release: `$=` never starts a substitution,

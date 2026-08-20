@@ -193,10 +193,89 @@ fn flush_subst_lit(
     }
 }
 
+/// One `$`'s reading, per `Tcl_ParseVarName`'s three forms.
+enum DollarScan {
+    /// A real substitution: the part, and the offset just past it.
+    Subst(SubstPart, usize),
+    /// Not a substitution — "just a dollar sign", literal text.
+    Literal,
+    /// `${` with no close: a parse error, not a reading.
+    Unterminated,
+}
+
+/// Read the `$` at `at`, following `Tcl_ParseVarName`
+/// (tmp/tcl9.0.4/generic/tclParse.c:1367-1381 documents the three forms).
+///
+/// Form 1 is `${name}`, closed by the target release's rule; an unterminated
+/// one is C's `TCL_PARSE_MISSING_VAR_BRACE` ("missing close-brace for variable
+/// name", `tclParse.c:1414`), reported here as [`DollarScan::Unterminated`].
+///
+/// Form 2 is a bare name of letters/digits/underscores and `::` runs,
+/// optionally followed by an array index — including the **empty** name of
+/// `$(idx)`, which C admits explicitly ("Support for empty array names here",
+/// `tclParse.c:1449-1453`), so `$(k)` reads array `` element `k`.
+///
+/// Form 3 is everything else: a `$` before any other byte, or at the end of the
+/// string, is **not** a reference — `tclParse.c:1454` and `:1360` both jump to
+/// `justADollarSign` (`:1502`), which rewrites the token as the literal text
+/// `$` and returns `TCL_OK`. Parsing *continues*; the `$` is data.
+fn scan_dollar(
+    template: &str,
+    bytes: &[u8],
+    n: usize,
+    at: usize,
+    braced_var: tcl_dialect::BracedVarStyle,
+) -> DollarScan {
+    let i = at + 1;
+    if i >= n {
+        return DollarScan::Literal; // trailing `$` (`tclParse.c:1360`)
+    }
+    if bytes[i] == b'{' {
+        // Braced variable: ${name}, closed by the target release's
+        // `Tcl_ParseVarName` rule. This used to be `find('}')` — the 8.x
+        // first-close rule applied at every release, disagreeing with
+        // `values::parse_simple_var_ref`'s 9.x nesting rule on the very same
+        // encoding (issue #1568).
+        return match tcl_lexer::braced_var_name_end(bytes, i + 1, braced_var) {
+            tcl_lexer::BracedVarEnd::Closed(end) => {
+                DollarScan::Subst(SubstPart::Var(template[i + 1..end].to_owned()), end + 1)
+            }
+            tcl_lexer::BracedVarEnd::Unterminated => DollarScan::Unterminated,
+        };
+    }
+    // Bare variable: $varname, optionally with an array index `$arr(index)`
+    // whose index may itself contain substitutions. A `:` is a name character
+    // only as part of a `::` namespace separator: a lone colon ends the name,
+    // so `$action:` is `$action` then a literal `:`, not a variable `action:`.
+    // Once a `::` starts, the whole colon run is consumed (`$a:::b` names
+    // `a:::b`).
+    let start = i;
+    let mut end = i;
+    while end < n {
+        if bytes[end].is_ascii_alphanumeric() || bytes[end] == b'_' {
+            end += 1;
+        } else if bytes[end] == b':' && end + 1 < n && bytes[end + 1] == b':' {
+            while end < n && bytes[end] == b':' {
+                end += 1;
+            }
+        } else {
+            break;
+        }
+    }
+    // An empty name is still a reference when an array index follows (`$(k)`);
+    // otherwise this is form 3 and the `$` is literal.
+    if end == start && bytes.get(end) != Some(&b'(') {
+        return DollarScan::Literal;
+    }
+    let end = consume_array_index(bytes, end);
+    DollarScan::Subst(SubstPart::Var(template[start..end].to_owned()), end)
+}
+
 /// Parse a substitution template into parts.
 ///
 /// Returns `None` if the template contains constructs we cannot
-/// inline (unbalanced brackets, bare `$` without a name, etc.).
+/// inline (unbalanced brackets, an unterminated `${`, etc.). A `$` that starts
+/// no substitution is **not** such a construct — see [`scan_dollar`].
 ///
 /// Only scans for `$`/`[` substitution triggers; literal text (including any
 /// backslash escapes within it) is left raw in the source and decoded in one
@@ -260,50 +339,23 @@ pub fn parse_subst_template(
         }
 
         if ch == b'$' {
-            flush_subst_lit(&mut parts, template, lit_start, i, escapes);
-            i += 1;
-            if i >= n {
-                return None;
-            }
-            if bytes[i] == b'{' {
-                // Braced variable: ${name}, closed by the target release's
-                // `Tcl_ParseVarName` rule. This used to be `find('}')` — the
-                // 8.x first-close rule applied at every release, disagreeing
-                // with `values::parse_simple_var_ref`'s 9.x nesting rule on the
-                // very same encoding (issue #1568).
-                let end = match tcl_lexer::braced_var_name_end(bytes, i + 1, braced_var) {
-                    tcl_lexer::BracedVarEnd::Closed(end) => end,
-                    tcl_lexer::BracedVarEnd::Unterminated => return None,
-                };
-                parts.push(SubstPart::Var(template[i + 1..end].to_owned()));
-                i = end + 1;
-            } else {
-                // Bare variable: $varname, optionally with an array index
-                // `$arr(index)` whose index may itself contain substitutions.
-                // A `:` is a name character only as part of a `::` namespace
-                // separator (matching the lexer, `Tcl_ParseVarName`): a lone
-                // colon ends the name, so `$action:` is `$action` then a literal
-                // `:`, not a variable `action:`. Once a `::` starts, the whole
-                // colon run is consumed (`$a:::b` names `a:::b`).
-                let start = i;
-                while i < n {
-                    if bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_' {
-                        i += 1;
-                    } else if bytes[i] == b':' && i + 1 < n && bytes[i + 1] == b':' {
-                        while i < n && bytes[i] == b':' {
-                            i += 1;
-                        }
-                    } else {
-                        break;
-                    }
+            // A `$` that starts no substitution is *data*, not a reason to give
+            // up on the whole word: C rewrites the token as the literal `$` and
+            // keeps parsing (`justADollarSign`). Bailing here left every word
+            // that mixes a literal `$` with a real substitution un-decomposed —
+            // `[list $={y}$x]` pushed its argument raw, so the `$x` was never
+            // substituted (both oracles: `{$={y}X}`; #1668 review).
+            match scan_dollar(template, bytes, n, i, braced_var) {
+                DollarScan::Subst(part, next) => {
+                    flush_subst_lit(&mut parts, template, lit_start, i, escapes);
+                    parts.push(part);
+                    i = next;
+                    lit_start = i;
                 }
-                if i == start {
-                    return None;
-                }
-                i = consume_array_index(bytes, i);
-                parts.push(SubstPart::Var(template[start..i].to_owned()));
+                // Stays inside the current literal run — do not flush.
+                DollarScan::Literal => i += 1,
+                DollarScan::Unterminated => return None,
             }
-            lit_start = i;
             continue;
         }
 
@@ -836,9 +888,45 @@ mod tests {
         assert_eq!(parts, vec![SubstPart::Lit("a\nb".into())]);
     }
 
+    /// A `$` that starts no substitution is literal text and the scan
+    /// continues — `Tcl_ParseVarName`'s third form (`justADollarSign`,
+    /// tmp/tcl9.0.4/generic/tclParse.c:1454 and :1502). `puts [list $ a]`
+    /// prints `{$} a` on tclsh8.6.16 and tclsh9.0.4.
     #[test]
-    fn subst_template_bare_dollar() {
-        assert!(template("$").is_none());
+    fn subst_template_bare_dollar_is_literal_text() {
+        assert_eq!(template("$"), Some(vec![SubstPart::Lit("$".into())]));
+        assert_eq!(template("a$"), Some(vec![SubstPart::Lit("a$".into())]));
+        // The whole point: a literal `$` must not cost the *rest* of the word
+        // its substitution (#1668 review).
+        assert_eq!(
+            template("$x$"),
+            Some(vec![SubstPart::Var("x".into()), SubstPart::Lit("$".into()),])
+        );
+        assert_eq!(
+            template("$ $x"),
+            Some(vec![
+                SubstPart::Lit("$ ".into()),
+                SubstPart::Var("x".into()),
+            ])
+        );
+    }
+
+    /// `$(idx)` is a reference to the **empty-named** array — C admits it
+    /// explicitly ("Support for empty array names here",
+    /// tmp/tcl9.0.4/generic/tclParse.c:1449-1453). `set (k) V; puts [list
+    /// a$(k)b]` prints `aVb` on both oracles, so the empty name must not be
+    /// mistaken for the bare-`$` form.
+    #[test]
+    fn subst_template_empty_array_name_is_a_reference() {
+        assert_eq!(template("$(k)"), Some(vec![SubstPart::Var("(k)".into())]));
+        assert_eq!(
+            template("a$(k)b"),
+            Some(vec![
+                SubstPart::Lit("a".into()),
+                SubstPart::Var("(k)".into()),
+                SubstPart::Lit("b".into()),
+            ])
+        );
     }
 
     #[test]
@@ -879,10 +967,39 @@ mod tests {
     /// (issue #1617). Both tclsh oracles print `$={y}` for `puts $={y}`.
     #[test]
     fn subst_template_dollar_equals_is_not_a_marker() {
-        // No name follows the `$`, so the word has no decomposable
-        // substitution at all and the caller pushes it as a literal.
-        assert!(template("$={a(1)}rest").is_none());
-        assert!(template("$={y}").is_none());
+        // No name follows the `$`, so the marker text is literal — and it is
+        // *only* the marker text: a real substitution later in the same word
+        // still decomposes (`Tcl_ParseVarName`'s `justADollarSign` keeps
+        // parsing; #1668 review).
+        assert_eq!(
+            template("$={a(1)}rest"),
+            Some(vec![SubstPart::Lit("$={a(1)}rest".into())])
+        );
+        assert_eq!(
+            template("$={y}"),
+            Some(vec![SubstPart::Lit("$={y}".into())])
+        );
+        assert_eq!(
+            template("$={y}$x"),
+            Some(vec![
+                SubstPart::Lit("$={y}".into()),
+                SubstPart::Var("x".into()),
+            ])
+        );
+        assert_eq!(
+            template("a$={y}$x"),
+            Some(vec![
+                SubstPart::Lit("a$={y}".into()),
+                SubstPart::Var("x".into()),
+            ])
+        );
+        assert_eq!(
+            template("$={y}${x}"),
+            Some(vec![
+                SubstPart::Lit("$={y}".into()),
+                SubstPart::Var("x".into()),
+            ])
+        );
         // The neighbouring real form is untouched.
         assert_eq!(template("${y}"), Some(vec![SubstPart::Var("y".into())]),);
     }
