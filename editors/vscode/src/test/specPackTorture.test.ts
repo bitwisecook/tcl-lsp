@@ -240,8 +240,13 @@ async function assertServerAlive(label: string): Promise<void> {
     !serverTransportWedged(),
     `the server transport was already confirmed wedged before checking ${label}`,
   );
+  // `""`, not `docUri` — the same reason `serverLivenessDiagnostic` passes it:
+  // with a document URI the command's handler runs `read_document`, which waits
+  // on the server's global `EditOrder` barrier and then takes the `documents`
+  // and salsa `db` locks, so it is not the transport question this step reports
+  // it as, and a stuck document queue would be blamed on the transport.
   const cfg = await bounded(
-    vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", docUri.toString()),
+    vscode.commands.executeCommand("tcl-lsp.getEffectiveConfig", ""),
     `a document-free getEffectiveConfig after ${label}`,
     { timeout: 20_000 },
   );
