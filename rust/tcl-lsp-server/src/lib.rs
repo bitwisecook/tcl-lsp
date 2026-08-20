@@ -4772,7 +4772,11 @@ struct TurnHolder {
     /// The document it is for.
     uri: String,
     ticket: u64,
-    since: std::time::Instant,
+    /// `crate::rt::Instant`, never `std::time::Instant`: the latter compiles on
+    /// `wasm32-unknown-unknown` and then panics the moment it is called, which
+    /// aborts the browser worker and takes the page with it. The shim reads
+    /// `performance.now()` there and is a plain re-export of Tokio's natively.
+    since: crate::rt::Instant,
 }
 
 impl EditOrder {
@@ -4818,7 +4822,7 @@ impl EditOrder {
                     what: ticket.what,
                     uri: std::mem::take(&mut ticket.uri),
                     ticket: ticket.ticket,
-                    since: std::time::Instant::now(),
+                    since: crate::rt::Instant::now(),
                 });
                 return EditTurn { order: self };
             }
