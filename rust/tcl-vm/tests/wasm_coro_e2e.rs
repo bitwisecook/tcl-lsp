@@ -186,9 +186,14 @@ fn cargo_toml() -> String {
         format!("{name} = {{ path = \"{}\" }}", path.display())
     };
     format!(
+        // `default-features = false` drops `js-clock`, whose `Date.now()` is a
+        // wasm-bindgen import: `HARNESS_MJS` instantiates this module with an
+        // empty import object, so any import at all makes it fail to
+        // instantiate. That is the invariant this test exists to hold, for
+        // `tcl-vm-wasm` as much as for the scratch crate here.
         "[package]\nname = \"tcl-vm-wasm-coro\"\nversion = \"0.0.0\"\nedition = \"2024\"\n\
          publish = false\n\n[lib]\ncrate-type = [\"cdylib\"]\n\n[dependencies]\n\
-         tcl-vm = {{ path = \"{}\" }}\n{}\n{}\n{}\n\n[workspace]\n\n\
+         tcl-vm = {{ path = \"{}\", default-features = false }}\n{}\n{}\n{}\n\n[workspace]\n\n\
          [profile.release]\npanic = \"abort\"\nopt-level = \"s\"\n",
         base.display(),
         dep("tcl-compiler"),

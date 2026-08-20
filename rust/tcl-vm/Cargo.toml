@@ -65,6 +65,33 @@ num-bigint = "0.5"
 num-integer = "0.1"
 num-traits = "0.2"
 
+# The browser half of the capability seam (`src/host_wasm.rs`), which is the
+# `Vm`'s default host on `wasm32-unknown-unknown`: there is no OS under that
+# target and `std::time::SystemTime::now` panics, so the wall clock has to come
+# from somewhere else (issue #1661). Target-gated so no native build — and no
+# `wasm32-wasip1` build, where std time works — carries wasm-bindgen.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = { version = "0.3", optional = true }
+
+[features]
+# `js-clock` sources that wall clock from JavaScript's `Date.now()`, which is
+# what every wasm-bindgen consumer of this VM wants — the language server, the
+# compiler explorer and the spec studio all run inside a page that has one.
+# On by default so those three (which reach `tcl-vm` six crates deep, through
+# `tcl-spectcl` → `tcl-spec-hooks` → `tcl-engine-tclvm`) need no feature
+# plumbing at all.
+#
+# Turning it OFF leaves the browser host with a clock that reports the epoch
+# rather than one that panics, and — the point of the switch — leaves the wasm
+# module with **no imports whatsoever**. `tcl-vm-wasm` is built on exactly that
+# promise ("NO host imports and NO WASI"): it is instantiated by a bare
+# `WebAssembly.instantiate` with no wasm-bindgen glue, so a `js-sys` import
+# would make the module refuse to instantiate at all. It opts out with
+# `default-features = false`, and `tests/wasm_coro_e2e.rs` is the gate that
+# fails loudly if anything reintroduces an import.
+default = ["js-clock"]
+js-clock = ["dep:js-sys"]
+
 [dev-dependencies]
 # End-to-end tests compile real Tcl to bytecode then run it. Dev-only, so the
 # library itself stays off the compiler (CompileService is the runtime seam).

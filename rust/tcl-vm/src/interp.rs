@@ -48,7 +48,17 @@ use crate::command::{BuiltinFn, Command, EnsembleDef, ProcDef, register_builtins
 use crate::error::TclError;
 use crate::expr::ExprEval;
 use crate::frame::{CallFrame, Local};
-use crate::host_native::NativeHost;
+// The default capability host, picked by target. Everywhere with an operating
+// system under it — including `wasm32-wasip1`, where `std::time` and `std::env`
+// both work — that is the full-capability std-backed `NativeHost`. On
+// `wasm32-unknown-unknown` there is no OS at all and `std::time::SystemTime::now`
+// *panics*, so the browser host reads the wall clock from JavaScript instead
+// (issue #1661). `runtime/rust`'s `Interp::new` has made the same split since it
+// learnt to link for wasm; this is the bytecode VM catching up.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+use crate::host_native::NativeHost as DefaultHost;
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+use crate::host_wasm::BrowserHost as DefaultHost;
 use crate::value::Value;
 
 /// The proc-call recursion bound (C Tcl's default `interp recursionlimit`).
@@ -773,9 +783,13 @@ pub struct InterpState {
     oo_dispatch_depth: usize,
     /// The host environment: the capability seam (`tcl-platform`) through which
     /// every command reaches the filesystem, clock, env, stdio, subprocess, and
-    /// sockets. The bytecode VM is a native target, so this defaults to a
-    /// full-capability [`NativeHost`]; [`Vm::set_host`] swaps it (e.g. for a
-    /// sandboxed, WASM-posture host in capability tests). An `Rc` (not `Box`) so
+    /// sockets. Defaults to the host for the target being built: the
+    /// full-capability [`NativeHost`](crate::host_native::NativeHost) anywhere
+    /// with an operating system under it, and `host_wasm::BrowserHost` — a
+    /// JavaScript wall clock and nothing else — on `wasm32-unknown-unknown`,
+    /// where the std clock is a panic rather than a syscall (issue #1661).
+    /// [`Vm::set_host`] swaps it (e.g. for a sandboxed, WASM-posture host in
+    /// capability tests). An `Rc` (not `Box`) so
     /// a command can clone a handle and pass `&dyn Host` *alongside* a `&mut Vm`
     /// borrow (the VM is itself the `ValueOps` a shared helper takes).
     host: Rc<dyn Host>,
@@ -1344,7 +1358,7 @@ impl InterpState {
             recursion_depth: 0,
             control_fallback_depth: 0,
             oo_dispatch_depth: 0,
-            host: Rc::new(NativeHost::new()),
+            host: Rc::new(DefaultHost::new()),
             children: HashMap::new(),
             is_safe: false,
             recursion_limit: RECURSION_LIMIT,
@@ -1881,7 +1895,8 @@ impl Vm {
         Rc::clone(&self.host)
     }
 
-    /// Swap the host environment — e.g. a [`NativeHost::sandboxed`] to exercise
+    /// Swap the host environment — e.g. a
+    /// [`NativeHost::sandboxed`](crate::host_native::NativeHost::sandboxed) to exercise
     /// the WASM-posture "unsupported" paths natively.
     pub fn set_host(&mut self, host: Rc<dyn Host>) {
         self.host = host;
