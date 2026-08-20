@@ -1005,7 +1005,7 @@ struct DiagSlot {
     /// from is still current.  Without this stamp the edit path (which does not
     /// force a refresh) silently analysed under whatever config was in force at
     /// the *previous* schedule — see [`Backend::invalidate_diag_inputs`] for the
-    /// window that made observable (issue #1651).
+    /// window that made that observable (issue #1651).
     inputs_epoch: u64,
 }
 
@@ -13392,28 +13392,6 @@ impl Backend {
         run_diagnostics_core(inputs, &uri, job).await;
     }
 
-    /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
-    /// immediately (the analyser work runs on a `tokio::spawn`ed task), so
-    /// `did_open` / `did_change` never block the message loop on analysis.
-    ///
-    /// Coalescing per-URI worker: the edit marks the document dirty and, if no
-    /// worker is already draining `uri`, starts one.  The worker debounces, then
-    /// captures and analyses the document's **current** state (so a burst — even
-    /// one whose `didChange` notifications are processed out of order — settles
-    /// on the latest committed version), retrying if a run is cancelled
-    /// mid-flight by a concurrent `set_text`.  This guarantees the final
-    /// version's diagnostics are always published, even under a heavy edit burst
-    /// on a loaded machine, and never runs two analyses for one document
-    /// concurrently (so an edit's write is never blocked behind a stale read).
-    async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
-        // Edit path: reuse the slot's cached inputs *if the configuration they
-        // were read from is still current* (the worker still reads the
-        // document's own content at drain time regardless).  Currency is the
-        // epoch check inside the impl, not an assumption — see
-        // [`Self::invalidate_diag_inputs`].
-        self.schedule_diagnostics_impl(uri, dialect, false).await;
-    }
-
     /// Retire every cached [`DiagSlot::latest_inputs`], so the next scheduled
     /// run — **including one an ordinary edit schedules** — resolves its
     /// analyser inputs from the configuration as it stands now.
@@ -13458,6 +13436,28 @@ impl Backend {
     fn diag_inputs_epoch(&self) -> u64 {
         self.diag_inputs_epoch
             .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Schedule a debounced, detached diagnostics run for `uri`.  Returns
+    /// immediately (the analyser work runs on a `tokio::spawn`ed task), so
+    /// `did_open` / `did_change` never block the message loop on analysis.
+    ///
+    /// Coalescing per-URI worker: the edit marks the document dirty and, if no
+    /// worker is already draining `uri`, starts one.  The worker debounces, then
+    /// captures and analyses the document's **current** state (so a burst — even
+    /// one whose `didChange` notifications are processed out of order — settles
+    /// on the latest committed version), retrying if a run is cancelled
+    /// mid-flight by a concurrent `set_text`.  This guarantees the final
+    /// version's diagnostics are always published, even under a heavy edit burst
+    /// on a loaded machine, and never runs two analyses for one document
+    /// concurrently (so an edit's write is never blocked behind a stale read).
+    async fn schedule_diagnostics(&self, uri: Uri, dialect: String) {
+        // Edit path: reuse the slot's cached inputs *if the configuration they
+        // were read from is still current* (the worker still reads the
+        // document's own content at drain time regardless).  Currency is the
+        // epoch check inside the impl, not an assumption — see
+        // [`Self::invalidate_diag_inputs`].
+        self.schedule_diagnostics_impl(uri, dialect, false).await;
     }
 
     /// Like [`Self::schedule_diagnostics`] but forces a re-resolve of the
