@@ -535,6 +535,43 @@ pub fn pack_source_extensions() -> Vec<String> {
     out
 }
 
+/// Whether `ext` is one [`pack_source_extensions`] would list — asked per
+/// **file**, so it allocates nothing.
+///
+/// The list form is for building a glob, which happens once per pack reload.
+/// This is for `is_tcl_source`, which the workspace scan calls on every path
+/// it walks; building and sorting a `Vec<String>` there would put an
+/// allocation and a sort on the hot path of a scan that runs on every
+/// configuration change.
+///
+/// Returns `false` immediately when no pack has registered anything, which is
+/// the overwhelmingly common case and costs one lock-free-ish read.
+#[must_use]
+pub fn is_pack_source_extension(ext: &str) -> bool {
+    let guard = match PACK_EXTENSION_DIALECTS.read() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    let Some(map) = guard.as_ref() else {
+        return false;
+    };
+    if map.is_empty() {
+        return false;
+    }
+    // The map is keyed lower-case; only pay for a lowercased copy when the
+    // caller's spelling is not already one.
+    let lowered;
+    let key = if ext.bytes().any(|b| b.is_ascii_uppercase()) {
+        lowered = ext.to_ascii_lowercase();
+        lowered.as_str()
+    } else {
+        ext
+    };
+    map.contains_key(key)
+        && !TCL_SOURCE_EXTENSIONS.contains(&key)
+        && catalog_extension_dialect(key).is_none()
+}
+
 /// The pack-declared dialect for `ext`, if any pack registered one.
 fn pack_extension_dialect(ext: &str) -> Option<&'static str> {
     let guard = match PACK_EXTENSION_DIALECTS.read() {

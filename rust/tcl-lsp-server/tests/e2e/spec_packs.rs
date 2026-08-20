@@ -947,6 +947,49 @@ fn the_server_advertises_the_extensions_its_packs_claim() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
+/// Review finding P1-3: a pack-claimed extension has to reach the *index*,
+/// not only the open document.
+///
+/// The distinction is the whole finding. Opening a `.irulex` file always
+/// worked — `dialect_from_extension` consults pack routing, so the document
+/// analyses correctly. But every predicate that decides which files the
+/// server reaches on its own read the static `TCL_SOURCE_EXTENSIONS`, so a
+/// **closed** `.irulex` file was invisible: its definitions never entered the
+/// workspace index, and a reference from an ordinary `.tcl` file could not
+/// resolve to them.
+///
+/// So this asserts on cross-file resolution from a file that is never opened,
+/// which is exactly what the static-only predicate could not do.
+#[test]
+fn a_closed_file_under_a_pack_extension_is_indexed() {
+    let root = workspace("extensions-indexed");
+    write(&root.join(".tcl-lsp/extlib.tclspec"), EXTENSION_PACK);
+    // Never opened by this test — only ever reached by the workspace scan.
+    write(
+        &root.join("helpers.irulex"),
+        "proc extpack_only_helper {a b} {\n    return [expr {$a + $b}]\n}\n",
+    );
+    let source = "extpack_only_helper 1 2\n";
+    let doc = root.join("caller.tcl");
+    write(&doc, source);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "extlib");
+    lsp.open_ready(&uri, source);
+
+    // The call resolves to a definition that lives in a file nothing opened.
+    let definitions = lsp.definition(&uri, 0, 4);
+    let text = serde_json::to_string(&definitions).unwrap_or_default();
+    assert!(
+        text.contains("helpers.irulex"),
+        "a closed `.irulex` file must be indexed once a pack claims the \
+         extension; definition returned: {text}"
+    );
+
+    let _ = std::fs::remove_dir_all(&root);
+}
+
 /// The advertisement follows the packs: retire the pack and the extension
 /// stops being advertised, so a client's association is retired with it.
 #[test]

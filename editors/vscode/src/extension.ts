@@ -733,76 +733,51 @@ export async function deactivate(): Promise<void> {
  * Keep workspace `files.associations` in step with the extensions the
  * discovered SpecTcl packs claim (issue #1626).
  *
- * Re-synced on the two events that can change the answer: the client having
- * just started (the packs discovered at startup), and any `.tclspec` in the
- * workspace being written, created or deleted — the same file set the server
- * watches to reload its pack registry, so the client's view can never lag it
- * by more than one round trip.
+ * Driven by the server's `tcl-lsp/specPacksReloaded` push, not by watching the
+ * filesystem here. The client cannot derive the right moment on its own: it
+ * sees the same `.tclspec` write the server does, but not when the server has
+ * finished reloading, so reacting to the event directly read the *previous*
+ * pack set with nothing scheduled to ask again. A workspace-scoped watcher
+ * also never fires for a pack under an absolute `tclLsp.specPacks` root, which
+ * the server watches and it cannot. The push settles both, and it arrives
+ * after every consequence of the reload has landed (review finding P1-2).
+ *
+ * One pull still happens, immediately: the server notifies on every reload
+ * including the startup one, but a client that finished starting *after* that
+ * notification was emitted would otherwise wait for an edit that may never
+ * come.
  */
 function registerPackAssociationSync(context: ExtensionContext, ch: vscode.OutputChannel): void {
-  const sync = () => {
-    void syncPackAssociationsNow(context, ch);
-  };
-  const watcher = workspace.createFileSystemWatcher("**/*.tclspec");
-  context.subscriptions.push(
-    watcher,
-    watcher.onDidChange(sync),
-    watcher.onDidCreate(sync),
-    watcher.onDidDelete(sync),
-    // `tclLsp.specPacks` names directories outside the discovery conventions,
-    // so changing it changes the answer without any `.tclspec` moving.
-    workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration("tclLsp.specPacks")) {
-        sync();
-      }
-    }),
-  );
-  void syncPackAssociationsAtStartup(context, ch);
+  if (client) {
+    context.subscriptions.push(
+      client.onNotification(
+        "tcl-lsp/specPacksReloaded",
+        (params: { pack_file_extensions?: PackFileExtension[] }) => {
+          void syncPackFileAssociations(context, params?.pack_file_extensions ?? [], (message) =>
+            ch.appendLine(message),
+          );
+        },
+      ),
+    );
+  }
+  void syncPackAssociationsNow(context, ch);
 }
 
 /**
- * The startup passes, in milliseconds after activation.
+ * One reconciliation pass driven by a pull rather than the push.
  *
- * Backing off rather than firing once, because "the packs are loaded" is not a
- * single moment the client can observe: the server discovers the bundled tier
- * during its own startup, then re-reads the workspace once the
- * `workspace/configuration` pull delivers `tclLsp.specPacks` — so a single
- * pass taken at the first moment the server answers sees the bundled tier and
- * none of the user's packs, and there is no later `.tclspec` change for the
- * watcher to catch. Each pass is idempotent and writes nothing when the
- * advertised set has not moved, so the cost of the extra ones is a handful of
- * round trips confined to the first half-minute of a session.
- */
-const PACK_SYNC_STARTUP_DELAYS_MS = [0, 250, 500, 1_000, 2_000, 4_000, 8_000, 16_000];
-
-async function syncPackAssociationsAtStartup(
-  context: ExtensionContext,
-  ch: vscode.OutputChannel,
-): Promise<void> {
-  let everAnswered = false;
-  for (const delay of PACK_SYNC_STARTUP_DELAYS_MS) {
-    if (delay > 0) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-    everAnswered = (await syncPackAssociationsNow(context, ch)) || everAnswered;
-  }
-  if (!everAnswered) {
-    ch.appendLine("[packs] file-association sync: no pack reload observed at startup");
-  }
-}
-
-/**
- * One reconciliation pass: ask the server what the packs claim, apply it.
- *
- * Returns whether the server answered with a completed pack reload — `false`
- * means "nothing to reconcile against yet", not "nothing claimed".
+ * Only the startup catch-up uses this; everything after it arrives as a
+ * notification. Skips entirely until the server reports a completed reload,
+ * because reconciliation is destructive by design — a pass taken against a
+ * server that has simply not discovered anything yet would retire every
+ * association it had written.
  */
 async function syncPackAssociationsNow(
   context: ExtensionContext,
   ch: vscode.OutputChannel,
-): Promise<boolean> {
+): Promise<void> {
   if (!client) {
-    return false;
+    return;
   }
   try {
     // The pack set is process-global on the server — one reload covers the
@@ -816,17 +791,15 @@ async function syncPackAssociationsNow(
       spec_packs_loaded?: unknown[];
     } | null;
     if (!result?.spec_packs_loaded?.length) {
-      return false;
+      return;
     }
     await syncPackFileAssociations(context, result.pack_file_extensions ?? [], (message) =>
       ch.appendLine(message),
     );
-    return true;
   } catch (err) {
-    // A server that is restarting (or has stopped) simply has nothing to say
-    // about packs yet; the next watcher event re-asks.
+    // A server still starting (or already stopped) has nothing to say about
+    // packs yet, and the notification will bring the answer when it does.
     ch.appendLine(`[packs] file-association sync skipped: ${String(err)}`);
-    return false;
   }
 }
 

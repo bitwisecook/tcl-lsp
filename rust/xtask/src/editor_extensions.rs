@@ -278,15 +278,40 @@ fn render_vscode_package(original: &str, langs: &[Language]) -> Result<String> {
                 ),
             );
         }
-        // The whole-basename axis. VS Code matches `filenames` exactly and
-        // case-sensitively, so the catalog's lower-case names are what a real
-        // `bigip.conf` carries. Before the catalog grew this axis, `tcl-bigip`
-        // contributed none and a `bigip.conf` never associated at all, even
-        // though the server has always routed it (issue #1625).
+        // The whole-basename axis, contributed twice on purpose.
+        //
+        // `filenames` is an exact, case-**sensitive** match on a
+        // case-sensitive filesystem, while the catalogue and the server
+        // deliberately compare basenames case-insensitively — so a
+        // `BIGIP.CONF` matched nothing, opened as plaintext, and never even
+        // activated the extension, leaving the client's own case-insensitive
+        // lookup unreachable (issue #1625, review finding P2-2).
+        //
+        // `filenamePatterns` is the fix, and the case-folding is per
+        // character rather than by listing variants: `bigip.conf` has 2^9
+        // casings, and the `[bB]` class matches all of them exactly, with no
+        // extra matches. It is the same trick the `workspaceContains`
+        // activation glob uses for exactly the same reason (issue #1215), and
+        // it comes from the same registry helper so the two can never
+        // disagree.
+        //
+        // `filenames` stays alongside it because it is the axis VS Code shows
+        // in "Configure File Association" and the one older clients
+        // understand; the pattern is the superset that makes the promise
+        // true.
         if !lang.filenames.is_empty() {
             entry.insert(
                 "filenames".to_owned(),
                 Value::Array(lang.filenames.iter().cloned().map(Value::String).collect()),
+            );
+            entry.insert(
+                "filenamePatterns".to_owned(),
+                Value::Array(
+                    lang.filenames
+                        .iter()
+                        .map(|name| Value::String(tcl_registry::dialects::fold_case_in_glob(name)))
+                        .collect(),
+                ),
             );
         }
         entry.insert(

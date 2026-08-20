@@ -105,6 +105,13 @@
           "bigip_script.conf",
           "bigip_user.conf"
         ],
+        "filenamePatterns": [
+          "[bB][iI][gG][iI][pP].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[bB][aA][sS][eE].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[gG][tT][mM].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[sS][cC][rR][iI][pP][tT].[cC][oO][nN][fF]",
+          "[bB][iI][gG][iI][pP]_[uU][sS][eE][rR].[cC][oO][nN][fF]"
+        ],
         "configuration": "./language-configuration.json"
       },
       {

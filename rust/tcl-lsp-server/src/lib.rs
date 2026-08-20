@@ -11372,7 +11372,7 @@ impl Backend {
         // analysed before or after its config landed.
         let optimiser_profile = self.optimiser_profile.lock().await.name();
         let library_paths = self.editor_library_paths.lock().await.clone();
-        let (spec_packs, spec_packs_loaded) = self.spec_pack_report().await;
+        let (spec_packs, spec_packs_loaded, pack_file_extensions) = self.spec_pack_report().await;
         let line_length = *self.line_length.lock().await;
         // `tclLsp.formatting.docstringStyle` (#1314) — same per-URI fold as
         // `resolved_docstring_style`, but a folder-only query (no readable
@@ -11438,7 +11438,7 @@ impl Backend {
             "library_paths": library_paths,
             "spec_packs": spec_packs,
             "spec_packs_loaded": spec_packs_loaded,
-            "pack_file_extensions": self.pack_file_extension_report().await,
+            "pack_file_extensions": pack_file_extensions,
             "line_length": line_length,
             "docstring_style": docstring_style_str,
             "non_ascii_mode": non_ascii_mode_str(mode),
@@ -12734,9 +12734,18 @@ impl Backend {
     /// loaded packs are what a user needs when the answer to "why is my pack
     /// not loading?" is that discovery never saw it — visible without reading
     /// a server log, which is the only other place that fact exists.
-    async fn spec_pack_report(&self) -> (Vec<String>, Vec<serde_json::Value>) {
+    async fn spec_pack_report(
+        &self,
+    ) -> (Vec<String>, Vec<serde_json::Value>, Vec<serde_json::Value>) {
         let configured = self.spec_pack_paths.lock().await.clone();
         let loaded = self.spec_packs().await;
+        // Built from the same `Arc`, so `getEffectiveConfig` takes the
+        // `spec_packs` lock once rather than twice. It is only ever held for a
+        // short synchronous critical section — the reload's publish does no
+        // `await` inside it — so a second acquisition could not deadlock; but
+        // a reload storm makes it contended, and doubling the acquisitions on
+        // a request path the liveness probe watches bought nothing.
+        let extensions = Self::pack_file_extension_rows(&loaded);
         let report = loaded
             .packs
             .iter()
@@ -12753,7 +12762,7 @@ impl Backend {
                 })
             })
             .collect();
-        (configured, report)
+        (configured, report, extensions)
     }
 
     /// The file extensions the *discovered* packs claim, each resolved to the
@@ -12779,7 +12788,13 @@ impl Backend {
     /// would invite a client to write a redundant `files.associations` entry
     /// that it would then have to distinguish from a real one on cleanup.
     async fn pack_file_extension_report(&self) -> Vec<serde_json::Value> {
-        let packs = self.spec_packs().await;
+        Self::pack_file_extension_rows(self.spec_packs().await.as_ref())
+    }
+
+    /// [`Backend::pack_file_extension_report`] over a pack set already in
+    /// hand, so a caller holding one builds the rows without re-acquiring the
+    /// `spec_packs` lock.
+    fn pack_file_extension_rows(packs: &tcl_spectcl::PackSet) -> Vec<serde_json::Value> {
         let mut seen: Vec<String> = Vec::new();
         let mut out: Vec<serde_json::Value> = Vec::new();
         for pack in &packs.packs {
@@ -22113,11 +22128,17 @@ use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
 ///
 /// Read live rather than cached: the pack set reloads while the server runs,
 /// and this predicate is asked on every scanned path *after* a reload as well
-/// as before it. The read is an uncontended `RwLock` over a small map.
+/// as before it.
+///
+/// Deliberately the registry's allocation-free entry point rather than its
+/// list form. `is_tcl_source` is called once per path by the workspace scan,
+/// and that scan runs on every configuration change — building and sorting a
+/// `Vec<String>` per file there would put an allocation and a sort on the hot
+/// path of the very thing whose latency the liveness probe watches. The
+/// no-packs case, which is every session that loads none, returns on a single
+/// map check.
 fn is_pack_source_extension(ext: &str) -> bool {
-    tcl_registry::dialects::pack_source_extensions()
-        .iter()
-        .any(|known| known.eq_ignore_ascii_case(ext))
+    tcl_registry::dialects::is_pack_source_extension(ext)
 }
 
 fn is_tcl_source(path: &Path) -> bool {

@@ -42,6 +42,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 import { activate, getDocUri, pollUntil } from "./helper";
+import { globFor } from "../packAssociations";
 
 /** The scratch directory the suite owns; git-ignored. */
 const SCRATCH = path.resolve(__dirname, "../../testFixture/packExtensionScratch");
@@ -51,7 +52,9 @@ const PACK_NAME = "extpack";
 /** The extension the pack claims. Owned by nothing in the catalogue, and by
  *  no other pack — so any association for it can only have come from here. */
 const PACK_EXTENSION = "irulex";
-const PACK_GLOB = `*.${PACK_EXTENSION}`;
+/** The glob the client writes: case-folded per character, so it matches the
+ *  extension in any casing on a case-sensitive filesystem (finding P2-2). */
+const PACK_GLOB = globFor(PACK_EXTENSION);
 /** The dialect the row routes to, and hence the language id the client must
  *  choose: `f5-irules` has a dedicated editor language, so the file must land
  *  on `tcl-irule` rather than the plain `tcl` fallback. */
@@ -98,6 +101,17 @@ function workspaceAssociations(): Record<string, string> {
   return (
     vscode.workspace.getConfiguration("files").inspect<Record<string, string>>("associations")
       ?.workspaceValue ?? {}
+  );
+}
+
+/** Block until the server advertises the pack's extension. The one barrier
+ *  every test here starts from: the client reconciles off the server's
+ *  post-reload push, so nothing downstream can be true before this is. */
+async function awaitAdvertised(): Promise<void> {
+  await pollUntil(
+    advertisedExtensions,
+    (found) => found.some((row) => row.extension === PACK_EXTENSION),
+    { timeout: 60_000, label: `the server to advertise .${PACK_EXTENSION}` },
   );
 }
 
@@ -167,6 +181,11 @@ suite("Pack-declared file extensions through the extension host", () => {
 
   test("the client turns the advertisement into a workspace association", async function () {
     this.timeout(120_000);
+    // Wait on the *signal*, not the clock: the client reconciles when the
+    // server pushes `tcl-lsp/specPacksReloaded`, so the association appears
+    // once that has been sent and handled. Polling the configuration is how a
+    // test observes a handler it cannot await.
+    await awaitAdvertised();
     const associations = await pollUntil(
       async () => workspaceAssociations(),
       (found) => found[PACK_GLOB] !== undefined,
@@ -175,16 +194,130 @@ suite("Pack-declared file extensions through the extension host", () => {
     assert.strictEqual(associations[PACK_GLOB], EXPECTED_LANGUAGE);
   });
 
+  // Review finding P2-2: the written glob has to match any casing, because
+  // `files.associations` is matched case-sensitively on a case-sensitive
+  // filesystem while every server-side predicate folds case.
+  test("the association glob matches the extension in any casing", async function () {
+    this.timeout(120_000);
+    await awaitAdvertised();
+    await pollUntil(
+      async () => workspaceAssociations(),
+      (found) => found[PACK_GLOB] !== undefined,
+      { timeout: 60_000, label: `${PACK_GLOB} to be associated` },
+    );
+    const upper = path.join(SCRATCH, `SHOUTY.${PACK_EXTENSION.toUpperCase()}`);
+    fs.writeFileSync(upper, 'when HTTP_REQUEST {\n    log local0. "hi"\n}\n', "utf8");
+    const document = await vscode.workspace.openTextDocument(vscode.Uri.file(upper));
+    // Same application race as the lower-case case below: the write lands
+    // before VS Code re-evaluates, so drive one reconciliation and wait.
+    fs.writeFileSync(PACK, `${PACK_BODY}\n# casing ${Date.now()}\n`, "utf8");
+    const settled = await pollUntil(
+      () =>
+        vscode.workspace.textDocuments.find((d) => d.fileName === upper)?.languageId ??
+        document.languageId,
+      (id) => id === EXPECTED_LANGUAGE,
+      { timeout: 90_000, label: "an upper-cased pack extension to associate" },
+    );
+    assert.strictEqual(settled, EXPECTED_LANGUAGE);
+    fs.writeFileSync(PACK, PACK_BODY, "utf8");
+  });
+
+  // Review finding P1-1: an association the user retargets is theirs from
+  // then on — neither overwritten by a later sync nor deleted when the pack
+  // that prompted it goes away.
+  test("a user's edit to our association survives resync and pack removal", async function () {
+    this.timeout(180_000);
+    await awaitAdvertised();
+    await pollUntil(
+      async () => workspaceAssociations(),
+      (found) => found[PACK_GLOB] !== undefined,
+      { timeout: 60_000, label: `${PACK_GLOB} to be associated` },
+    );
+
+    // The user retargets it by hand.
+    const edited = { ...workspaceAssociations(), [PACK_GLOB]: "plaintext" };
+    await vscode.workspace
+      .getConfiguration("files")
+      .update("associations", edited, vscode.ConfigurationTarget.Workspace);
+
+    // A resync must leave it alone. Touching the pack is what provokes one.
+    fs.writeFileSync(PACK, `${PACK_BODY}\n# resync ${Date.now()}\n`, "utf8");
+    await pollUntil(
+      async () => advertisedExtensions(),
+      (rows) => rows.some((row) => row.extension === PACK_EXTENSION),
+      { timeout: 60_000, label: "the pack to reload after the user edit" },
+    );
+    assert.strictEqual(
+      workspaceAssociations()[PACK_GLOB],
+      "plaintext",
+      "a resync must not overwrite the user's own value",
+    );
+
+    // And removing the pack must not delete it either.
+    fs.rmSync(PACK, { force: true });
+    await pollUntil(
+      async () => advertisedExtensions(),
+      (rows) => !rows.some((row) => row.extension === PACK_EXTENSION),
+      { timeout: 90_000, label: "the pack to stop being advertised" },
+    );
+    assert.strictEqual(
+      workspaceAssociations()[PACK_GLOB],
+      "plaintext",
+      "removing the pack must not delete a value the user owns",
+    );
+
+    // Hand ownership back before leaving. The whole point of this test is that
+    // the entry becomes permanently the user's — which would make every later
+    // assertion in this suite unsatisfiable, because nothing we do can retire
+    // an entry we no longer own. Deleting the key is how a user relinquishes
+    // it, and the next reconciliation re-establishes ours.
+    const withoutOurs = { ...workspaceAssociations() };
+    delete withoutOurs[PACK_GLOB];
+    await vscode.workspace
+      .getConfiguration("files")
+      .update(
+        "associations",
+        Object.keys(withoutOurs).length > 0 ? withoutOurs : undefined,
+        vscode.ConfigurationTarget.Workspace,
+      );
+    fs.writeFileSync(PACK, PACK_BODY, "utf8");
+    await awaitAdvertised();
+    await pollUntil(
+      async () => workspaceAssociations(),
+      (found) => found[PACK_GLOB] === EXPECTED_LANGUAGE,
+      { timeout: 90_000, label: `${PACK_GLOB} to be ours again` },
+    );
+  });
+
   test("a file with the pack's extension opens as its dialect's language", async function () {
     this.timeout(120_000);
+    await awaitAdvertised();
+    await pollUntil(
+      async () => workspaceAssociations(),
+      (found) => found[PACK_GLOB] !== undefined,
+      { timeout: 60_000, label: `${PACK_GLOB} to be associated` },
+    );
     const filePath = path.join(SCRATCH, `sample.${PACK_EXTENSION}`);
     fs.writeFileSync(filePath, 'when HTTP_REQUEST {\n    log local0. "hi"\n}\n', "utf8");
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
-    assert.strictEqual(
-      document.languageId,
-      EXPECTED_LANGUAGE,
-      "the pack-claimed extension must open under its dialect's language",
+
+    // Opening is not a signal that the association has been *applied*: the
+    // configuration write resolves before VS Code re-evaluates language
+    // ownership, so a file opened inside that window lands on plaintext. That
+    // is also the ordinary user experience — open `bar.foo`, then add the pack
+    // — and `retargetOpenDocuments` is exactly what answers it. So provoke one
+    // more reconciliation and assert the buffer follows, rather than asserting
+    // on a race.
+    fs.writeFileSync(PACK, `${PACK_BODY}\n# retarget ${Date.now()}\n`, "utf8");
+    const settled = await pollUntil(
+      () =>
+        vscode.workspace.textDocuments.find((d) => d.fileName === filePath)?.languageId ??
+        document.languageId,
+      (id) => id === EXPECTED_LANGUAGE,
+      { timeout: 90_000, label: `${path.basename(filePath)} to land on ${EXPECTED_LANGUAGE}` },
     );
+    assert.strictEqual(settled, EXPECTED_LANGUAGE);
+    fs.writeFileSync(PACK, PACK_BODY, "utf8");
   });
 
   test("removing the pack retires the association it added", async function () {
