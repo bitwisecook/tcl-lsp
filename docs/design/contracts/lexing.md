@@ -50,6 +50,17 @@ denormalised copy of it.
    (`SourceMap::range_positions`, the segmenter's `command_span`). Callers
    that need to **slice source** — a refactor edit extracting a word's raw
    text — use the source-aware accessors instead.
+   `command_span` widens its final word over a `}` / `]` but deliberately
+   **not** over a `"`: `cmd.range` consumers (W105 unbraced-body detection,
+   segmenter tiling) rely on the inner-end for quoted words. A caller that
+   wants the *whole written command* — the WASM backend interning an
+   eval-fallback's text — must restore that closer itself, and decides
+   whether one is missing with `tcl_lexer::script_is_complete`
+   (`Tcl_CommandComplete`) rather than by re-deriving where the final word
+   began: a truncated command is exactly a script that needs more input.
+   Slicing the span raw interned `"puts hi` for `"puts hi"`, so the module
+   raised `missing "` instead of `invalid command name "puts hi"`
+   (issue #1595; the clause-text sibling is #1376).
 6. Backslash decoding has exactly one implementation:
    `tcl_lexer::backslash_subst`, re-exported as `tcl_syntax::backslash::decode`
    ([shared-utility-contracts-rust.md](shared-utility-contracts-rust.md)).

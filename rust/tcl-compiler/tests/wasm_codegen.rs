@@ -480,6 +480,41 @@ fn clause_text_keeps_a_trailing_brace_from_a_nested_list_literal() {
     assert_eq!(&module.to_bytes()[0..4], b"\0asm");
 }
 
+/// Issue #1595 — the *whole-command* eval-fallback text path, the sibling of
+/// the clause-text path above. The segmenter's command span deliberately does
+/// not widen a final **quoted** word over its closing `"` (the
+/// `widen_word_end` type gate covers only `{…}` / `[…]`), so slicing that span
+/// raw truncated any command whose last word was quoted: `"puts hi"` interned
+/// as `"puts hi`, and the module raised `missing "` instead of Tcl's
+/// `invalid command name "puts hi"`.
+///
+/// Each vector asserts the exact interned command text — the truncated form is
+/// a strict prefix of the correct one, so only the whole string distinguishes
+/// them.
+#[test]
+fn whole_command_eval_keeps_a_final_quoted_word_intact() {
+    for (source, want) in [
+        // The reported shape: the command *word* itself is quoted, so the
+        // whole command is one quoted word.
+        (r#""puts hi""#, r#"\"puts hi\""#),
+        // A quoted trailing argument of a barriered command.
+        (r#"catch "puts hi""#, r#"catch \"puts hi\""#),
+        // `return` takes its own eval-fallback arm.
+        (r#"proc p {} {return "a b"}"#, r#"return \"a b\""#),
+        // A quoted word ending in a substitution already has its closer
+        // inside the span — it must not gain a second one.
+        (r#"catch "puts $x""#, r#"catch \"puts $x\""#),
+    ] {
+        let mut module = compile_wasm(&format!("{source}\n"));
+        let wat = module.to_wat();
+        assert!(
+            wat.contains(&format!("\"{want}\"")),
+            "{source:?} must intern its command text as {want:?}:\n{wat}"
+        );
+        assert_eq!(&module.to_bytes()[0..4], b"\0asm");
+    }
+}
+
 /// A braced word is one unsubstituted literal argv value: it is materialised
 /// straight from the constant pool, never evaluated as a command.
 #[test]
