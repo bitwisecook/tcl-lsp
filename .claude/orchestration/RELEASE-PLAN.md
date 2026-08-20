@@ -4,10 +4,7 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1668** — `$=` decoder removal + dict canonicalisation owner
-   (`claude/f9-fixes-1608-1617`). Conflict with post-#1669 base resolved,
-   gates green under 1.98, Codex thread resolved; CI running on cbc127e8f.
-   Merge on green, manually close #1608 #1617.
+(empty — merge PRs as lanes open them, on green + resolved feedback)
 
 ## Pre-release issues
 
@@ -17,12 +14,14 @@ No history. Delete items as they complete. Issues carry per-task detail.
   lock — the hold is documented load-bearing for a `did_close` race in
   `main.rs`; design goes on the issue before code. Close only when fix
   survives loaded-loop repro. Census is on `rust` (bad41e1df).
+- **#1656** — ACTIVE (F9 lane, `claude/f9-fix-1656`). `apply $lambda`
+  invisible to fall-through walk; DEFERS_BODY vocabulary; repro in issue.
+- **#1660** — QUEUED behind #1656, same lane (`claude/f9-fix-1660`).
+  Metaclass can't classify same-file creation call; deferred-verdict shape
+  in issue.
 - **#1644** — per-arg lifecycle wiring. Layering decision + acceptance
-  criteria in issue.
-- **#1656** — `apply $lambda` invisible to fall-through walk. Use
-  DEFERS_BODY vocabulary; repro in issue.
-- **#1660** — metaclass can't classify same-file creation call.
-  Deferred-verdict shape in issue.
+  criteria in issue. Assign to first lane that frees (disk too tight for a
+  third concurrent worktree build).
 - **#1662** — wasm LSP server CI gate. USER decision on CI budget; options
   in issue.
 - **E1 (low priority)** — `claude/e1-expr-numbers` @ a8058849d. Remaining:
