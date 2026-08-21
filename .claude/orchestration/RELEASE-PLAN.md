@@ -4,7 +4,11 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-(empty — merge PRs as lanes open them, on green + resolved feedback)
+1. **PR #1676** — untyped-material-arm rule (`claude/f9-fix-1672`,
+   `Fixes #1672`). Burden inverted after measurement: walk past unless body
+   provably blocks (Terminates/ReturnsResult) — naive prove-fall-through
+   abstained on 28/142 incl. the clay corpus. Corpus proof unmoved. CI +
+   Codex pending; merge on green + settled, manually close #1672.
 
 ## Pre-release issues
 
@@ -18,9 +22,6 @@ No history. Delete items as they complete. Issues carry per-task detail.
   fixes; the capture discriminates. Loop restarting on latest `rust`
   (disk wall cleared, 19G free). Checkpoints 1-11 on the issue carry the
   full chain.
-- **#1672** — ACTIVE (F9 lane, `claude/f9-fix-1672`). Untyped material arm:
-  prove fall-through or abstain unless DEFERS_BODY. Deliberate tcllib
-  clay-corpus run required; corpus shifts are findings to report.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
