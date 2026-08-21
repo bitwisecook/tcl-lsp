@@ -6988,23 +6988,13 @@ impl Analyser {
                 // Untyped is not the same as irrelevant (issue #1672). The
                 // registry types the arms whose *selection* it models; a body
                 // it does not type is still a body, and unless the command
-                // declared that it stores one, it runs it here. Whether
-                // control reaches the next statement is then exactly whether
-                // that body falls through — the same requirement `Always` and
-                // `FrameBoundary` carry, reached without a descriptor.
-                //
-                // `uplevel 1 {error stop}`, `eval {error stop}` and
-                // `oo::define C {error stop}` were walked past on the strength
-                // of having no descriptor, while tclsh 8.6.16 / 9.0.4 both
-                // never reach the statement after them. A `proc` declaration's
-                // body is the case the exemption exists for: it cannot run
-                // here, so `proc helper {a} {return $a}` still falls through.
+                // declared that it stores one (`DEFERS_BODY`), it runs it
+                // here — so `uplevel 1 {error stop}`, `eval {error stop}` and
+                // `oo::define C {error stop}` cannot be walked past on the
+                // strength of having no descriptor, which is what this branch
+                // used to do.
                 if self.body_runs_now(&arm.controller)
-                    && !self.static_prefix_falls_through(
-                        arm.body_span,
-                        arm.body_span.end(),
-                        depth + 1,
-                    )
+                    && self.untyped_body_provably_blocks(arm.body_span, depth + 1)
                 {
                     return false;
                 }
@@ -7359,7 +7349,7 @@ impl Analyser {
         {
             return true;
         }
-        !self.body_runs_now(seg)
+        self.body_runs_now(seg)
     }
 
     /// Whether `seg` runs its body argument as part of **this** invocation.
@@ -7387,6 +7377,66 @@ impl Analyser {
         !registry
             .invocation_traits(seg.name(), &args, self.profile.availability_mask)
             .contains(tcl_registry::Traits::DEFERS_BODY)
+    }
+
+    /// Whether a body the registry gives **no** control-arm semantics for is
+    /// proved to stop control before its own end (issue #1672).
+    ///
+    /// The typed arms above ask the opposite question — *prove* the body falls
+    /// through, or abstain — because a descriptor says what the body is for. An
+    /// untyped body carries no such promise, and asking it to prove
+    /// fall-through would abstain on every script written in a vocabulary this
+    /// walk does not model. A class definition script is the case that settles
+    /// it: `oo::class create C { superclass D }` is an untyped body running
+    /// now, and `superclass` is a definition command, not a command — nothing
+    /// here can type it, so demanding a proof of fall-through would abstain on
+    /// the one construct the computed-metaclass walk exists to read (the tcllib
+    /// clay corpus, issue #1571, is built out of exactly these).
+    ///
+    /// So the burden runs the other way: the enclosing statement is walked past
+    /// unless *this* body proves it blocks. Both proofs are registry-owned and
+    /// oracle-checked against tclsh 8.6.16 and 9.0.4, which agree exactly:
+    ///
+    /// * [`InvocationCompletion::Terminates`] — `uplevel 1 {error stop}`,
+    ///   `eval {error stop}`, `oo::define C {error stop}`: the statement after
+    ///   them never runs;
+    /// * [`InvocationCompletion::ReturnsResult`] — `oo::define C {return}`,
+    ///   `eval {return}`, `uplevel 1 {return}`: likewise, the completion
+    ///   propagates out of the body rather than ending at it.
+    ///
+    /// A statement whose completion is [`InvocationCompletion::Unknown`] ends
+    /// the scan with no proof, which leaves the enclosing walk exactly where it
+    /// was before this rule existed. That is the honest limit of an untyped
+    /// body, and it is why nested control inside one (`oo::define C {if {$x}
+    /// {error stop} else {error stop}}`) is not detected: the `if` itself
+    /// completes normally as far as the registry is concerned, and reading its
+    /// arms is the typed question this branch does not have an answer for.
+    ///
+    /// [`InvocationCompletion::Terminates`]: tcl_registry::registry::InvocationCompletion::Terminates
+    /// [`InvocationCompletion::ReturnsResult`]: tcl_registry::registry::InvocationCompletion::ReturnsResult
+    /// [`InvocationCompletion::Unknown`]: tcl_registry::registry::InvocationCompletion::Unknown
+    fn untyped_body_provably_blocks(&mut self, body_span: Span, depth: u32) -> bool {
+        if depth >= MAX_UNKNOWN_BODY_DEPTH || self.registry.is_none() {
+            return false;
+        }
+        let Some(statements) = self.direct_statements_in_span(body_span) else {
+            return false;
+        };
+        for seg in statements {
+            if self.static_statement_falls_through(&seg, depth) {
+                continue;
+            }
+            let Some(registry) = self.registry.as_deref() else {
+                return false;
+            };
+            let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
+            return matches!(
+                registry.invocation_completion(seg.name(), &args, self.profile.availability_mask),
+                tcl_registry::registry::InvocationCompletion::Terminates
+                    | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
+            );
+        }
+        false
     }
 
     fn control_arms_for_segment(&self, seg: &SegmentedCommand) -> ControlArms {
