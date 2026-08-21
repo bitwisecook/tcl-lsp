@@ -4,9 +4,7 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1674** — per-arg lifecycle accessors (`claude/f9-fix-1644`,
-   `Fixes #1644`). Locally green incl. wasm 16/16; CI + Codex round
-   pending. Merge on green + settled feedback, manually close #1644.
+(empty — merge PRs as lanes open them, on green + resolved feedback)
 
 ## Pre-release issues
 
