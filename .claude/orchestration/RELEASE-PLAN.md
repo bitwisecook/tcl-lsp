@@ -18,20 +18,19 @@ No history. Delete items as they complete. Issues carry per-task detail.
   are branches of ONE `FuturesUnordered` driven by the single
   `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
   parent-poll starvation is the leading mechanism; permit starvation
-  excluded (notifications take no permit). VERDICT CONFIRMED on fixed
-  binary: timer fired exactly on schedule, TWO wakes delivered (send +
-  timer halves), ZERO subsequent polls for 43.8s while the runtime polled
-  other tasks — a tokio scheduler task-resumption fault. DOWNGRADE
-  EXPERIMENT RUNNING: tokio pinned 1.51.1 (throwaway lockfile change, not
-  committed), 30-run loop; criteria pre-agreed — any capture on 1.51.1
-  kills the 1.52+ scheduler hypothesis; ~15+ clean ≈ strong corroboration
-  at the recent ~1-in-2 repro. If corroborated: fix = pin tokio <1.52.
-  USER DIRECTIVE: file NOTHING outside this repo — instead an in-repo
-  markdown doc with full repro details + a small self-contained verified
-  reproducer (lane building it now, parallel to the loop).
-  PR #1679 (@ f7e0384d0,
-  `Refs #1657`) — Codex settled; merge on green. #1678 post-release.
-  Checkpoints through 24.
+  excluded (notifications take no permit). VERDICT (confirmed, fixed
+  binary): wakes delivered, task never polled again — and the 1.51.1
+  downgrade CAPTURED byte-identical on run 2, so tokio-version regression
+  is DEAD (lockfile pin never committed). Open frame: LOST WORKER UNPARK
+  (also explains ~100s recovery-on-next-input). Repro doc committed:
+  `docs/design/notes/tokio-task-resumption-wedge-repro.md` (honest result:
+  the distilled sample does NOT reproduce over 5,400 trials; the loaded
+  ext-host loop at ~1-in-2 is the reliable reproducer; all tried
+  ingredients listed). USER DIRECTIVE stands: file NOTHING outside this
+  repo. Next: lane posts mitigation design on the issue, then implements;
+  two discriminating observations recorded in the doc (external poke
+  during live wedge; futex tracing). PR #1679 (@ 3e75d55ea, `Refs #1657`)
+  — merge on green. #1678 post-release. Checkpoints through 26.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
