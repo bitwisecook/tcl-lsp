@@ -812,23 +812,15 @@ impl DocumentStore {
     }
 
     /// The holder's in-flight send, if any, aged against `now`.
+    ///
+    /// A convenience for tests; [`Self::contention`] does **not** call this —
+    /// it clones the entry inside its own single tracking acquisition, so the
+    /// holder and the send it is paired with come from one snapshot (Codex P2
+    /// on #1679).
+    #[cfg(test)]
     fn holder_send_at(&self, now: crate::rt::Instant) -> Option<SendSnapshot> {
         let entry = self.tracking().holder_send.clone()?;
-        let t = entry
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        Some(SendSnapshot {
-            what: t.what,
-            running_for: now.duration_since(t.started),
-            budget: t.budget,
-            polls: t.polls,
-            since_last_poll: now.duration_since(t.last_poll),
-            timer_wakes: read_wake_record(&t.timer_wakes).count,
-            since_last_timer_wake: read_wake_record(&t.timer_wakes)
-                .last
-                .map(|w| now.duration_since(w)),
-            send_wakes: read_wake_record(&t.send_wakes).count,
-        })
+        Some(send_snapshot(&entry, now))
     }
 
     /// Every current waiter, aged against one clock reading.
@@ -865,19 +857,29 @@ impl DocumentStore {
         // *instant*. Both are needed — an earlier version had only the second
         // and could still pair one task's identity with another's metadata.
         let now = crate::rt::Instant::now();
-        let (held_by, last, acquisitions) = {
+        // ONE tracking acquisition for every pairing-sensitive field. The send
+        // entry is cloned in the same acquisition as the holder it belongs to:
+        // it is registered and cleared under the map hold, so an entry seen
+        // beside a holder was registered *by* that holder. Read in a second
+        // acquisition (as an earlier version did), a holder change in between
+        // attributed the new holder's send to the old holder — the torn-
+        // snapshot family this struct's single lock exists to close (Codex P2
+        // on #1679). The telemetry's own counters are read after, under its
+        // own lock; the *pairing* is what the tracking snapshot fixes.
+        let (held_by, last, acquisitions, send_entry) = {
             let tracking = self.tracking();
             (
                 tracking.holder.map(|h| held_for(&h, now)),
                 tracking.last.map(|h| (h.site, now.duration_since(h.since))),
                 tracking.acquisitions,
+                tracking.holder_send.clone(),
             )
         };
         DocumentsContention {
             held_by,
             last,
             acquisitions,
-            holder_send: self.holder_send_at(now),
+            holder_send: send_entry.map(|entry| send_snapshot(&entry, now)),
         }
     }
 
@@ -959,6 +961,35 @@ struct InstrumentedSendTimeout<S, F> {
     sleep: Pin<Box<S>>,
     send: Pin<Box<F>>,
     telemetry: Arc<std::sync::Mutex<SendTelemetry>>,
+}
+
+/// Snapshot one in-flight send, aged against `now`.
+///
+/// Each [`WakeRecord`] is read **once** into a local and both of its derived
+/// fields come from that read (Codex P2 on #1679). Read twice, a wake landing
+/// between the reads produced `timer_wakes: 0` alongside a `since_last_timer_wake`
+/// — and the verdict clause keys on the latter, so the stall line would print
+/// "timer half woken 0 time(s)" next to "the timer FIRED", a self-contradiction
+/// in exactly the discriminator the downgrade experiment depends on.
+fn send_snapshot(
+    entry: &Arc<std::sync::Mutex<SendTelemetry>>,
+    now: crate::rt::Instant,
+) -> SendSnapshot {
+    let t = entry
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let timer = read_wake_record(&t.timer_wakes);
+    let send = read_wake_record(&t.send_wakes);
+    SendSnapshot {
+        what: t.what,
+        running_for: now.duration_since(t.started),
+        budget: t.budget,
+        polls: t.polls,
+        since_last_poll: now.duration_since(t.last_poll),
+        timer_wakes: timer.count,
+        since_last_timer_wake: timer.last.map(|w| now.duration_since(w)),
+        send_wakes: send.count,
+    }
 }
 
 /// A [`WakeRecord`] read without poisoning concerns.
@@ -1231,7 +1262,9 @@ fn describe_documents_waiters(
         if map_held {
             let _ = write!(
                 out,
-                "The map's acquire queue holds {} (parked {:.1}s, polled {} time(s),                  woken {} time(s) — a victim of the holder above, no wake due until it                  releases). ",
+                "The map's acquire queue holds {} (parked {:.1}s, polled {} time(s), \
+                 woken {} time(s) — a victim of the holder above, no wake due until it \
+                 releases). ",
                 w.site,
                 w.parked_for.as_secs_f64(),
                 w.polls,
@@ -35019,8 +35052,17 @@ mod tests {
             );
             assert_eq!(snap.acquisitions, 2);
         }
+    }
 
-        // --- the concurrent half: a genuinely impossible pairing ---
+    /// The concurrent half of the snapshot-coherence pin: genuinely impossible
+    /// pairings, hammered.
+    ///
+    /// Split from [`a_contention_snapshot_never_mixes_two_states`]'s
+    /// deterministic transition checks purely for the line-count lint; the two
+    /// are one argument, and the doc comment there carries it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_contention_snapshot_survives_concurrent_hammering() {
+        let store = Arc::new(DocumentStore::default());
         //
         // Every acquisition uses a site name used exactly once, ever. A site can
         // then never be both the current holder and the most recent previous
@@ -35045,7 +35087,21 @@ mod tests {
                         // `&'static str` per acquisition. Leaked deliberately and
                         // bounded by the loop below; a few thousand short strings.
                         let site: &'static str = Box::leak(format!("hammer-{n}").into_boxed_str());
-                        drop(store.lock(site).await);
+                        let held = store.lock(site).await;
+                        // Run an instrumented send under the hold, tagged with
+                        // the SAME unique string, so the sampler can check that
+                        // a snapshot never pairs one holder with another
+                        // holder's send (Codex P2 on #1679: `contention` read
+                        // the holder and the send entry under two separate
+                        // tracking acquisitions, and a holder change between
+                        // them attributed the new holder's send to the old).
+                        let _ = instrumented_delivery_send(&store, site, async {
+                            for _ in 0..32 {
+                                crate::rt::yield_now().await;
+                            }
+                        })
+                        .await;
+                        drop(held);
                         crate::rt::yield_now().await;
                     }
                 })
@@ -35054,7 +35110,8 @@ mod tests {
 
         let mut previous = store.contention().acquisitions;
         let mut seen_both = 0_u32;
-        for _ in 0..20_000 {
+        let mut seen_pairs = 0_u32;
+        for _ in 0..100_000 {
             let snap = store.contention();
             assert!(
                 snap.acquisitions >= previous,
@@ -35076,6 +35133,18 @@ mod tests {
                     "a snapshot showing a holder must show its acquisition too",
                 );
             }
+            if let (Some(held), Some(send)) = (snap.held_by, snap.holder_send) {
+                seen_pairs += 1;
+                assert_eq!(
+                    held.site, send.what,
+                    "this snapshot pairs one holder with another holder's send. \
+                     Every hold tags its send with its own unique string, so the \
+                     two can only disagree if the holder and the send entry were \
+                     read under different tracking acquisitions — and a stall \
+                     line built from them would attribute the send verdict to \
+                     the wrong task (Codex P2 on #1679)",
+                );
+            }
         }
 
         stop.store(true, std::sync::atomic::Ordering::Relaxed);
@@ -35086,6 +35155,12 @@ mod tests {
             seen_both > 0,
             "the hammer never caught the map held with a previous holder \
              recorded, so the concurrent half proved nothing",
+        );
+        assert!(
+            seen_pairs > 0,
+            "the sampler never caught a holder together with its in-flight \
+             send, so the pairing assertion above was vacuous and proved \
+             nothing",
         );
     }
 
@@ -35334,7 +35409,8 @@ mod tests {
         );
         assert!(
             !held_victim.contains("lost or never sent"),
-            "a waiter behind a held map must not be given the lost-wake verdict:              {held_victim}",
+            "a waiter behind a held map must not be given the lost-wake verdict: \
+             {held_victim}",
         );
     }
 
@@ -35446,6 +35522,66 @@ mod tests {
             t.polls >= 2,
             "the expiry requires a poll after the wake, and it must be counted",
         );
+    }
+
+    /// A wake-record snapshot must come from one read, not two.
+    ///
+    /// Codex P2 on #1679. `SendSnapshot` used to read the same `WakeRecord`
+    /// twice — once for the count, once for the last-wake instant. A wake
+    /// landing between the reads produced `count: 0` alongside
+    /// `last: Some(..)`, and the verdict clause keys on the latter: the stall
+    /// line would print "timer half woken 0 time(s)" beside "the timer FIRED",
+    /// a self-contradiction in the exact discriminator the tokio-downgrade
+    /// experiment depends on.
+    ///
+    /// Raced with a fresh record per iteration because the counters are
+    /// monotonic: after the first wake, `count >= 1` for ever and the torn
+    /// pairing is unobservable, so one long-lived record would test nothing.
+    /// Per iteration the writer fires exactly one wake while the sampler
+    /// tight-loops; against the double-read implementation the sampler's
+    /// window lands inside the tear often enough that four thousand
+    /// iterations catch it dependably.
+    #[test]
+    fn a_wake_record_snapshot_is_one_read() {
+        for _ in 0..4_000 {
+            let entry = Arc::new(std::sync::Mutex::new(SendTelemetry {
+                what: "raced send",
+                started: crate::rt::Instant::now(),
+                budget: DELIVERY_SEND_BUDGET,
+                polls: 1,
+                last_poll: crate::rt::Instant::now(),
+                send_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+                timer_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+            }));
+            let record = Arc::clone(
+                &entry
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .timer_wakes,
+            );
+            let writer = std::thread::spawn(move || {
+                let mut r = record
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                r.count += 1;
+                r.last = Some(crate::rt::Instant::now());
+            });
+            let now = crate::rt::Instant::now();
+            loop {
+                let snap = send_snapshot(&entry, now);
+                assert!(
+                    snap.since_last_timer_wake.is_none() || snap.timer_wakes >= 1,
+                    "a snapshot reports a last timer wake with a zero wake count \
+                     — the two fields were read from the record at different \
+                     moments, and the stall line built from them contradicts \
+                     itself in the timer verdict (Codex P2 on #1679)",
+                );
+                if snap.timer_wakes >= 1 {
+                    break;
+                }
+            }
+            writer.join().expect("writer thread must not panic");
+        }
     }
 
     /// The holder-send clause must state the right verdict for each shape.
