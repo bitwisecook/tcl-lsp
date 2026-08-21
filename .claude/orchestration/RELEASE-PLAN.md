@@ -18,8 +18,10 @@ No history. Delete items as they complete. Issues carry per-task detail.
   in #1670, NOT excluded as cause). Audit: both are leaf mutexes never held
   across an await, so the 80s hold is either FIFO contention on
   `pull_diag_cache` or `redeliver_later` extending the hold — different
-  fixes; the capture discriminates. Lane looping 30 loaded runs on latest
-  `rust` (~2-in-20 reproduce). A green loop alone does not close this.
+  fixes; the capture discriminates. Loop PAUSED (10 clean runs — not
+  evidence) for a disk wall; restart when box has >8G free. Needs only:
+  rebuild release server from `rust` (all 9 markers merged) + loop script.
+  Checkpoints 1-11 on the issue carry the full chain.
 - **#1672** — ACTIVE (F9 lane, `claude/f9-fix-1672`). Untyped material arm:
   prove fall-through or abstain unless DEFERS_BODY. Deliberate tcllib
   clay-corpus run required; corpus shifts are findings to report.
