@@ -19,8 +19,7 @@
 # Floating stable toolchain. See docs/rust-rewrite.md for rationale.
 #
 # Resolved at run time, so `cargo clippy -D warnings` can start failing on
-# untouched code the day a new stable lands (1.97.0, 2026-07-07, widened
-# `question_mark` and added `manual_assert_eq`). Keep `Cargo.toml`'s
+# untouched code the day a new stable lands (1.98.0, 2026-08-18). Keep `Cargo.toml`'s
 # `rust-version` in step with whatever stable currently is.
 [toolchain]
 channel = "stable"

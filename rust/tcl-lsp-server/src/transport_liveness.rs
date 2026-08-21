@@ -29,7 +29,6 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 
 use tokio::sync::Semaphore;
@@ -49,39 +48,6 @@ pub const UNBOUNDED_TRANSPORT_CONCURRENCY: usize = usize::MAX;
 /// `tower-lsp-server`'s default transport configuration. JSON-RPC
 /// notifications do not consume these permits.
 pub const DEFAULT_HANDLER_CONCURRENCY: usize = 4;
-
-/// Total polls of every handler future this transport has ever driven.
-///
-/// The parent-liveness reading for issue #1657. Every handler future — request
-/// and notification alike — is a child of the single `buffer_unordered` set
-/// inside `Server::serve`, so a child is only re-polled when that parent task
-/// runs. A stall line that finds a waiter woken-but-never-polled needs to know
-/// whether the parent is driving *anything*:
-///
-/// * counter climbing during the stall → the parent runs and polls other
-///   children, so the un-polled waiter was lost between the parent and that
-///   one child (the `FuturesUnordered` bookkeeping, or the child's waker);
-/// * counter frozen → the parent task itself is not being driven, and every
-///   child starves together — the whole-server signature.
-///
-/// Relaxed: a diagnostic counter read by a human out of a log line, never a
-/// synchronisation point.
-pub static HANDLER_FUTURE_POLLS: AtomicU64 = AtomicU64::new(0);
-
-/// Counts every poll of the wrapped handler future in
-/// [`HANDLER_FUTURE_POLLS`], then forwards.
-struct PollCounted<F> {
-    inner: Pin<Box<F>>,
-}
-
-impl<F: Future> Future for PollCounted<F> {
-    type Output = F::Output;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        HANDLER_FUTURE_POLLS.fetch_add(1, Ordering::Relaxed);
-        self.inner.as_mut().poll(cx)
-    }
-}
 
 /// A service wrapper which keeps ordinary LSP requests at `limit` concurrent
 /// while admitting every notification immediately.
@@ -152,22 +118,20 @@ where
         // readiness contract, this lets LspService register a request with its
         // cancellation map before a later `$/cancelRequest` is read.
         let future = self.inner.call(request);
-        Box::pin(PollCounted {
-            inner: Box::pin(async move {
-                let permit = if is_notification {
-                    None
-                } else {
-                    Some(
-                        permits
-                            .acquire_owned()
-                            .await
-                            .expect("handler semaphore is owned by the queued futures"),
-                    )
-                };
-                let result = future.await;
-                drop(permit);
-                result
-            }),
+        Box::pin(async move {
+            let permit = if is_notification {
+                None
+            } else {
+                Some(
+                    permits
+                        .acquire_owned()
+                        .await
+                        .expect("handler semaphore is owned by the queued futures"),
+                )
+            };
+            let result = future.await;
+            drop(permit);
+            result
         })
     }
 }

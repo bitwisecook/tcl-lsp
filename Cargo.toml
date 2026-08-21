@@ -157,15 +157,15 @@ edition = "2024"
 # 2024 is the current Rust edition (editions ship ~every 3 years: 2015 / 2018 /
 # 2021 / 2024). MSRV tracks the toolchain the workspace is built and tested
 # against — the floating `stable` pinned by rust-toolchain.toml — so it bumps
-# whenever stable does. Current stable is 1.97.0, released 2026-07-07.
+# whenever stable does. Current stable is 1.98.0, released 2026-08-18.
 # (≥ 1.85 was already required for salsa 0.28 / tcl-lsp-db and the runtime/rust
 # port's is_none_or.)
 #
 # Because CI resolves `stable` at run time, a new release can start failing
-# pr-gate's `cargo clippy -D warnings` on untouched code the day it lands: 1.97
-# widened `question_mark` and added `manual_assert_eq`. `rustup update` before
+# pr-gate's `cargo clippy -D warnings` on untouched code the day it lands: 1.98
+# widened `redundant_closure_for_method_calls`. `rustup update` before
 # debugging a clippy failure you cannot reproduce locally.
-rust-version = "1.97"
+rust-version = "1.98"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/bitwisecook/tcl-lsp"
 authors = ["tcl-lsp contributors"]

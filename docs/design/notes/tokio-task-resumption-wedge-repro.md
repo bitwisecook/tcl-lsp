@@ -1,16 +1,56 @@
 # The #1657 task-resumption wedge: evidence, reproduction, and a distillation attempt
 
-Status: **open**. The wedge is characterised to a single mechanism-shaped
-question but not yet root-caused. Per direction, nothing here has been filed
-outside this repository.
+Status: **contained; runtime trigger still unproved**. Per direction, nothing
+here has been filed outside this repository.
+
+## Independent adversarial review — 2026-08-21
+
+The captures below prove a narrower fact than the original conclusion: the
+guard-owning future was woken and then was not polled again for tens of
+seconds. They do **not** prove where that wake was lost, that the task reached a
+Tokio run queue, or that a worker unpark was lost. In particular:
+
+- the external no-op-spawn probe produced no demonstrated resumption of the
+  exact frozen telemetry registration, so it is retained only as an opt-in
+  evidence experiment (`TCL_LSP_WEDGE_EVIDENCE`), never as normal recovery;
+- the useful waiter poll/wake telemetry wraps only the document map's contended
+  slow path; #1679's global every-handler poll counter and holder-send timeout
+  instrumentation are not retained on the normal hot path;
+- cancelling `SinkExt::send` at a timeout is not an atomic "nothing was
+  enqueued" operation: `start_send` may have succeeded before `poll_flush`
+  parked, so timeout-and-retry can duplicate a notification;
+- Tokio task dumps expose task IDs and traces, not scheduler state bits, and a
+  trace walk may omit an already-notified task. The evidence hook therefore
+  correlates the exact ID and reports absence without interpreting it as a
+  state;
+- the task-dump build needs both Tokio's `taskdump` Cargo feature and
+  `--cfg tokio_unstable`; this branch wires the feature only for an explicit
+  Linux `tokio_taskdump` evidence build.
+
+The production containment removes the convicted blast radius instead of
+guessing at scheduler recovery. A single persistent diagnostics publisher owns
+client I/O outside all request-critical locks. Producers atomically update the
+pull cache and deposit into a latest-wins per-URI mailbox while holding the
+document map, then release the map before awaiting delivery. A close either
+replaces a pending stale set or follows an already-started set on the same
+consumer. No client send is cancelled or retried, and a lost publisher stops
+diagnostics rather than the whole language server.
+
+The branch builds and tests with rustc 1.98.0 and resolves Tokio 1.53.1. The
+Tokio 1.51.1 reproduction remains useful negative version evidence, but is not
+a reason to pin an old runtime.
+
+The remainder of this note is the historical capture and distillation record;
+its "lost unpark" language documents the hypothesis tested at the time, not a
+current root-cause verdict.
 
 ## Environment
 
 | | |
 | --- | --- |
-| Server | `tcl-lsp-server`, branch `claude/f6h-1657-pollshim` (instrumentation merged to `rust` via #1667, #1670, #1677, #1679) |
+| Server | `tcl-lsp-server`, capture branch `claude/f6h-1657-pollshim` (earlier instrumentation from #1667, #1670, and #1677; #1679 was the unmerged attempted fix/repro reviewed here) |
 | rustc | 1.98.0 (88d9e12ae 2026-08-18) |
-| tokio | 1.53.1 pinned; also reproduced with `--precise 1.51.1` |
+| tokio | 1.53.1 locked/resolved; also reproduced with `--precise 1.51.1` |
 | OS | Ubuntu 24.04.4 LTS, kernel `6.18.44-fc-v21` (VM), 4 vCPUs |
 | Load | ext-host suite under `nproc/2` spinner processes |
 
@@ -74,20 +114,22 @@ Full trail: issue #1657, checkpoints 1–25. The captures that matter:
 | tokio 1.52+ scheduler changes | **byte-identical wedge on tokio 1.51.1** (checkpoint 25) |
 | transport parent starvation | handler futures polled during the stall window; the holder is a spawned task the transport does not own |
 
-## The open question, stated precisely
+## The historical open question and hypothesis
 
 A task whose waker is invoked — twice, from two sources — is never scheduled
 onto any queue a worker runs, for tens of seconds, while sibling tasks
 proceed; workers show parked in futex throughout; recovery coincides with the
 next external input.
 
-The frame that fits every observation is a **lost worker unpark**: waker runs
+The frame proposed at the time was a **lost worker unpark**: waker runs
 → task is queued → the final unpark of a parked worker is lost → the task
 sits runnable until some *other* event unparks a worker (in production, the
 next client message — which is why the wedge lasts "until the next request"
 and the server always recovers). Candidates below every line of this
 codebase: an old latent tokio park/unpark race, or futex/timer delivery at
-the kernel/VM layer (`6.18.44-fc-v21`). Neither is proven.
+the kernel/VM layer (`6.18.44-fc-v21`). Neither was proven, and the later
+external-spawn experiment did not validate the recovery consequence this
+hypothesis predicted.
 
 ## What reliably reproduces it: the in-repo loaded loop
 
