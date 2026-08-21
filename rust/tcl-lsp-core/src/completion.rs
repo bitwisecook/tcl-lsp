@@ -717,7 +717,14 @@ pub fn completions(
     // The context test is registry-driven (`ArgRole::Expr`); see
     // `crate::expr_context`.
     if let Some(registry) = registry
-        && crate::expr_context::expr_arg_context_at(source, line, character, &line_index, registry)
+        && crate::expr_context::expr_arg_context_at(
+            source,
+            line,
+            character,
+            &line_index,
+            registry,
+            crate::document_floor::DocumentFloor::new(analysis, profile),
+        )
     {
         items.extend(math_function_completions(registry, profile, &partial));
     }
@@ -1566,43 +1573,16 @@ fn registry_method_items(registry: &CommandRegistry, class_q: &str) -> Option<Ve
 /// The guaranteed-available version floor for a command's owning package,
 /// resolved from the document's `package require` statements.
 ///
-/// When several `package require <pkg> <req>` lines name the same package, the
-/// most restrictive (highest) lower bound wins.  Returns `None` when the
-/// command is not package-gated or the package was required without a version
-/// (permissive — every option surfaces).
+/// The rule itself lives in [`crate::document_floor::DocumentFloor`], the one
+/// place a request-time provider resolves a floor. Completion is no longer its
+/// only consumer, so the definition moved to where the next one can reach it
+/// without copying it (issue #1644).
 fn package_version_floor<'a>(
     analysis: &'a AnalysisResult,
     spec: &tcl_registry::CommandSpec,
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<&'a str> {
-    let pkg = profile
-        .keyed_pin_for(spec)
-        .map(|pin| pin.package)
-        .or_else(|| spec.owning_package())?;
-    let require_floor = analysis
-        .package_requires
-        .iter()
-        // Only *unconditional* requires guarantee the version; an optional
-        // probe (`catch {package require Tk 8.7}`, or a `require` inside an
-        // `if` arm) must not raise the floor and hide a gated option/command.
-        .filter(|req| req.name == pkg && !req.conditional)
-        .filter_map(|req| req.version.as_deref())
-        .map(tcl_registry::version::requirement_lower_bound)
-        .max_by(|a, b| tcl_registry::version::compare(a, b));
-    // The profile's library pin supplies the base floor (§7.1: the shipped
-    // Tk on a plain Tcl base, a keyed vendor surface at its D5
-    // oldest-supported default); an explicit require can only raise it.
-    let pin_floor = profile.library_floor(pkg, &analysis.library_versions);
-    match (pin_floor, require_floor) {
-        (Some(pin), Some(req)) => {
-            if tcl_registry::version::compare(req, pin).is_gt() {
-                Some(req)
-            } else {
-                Some(pin)
-            }
-        }
-        (pin, require) => pin.or(require),
-    }
+    crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
 }
 
 fn switch_partial_at_position(
@@ -3803,6 +3783,148 @@ mod tests {
         assert!(
             l2.iter().any(|l| l == "ttk::button"),
             "Tk 8.5 must offer ttk::button: {l2:?}",
+        );
+    }
+
+    /// A command whose second argument — values and role alike — a pack
+    /// author declared as arriving in release 3.0 (issue #1644).
+    ///
+    /// The stored parallel slices are the projection at *no floor*, exactly as
+    /// the pack loader seals them, with the authored rows retained beside
+    /// them.
+    fn gated_row_registry() -> CommandRegistry {
+        const LATER_VALUES: &[tcl_registry::ArgValue] = &[tcl_registry::ArgValue {
+            value: "brandnew",
+            ..tcl_registry::ArgValue::DEFAULT
+        }];
+        const ROWS: &[tcl_registry::spec::VersionedArgRow] = &[
+            // Argument 0 — ungated, the control.
+            tcl_registry::spec::VersionedArgRow {
+                index: 0,
+                values: LATER_VALUES,
+                ..tcl_registry::spec::VersionedArgRow::DEFAULT
+            },
+            // Argument 1 — an expression argument only from 3.0.
+            tcl_registry::spec::VersionedArgRow {
+                index: 1,
+                lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("3.0"),
+                role: Some(tcl_registry::ArgRole::Expr),
+                ..tcl_registry::spec::VersionedArgRow::DEFAULT
+            },
+            // Argument 2 — its enumerable values arrive with it at 3.0.
+            tcl_registry::spec::VersionedArgRow {
+                index: 2,
+                lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("3.0"),
+                values: LATER_VALUES,
+                ..tcl_registry::spec::VersionedArgRow::DEFAULT
+            },
+        ];
+        const VALUES: &[(u8, &[tcl_registry::ArgValue])] = &[(0, LATER_VALUES), (2, LATER_VALUES)];
+        const ROLES: &[(u8, tcl_registry::ArgRole)] = &[(1, tcl_registry::ArgRole::Expr)];
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "gadget",
+            required_package: Some("Gadgetry"),
+            arg_rows: ROWS,
+            arg_values: VALUES,
+            arg_roles: ROLES,
+            arity: tcl_registry::Arity::at_least(0),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        registry
+    }
+
+    #[test]
+    fn arg_value_completion_gates_a_versioned_argument_row() {
+        // Issue #1644's acceptance, "not offered" half, end to end: the values
+        // of an argument introduced at 3.0 are offered against a 3.0 floor and
+        // not against a 2.0 one. Nothing in completion changed to make this
+        // work — the row gate lands inside `available_arg_values_at`, the
+        // accessor completion already calls with the document's floor.
+        let registry = gated_row_registry();
+        let labels = |src: &str| -> Vec<String> {
+            let analysis = analyse(src);
+            completions(
+                src,
+                1,
+                18,
+                &analysis,
+                Some(&registry),
+                None,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            )
+            .into_iter()
+            .map(|i| i.label)
+            .collect()
+        };
+        let old = labels("package require Gadgetry 2.0\ngadget one two bra\n");
+        assert!(
+            !old.iter().any(|l| l == "brandnew"),
+            "a 2.0 floor must not offer the 3.0 argument's values: {old:?}"
+        );
+        let new = labels("package require Gadgetry 3.0\ngadget one two bra\n");
+        assert!(
+            new.iter().any(|l| l == "brandnew"),
+            "a 3.0 floor must offer them: {new:?}"
+        );
+    }
+
+    #[test]
+    fn ungated_argument_values_are_offered_at_every_floor() {
+        // FP control for the above: argument 0 of the same command carries no
+        // lifecycle, so the floor changes nothing about it. Without this, a
+        // gate that swallowed *every* row would read as a pass.
+        let registry = gated_row_registry();
+        for require in ["2.0", "3.0"] {
+            let src = format!("package require Gadgetry {require}\ngadget bra\n");
+            let analysis = analyse(&src);
+            let labels: Vec<String> = completions(
+                &src,
+                1,
+                10,
+                &analysis,
+                Some(&registry),
+                None,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            )
+            .into_iter()
+            .map(|i| i.label)
+            .collect();
+            assert!(
+                labels.iter().any(|l| l == "brandnew"),
+                "an ungated argument is offered at {require}: {labels:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn math_function_completion_gates_a_versioned_expr_row() {
+        // The "not role-typed" half, through the same document floor: the
+        // `expr`-argument context test asks the registry which arguments are
+        // `ArgRole::Expr`, and at a 2.0 floor argument 1 is not one — so the
+        // math-function vocabulary is not offered inside it.
+        let registry = gated_row_registry();
+        let offers_math = |src: &str| -> bool {
+            let analysis = analyse(src);
+            completions(
+                src,
+                1,
+                14,
+                &analysis,
+                Some(&registry),
+                None,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            )
+            .into_iter()
+            .any(|item| item.label == "sqrt")
+        };
+        assert!(
+            !offers_math("package require Gadgetry 2.0\ngadget one {sq\n"),
+            "argument 1 is not an expression at a 2.0 floor"
+        );
+        assert!(
+            offers_math("package require Gadgetry 3.0\ngadget one {sq\n"),
+            "it is from 3.0"
         );
     }
 

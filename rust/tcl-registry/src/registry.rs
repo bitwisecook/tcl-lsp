@@ -2951,15 +2951,43 @@ impl CommandRegistry {
     /// (`namespace upvar`'s leading namespace word) and still declare the
     /// repeating pair tail.
     ///
+    /// A per-argument row a pack gated with a lifecycle is honoured only by
+    /// [`Self::arg_indices_for_role_at`]; this form answers at no floor, which
+    /// is the permissive reading every other lifecycle query gives an
+    /// unresolved version.
+    ///
     /// [`RepeatedArgLayout`]: crate::repeated::RepeatedArgLayout
     #[must_use]
     pub fn arg_indices_for_role(&self, name: &str, args: &[&str], role: ArgRole) -> Vec<usize> {
+        self.arg_indices_for_role_at(name, args, role, None)
+    }
+
+    /// [`Self::arg_indices_for_role`] at a resolved package floor
+    /// (issue #1644).
+    ///
+    /// The static role table is the projection of the command's authored
+    /// per-argument rows, so an argument a later release introduced is not
+    /// role-typed at an older floor — the role half of the same gate
+    /// `available_arg_values_at` applies to enumerable values. Only the static
+    /// table moves: an `arg_role_resolver` is authored code rather than rows,
+    /// and repeated tails and option-value roles carry no lifecycle of their
+    /// own.
+    ///
+    /// `None` is permissive, exactly as for the unversioned form.
+    #[must_use]
+    pub fn arg_indices_for_role_at(
+        &self,
+        name: &str,
+        args: &[&str],
+        role: ArgRole,
+        package_version: Option<&str>,
+    ) -> Vec<usize> {
         // `CommandPrefix` positions (with their appended arities) are owned by
         // [`Self::command_prefixes`]; delegate so highlighting, param-trait
         // inference, and the call-reference extractor all read one source.
         if role == ArgRole::CommandPrefix {
             return self
-                .command_prefixes(name, args)
+                .command_prefixes_at(name, args, package_version)
                 .into_iter()
                 .map(|(i, _)| i)
                 .collect();
@@ -2989,7 +3017,8 @@ impl CommandRegistry {
                 );
             } else {
                 out.extend(
-                    sub.arg_roles
+                    sub.arg_tables_at(package_version)
+                        .roles()
                         .iter()
                         .filter(|(_, r)| *r == role)
                         .map(|(i, _)| *i as usize + 1),
@@ -3027,7 +3056,8 @@ impl CommandRegistry {
             );
         } else {
             out.extend(
-                spec.arg_roles
+                spec.arg_tables_at(package_version)
+                    .roles()
                     .iter()
                     .filter(|(_, r)| {
                         *r == role && (role != ArgRole::Body || case_body_roles_allowed)
@@ -3516,9 +3546,43 @@ impl CommandRegistry {
     /// call-graph recording, and the callback-arity check.
     ///
     /// For subcommand-based commands pass the subcommand as `args[0]`.
+    ///
+    /// A per-argument row a pack gated with a lifecycle is honoured only by
+    /// [`Self::command_prefixes_at`]; this form answers at no floor, the
+    /// permissive reading every other lifecycle query gives an unresolved
+    /// version.
     #[must_use]
     pub fn command_prefixes(&self, name: &str, args: &[&str]) -> Vec<(usize, AppendedArity)> {
-        self.command_prefixes_with_arguments(name, CommandPrefixArguments::literals(args))
+        self.command_prefixes_at(name, args, None)
+    }
+
+    /// [`Self::command_prefixes`] at a resolved package floor (issue #1644,
+    /// PR #1674 review).
+    ///
+    /// A `-appends` row *is* a per-argument row — the loader gives it
+    /// [`ArgRole::CommandPrefix`] as its role — so a prefix position a later
+    /// release introduced must vanish at an older floor, both from the role
+    /// list and from the appended arity the callback-arity check reads. The
+    /// role query delegates here rather than filtering afterwards, so the
+    /// position and its arity can never disagree about which release they
+    /// belong to.
+    ///
+    /// Only the static table moves: a `command_prefix_resolver` is authored
+    /// code rather than rows, and an option-declared prefix carries the
+    /// option's own lifecycle, which `push_command_prefix_options` already
+    /// respects.
+    #[must_use]
+    pub fn command_prefixes_at(
+        &self,
+        name: &str,
+        args: &[&str],
+        package_version: Option<&str>,
+    ) -> Vec<(usize, AppendedArity)> {
+        self.command_prefixes_with_arguments(
+            name,
+            CommandPrefixArguments::literals(args),
+            package_version,
+        )
     }
 
     /// Source-aware command-prefix resolution.
@@ -3536,13 +3600,14 @@ impl CommandRegistry {
         let Some(arguments) = CommandPrefixArguments::structured(spellings, words) else {
             return Vec::new();
         };
-        self.command_prefixes_with_arguments(name, arguments)
+        self.command_prefixes_with_arguments(name, arguments, None)
     }
 
     fn command_prefixes_with_arguments(
         &self,
         name: &str,
         args: CommandPrefixArguments<'_>,
+        package_version: Option<&str>,
     ) -> Vec<(usize, AppendedArity)> {
         let Some(spec) = self.get(name) else {
             return Vec::new();
@@ -3563,7 +3628,8 @@ impl CommandRegistry {
                 );
             } else {
                 out.extend(
-                    sub.command_prefixes
+                    sub.arg_tables_at(package_version)
+                        .prefixes()
                         .iter()
                         .map(|(i, a)| (*i as usize + 1, *a)),
                 );
@@ -3576,7 +3642,12 @@ impl CommandRegistry {
         if let Some(resolver) = spec.command_prefix_resolver {
             out.extend(resolver(args).into_iter().map(|(i, a)| (i as usize, a)));
         } else {
-            out.extend(spec.command_prefixes.iter().map(|(i, a)| (*i as usize, *a)));
+            out.extend(
+                spec.arg_tables_at(package_version)
+                    .prefixes()
+                    .iter()
+                    .map(|(i, a)| (*i as usize, *a)),
+            );
         }
         push_command_prefix_options(&mut out, spec.options, args.spellings(), 0);
         out.retain(|&(idx, _)| idx < n);
@@ -6804,6 +6875,54 @@ mod tests {
 
     /// `trace add variable name ops body` declares arg 1
     /// (the variable name) as `VarWrite` via the registry.
+    #[test]
+    fn arg_indices_for_role_honours_a_gated_row_at_the_resolved_floor() {
+        // Issue #1644 — the role half. A pack argument introduced at 3.0 is
+        // not role-typed against a 2.0 floor, is from 3.0, and stays typed at
+        // no floor (permissive, matching every other lifecycle query).
+        const ROWS: &[crate::spec::VersionedArgRow] = &[
+            crate::spec::VersionedArgRow {
+                index: 0,
+                role: Some(ArgRole::VarWrite),
+                ..crate::spec::VersionedArgRow::DEFAULT
+            },
+            crate::spec::VersionedArgRow {
+                index: 1,
+                lifecycle: Lifecycle::introduced_in("3.0"),
+                role: Some(ArgRole::VarWrite),
+                ..crate::spec::VersionedArgRow::DEFAULT
+            },
+        ];
+        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (1, ArgRole::VarWrite)];
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: "gatedwrite",
+            arg_rows: ROWS,
+            arg_roles: ROLES,
+            arity: Arity::at_least(0),
+            ..CommandSpec::DEFAULT
+        });
+        let writes = |floor: Option<&str>| {
+            reg.arg_indices_for_role_at("gatedwrite", &["a", "b"], ArgRole::VarWrite, floor)
+        };
+        assert_eq!(
+            writes(Some("2.0")),
+            vec![0],
+            "the 3.0 argument is not typed"
+        );
+        assert_eq!(writes(Some("3.0")), vec![0, 1], "typed from 3.0");
+        assert_eq!(
+            writes(None),
+            vec![0, 1],
+            "an unresolved floor is permissive"
+        );
+        assert_eq!(
+            reg.arg_indices_for_role("gatedwrite", &["a", "b"], ArgRole::VarWrite),
+            vec![0, 1],
+            "the unversioned form is the no-floor projection"
+        );
+    }
+
     #[test]
     fn arg_indices_for_role_trace_add_variable_var_write() {
         let reg = CommandRegistry::build_default();

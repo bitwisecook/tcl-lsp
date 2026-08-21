@@ -51,6 +51,7 @@ pub mod code_lens;
 pub mod completion;
 pub mod declaration;
 pub mod definition;
+pub mod document_floor;
 pub mod document_links;
 pub mod document_symbols;
 mod executable_regions;

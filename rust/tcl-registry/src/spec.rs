@@ -1066,6 +1066,108 @@ pub struct ProjectedArgs {
     pub prefixes: Vec<(u8, crate::arg_role::AppendedArity)>,
 }
 
+/// One command's per-argument tables **as seen at a resolved package floor**
+/// (issue #1644).
+///
+/// Borrowed on the fast path and owned only when it must be: a spec whose rows
+/// are all ungated — every shipped command, and every pack that declares no
+/// lifecycle on an argument — keeps `arg_rows` empty, so its stored slices
+/// already *are* the answer at any floor and are handed back by reference. A
+/// gated row is the only thing that makes a projection necessary, and then the
+/// filtered tables are owned for the length of the query.
+///
+/// The floor stays an **argument** rather than becoming registry state:
+/// `CommandRegistry` handles are cached per (profile, pack overlay) and shared
+/// across documents, while a version floor is a per-document fact, so a
+/// registry that remembered one would answer the wrong document.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgTables<'a> {
+    /// No row is gated, so the spec's own slices answer at every floor.
+    Stored {
+        /// As `CommandSpec::arg_roles`.
+        roles: &'a [(u8, ArgRole)],
+        /// As `CommandSpec::arg_types`.
+        types: &'a [(u8, ArgTypeHint)],
+        /// As `CommandSpec::arg_values`.
+        values: &'a [(u8, &'static [ArgValue])],
+        /// As `CommandSpec::closed_value_args`.
+        closed: &'a [u8],
+        /// As `CommandSpec::arg_presentation`.
+        presentation: &'a [(u8, ArgPresentation)],
+        /// As `CommandSpec::command_prefixes`.
+        prefixes: &'a [(u8, crate::arg_role::AppendedArity)],
+    },
+    /// A gated row was filtered out at this floor.
+    Projected(ProjectedArgs),
+}
+
+impl ArgTables<'_> {
+    /// `(index, role)` rows that exist at this floor.
+    #[must_use]
+    pub fn roles(&self) -> &[(u8, ArgRole)] {
+        match self {
+            Self::Stored { roles, .. } => roles,
+            Self::Projected(projected) => &projected.roles,
+        }
+    }
+
+    /// `(index, type hint)` rows that exist at this floor.
+    #[must_use]
+    pub fn types(&self) -> &[(u8, ArgTypeHint)] {
+        match self {
+            Self::Stored { types, .. } => types,
+            Self::Projected(projected) => &projected.types,
+        }
+    }
+
+    /// `(index, values)` rows that exist at this floor.
+    #[must_use]
+    pub fn values(&self) -> &[(u8, &'static [ArgValue])] {
+        match self {
+            Self::Stored { values, .. } => values,
+            Self::Projected(projected) => &projected.values,
+        }
+    }
+
+    /// The enumerable values declared for `index` at this floor, empty when
+    /// the argument has no value set here — the floor-aware twin of
+    /// `CommandSpec::arg_values_at`.
+    #[must_use]
+    pub fn values_at(&self, index: u8) -> &'static [ArgValue] {
+        self.values()
+            .iter()
+            .find(|(i, _)| *i == index)
+            .map_or(&[], |(_, values)| values)
+    }
+
+    /// Closed-value argument indices that exist at this floor.
+    #[must_use]
+    pub fn closed(&self) -> &[u8] {
+        match self {
+            Self::Stored { closed, .. } => closed,
+            Self::Projected(projected) => &projected.closed,
+        }
+    }
+
+    /// `(index, presentation)` rows that exist at this floor.
+    #[must_use]
+    pub fn presentation(&self) -> &[(u8, ArgPresentation)] {
+        match self {
+            Self::Stored { presentation, .. } => presentation,
+            Self::Projected(projected) => &projected.presentation,
+        }
+    }
+
+    /// `(index, appended arity)` command-prefix rows that exist at this floor.
+    #[must_use]
+    pub fn prefixes(&self) -> &[(u8, crate::arg_role::AppendedArity)] {
+        match self {
+            Self::Stored { prefixes, .. } => prefixes,
+            Self::Projected(projected) => &projected.prefixes,
+        }
+    }
+}
+
 /// Project `rows` into the six parallel slices, keeping only rows that apply
 /// at `target`.
 ///
@@ -2421,6 +2523,33 @@ impl CommandSpec {
             .map(|(_, r)| *r)
     }
 
+    /// This command's per-argument tables as they exist at
+    /// `package_version` (issue #1644).
+    ///
+    /// The floor-aware form of the six parallel `arg_*` slices. With no gated
+    /// row — every shipped command, and every pack that put no lifecycle on an
+    /// argument — the stored slices are returned by reference and this is a
+    /// pointer copy; a gated row is what makes the projection necessary, and
+    /// only then is anything built.
+    ///
+    /// `None` is permissive, matching every other lifecycle query: with no
+    /// floor resolved there is nothing to gate against, so a versioned pack
+    /// answers exactly as an unversioned one until a floor is known.
+    #[must_use]
+    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
+        if self.arg_rows.is_empty() {
+            return ArgTables::Stored {
+                roles: self.arg_roles,
+                types: self.arg_types,
+                values: self.arg_values,
+                closed: self.closed_value_args,
+                presentation: self.arg_presentation,
+                prefixes: self.command_prefixes,
+            };
+        }
+        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
+    }
+
     /// Look up enumerable argument values for the 0-based `index`
     /// *after* the command name.  Returns an empty slice when this
     /// argument has no fixed value set.  Mirrors
@@ -2437,10 +2566,18 @@ impl CommandSpec {
     /// `package_version` — the command-level twin of
     /// [`SubCommand::arg_value_available_for_version`].
     ///
-    /// `index` is 0-based *after the command name*. Both gates apply: the
-    /// value's own [`ArgValue::lifecycle`] and any
-    /// [`Self::versioned_arg_values`] entry naming it. A value with neither
-    /// is ungated, and an ungated value is always available.
+    /// `index` is 0-based *after the command name*. Three gates apply, and a
+    /// value must pass all of them: the **row** the value was declared on
+    /// (issue #1644), the value's own [`ArgValue::lifecycle`], and any
+    /// [`Self::versioned_arg_values`] entry naming it. A value with none of
+    /// the three is ungated, and an ungated value is always available.
+    ///
+    /// The row gate is not the same question as the value gate, and reads
+    /// opposite when it fails: a value the row still declares but that is
+    /// itself gated out is *declared and unavailable*, while a value whose
+    /// whole argument does not exist at this floor is not declared here at
+    /// all. Both answer `false`, which is why the check is written as "the
+    /// value survives the row projection" rather than "the row survives".
     #[must_use]
     pub fn arg_value_available_for_version(
         &self,
@@ -2448,12 +2585,16 @@ impl CommandSpec {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let declared = self
-            .arg_values_at(index)
+        let tables = self.arg_tables_at(package_version);
+        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
+            || !self.arg_values_at(index).iter().any(|v| v.value == value);
+        let declared = tables
+            .values_at(index)
             .iter()
             .find(|v| v.value == value)
             .is_none_or(|v| v.available_for_version(package_version));
-        declared
+        survives_row
+            && declared
             && self
                 .versioned_arg_values
                 .iter()
@@ -2471,7 +2612,11 @@ impl CommandSpec {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        self.arg_values_at(index)
+        // Iterated over the *projected* table, so an argument whose whole row
+        // a later release introduced offers nothing at an older floor rather
+        // than being offered and then filtered value by value (issue #1644).
+        self.arg_tables_at(package_version)
+            .values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -3400,12 +3545,16 @@ impl SubCommand {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let declared = self
-            .arg_values_at(index)
+        let tables = self.arg_tables_at(package_version);
+        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
+            || !self.arg_values_at(index).iter().any(|v| v.value == value);
+        let declared = tables
+            .values_at(index)
             .iter()
             .find(|v| v.value == value)
             .is_none_or(|v| v.available_for_version(package_version));
-        declared
+        survives_row
+            && declared
             && self
                 .versioned_arg_values
                 .iter()
@@ -3422,7 +3571,11 @@ impl SubCommand {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        self.arg_values_at(index)
+        // Iterated over the *projected* table, so an argument whose whole row
+        // a later release introduced offers nothing at an older floor rather
+        // than being offered and then filtered value by value (issue #1644).
+        self.arg_tables_at(package_version)
+            .values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -3612,6 +3765,25 @@ impl SubCommand {
             }
         }
         specs
+    }
+
+    /// This subcommand's per-argument tables as they exist at
+    /// `package_version` — the subcommand twin of
+    /// [`CommandSpec::arg_tables_at`] (issue #1644), with the same fast path
+    /// and the same permissive `None`.
+    #[must_use]
+    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
+        if self.arg_rows.is_empty() {
+            return ArgTables::Stored {
+                roles: self.arg_roles,
+                types: self.arg_types,
+                values: self.arg_values,
+                closed: self.closed_value_args,
+                presentation: self.arg_presentation,
+                prefixes: self.command_prefixes,
+            };
+        }
+        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
     }
 
     /// Look up enumerable argument values for the 0-based
@@ -3976,5 +4148,105 @@ mod versioned_arg_row_tests {
             2,
             "an unresolved floor must not silently drop rows"
         );
+    }
+
+    /// A command that gates no argument answers from its stored slices at
+    /// every floor — the fast path (issue #1644).
+    ///
+    /// This is what keeps the wiring free for the whole shipped registry: no
+    /// spec has a gated row, so no projection is ever built and the tables a
+    /// consumer sees are the same `&'static` slices as before.
+    #[test]
+    fn an_ungated_command_answers_from_its_stored_slices() {
+        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
+        const SPEC: CommandSpec = CommandSpec {
+            name: "ungated",
+            arg_roles: ROLES,
+            ..CommandSpec::DEFAULT
+        };
+        for floor in [None, Some("1.0"), Some("9.9")] {
+            let tables = SPEC.arg_tables_at(floor);
+            assert!(
+                matches!(tables, ArgTables::Stored { .. }),
+                "no gated row means nothing to project at {floor:?}"
+            );
+            assert_eq!(tables.roles(), ROLES);
+            assert!(
+                std::ptr::eq(tables.roles(), ROLES),
+                "the stored slice is handed back, not copied"
+            );
+        }
+    }
+
+    /// The answer #1644 exists to change: at a floor below the row's
+    /// introduction the argument is neither role-typed nor offered its values;
+    /// at and above it, both.
+    #[test]
+    fn a_gated_row_changes_the_role_and_value_answers() {
+        const NEW_VALUES: &[ArgValue] = &[ArgValue {
+            value: "later",
+            ..ArgValue::DEFAULT
+        }];
+        const ROWS: &[VersionedArgRow] = &[
+            VersionedArgRow {
+                index: 0,
+                role: Some(ArgRole::VarWrite),
+                ..VersionedArgRow::DEFAULT
+            },
+            VersionedArgRow {
+                index: 1,
+                lifecycle: Lifecycle::introduced_in("3.0"),
+                role: Some(ArgRole::Body),
+                values: NEW_VALUES,
+                ..VersionedArgRow::DEFAULT
+            },
+        ];
+        // The stored slices are the projection at no floor, exactly as the
+        // loader seals them.
+        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (1, ArgRole::Body)];
+        const VALUES: &[(u8, &[ArgValue])] = &[(1, NEW_VALUES)];
+        const SPEC: CommandSpec = CommandSpec {
+            name: "gated",
+            arg_rows: ROWS,
+            arg_roles: ROLES,
+            arg_values: VALUES,
+            ..CommandSpec::DEFAULT
+        };
+
+        let old = SPEC.arg_tables_at(Some("2.0"));
+        assert_eq!(
+            old.roles(),
+            &[(0, ArgRole::VarWrite)],
+            "the 3.0 argument is not role-typed at 2.0"
+        );
+        assert!(
+            old.values_at(1).is_empty(),
+            "and offers no values at 2.0: {:?}",
+            old.values_at(1)
+        );
+        assert!(
+            SPEC.available_arg_values_at(1, Some("2.0")).is_empty(),
+            "the value accessor completion calls must agree"
+        );
+        assert!(
+            !SPEC.arg_value_available_for_version(1, "later", Some("2.0")),
+            "a value whose whole argument does not exist yet is not available"
+        );
+
+        let new = SPEC.arg_tables_at(Some("3.0"));
+        assert_eq!(new.roles(), ROLES, "both arguments are typed from 3.0");
+        assert_eq!(
+            SPEC.available_arg_values_at(1, Some("3.0"))
+                .iter()
+                .map(|value| value.value)
+                .collect::<Vec<_>>(),
+            vec!["later"],
+            "and the value is offered from 3.0"
+        );
+        assert!(SPEC.arg_value_available_for_version(1, "later", Some("3.0")));
+
+        // FN guard: an unresolved floor stays permissive.
+        assert_eq!(SPEC.arg_tables_at(None).roles(), ROLES);
+        assert_eq!(SPEC.available_arg_values_at(1, None).len(), 1);
     }
 }
