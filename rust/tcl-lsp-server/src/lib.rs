@@ -592,6 +592,7 @@ struct WaiterTelemetry {
 #[derive(Debug, Clone, Copy)]
 struct WaiterSnapshot {
     /// Identity of the telemetry registration, stable until deregistration.
+    #[cfg(not(target_family = "wasm"))]
     telemetry_id: usize,
     site: &'static str,
     parked_for: std::time::Duration,
@@ -747,6 +748,7 @@ impl DocumentStore {
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
                 WaiterSnapshot {
+                    #[cfg(not(target_family = "wasm"))]
                     telemetry_id: Arc::as_ptr(entry) as usize,
                     site: t.site,
                     parked_for: now.duration_since(t.parked_since),
