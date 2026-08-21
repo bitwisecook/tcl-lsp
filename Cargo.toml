@@ -192,6 +192,10 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
+# The #1657 taskdump evidence hook is gated on cfgs set only by local evidence
+# builds (RUSTFLAGS="--cfg tokio_unstable --cfg tokio_taskdump"); declared so
+# ordinary builds do not warn on the gate.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(tokio_unstable)", "cfg(tokio_taskdump)"] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

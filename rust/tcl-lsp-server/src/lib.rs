@@ -1433,6 +1433,13 @@ fn unpark_watchdog_step(
             "[nudge] outcome: STILL WEDGED — polls unchanged 500ms after external spawns; \
              the queued task itself is lost, not merely the worker unpark",
         );
+        // The direct observation, where the build allows it: walk every live
+        // task and print its trace and state. Requires
+        // RUSTFLAGS="--cfg tokio_unstable --cfg tokio_taskdump" (local
+        // evidence builds only; inert otherwise). Once per process — the dump
+        // is heavy and one wedge yields one state.
+        #[cfg(all(tokio_unstable, tokio_taskdump))]
+        try_taskdump(handle, log);
     } else {
         let _ = writeln!(
             log,
@@ -1441,6 +1448,37 @@ fn unpark_watchdog_step(
         );
     }
     true
+}
+
+/// Dump every live task's trace into the nudge log — the wedged task's own
+/// await stack and state, observed directly rather than inferred.
+///
+/// Local evidence builds only (`--cfg tokio_unstable --cfg tokio_taskdump`);
+/// never enabled in CI. Bounded: once per process, five-second cap — a dump
+/// requires worker cooperation, and a wedged runtime may not give it.
+#[cfg(all(tokio_unstable, tokio_taskdump))]
+fn try_taskdump(handle: &tokio::runtime::Handle, log: &mut dyn std::io::Write) {
+    static ONCE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if ONCE.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let outcome = handle.block_on(async {
+        tokio::time::timeout(std::time::Duration::from_secs(5), handle.dump()).await
+    });
+    match outcome {
+        Ok(dump) => {
+            for (i, task) in dump.tasks().iter().enumerate() {
+                let _ = writeln!(log, "[taskdump] task {i}:\n{}", task.trace());
+            }
+        }
+        Err(_) => {
+            let _ = writeln!(
+                log,
+                "[taskdump] timed out after 5s — the runtime would not cooperate, \
+                 which is itself evidence",
+            );
+        }
+    }
 }
 
 /// Start the #1657 unpark watchdog: a plain std thread, deliberately outside
