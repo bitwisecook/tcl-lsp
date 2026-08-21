@@ -30,15 +30,66 @@ use serde_json::Value;
 use tcl_bigip::parser::BigipConfig;
 use tcl_cli_support::{OutputTarget, write_text_output};
 
+/// Closed vocabulary of object kinds `f5 explain` resolves against. Threaded
+/// through [`Model::inv`]/[`Model::get`]/[`Model::resolve`] and the
+/// `kind_hint` walker in [`run_explain`], replacing what was a `&str`
+/// compared against string literals at every one of those sites (the same
+/// six spellings are enumerated as a separate, non-identical `(module,
+/// object_type)` vocabulary in `f5-cli/src/commands/diff.rs`'s `SPECIALISED`
+/// — that one is out of scope here: it has three more members and a
+/// different shape, and isn't part of this issue's verified inventory).
+///
+/// `ExplainReport::kind` / `ExplainJson::kind` (the JSON/text report's `kind`
+/// field) stay `String` — that's the serialised wire output — but are now
+/// populated via [`ExplainKind::as_str`] instead of a separate literal.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum ExplainKind {
+    Virtual,
+    Pool,
+    Profile,
+    Persistence,
+    Rule,
+    SnatPool,
+}
+
+impl ExplainKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            ExplainKind::Virtual => "virtual",
+            ExplainKind::Pool => "pool",
+            ExplainKind::Profile => "profile",
+            ExplainKind::Persistence => "persistence",
+            ExplainKind::Rule => "rule",
+            ExplainKind::SnatPool => "snatpool",
+        }
+    }
+}
+
+impl std::str::FromStr for ExplainKind {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "virtual" => Ok(ExplainKind::Virtual),
+            "pool" => Ok(ExplainKind::Pool),
+            "profile" => Ok(ExplainKind::Profile),
+            "persistence" => Ok(ExplainKind::Persistence),
+            "rule" => Ok(ExplainKind::Rule),
+            "snatpool" => Ok(ExplainKind::SnatPool),
+            _ => Err(()),
+        }
+    }
+}
+
 /// Map a `Placed.table_name` to the kinds explain resolves against.
-fn table_to_kind(table: &str) -> Option<&'static str> {
+fn table_to_kind(table: &str) -> Option<ExplainKind> {
     match table {
-        "virtual_servers" => Some("virtual"),
-        "pools" => Some("pool"),
-        "profiles" => Some("profile"),
-        "persistence" => Some("persistence"),
-        "rules" => Some("rule"),
-        "snat_pools" => Some("snatpool"),
+        "virtual_servers" => Some(ExplainKind::Virtual),
+        "pools" => Some(ExplainKind::Pool),
+        "profiles" => Some(ExplainKind::Profile),
+        "persistence" => Some(ExplainKind::Persistence),
+        "rules" => Some(ExplainKind::Rule),
+        "snat_pools" => Some(ExplainKind::SnatPool),
         _ => None,
     }
 }
@@ -47,12 +98,12 @@ fn table_to_kind(table: &str) -> Option<&'static str> {
 /// fallback picks a deterministic key.
 struct Model {
     default_partition: String,
-    by_kind: HashMap<&'static str, Vec<(String, Value)>>,
+    by_kind: HashMap<ExplainKind, Vec<(String, Value)>>,
 }
 
 impl Model {
     fn build(cfg: &BigipConfig) -> Self {
-        let mut by_kind: HashMap<&'static str, Vec<(String, Value)>> = HashMap::new();
+        let mut by_kind: HashMap<ExplainKind, Vec<(String, Value)>> = HashMap::new();
         for placed in &cfg.objects {
             if let Some(kind) = table_to_kind(placed.table_name) {
                 by_kind
@@ -67,18 +118,18 @@ impl Model {
         }
     }
 
-    fn inv(&self, kind: &str) -> &[(String, Value)] {
-        self.by_kind.get(kind).map_or(&[][..], Vec::as_slice)
+    fn inv(&self, kind: ExplainKind) -> &[(String, Value)] {
+        self.by_kind.get(&kind).map_or(&[][..], Vec::as_slice)
     }
 
-    fn get(&self, kind: &str, path: &str) -> Option<&Value> {
+    fn get(&self, kind: ExplainKind, path: &str) -> Option<&Value> {
         self.inv(kind)
             .iter()
             .find(|(p, _)| p == path)
             .map(|(_, v)| v)
     }
 
-    fn resolve(&self, kind: &str, name: &str) -> Option<String> {
+    fn resolve(&self, kind: ExplainKind, name: &str) -> Option<String> {
         resolve_name(name, self.inv(kind), &self.default_partition)
     }
 }
@@ -153,9 +204,9 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
             continue;
         };
         let resolved = model
-            .resolve("profile", pref)
+            .resolve(ExplainKind::Profile, pref)
             .unwrap_or_else(|| pref.to_owned());
-        if let Some(profile) = model.get("profile", &resolved) {
+        if let Some(profile) = model.get(ExplainKind::Profile, &resolved) {
             let ptype = profile
                 .get("profile_type")
                 .and_then(|t| t.get("e"))
@@ -173,9 +224,9 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
     for v in list_items(vs.get("rules")) {
         let Some(rref) = v.as_str() else { continue };
         let resolved = model
-            .resolve("rule", rref)
+            .resolve(ExplainKind::Rule, rref)
             .unwrap_or_else(|| rref.to_owned());
-        if let Some(rule) = model.get("rule", &resolved) {
+        if let Some(rule) = model.get(ExplainKind::Rule, &resolved) {
             let body = rule.get("source").and_then(Value::as_str).unwrap_or("");
             let events: BTreeSet<String> = tcl_irules::when_blocks(body)
                 .into_iter()
@@ -204,9 +255,9 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
             continue;
         };
         let resolved = model
-            .resolve("persistence", pref)
+            .resolve(ExplainKind::Persistence, pref)
             .unwrap_or_else(|| pref.to_owned());
-        if let Some(prof) = model.get("persistence", &resolved) {
+        if let Some(prof) = model.get(ExplainKind::Persistence, &resolved) {
             let ptype = prof
                 .get("persistence_type")
                 .and_then(Value::as_str)
@@ -221,9 +272,9 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
     let mut snat = Vec::new();
     if let Some(snatpool) = non_empty_str(vs.get("snatpool")) {
         let resolved = model
-            .resolve("snatpool", snatpool)
+            .resolve(ExplainKind::SnatPool, snatpool)
             .unwrap_or_else(|| snatpool.to_owned());
-        if let Some(sp) = model.get("snatpool", &resolved) {
+        if let Some(sp) = model.get(ExplainKind::SnatPool, &resolved) {
             let members = list_items(sp.get("members")).len();
             snat.push(format!("snatpool {resolved} ({members} member(s))"));
         } else {
@@ -237,8 +288,8 @@ fn explain_virtual(model: &Model, vs: &Value) -> Vec<Section> {
 
     let mut pool_lines = Vec::new();
     if let Some(pool) = non_empty_str(vs.get("pool")) {
-        if let Some(resolved) = model.resolve("pool", pool) {
-            if let Some(p) = model.get("pool", &resolved) {
+        if let Some(resolved) = model.resolve(ExplainKind::Pool, pool) {
+            if let Some(p) = model.get(ExplainKind::Pool, &resolved) {
                 pool_lines = explain_pool_lines(p);
             }
         } else {
@@ -328,24 +379,24 @@ pub(crate) struct ExplainReport {
 pub(crate) fn compute_explain(
     cfg: &BigipConfig,
     target: &str,
-    kind_hint: Option<&str>,
+    kind_hint: Option<ExplainKind>,
 ) -> ExplainReport {
     let model = Model::build(cfg);
 
-    let resolved = if kind_hint.is_none() || kind_hint == Some("virtual") {
+    let resolved = if kind_hint.is_none() || kind_hint == Some(ExplainKind::Virtual) {
         model
-            .resolve("virtual", target)
-            .and_then(|p| model.get("virtual", &p).cloned())
-            .map(|vs| ("virtual", vs))
+            .resolve(ExplainKind::Virtual, target)
+            .and_then(|p| model.get(ExplainKind::Virtual, &p).cloned())
+            .map(|vs| (ExplainKind::Virtual, vs))
     } else {
         None
     }
     .or_else(|| {
-        if kind_hint.is_none() || kind_hint == Some("pool") {
+        if kind_hint.is_none() || kind_hint == Some(ExplainKind::Pool) {
             model
-                .resolve("pool", target)
-                .and_then(|p| model.get("pool", &p).cloned())
-                .map(|pool| ("pool", pool))
+                .resolve(ExplainKind::Pool, target)
+                .and_then(|p| model.get(ExplainKind::Pool, &p).cloned())
+                .map(|pool| (ExplainKind::Pool, pool))
         } else {
             None
         }
@@ -354,13 +405,13 @@ pub(crate) fn compute_explain(
     let Some((actual_kind, obj)) = resolved else {
         return ExplainReport {
             target: target.to_owned(),
-            kind: kind_hint.unwrap_or("?").to_owned(),
+            kind: kind_hint.map_or_else(|| "?".to_owned(), |k| k.as_str().to_owned()),
             found: false,
             sections: Vec::new(),
         };
     };
 
-    let sections = if actual_kind == "virtual" {
+    let sections = if actual_kind == ExplainKind::Virtual {
         explain_virtual(&model, &obj)
     } else {
         vec![("pool", explain_pool_lines(&obj))]
@@ -368,7 +419,7 @@ pub(crate) fn compute_explain(
 
     ExplainReport {
         target: target.to_owned(),
-        kind: actual_kind.to_owned(),
+        kind: actual_kind.as_str().to_owned(),
         found: true,
         sections,
     }
@@ -377,19 +428,19 @@ pub(crate) fn compute_explain(
 pub(crate) fn full_path_of(
     report: &ExplainReport,
     cfg: &BigipConfig,
-    kind_hint: Option<&str>,
+    kind_hint: Option<ExplainKind>,
 ) -> String {
     // Re-resolve to recover the matched object's full_path for the header.
     let model = Model::build(cfg);
     let target = &report.target;
-    if (kind_hint.is_none() || kind_hint == Some("virtual"))
-        && report.kind == "virtual"
-        && let Some(p) = model.resolve("virtual", target)
+    if (kind_hint.is_none() || kind_hint == Some(ExplainKind::Virtual))
+        && report.kind == ExplainKind::Virtual.as_str()
+        && let Some(p) = model.resolve(ExplainKind::Virtual, target)
     {
         return p;
     }
-    if report.kind == "pool"
-        && let Some(p) = model.resolve("pool", target)
+    if report.kind == ExplainKind::Pool.as_str()
+        && let Some(p) = model.resolve(ExplainKind::Pool, target)
     {
         return p;
     }
@@ -422,7 +473,15 @@ pub fn run_explain(
     json: bool,
     output: Option<&Path>,
 ) -> anyhow::Result<u8> {
-    let kind_hint = if kind == "auto" { None } else { Some(kind) };
+    // `kind` is clap-validated to "virtual"/"pool"/"auto" (see `cli.rs`), so
+    // the parse always succeeds for the non-"auto" case; unreachable via the
+    // CLI, an unparseable value now falls back to `None` (== "auto") rather
+    // than an opaque hint nothing could ever match.
+    let kind_hint = if kind == "auto" {
+        None
+    } else {
+        kind.parse::<ExplainKind>().ok()
+    };
 
     // Resolve inputs via the UCS-aware loader, so a `.ucs` — plain or encrypted
     // — is transparently extracted to SCF and parsed just like a `.conf`/`.scf`.
