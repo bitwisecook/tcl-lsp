@@ -18,14 +18,17 @@ No history. Delete items as they complete. Issues carry per-task detail.
   are branches of ONE `FuturesUnordered` driven by the single
   `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
   parent-poll starvation is the leading mechanism; permit starvation
-  excluded (notifications take no permit). Instrumentation merged through
-  PR #1677 (ac54a51c0). Poll-discriminator shim BUILT and pushed
-  (`claude/f6h-1657-pollshim`): per-waiter poll/wake telemetry + parent
-  liveness counter; the stall line now states the verdict —
-  woken-after-last-poll + parent climbing = lost between parent and child;
-  + parent frozen = whole-parent starvation; never-woken = wake lost/never
-  sent. Loop running 30 loaded runs. 70s pre-send hold split off as #1678
-  (post-release). Checkpoints through 20 on the issue.
+  excluded (notifications take no permit). PICTURE INVERTED by pollshim
+  capture: waiters were victims — the HOLDER froze inside a 2s timeout for
+  149.3s while the time driver provably worked. Singular question: timer
+  wake never delivered vs fired-but-never-polled. Instrument answering it
+  is on `claude/f6h-1657-pollshim` (PR #1679, `Refs #1657` — merge on
+  green): hand-rolled timeout with recording wakers, verdict stated in the
+  stall line. SUSPECT: tokio 1.53.0 time-driver rework (lockfile adopted
+  1.53.1 Aug 15; no sighting predates it); 1.52.0 downgrade experiment
+  pre-staged with criteria agreed (30 clean ≈ corroboration at ~1-in-8;
+  any capture on 1.52 kills it) — runs after current loop. 70s pre-send
+  hold split off as #1678 (post-release). Checkpoints through 22.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
