@@ -4,27 +4,16 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-(empty — #1657 is the only open work item; F9 lane idle, held for the
-#1662 gate once #1657 closes)
+(empty)
 
 ## Pre-release issues
 
-- **#1657** — wedge endgame. USER AUTHORED THE FIX: bf99e22f7 pushed as
-  PR #1679's head — DiagnosticPublisher mailbox containment (checkpoint-32
-  (a)), removes the unsafe #1670 timeout/retry entirely (send cancel can
-  duplicate — start_send may precede poll_flush park), watchdog demoted to
-  evidence-only (TCL_LSP_WEDGE_EVIDENCE), taskdump reading corrected
-  (traces not state bits; doc: "contained; runtime trigger still
-  unproved"), workspace to rustc 1.98 + tokio 1.53.1 unpinned. Lane
-  VALIDATING (no pushes — user's head): adversarial read, gates, loaded
-  acceptance loop vs checkpoint-32 bar (30+ runs, zero stall/wedged,
-  default build). CI on the push watched. Merge is the user's call.
-  #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
-- **E1 (low priority)** — `claude/e1-expr-numbers` @ a8058849d. Remaining:
-  fmt, 8.4/8.5/9.1 matrix + guard flips, gates, adversary, PR
+- **E1 (active)** — `claude/e1-expr-numbers` @ a8058849d, rebasing its two
+  owner/fix commits onto `rust` after #1679. Remaining: resolve drift, fmt,
+  8.4/8.5/9.1 matrix + guard flips, gates, adversary, PR
   (`Fixes #1382 #1425 #1428 #1432`).
 
 ## Release
@@ -38,8 +27,6 @@ from release laptop. Never run unilaterally.
 
 - Merge when CI green + feedback resolved + no conflicts. Closes-keywords
   don't fire on `rust` — close issues manually with merge SHA.
-- Wedge (~1-in-5 `test-ext`): read failure block first, post census evidence
-  to #1657, then one re-run. Wedges twice → hold PR.
 - wasm: `crate::rt::Instant` only on wasm-reachable server paths;
   `make lsp-server-wasm-test` before push. Pages deploy is the only
   post-merge gate until #1662.
