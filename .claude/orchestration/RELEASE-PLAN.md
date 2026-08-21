@@ -21,11 +21,15 @@ No history. Delete items as they complete. Issues carry per-task detail.
   (each nudge IS the poke experiment; outcome line is the falsifier).
   PR #1679 (`Refs #1657`) AT MERGE POINT — CI fully green on bd48a241e,
   threads resolved, no conflicts, body current: USER HOLD, user merges (or
-  clears) after their deeper review. Off-branch evidence continues:
-  taskdump catch-run live (dumps every task's state on next STILL-WEDGED
-  nudge — direct observation of the NOTIFIED-set/queue-gone shape); live
-  wedge specimen kept (pid 8044). Acceptance loop tallying. Close #1657
-  only on the agreed bar (checkpoint 27). #1678 post-release.
+  clears) after their deeper review. MECHANISM PROVEN by taskdump: task in
+  owned list, no queue, NOTIFIED set — every wake no-ops (550+ nudges);
+  unrecoverable in-process, bug in tokio internals, unreachable from repo
+  code. Fix = CONTAINMENT: lane drafting design options on the issue
+  (a: sends outside documents/turn holds w/ epoch revalidation — leaked
+  task holds nothing; b: watchdog force-release; c: detect-and-restart),
+  recommendation + acceptance criteria, NO pushes while the review hold
+  stands. Taskdump doc section rides next sanctioned push. Close #1657
+  only on the new acceptance bar. #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
