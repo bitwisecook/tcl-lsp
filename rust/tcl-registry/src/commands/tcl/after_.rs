@@ -127,7 +127,20 @@ pub fn spec() -> CommandSpec {
         // The `cancel` subform destroys a scheduled
         // handler (`Tcl_AfterObjCmd`, tclTimer.c) — see the `destructive`
         // flag on the `cancel` subcommand.
-        traits: Traits::BYTE_COMPILED,
+        //
+        // `DEFERS_BODY`: every form that takes a script *schedules* it — as a
+        // timer or an idle handler — and returns; nothing in it runs before
+        // the caller's next statement, and it runs at all only once the event
+        // loop is entered (`vwait` / `update`). A consumer asking "can this
+        // body stop control reaching my next statement?" must therefore be
+        // told no, exactly as `proc`'s stored body is (issue #1672).
+        //
+        // tclsh 8.6.16 and 9.0.4, byte-identical: with
+        // `proc p {} { after 0 {error stop}; set ::reached 1 }`, `p` completes
+        // and `::reached` is set — the scheduled error never touches this
+        // call. (It surfaces through `interp bgerror` later, which is the
+        // event loop's business, not this statement's.)
+        traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         arity: Arity::at_least(1),
         arg_role_resolver: Some(after_arg_roles),
         // The default form's deferred script runs later, at global level

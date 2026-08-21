@@ -31,6 +31,9 @@ pub fn spec() -> CommandSpec {
         // Snit typemethod bodies run in a dispatch context.
         arg_roles: &[(2, ArgRole::ParamList), (3, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY`, for the same reason as `snit::method` and proved the
+        // same way on both oracles (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Define a type method outside a type definition body.",
             synopsis: &["snit::typemethod type name arglist body"],

@@ -6048,6 +6048,131 @@ mod class_factories {
     }
 
     #[test]
+    fn a_readable_body_that_runs_now_but_is_untyped_still_abstains() {
+        // TP (#1672) — the readable twin of the #1652 guard. These commands
+        // carry no typed control-arm semantics, so the arm they contribute was
+        // *ignored*: the walk claimed the creation below on the strength of
+        // having no descriptor, not on any reading of the body.
+        //
+        // Every one of them runs its script as part of this call, and tclsh
+        // 8.6.16 / 9.0.4 agree the statement after it is not reached — the
+        // class does not exist afterwards — for both blocking completions the
+        // registry can prove: a raise (`error stop`, `Terminates`) and a
+        // propagating return (`return`, `ReturnsResult`). The `return` row is
+        // not merely the conservative reading: both interpreters really do
+        // leave the enclosing procedure, `oo::define`'s definition script
+        // included.
+        for prefix in [
+            "    uplevel 1 {error stop}\n",
+            "    eval {error stop}\n",
+            "    oo::define ::T::Mother {error stop}\n",
+            "    uplevel 1 {return}\n",
+            "    eval {return}\n",
+            "    oo::define ::T::Mother {return}\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                !result.all_classes.contains_key("::T::D::class"),
+                "an aborting body that runs now must abstain: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn a_readable_body_that_runs_now_and_completes_is_not_a_blocker() {
+        // TP control: the rule must cost nothing when the body does not block.
+        // tclsh 8.6.16 / 9.0.4 agree the class *is* created after every prefix
+        // here.
+        //
+        // The third vector is the one that sets the burden of proof. A
+        // definition script is written in a vocabulary this walk cannot type —
+        // `method` is not a command, it is a word `oo::define` understands —
+        // so requiring an untyped body to *prove* it falls through would
+        // abstain here, and on `oo::class create C { superclass D }`, which is
+        // the construct the computed-metaclass walk exists to read. The rule is
+        // therefore the other way round: walk past unless the body proves it
+        // blocks (see `untyped_body_provably_blocks`).
+        for prefix in [
+            "    eval {set zz 1}\n",
+            "    uplevel 1 {set zz 1}\n",
+            "    oo::define ::T::Mother {method extra {} {}}\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                result.all_classes.contains_key("::T::D::class"),
+                "a body that completes must not abstain: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
+    fn a_stored_body_that_cannot_fall_through_is_still_not_a_blocker() {
+        // FP guard, and the reason the rule is "runs now" rather than
+        // "readable": a `proc` body is *stored*. It never runs at this call,
+        // so what it would do to control flow says nothing about the
+        // declaration, which completes normally — tclsh 8.6.16 / 9.0.4 both
+        // create the class after `proc helper {a} {return $a}`, whose body
+        // manifestly does not fall through.
+        //
+        // `after` is the same fact with a different mechanism: the script is
+        // scheduled, not run, so both oracles reach the creation even when the
+        // scheduled script would raise.
+        // The rest of the list is the widened audit PR #1676's review asked
+        // for: reading the *absence* of `DEFERS_BODY` as "runs now" makes a
+        // missing trait a silent wrong answer, so every store-only form the
+        // registry ships was enumerated and measured. Each row below is one
+        // that gained the trait, and each was proved on tclsh 8.6.16 and
+        // 9.0.4 with `proc p {} { FORM {error stop}; set ::reached 1 }` —
+        // `::reached` is set on both for all of them.
+        for prefix in [
+            "    proc helper {a} {return $a}\n",
+            "    after 0 {error stop}\n",
+            "    after idle {error stop}\n",
+            "    package ifneeded probe 1.0 {error stop}\n",
+            "    fileevent $ch readable {error stop}\n",
+            "    ::tcl::OptProc probe {} {error stop}\n",
+            "    tcltest::loadScript {error stop}\n",
+            "    lambda {} {error stop}\n",
+            "    lambda@ :: {} {error stop}\n",
+            "    defer::defer {error stop}\n",
+            "    defer::with {} {error stop}\n",
+            "    defer::autowith {error stop}\n",
+            "    processman::onexit probe {error stop}\n",
+            "    report::defstyle probe {} {error stop}\n",
+            "    snit::macro probe {} {error stop}\n",
+            "    snit::method ::T probe {} {error stop}\n",
+            "    snit::typemethod ::T probe {} {error stop}\n",
+        ] {
+            let src = COMPUTED_METACLASS.replace(
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+                &format!(
+                    "{prefix}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+                ),
+            );
+            let result = analysis(&src, "tcl9.0");
+            assert!(
+                result.all_classes.contains_key("::T::D::class"),
+                "a stored body must stay ignorable: {prefix:?}; got {:?}",
+                result.all_classes.keys().collect::<Vec<_>>()
+            );
+        }
+    }
+
+    #[test]
     fn an_apply_of_an_unreadable_lambda_still_abstains() {
         // FP guard (#1656) — the same soundness class as the `uplevel` vector
         // above, reached through the *other* role. `apply`'s argument is
@@ -6170,6 +6295,35 @@ mod class_factories {
         assert!(
             codes.iter().any(|code| code == "E207"),
             "past the cap the walk must say it stopped; got {codes:?}"
+        );
+    }
+
+    #[test]
+    fn deeply_nested_untyped_bodies_do_not_blow_the_static_walk_stack() {
+        // The same native-stack safety net for the *untyped* body relaxation
+        // (#1672). `untyped_body_provably_blocks` re-enters the statement walk,
+        // which can re-enter it: `eval {eval {eval {…}}}` drives that recursion
+        // by nesting alone, so it carries the same `MAX_UNKNOWN_BODY_DEPTH`
+        // bound. Past the cap it abstains, the direction it takes for anything
+        // it cannot read, so this asserts termination and a well-formed result
+        // rather than a resolution.
+        //
+        // 40 is many times the cap (8) and well under the braced-body descent's
+        // own limit, so a failure here is this walk's recursion, not that one's.
+        let mut nest = "    set zz 1\n".to_owned();
+        for _ in 0..40 {
+            nest = format!("    eval {{\n{nest}    }}\n");
+        }
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            &format!(
+                "{nest}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::Mother"),
+            "the literally-written metaclass must survive the deep walk"
         );
     }
 

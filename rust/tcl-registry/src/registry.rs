@@ -7137,6 +7137,141 @@ mod tests {
         assert!(seen > 0, "the sweep must not be vacuous");
     }
 
+    /// Every command that carries an untyped [`ArgRole::Body`] position and
+    /// runs it *now*, pinned by name.
+    ///
+    /// The analyser reads the absence of `DEFERS_BODY` as "this body runs as
+    /// part of this invocation" and, since issue #1672, lets such a body stop
+    /// its fall-through walk. That makes a *missing* `DEFERS_BODY` a silent
+    /// wrong answer rather than a missing one, so the inventory is pinned:
+    /// adding a Body-role command fails this test until its author puts it on
+    /// one of the two lists below, which is the moment to ask the question.
+    ///
+    /// Store-only forms do not appear here — they carry `DEFERS_BODY` and the
+    /// sweep skips them. Commands the registry *types* do not appear either:
+    /// a typed arm is answered by [`ControlArmSemantics`], not by this trait.
+    ///
+    /// Every entry was measured against tclsh 8.6.16 and 9.0.4, which agreed
+    /// byte-for-byte, with the shape `proc p {} { FORM {error stop}; set
+    /// ::reached 1 }`: `::reached` unset means the body ran here.
+    const BODY_RUNS_NOW: &[&str] = &[
+        // Core Tcl: script evaluators and definition scripts.
+        "::tcl::dict::for",
+        "::tcl::dict::map",
+        "::tcl::dict::update",
+        "::tcl::dict::with",
+        "eval",
+        "oo::define",
+        "oo::objdefine",
+        "time",
+        "timerate",
+        "uplevel",
+        // Runs its body now, but *absorbs* its completion — the harness
+        // catches a failing test body and reports it. That is a completion
+        // boundary, which is a typed answer this trait cannot give, so it
+        // sits here and the walk over-abstains on it. Tracked separately.
+        "tcltest::test",
+        // tcllib: iterators and definition scripts.
+        "control::do",
+        "fileutil::foreachLine",
+        "lfilter",
+        "snit::compile",
+        "snit::type",
+        "snit::widget",
+        "snit::widgetadaptor",
+        "stooop::class",
+        "uri::register",
+        // itcl: `class` runs its definition script; `body` and `configbody`
+        // install a body against an already-declared member and look like
+        // store-only forms, but no itcl is installable in this environment,
+        // so they are recorded as unmeasured rather than marked on a guess.
+        "itcl::body",
+        "itcl::class",
+        "itcl::configbody",
+        // iRules: these run the script now, in a different flow context.
+        "clientside",
+        "peer",
+        "serverside",
+    ];
+
+    /// The gate for [`BODY_RUNS_NOW`]: no command may carry an untyped
+    /// `ArgRole::Body` position without an explicit stance on whether that
+    /// body runs now or is stored.
+    #[test]
+    fn every_untyped_body_role_declares_whether_its_body_runs_now() {
+        let mut reg = CommandRegistry::build_default();
+        reg.load_irules();
+        let names: Vec<String> = reg.command_names().map(str::to_owned).collect();
+        let mut unclassified: Vec<String> = Vec::new();
+        let mut seen_runs_now = 0usize;
+        for name in &names {
+            // Role resolution is argv-shaped, so probe the argument counts a
+            // grammar could take, and the leading words that select the
+            // script-bearing subforms of the ensembles in this sweep. Both
+            // questions are asked per shape, exactly as the analyser asks
+            // them: `DEFERS_BODY` can live on a subcommand rather than the
+            // command (`package ifneeded`), so a spec-level test would miss it.
+            let mut untyped_body = false;
+            for argc in 1..=6usize {
+                for lead in ["x", "idle", "ifneeded", "0"] {
+                    let mut args = vec!["x"; argc];
+                    args[0] = lead;
+                    // One name can carry more than one spec, resolved by
+                    // dialect — `after` has a Tcl spec and an iRules one, and
+                    // a sweep that looked at only one would let the other lose
+                    // its trait unnoticed. Iterating the specs (rather than a
+                    // list of masks) also keeps every probe on a mask the
+                    // command actually resolves under: an unresolvable call
+                    // answers with an empty trait set, which is indistinguish-
+                    // able from a spec whose only trait was `DEFERS_BODY`
+                    // until it was dropped — precisely the regression this
+                    // gate exists to catch.
+                    for spec in reg.specs(name) {
+                        let mask = spec.dialects.unwrap_or(DialectSet::TK_AND_TCL);
+                        let traits = reg.invocation_traits(name, &args, mask);
+                        if spec.traits.contains(Traits::DEFERS_BODY)
+                            || traits.contains(Traits::DEFERS_BODY)
+                            // A `CONTROL_FLOW` command is the registry's own
+                            // business: the analyser refuses to walk one whose
+                            // arm it cannot type rather than reading the body,
+                            // so a malformed probe shape of `if` / `try` is
+                            // not a missing stance.
+                            || traits.contains(Traits::CONTROL_FLOW)
+                        {
+                            continue;
+                        }
+                        for index in reg.arg_indices_for_role(name, &args, ArgRole::Body) {
+                            if reg.control_arm_semantics(name, &args, index).is_none() {
+                                untyped_body = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if !untyped_body {
+                continue;
+            }
+            if BODY_RUNS_NOW.contains(&name.as_str()) {
+                seen_runs_now += 1;
+            } else {
+                unclassified.push(name.clone());
+            }
+        }
+        assert!(
+            seen_runs_now > 0,
+            "the sweep must not be vacuous — no runs-now command was reached"
+        );
+        assert!(
+            unclassified.is_empty(),
+            "these commands carry an untyped ArgRole::Body and declare no \
+             stance: either they store the body (give the spec \
+             Traits::DEFERS_BODY, with an oracle row) or they run it now (add \
+             them to BODY_RUNS_NOW, with an oracle row). Leaving them out \
+             makes the analyser's fall-through walk treat their body as one \
+             that can stop control — see issue #1672. Unclassified: {unclassified:?}"
+        );
+    }
+
     /// `DEFERS_BODY` and typed control-arm semantics are answers to different
     /// questions, and today no command gives both: everything the registry
     /// types (`if`, `switch`, `namespace eval`, `catch`, `try`, the loops,

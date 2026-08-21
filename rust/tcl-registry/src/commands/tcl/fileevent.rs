@@ -72,7 +72,14 @@ pub fn spec() -> CommandSpec {
         // `ALL_TCL` omits the `IRULES` bit, so the spec never intersects
         // the bare `IRULES` availability mask.
         dialects: Some(DialectSet::ALL_TCL),
-        traits: Traits::BYTE_COMPILED,
+        // `DEFERS_BODY`: the handler script is *registered*, and runs only
+        // when the channel becomes ready and the event loop dispatches it —
+        // the same fact `body_kind` records below, said where a consumer
+        // asking "can this body stop control reaching my next statement?"
+        // can read it. tclsh 8.6.16 and 9.0.4, byte-identical: `proc p {} {
+        // fileevent $ch readable {error stop}; set ::reached 1 }` sets
+        // `::reached` (issue #1672 audit).
+        traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         arity: Arity::new(2, 3),
         arg_roles: &[(0, ArgRole::Channel), (2, ArgRole::Body)],
         // "The script for a file event is executed at global level

@@ -35,6 +35,10 @@ pub fn spec() -> CommandSpec {
         // The optional value is a Tcl script the harness later evaluates.
         arg_roles: &[(0, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY` — "later evaluates" said in data. tclsh 8.6.16 /
+        // 9.0.4, byte-identical: `proc p {} { tcltest::loadScript {error
+        // stop}; set ::reached 1 }` sets `::reached` (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         deprecated_replacement: Some("tcltest::configure"),
         ..CommandSpec::DEFAULT
     }

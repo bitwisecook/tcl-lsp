@@ -50,6 +50,12 @@ pub fn spec() -> CommandSpec {
         // must opt out of the enclosing block's data flow, exactly like
         // `proc` and `snit::method` bodies.
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY`: the style script is stored against `styleName` and
+        // runs when a report applies that style, not at the definition.
+        // tclsh 8.6.16 / 9.0.4, byte-identical: `proc p {} {
+        // report::defstyle s {} {error stop}; set ::reached 1 }` sets
+        // `::reached` (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Defines the new style styleName.",
             synopsis: &["report::defstyle styleName arguments script"],

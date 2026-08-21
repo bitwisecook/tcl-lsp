@@ -57,6 +57,14 @@ pub fn spec() -> CommandSpec {
         // treat it as structural.
         arg_role_resolver: Some(bind_arg_roles),
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY` — the "deferred event-handler body" above, said where
+        // a consumer asking "can this body stop control reaching my next
+        // statement?" can read it (issue #1672 audit). Documentary rather
+        // than oracle-measured: this environment is headless, so `package
+        // require Tk` is unavailable. Tk's `bind.n` is unambiguous — the
+        // script is *associated* with the tag and sequence, and "will be
+        // evaluated whenever the given event sequence occurs".
+        traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Arrange for X event bindings on windows or tags.",
             synopsis: &[

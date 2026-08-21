@@ -255,7 +255,17 @@ static SIDE_EFFECTS: [SideEffect; 1] = [SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "timer",
-        traits: Traits::BYTE_COMPILED,
+        // `DEFERS_BODY`, exactly as `after` carries it (`tcl/after_.rs`) —
+        // this command shares `after`'s event queue and id namespace, as the
+        // module header above records. No 9.1 interpreter exists here to
+        // oracle, so the evidence is documentary and unambiguous:
+        // `doc/timer.n` in the 9.1b0 tree says "The delayed command is given
+        // by the argument script" for `timer in`/`timer at`, and for `timer
+        // idle`, "Arranges for the script to be evaluated later as an idle
+        // callback … the next time the event loop is entered". A scheduled
+        // script cannot stop control reaching the caller's next statement
+        // (issue #1672 audit).
+        traits: Traits::BYTE_COMPILED.union(Traits::DEFERS_BODY),
         dialects: Some(DialectSet::TCL91),
         arity: Arity::at_least(1),
         subcommands: &SUBCOMMANDS,
