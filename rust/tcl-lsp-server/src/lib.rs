@@ -590,13 +590,18 @@ impl DocumentStore {
     /// let the map be taken between them and produce a line that never
     /// corresponded to any real moment.
     fn contention(&self) -> DocumentsContention {
+        // One clock reading dates every age below. Calling `holder()` and then
+        // `elapsed()` on the last holder would sample the clock twice and print
+        // a line whose parts belong to different instants — the very thing the
+        // "same instant" claim here is supposed to guarantee.
+        let now = crate::rt::Instant::now();
         DocumentsContention {
-            held_by: self.holder(),
+            held_by: self.holder_at(now),
             last: self
                 .last_holder
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .map(|h| (h.site, h.since.elapsed())),
+                .map(|h| (h.site, now.duration_since(h.since))),
             acquisitions: self.acquisitions.load(std::sync::atomic::Ordering::Relaxed),
         }
     }
@@ -629,16 +634,22 @@ impl DocumentStore {
     ///
     /// Takes no `await` and never blocks on the map itself, so it is safe to
     /// call from a reporter that is itself running because the map is stuck.
+    #[cfg(test)]
     fn holder(&self) -> Option<HeldFor> {
+        self.holder_at(crate::rt::Instant::now())
+    }
+
+    /// [`Self::holder`] against a caller-supplied clock reading, so a report
+    /// combining several fields can date them all from one instant.
+    fn holder_at(&self, now: crate::rt::Instant) -> Option<HeldFor> {
         self.holder
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .map(|h| {
-                // One clock reading for both ages. Two `elapsed()` calls are
+                // Both ages from the one reading. Two `elapsed()` calls are
                 // taken microseconds apart, which lets the phase age exceed the
                 // hold age that contains it — an impossible reading, and the
                 // same same-instant flaw this type exists to avoid.
-                let now = crate::rt::Instant::now();
                 HeldFor {
                     site: h.site,
                     held: now.duration_since(h.since),
