@@ -15,15 +15,13 @@ No history. Delete items as they complete. Issues carry per-task detail.
 ## Pre-release issues
 
 - **#1657** — wedge endgame, ACTIVE (census lane,
-  `claude/f6f-1657-capture`). #1670 merged: hardening + 9 markers, not the
-  cure. Hold narrowed to `cache_and_deliver`'s two uncapped awaits
-  (`pull_diag_cache.lock` / `diag_slots.lock` via `redeliver_later` — new
-  in #1670, NOT excluded as cause). Audit: both are leaf mutexes never held
-  across an await, so the 80s hold is either FIFO contention on
-  `pull_diag_cache` or `redeliver_later` extending the hold — different
-  fixes; the capture discriminates. Loop restarting on latest `rust`
-  (disk wall cleared, 19G free). Checkpoints 1-11 on the issue carry the
-  full chain.
+  `claude/f6g-1657-lostwake`). Capture (run 12): THIRD shape — `didClose`
+  parked 20.8s on `documents.lock()` while the map was FREE; matches the
+  original gdb lost-wakeup finding, localised to one acquisition.
+  Discriminator built + pushed: acquisition counter sampled twice 250ms
+  apart — frozen → lost wakeup in the mutex; climbing → waiter's future
+  never polled (not in the FIFO queue). Different fixes; loop running with
+  it. Checkpoints on the issue carry the full chain.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
