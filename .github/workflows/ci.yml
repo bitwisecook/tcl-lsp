@@ -86,6 +86,10 @@ jobs:
   #                    compare, or a tag ref → everything counts as changed),
   #                    so jobs whose input surface didn't change stop
   #                    re-testing it on every PR.
+  #   lsp_wasm_changed — the browser LSP server or one of its transitive local
+  #                    dependencies changed.  This keeps the expensive real
+  #                    wasm-bindgen build and scripted LSP session targeted,
+  #                    while failing safe when path detection is ambiguous.
   channel:
     runs-on: ubuntu-24.04
     permissions:
@@ -96,6 +100,7 @@ jobs:
       already_green: ${{ steps.green.outputs.already_green }}
       python_changed: ${{ steps.paths.outputs.python_changed }}
       ext_changed: ${{ steps.paths.outputs.ext_changed }}
+      lsp_wasm_changed: ${{ steps.paths.outputs.lsp_wasm_changed }}
       docs_only: ${{ steps.paths.outputs.docs_only }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -171,6 +176,7 @@ jobs:
 
           python_changed=false
           ext_changed=false
+          lsp_wasm_changed=false
           docs_only=true
           if [ "$ok" = "true" ]; then
             while IFS= read -r f; do
@@ -183,6 +189,10 @@ jobs:
                   ext_changed=true ;;
               esac
               case "$f" in
+                rust/f5-xc/* | rust/tcl-bigip/* | rust/tcl-bytecode/* | rust/tcl-cmd-core/* | rust/tcl-compiler/* | rust/tcl-core-types/* | rust/tcl-diagram/* | rust/tcl-dialect/* | rust/tcl-engine-api/* | rust/tcl-engine-tclvm/* | rust/tcl-explorer/* | rust/tcl-host-native/* | rust/tcl-irules/* | rust/tcl-lexer/* | rust/tcl-lsp-core/* | rust/tcl-lsp-db/* | rust/tcl-lsp-server/* | rust/tcl-lsp-server-wasm/* | rust/tcl-platform/* | rust/tcl-regex/* | rust/tcl-registry/* | rust/tcl-runtime-api/* | rust/tcl-spec-hooks/* | rust/tcl-spectcl/* | rust/tcl-sslictcl/* | rust/tcl-syntax/* | rust/tcl-userdirs/* | rust/tcl-version/* | rust/tcl-vm/* | .cargo/config.toml | scripts/verify-wasm-externref.mjs | Cargo.toml | Cargo.lock | rust-toolchain.toml | Makefile | .github/workflows/ci.yml)
+                  lsp_wasm_changed=true ;;
+              esac
+              case "$f" in
                 docs/* | *.md | .claude/* | .gitignore | LICENSE) ;;
                 *) docs_only=false ;;
               esac
@@ -190,14 +200,16 @@ jobs:
           else
             python_changed=true
             ext_changed=true
+            lsp_wasm_changed=true
             docs_only=false
           fi
           {
             echo "python_changed=$python_changed"
             echo "ext_changed=$ext_changed"
+            echo "lsp_wasm_changed=$lsp_wasm_changed"
             echo "docs_only=$docs_only"
           } >>"$GITHUB_OUTPUT"
-          echo "python_changed=$python_changed ext_changed=$ext_changed docs_only=$docs_only"
+          echo "python_changed=$python_changed ext_changed=$ext_changed lsp_wasm_changed=$lsp_wasm_changed docs_only=$docs_only"
 
   # Fast PR gate.  Runs on every PR and every push.  Covers the Rust fast
   # checks: `cargo fmt --check`, `cargo clippy --workspace`, and the
@@ -474,9 +486,9 @@ jobs:
   # `cargo test --workspace --all-features --no-fail-fast`, Swatinem cache,
   # toolchain resolved from rust-toolchain.toml.
   #
-  # The cargo surface is split across FIVE concurrent jobs so the CPU-bound
+  # The Rust/WASM surface is split across SIX concurrent jobs so the CPU-bound
   # suites don't serialise behind each other.  Wall-clock is the max of the
-  # five, not their sum.  The first four are required status checks on `rust`:
+  # six, not their sum.  The first four are required status checks on `rust`:
   #
   #   rust-tests        workspace minus the VM-sim heavies and tcl-lsp-server,
   #                     plus ALL workspace doctests (cheap; nextest can't run
@@ -505,6 +517,9 @@ jobs:
   #                     `rust-tests`' workspace run too, so `wasm_real_link.rs`
   #                     also executes there — without the toolchain, where it
   #                     skips loudly by naming what is missing.
+  #   lsp-server-wasm   the real wasm-bindgen LSP server, driven through a
+  #                     scripted JSON-RPC session under Node.  Path-filtered
+  #                     to the browser server's local dependency closure.
   #
   # nextest runs every test binary's tests in ONE global parallel pool, so the
   # VM-sim suites overlap instead of running one binary at a time — a large
@@ -716,6 +731,50 @@ jobs:
           TCL_REQUIRE_WASM_LINK: '1'
         run: cargo test -p tcl-compiler --test wasm_real_link -- --test-threads=1
 
+  # The real browser LSP server: release-link the wasm-bindgen facade, verify
+  # the produced module, then drive a scripted JSON-RPC session under Node.
+  # This is intentionally distinct from `wasm-real-link`, which exercises the
+  # compiler's WASI runtime rather than the browser language server.  Before
+  # this job, browser-only regressions first appeared after merge in the Pages
+  # deployment (#1662).
+  lsp-server-wasm:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      # Keep the expensive release/LTO link targeted to the browser server's
+      # local dependency closure.  An ambiguous path classification is true;
+      # already-green merge pushes and tags carry forward their PR/push result.
+      RUN_LSP_WASM: ${{ needs.channel.outputs.lsp_wasm_changed == 'true' && needs.channel.outputs.already_green != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Rust
+        if: env.RUN_LSP_WASM == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          cache-key: lsp-server-wasm
+          cache-workspaces: rust/tcl-lsp-server-wasm
+
+      - name: Install wasm-bindgen CLI
+        if: env.RUN_LSP_WASM == 'true'
+        uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
+        with:
+          tool: wasm-bindgen-cli@0.2.127
+
+      - name: Set up Node.js
+        if: env.RUN_LSP_WASM == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Build and exercise the browser LSP server
+        if: env.RUN_LSP_WASM == 'true'
+        run: make lsp-server-wasm-test
+
   # Native-server lsp_e2e suite.  Its own job (hence its own status check)
   # because it is a distinct, heavier surface: it builds the `tcl-lsp-server`
   # binary and drives the end-to-end LSP suite against it over stdio JSON-RPC.
@@ -872,7 +931,7 @@ jobs:
     # whose SHA was never tested (or whose green is stale) runs everything
     # here in full.  cargo-deny always runs regardless.
     needs:
-      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-e2e, cargo-deny, python]
+      [channel, pr-gate, rust-tests, rust-tests-heavy, lsp-server-wasm, lsp-e2e, cargo-deny, python]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
