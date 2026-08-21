@@ -12,9 +12,11 @@ No history. Delete items as they complete. Issues carry per-task detail.
   `claude/f6f-1657-capture`). #1670 merged: hardening + 9 markers, not the
   cure. Hold narrowed to `cache_and_deliver`'s two uncapped awaits
   (`pull_diag_cache.lock` / `diag_slots.lock` via `redeliver_later` — new
-  in #1670, NOT excluded as cause). The 4 inner markers have never seen a
-  wedge yet; lane looping 30 loaded runs on latest `rust` for the naming
-  capture (~2-in-20 reproduce). A green loop alone does not close this.
+  in #1670, NOT excluded as cause). Audit: both are leaf mutexes never held
+  across an await, so the 80s hold is either FIFO contention on
+  `pull_diag_cache` or `redeliver_later` extending the hold — different
+  fixes; the capture discriminates. Lane looping 30 loaded runs on latest
+  `rust` (~2-in-20 reproduce). A green loop alone does not close this.
 - **#1614** — ACTIVE (F11 lane, `claude/f11-enums-1614`). Closed string
   vocabularies → enums; 7 independent sites inventoried in issue (taint
   basis highest value); wire formats must not change.
