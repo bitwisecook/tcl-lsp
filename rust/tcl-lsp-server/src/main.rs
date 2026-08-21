@@ -95,6 +95,11 @@ async fn serve() {
     // carry the full derivation and the reason the queue has to be unbounded.
     let (stdout, stdout_drained) = stdio_pump::pump(tokio::io::stdout());
     let (service, socket) = LspService::new(Backend::new);
+    // The #1657 unpark watchdog: an out-of-runtime std thread that breaks the
+    // observed woken-but-never-polled wedge by spawning no-op tasks from
+    // outside (the remote/inject path unparks a worker), logging evidence and
+    // outcome for every action. See `spawn_unpark_watchdog`'s docs.
+    tcl_lsp_server::spawn_unpark_watchdog(service.inner(), tokio::runtime::Handle::current());
     // Wrap the service so every incoming message passes through the URI
     // canonicalisation shim (a no-op for a conforming client) and every
     // outgoing response through the type-hierarchy capability shim (a no-op for

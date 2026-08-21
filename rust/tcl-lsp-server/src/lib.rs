@@ -1314,6 +1314,205 @@ fn describe_documents_waiters(
     out
 }
 
+/// How far past its cap a holder send may run before the watchdog nudges.
+///
+/// The cap's timer is proven to fire exactly on time in every #1657 capture,
+/// so a send alive past `budget + this` means a delivered wake nobody polled —
+/// there is no legitimate cause.
+#[cfg(not(target_family = "wasm"))]
+const NUDGE_SEND_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// How long a waiter may sit parked on a FREE map before the watchdog nudges
+/// (the run-12 shape). A held map never triggers this: waiters behind a
+/// holder are victims, and a long #1678-style hold must not cause false
+/// nudges.
+#[cfg(not(target_family = "wasm"))]
+const NUDGE_WAITER_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Nudges fired since startup, for tests and post-mortem correlation.
+#[cfg(not(target_family = "wasm"))]
+pub static UNPARK_NUDGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Why the watchdog would nudge right now, if it would.
+///
+/// Pure over the sampled telemetry, so the two trigger shapes are unit-tested
+/// exactly as the stall-line verdicts are. Both shapes are impossible on a
+/// healthy scheduler, which is the whole justification for acting on them:
+///
+/// * a holder send past its cap by [`NUDGE_SEND_GRACE`] — the cap's timer
+///   fires on time (four instrumented captures), so this is a delivered wake
+///   nobody polled;
+/// * a waiter parked on a **free** map past [`NUDGE_WAITER_THRESHOLD`] — a
+///   free fair mutex with a queued waiter hands over immediately.
+#[cfg(not(target_family = "wasm"))]
+fn nudge_reason(
+    contention: &DocumentsContention,
+    waiters: &[WaiterSnapshot],
+) -> Option<&'static str> {
+    if let Some(send) = contention.holder_send
+        && send.running_for > send.budget + NUDGE_SEND_GRACE
+    {
+        return Some("holder send past its cap");
+    }
+    if contention.held_by.is_none()
+        && waiters
+            .iter()
+            .any(|w| w.parked_for > NUDGE_WAITER_THRESHOLD)
+    {
+        return Some("waiter parked on a free map");
+    }
+    None
+}
+
+/// A progress signature: if any of this changes, the runtime resumed work.
+#[cfg(not(target_family = "wasm"))]
+fn nudge_progress_signature(
+    contention: &DocumentsContention,
+    waiters: &[WaiterSnapshot],
+) -> (Option<u64>, usize, u64) {
+    (
+        contention.holder_send.map(|s| s.polls),
+        waiters.len(),
+        waiters.iter().map(|w| w.polls).sum(),
+    )
+}
+
+/// One watchdog step: sample, decide, nudge, verify, report. Returns whether
+/// it nudged. Factored out of the thread loop so tests drive it directly.
+#[cfg(not(target_family = "wasm"))]
+fn unpark_watchdog_step(
+    store: &DocumentStore,
+    handle: &tokio::runtime::Handle,
+    log: &mut dyn std::io::Write,
+) -> bool {
+    let contention = store.contention();
+    let waiters = store.waiters();
+    let Some(reason) = nudge_reason(&contention, &waiters) else {
+        return false;
+    };
+    UNPARK_NUDGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let before = nudge_progress_signature(&contention, &waiters);
+    // Plain facts, not the stall line's two-sample clauses — a nudge takes one
+    // sample, and borrowing wording that claims a sample window would be the
+    // instrument overclaiming again.
+    let holder = contention.held_by.map_or_else(
+        || "map free".to_owned(),
+        |h| format!("map held by {} ({:.1}s)", h.site, h.held.as_secs_f64()),
+    );
+    let send = contention.holder_send.map_or_else(
+        || "no send in flight".to_owned(),
+        |s| {
+            format!(
+                "{} at {:.1}s of a {:.1}s cap, polled {} time(s), timer woken {} time(s)",
+                s.what,
+                s.running_for.as_secs_f64(),
+                s.budget.as_secs_f64(),
+                s.polls,
+                s.timer_wakes,
+            )
+        },
+    );
+    let _ = writeln!(
+        log,
+        "[nudge] {reason}: {holder}; {send}; {} waiter(s) parked. Spawning no-op tasks \
+         from outside the runtime.",
+        waiters.len(),
+    );
+    // The poke: an external spawn takes the remote/inject path, which unparks
+    // a worker. Four, in case the first is consumed by an unrelated queue.
+    for _ in 0..4 {
+        handle.spawn(async {});
+    }
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let after_c = store.contention();
+    let after_w = store.waiters();
+    let after = nudge_progress_signature(&after_c, &after_w);
+    if after == before {
+        let _ = writeln!(
+            log,
+            "[nudge] outcome: STILL WEDGED — polls unchanged 500ms after external spawns; \
+             the queued task itself is lost, not merely the worker unpark",
+        );
+    } else {
+        let _ = writeln!(
+            log,
+            "[nudge] outcome: resumed — progress signature {before:?} -> {after:?}; the task \
+             was queued and runnable, only the worker unpark was missing (issue #1657)",
+        );
+    }
+    true
+}
+
+/// Start the #1657 unpark watchdog: a plain std thread, deliberately outside
+/// the runtime it watches, so it cannot be starved by the fault it exists to
+/// break.
+///
+/// Samples the open-document map's telemetry every 250 ms; on a trigger shape
+/// (see [`nudge_reason`]) it spawns no-op tasks into the runtime from outside
+/// and logs the evidence and the outcome — to stderr always, and to the file
+/// named by `TCL_LSP_NUDGE_LOG` when set, because the ext-host harness does
+/// not reliably capture server stderr and the acceptance loop greps the file.
+///
+/// This is a mitigation, not a fix, and it hides nothing: every action logs
+/// the telemetry that triggered it and whether the poke worked, so a wedge
+/// that used to be invisible-but-minutes-long becomes visible-and-short. A
+/// `STILL WEDGED` outcome is the built-in falsifier for the lost-unpark frame.
+#[cfg(not(target_family = "wasm"))]
+pub fn spawn_unpark_watchdog(backend: &Backend, handle: tokio::runtime::Handle) {
+    let store = Arc::clone(&backend.documents);
+    std::thread::Builder::new()
+        .name("tcl-lsp-unpark-watchdog".into())
+        .spawn(move || {
+            let mut file = std::env::var("TCL_LSP_NUDGE_LOG").ok().and_then(|p| {
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(p)
+                    .ok()
+            });
+            let mut last_nudge: Option<std::time::Instant> = None;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                // Rate limit: at most one nudge burst per second.
+                if last_nudge.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(1)) {
+                    continue;
+                }
+                let mut sink = NudgeLog {
+                    file: file.as_mut(),
+                };
+                if unpark_watchdog_step(&store, &handle, &mut sink) {
+                    last_nudge = Some(std::time::Instant::now());
+                }
+            }
+        })
+        .expect("spawning the unpark watchdog thread");
+}
+
+/// Tee for nudge lines: stderr always, plus the acceptance-loop file when set.
+#[cfg(not(target_family = "wasm"))]
+struct NudgeLog<'a> {
+    file: Option<&'a mut std::fs::File>,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl std::io::Write for NudgeLog<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let _ = std::io::stderr().write_all(buf);
+        if let Some(f) = self.file.as_mut() {
+            let _ = f.write_all(buf);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = std::io::stderr().flush();
+        if let Some(f) = self.file.as_mut() {
+            let _ = f.flush();
+        }
+        Ok(())
+    }
+}
+
 /// Render the two contention samples a stall report takes into one clause.
 ///
 /// Split out of `Backend::report_edit_barrier_stall` to keep that function under
@@ -35625,6 +35824,152 @@ mod tests {
             !within_budget.contains("NEVER"),
             "a send inside its cap gets the plain reading, no verdict: \
              {within_budget}",
+        );
+    }
+
+    /// The nudge triggers exactly on the two impossible shapes, and on
+    /// nothing else.
+    ///
+    /// The watchdog acts on production state, so a wrong predicate is either a
+    /// mitigation that never fires (the wedge stays minutes long) or one that
+    /// fires on healthy states (pokes and log noise on every long #1678-style
+    /// hold). Each arm is pinned against its nearest legitimate neighbour.
+    #[test]
+    fn the_nudge_fires_on_impossible_shapes_only() {
+        let send = |running_ms: u64| SendSnapshot {
+            what: "publish send",
+            running_for: std::time::Duration::from_millis(running_ms),
+            budget: DELIVERY_SEND_BUDGET,
+            polls: 1,
+            since_last_poll: std::time::Duration::from_millis(running_ms),
+            timer_wakes: 1,
+            since_last_timer_wake: Some(std::time::Duration::from_millis(
+                running_ms.saturating_sub(2000),
+            )),
+            send_wakes: 0,
+        };
+        let held = HeldFor {
+            site: "deliver_if_current",
+            held: std::time::Duration::from_secs(5),
+            in_phase: std::time::Duration::from_secs(5),
+        };
+        let waiter = |parked_ms: u64| WaiterSnapshot {
+            site: "did_open",
+            parked_for: std::time::Duration::from_millis(parked_ms),
+            polls: 1,
+            since_last_poll: std::time::Duration::from_millis(parked_ms),
+            wakes: 0,
+            since_last_wake: None,
+        };
+        let contention =
+            |held_by: Option<HeldFor>, holder_send: Option<SendSnapshot>| DocumentsContention {
+                held_by,
+                last: None,
+                acquisitions: 1,
+                holder_send,
+            };
+
+        // Shape 1: a send past cap + grace. Its neighbour — a send merely past
+        // its cap — is what a healthy scheduler shows for an instant before
+        // the timer's poll lands; only the grace margin makes it impossible.
+        assert_eq!(
+            nudge_reason(&contention(Some(held), Some(send(4100))), &[]),
+            Some("holder send past its cap"),
+            "a send alive at cap+grace means a delivered wake nobody polled",
+        );
+        assert_eq!(
+            nudge_reason(&contention(Some(held), Some(send(2100))), &[]),
+            None,
+            "past the cap but inside the grace margin is the timer's poll in \
+             flight, not a wedge — nudging here would fire on healthy runs",
+        );
+
+        // Shape 2: a stale waiter on a FREE map. Its neighbour — the same
+        // waiter behind a HELD map — is every long #1678-style hold, and must
+        // not nudge.
+        assert_eq!(
+            nudge_reason(&contention(None, None), &[waiter(4100)]),
+            Some("waiter parked on a free map"),
+            "a fair mutex hands over immediately; a stale waiter on a free map \
+             was never resumed",
+        );
+        assert_eq!(
+            nudge_reason(&contention(Some(held), None), &[waiter(60_000)]),
+            None,
+            "a waiter behind a held map is a victim of the holder, however \
+             stale — nudging would fire on every long legitimate hold (#1678)",
+        );
+        assert_eq!(
+            nudge_reason(&contention(None, None), &[waiter(500)]),
+            None,
+            "a fresh waiter on a free map is an ordinary handoff in progress",
+        );
+        assert_eq!(
+            nudge_reason(&contention(None, None), &[]),
+            None,
+            "an idle map never nudges",
+        );
+    }
+
+    /// The watchdog step nudges a wedged-looking store and leaves a healthy
+    /// one alone — driven directly, as the thread loop drives it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_watchdog_step_nudges_only_a_wedged_store() {
+        let store = Arc::new(DocumentStore::default());
+        let handle = tokio::runtime::Handle::current();
+        let mut log = Vec::new();
+
+        // Healthy: idle store, no nudge, nothing logged.
+        assert!(
+            !unpark_watchdog_step(&store, &handle, &mut log),
+            "an idle store must not be nudged",
+        );
+        assert!(log.is_empty(), "no action, no log line");
+
+        // Wedged-looking: a holder send whose telemetry is backdated past
+        // cap + grace, registered exactly as the real send registers it.
+        let old = crate::rt::Instant::now() - (DELIVERY_SEND_BUDGET + NUDGE_SEND_GRACE * 2);
+        let telemetry = Arc::new(std::sync::Mutex::new(SendTelemetry {
+            what: "publish send",
+            started: old,
+            budget: DELIVERY_SEND_BUDGET,
+            polls: 1,
+            last_poll: old,
+            send_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+            timer_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+        }));
+        let _held = store.lock("test-holder").await;
+        let _registered = store.begin_holder_send(telemetry);
+
+        let nudges_before = UNPARK_NUDGES.load(std::sync::atomic::Ordering::Relaxed);
+        // Run the step off the runtime, as the real watchdog thread does — it
+        // sleeps 500ms inline, which must not block a worker in this test.
+        let stepped = {
+            let store = Arc::clone(&store);
+            let handle = handle.clone();
+            tokio::task::spawn_blocking(move || {
+                let mut log = Vec::new();
+                let stepped = unpark_watchdog_step(&store, &handle, &mut log);
+                (stepped, log)
+            })
+            .await
+            .expect("watchdog step must not panic")
+        };
+        assert!(stepped.0, "a send past cap+grace must be nudged");
+        let logged = String::from_utf8(stepped.1).expect("log is utf8");
+        assert!(
+            logged.contains("[nudge] holder send past its cap"),
+            "the nudge must log its reason and evidence: {logged}",
+        );
+        assert!(
+            logged.contains("[nudge] outcome:"),
+            "the nudge must log its outcome — the outcome line is the built-in \
+             falsifier for the lost-unpark frame: {logged}",
+        );
+        assert_eq!(
+            UNPARK_NUDGES.load(std::sync::atomic::Ordering::Relaxed),
+            nudges_before + 1,
+            "each nudge counts",
         );
     }
 
