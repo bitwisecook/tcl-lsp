@@ -494,25 +494,81 @@ impl Drop for DbSnapshot {
 /// on guard drop.
 struct DocumentStore {
     docs: Mutex<HashMap<Uri, DocumentState>>,
+    /// Who holds the map, who held it last, and how many times it has been
+    /// taken — under **one** lock, deliberately.
+    ///
+    /// These were three separate fields (two mutexes and an atomic), and a
+    /// snapshot built from them could interleave: read the holder, watch that
+    /// guard drop and another task acquire, then read the last-holder and the
+    /// count from *after* that change. The result is a stall line pairing one
+    /// task's identity with another's metadata — "old task still holds", or
+    /// free-while-held — which is precisely the confusion the discriminator
+    /// exists to remove (Codex P2 on #1677).
+    ///
+    /// A single lock makes the whole snapshot atomic rather than merely
+    /// contemporaneous. Dating every age from one clock reading fixes when the
+    /// numbers were taken; it cannot fix which state they describe.
+    ///
+    /// Cheaper than what it replaces, too: acquiring the map now takes one
+    /// uncontended `std::sync::Mutex` instead of a mutex plus an atomic RMW.
+    tracking: std::sync::Mutex<DocumentsTracking>,
+}
+
+/// The bookkeeping [`DocumentStore::tracking`] guards. See its docs for why
+/// these three live together.
+#[derive(Debug, Default)]
+struct DocumentsTracking {
     /// `None` whenever the map is free.
-    holder: std::sync::Mutex<Option<DocumentsHolder>>,
+    holder: Option<DocumentsHolder>,
+    /// The previous holder, kept after it releases, so a stall line that finds
+    /// the map free can still say who had it last (issue #1657).
+    last: Option<DocumentsHolder>,
+    /// Total successful acquisitions, ever.
+    ///
+    /// The reading that separates the two stories a "free map, waiting holder"
+    /// stall leaves open. Sampled twice a moment apart:
+    ///
+    /// * **Climbing** — other tasks are taking and releasing the map while the
+    ///   turn holder waits on it. `tokio::sync::Mutex` is FIFO-fair, so a waiter
+    ///   cannot be skipped for twenty seconds; if it is being skipped, its
+    ///   acquire future is not in the queue at all, which points at the future
+    ///   never being polled rather than at the lock.
+    /// * **Frozen** — nothing wants the map, and a waiter that *is* queued was
+    ///   never woken. That is a lost wakeup in the ordinary sense.
+    acquisitions: u64,
 }
 
 /// Who holds [`DocumentStore::docs`], and since when.
 #[derive(Debug, Clone, Copy)]
 struct DocumentsHolder {
-    /// The call site that took it, as passed to [`DocumentStore::lock`].
+    /// The call site that took it, as passed to [`DocumentStore::lock`], then
+    /// whatever [`DocumentStore::retag_held`] most recently renamed it to.
     site: &'static str,
+    /// When the map was acquired — the age of the **whole** hold, deliberately
+    /// not reset by a retag.
+    ///
     /// `crate::rt::Instant`, never `std::time::Instant`: the latter compiles on
     /// `wasm32-unknown-unknown` and panics the moment it is called.
     since: crate::rt::Instant,
+    /// When [`Self::site`] was last set — the age of the **current phase**.
+    ///
+    /// Without this, a long hold reports only where it currently is and how long
+    /// it has held in total, which cannot distinguish "spent a minute in an
+    /// earlier phase and just arrived here" from "has been stuck here the whole
+    /// time". A #1657 capture read `cache_and_deliver: publish send (71.8s)` and
+    /// was ambiguous between exactly those, because retagging overwrites the
+    /// site and leaves no trace of the phase before it.
+    ///
+    /// [`TurnHolder`] has carried this pairing since #1667; this is the same
+    /// idea, belatedly made consistent.
+    phase_since: crate::rt::Instant,
 }
 
 impl Default for DocumentStore {
     fn default() -> Self {
         Self {
             docs: Mutex::new(HashMap::new()),
-            holder: std::sync::Mutex::new(None),
+            tracking: std::sync::Mutex::new(DocumentsTracking::default()),
         }
     }
 }
@@ -525,14 +581,40 @@ impl DocumentStore {
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
         let docs = self.docs.lock().await;
-        *self
-            .holder
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(DocumentsHolder {
+        // One clock reading for both ages, so a hold still in its first phase
+        // reports them equal rather than a sub-millisecond difference to squint
+        // at. Count and holder are set under the same lock, so no reader can
+        // see one without the other.
+        let acquired = crate::rt::Instant::now();
+        let mut tracking = self.tracking();
+        tracking.acquisitions += 1;
+        tracking.holder = Some(DocumentsHolder {
             site,
-            since: crate::rt::Instant::now(),
+            since: acquired,
+            phase_since: acquired,
         });
+        drop(tracking);
         DocumentsGuard { docs, store: self }
+    }
+
+    /// Everything the stall line needs about this map in one sample.
+    ///
+    /// Taken together rather than field by field so the three readings describe
+    /// the same instant; sampling them separately across a stall report would
+    /// let the map be taken between them and produce a line that never
+    /// corresponded to any real moment.
+    fn contention(&self) -> DocumentsContention {
+        // One lock, one clock reading. The lock makes the three fields describe
+        // the same *state*; the clock reading makes their ages describe the same
+        // *instant*. Both are needed — an earlier version had only the second
+        // and could still pair one task's identity with another's metadata.
+        let now = crate::rt::Instant::now();
+        let tracking = self.tracking();
+        DocumentsContention {
+            held_by: tracking.holder.map(|h| held_for(&h, now)),
+            last: tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+            acquisitions: tracking.acquisitions,
+        }
     }
 
     /// Rename whoever currently holds the map, without needing their guard.
@@ -548,25 +630,31 @@ impl DocumentStore {
     /// silently relabel someone else's hold. Every caller must be reachable only
     /// from under the guard.
     fn retag_held(&self, site: &'static str) {
-        if let Some(holder) = self
-            .holder
+        if let Some(holder) = self.tracking().holder.as_mut() {
+            holder.site = site;
+            holder.phase_since = crate::rt::Instant::now();
+        }
+    }
+
+    /// The tracking record, with a poisoned lock treated as merely stale.
+    ///
+    /// A panic while holding it leaves diagnostic bookkeeping possibly
+    /// half-written, which is worth reading anyway — refusing to report because
+    /// a previous panic poisoned the log's own metadata would be the wrong
+    /// trade during exactly the failure this metadata exists to explain.
+    fn tracking(&self) -> std::sync::MutexGuard<'_, DocumentsTracking> {
+        self.tracking
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_mut()
-        {
-            holder.site = site;
-        }
     }
 
     /// The current holder and how long it has held, for the stall line.
     ///
     /// Takes no `await` and never blocks on the map itself, so it is safe to
     /// call from a reporter that is itself running because the map is stuck.
-    fn holder(&self) -> Option<(&'static str, std::time::Duration)> {
-        self.holder
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .map(|h| (h.site, h.since.elapsed()))
+    #[cfg(test)]
+    fn holder(&self) -> Option<HeldFor> {
+        self.contention().held_by
     }
 }
 
@@ -593,15 +681,7 @@ impl DocumentsGuard<'_> {
     /// age stays the age of the whole hold rather than of the current step; the
     /// site says where it stopped, the age says how long the map has been gone.
     fn retag(&self, site: &'static str) {
-        if let Some(holder) = self
-            .store
-            .holder
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .as_mut()
-        {
-            holder.site = site;
-        }
+        self.store.retag_held(site);
     }
 }
 
@@ -621,12 +701,100 @@ impl std::ops::DerefMut for DocumentsGuard<'_> {
 
 impl Drop for DocumentsGuard<'_> {
     fn drop(&mut self) {
-        *self
-            .store
-            .holder
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+        // Move the departing holder aside rather than discarding it, so a stall
+        // line that finds the map free can still say who had it last and how
+        // long ago they let go (issue #1657). `since` is left as the *hold's*
+        // start, so the reported age reads as "released, having held from N
+        // seconds ago" — the release instant is recoverable from the pair.
+        let mut tracking = self.store.tracking();
+        if let Some(departing) = tracking.holder.take() {
+            tracking.last = Some(departing);
+        }
     }
+}
+
+/// Render the two contention samples a stall report takes into one clause.
+///
+/// Split out of `Backend::report_edit_barrier_stall` to keep that function under
+/// the line limit. It is pure formatting over two snapshots, with no bearing on
+/// the lock discipline the reporter is describing, so unlike
+/// `publish_diagnostics_result` — where splitting would put a critical
+/// section's acquisition and release in different functions — there is nothing
+/// here that reads better kept together.
+fn describe_documents_contention(
+    before: &DocumentsContention,
+    after: &DocumentsContention,
+) -> String {
+    let taken = after.acquisitions.saturating_sub(before.acquisitions);
+    if let Some(h) = after.held_by {
+        // Both ages, never just the total: `held` says the hold is long,
+        // `in_phase` says whether *this* step is what is long. The counter is
+        // deliberately not printed here — nobody else can acquire a held map,
+        // so it is trivially zero and says nothing (issue #1657).
+        return format!(
+            "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point",
+            h.site,
+            h.held.as_secs_f64(),
+            h.in_phase.as_secs_f64(),
+        );
+    }
+    let last = after.last.map_or_else(
+        || "never held".to_owned(),
+        |(site, age)| {
+            format!(
+                "last held by {site}, whose hold began {:.1}s ago",
+                age.as_secs_f64()
+            )
+        },
+    );
+    if taken == 0 {
+        format!(
+            "the open-document map is FREE and untouched across the sample window \
+             ({last}), so a waiter parked on it was never woken — a lost wakeup, not \
+             contention"
+        )
+    } else {
+        format!(
+            "the open-document map is free right now but was taken {taken} time(s) \
+             during the sample window ({last}), so it is being acquired past a waiter \
+             that should be ahead of it — the waiter is not in the queue rather than \
+             the lock being stuck"
+        )
+    }
+}
+
+/// Age a [`DocumentsHolder`] against one clock reading.
+///
+/// Both durations come from the same `now`, so the phase age can never exceed
+/// the hold age that contains it — an impossible reading two separate
+/// `elapsed()` calls can produce.
+fn held_for(h: &DocumentsHolder, now: crate::rt::Instant) -> HeldFor {
+    HeldFor {
+        site: h.site,
+        held: now.duration_since(h.since),
+        in_phase: now.duration_since(h.phase_since),
+    }
+}
+
+/// A live hold on the open-document map: where it is now, how long it has held
+/// in total, and how long it has been at that point.
+///
+/// The pair is the reading that matters. `held` alone says a hold is long;
+/// `in_phase` says whether *this* step is what is long. A #1657 capture reported
+/// `publish send (71.8s)` and could not distinguish a send that had just started
+/// after a slow earlier phase from a send that had itself hung.
+#[derive(Debug, Clone, Copy)]
+struct HeldFor {
+    site: &'static str,
+    held: std::time::Duration,
+    in_phase: std::time::Duration,
+}
+
+/// One instant's view of [`DocumentStore`] contention, for the stall line.
+struct DocumentsContention {
+    held_by: Option<HeldFor>,
+    last: Option<(&'static str, std::time::Duration)>,
+    acquisitions: u64,
 }
 
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
@@ -681,6 +849,15 @@ const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs
 /// [`DeliveryCtx::delivery_attempts`] for why closed runs cannot fall back to
 /// [`reschedule_self`], and why this stays small.
 const CLOSED_DELIVERY_ATTEMPTS: u32 = 2;
+
+/// How long [`Backend::report_edit_barrier_stall`] waits between its two
+/// [`DocumentStore::contention`] samples.
+///
+/// Long enough that a map under real traffic is provably taken at least once,
+/// short enough to be lost in the noise of a stall that has already lasted
+/// [`EDIT_BARRIER_STALL_WARN`]. Paid only on the reporting path, which runs once
+/// per stuck barrier position and never on a healthy server.
+const DOCUMENTS_CONTENTION_SAMPLE_GAP: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Documents below this line count never get a fast tier — they go straight to
 /// the single deep publish.  This is the **timing-independent** floor of the
@@ -7337,15 +7514,7 @@ impl Backend {
     /// re-read comes first and the suppression slot is only ever written for a
     /// stall that is real at the moment it is claimed.
     async fn report_edit_barrier_stall(&self, target: u64) {
-        let serving = self.edit_order.served();
-        if serving >= target {
-            return;
-        }
-        if self
-            .edit_barrier_stall_reported
-            .swap(serving, std::sync::atomic::Ordering::AcqRel)
-            == serving
-        {
+        if self.edit_order.served() >= target {
             return;
         }
         let holder = self
@@ -7405,14 +7574,38 @@ impl Backend {
         // adjacent `diagnostics.publish.enqueued` marker with no matching
         // completion — a good inference, but an inference, and the next
         // occurrence may not leave so tidy a trail.
-        let documents_holder = match self.documents.holder() {
-            Some((site, held)) => format!(
-                "the open-document map is held by {site} ({:.1}s)",
-                held.as_secs_f64(),
-            ),
-            None => "the open-document map is free, so the holder is waiting on something else"
-                .to_owned(),
-        };
+        // Two samples a moment apart, because a free map is ambiguous on its
+        // own: "nobody wants it" and "everybody is taking turns while the barrier
+        // holder is skipped" look identical in one reading. The gap is short
+        // enough not to extend a stall anyone is waiting on and long enough for
+        // a busy map to move (issue #1657).
+        let before = self.documents.contention();
+        crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP).await;
+        let after = self.documents.contention();
+        // Re-read the barrier after the sample window, for the same reason
+        // #1664 re-reads it after `edits_settled`'s timeout: the edit this
+        // report is about may have landed while we slept. Announcing a
+        // permanent wedge that is already over is bad on its own, and burning
+        // the rate limiter's slot on that stale report is worse — it would
+        // suppress the next *genuine* stall at this position.
+        //
+        // So the slot is claimed only here, after the barrier has been shown to
+        // still be stuck. Claiming it earlier deduplicated concurrent reporters
+        // but paid for that with exactly the suppression above; claiming it now
+        // deduplicates just as well, since the swap is still the gate — the
+        // other reporters simply sleep first and then find the slot taken.
+        let serving = self.edit_order.served();
+        if serving >= target {
+            return;
+        }
+        if self
+            .edit_barrier_stall_reported
+            .swap(serving, std::sync::atomic::Ordering::AcqRel)
+            == serving
+        {
+            return;
+        }
+        let documents_holder = describe_documents_contention(&before, &after);
         self.client
             .log_message(
                 MessageType::WARNING,
@@ -33883,18 +34076,24 @@ mod tests {
 
         {
             let _held = backend.documents.lock("a-known-test-site").await;
-            let (site, held_for) = backend.documents.holder().expect(
+            let held = backend.documents.holder().expect(
                 "a held map must name its holder — without this the #1657 \
                          stall line can only say which lock is wanted, never who has it",
             );
             assert_eq!(
-                site, "a-known-test-site",
+                held.site, "a-known-test-site",
                 "the holder must be the site that actually took the lock",
             );
             // Sanity that the clock is the shim and is running, not a default.
             assert!(
-                held_for < std::time::Duration::from_secs(60),
+                held.held < std::time::Duration::from_secs(60),
                 "the hold age must be measured from the acquisition, not from an epoch",
+            );
+            // A hold still in its first phase reports the two ages as equal —
+            // one clock reading serves both at acquisition (#1657).
+            assert!(
+                held.in_phase <= held.held,
+                "the current phase cannot predate the hold that owns it",
             );
         }
 
@@ -33908,7 +34107,7 @@ mod tests {
         {
             let _held = backend.documents.lock("a-second-site").await;
             assert_eq!(
-                backend.documents.holder().expect("held").0,
+                backend.documents.holder().expect("held").site,
                 "a-second-site",
                 "each acquisition must overwrite the tag",
             );
@@ -34069,6 +34268,287 @@ mod tests {
             DELIVERY_SEND_BUDGET * 2 * delivery_attempts_for(closed) < EDIT_BARRIER_STALL_WARN,
             "the inline retries must not themselves be able to hold `documents` \
              long enough for the document-sync barrier to report a stall (#1657)",
+        );
+    }
+
+    /// The map must distinguish "nobody wants it" from "everyone but the
+    /// waiter is getting it".
+    ///
+    /// A #1657 capture found the barrier holder parked on `documents.lock()`
+    /// while the map read as *free*. One sample cannot tell those apart, and
+    /// they need different fixes: a lost wakeup is a scheduling fault, whereas a
+    /// map being taken repeatedly past a waiter means the waiter is not in the
+    /// queue at all. The acquisition counter is what separates them, so it has
+    /// to actually count.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_document_map_counts_acquisitions_and_remembers_its_last_holder() {
+        let store = DocumentStore::default();
+
+        let idle = store.contention();
+        assert_eq!(idle.acquisitions, 0, "a fresh map has never been taken");
+        assert!(idle.held_by.is_none(), "a fresh map is free");
+        assert!(
+            idle.last.is_none(),
+            "a fresh map has no previous holder to blame",
+        );
+
+        {
+            let _held = store.lock("first-site").await;
+            let now = store.contention();
+            assert_eq!(now.acquisitions, 1, "taking the map must count");
+            assert_eq!(
+                now.held_by.expect("held").site,
+                "first-site",
+                "a held map names its holder",
+            );
+        }
+
+        // Released: free, but the previous holder is still nameable — the thing
+        // the capture could not tell me.
+        let after = store.contention();
+        assert!(after.held_by.is_none(), "the guard released the map");
+        assert_eq!(
+            after.last.expect("a previous holder is remembered").0,
+            "first-site",
+            "a free map must still say who held it last, or a stall line that \
+             finds it free has nothing to report at all",
+        );
+
+        // A second acquisition advances the counter: this is the reading that,
+        // sampled twice during a stall, says the map is being taken *past* a
+        // parked waiter rather than sitting idle.
+        {
+            let _held = store.lock("second-site").await;
+        }
+        let later = store.contention();
+        assert_eq!(
+            later.acquisitions, 2,
+            "every acquisition must count, or a busy map is indistinguishable \
+             from an untouched one and the lost-wakeup verdict is unfalsifiable",
+        );
+        assert_eq!(
+            later.last.expect("previous holder").0,
+            "second-site",
+            "the remembered holder must be the most recent one",
+        );
+    }
+
+    /// Retagging must restart the phase clock and leave the hold clock alone.
+    ///
+    /// A #1657 capture read `the open-document map is held by
+    /// cache_and_deliver: publish send (71.8s)` and could not be acted on,
+    /// because one age cannot say whether the *publish send* was slow or whether
+    /// a slow earlier phase had already burned seventy seconds before the hold
+    /// reached it. Retag overwrites the site, so the earlier phase leaves no
+    /// trace, and the two possibilities want different fixes.
+    ///
+    /// Both clocks together answer it: `held` is the whole hold, `in_phase` is
+    /// this step. `TurnHolder` has carried that pairing since #1667 and this is
+    /// the same idea, so the invariant is pinned rather than left to be
+    /// re-derived a third time.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn retagging_the_map_restarts_the_phase_clock_but_not_the_hold_clock() {
+        let store = DocumentStore::default();
+        let held = store.lock("first-phase").await;
+
+        // A fresh hold is entirely within its first phase, so the two ages agree.
+        let fresh = store.holder().expect("held");
+        assert_eq!(fresh.site, "first-phase");
+        assert!(
+            fresh.held.saturating_sub(fresh.in_phase) < std::time::Duration::from_millis(50),
+            "a hold still in its first phase must report the two ages as \
+             effectively equal — one clock reading serves both at acquisition",
+        );
+
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+        held.retag("second-phase");
+        let after = store.holder().expect("still held");
+
+        assert_eq!(after.site, "second-phase", "retag renames the holder");
+        assert!(
+            after.held >= std::time::Duration::from_millis(100),
+            "the hold clock must survive a retag — it is the answer to 'how long \
+             has the map been gone', which is what every waiter is blocked on",
+        );
+        assert!(
+            after.in_phase < std::time::Duration::from_millis(100),
+            "the phase clock must restart on a retag — without that, a long hold \
+             reports only where it currently is, and a stall line cannot tell a \
+             slow step from a step that was merely reached late (#1657)",
+        );
+        assert!(
+            after.in_phase < after.held,
+            "after a retag the current phase is strictly younger than the hold",
+        );
+    }
+
+    /// A contention snapshot must describe one state, not several.
+    ///
+    /// Codex P2 on #1677. The three readings used to live behind two mutexes
+    /// and an atomic, so a snapshot could interleave: read the holder, watch
+    /// that guard drop and another task acquire, then read the last-holder and
+    /// the count from *after* the change. The line then pairs one task's
+    /// identity with another's metadata — the exact confusion the discriminator
+    /// exists to remove. Dating every age from one clock reading does not fix
+    /// it; that fixes *when* the numbers were taken, not *which state* they
+    /// describe. Only a shared lock does, which is why all three now live
+    /// under one.
+    ///
+    /// Atomicity itself is guaranteed by construction and is verified
+    /// structurally (see the PR: reverting to the split fields fails this
+    /// test's concurrent half). What is pinned here is the record's semantics,
+    /// which a future edit could break without touching the lock.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_contention_snapshot_never_mixes_two_states() {
+        let store = Arc::new(DocumentStore::default());
+
+        // --- the deterministic half: the transitions the stall line reads ---
+        let empty = store.contention();
+        assert_eq!(empty.acquisitions, 0);
+        assert!(empty.held_by.is_none() && empty.last.is_none());
+
+        {
+            let _a = store.lock("site-a").await;
+            let snap = store.contention();
+            assert_eq!(snap.held_by.expect("held").site, "site-a");
+            assert_eq!(snap.acquisitions, 1, "the holder's own acquisition counts");
+            assert!(
+                snap.last.is_none(),
+                "nothing has been released yet, so there is no previous holder",
+            );
+        }
+        let snap = store.contention();
+        assert!(snap.held_by.is_none(), "released");
+        assert_eq!(snap.last.expect("remembered").0, "site-a");
+        assert_eq!(snap.acquisitions, 1, "releasing is not an acquisition");
+
+        {
+            let _b = store.lock("site-b").await;
+            let snap = store.contention();
+            assert_eq!(snap.held_by.expect("held").site, "site-b");
+            assert_eq!(
+                snap.last.expect("remembered").0,
+                "site-a",
+                "the previous holder is the one before the current, not the current",
+            );
+            assert_eq!(snap.acquisitions, 2);
+        }
+
+        // --- the concurrent half: a genuinely impossible pairing ---
+        //
+        // Every acquisition uses a site name used exactly once, ever. A site can
+        // then never be both the current holder and the most recent previous
+        // holder in any real state — that pairing requires reading `holder`
+        // before a release and `last` after it, which is precisely the tear.
+        //
+        // The obvious version of this test (a fixed set of tags) does not work,
+        // and quietly passes against a deliberately-torn `contention`: a task
+        // that releases and immediately re-acquires is *legitimately* both the
+        // holder and the previous holder, so the pairing proves nothing. The
+        // uniqueness is what makes it proof.
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let next_tag = Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let hammers: Vec<_> = (0..3)
+            .map(|_| {
+                let store = Arc::clone(&store);
+                let stop = Arc::clone(&stop);
+                let next_tag = Arc::clone(&next_tag);
+                tokio::spawn(async move {
+                    while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                        let n = next_tag.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                        // `&'static str` per acquisition. Leaked deliberately and
+                        // bounded by the loop below; a few thousand short strings.
+                        let site: &'static str = Box::leak(format!("hammer-{n}").into_boxed_str());
+                        drop(store.lock(site).await);
+                        crate::rt::yield_now().await;
+                    }
+                })
+            })
+            .collect();
+
+        let mut previous = store.contention().acquisitions;
+        let mut seen_both = 0_u32;
+        for _ in 0..20_000 {
+            let snap = store.contention();
+            assert!(
+                snap.acquisitions >= previous,
+                "the acquisition count went backwards",
+            );
+            previous = snap.acquisitions;
+            if let (Some(held), Some((last_site, _))) = (snap.held_by, snap.last) {
+                seen_both += 1;
+                assert_ne!(
+                    held.site, last_site,
+                    "this snapshot names a site as both the current holder and \
+                     the previous one. Every acquisition uses a unique tag, so no \
+                     real state can look like this — the fields were read at \
+                     different moments, and a stall line built from them would \
+                     name one task while describing another",
+                );
+                assert!(
+                    snap.acquisitions > 0,
+                    "a snapshot showing a holder must show its acquisition too",
+                );
+            }
+        }
+
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        for h in hammers {
+            let _ = h.await;
+        }
+        assert!(
+            seen_both > 0,
+            "the hammer never caught the map held with a previous holder \
+             recorded, so the concurrent half proved nothing",
+        );
+    }
+
+    /// A barrier that catches up *during* the sample window must not be
+    /// reported, and must not burn the rate limiter's slot.
+    ///
+    /// Codex P2 on #1677. The reporter now sleeps for
+    /// `DOCUMENTS_CONTENTION_SAMPLE_GAP` between its two contention samples,
+    /// which reopens exactly the race #1664 closed at the function's entry: the
+    /// stalled edit can land while we sleep. Announcing a permanent wedge that
+    /// is already over is bad on its own; recording that position in the rate
+    /// limiter is worse, because it would suppress the next *genuine* stall
+    /// there.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_barrier_that_catches_up_during_the_sample_window_is_not_reported() {
+        let backend = Arc::new(test_backend());
+        let uri = Uri::from_str("file:///w/caught-up-midsample.tcl").unwrap();
+
+        // A genuinely held turn, so the reporter gets past its entry check.
+        let ticket = backend.edit_order.take_ticket("didOpen", &uri);
+        let turn = backend.edit_order.wait_turn(ticket).await;
+        let queued = backend.edit_order.take_ticket("didChange", &uri);
+        let target = backend.edit_order.settle_target();
+
+        let reporter = {
+            let backend = Arc::clone(&backend);
+            tokio::spawn(async move { backend.report_edit_barrier_stall(target).await })
+        };
+
+        // Let the reporter reach its sleep, then let the barrier catch up while
+        // it is still in there.
+        crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP / 5).await;
+        drop(turn);
+        drop(queued);
+
+        crate::rt::timeout(std::time::Duration::from_secs(5), reporter)
+            .await
+            .expect("the reporter must not hang")
+            .expect("the reporter task must not panic");
+
+        assert_eq!(
+            backend
+                .edit_barrier_stall_reported
+                .load(std::sync::atomic::Ordering::Acquire),
+            u64::MAX,
+            "an edit that landed during the sample window must leave the rate \
+             limiter untouched — recording it would suppress the next real stall \
+             at this position (#1664's lesson, reopened by the sample sleep and \
+             closed again here)",
         );
     }
 
