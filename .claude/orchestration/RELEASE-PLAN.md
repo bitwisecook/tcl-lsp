@@ -14,11 +14,14 @@ No history. Delete items as they complete. Issues carry per-task detail.
   waiter parked 18s on a FREE map, acquisition counter flat across the
   250ms window. Remaining split: waiter never woken vs task never polled
   again (a parent-loop poll starvation looks identical; mutex defect is
-  the extraordinary claim). Lane directed to: (1) PR the instrumentation
-  now (Refs #1657); (2) build a poll-counting shim on the handler future +
-  read how notifications are driven (spawned vs parent-loop branch);
-  (3) file the separable 70s earlier-phase slowness as its own issue.
-  Checkpoints 15-17 on the issue.
+  the extraordinary claim). STRUCTURAL CONFIRMATION: all handler futures
+  are branches of ONE `FuturesUnordered` driven by the single
+  `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
+  parent-poll starvation is the leading mechanism; permit starvation
+  excluded (notifications take no permit). PR #1677 open (instrumentation,
+  `Refs #1657`) — merge on green. Next: shim distinguishing child-not-polled
+  vs parent-not-polled. 70s pre-send hold split off as #1678
+  (post-release). Checkpoints through 18 on the issue.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
