@@ -19,12 +19,13 @@ No history. Delete items as they complete. Issues carry per-task detail.
   implemented (247ae5d2d) — out-of-runtime thread, fires only on
   impossible shapes, nudge via external spawns, logs resumed/STILL WEDGED
   (each nudge IS the poke experiment; outcome line is the falsifier).
-  Acceptance loop running: 30 loaded runs, full tally. PR #1679
-  (`Refs #1657`): drive to MERGE POINT (green CI on current head, threads
-  resolved, no conflicts) then USER HOLD — user reviews personally before
-  the merge; fixes needed for green are allowed, nothing else. test-ext
-  runs WITH the watchdog (second acceptance environment). Close #1657 only
-  on the agreed bar (checkpoint 27). #1678 post-release.
+  PR #1679 (`Refs #1657`) AT MERGE POINT — CI fully green on bd48a241e,
+  threads resolved, no conflicts, body current: USER HOLD, user merges (or
+  clears) after their deeper review. Off-branch evidence continues:
+  taskdump catch-run live (dumps every task's state on next STILL-WEDGED
+  nudge — direct observation of the NOTIFIED-set/queue-gone shape); live
+  wedge specimen kept (pid 8044). Acceptance loop tallying. Close #1657
+  only on the agreed bar (checkpoint 27). #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
