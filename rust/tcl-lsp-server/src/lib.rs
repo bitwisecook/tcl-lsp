@@ -525,11 +525,27 @@ struct DocumentStore {
 /// Who holds [`DocumentStore::docs`], and since when.
 #[derive(Debug, Clone, Copy)]
 struct DocumentsHolder {
-    /// The call site that took it, as passed to [`DocumentStore::lock`].
+    /// The call site that took it, as passed to [`DocumentStore::lock`], then
+    /// whatever [`DocumentStore::retag_held`] most recently renamed it to.
     site: &'static str,
+    /// When the map was acquired — the age of the **whole** hold, deliberately
+    /// not reset by a retag.
+    ///
     /// `crate::rt::Instant`, never `std::time::Instant`: the latter compiles on
     /// `wasm32-unknown-unknown` and panics the moment it is called.
     since: crate::rt::Instant,
+    /// When [`Self::site`] was last set — the age of the **current phase**.
+    ///
+    /// Without this, a long hold reports only where it currently is and how long
+    /// it has held in total, which cannot distinguish "spent a minute in an
+    /// earlier phase and just arrived here" from "has been stuck here the whole
+    /// time". A #1657 capture read `cache_and_deliver: publish send (71.8s)` and
+    /// was ambiguous between exactly those, because retagging overwrites the
+    /// site and leaves no trace of the phase before it.
+    ///
+    /// [`TurnHolder`] has carried this pairing since #1667; this is the same
+    /// idea, belatedly made consistent.
+    phase_since: crate::rt::Instant,
 }
 
 impl Default for DocumentStore {
@@ -553,12 +569,16 @@ impl DocumentStore {
         let docs = self.docs.lock().await;
         self.acquisitions
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        // One clock reading for both, so a hold still in its first phase reports
+        // equal ages rather than a sub-millisecond difference to squint at.
+        let acquired = crate::rt::Instant::now();
         *self
             .holder
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(DocumentsHolder {
             site,
-            since: crate::rt::Instant::now(),
+            since: acquired,
+            phase_since: acquired,
         });
         DocumentsGuard { docs, store: self }
     }
@@ -601,6 +621,7 @@ impl DocumentStore {
             .as_mut()
         {
             holder.site = site;
+            holder.phase_since = crate::rt::Instant::now();
         }
     }
 
@@ -608,11 +629,22 @@ impl DocumentStore {
     ///
     /// Takes no `await` and never blocks on the map itself, so it is safe to
     /// call from a reporter that is itself running because the map is stuck.
-    fn holder(&self) -> Option<(&'static str, std::time::Duration)> {
+    fn holder(&self) -> Option<HeldFor> {
         self.holder
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .map(|h| (h.site, h.since.elapsed()))
+            .map(|h| {
+                // One clock reading for both ages. Two `elapsed()` calls are
+                // taken microseconds apart, which lets the phase age exceed the
+                // hold age that contains it — an impossible reading, and the
+                // same same-instant flaw this type exists to avoid.
+                let now = crate::rt::Instant::now();
+                HeldFor {
+                    site: h.site,
+                    held: now.duration_since(h.since),
+                    in_phase: now.duration_since(h.phase_since),
+                }
+            })
     }
 }
 
@@ -647,6 +679,7 @@ impl DocumentsGuard<'_> {
             .as_mut()
         {
             holder.site = site;
+            holder.phase_since = crate::rt::Instant::now();
         }
     }
 }
@@ -688,9 +721,23 @@ impl Drop for DocumentsGuard<'_> {
     }
 }
 
+/// A live hold on the open-document map: where it is now, how long it has held
+/// in total, and how long it has been at that point.
+///
+/// The pair is the reading that matters. `held` alone says a hold is long;
+/// `in_phase` says whether *this* step is what is long. A #1657 capture reported
+/// `publish send (71.8s)` and could not distinguish a send that had just started
+/// after a slow earlier phase from a send that had itself hung.
+#[derive(Debug, Clone, Copy)]
+struct HeldFor {
+    site: &'static str,
+    held: std::time::Duration,
+    in_phase: std::time::Duration,
+}
+
 /// One instant's view of [`DocumentStore`] contention, for the stall line.
 struct DocumentsContention {
-    held_by: Option<(&'static str, std::time::Duration)>,
+    held_by: Option<HeldFor>,
     last: Option<(&'static str, std::time::Duration)>,
     acquisitions: u64,
 }
@@ -7489,11 +7536,16 @@ impl Backend {
         crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP).await;
         let after = self.documents.contention();
         let taken = after.acquisitions.saturating_sub(before.acquisitions);
-        let documents_holder = if let Some((site, held)) = after.held_by {
+        let documents_holder = if let Some(h) = after.held_by {
+            // Both ages, never just the total: `held` says the hold is long,
+            // `in_phase` says whether *this* step is what is long. The counter is
+            // deliberately not printed here — nobody else can acquire a held map,
+            // so it is trivially zero and says nothing (issue #1657).
             format!(
-                "the open-document map is held by {site} ({:.1}s); {taken} further \
-                 acquisition(s) in the sample window",
-                held.as_secs_f64(),
+                "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point",
+                h.site,
+                h.held.as_secs_f64(),
+                h.in_phase.as_secs_f64(),
             )
         } else {
             {
@@ -33992,18 +34044,24 @@ mod tests {
 
         {
             let _held = backend.documents.lock("a-known-test-site").await;
-            let (site, held_for) = backend.documents.holder().expect(
+            let held = backend.documents.holder().expect(
                 "a held map must name its holder — without this the #1657 \
                          stall line can only say which lock is wanted, never who has it",
             );
             assert_eq!(
-                site, "a-known-test-site",
+                held.site, "a-known-test-site",
                 "the holder must be the site that actually took the lock",
             );
             // Sanity that the clock is the shim and is running, not a default.
             assert!(
-                held_for < std::time::Duration::from_secs(60),
+                held.held < std::time::Duration::from_secs(60),
                 "the hold age must be measured from the acquisition, not from an epoch",
+            );
+            // A hold still in its first phase reports the two ages as equal —
+            // one clock reading serves both at acquisition (#1657).
+            assert!(
+                held.in_phase <= held.held,
+                "the current phase cannot predate the hold that owns it",
             );
         }
 
@@ -34017,7 +34075,7 @@ mod tests {
         {
             let _held = backend.documents.lock("a-second-site").await;
             assert_eq!(
-                backend.documents.holder().expect("held").0,
+                backend.documents.holder().expect("held").site,
                 "a-second-site",
                 "each acquisition must overwrite the tag",
             );
@@ -34207,7 +34265,7 @@ mod tests {
             let now = store.contention();
             assert_eq!(now.acquisitions, 1, "taking the map must count");
             assert_eq!(
-                now.held_by.expect("held").0,
+                now.held_by.expect("held").site,
                 "first-site",
                 "a held map names its holder",
             );
@@ -34240,6 +34298,55 @@ mod tests {
             later.last.expect("previous holder").0,
             "second-site",
             "the remembered holder must be the most recent one",
+        );
+    }
+
+    /// Retagging must restart the phase clock and leave the hold clock alone.
+    ///
+    /// A #1657 capture read `the open-document map is held by
+    /// cache_and_deliver: publish send (71.8s)` and could not be acted on,
+    /// because one age cannot say whether the *publish send* was slow or whether
+    /// a slow earlier phase had already burned seventy seconds before the hold
+    /// reached it. Retag overwrites the site, so the earlier phase leaves no
+    /// trace, and the two possibilities want different fixes.
+    ///
+    /// Both clocks together answer it: `held` is the whole hold, `in_phase` is
+    /// this step. `TurnHolder` has carried that pairing since #1667 and this is
+    /// the same idea, so the invariant is pinned rather than left to be
+    /// re-derived a third time.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn retagging_the_map_restarts_the_phase_clock_but_not_the_hold_clock() {
+        let store = DocumentStore::default();
+        let held = store.lock("first-phase").await;
+
+        // A fresh hold is entirely within its first phase, so the two ages agree.
+        let fresh = store.holder().expect("held");
+        assert_eq!(fresh.site, "first-phase");
+        assert!(
+            fresh.held.saturating_sub(fresh.in_phase) < std::time::Duration::from_millis(50),
+            "a hold still in its first phase must report the two ages as \
+             effectively equal — one clock reading serves both at acquisition",
+        );
+
+        crate::rt::sleep(std::time::Duration::from_millis(120)).await;
+        held.retag("second-phase");
+        let after = store.holder().expect("still held");
+
+        assert_eq!(after.site, "second-phase", "retag renames the holder");
+        assert!(
+            after.held >= std::time::Duration::from_millis(100),
+            "the hold clock must survive a retag — it is the answer to 'how long \
+             has the map been gone', which is what every waiter is blocked on",
+        );
+        assert!(
+            after.in_phase < std::time::Duration::from_millis(100),
+            "the phase clock must restart on a retag — without that, a long hold \
+             reports only where it currently is, and a stall line cannot tell a \
+             slow step from a step that was merely reached late (#1657)",
+        );
+        assert!(
+            after.in_phase < after.held,
+            "after a retag the current phase is strictly younger than the hold",
         );
     }
 
