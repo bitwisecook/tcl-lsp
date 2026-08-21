@@ -496,6 +496,30 @@ struct DocumentStore {
     docs: Mutex<HashMap<Uri, DocumentState>>,
     /// `None` whenever the map is free.
     holder: std::sync::Mutex<Option<DocumentsHolder>>,
+    /// The previous holder, kept after it releases.
+    ///
+    /// [`Self::holder`] is a point-in-time sample, and a stall line that reads
+    /// "free" cannot say whether the map has been idle for the whole stall or
+    /// was released a microsecond before the reporter looked. This keeps the
+    /// answer (issue #1657).
+    last_holder: std::sync::Mutex<Option<DocumentsHolder>>,
+    /// Total successful acquisitions, ever.
+    ///
+    /// The reading that separates the two stories a "free map, waiting holder"
+    /// stall leaves open. Sampled twice a moment apart:
+    ///
+    /// * **Climbing** — other tasks are taking and releasing the map while the
+    ///   turn holder waits on it. `tokio::sync::Mutex` is FIFO-fair, so a waiter
+    ///   cannot be skipped for twenty seconds; if it is being skipped, its
+    ///   acquire future is not in the queue at all, which points at the future
+    ///   never being polled rather than at the lock.
+    /// * **Frozen** — nothing wants the map, and a waiter that *is* queued was
+    ///   never woken. That is a lost wakeup in the ordinary sense.
+    ///
+    /// Relaxed throughout: this is a diagnostic counter read by a human out of a
+    /// log line, never a synchronisation point, and ordering it against the lock
+    /// would be paying for a guarantee nothing consumes.
+    acquisitions: std::sync::atomic::AtomicU64,
 }
 
 /// Who holds [`DocumentStore::docs`], and since when.
@@ -513,6 +537,8 @@ impl Default for DocumentStore {
         Self {
             docs: Mutex::new(HashMap::new()),
             holder: std::sync::Mutex::new(None),
+            last_holder: std::sync::Mutex::new(None),
+            acquisitions: std::sync::atomic::AtomicU64::new(0),
         }
     }
 }
@@ -525,6 +551,8 @@ impl DocumentStore {
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
         let docs = self.docs.lock().await;
+        self.acquisitions
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         *self
             .holder
             .lock()
@@ -533,6 +561,24 @@ impl DocumentStore {
             since: crate::rt::Instant::now(),
         });
         DocumentsGuard { docs, store: self }
+    }
+
+    /// Everything the stall line needs about this map in one sample.
+    ///
+    /// Taken together rather than field by field so the three readings describe
+    /// the same instant; sampling them separately across a stall report would
+    /// let the map be taken between them and produce a line that never
+    /// corresponded to any real moment.
+    fn contention(&self) -> DocumentsContention {
+        DocumentsContention {
+            held_by: self.holder(),
+            last: self
+                .last_holder
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .map(|h| (h.site, h.since.elapsed())),
+            acquisitions: self.acquisitions.load(std::sync::atomic::Ordering::Relaxed),
+        }
     }
 
     /// Rename whoever currently holds the map, without needing their guard.
@@ -621,12 +667,32 @@ impl std::ops::DerefMut for DocumentsGuard<'_> {
 
 impl Drop for DocumentsGuard<'_> {
     fn drop(&mut self) {
-        *self
+        // Move the departing holder aside rather than discarding it, so a stall
+        // line that finds the map free can still say who had it last and how
+        // long ago they let go (issue #1657). `since` is left as the *hold's*
+        // start, so the reported age reads as "released, having held from N
+        // seconds ago" — the release instant is recoverable from the pair.
+        let departing = self
             .store
             .holder
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .take();
+        if departing.is_some() {
+            *self
+                .store
+                .last_holder
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = departing;
+        }
     }
+}
+
+/// One instant's view of [`DocumentStore`] contention, for the stall line.
+struct DocumentsContention {
+    held_by: Option<(&'static str, std::time::Duration)>,
+    last: Option<(&'static str, std::time::Duration)>,
+    acquisitions: u64,
 }
 
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
@@ -681,6 +747,15 @@ const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs
 /// [`DeliveryCtx::delivery_attempts`] for why closed runs cannot fall back to
 /// [`reschedule_self`], and why this stays small.
 const CLOSED_DELIVERY_ATTEMPTS: u32 = 2;
+
+/// How long [`Backend::report_edit_barrier_stall`] waits between its two
+/// [`DocumentStore::contention`] samples.
+///
+/// Long enough that a map under real traffic is provably taken at least once,
+/// short enough to be lost in the noise of a stall that has already lasted
+/// [`EDIT_BARRIER_STALL_WARN`]. Paid only on the reporting path, which runs once
+/// per stuck barrier position and never on a healthy server.
+const DOCUMENTS_CONTENTION_SAMPLE_GAP: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Documents below this line count never get a fast tier — they go straight to
 /// the single deep publish.  This is the **timing-independent** floor of the
@@ -7405,13 +7480,47 @@ impl Backend {
         // adjacent `diagnostics.publish.enqueued` marker with no matching
         // completion — a good inference, but an inference, and the next
         // occurrence may not leave so tidy a trail.
-        let documents_holder = match self.documents.holder() {
-            Some((site, held)) => format!(
-                "the open-document map is held by {site} ({:.1}s)",
+        // Two samples a moment apart, because a free map is ambiguous on its
+        // own: "nobody wants it" and "everybody is taking turns while the barrier
+        // holder is skipped" look identical in one reading. The gap is short
+        // enough not to extend a stall anyone is waiting on and long enough for
+        // a busy map to move (issue #1657).
+        let before = self.documents.contention();
+        crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP).await;
+        let after = self.documents.contention();
+        let taken = after.acquisitions.saturating_sub(before.acquisitions);
+        let documents_holder = if let Some((site, held)) = after.held_by {
+            format!(
+                "the open-document map is held by {site} ({:.1}s); {taken} further \
+                 acquisition(s) in the sample window",
                 held.as_secs_f64(),
-            ),
-            None => "the open-document map is free, so the holder is waiting on something else"
-                .to_owned(),
+            )
+        } else {
+            {
+                let last = after.last.map_or_else(
+                    || "never held".to_owned(),
+                    |(site, age)| {
+                        format!(
+                            "last held by {site}, whose hold began {:.1}s ago",
+                            age.as_secs_f64()
+                        )
+                    },
+                );
+                if taken == 0 {
+                    format!(
+                        "the open-document map is FREE and untouched across the sample window \
+                         ({last}), so a waiter parked on it was never woken — a lost wakeup, not \
+                         contention"
+                    )
+                } else {
+                    format!(
+                        "the open-document map is free right now but was taken {taken} time(s) \
+                         during the sample window ({last}), so it is being acquired past a waiter \
+                         that should be ahead of it — the waiter is not in the queue rather than \
+                         the lock being stuck"
+                    )
+                }
+            }
         };
         self.client
             .log_message(
@@ -34069,6 +34178,68 @@ mod tests {
             DELIVERY_SEND_BUDGET * 2 * delivery_attempts_for(closed) < EDIT_BARRIER_STALL_WARN,
             "the inline retries must not themselves be able to hold `documents` \
              long enough for the document-sync barrier to report a stall (#1657)",
+        );
+    }
+
+    /// The map must distinguish "nobody wants it" from "everyone but the
+    /// waiter is getting it".
+    ///
+    /// A #1657 capture found the barrier holder parked on `documents.lock()`
+    /// while the map read as *free*. One sample cannot tell those apart, and
+    /// they need different fixes: a lost wakeup is a scheduling fault, whereas a
+    /// map being taken repeatedly past a waiter means the waiter is not in the
+    /// queue at all. The acquisition counter is what separates them, so it has
+    /// to actually count.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_document_map_counts_acquisitions_and_remembers_its_last_holder() {
+        let store = DocumentStore::default();
+
+        let idle = store.contention();
+        assert_eq!(idle.acquisitions, 0, "a fresh map has never been taken");
+        assert!(idle.held_by.is_none(), "a fresh map is free");
+        assert!(
+            idle.last.is_none(),
+            "a fresh map has no previous holder to blame",
+        );
+
+        {
+            let _held = store.lock("first-site").await;
+            let now = store.contention();
+            assert_eq!(now.acquisitions, 1, "taking the map must count");
+            assert_eq!(
+                now.held_by.expect("held").0,
+                "first-site",
+                "a held map names its holder",
+            );
+        }
+
+        // Released: free, but the previous holder is still nameable — the thing
+        // the capture could not tell me.
+        let after = store.contention();
+        assert!(after.held_by.is_none(), "the guard released the map");
+        assert_eq!(
+            after.last.expect("a previous holder is remembered").0,
+            "first-site",
+            "a free map must still say who held it last, or a stall line that \
+             finds it free has nothing to report at all",
+        );
+
+        // A second acquisition advances the counter: this is the reading that,
+        // sampled twice during a stall, says the map is being taken *past* a
+        // parked waiter rather than sitting idle.
+        {
+            let _held = store.lock("second-site").await;
+        }
+        let later = store.contention();
+        assert_eq!(
+            later.acquisitions, 2,
+            "every acquisition must count, or a busy map is indistinguishable \
+             from an untouched one and the lost-wakeup verdict is unfalsifiable",
+        );
+        assert_eq!(
+            later.last.expect("previous holder").0,
+            "second-site",
+            "the remembered holder must be the most recent one",
         );
     }
 
