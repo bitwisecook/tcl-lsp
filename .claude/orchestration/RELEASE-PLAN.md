@@ -18,16 +18,19 @@ No history. Delete items as they complete. Issues carry per-task detail.
   are branches of ONE `FuturesUnordered` driven by the single
   `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
   parent-poll starvation is the leading mechanism; permit starvation
-  excluded (notifications take no permit). VERDICT (pre-fix binary, being
-  confirmed on fixed build): timer FIRED exactly on schedule, wake
-  DELIVERED, task NEVER POLLED for 71s while siblings ran — a scheduler
-  failure, not the time driver. Live suspect: tokio 1.52 worker-queue
-  changes (compare_exchange_weak, local-queue overflow rework); downgrade
-  experiment retargeted to 1.51.1, staged with agreed criteria (30 clean ≈
-  corroboration at ~1-in-8; any capture on 1.51.1 kills it). PR #1679
-  (`claude/f6h-1657-pollshim` @ f7e0384d0, `Refs #1657`) — both Codex P2s
-  fixed via the #1677 single-snapshot mechanism; merge on green. 70s
-  pre-send hold split off as #1678 (post-release). Checkpoints through 23.
+  excluded (notifications take no permit). VERDICT CONFIRMED on fixed
+  binary: timer fired exactly on schedule, TWO wakes delivered (send +
+  timer halves), ZERO subsequent polls for 43.8s while the runtime polled
+  other tasks — a tokio scheduler task-resumption fault. DOWNGRADE
+  EXPERIMENT RUNNING: tokio pinned 1.51.1 (throwaway lockfile change, not
+  committed), 30-run loop; criteria pre-agreed — any capture on 1.51.1
+  kills the 1.52+ scheduler hypothesis; ~15+ clean ≈ strong corroboration
+  at the recent ~1-in-2 repro. If corroborated: fix = pin tokio <1.52 +
+  upstream report (3 instrumented captures + bisect + minimal shape:
+  spawned task holding tokio Mutex awaiting timeout around futures::mpsc
+  send, woken twice, never re-polled). PR #1679 (@ f7e0384d0,
+  `Refs #1657`) — Codex settled; merge on green. #1678 post-release.
+  Checkpoints through 24.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
