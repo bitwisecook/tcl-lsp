@@ -984,7 +984,49 @@ pub struct GraphExport {
 }
 
 /// The supported `f5 graph` formats.
-pub const GRAPH_FORMATS: [&str; 3] = ["dot", "json", "mermaid"];
+pub const GRAPH_FORMATS: [&str; 3] = [
+    GraphFormat::Dot.as_str(),
+    GraphFormat::Json.as_str(),
+    GraphFormat::Mermaid.as_str(),
+];
+
+/// Closed vocabulary of `f5 graph` output formats. `export_graph` takes the
+/// CLI-typed `&str` (the wire spelling users type as `--format dot|json|mermaid`
+/// is preserved unchanged) and parses it to this enum for exhaustive internal
+/// dispatch — the previous `match fmt { "dot" => .., "json" => .., _ => .. }`
+/// let an unrecognised-but-validated string silently fall through to mermaid.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GraphFormat {
+    Dot,
+    Json,
+    Mermaid,
+}
+
+impl GraphFormat {
+    /// The CLI spelling for this format — must stay byte-identical to the
+    /// pre-enum strings (`--format` value, `GRAPH_FORMATS`, the "unknown
+    /// graph format" error list).
+    const fn as_str(self) -> &'static str {
+        match self {
+            GraphFormat::Dot => "dot",
+            GraphFormat::Json => "json",
+            GraphFormat::Mermaid => "mermaid",
+        }
+    }
+}
+
+impl std::str::FromStr for GraphFormat {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "dot" => Ok(GraphFormat::Dot),
+            "json" => Ok(GraphFormat::Json),
+            "mermaid" => Ok(GraphFormat::Mermaid),
+            _ => Err(()),
+        }
+    }
+}
 
 /// A DOT-safe node id: `n_` + each non-alphanumeric char replaced by `_`.
 fn safe_id(node_id: &str) -> String {
@@ -1014,11 +1056,11 @@ pub fn export_graph(
     reverse: bool,
     max_depth: Option<usize>,
 ) -> Result<GraphExport, BigipError> {
-    if !GRAPH_FORMATS.contains(&fmt) {
+    let Ok(format) = fmt.parse::<GraphFormat>() else {
         return Err(BigipError::graph(format!(
             "unknown graph format {fmt:?} (expected one of {GRAPH_FORMATS:?})"
         )));
-    }
+    };
 
     // Flatten nodes in source order (across uris), keyed by node_id.
     let all_nodes: Vec<&ObjectNode> = graph
@@ -1029,10 +1071,10 @@ pub fn export_graph(
     let (kept, edges) = filter_to_subgraph(&all_nodes, &graph.edges, seeds, reverse, max_depth);
 
     let kept_ids: HashSet<&str> = kept.iter().map(|n| n.node_id.as_str()).collect();
-    let text = match fmt {
-        "dot" => to_dot(&kept, &edges, &kept_ids),
-        "json" => to_json(&kept, &edges, &kept_ids),
-        _ => to_mermaid(&kept, &edges, &kept_ids),
+    let text = match format {
+        GraphFormat::Dot => to_dot(&kept, &edges, &kept_ids),
+        GraphFormat::Json => to_json(&kept, &edges, &kept_ids),
+        GraphFormat::Mermaid => to_mermaid(&kept, &edges, &kept_ids),
     };
     Ok(GraphExport {
         fmt: fmt.to_owned(),

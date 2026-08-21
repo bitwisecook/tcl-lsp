@@ -951,8 +951,13 @@ fn compute_explain_flow(
             }
         }
 
-        let explain_report = explain::compute_explain(cfg_hit, &vs.full_path, Some("virtual"));
-        let explain_full_path = explain::full_path_of(&explain_report, cfg_hit, Some("virtual"));
+        let explain_report =
+            explain::compute_explain(cfg_hit, &vs.full_path, Some(explain::ExplainKind::Virtual));
+        let explain_full_path = explain::full_path_of(
+            &explain_report,
+            cfg_hit,
+            Some(explain::ExplainKind::Virtual),
+        );
         let explain_text = explain::format_text(&explain_report, &explain_full_path);
 
         let reset = analyse_reset(&session);

@@ -43,7 +43,61 @@ use crate::errors::QueryError;
 use crate::output::cell_str;
 use crate::value::Value;
 
-const DIRECTIONS: [&str; 4] = ["LR", "RL", "TB", "BT"];
+const DIRECTIONS: [&str; 4] = [
+    MermaidDirection::Lr.as_str(),
+    MermaidDirection::Rl.as_str(),
+    MermaidDirection::Tb.as_str(),
+    MermaidDirection::Bt.as_str(),
+];
+
+/// Closed vocabulary backing [`DIRECTIONS`]: the Mermaid flowchart `direction`
+/// query option. Validated once here (`direction.parse()`) instead of via
+/// `DIRECTIONS.contains(...)`, then carried as this enum (not the raw
+/// upper-cased string) into [`render_chain`], which `Display`s it straight
+/// into the emitted `graph {direction}` line — the exact "LR"/"RL"/"TB"/"BT"
+/// spelling a user's rendered diagram shows is unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum MermaidDirection {
+    /// Left to right.
+    Lr,
+    /// Right to left.
+    Rl,
+    /// Top to bottom.
+    Tb,
+    /// Bottom to top.
+    Bt,
+}
+
+impl MermaidDirection {
+    const fn as_str(self) -> &'static str {
+        match self {
+            MermaidDirection::Lr => "LR",
+            MermaidDirection::Rl => "RL",
+            MermaidDirection::Tb => "TB",
+            MermaidDirection::Bt => "BT",
+        }
+    }
+}
+
+impl std::str::FromStr for MermaidDirection {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "LR" => Ok(MermaidDirection::Lr),
+            "RL" => Ok(MermaidDirection::Rl),
+            "TB" => Ok(MermaidDirection::Tb),
+            "BT" => Ok(MermaidDirection::Bt),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Display for MermaidDirection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// Render *values* as Mermaid — registry entry point.
 ///
@@ -52,15 +106,15 @@ const DIRECTIONS: [&str; 4] = ["LR", "RL", "TB", "BT"];
 /// Returns [`QueryError::Renderer`] for an unknown `direction`, a non-boolean
 /// `reverse`, or a non-integer `max-depth`.
 pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<String, QueryError> {
-    let direction = opts
+    let direction_str = opts
         .get("direction")
         .map_or_else(|| "LR".to_owned(), |s| s.to_uppercase());
-    if !DIRECTIONS.contains(&direction.as_str()) {
+    let Ok(direction) = direction_str.parse::<MermaidDirection>() else {
         let valid = DIRECTIONS.join(", ");
         return Err(QueryError::Renderer(format!(
-            "mermaid: unknown direction '{direction}' (expected one of {valid})"
+            "mermaid: unknown direction '{direction_str}' (expected one of {valid})"
         )));
-    }
+    };
 
     let all_object_refs =
         !values.is_empty() && values.iter().all(|v| matches!(v, Value::ObjectRef(_)));
@@ -72,12 +126,12 @@ pub fn render(values: &[Value], opts: &BTreeMap<String, String>) -> Result<Strin
         let _reverse = parse_bool(opts.get("reverse"), "reverse")?;
         let _max_depth =
             parse_optional_int(opts.get("max-depth").or_else(|| opts.get("max_depth")))?;
-        return Ok(render_chain(values, &direction));
+        return Ok(render_chain(values, direction));
     }
-    Ok(render_chain(values, &direction))
+    Ok(render_chain(values, direction))
 }
 
-fn render_chain(values: &[Value], direction: &str) -> String {
+fn render_chain(values: &[Value], direction: MermaidDirection) -> String {
     if values.is_empty() {
         return format!("graph {direction}\n");
     }

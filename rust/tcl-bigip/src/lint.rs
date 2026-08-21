@@ -36,9 +36,52 @@ use crate::model::ModelObject;
 use crate::parser::driver::{BigipConfig, Placed};
 
 /// The lint rule categories, in fixed order.
-pub const CATEGORIES: [&str; 2] = ["config", "irule"];
+pub const CATEGORIES: [&str; 2] = [LintCategory::Config.as_str(), LintCategory::Irule.as_str()];
 /// The finding severities, in fixed order.
 pub const SEVERITIES: [&str; 3] = ["error", "warning", "info"];
+
+/// Closed vocabulary backing [`CATEGORIES`]. [`Finding::category`] (the JSON
+/// report's `"category"` field) and [`run_lint`]'s `category` filter argument
+/// (the CLI `--category config|irule` spelling) both use this internally, but
+/// the wire spelling itself — the JSON string value, the CLI `value_parser` list
+/// — stays `"config"`/`"irule"` via [`LintCategory::as_str`]/`FromStr`, unchanged
+/// from before this enum existed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LintCategory {
+    /// The BIG-IP model / config-structure rules.
+    Config,
+    /// The iRule-body rules.
+    Irule,
+}
+
+impl LintCategory {
+    /// The wire spelling: `"config"` or `"irule"`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            LintCategory::Config => "config",
+            LintCategory::Irule => "irule",
+        }
+    }
+}
+
+impl std::str::FromStr for LintCategory {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "config" => Ok(LintCategory::Config),
+            "irule" => Ok(LintCategory::Irule),
+            _ => Err(()),
+        }
+    }
+}
+
+impl std::fmt::Display for LintCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
 
 /// One lint finding.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,8 +90,8 @@ pub struct Finding {
     pub rule_id: String,
     /// `"error"`, `"warning"`, or `"info"`.
     pub severity: &'static str,
-    /// `"config"` or `"irule"`.
-    pub category: &'static str,
+    /// [`LintCategory::Config`] or [`LintCategory::Irule`].
+    pub category: LintCategory,
     /// The object full-path the finding is about.
     pub full_path: String,
     /// Human-readable message.
@@ -290,7 +333,7 @@ fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
             out.push(Finding {
                 rule_id: "orphan-monitor".to_owned(),
                 severity: "info",
-                category: "config",
+                category: LintCategory::Config,
                 full_path: path.to_owned(),
                 message: "monitor not referenced by any pool in this config".to_owned(),
             });
@@ -298,7 +341,7 @@ fn rule_orphan_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
             out.push(Finding {
                 rule_id: "orphan-monitor".to_owned(),
                 severity: "warning",
-                category: "config",
+                category: LintCategory::Config,
                 full_path: path.to_owned(),
                 message: "monitor not referenced by any pool".to_owned(),
             });
@@ -331,7 +374,7 @@ fn rule_empty_pool(view: &ModelView<'_>, out: &mut Vec<Finding>) {
             out.push(Finding {
                 rule_id: "empty-pool".to_owned(),
                 severity: "warning",
-                category: "config",
+                category: LintCategory::Config,
                 full_path: path.to_owned(),
                 message: "pool has no members".to_owned(),
             });
@@ -352,7 +395,7 @@ fn rule_virtual_without_pool(view: &ModelView<'_>, out: &mut Vec<Finding>) {
         out.push(Finding {
             rule_id: "virtual-without-pool".to_owned(),
             severity: "info",
-            category: "config",
+            category: LintCategory::Config,
             full_path: path.to_owned(),
             message: "virtual has no default pool and no iRules attached".to_owned(),
         });
@@ -375,7 +418,7 @@ fn rule_pool_without_monitor(view: &ModelView<'_>, out: &mut Vec<Finding>) {
         out.push(Finding {
             rule_id: "pool-without-monitor".to_owned(),
             severity: "warning",
-            category: "config",
+            category: LintCategory::Config,
             full_path: path.to_owned(),
             message: "pool has no health monitor (pool-level or per-member)".to_owned(),
         });
@@ -404,7 +447,7 @@ fn rule_irule_deprecated_command(view: &ModelView<'_>, out: &mut Vec<Finding>) {
                 out.push(Finding {
                     rule_id: "irule-deprecated-command".to_owned(),
                     severity: "warning",
-                    category: "irule",
+                    category: LintCategory::Irule,
                     full_path: path.to_owned(),
                     message: (*msg).to_owned(),
                 });
@@ -424,7 +467,7 @@ fn rule_irule_empty_when(view: &ModelView<'_>, out: &mut Vec<Finding>) {
             out.push(Finding {
                 rule_id: "irule-empty-when".to_owned(),
                 severity: "info",
-                category: "irule",
+                category: LintCategory::Irule,
                 full_path: path.to_owned(),
                 message: "iRule contains a `when` block with no statements".to_owned(),
             });
@@ -447,7 +490,7 @@ fn rule_irule_unknown_event(view: &ModelView<'_>, events: &EventRegistry, out: &
                 out.push(Finding {
                     rule_id: "irule-unknown-event".to_owned(),
                     severity: "warning",
-                    category: "irule",
+                    category: LintCategory::Irule,
                     full_path: path.to_owned(),
                     message: format!("iRule references unknown event {}", py_repr(&block.event)),
                 });
@@ -562,7 +605,7 @@ fn rule_irule_missing_object(
             out.push(Finding {
                 rule_id: format!("irule-missing-{kind}"),
                 severity: "warning",
-                category: "irule",
+                category: LintCategory::Irule,
                 full_path: path.to_owned(),
                 message: format!(
                     "iRule references {kind} {} (via `{}`) but no such object exists",
@@ -603,9 +646,12 @@ pub fn run_lint(
     let mut findings: Vec<Finding> = Vec::new();
 
     // The config-category rules, then the irule-category rules, in the fixed
-    // registration order.
-    let run_config = matches!(category, None | Some("config"));
-    let run_irule = matches!(category, None | Some("irule"));
+    // registration order. An unparseable `category` (neither "config" nor
+    // "irule") matches neither — same as before this enum, when it compared
+    // the raw string against both literals and matched neither.
+    let parsed_category = category.map(str::parse::<LintCategory>);
+    let run_config = matches!(parsed_category, None | Some(Ok(LintCategory::Config)));
+    let run_irule = matches!(parsed_category, None | Some(Ok(LintCategory::Irule)));
 
     if run_config {
         rule_orphan_monitor(&view, &mut findings);

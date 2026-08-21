@@ -53,72 +53,100 @@ use crate::value_shapes::parse_command_substitution;
 
 // Basis lattices
 
-/// Ordered taint-colour bases. The
-/// per-parameter return scenarios are computed by seeding the parameter with
-/// each basis lattice in turn.
-const BASIS_ORDER: [&str; 17] = [
-    "generic",
-    "path",
-    "non_dash",
-    "crlf_free",
-    "shell_atom",
-    "list_canonical",
-    "regex_literal",
-    "path_normalised",
-    "path_bounded",
-    "header_token_safe",
-    "html_escaped",
-    "url_encoded",
-    "ip",
-    "port",
-    "fqdn",
-    "path_joined",
-    "channel",
-];
-
-/// The taint lattice each basis name seeds a parameter with.
-fn basis_lattice(basis: &str) -> TaintLattice {
-    let t = TaintColour::TAINTED;
-    let colour = match basis {
-        "generic" => t,
-        "path" => t | TaintColour::PATH_PREFIXED,
-        "non_dash" => t | TaintColour::NON_DASH_PREFIXED,
-        "crlf_free" => t | TaintColour::CRLF_FREE,
-        "shell_atom" => t | TaintColour::SHELL_ATOM,
-        "list_canonical" => t | TaintColour::LIST_CANONICAL,
-        "regex_literal" => t | TaintColour::REGEX_LITERAL,
-        "path_normalised" => t | TaintColour::PATH_NORMALISED,
-        // PATH_BOUNDED is set alongside PATH_NORMALISED (the basis entry is
-        // reserved for future branch-dependent refinement).
-        "path_bounded" => t | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED,
-        "header_token_safe" => t | TaintColour::HEADER_TOKEN_SAFE,
-        "html_escaped" => t | TaintColour::HTML_ESCAPED,
-        "url_encoded" => t | TaintColour::URL_ENCODED,
-        "ip" => t | TaintColour::IP_ADDRESS,
-        "port" => t | TaintColour::PORT,
-        "fqdn" => t | TaintColour::FQDN,
-        "path_joined" => t | TaintColour::PATH_JOINED,
-        "channel" => t | TaintColour::CHANNEL,
-        unknown => panic!("BASIS_ORDER contains unknown taint basis {unknown:?}"),
-    };
-    TaintLattice { colours: colour }
+/// Closed vocabulary of taint-colour bases. The per-parameter return
+/// scenarios are computed by seeding the parameter with each basis lattice in
+/// turn, in [`TaintBasis::ALL`] order (which fixes `return_by_param_basis`'s
+/// index-to-basis mapping).
+///
+/// Purely an internal solver vocabulary: never serialised, never a CLI/`.tclspec`
+/// spelling, so no `FromStr`/`Display` boundary is needed (unlike the
+/// dialect-name discipline in #1405).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum TaintBasis {
+    Generic,
+    Path,
+    NonDash,
+    CrlfFree,
+    ShellAtom,
+    ListCanonical,
+    RegexLiteral,
+    PathNormalised,
+    PathBounded,
+    HeaderTokenSafe,
+    HtmlEscaped,
+    UrlEncoded,
+    Ip,
+    Port,
+    Fqdn,
+    PathJoined,
+    Channel,
 }
 
-/// Basis names whose lattice colour intersects `taint`'s colour, excluding
-/// `"generic"` (falling back to `["generic"]` when none match).
-fn basis_names_for_taint(taint: TaintLattice) -> Vec<&'static str> {
+impl TaintBasis {
+    /// Ordered taint-colour bases, fixing the index used by
+    /// `return_by_param_basis`.
+    const ALL: [TaintBasis; 17] = [
+        TaintBasis::Generic,
+        TaintBasis::Path,
+        TaintBasis::NonDash,
+        TaintBasis::CrlfFree,
+        TaintBasis::ShellAtom,
+        TaintBasis::ListCanonical,
+        TaintBasis::RegexLiteral,
+        TaintBasis::PathNormalised,
+        TaintBasis::PathBounded,
+        TaintBasis::HeaderTokenSafe,
+        TaintBasis::HtmlEscaped,
+        TaintBasis::UrlEncoded,
+        TaintBasis::Ip,
+        TaintBasis::Port,
+        TaintBasis::Fqdn,
+        TaintBasis::PathJoined,
+        TaintBasis::Channel,
+    ];
+
+    /// The taint lattice this basis seeds a parameter with.
+    fn lattice(self) -> TaintLattice {
+        let t = TaintColour::TAINTED;
+        let colour = match self {
+            TaintBasis::Generic => t,
+            TaintBasis::Path => t | TaintColour::PATH_PREFIXED,
+            TaintBasis::NonDash => t | TaintColour::NON_DASH_PREFIXED,
+            TaintBasis::CrlfFree => t | TaintColour::CRLF_FREE,
+            TaintBasis::ShellAtom => t | TaintColour::SHELL_ATOM,
+            TaintBasis::ListCanonical => t | TaintColour::LIST_CANONICAL,
+            TaintBasis::RegexLiteral => t | TaintColour::REGEX_LITERAL,
+            TaintBasis::PathNormalised => t | TaintColour::PATH_NORMALISED,
+            // PATH_BOUNDED is set alongside PATH_NORMALISED (the basis entry
+            // is reserved for future branch-dependent refinement).
+            TaintBasis::PathBounded => t | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED,
+            TaintBasis::HeaderTokenSafe => t | TaintColour::HEADER_TOKEN_SAFE,
+            TaintBasis::HtmlEscaped => t | TaintColour::HTML_ESCAPED,
+            TaintBasis::UrlEncoded => t | TaintColour::URL_ENCODED,
+            TaintBasis::Ip => t | TaintColour::IP_ADDRESS,
+            TaintBasis::Port => t | TaintColour::PORT,
+            TaintBasis::Fqdn => t | TaintColour::FQDN,
+            TaintBasis::PathJoined => t | TaintColour::PATH_JOINED,
+            TaintBasis::Channel => t | TaintColour::CHANNEL,
+        };
+        TaintLattice { colours: colour }
+    }
+}
+
+/// Bases whose lattice colour intersects `taint`'s colour, excluding
+/// [`TaintBasis::Generic`] (falling back to `[Generic]` when none match).
+fn basis_names_for_taint(taint: TaintLattice) -> Vec<TaintBasis> {
     if !taint.is_tainted() {
         return Vec::new();
     }
-    let mut names: Vec<&'static str> = BASIS_ORDER
-        .iter()
-        .copied()
+    let mut names: Vec<TaintBasis> = TaintBasis::ALL
+        .into_iter()
         .filter(|basis| {
-            *basis != "generic" && basis_lattice(basis).colours.intersects(taint.colours)
+            *basis != TaintBasis::Generic && basis.lattice().colours.intersects(taint.colours)
         })
         .collect();
     if names.is_empty() {
-        names.push("generic");
+        names.push(TaintBasis::Generic);
     }
     names
 }
@@ -141,9 +169,9 @@ pub struct ProcTaintSummary {
     pub arity: Arity,
     /// Taint the call returns when no parameter is tainted.
     pub return_base: TaintLattice,
-    /// Per-parameter return taint, indexed by [`BASIS_ORDER`]: for each
+    /// Per-parameter return taint, indexed by [`TaintBasis::ALL`]: for each
     /// `(param, [taint_per_basis])`, `taint_per_basis[i]` is the taint the
-    /// call returns when `param` is seeded with `BASIS_ORDER[i]`'s lattice.
+    /// call returns when `param` is seeded with `TaintBasis::ALL[i]`'s lattice.
     pub return_by_param_basis: Vec<(String, Vec<TaintLattice>)>,
 }
 
@@ -165,7 +193,7 @@ impl ProcTaintSummary {
             return_base: clean,
             return_by_param_basis: params
                 .iter()
-                .map(|p| (p.clone(), vec![clean; BASIS_ORDER.len()]))
+                .map(|p| (p.clone(), vec![clean; TaintBasis::ALL.len()]))
                 .collect(),
         }
     }
@@ -227,7 +255,10 @@ pub fn apply_proc_return_summary(
             continue;
         }
         for basis in basis_names_for_taint(*t) {
-            let idx = BASIS_ORDER.iter().position(|b| *b == basis).unwrap_or(0);
+            let idx = TaintBasis::ALL
+                .iter()
+                .position(|b| *b == basis)
+                .unwrap_or(0);
             out = out.join(summary.scenario(p, idx));
         }
     }
@@ -327,7 +358,7 @@ fn collect_return_taint(
 /// taints and summaries. A thin wrapper threading the common arguments.
 ///
 /// `graph` carries the CFG-derived indices, built once by the caller: one
-/// summary inference runs this `1 + params × BASIS_ORDER` times and the
+/// summary inference runs this `1 + params × TaintBasis::ALL` times and the
 /// indices are identical across all of them (issue #1251).
 fn run_propagation(
     graph: &TaintGraph<'_>,
@@ -394,8 +425,8 @@ pub type InferProcSummaryFn<'a> = dyn FnMut(
 /// # Cost
 ///
 /// The summary is a transfer function: a clean base plus, for each parameter, a
-/// return taint per [`BASIS_ORDER`] entry.  Computed naively that is
-/// `1 + BASIS_ORDER.len() * params.len()` — `1 + 17P` — complete dataflow
+/// return taint per [`TaintBasis::ALL`] entry.  Computed naively that is
+/// `1 + TaintBasis::ALL.len() * params.len()` — `1 + 17P` — complete dataflow
 /// solves over the procedure's CFG, and this is the dominant cost of the whole
 /// interprocedural taint pass (about 80% of `run_all_checks` on tcllib's
 /// `practcl.tcl`).
@@ -465,13 +496,13 @@ pub fn infer_proc_summary(
         // it directly.  (This is a proof, not an approximation: the two runs
         // differ in no input.)
         if fu.ssa.var_symbol(param).is_none() {
-            by_param_basis.push((param.clone(), vec![return_base; BASIS_ORDER.len()]));
+            by_param_basis.push((param.clone(), vec![return_base; TaintBasis::ALL.len()]));
             continue;
         }
-        let mut scenario_values: Vec<TaintLattice> = Vec::with_capacity(BASIS_ORDER.len());
-        for basis in BASIS_ORDER {
+        let mut scenario_values: Vec<TaintLattice> = Vec::with_capacity(TaintBasis::ALL.len());
+        for basis in TaintBasis::ALL {
             let mut seed: HashMap<String, TaintLattice> = HashMap::new();
-            seed.insert(param.clone(), basis_lattice(basis));
+            seed.insert(param.clone(), basis.lattice());
             let seeded = run_propagation(
                 &graph,
                 fu,
@@ -1077,6 +1108,68 @@ mod tests {
     }
 
     #[test]
+    fn taint_basis_lattice_matches_expected_colours() {
+        // Mutation guard for the basis-name -> lattice mapping (issue #1614):
+        // pins each `TaintBasis` variant to its exact expected `TaintColour`
+        // set. Swapping which colour two variants map to (e.g. giving `Path`
+        // `NON_DASH_PREFIXED` and `NonDash` `PATH_PREFIXED`) flips two of
+        // these assertions and fails the test — the array/match could
+        // silently drift before #1614 (that was the whole point of the
+        // `panic!` fallthrough this enum removes), so this test is the
+        // regression net the exhaustiveness alone doesn't provide.
+        let t = TaintColour::TAINTED;
+        let expected: [(TaintBasis, TaintColour); 17] = [
+            (TaintBasis::Generic, t),
+            (TaintBasis::Path, t | TaintColour::PATH_PREFIXED),
+            (TaintBasis::NonDash, t | TaintColour::NON_DASH_PREFIXED),
+            (TaintBasis::CrlfFree, t | TaintColour::CRLF_FREE),
+            (TaintBasis::ShellAtom, t | TaintColour::SHELL_ATOM),
+            (TaintBasis::ListCanonical, t | TaintColour::LIST_CANONICAL),
+            (TaintBasis::RegexLiteral, t | TaintColour::REGEX_LITERAL),
+            (TaintBasis::PathNormalised, t | TaintColour::PATH_NORMALISED),
+            (
+                TaintBasis::PathBounded,
+                t | TaintColour::PATH_NORMALISED | TaintColour::PATH_BOUNDED,
+            ),
+            (
+                TaintBasis::HeaderTokenSafe,
+                t | TaintColour::HEADER_TOKEN_SAFE,
+            ),
+            (TaintBasis::HtmlEscaped, t | TaintColour::HTML_ESCAPED),
+            (TaintBasis::UrlEncoded, t | TaintColour::URL_ENCODED),
+            (TaintBasis::Ip, t | TaintColour::IP_ADDRESS),
+            (TaintBasis::Port, t | TaintColour::PORT),
+            (TaintBasis::Fqdn, t | TaintColour::FQDN),
+            (TaintBasis::PathJoined, t | TaintColour::PATH_JOINED),
+            (TaintBasis::Channel, t | TaintColour::CHANNEL),
+        ];
+        assert_eq!(expected.len(), TaintBasis::ALL.len());
+        for (basis, colour) in expected {
+            assert_eq!(
+                basis.lattice(),
+                TaintLattice { colours: colour },
+                "{basis:?} mapped to an unexpected lattice"
+            );
+        }
+        // Every non-generic basis is pairwise distinct — a swap between two
+        // bases (rather than a wrong constant) still fails via `intersects`
+        // returning true for both instead of one.
+        for i in 1..TaintBasis::ALL.len() {
+            for j in (i + 1)..TaintBasis::ALL.len() {
+                let a = TaintBasis::ALL[i].lattice();
+                let b = TaintBasis::ALL[j].lattice();
+                assert_ne!(
+                    a,
+                    b,
+                    "{:?} and {:?} must map to distinct lattices",
+                    TaintBasis::ALL[i],
+                    TaintBasis::ALL[j]
+                );
+            }
+        }
+    }
+
+    #[test]
     fn cross_proc_entry_taint_into_sink_warns() {
         // A tainted argument flowing into a proc parameter and then into a
         // sink inside that proc is reported (cross-proc entry-taint) — the
@@ -1168,9 +1261,9 @@ mod tests {
         let mut by_param_basis = Vec::new();
         for param in &proc.params {
             let mut values = Vec::new();
-            for basis in BASIS_ORDER {
+            for basis in TaintBasis::ALL {
                 let mut seed = HashMap::new();
-                seed.insert(param.clone(), basis_lattice(basis));
+                seed.insert(param.clone(), basis.lattice());
                 let seeded =
                     run_propagation(&graph, fu, &reg, interproc, None, Some(&seed), &summaries);
                 values.push(collect_return_taint(fu, &seeded, ctx));
@@ -1255,7 +1348,7 @@ mod tests {
             .find(|(p, _)| p == "b")
             .expect("parameter b recorded");
         assert_eq!(name, "b");
-        assert_eq!(values.len(), BASIS_ORDER.len());
+        assert_eq!(values.len(), TaintBasis::ALL.len());
         assert!(
             values.iter().all(|v| *v == s.return_base),
             "unread parameter must reproduce the base return, got {values:?}"
