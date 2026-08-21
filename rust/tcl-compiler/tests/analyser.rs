@@ -6278,6 +6278,35 @@ mod class_factories {
     }
 
     #[test]
+    fn deeply_nested_untyped_bodies_do_not_blow_the_static_walk_stack() {
+        // The same native-stack safety net for the *untyped* body relaxation
+        // (#1672). `untyped_body_provably_blocks` re-enters the statement walk,
+        // which can re-enter it: `eval {eval {eval {…}}}` drives that recursion
+        // by nesting alone, so it carries the same `MAX_UNKNOWN_BODY_DEPTH`
+        // bound. Past the cap it abstains, the direction it takes for anything
+        // it cannot read, so this asserts termination and a well-formed result
+        // rather than a resolution.
+        //
+        // 40 is many times the cap (8) and well under the braced-body descent's
+        // own limit, so a failure here is this walk's recursion, not that one's.
+        let mut nest = "    set zz 1\n".to_owned();
+        for _ in 0..40 {
+            nest = format!("    eval {{\n{nest}    }}\n");
+        }
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            &format!(
+                "{nest}    ::T::Mother create ${{NSPACE}}::class {{ superclass ::T::Mother }}\n"
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::Mother"),
+            "the literally-written metaclass must survive the deep walk"
+        );
+    }
+
+    #[test]
     fn deeply_nested_collection_loops_do_not_blow_the_static_walk_stack() {
         // Native-stack safety net (#996's family) for the relaxation above:
         // the fall-through walk re-enters itself once per control body it
