@@ -19,9 +19,13 @@ No history. Delete items as they complete. Issues carry per-task detail.
   `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
   parent-poll starvation is the leading mechanism; permit starvation
   excluded (notifications take no permit). Instrumentation merged through
-  PR #1677 (ac54a51c0). Now building: shim distinguishing child-not-polled
-  vs parent-not-polled. 70s pre-send hold split off as #1678
-  (post-release). Checkpoints through 19 on the issue.
+  PR #1677 (ac54a51c0). Poll-discriminator shim BUILT and pushed
+  (`claude/f6h-1657-pollshim`): per-waiter poll/wake telemetry + parent
+  liveness counter; the stall line now states the verdict —
+  woken-after-last-poll + parent climbing = lost between parent and child;
+  + parent frozen = whole-parent starvation; never-woken = wake lost/never
+  sent. Loop running 30 loaded runs. 70s pre-send hold split off as #1678
+  (post-release). Checkpoints through 20 on the issue.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
