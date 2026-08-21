@@ -7216,24 +7216,34 @@ mod tests {
                 for lead in ["x", "idle", "ifneeded", "0"] {
                     let mut args = vec!["x"; argc];
                     args[0] = lead;
-                    let mask = reg
-                        .get(name)
-                        .and_then(|spec| spec.dialects)
-                        .unwrap_or(DialectSet::TK_AND_TCL);
-                    let traits = reg.invocation_traits(name, &args, mask);
-                    if traits.contains(Traits::DEFERS_BODY)
-                        // A `CONTROL_FLOW` command is the registry's own
-                        // business: the analyser refuses to walk one whose arm
-                        // it cannot type rather than reading the body, so a
-                        // malformed probe shape of `if` / `try` is not a
-                        // missing stance.
-                        || traits.contains(Traits::CONTROL_FLOW)
-                    {
-                        continue;
-                    }
-                    for index in reg.arg_indices_for_role(name, &args, ArgRole::Body) {
-                        if reg.control_arm_semantics(name, &args, index).is_none() {
-                            untyped_body = true;
+                    // One name can carry more than one spec, resolved by
+                    // dialect — `after` has a Tcl spec and an iRules one, and
+                    // a sweep that looked at only one would let the other lose
+                    // its trait unnoticed. Iterating the specs (rather than a
+                    // list of masks) also keeps every probe on a mask the
+                    // command actually resolves under: an unresolvable call
+                    // answers with an empty trait set, which is indistinguish-
+                    // able from a spec whose only trait was `DEFERS_BODY`
+                    // until it was dropped — precisely the regression this
+                    // gate exists to catch.
+                    for spec in reg.specs(name) {
+                        let mask = spec.dialects.unwrap_or(DialectSet::TK_AND_TCL);
+                        let traits = reg.invocation_traits(name, &args, mask);
+                        if spec.traits.contains(Traits::DEFERS_BODY)
+                            || traits.contains(Traits::DEFERS_BODY)
+                            // A `CONTROL_FLOW` command is the registry's own
+                            // business: the analyser refuses to walk one whose
+                            // arm it cannot type rather than reading the body,
+                            // so a malformed probe shape of `if` / `try` is
+                            // not a missing stance.
+                            || traits.contains(Traits::CONTROL_FLOW)
+                        {
+                            continue;
+                        }
+                        for index in reg.arg_indices_for_role(name, &args, ArgRole::Body) {
+                            if reg.control_arm_semantics(name, &args, index).is_none() {
+                                untyped_body = true;
+                            }
                         }
                     }
                 }
