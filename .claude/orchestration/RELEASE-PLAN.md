@@ -10,27 +10,19 @@ No history. Delete items as they complete. Issues carry per-task detail.
 ## Pre-release issues
 
 - **#1657** — wedge endgame, ACTIVE (census lane,
-  `claude/f6g-1657-lostwake` @ 6452fb127). VERDICT: contention EXCLUDED —
-  waiter parked 18s on a FREE map, acquisition counter flat across the
-  250ms window. Remaining split: waiter never woken vs task never polled
-  again (a parent-loop poll starvation looks identical; mutex defect is
-  the extraordinary claim). STRUCTURAL CONFIRMATION: all handler futures
-  are branches of ONE `FuturesUnordered` driven by the single
-  `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
-  parent-poll starvation is the leading mechanism; permit starvation
-  excluded (notifications take no permit). VERDICT (confirmed, fixed
-  binary): wakes delivered, task never polled again — and the 1.51.1
-  downgrade CAPTURED byte-identical on run 2, so tokio-version regression
-  is DEAD (lockfile pin never committed). Open frame: LOST WORKER UNPARK
-  (also explains ~100s recovery-on-next-input). Repro doc committed:
-  `docs/design/notes/tokio-task-resumption-wedge-repro.md` (honest result:
-  the distilled sample does NOT reproduce over 5,400 trials; the loaded
-  ext-host loop at ~1-in-2 is the reliable reproducer; all tried
-  ingredients listed). USER DIRECTIVE stands: file NOTHING outside this
-  repo. Next: lane posts mitigation design on the issue, then implements;
-  two discriminating observations recorded in the doc (external poke
-  during live wedge; futex tracing). PR #1679 (@ 3e75d55ea, `Refs #1657`)
-  — merge on green. #1678 post-release. Checkpoints through 26.
+  `claude/f6h-1657-pollshim`). Established (evidence on issue, checkpoints
+  1-28): wakes are delivered but the task is never polled again — LOST
+  WORKER UNPARK frame; tokio-version regression dead (1.51.1 reproduced);
+  full chain + distilled sample (honest: does not reproduce standalone) in
+  `docs/design/notes/tokio-task-resumption-wedge-repro.md`. USER
+  DIRECTIVE: file NOTHING outside this repo. NOW: watchdog mitigation
+  implemented (247ae5d2d) — out-of-runtime thread, fires only on
+  impossible shapes, nudge via external spawns, logs resumed/STILL WEDGED
+  (each nudge IS the poke experiment; outcome line is the falsifier).
+  Acceptance loop running: 30 loaded runs, full tally. PR #1679
+  (@ 247ae5d2d, `Refs #1657`) — merge on green; test-ext runs WITH the
+  watchdog (second acceptance environment). Close #1657 only on the agreed
+  bar (checkpoint 27). #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
