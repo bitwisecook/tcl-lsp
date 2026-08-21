@@ -4,7 +4,10 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-(empty — merge PRs as lanes open them, on green + resolved feedback)
+1. **PR #1675** — enum conversions (`claude/f11-enums-1614`,
+   `Fixes #1614`). 6 sites converted + tcl-cli diff confirmed-skip; wire
+   strings pinned unchanged. CI + Codex round pending. Merge on green +
+   settled feedback, manually close #1614.
 
 ## Pre-release issues
 
@@ -17,9 +20,6 @@ No history. Delete items as they complete. Issues carry per-task detail.
   `pull_diag_cache` or `redeliver_later` extending the hold — different
   fixes; the capture discriminates. Lane looping 30 loaded runs on latest
   `rust` (~2-in-20 reproduce). A green loop alone does not close this.
-- **#1614** — ACTIVE (F11 lane, `claude/f11-enums-1614`). Closed string
-  vocabularies → enums; 7 independent sites inventoried in issue (taint
-  basis highest value); wire formats must not change.
 - **#1672** — ACTIVE (F9 lane, `claude/f9-fix-1672`). Untyped material arm:
   prove fall-through or abstain unless DEFERS_BODY. Deliberate tcllib
   clay-corpus run required; corpus shifts are findings to report.
