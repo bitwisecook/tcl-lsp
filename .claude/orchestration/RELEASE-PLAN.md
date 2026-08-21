@@ -9,23 +9,17 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Pre-release issues
 
-- **#1657** — wedge endgame, ACTIVE (census lane,
-  `claude/f6h-1657-pollshim`). Mechanism PROVEN (checkpoints 20-31,
-  taskdump direct observation): task stuck NOTIFIED in tokio internals,
-  every wake no-ops, unrecoverable in-process; not reachable from repo
-  code; nothing files outside this repo (user directive). Evidence doc:
-  `docs/design/notes/tokio-task-resumption-wedge-repro.md` (taskdump
-  section rides next sanctioned push). Fix = CONTAINMENT, design POSTED
-  (checkpoint 32, recommended): coalescing latest-wins mailbox — zero
-  awaits under the documents lock, one publisher task does the capped
-  sends, per-URI epochs written under the removal lock close the
-  did_close race, a swallowed publisher is safely respawnable. Watchdog
-  (merged shape) stays as detector. Acceptance bar: 30+ loaded runs with
-  zero [stall]/SERVER WEDGED (nudge lines expected — leaked-but-harmless
-  tasks); CI test-ext wedge ~1-in-2 → ≈0. AWAITING USER: #1679 merge
-  clearance (AT MERGE POINT: bd48a241e all green, threads resolved, no
-  conflicts) + checkpoint-32 design read; then implement. #1678
-  post-release.
+- **#1657** — wedge endgame. USER AUTHORED THE FIX: bf99e22f7 pushed as
+  PR #1679's head — DiagnosticPublisher mailbox containment (checkpoint-32
+  (a)), removes the unsafe #1670 timeout/retry entirely (send cancel can
+  duplicate — start_send may precede poll_flush park), watchdog demoted to
+  evidence-only (TCL_LSP_WEDGE_EVIDENCE), taskdump reading corrected
+  (traces not state bits; doc: "contained; runtime trigger still
+  unproved"), workspace to rustc 1.98 + tokio 1.53.1 unpinned. Lane
+  VALIDATING (no pushes — user's head): adversarial read, gates, loaded
+  acceptance loop vs checkpoint-32 bar (30+ runs, zero stall/wedged,
+  default build). CI on the push watched. Merge is the user's call.
+  #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
