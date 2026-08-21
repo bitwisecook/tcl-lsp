@@ -4,13 +4,8 @@ No history. Delete items as they complete. Issues carry per-task detail.
 
 ## Merge queue
 
-1. **PR #1676** — untyped-material-arm rule (`claude/f9-fix-1672`,
-   `Fixes #1672`). Burden inverted after measurement: walk past unless body
-   provably blocks (Terminates/ReturnsResult) — naive prove-fall-through
-   abstained on 28/142 incl. the clay corpus. Corpus proof unmoved. Open
-   Codex P2 with lane: audit DEFERS_BODY coverage for store-only forms
-   (package ifneeded, fileevent, timer, Tk bind) — absence of trait is
-   load-bearing now. Merge on green + settled, manually close #1672.
+(empty — #1657 is the only open work item; F9 lane idle, held for the
+#1662 gate once #1657 closes)
 
 ## Pre-release issues
 
