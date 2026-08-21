@@ -93,6 +93,13 @@ tower = { version = "0.5", features = ["util"] }
 tokio = { version = "1", features = ["io-std", "io-util", "rt-multi-thread", "sync", "macros", "time"] }
 tower-lsp-server = "0.23"
 
+# Evidence-only extension of the native Tokio dependency. Cargo evaluates the
+# custom cfg from RUSTFLAGS, so the taskdump feature is absent from ordinary
+# and --all-features builds and present only for the explicit Linux evidence
+# invocation documented beside the hook in lib.rs.
+[target.'cfg(all(target_os = "linux", tokio_taskdump))'.dependencies]
+tokio = { version = "1", features = ["taskdump"] }
+
 [target.'cfg(target_family = "wasm")'.dependencies]
 # `io-std` and `rt-multi-thread` are hard compile errors on wasm32; `sync` and
 # `macros` are all the library needs, and both are runtime-free.

@@ -43,10 +43,13 @@ pub mod uri_norm;
 pub mod vfs;
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::task::Poll;
 // `FutureExt::shared` lets the progressive diagnostics path compute the base
 // per-file analysis once and await it from both the deep pass and the fast tier.
 use futures_util::future::FutureExt;
@@ -536,6 +539,101 @@ struct DocumentsTracking {
     /// * **Frozen** — nothing wants the map, and a waiter that *is* queued was
     ///   never woken. That is a lost wakeup in the ordinary sense.
     acquisitions: u64,
+    /// Every task currently parked in [`DocumentStore::lock`]'s contended slow
+    /// path, with its poll/wake telemetry (issue #1657).
+    ///
+    /// Registered on entering the slow path, removed by a drop guard when the
+    /// acquire completes **or is cancelled** — a `did_close` future dropped
+    /// mid-wait must not leave a ghost waiter for the stall line to accuse.
+    /// Each entry is its own `Arc<Mutex<..>>` so the per-poll updates never
+    /// touch this tracking lock.
+    waiters: Vec<Arc<std::sync::Mutex<WaiterTelemetry>>>,
+}
+
+/// Poll/wake telemetry for one task parked on the open-document map.
+///
+/// # What this discriminates (issue #1657)
+///
+/// A captured wedge showed the map **free** with its acquisition count frozen
+/// while `did_open` sat parked on `documents.lock()` — a waiter that was never
+/// resumed. Two mechanisms produce that and they need different fixes:
+///
+/// * **The wake was lost.** The waiter's waker was never invoked: nothing told
+///   the task to run again. `wakes` stays at zero after the park.
+/// * **The wake arrived and nothing polled.** The waker fired — tokio's mutex
+///   handed the lock over — but the future was never polled afterwards. In
+///   this server every handler future is a child of the single
+///   `buffer_unordered` set inside `Server::serve`, so a child is only ever
+///   re-polled when that parent task runs; a fired wake with no subsequent
+///   poll says the parent (or the `FuturesUnordered` bookkeeping between them)
+///   stopped driving this child. `last_wake` newer than `last_poll`.
+///
+/// The stall line prints both counters and both ages so the reader gets the
+/// verdict, not the ambiguity.
+#[derive(Debug)]
+struct WaiterTelemetry {
+    /// The site passed to [`DocumentStore::lock`].
+    site: &'static str,
+    /// When the slow path was entered. `crate::rt::Instant`, never
+    /// `std::time::Instant` (the latter panics on wasm32).
+    parked_since: crate::rt::Instant,
+    /// Times the acquire future has been polled.
+    polls: u64,
+    last_poll: crate::rt::Instant,
+    /// Times this waiter's waker has been invoked.
+    wakes: u64,
+    last_wake: Option<crate::rt::Instant>,
+    /// Exact Tokio task waiting on this acquire. Native evidence only.
+    #[cfg(not(target_family = "wasm"))]
+    task_id: Option<tokio::task::Id>,
+}
+
+/// One waiter's telemetry, aged against a single clock reading for the report.
+#[derive(Debug, Clone, Copy)]
+struct WaiterSnapshot {
+    /// Identity of the telemetry registration, stable until deregistration.
+    telemetry_id: usize,
+    site: &'static str,
+    parked_for: std::time::Duration,
+    polls: u64,
+    since_last_poll: std::time::Duration,
+    wakes: u64,
+    since_last_wake: Option<std::time::Duration>,
+    #[cfg(not(target_family = "wasm"))]
+    task_id: Option<tokio::task::Id>,
+}
+
+/// Wraps the real waker so an invocation is recorded before it is forwarded.
+///
+/// The record-then-forward order matters: recording after would let the woken
+/// task run, poll, and be sampled between the two writes, producing a poll
+/// with no wake that explains it.
+struct TelemetryWaker {
+    real: std::task::Waker,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl TelemetryWaker {
+    fn record(&self) {
+        let mut t = self
+            .telemetry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        t.wakes += 1;
+        t.last_wake = Some(crate::rt::Instant::now());
+    }
+}
+
+impl std::task::Wake for TelemetryWaker {
+    fn wake(self: Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
 }
 
 /// Who holds [`DocumentStore::docs`], and since when.
@@ -580,7 +678,14 @@ impl DocumentStore {
     /// `site` is a `&'static str` naming the caller — it ends up in a stall
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
-        let docs = self.docs.lock().await;
+        // Uncontended fast path: no waiter, so nothing to instrument, and the
+        // poll/wake shim's per-poll waker allocation is never paid. tokio's
+        // mutex is fair, so `try_lock` cannot barge past a queued waiter — a
+        // released permit is handed to the queue head, not left for grabs.
+        let docs = match self.docs.try_lock() {
+            Ok(docs) => docs,
+            Err(_) => self.lock_contended(site).await,
+        };
         // One clock reading for both ages, so a hold still in its first phase
         // reports them equal rather than a sub-millisecond difference to squint
         // at. Count and holder are set under the same lock, so no reader can
@@ -597,6 +702,107 @@ impl DocumentStore {
         DocumentsGuard { docs, store: self }
     }
 
+    /// The contended acquire, instrumented (issue #1657).
+    ///
+    /// Registers a [`WaiterTelemetry`] for the stall line to read, counts every
+    /// poll of the acquire future, and wraps the waker so every wake of this
+    /// waiter is counted too. The registration is removed by a drop guard, so a
+    /// caller cancelled mid-wait (a dropped handler future) cannot leave a
+    /// ghost waiter behind for the report to accuse.
+    async fn lock_contended(
+        &self,
+        site: &'static str,
+    ) -> tokio::sync::MutexGuard<'_, HashMap<Uri, DocumentState>> {
+        let now = crate::rt::Instant::now();
+        let telemetry = Arc::new(std::sync::Mutex::new(WaiterTelemetry {
+            site,
+            parked_since: now,
+            polls: 0,
+            last_poll: now,
+            wakes: 0,
+            last_wake: None,
+            #[cfg(not(target_family = "wasm"))]
+            task_id: tokio::task::try_id(),
+        }));
+        self.tracking().waiters.push(Arc::clone(&telemetry));
+        let _deregister = DeregisterWaiter {
+            store: self,
+            telemetry: Arc::clone(&telemetry),
+        };
+        InstrumentedAcquire {
+            inner: Box::pin(self.docs.lock()),
+            telemetry,
+        }
+        .await
+    }
+
+    /// Every current waiter, aged against one clock reading.
+    fn waiters(&self) -> Vec<WaiterSnapshot> {
+        let now = crate::rt::Instant::now();
+        let entries: Vec<_> = self.tracking().waiters.clone();
+        entries
+            .iter()
+            .map(|entry| {
+                let t = entry
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                WaiterSnapshot {
+                    telemetry_id: Arc::as_ptr(entry) as usize,
+                    site: t.site,
+                    parked_for: now.duration_since(t.parked_since),
+                    polls: t.polls,
+                    since_last_poll: now.duration_since(t.last_poll),
+                    wakes: t.wakes,
+                    since_last_wake: t.last_wake.map(|w| now.duration_since(w)),
+                    #[cfg(not(target_family = "wasm"))]
+                    task_id: t.task_id,
+                }
+            })
+            .collect()
+    }
+
+    /// One coherent watchdog sample. Holder, acquisition counter and waiter
+    /// registrations are cloned under one tracking lock and aged from one
+    /// clock reading, so the detector cannot combine states that never existed
+    /// together.
+    #[cfg(not(target_family = "wasm"))]
+    fn watchdog_snapshot(&self) -> (DocumentsContention, Vec<WaiterSnapshot>) {
+        let now = crate::rt::Instant::now();
+        let (held_by, last, acquisitions, waiter_entries) = {
+            let tracking = self.tracking();
+            (
+                tracking.holder.map(|h| held_for(&h, now)),
+                tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+                tracking.acquisitions,
+                tracking.waiters.clone(),
+            )
+        };
+        let contention = DocumentsContention {
+            held_by,
+            last,
+            acquisitions,
+        };
+        let waiters = waiter_entries
+            .iter()
+            .map(|entry| {
+                let t = entry
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                WaiterSnapshot {
+                    telemetry_id: Arc::as_ptr(entry) as usize,
+                    site: t.site,
+                    parked_for: now.duration_since(t.parked_since),
+                    polls: t.polls,
+                    since_last_poll: now.duration_since(t.last_poll),
+                    wakes: t.wakes,
+                    since_last_wake: t.last_wake.map(|w| now.duration_since(w)),
+                    task_id: t.task_id,
+                }
+            })
+            .collect();
+        (contention, waiters)
+    }
+
     /// Everything the stall line needs about this map in one sample.
     ///
     /// Taken together rather than field by field so the three readings describe
@@ -609,11 +815,18 @@ impl DocumentStore {
         // *instant*. Both are needed — an earlier version had only the second
         // and could still pair one task's identity with another's metadata.
         let now = crate::rt::Instant::now();
-        let tracking = self.tracking();
+        let (held_by, last, acquisitions) = {
+            let tracking = self.tracking();
+            (
+                tracking.holder.map(|h| held_for(&h, now)),
+                tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+                tracking.acquisitions,
+            )
+        };
         DocumentsContention {
-            held_by: tracking.holder.map(|h| held_for(&h, now)),
-            last: tracking.last.map(|h| (h.site, now.duration_since(h.since))),
-            acquisitions: tracking.acquisitions,
+            held_by,
+            last,
+            acquisitions,
         }
     }
 
@@ -621,9 +834,9 @@ impl DocumentStore {
     ///
     /// [`DocumentsGuard::retag`] is the same operation for a caller that has the
     /// guard in hand. This one exists for code that runs *under* a caller's
-    /// guard without being given it — `DeliveryCtx::cache_and_deliver`, which
-    /// both of its callers invoke while holding the map, and which has its own
-    /// awaits worth telling apart (issue #1657).
+    /// guard without being given it — `DeliveryCtx::cache_and_enqueue`, which
+    /// both of its callers invoke while holding the map, and whose pull-cache
+    /// await is worth naming separately (issue #1657).
     ///
     /// **Precondition:** the calling task must be the holder. There is no way to
     /// check that, so a call from a task that does not hold the map would
@@ -655,6 +868,63 @@ impl DocumentStore {
     #[cfg(test)]
     fn holder(&self) -> Option<HeldFor> {
         self.contention().held_by
+    }
+}
+
+/// Removes a [`WaiterTelemetry`] registration when the acquire ends — by
+/// success **or** by cancellation. Identity is the `Arc` pointer, so two
+/// waiters from the same site never remove each other's entries.
+struct DeregisterWaiter<'a> {
+    store: &'a DocumentStore,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl Drop for DeregisterWaiter<'_> {
+    fn drop(&mut self) {
+        self.store
+            .tracking()
+            .waiters
+            .retain(|w| !Arc::ptr_eq(w, &self.telemetry));
+    }
+}
+
+/// Polls the mutex acquire while recording every poll and routing the waker
+/// through [`TelemetryWaker`] so every wake is recorded too.
+///
+/// The inner future is boxed: this only exists on the contended path, so the
+/// allocation is paid exactly when a waiter exists to describe.
+/// The boxed mutex-acquire future [`InstrumentedAcquire`] drives.
+type BoxedMapAcquire<'a> = Pin<
+    Box<dyn Future<Output = tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>> + Send + 'a>,
+>;
+
+struct InstrumentedAcquire<'a> {
+    inner: BoxedMapAcquire<'a>,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl<'a> Future for InstrumentedAcquire<'a> {
+    type Output = tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        {
+            let mut t = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            t.polls += 1;
+            t.last_poll = crate::rt::Instant::now();
+        }
+        // A fresh wrapper per poll, deliberately: futures may only use the
+        // waker from their *most recent* poll, and tokio's mutex replaces its
+        // registered waker on each poll — reusing one wrapper across polls
+        // would record wakes delivered to a waker the mutex no longer holds.
+        let waker = std::task::Waker::from(Arc::new(TelemetryWaker {
+            real: cx.waker().clone(),
+            telemetry: Arc::clone(&self.telemetry),
+        }));
+        let mut shim_cx = std::task::Context::from_waker(&waker);
+        self.inner.as_mut().poll(&mut shim_cx)
     }
 }
 
@@ -710,6 +980,324 @@ impl Drop for DocumentsGuard<'_> {
         if let Some(departing) = tracking.holder.take() {
             tracking.last = Some(departing);
         }
+    }
+}
+
+/// Render the map's waiter telemetry into the stall line's
+/// poll-discrimination clause (issue #1657).
+///
+/// This is the reading that separates the three remaining stories for a waiter
+/// parked on a free map:
+///
+/// * **woken after its last poll** — the wake arrived and nothing polled the
+///   future again. This proves the exact waiter is not being driven; it does not
+///   guess where between wake delivery and polling it was lost.
+/// * **never woken since parking** — the wake was genuinely lost (or never
+///   sent).
+///
+/// Pure formatting over snapshots, split out for the same reason as
+/// [`describe_documents_contention`].
+fn describe_documents_waiters(waiters: &[WaiterSnapshot], map_held: bool) -> String {
+    if waiters.is_empty() {
+        return "No task is in the map's contended-acquire path (its instrumented slow path)."
+            .to_owned();
+    }
+    let mut out = String::new();
+    for w in waiters {
+        use std::fmt::Write as _;
+        // A waiter behind a HELD map has not been woken because no wake was
+        // ever due — the holder has not released. Framing that as a lost wake
+        // (as the first capture with this clause did) invites the reader to
+        // suspect the mutex when the waiters are merely victims of the holder.
+        // The wake analysis below is only evidence when the map is free.
+        if map_held {
+            let _ = write!(
+                out,
+                "The map's acquire queue holds {} (parked {:.1}s, polled {} time(s), \
+                 woken {} time(s) — a victim of the holder above, no wake due until it \
+                 releases). ",
+                w.site,
+                w.parked_for.as_secs_f64(),
+                w.polls,
+                w.wakes,
+            );
+            continue;
+        }
+        let wake = match w.since_last_wake {
+            Some(age) if age < w.since_last_poll => format!(
+                "woken {:.1}s ago, AFTER its last poll — the wake arrived and the future was \
+                 never polled again, so its task is not being driven",
+                age.as_secs_f64(),
+            ),
+            Some(age) => format!(
+                "last woken {:.1}s ago, before its last poll — no wake has arrived since it \
+                 parked, so the wake it is waiting for was lost or never sent",
+                age.as_secs_f64(),
+            ),
+            None => "never woken at all — the wake it is waiting for was lost or never \
+                     sent"
+                .to_owned(),
+        };
+        let _ = write!(
+            out,
+            "The map's acquire queue holds {}: parked {:.1}s, polled {} time(s) (last \
+             {:.1}s ago), woken {} time(s) ({wake}). ",
+            w.site,
+            w.parked_for.as_secs_f64(),
+            w.polls,
+            w.since_last_poll.as_secs_f64(),
+            w.wakes,
+        );
+    }
+    out
+}
+
+/// How long a waiter may sit parked on a FREE map before the watchdog nudges
+/// (the run-12 shape). A held map never triggers this: waiters behind a
+/// holder are victims, and a long #1678-style hold must not cause false
+/// nudges.
+#[cfg(not(target_family = "wasm"))]
+const NUDGE_WAITER_THRESHOLD: std::time::Duration = std::time::Duration::from_secs(4);
+
+/// Nudges fired since startup, for tests and post-mortem correlation.
+#[cfg(not(target_family = "wasm"))]
+pub static UNPARK_NUDGES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// The exact telemetry registration a watchdog experiment acts on.
+#[cfg(not(target_family = "wasm"))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NudgeTarget {
+    telemetry_id: usize,
+    polls: u64,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl NudgeTarget {
+    fn progressed(self, waiters: &[WaiterSnapshot]) -> bool {
+        waiters
+            .iter()
+            .find(|waiter| waiter.telemetry_id == self.telemetry_id)
+            .is_none_or(|waiter| waiter.polls > self.polls)
+    }
+}
+
+/// Why the watchdog would nudge right now, if it would.
+///
+/// Pure over the sampled telemetry, so the trigger is unit-tested exactly as
+/// the stall-line verdict is. A waiter parked on a **free** map past
+/// [`NUDGE_WAITER_THRESHOLD`] is anomalous: a fair mutex with a queued waiter
+/// hands over immediately. The external no-op spawn remains an opt-in evidence
+/// experiment, not a recovery guarantee.
+#[cfg(not(target_family = "wasm"))]
+fn nudge_reason(
+    contention: &DocumentsContention,
+    waiters: &[WaiterSnapshot],
+) -> Option<NudgeTarget> {
+    if contention.held_by.is_none()
+        && let Some(waiter) = waiters
+            .iter()
+            .find(|w| w.parked_for > NUDGE_WAITER_THRESHOLD)
+    {
+        return Some(NudgeTarget {
+            telemetry_id: waiter.telemetry_id,
+            polls: waiter.polls,
+        });
+    }
+    None
+}
+
+/// One watchdog step: sample, decide, nudge, verify, report. Returns whether
+/// it nudged. Factored out of the thread loop so tests drive it directly.
+#[cfg(not(target_family = "wasm"))]
+fn unpark_watchdog_step(
+    store: &DocumentStore,
+    handle: &tokio::runtime::Handle,
+    log: &mut dyn std::io::Write,
+) -> bool {
+    let (contention, waiters) = store.watchdog_snapshot();
+    let Some(target) = nudge_reason(&contention, &waiters) else {
+        return false;
+    };
+    UNPARK_NUDGES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    // Plain facts, not the stall line's two-sample clauses — a nudge takes one
+    // sample, and borrowing wording that claims a sample window would be the
+    // instrument overclaiming again.
+    let holder = contention.held_by.map_or_else(
+        || "map free".to_owned(),
+        |h| format!("map held by {} ({:.1}s)", h.site, h.held.as_secs_f64()),
+    );
+    let target_task = waiters
+        .iter()
+        .find(|waiter| waiter.telemetry_id == target.telemetry_id)
+        .and_then(|waiter| waiter.task_id)
+        .map_or_else(|| "unknown".to_owned(), |id| id.to_string());
+    let _ = writeln!(
+        log,
+        "[nudge] waiter parked on a free map: target task {target_task}; {holder}; {} waiter(s) parked. Spawning no-op tasks \
+         from outside the runtime.",
+        waiters.len(),
+    );
+    // The poke: an external spawn takes the remote/inject path, which unparks
+    // a worker. Four, in case the first is consumed by an unrelated queue.
+    for _ in 0..4 {
+        handle.spawn(async {});
+    }
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let (_, after_w) = store.watchdog_snapshot();
+    if target.progressed(&after_w) {
+        let _ = writeln!(
+            log,
+            "[nudge] outcome: target progressed — the exact telemetry registration polled \
+             or deregistered after the external spawns",
+        );
+    } else {
+        let _ = writeln!(
+            log,
+            "[nudge] outcome: STILL WEDGED — the exact telemetry registration did not poll \
+             500ms after external spawns; the experiment did not recover it",
+        );
+        // Evidence builds correlate the exact waiter task ID with every dump
+        // entry. A missing entry is reported as absence, not interpreted as a
+        // scheduler state bit: Tokio may skip an already-notified task. Requires
+        // RUSTFLAGS="--cfg tokio_unstable --cfg tokio_taskdump" (local
+        // Linux evidence builds only; inert otherwise). Once per process.
+        #[cfg(all(target_os = "linux", tokio_unstable, tokio_taskdump))]
+        {
+            let target_task_id = after_w
+                .iter()
+                .find(|waiter| waiter.telemetry_id == target.telemetry_id)
+                .and_then(|waiter| waiter.task_id);
+            try_taskdump(handle, log, target_task_id);
+        }
+    }
+    true
+}
+
+/// Dump the tasks Tokio can trace and correlate them with the exact target ID.
+///
+/// Linux evidence builds only:
+/// `RUSTFLAGS="--cfg tokio_unstable --cfg tokio_taskdump" cargo build ...`.
+/// The custom cfg also enables Tokio's required `taskdump` Cargo feature via
+/// the target dependency in `Cargo.toml`. Never enabled in CI. Bounded: once
+/// per process, five-second cap.
+///
+/// Absence is deliberately not called a state verdict. Tokio's dump walk skips
+/// an owned task when `notify_for_tracing` finds it already notified and it was
+/// not drained from a scheduler queue; an empty trace likewise exposes no state
+/// bits. The task ID is the only sound correlation this API supplies.
+#[cfg(all(target_os = "linux", tokio_unstable, tokio_taskdump))]
+fn try_taskdump(
+    handle: &tokio::runtime::Handle,
+    log: &mut dyn std::io::Write,
+    target_task_id: Option<tokio::task::Id>,
+) {
+    static ONCE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+    if ONCE.swap(true, std::sync::atomic::Ordering::Relaxed) {
+        return;
+    }
+    let outcome = handle.block_on(async {
+        tokio::time::timeout(std::time::Duration::from_secs(5), handle.dump()).await
+    });
+    match outcome {
+        Ok(dump) => {
+            let mut target_seen = false;
+            for (i, task) in dump.tasks().iter().enumerate() {
+                let is_target = target_task_id == Some(task.id());
+                target_seen |= is_target;
+                let _ = writeln!(
+                    log,
+                    "[taskdump] task index={i} id={} target={is_target}:\n{}",
+                    task.id(),
+                    task.trace(),
+                );
+            }
+            if let Some(target_task_id) = target_task_id
+                && !target_seen
+            {
+                let _ = writeln!(
+                    log,
+                    "[taskdump] target task id={target_task_id} ABSENT from dump; Tokio may \
+                     skip an already-notified task, so absence is evidence but not a state read",
+                );
+            }
+        }
+        Err(_) => {
+            let _ = writeln!(
+                log,
+                "[taskdump] timed out after 5s — the runtime would not cooperate, \
+                 which is itself evidence",
+            );
+        }
+    }
+}
+
+/// Start the opt-in #1657 evidence watchdog on a plain std thread outside the
+/// runtime it observes.
+///
+/// Samples the open-document map's telemetry every 250 ms; on a trigger shape
+/// (see [`nudge_reason`]) it spawns no-op tasks into the runtime from outside
+/// and logs the evidence and the outcome — to stderr always, and to the file
+/// named by `TCL_LSP_NUDGE_LOG` when set, because the ext-host harness does
+/// not reliably capture server stderr and the acceptance loop greps the file.
+///
+/// This is not a mitigation. The loaded experiment produced zero true
+/// resumptions and falsified the external-unpark recovery theory. Normal server
+/// startup therefore does not call this function; `main` requires the explicit
+/// `TCL_LSP_WEDGE_EVIDENCE` opt-in. The retained poke is a repeatable
+/// discriminator, and every action logs whether the exact target progressed.
+#[cfg(not(target_family = "wasm"))]
+pub fn spawn_unpark_watchdog(backend: &Backend, handle: tokio::runtime::Handle) {
+    let store = Arc::clone(&backend.documents);
+    std::thread::Builder::new()
+        .name("tcl-lsp-unpark-watchdog".into())
+        .spawn(move || {
+            let mut file = std::env::var("TCL_LSP_NUDGE_LOG").ok().and_then(|p| {
+                std::fs::OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(p)
+                    .ok()
+            });
+            let mut last_nudge: Option<std::time::Instant> = None;
+            loop {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+                // Rate limit: at most one nudge burst per second.
+                if last_nudge.is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(1)) {
+                    continue;
+                }
+                let mut sink = NudgeLog {
+                    file: file.as_mut(),
+                };
+                if unpark_watchdog_step(&store, &handle, &mut sink) {
+                    last_nudge = Some(std::time::Instant::now());
+                }
+            }
+        })
+        .expect("spawning the unpark watchdog thread");
+}
+
+/// Tee for nudge lines: stderr always, plus the acceptance-loop file when set.
+#[cfg(not(target_family = "wasm"))]
+struct NudgeLog<'a> {
+    file: Option<&'a mut std::fs::File>,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl std::io::Write for NudgeLog<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let _ = std::io::stderr().write_all(buf);
+        if let Some(f) = self.file.as_mut() {
+            let _ = f.write_all(buf);
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let _ = std::io::stderr().flush();
+        if let Some(f) = self.file.as_mut() {
+            let _ = f.flush();
+        }
+        Ok(())
     }
 }
 
@@ -826,29 +1414,6 @@ const SEMANTIC_TOKENS_FAST_PATH_BUDGET: std::time::Duration = std::time::Duratio
 /// debounce-skip; [`DIAGNOSTICS_FAST_TIER_MIN_LINES`] is the timing-independent
 /// half that keeps trivial files a single publish regardless of cold-start.
 const DIAGNOSTICS_FAST_TIER_BUDGET: std::time::Duration = std::time::Duration::from_millis(40);
-
-/// How long a single client send may park while the `documents` lock is held
-/// before [`DeliveryCtx::cache_and_deliver`] gives the lock back and reschedules
-/// (issue #1657).
-///
-/// Sized against the two things it sits between. Far above any healthy drain —
-/// the outbound path is `channel(1)` into `stdio_pump`, whose `poll_write` is
-/// always `Ready`, so a send that has not completed in whole seconds is not
-/// merely busy. Far below [`EDIT_BARRIER_STALL_WARN`], so the document-sync
-/// barrier cannot reach the point of reporting a stall on account of a slow
-/// publish: the wedge is prevented rather than merely diagnosed.
-///
-/// Not comparable to [`DIAGNOSTICS_FAST_TIER_BUDGET`], which is a *drop*
-/// deadline for a best-effort push the deep tier will supersede anyway. This one
-/// is a *reschedule* deadline for a publish that must not be lost, so it is
-/// generous where that one is tight.
-const DELIVERY_SEND_BUDGET: std::time::Duration = std::time::Duration::from_secs(2);
-
-/// Inline send attempts for a [`DiagCurrency::ClosedFromDisk`] publish — the one
-/// delivery with no scheduler behind it. See
-/// [`DeliveryCtx::delivery_attempts`] for why closed runs cannot fall back to
-/// [`reschedule_self`], and why this stays small.
-const CLOSED_DELIVERY_ATTEMPTS: u32 = 2;
 
 /// How long [`Backend::report_edit_barrier_stall`] waits between its two
 /// [`DocumentStore::contention`] samples.
@@ -1575,6 +2140,7 @@ struct DiagToggles {
 #[derive(Clone)]
 struct DiagInputs {
     client: Client,
+    diagnostic_publisher: Arc<DiagnosticPublisher>,
     registry: Arc<CommandRegistry>,
     disabled: HashSet<String>,
     /// `tclLsp.diagnosticSeverity.<CODE>` per-code LSP severity overrides,
@@ -1739,12 +2305,11 @@ impl DiagInputs {
 ///   updates the client would otherwise not know to re-pull.
 /// - **Push-only client**: publish as before, the only channel it has.
 ///
-/// The `publish_diagnostics(..).await` here must stay an **inline await**, never
-/// a detached `tokio::spawn`: the transport's bounded, backpressured channel is
-/// what guarantees no diagnostic is dropped or unboundedly buffered under a slow
-/// client (the await *is* the wait-for-drain). Making it fire-and-forget would
-/// discard that backpressure — reordering publishes and hiding a
-/// state-gated/disconnected drop. See the delivery invariant in `main.rs`.
+/// This await runs only in [`DiagnosticPublisher`]'s single persistent
+/// consumer. The transport's backpressure is retained, but it can park only
+/// diagnostics delivery — never a global document/index guard or the request
+/// admission path. Do not detach an independent send per result: the mailbox's
+/// single-consumer order and latest-wins coalescing are the delivery invariant.
 async fn deliver_diagnostics(
     client: &Client,
     uri: &Uri,
@@ -1764,12 +2329,169 @@ async fn deliver_diagnostics(
     }
 }
 
+/// One diagnostics notification committed after its currency check.
+///
+/// The outbound LSP channel is deliberately consumed by a single persistent
+/// publisher.  A slow client may park that publisher, but it can no longer park
+/// the global document map (issue #1657).
+struct PendingDiagnosticPublish {
+    uri: Uri,
+    diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    version: Option<i32>,
+    client_supports_pull: bool,
+    announce: bool,
+    delivered: tokio::sync::oneshot::Sender<DiagnosticPublishOutcome>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiagnosticPublishOutcome {
+    Delivered,
+    Superseded,
+}
+
+#[derive(Default)]
+struct DiagnosticMailboxState {
+    /// Latest not-yet-started publication per URI.
+    pending: HashMap<Uri, PendingDiagnosticPublish>,
+    /// Cross-URI commit order. Replacing a URI moves it to the tail, so the
+    /// order reflects the latest surviving commit rather than the stale one it
+    /// replaced.
+    order: VecDeque<Uri>,
+}
+
+/// Persistent diagnostics publisher with per-URI bounded coalescing.
+///
+/// The mailbox is latest-wins per URI: while the client is stalled, at most one
+/// not-yet-started diagnostic vector is retained for each URI.  The one item
+/// already being sent cannot be cancelled safely — `SinkExt::send` may have
+/// completed `start_send` before parking in `poll_flush` — so it is allowed to
+/// finish and the newest queued state follows it.  This gives close/edit
+/// ordering without timeout-and-retry duplicates.
+struct DiagnosticPublisher {
+    client: Client,
+    state: std::sync::Mutex<DiagnosticMailboxState>,
+    ready: tokio::sync::Notify,
+    started: std::sync::atomic::AtomicBool,
+}
+
+impl DiagnosticPublisher {
+    fn new(client: Client) -> Self {
+        Self {
+            client,
+            state: std::sync::Mutex::new(DiagnosticMailboxState::default()),
+            ready: tokio::sync::Notify::new(),
+            started: std::sync::atomic::AtomicBool::new(false),
+        }
+    }
+
+    /// Commit one publication and return an acknowledgement for its eventual
+    /// delivery. A superseded pending item is explicitly settled as such, so
+    /// its caller cannot emit a completion marker for a state never delivered.
+    fn enqueue(
+        self: &Arc<Self>,
+        uri: Uri,
+        diagnostics: Vec<tower_lsp_server::ls_types::Diagnostic>,
+        version: Option<i32>,
+        client_supports_pull: bool,
+        announce: bool,
+    ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
+        let (delivered, receipt) = tokio::sync::oneshot::channel();
+        let publish = PendingDiagnosticPublish {
+            uri: uri.clone(),
+            diagnostics,
+            version,
+            client_supports_pull,
+            announce,
+            delivered,
+        };
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(old) = state.pending.remove(&uri) {
+            let _ = old.delivered.send(DiagnosticPublishOutcome::Superseded);
+            state.order.retain(|queued| queued != &uri);
+        }
+        state.pending.insert(uri.clone(), publish);
+        state.order.push_back(uri);
+        drop(state);
+
+        self.ensure_started();
+        self.ready.notify_one();
+        receipt
+    }
+
+    fn ensure_started(self: &Arc<Self>) {
+        use std::sync::atomic::Ordering;
+
+        if self
+            .started
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return;
+        }
+        let publisher = Arc::clone(self);
+        drop(crate::rt::spawn(async move { publisher.run().await }));
+    }
+
+    fn pop(&self) -> Option<PendingDiagnosticPublish> {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        while let Some(uri) = state.order.pop_front() {
+            if let Some(publish) = state.pending.remove(&uri) {
+                return Some(publish);
+            }
+        }
+        None
+    }
+
+    async fn run(&self) {
+        loop {
+            // Construct the notified future before checking the queue. A notify
+            // racing the empty check is then retained as the Notify permit.
+            let ready = self.ready.notified();
+            let Some(publish) = self.pop() else {
+                ready.await;
+                continue;
+            };
+
+            if publish.announce {
+                self.client
+                    .log_message(
+                        MessageType::LOG,
+                        format!(
+                            "[timing] diagnostics.publish.enqueued (uri={}, version={})",
+                            publish.uri.as_str(),
+                            publish
+                                .version
+                                .map_or_else(|| "none".to_owned(), |v| v.to_string()),
+                        ),
+                    )
+                    .await;
+            }
+            deliver_diagnostics(
+                &self.client,
+                &publish.uri,
+                publish.diagnostics,
+                publish.version,
+                publish.client_supports_pull,
+            )
+            .await;
+            let _ = publish.delivered.send(DiagnosticPublishOutcome::Delivered);
+        }
+    }
+}
+
 /// The publish-side handles + per-edit identity shared by every settled
 /// `run_diagnostics_core` path (master-off, F5, the analyser tail).  Borrows for
 /// one call so the early-return paths and the final publish all deliver through
 /// the same currency-guarded channel.
 struct DeliveryCtx<'a> {
     client: &'a Client,
+    diagnostic_publisher: &'a Arc<DiagnosticPublisher>,
     documents: &'a Arc<DocumentStore>,
     diag_slots: &'a Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     pull_diag_cache: &'a Arc<Mutex<HashMap<Uri, PullDiagEntry>>>,
@@ -1818,22 +2540,21 @@ impl DeliveryCtx<'_> {
         }
     }
 
-    /// Publish `diags` iff this run is still current for `uri`, holding the
-    /// `documents` lock across the currency check AND the pull-cache/publish
-    /// delivery so a concurrent `did_close`/`did_change` cannot interleave
-    /// between them — otherwise a `did_close` that lands in that window clears
-    /// the squiggles and drops the pull-cache entry, only for this run's late
-    /// delivery to re-publish and re-cache them for the now-closed document.
-    /// Returns whether it published — a superseded (no
-    /// longer current) run returns `false` without touching the client.
+    /// Commit `diags` iff this run is still current for `uri`.
+    ///
+    /// The currency check, pull-cache update and mailbox deposit happen while
+    /// `documents` is held. Client I/O does not: this waits for the publisher's
+    /// acknowledgement only after releasing the map. A close or newer edit
+    /// therefore orders before or after this commit without a check/send race.
     async fn deliver_if_current(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) -> bool {
-        let docs = self.documents.lock("deliver_if_current").await;
-        if self.is_current(&docs).await {
-            self.cache_and_deliver(diags).await;
-            true
-        } else {
-            false
-        }
+        let receipt = {
+            let docs = self.documents.lock("deliver_if_current").await;
+            if !self.is_current(&docs).await {
+                return false;
+            }
+            self.cache_and_enqueue(diags).await
+        };
+        matches!(receipt.await, Ok(DiagnosticPublishOutcome::Delivered))
     }
 
     /// Deliver the #844 progressive **fast tier** — push-only, and only to a
@@ -1847,28 +2568,11 @@ impl DeliveryCtx<'_> {
     /// — its "early" signal would be a `workspace/diagnostic/refresh`, but a
     /// re-pull recomputes the full deep set synchronously, which defeats the fast
     /// tier's whole purpose, so such a client just gets the deep tier's refresh
-    /// as before.  Currency-guarded under the `documents` lock exactly like the
-    /// deep publish (held across the push), so a superseding edit or a
-    /// `did_close` in the window can never let a stale fast tier land.
+    /// as before. The currency check and mailbox deposit are atomic relative to
+    /// edits and closes; the client send happens outside `documents`.
     /// Publish the fast tier for a push client, iff this run's revision is still
     /// current. Skipped for a pull client (the pull path always serves the
     /// complete deep set, never the reduced fast tier).
-    ///
-    /// Like [`publish_diagnostics_result`], this holds the `documents` lock
-    /// **across** `publish_diagnostics().await`, and that is load-bearing: the
-    /// lock-across-send is what closes. Releasing `documents`
-    /// before the send would let a `did_close` clearing-publish land between the
-    /// currency check and the send, repainting squiggles on a now-closed document
-    /// that nothing downstream clears (the deep pass then finds `!is_current` and
-    /// returns without publishing). This is a *second* lock-held-across-send
-    /// publish per cycle, so under a transiently slow client (the bounded
-    /// `channel(1)` transport parks the send) it would otherwise freeze every other
-    /// document's `did_change`/hover for however long that client takes to drain.
-    /// To cap that, the send is bounded by `timeout(DIAGNOSTICS_FAST_TIER_BUDGET,
-    /// …)`: the lock is held for at most the budget, after which this best-effort
-    /// push is dropped (the deep tier still supersedes it — the same outcome as the
-    /// already-accepted lift-worker-panic drop). The lock is *not* released before
-    /// the send — that would reopen — only time-bounded.
     async fn deliver_fast_tier_if_current(
         &self,
         diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
@@ -1878,93 +2582,29 @@ impl DeliveryCtx<'_> {
         }
         let docs = self.documents.lock("deliver_fast_tier_if_current").await;
         if self.is_current(&docs).await {
-            // Best-effort/droppable (see above): cap the lock hold so a slow client
-            // can't hold `documents` hostage for every other document's edits.
-            // Dropping the parked `channel(1)` send on timeout is atomic — the push
-            // is simply lost and the deep tier supersedes it.
-            let _ = crate::rt::timeout(
-                DIAGNOSTICS_FAST_TIER_BUDGET,
-                self.client
-                    .publish_diagnostics(self.uri.clone(), diags, self.version),
-            )
-            .await;
+            // Do not wait: the deep future is pinned in this same task and must
+            // keep progressing so its authoritative set can replace this one.
+            drop(self.diagnostic_publisher.enqueue(
+                self.uri.clone(),
+                diags,
+                self.version,
+                false,
+                false,
+            ));
         }
     }
 
-    /// Update the pull-diagnostic cache for `uri` to `diags` at this run's
-    /// `revision`, with a fresh `result_id`, then notify the client (push or
-    /// refresh) — the publish half shared by every settled path.
+    /// Update the pull cache and deposit its corresponding client notification.
     ///
-    /// # The client sends here are time-bounded (issue #1657)
-    ///
-    /// Both callers — [`Self::deliver_if_current`] and
-    /// `publish_diagnostics_result` — run this **while holding the `documents`
-    /// lock**, deliberately: delivering inside the lock is what stops a
-    /// `did_close` that lands between the currency check and the send from
-    /// having its clearing publish overwritten by this run's late squiggles.
-    ///
-    /// Both sends below go through `tower-lsp-server`'s bounded
-    /// `futures::mpsc::channel(1)`, so both can park. Unbounded, that made a
-    /// *global* lock hostage to a *per-document* send: the open-document map
-    /// stops, the document-sync handler holding the [`EditOrder`] turn blocks on
-    /// it, every request handler blocks on the barrier behind that turn, and the
-    /// server answers nothing. That is issue #1657, caught on CI with the turn
-    /// holder suspended at `did_change: documents.lock` and no salsa snapshot
-    /// outstanding.
-    ///
-    /// So each send is capped at [`DELIVERY_SEND_BUDGET`] and, if the cap is
-    /// hit, this returns **without having delivered** and marks its own slot
-    /// dirty so the scheduler runs the whole publish again from scratch. The
-    /// retry re-checks currency on its own, so a superseded run simply finds
-    /// itself superseded — the same answer it would have given had it never
-    /// been delayed.
-    ///
-    /// Why reschedule rather than retry inline: `publish_diagnostics_result`
-    /// holds this same lock across a workspace-index write, and replaying that
-    /// write is neither cheap nor obviously idempotent. Handing the work back to
-    /// the scheduler re-runs a *complete, fresh* pass through machinery that is
-    /// already correct, and does it with the lock released.
-    ///
-    /// The delivery invariant in `main.rs` is preserved. Nothing is
-    /// fire-and-forget: delivery is still an inline `.await`, ordering per URI
-    /// still comes from the currency check, and nothing is dropped — a send that
-    /// times out is *retried*, not abandoned. Dropping a parked `channel(1)`
-    /// send is atomic (the item never enters the channel), which is what makes
-    /// the retry duplicate-free; `deliver_fast_tier_if_current` already relies
-    /// on exactly that property.
-    ///
-    /// The pull cache is primed *before* the sends and deliberately left primed
-    /// on timeout: a `textDocument/diagnostic` request can then serve this
-    /// revision immediately, which is the one delivery channel a parked push
-    /// does not block.
-    ///
-    /// # What this does not fix, and why it cannot be reported
-    ///
-    /// If the outbound path is *dead* rather than slow, every rescheduled pass
-    /// times out again, so the document is re-analysed once per cycle for as
-    /// long as the session lasts (throttled by [`DIAGNOSTICS_DEBOUNCE`], since
-    /// the reschedule goes through the ordinary scheduler). That is wasteful,
-    /// and it is still strictly better than the alternative: the server keeps
-    /// answering everything else instead of wedging.
-    ///
-    /// It is deliberately *not* announced with a log line. Every log the server
-    /// emits goes to the client down the very channel that is stuck, so a
-    /// "delivery is not draining" warning is precisely the message that cannot
-    /// be delivered when it would be true. The condition is visible the moment
-    /// the transport recovers — the `[timing]` markers resume — and if it never
-    /// recovers the client is gone and there is nobody left to tell.
-    ///
-    /// Losing the stall line is the real cost here. Before this change a stuck
-    /// publish announced itself loudly, by wedging the barrier until
-    /// [`Backend::report_edit_barrier_stall`] described it. Now it does not
-    /// wedge, so it does not announce. That is the right trade — a wedged server
-    /// is not an acceptable diagnostic channel — but it is a trade.
-    async fn cache_and_deliver(&self, diags: Vec<tower_lsp_server::ls_types::Diagnostic>) {
-        // Phase markers within the held map — see `DocumentStore::retag_held`.
-        // Both callers run this under their `documents` guard, so a hold that
-        // stops in here reports only the caller without these (issue #1657).
+    /// Callers hold `documents`, making these one ordered commit relative to
+    /// edits and closes. This performs no client I/O. The returned receipt must
+    /// only be awaited after the document guard is released.
+    async fn cache_and_enqueue(
+        &self,
+        diags: Vec<tower_lsp_server::ls_types::Diagnostic>,
+    ) -> tokio::sync::oneshot::Receiver<DiagnosticPublishOutcome> {
         self.documents
-            .retag_held("cache_and_deliver: pull_diag_cache");
+            .retag_held("cache_and_enqueue: pull_diag_cache");
         self.pull_diag_cache.lock().await.insert(
             self.uri.clone(),
             PullDiagEntry {
@@ -1973,125 +2613,13 @@ impl DeliveryCtx<'_> {
                 diagnostics: diags.clone(),
             },
         );
-        // Announce the publish *before* enqueuing it. Both go through the same
-        // ordered client channel, so a client that reads up to this marker has
-        // provably NOT yet read the publish it announces — the publish is the
-        // next thing on the wire. That is the only way to observe "the worker
-        // has committed to publishing version N" without consuming version N's
-        // publish, which is what `diagnostics_delivery_smoke`'s burst phase
-        // needs to hold two publishes in flight at once (review of #1100).
-        // Emitted after the currency check, so a marker is followed by its
-        // publish.
-        //
-        // "Followed by" rather than "immediately followed by", since #1657: if
-        // the publish below times out, this marker has been sent and its publish
-        // has not, and the pairing is restored only when the rescheduled pass
-        // emits a fresh marker and publish together. A consumer that waits for a
-        // publish after a marker still gets one; a consumer that counts markers
-        // 1:1 against publishes would see one extra. That can only happen when a
-        // send parks for whole seconds, which is the failure this cap exists to
-        // survive — under any client that is draining at all, the two still go
-        // out back to back.
-        let attempts = self.delivery_attempts();
-        let marker = format!(
-            "[timing] diagnostics.publish.enqueued (uri={}, version={})",
-            self.uri.as_str(),
-            self.version
-                .map_or_else(|| "none".to_owned(), |v| v.to_string()),
-        );
-        let mut marker_sent = false;
-        self.documents.retag_held("cache_and_deliver: marker send");
-        for _ in 0..attempts {
-            if crate::rt::timeout(
-                DELIVERY_SEND_BUDGET,
-                self.client.log_message(MessageType::LOG, marker.clone()),
-            )
-            .await
-            .is_ok()
-            {
-                marker_sent = true;
-                break;
-            }
-        }
-        if !marker_sent {
-            self.redeliver_later().await;
-            return;
-        }
-        let mut diags = diags;
-        self.documents.retag_held("cache_and_deliver: publish send");
-        for attempt in 0..attempts {
-            // The last attempt owns the payload; earlier ones must keep a copy
-            // to retry with. An open run has a single attempt, so it still moves
-            // the vector exactly as before.
-            let payload = if attempt + 1 == attempts {
-                std::mem::take(&mut diags)
-            } else {
-                diags.clone()
-            };
-            if crate::rt::timeout(
-                DELIVERY_SEND_BUDGET,
-                deliver_diagnostics(
-                    self.client,
-                    self.uri,
-                    payload,
-                    self.version,
-                    self.client_supports_pull,
-                ),
-            )
-            .await
-            .is_ok()
-            {
-                return;
-            }
-        }
-        self.redeliver_later().await;
-    }
-
-    /// How many times a timed-out send may be re-attempted **inline**, before
-    /// falling back to [`Self::redeliver_later`].
-    ///
-    /// One for an open document: the scheduler owns it, so handing the publish
-    /// back is both cheaper and more complete than retrying under the lock.
-    ///
-    /// More than one for a closed-file run, because for those there is nothing
-    /// to hand back to (Codex P1 on #1670). `did_close` calls `evict_diag_slot`
-    /// *before* `publish_closed_file_diagnostics` runs, and that either removes
-    /// the slot outright or clears its `latest_inputs` — both of which make
-    /// `reschedule_self` a no-op. A closed publish is an inline, one-shot run,
-    /// not a scheduled one, so a timeout there would have silently dropped the
-    /// notification while the pull cache and the closed badge both read current:
-    /// a client that paused across the timeout during a close would never have
-    /// been told, until some unrelated event republished the URI.
-    ///
-    /// Bounded so the worst case stays under [`EDIT_BARRIER_STALL_WARN`]: two
-    /// attempts each for the marker and the publish is four sends of
-    /// [`DELIVERY_SEND_BUDGET`], which cannot reach the point where the
-    /// document-sync barrier reports a stall.
-    ///
-    /// Residual, and deliberately not engineered away here: if every attempt
-    /// fails, a push-only client still loses this closed publish. Covering that
-    /// completely needs a closed-file retry queue, which is more machinery than
-    /// this path warrants — a pull-capable client is already served by the cache
-    /// primed above, and the window a client must be stalled for has gone from
-    /// one budget to four.
-    fn delivery_attempts(&self) -> u32 {
-        delivery_attempts_for(self.currency)
-    }
-
-    /// Hand this URI's publish back to the diagnostics scheduler, because a
-    /// client send timed out while the `documents` lock was held.
-    ///
-    /// Marks the slot dirty and starts a worker if none is running — the same
-    /// two steps [`reschedule_peers`] takes, for this document rather than its
-    /// peers. The worker re-runs the publish from scratch once the caller has
-    /// released the lock, so the delivery is deferred rather than lost.
-    ///
-    /// Touches only `diag_slots`, never `documents`, so it is safe to call from
-    /// under the very lock whose hold it exists to cut short.
-    async fn redeliver_later(&self) {
-        self.documents
-            .retag_held("cache_and_deliver: redeliver_later");
-        reschedule_self(self.diag_slots, self.uri).await;
+        self.diagnostic_publisher.enqueue(
+            self.uri.clone(),
+            diags,
+            self.version,
+            self.client_supports_pull,
+            true,
+        )
     }
 }
 
@@ -3080,52 +3608,6 @@ async fn reindex_unopened_factory_consumers(
 
 /// Mark each peer dirty and start its worker if one is not already draining
 /// it. See [`spawn_diagnostics_worker`] for why this exists.
-/// Inline send attempts for a run of this currency — see
-/// [`DeliveryCtx::delivery_attempts`], which this backs.
-///
-/// A free function taking the currency rather than a method on the context, so
-/// the closed-versus-open decision can be asserted without standing up a whole
-/// `DeliveryCtx` (whose eight borrowed handles are not the thing under test).
-const fn delivery_attempts_for(currency: DiagCurrency) -> u32 {
-    match currency {
-        DiagCurrency::Open(_) => 1,
-        DiagCurrency::ClosedFromDisk(_) => CLOSED_DELIVERY_ATTEMPTS,
-    }
-}
-
-/// Queue `uri`'s **own** publish to run again, and start a worker if none is.
-///
-/// [`reschedule_peers`] does this for the documents a publish invalidated and
-/// deliberately skips the publishing document itself. This is the case that one
-/// excludes: a run that could not finish delivering and wants another pass over
-/// its own URI (issue #1657 — see [`DeliveryCtx::cache_and_deliver`], whose
-/// client sends are time-bounded because they run under the `documents` lock).
-///
-/// Takes only `diag_slots`. That is what makes it callable from under the
-/// `documents` lock whose hold it exists to cut short — it must not need the
-/// very lock its caller is trying to give back.
-///
-/// A slot with no `latest_inputs` is left alone: nothing can re-derive the
-/// publish, so marking it dirty would spin a worker that immediately finds
-/// nothing to do. The next edit re-establishes the inputs.
-async fn reschedule_self(slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>, uri: &Uri) {
-    let start_worker = {
-        let mut guard = slots.lock().await;
-        match guard.get_mut(uri) {
-            Some(slot) if slot.latest_inputs.is_some() => {
-                slot.mark_dirty();
-                let start = !slot.running;
-                slot.running = true;
-                start
-            }
-            _ => false,
-        }
-    };
-    if start_worker {
-        spawn_diagnostics_worker(Arc::clone(slots), uri.clone());
-    }
-}
-
 async fn reschedule_peers(
     slots: &Arc<Mutex<HashMap<Uri, DiagSlot>>>,
     self_uri: &Uri,
@@ -3753,6 +4235,7 @@ async fn run_diagnostics_core(inputs: DiagInputs, uri: &Uri, job: DiagJob) -> bo
 
     let delivery = DeliveryCtx {
         client: &inputs.client,
+        diagnostic_publisher: &inputs.diagnostic_publisher,
         documents: &inputs.documents,
         diag_slots: &inputs.diag_slots,
         pull_diag_cache: &inputs.pull_diag_cache,
@@ -4720,7 +5203,8 @@ async fn add_entry_point_diagnostic_consumers(
 }
 
 /// Publish the lifted diagnostics: re-check currency, refresh the workspace
-/// index, prime the pull cache, deliver to the client, and log timing.  Always
+/// index, atomically commit the pull cache + mailbox state, await delivery
+/// outside all global guards, and log timing. Always
 /// settled (`true`) — a stale revision or a lift-revision panic both keep the
 /// prior diagnostics rather than retrying.
 ///
@@ -4737,10 +5221,11 @@ async fn add_entry_point_diagnostic_consumers(
 ///
 /// Splitting the function is the other way out and is the wrong one here. What
 /// makes this body long is a single deliberate critical section — the
-/// `documents` lock held across the currency re-check, the index update and the
-/// delivery — and cutting it in half would put that lock's acquisition and its
-/// release in different functions. The lock scope being readable in one piece is
-/// the property this whole issue is about.
+/// `documents` lock held across the currency re-check, index update and mailbox
+/// commit — and cutting it in half would put that lock's acquisition and its
+/// release in different functions. The lock scope being readable in one piece
+/// is the property this whole issue is about. Client delivery is deliberately
+/// outside this section.
 #[allow(
     clippy::too_many_lines,
     reason = "the overrun is #1657 lock-phase markers, which are only correct as a complete set; \
@@ -4769,7 +5254,7 @@ async fn publish_diagnostics_result(
         }
     };
     let diag_count = diags.len();
-    let peers = {
+    let (peers, delivery_receipt) = {
         // A workspace query holds this gate from source-site reconciliation
         // through its final index snapshot. Take it before `documents` (the
         // same order as reconciliation's `read_document`) so this standalone
@@ -4778,15 +5263,16 @@ async fn publish_diagnostics_result(
         // intermittently resolve `::helper` instead of `::x::helper` (M9).
         let rehoming_guard = rehoming_gate.lock().await;
         // Hold the `documents` lock across the currency re-check, the
-        // workspace-index update, AND the pull-cache/publish delivery so a
+        // workspace-index update, AND the pull-cache/mailbox commit so a
         // concurrent `did_change`/`did_close` (which also take `documents`)
         // cannot interleave between them — the role the former global
         // `document_analysis_gate` served, now via the natural
         // `documents` → `workspace_index` and `documents` → `pull_diag_cache`
-        // lock order. Delivering *inside* the lock is what stops a `did_close`
-        // that ran between the currency check and the delivery from having its
-        // clearing empty publish overwritten (and its pull-cache removal
-        // undone) by this run's late squiggles.
+        // lock order. The mailbox deposit inside the lock is what stops a
+        // `did_close` from landing between currency check and publication: a
+        // later close replaces the pending state or follows an in-flight state
+        // on the single consumer. The actual client await is below, after this
+        // guard and `rehoming_guard` have been released (#1657).
         let docs = delivery.documents.lock("publish_diagnostics_result").await;
         if !delivery.is_current(&docs).await {
             // Superseded by a newer edit (open run), a reopen, or a newer closed
@@ -4868,10 +5354,23 @@ async fn publish_diagnostics_result(
         // `textDocument/diagnostic` request now returns this exact set with
         // a fresh `result_id`, and an editor that already holds it gets a
         // cheap `Unchanged` report.
-        docs.retag("publish_diagnostics_result: cache_and_deliver");
-        delivery.cache_and_deliver(diags).await;
-        peers
+        docs.retag("publish_diagnostics_result: cache_and_enqueue");
+        let receipt = delivery.cache_and_enqueue(diags).await;
+        (peers, receipt)
     };
+    // Client backpressure is isolated in the persistent publisher. Waiting for
+    // the authoritative delivery preserves the timing-marker contract, but the
+    // global documents map and rehoming gate have both been released first.
+    match delivery_receipt.await {
+        Ok(DiagnosticPublishOutcome::Delivered) => {}
+        Ok(DiagnosticPublishOutcome::Superseded) => return true,
+        Err(_) => {
+            // The persistent publisher task was lost. Do not claim that this
+            // publish reached the client; diagnostics stop, but request-critical
+            // state remains live and no unsafe second consumer is spawned.
+            return true;
+        }
+    }
     reschedule_peers(delivery.diag_slots, delivery.uri, peers).await;
     let elapsed_ms = timing.started.elapsed().as_secs_f64() * 1000.0;
     // The analyser runs a single, full ("deep") pass per publish — there is
@@ -4955,6 +5454,9 @@ struct PublishedPackSet {
 /// with the `Backend` rather than leaked for the process lifetime.
 pub struct Backend {
     client: Client,
+    /// Persistent latest-wins diagnostics delivery, isolated from every
+    /// request-critical lock (issue #1657).
+    diagnostic_publisher: Arc<DiagnosticPublisher>,
     /// Open documents. `Arc` so the detached diagnostics task can hold it.
     documents: Arc<DocumentStore>,
     /// Per-URI coalescing diagnostics scheduler state.  Each edit marks the
@@ -6374,8 +6876,10 @@ impl Backend {
             None,
             0,
         );
+        let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         Self {
             client,
+            diagnostic_publisher,
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
@@ -7606,15 +8110,17 @@ impl Backend {
             return;
         }
         let documents_holder = describe_documents_contention(&before, &after);
+        let waiters =
+            describe_documents_waiters(&self.documents.waiters(), after.held_by.is_some());
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
-                     The turn is {culprit}. {documents_holder}. {waiting_on}. Every request \
-                     handler is blocked on this barrier and the server will answer nothing \
-                     until it moves (issue #1657).",
+                     The turn is {culprit}. {documents_holder}. {waiters} {waiting_on}. \
+                     Every request handler is blocked on this barrier and the server will \
+                     answer nothing until it moves (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
                 ),
@@ -8459,20 +8965,20 @@ impl Backend {
     /// Guarded on the document still being closed, so a `did_open` racing in
     /// cannot have this empty publish blank a freshly reopened buffer.
     async fn clear_closed_diagnostics(&self, uri: &Uri) {
-        let docs = self.documents.lock("clear_closed_diagnostics").await;
-        if docs.contains_key(uri) {
-            return;
-        }
-        // Hold `documents` across the clearing publish + pull-cache drop (the
-        // `documents` → `pull_diag_cache` order), exactly as the open publish
-        // holds it, so a concurrent reopen cannot interleave.
-        self.client
-            .publish_diagnostics(uri.clone(), Vec::new(), None)
-            .await;
-        self.pull_diag_cache.lock().await.remove(uri);
-        // Drop the closed-run generation too, so the map does not accumulate an
-        // entry for a URI that no longer carries a badge.
-        self.closed_diag_gen.lock().await.remove(uri);
+        let receipt = {
+            let docs = self.documents.lock("clear_closed_diagnostics").await;
+            if docs.contains_key(uri) {
+                return;
+            }
+            // Commit the clear, pull-cache removal and generation retirement in
+            // one document-ordered critical section. The publisher performs the
+            // client I/O after this guard is released (#1657).
+            self.pull_diag_cache.lock().await.remove(uri);
+            self.closed_diag_gen.lock().await.remove(uri);
+            self.diagnostic_publisher
+                .enqueue(uri.clone(), Vec::new(), None, false, false)
+        };
+        let _ = receipt.await;
         // …and its place in the closed-badge recency list, so a cleared URI does
         // not count against [`CLOSED_DIAG_BADGE_CAP`] (#1144).
         self.closed_diag_order
@@ -8554,6 +9060,7 @@ impl Backend {
             folder_db_config_tombstones: _,
             // Not keyed by a URI.
             client: _,
+            diagnostic_publisher: _,
             default_dialect: _,
             default_dialect_explicit: _,
             session_dialect_override: _,
@@ -14178,6 +14685,7 @@ impl Backend {
         let (entry_points, folder_root) = self.w120_inheritance_config(uri).await;
         DiagInputs {
             client: self.client.clone(),
+            diagnostic_publisher: Arc::clone(&self.diagnostic_publisher),
             registry,
             disabled,
             severity_overrides,
@@ -15534,12 +16042,16 @@ impl Backend {
             stale
         };
         for uri in stale {
-            self.client.publish_diagnostics(uri, Vec::new(), None).await;
+            let receipt = self
+                .diagnostic_publisher
+                .enqueue(uri, Vec::new(), None, false, false);
+            let _ = receipt.await;
         }
         for (uri, diagnostics) in by_uri {
-            self.client
-                .publish_diagnostics(uri, diagnostics, None)
-                .await;
+            let receipt = self
+                .diagnostic_publisher
+                .enqueue(uri, diagnostics, None, false, false);
+            let _ = receipt.await;
         }
     }
 
@@ -28933,6 +29445,8 @@ mod tests {
     /// after the fact.
     fn test_backend_over(db: tcl_lsp_db::TclDatabase) -> Backend {
         let (service, _socket) = tower_lsp_server::LspService::new(Backend::new);
+        let client = service.inner().client.clone();
+        let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         let db_config = tcl_lsp_db::AnalyserConfig::new(
             &db,
             default_disabled_set().into_iter().collect(),
@@ -28943,7 +29457,8 @@ mod tests {
             0,
         );
         Backend {
-            client: service.inner().client.clone(),
+            client,
+            diagnostic_publisher,
             documents: Arc::new(DocumentStore::default()),
             diag_slots: Arc::new(Mutex::new(HashMap::new())),
             default_dialect: Mutex::new("tcl8.6".to_owned()),
@@ -29961,6 +30476,7 @@ mod tests {
         let diag = vec![tower_lsp_server::ls_types::Diagnostic::default()];
         let ctx = |generation: u64| DeliveryCtx {
             client: &backend.client,
+            diagnostic_publisher: &backend.diagnostic_publisher,
             documents: &backend.documents,
             diag_slots: &backend.diag_slots,
             pull_diag_cache: &backend.pull_diag_cache,
@@ -34114,161 +34630,152 @@ mod tests {
         }
     }
 
-    /// A delivery that could not finish must queue itself for another pass.
-    ///
-    /// This is the recovery half of the #1657 fix. `cache_and_deliver` runs its
-    /// client sends under the `documents` lock, so those sends are capped; when
-    /// a cap is hit it gives the lock back **without having published**, and the
-    /// only thing standing between that and a silently lost diagnostic is this
-    /// reschedule. The delivery invariant in `main.rs` forbids dropping a
-    /// publish, so "returned early" must mean "will run again".
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn a_delivery_that_timed_out_queues_itself_again() {
-        let backend = test_backend();
-        let uri = Uri::from_str("file:///w/redeliver.tcl").unwrap();
-        register(&backend, &uri, "set x 1\n").await;
-
-        // A slot the scheduler has never seen has nothing to re-derive from, so
-        // it must be left alone rather than spun.
-        reschedule_self(&backend.diag_slots, &uri).await;
-        assert!(
-            backend.diag_slots.lock().await.get(&uri).is_none(),
-            "rescheduling an unknown slot must not create one — a worker with no \
-             cached inputs would wake, find nothing to do, and stop",
-        );
-
-        // Give the URI a real slot with resolved inputs, the way an ordinary
-        // edit would, then let the worker settle.
-        backend
-            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
-            .await;
-        let settled = crate::rt::timeout(std::time::Duration::from_secs(10), async {
-            loop {
-                {
-                    let slots = backend.diag_slots.lock().await;
-                    if let Some(slot) = slots.get(&uri)
-                        && slot.latest_inputs.is_some()
-                        && !slot.running
-                        && !slot.dirty
-                    {
-                        return;
-                    }
-                }
-                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await;
-        assert!(
-            settled.is_ok(),
-            "the scheduled publish must settle before this test can say anything \
-             about re-scheduling it",
-        );
-
-        // The timed-out-delivery case: the slot is queued again.
-        reschedule_self(&backend.diag_slots, &uri).await;
-        let slots = backend.diag_slots.lock().await;
-        let slot = slots.get(&uri).expect("the slot exists");
-        assert!(
-            slot.dirty || slot.running,
-            "a delivery that returned without publishing must leave its slot \
-             queued (dirty) or already being drained (running); neither means \
-             the diagnostics for this revision are lost, which the main.rs \
-             delivery invariant forbids",
-        );
+    fn pending_diagnostic_summary(publisher: &DiagnosticPublisher, uri: &Uri) -> Option<bool> {
+        let state = publisher
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        state
+            .pending
+            .get(uri)
+            .map(|pending| pending.diagnostics.is_empty())
     }
 
-    /// A closed-file publish must not depend on a slot `did_close` has already
-    /// evicted.
-    ///
-    /// Codex P1 on #1670. The two halves of the trap, pinned together:
-    ///
-    /// 1. `did_close` calls `evict_diag_slot` **before**
-    ///    `publish_closed_file_diagnostics` runs, and eviction either removes
-    ///    the slot or clears its `latest_inputs` — so `reschedule_self`, which
-    ///    requires cached inputs, can do nothing for a closed URI.
-    /// 2. A closed publish is therefore the one delivery with no scheduler
-    ///    behind it, so it must retry inline rather than hand the work back.
-    ///
-    /// Without the second half a timed-out closed publish is lost silently,
-    /// while the pull cache and the closed badge both read current — a client
-    /// that paused across the timeout during a close would never be told.
+    /// A client notification that never drains may stop diagnostics, but it
+    /// must not stop edits or requests from taking the global document map.
+    /// The close committed behind it must also replace the pending stale set.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn a_closed_file_publish_does_not_rely_on_an_evicted_slot() {
-        let backend = test_backend();
-        let uri = Uri::from_str("file:///w/closed-retry.tcl").unwrap();
-        register(&backend, &uri, "set x 1\n").await;
+    async fn stalled_diagnostic_delivery_cannot_hold_documents_and_close_wins() {
+        use std::sync::atomic::Ordering;
 
-        // Give the URI a real, fully populated slot…
+        let backend = Arc::new(test_backend());
+        // Keep the persistent consumer deliberately parked without involving
+        // transport timing. Enqueue still commits normally; receipts simply do
+        // not resolve until a newer state replaces them.
         backend
-            .reschedule_diagnostics(uri.clone(), "tcl8.6".to_owned())
-            .await;
-        // Wait for the worker to finish as well as populate: `evict_diag_slot`
-        // keeps a *running* slot (clearing its inputs) and removes an idle one,
-        // and only the second branch is unambiguous to assert on.
-        let ready = crate::rt::timeout(std::time::Duration::from_secs(10), async {
+            .diagnostic_publisher
+            .started
+            .store(true, Ordering::Release);
+        let uri = Uri::from_str("file:///w/mailbox-stall.tcl").unwrap();
+        register(&backend, &uri, "set x 1\n").await;
+        let revision = backend
+            .documents
+            .lock("test revision")
+            .await
+            .get(&uri)
+            .expect("registered document")
+            .revision;
+
+        let publishing_backend = Arc::clone(&backend);
+        let publishing_uri = uri.clone();
+        let publish = tokio::spawn(async move {
+            DeliveryCtx {
+                client: &publishing_backend.client,
+                diagnostic_publisher: &publishing_backend.diagnostic_publisher,
+                documents: &publishing_backend.documents,
+                diag_slots: &publishing_backend.diag_slots,
+                pull_diag_cache: &publishing_backend.pull_diag_cache,
+                closed_diag_gen: &publishing_backend.closed_diag_gen,
+                uri: &publishing_uri,
+                currency: DiagCurrency::Open(revision),
+                version: Some(1),
+                client_supports_pull: false,
+            }
+            .deliver_if_current(vec![tower_lsp_server::ls_types::Diagnostic::default()])
+            .await
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(1), async {
             loop {
-                {
-                    let slots = backend.diag_slots.lock().await;
-                    if slots
-                        .get(&uri)
-                        .is_some_and(|s| s.latest_inputs.is_some() && !s.running && !s.dirty)
-                    {
-                        return;
-                    }
+                if pending_diagnostic_summary(&backend.diagnostic_publisher, &uri).is_some() {
+                    break;
                 }
-                crate::rt::sleep(std::time::Duration::from_millis(10)).await;
+                crate::rt::yield_now().await;
             }
         })
-        .await;
+        .await
+        .expect("the authoritative publish must reach the mailbox");
+
+        let mut docs = crate::rt::timeout(
+            std::time::Duration::from_millis(250),
+            backend.documents.lock("test close"),
+        )
+        .await
+        .expect("a pending client send must not retain the documents lock");
+        docs.remove(&uri);
+        drop(docs);
+
+        let clearing_backend = Arc::clone(&backend);
+        let clearing_uri = uri.clone();
+        let clear = tokio::spawn(async move {
+            clearing_backend
+                .clear_closed_diagnostics(&clearing_uri)
+                .await;
+        });
+
+        crate::rt::timeout(std::time::Duration::from_secs(1), async {
+            loop {
+                let close_is_pending =
+                    pending_diagnostic_summary(&backend.diagnostic_publisher, &uri) == Some(true);
+                if close_is_pending {
+                    break;
+                }
+                crate::rt::yield_now().await;
+            }
+        })
+        .await
+        .expect("the close must replace the pending stale diagnostics");
         assert!(
-            ready.is_ok(),
-            "the slot must be populated and settled before it is evicted",
+            !crate::rt::timeout(std::time::Duration::from_secs(1), publish)
+                .await
+                .expect("replacement must settle the stale receipt")
+                .expect("the publish task must not panic"),
+            "the superseded run must not claim delivery or emit its completion marker",
         );
-
-        // …then evict it exactly as `did_close` does, before the closed publish.
-        backend.evict_diag_slot(&uri).await;
-
-        // The scheduler fallback is now dead for this URI. This is the half that
-        // makes the inline retry necessary, not an incidental detail. Both of
-        // eviction's branches defeat it: the idle one drops the slot, and the
-        // running one clears the `latest_inputs` that `reschedule_self` requires.
-        reschedule_self(&backend.diag_slots, &uri).await;
-        let revivable = {
-            let slots = backend.diag_slots.lock().await;
-            slots
-                .get(&uri)
-                .is_some_and(|s| s.latest_inputs.is_some() && (s.dirty || s.running))
-        };
+        let state = backend
+            .diagnostic_publisher
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let pending = state.pending.get(&uri).expect("close clear stays pending");
         assert!(
-            !revivable,
-            "after `did_close` evicts the slot there is nothing for \
-             `reschedule_self` to drive — if this ever starts passing, the \
-             closed path gained a scheduler and `delivery_attempts` should be \
-             revisited",
-        );
-
-        // So a closed run must carry its own retries, and an open one must not
-        // pay for them (the scheduler is strictly better for open documents).
-        let closed = DiagCurrency::ClosedFromDisk(7);
-        let open = DiagCurrency::Open(3);
-        assert!(
-            delivery_attempts_for(closed) > 1,
-            "a closed publish has no scheduler to fall back on, so it must \
-             retry inline or the notification is lost",
+            pending.diagnostics.is_empty(),
+            "the newest retained state for a closed URI must be the clear",
         );
         assert_eq!(
-            delivery_attempts_for(open),
-            1,
-            "an open publish must hand back to the scheduler rather than retry \
-             under the `documents` lock",
+            state.order.iter().filter(|queued| *queued == &uri).count(),
+            1
         );
-        // Worst case must stay under the barrier's stall threshold: marker plus
-        // publish, each retried, is four sends.
-        assert!(
-            DELIVERY_SEND_BUDGET * 2 * delivery_attempts_for(closed) < EDIT_BARRIER_STALL_WARN,
-            "the inline retries must not themselves be able to hold `documents` \
-             long enough for the document-sync barrier to report a stall (#1657)",
+        drop(state);
+        clear.abort();
+    }
+
+    /// Latest-wins replacement is bounded per URI and moves the replacement to
+    /// its real cross-URI commit position.
+    #[tokio::test]
+    async fn diagnostic_mailbox_is_latest_wins_and_preserves_surviving_order() {
+        use std::sync::atomic::Ordering;
+
+        let backend = test_backend();
+        let publisher = &backend.diagnostic_publisher;
+        publisher.started.store(true, Ordering::Release);
+        let a = Uri::from_str("file:///a.tcl").unwrap();
+        let b = Uri::from_str("file:///b.tcl").unwrap();
+        let first_a = publisher.enqueue(a.clone(), Vec::new(), Some(1), false, false);
+        let _b = publisher.enqueue(b.clone(), Vec::new(), Some(1), false, false);
+        let _latest_a = publisher.enqueue(a.clone(), Vec::new(), Some(2), false, false);
+
+        assert_eq!(
+            first_a.await.expect("publisher remains alive"),
+            DiagnosticPublishOutcome::Superseded,
         );
+        let state = publisher
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert_eq!(state.pending.len(), 2, "one retained vector per URI");
+        assert_eq!(state.order, VecDeque::from([b, a.clone()]));
+        assert_eq!(state.pending.get(&a).expect("latest a").version, Some(2),);
     }
 
     /// The map must distinguish "nobody wants it" from "everyone but the
@@ -34433,8 +34940,17 @@ mod tests {
             );
             assert_eq!(snap.acquisitions, 2);
         }
+    }
 
-        // --- the concurrent half: a genuinely impossible pairing ---
+    /// The concurrent half of the snapshot-coherence pin: genuinely impossible
+    /// pairings, hammered.
+    ///
+    /// Split from [`a_contention_snapshot_never_mixes_two_states`]'s
+    /// deterministic transition checks purely for the line-count lint; the two
+    /// are one argument, and the doc comment there carries it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn a_contention_snapshot_survives_concurrent_hammering() {
+        let store = Arc::new(DocumentStore::default());
         //
         // Every acquisition uses a site name used exactly once, ever. A site can
         // then never be both the current holder and the most recent previous
@@ -34459,7 +34975,11 @@ mod tests {
                         // `&'static str` per acquisition. Leaked deliberately and
                         // bounded by the loop below; a few thousand short strings.
                         let site: &'static str = Box::leak(format!("hammer-{n}").into_boxed_str());
-                        drop(store.lock(site).await);
+                        let held = store.lock(site).await;
+                        for _ in 0..32 {
+                            crate::rt::yield_now().await;
+                        }
+                        drop(held);
                         crate::rt::yield_now().await;
                     }
                 })
@@ -34468,7 +34988,7 @@ mod tests {
 
         let mut previous = store.contention().acquisitions;
         let mut seen_both = 0_u32;
-        for _ in 0..20_000 {
+        for _ in 0..100_000 {
             let snap = store.contention();
             assert!(
                 snap.acquisitions >= previous,
@@ -34549,6 +35069,322 @@ mod tests {
              limiter untouched — recording it would suppress the next real stall \
              at this position (#1664's lesson, reopened by the sample sleep and \
              closed again here)",
+        );
+    }
+
+    /// A contended acquire must be visible, counted, woken-counted, and gone
+    /// when it is over.
+    ///
+    /// This is the poll-discriminator's ground truth (issue #1657). The wedge
+    /// capture shows a waiter parked on a free map; the verdict the stall line
+    /// draws — wake lost, versus woken-but-never-polled — is only as good as
+    /// these counters. A waiter that did not register would be invisible; polls
+    /// that did not count would read as "never polled" (the parent-starvation
+    /// verdict) for a future being polled constantly; wakes that did not count
+    /// would read as "wake lost" (the extraordinary claim) for a wake that
+    /// arrived.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_contended_map_acquire_reports_its_polls_and_wakes() {
+        let store = Arc::new(DocumentStore::default());
+        assert!(
+            store.waiters().is_empty(),
+            "no waiter exists before anything contends",
+        );
+
+        let held = store.lock("holder").await;
+        assert!(
+            store.waiters().is_empty(),
+            "the fast path must not register a waiter — there is nothing \
+             waiting, and a ghost entry would be accused by the next stall line",
+        );
+
+        let contender = {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                let _guard = store.lock("contender").await;
+            })
+        };
+
+        // The contender parks. Its registration and at least one poll must be
+        // visible while it waits.
+        let parked = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let waiters = store.waiters();
+                if let [w] = waiters.as_slice()
+                    && w.site == "contender"
+                    && w.polls >= 1
+                {
+                    return *w;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the parked contender must appear in the waiter registry");
+        assert_eq!(
+            parked.wakes, 0,
+            "nothing has released the map, so no wake can have been recorded — \
+             a phantom wake here would later disprove a real lost-wake verdict",
+        );
+
+        // Release. The fair mutex hands the lock to the queued contender, which
+        // requires waking it — that wake must be counted before the waiter
+        // finishes and deregisters. We can't sample the registry after the
+        // handoff (the entry is gone, correctly), so sample the Arc the
+        // registry shared: grab it while the waiter is still parked.
+        let telemetry = {
+            let tracking = store.tracking();
+            Arc::clone(&tracking.waiters[0])
+        };
+        drop(held);
+        crate::rt::timeout(std::time::Duration::from_secs(5), contender)
+            .await
+            .expect("the contender must acquire once the map is released")
+            .expect("the contender task must not panic");
+
+        assert!(
+            store.waiters().is_empty(),
+            "a completed acquire must deregister — a stale entry would be \
+             accused by every later stall line",
+        );
+        let t = telemetry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(
+            t.wakes >= 1,
+            "releasing the map woke the queued waiter, and that wake must be \
+             counted: with it missed, a stall line would report 'never woken' — \
+             the lost-wake verdict — about a wake that demonstrably arrived",
+        );
+        assert!(
+            t.polls >= 2,
+            "the wake leads to a final successful poll, which must be counted \
+             like the first",
+        );
+    }
+
+    /// A waiter cancelled mid-wait must deregister.
+    ///
+    /// Handler futures are dropped wholesale (a closed connection, an aborted
+    /// request), taking any parked acquire with them. The registration is
+    /// removed by a drop guard precisely so that this case cannot leave a ghost
+    /// waiter — an entry that would sit in the registry forever and be accused
+    /// by every subsequent stall line as a decades-old parked task.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancelled_map_acquire_leaves_no_ghost_waiter() {
+        let store = Arc::new(DocumentStore::default());
+        let held = store.lock("holder").await;
+
+        {
+            let mut acquire = Box::pin(store.lock("doomed"));
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_millis(50), &mut acquire)
+                    .await
+                    .is_err(),
+                "the acquire must park behind the held map, or dropping it \
+                 proves nothing",
+            );
+            assert_eq!(
+                store.waiters().len(),
+                1,
+                "the parked acquire must be registered",
+            );
+            // `acquire` drops here — cancellation.
+        }
+
+        assert!(
+            store.waiters().is_empty(),
+            "a cancelled acquire must deregister its waiter — the drop guard is \
+             the only thing between this and a permanent ghost entry (#1657)",
+        );
+        drop(held);
+    }
+
+    /// The waiter clause must state the right verdict for each telemetry shape.
+    ///
+    /// The whole point of the shim is that a human reads the verdict off the
+    /// stall line, so the mapping from counters to words is behaviour, not
+    /// cosmetics: woken-after-last-poll must read as a driving problem,
+    /// and never-woken as a lost wake, without guessing which scheduler layer
+    /// failed to drive it.
+    #[test]
+    fn the_waiter_clause_states_the_verdict() {
+        let base = WaiterSnapshot {
+            telemetry_id: 1,
+            site: "did_open",
+            parked_for: std::time::Duration::from_secs(18),
+            polls: 1,
+            since_last_poll: std::time::Duration::from_secs(18),
+            wakes: 0,
+            since_last_wake: None,
+            #[cfg(not(target_family = "wasm"))]
+            task_id: None,
+        };
+
+        let never_woken = describe_documents_waiters(&[base], false);
+        assert!(
+            never_woken.contains("lost or never sent"),
+            "a never-woken waiter is the lost-wake verdict: {never_woken}",
+        );
+
+        let woken_not_polled = describe_documents_waiters(
+            &[WaiterSnapshot {
+                wakes: 1,
+                since_last_wake: Some(std::time::Duration::from_secs(9)),
+                ..base
+            }],
+            false,
+        );
+        assert!(
+            woken_not_polled.contains("never polled again"),
+            "a wake newer than the last poll is the not-being-driven verdict: \
+             {woken_not_polled}",
+        );
+
+        let nobody = describe_documents_waiters(&[], false);
+        assert!(
+            nobody.contains("No task is in the map's contended-acquire path"),
+            "an empty registry must say so rather than staying silent: {nobody}",
+        );
+
+        // Behind a HELD map, zero wakes is the expected state, not evidence:
+        // the holder has not released, so no wake was ever due. The run-1
+        // poll-shim capture printed the lost-wake wording for four such
+        // victims, which invited suspicion of the mutex for waiters that were
+        // merely queued behind a stuck holder.
+        let held_victim = describe_documents_waiters(&[base], true);
+        assert!(
+            held_victim.contains("a victim of the holder above"),
+            "a waiter behind a held map must be framed as a victim: {held_victim}",
+        );
+        assert!(
+            !held_victim.contains("lost or never sent"),
+            "a waiter behind a held map must not be given the lost-wake verdict: \
+             {held_victim}",
+        );
+    }
+
+    /// The nudge triggers only for a stale waiter on a free map.
+    ///
+    /// The watchdog acts on production state, so a wrong predicate is either a
+    /// evidence probe that never fires (the wedge stays unobserved) or one that
+    /// fires on healthy states (pokes and log noise on every long #1678-style
+    /// hold). The trigger is pinned against its nearest legitimate neighbour.
+    #[test]
+    fn the_nudge_fires_on_impossible_shapes_only() {
+        let held = HeldFor {
+            site: "deliver_if_current",
+            held: std::time::Duration::from_secs(5),
+            in_phase: std::time::Duration::from_secs(5),
+        };
+        let waiter = |parked_ms: u64| WaiterSnapshot {
+            telemetry_id: 2,
+            site: "did_open",
+            parked_for: std::time::Duration::from_millis(parked_ms),
+            polls: 1,
+            since_last_poll: std::time::Duration::from_millis(parked_ms),
+            wakes: 0,
+            since_last_wake: None,
+            #[cfg(not(target_family = "wasm"))]
+            task_id: None,
+        };
+        let contention = |held_by: Option<HeldFor>| DocumentsContention {
+            held_by,
+            last: None,
+            acquisitions: 1,
+        };
+
+        // A stale waiter on a FREE map. Its neighbour — the same
+        // waiter behind a HELD map — is every long #1678-style hold, and must
+        // not nudge.
+        assert_eq!(
+            nudge_reason(&contention(None), &[waiter(4100)]),
+            Some(NudgeTarget {
+                telemetry_id: 2,
+                polls: 1,
+            }),
+            "a fair mutex hands over immediately; a stale waiter on a free map \
+             was never resumed",
+        );
+        assert_eq!(
+            nudge_reason(&contention(Some(held)), &[waiter(60_000)]),
+            None,
+            "a waiter behind a held map is a victim of the holder, however \
+             stale — nudging would fire on every long legitimate hold (#1678)",
+        );
+        assert_eq!(
+            nudge_reason(&contention(None), &[waiter(500)]),
+            None,
+            "a fresh waiter on a free map is an ordinary handoff in progress",
+        );
+        assert_eq!(
+            nudge_reason(&contention(None), &[]),
+            None,
+            "an idle map never nudges",
+        );
+    }
+
+    /// The watchdog step nudges a wedged-looking store and leaves a healthy
+    /// one alone — driven directly, as the thread loop drives it.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_watchdog_step_nudges_only_a_wedged_store() {
+        let store = Arc::new(DocumentStore::default());
+        let handle = tokio::runtime::Handle::current();
+        let mut log = Vec::new();
+
+        // Healthy: idle store, no nudge, nothing logged.
+        assert!(
+            !unpark_watchdog_step(&store, &handle, &mut log),
+            "an idle store must not be nudged",
+        );
+        assert!(log.is_empty(), "no action, no log line");
+
+        // Wedged-looking: a waiter registration on a free map, backdated past
+        // the evidence threshold. There is deliberately no acquire future to
+        // resume, so the outcome must report that the external spawns did not
+        // recover the exact target.
+        let old = crate::rt::Instant::now() - NUDGE_WAITER_THRESHOLD * 2;
+        let telemetry = Arc::new(std::sync::Mutex::new(WaiterTelemetry {
+            site: "did_open",
+            parked_since: old,
+            polls: 1,
+            last_poll: old,
+            wakes: 0,
+            last_wake: None,
+            #[cfg(not(target_family = "wasm"))]
+            task_id: None,
+        }));
+        store.tracking().waiters.push(telemetry);
+
+        let nudges_before = UNPARK_NUDGES.load(std::sync::atomic::Ordering::Relaxed);
+        // Run the step off the runtime, as the real watchdog thread does — it
+        // sleeps 500ms inline, which must not block a worker in this test.
+        let stepped = {
+            let store = Arc::clone(&store);
+            let handle = handle.clone();
+            tokio::task::spawn_blocking(move || {
+                let mut log = Vec::new();
+                let stepped = unpark_watchdog_step(&store, &handle, &mut log);
+                (stepped, log)
+            })
+            .await
+            .expect("watchdog step must not panic")
+        };
+        assert!(stepped.0, "a stale waiter on a free map must be nudged");
+        let logged = String::from_utf8(stepped.1).expect("log is utf8");
+        assert!(
+            logged.contains("[nudge] waiter parked on a free map"),
+            "the nudge must log its reason and evidence: {logged}",
+        );
+        assert!(
+            logged.contains("[nudge] outcome: STILL WEDGED"),
+            "the nudge must log its outcome — the outcome line is the built-in \
+             falsifier for the lost-unpark frame: {logged}",
+        );
+        assert_eq!(
+            UNPARK_NUDGES.load(std::sync::atomic::Ordering::Relaxed),
+            nudges_before + 1,
+            "each nudge counts",
         );
     }
 
@@ -35992,6 +36828,7 @@ mod tests {
             let uri_string = publisher_b.to_string();
             let delivery = DeliveryCtx {
                 client: &publisher_backend.client,
+                diagnostic_publisher: &publisher_backend.diagnostic_publisher,
                 documents: &publisher_backend.documents,
                 diag_slots: &publisher_backend.diag_slots,
                 pull_diag_cache: &publisher_backend.pull_diag_cache,

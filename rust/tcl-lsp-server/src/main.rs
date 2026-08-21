@@ -95,6 +95,12 @@ async fn serve() {
     // carry the full derivation and the reason the queue has to be unbounded.
     let (stdout, stdout_drained) = stdio_pump::pump(tokio::io::stdout());
     let (service, socket) = LspService::new(Backend::new);
+    // Evidence-only #1657 watchdog. The external-spawn experiment falsified
+    // its proposed recovery mechanism (zero true resumptions), so normal
+    // servers do not pay for or rely on it. An evidence run opts in explicitly.
+    if std::env::var_os("TCL_LSP_WEDGE_EVIDENCE").is_some() {
+        tcl_lsp_server::spawn_unpark_watchdog(service.inner(), tokio::runtime::Handle::current());
+    }
     // Wrap the service so every incoming message passes through the URI
     // canonicalisation shim (a no-op for a conforming client) and every
     // outgoing response through the type-hierarchy capability shim (a no-op for
@@ -102,30 +108,25 @@ async fn serve() {
     let service = service
         .map_request(normalise_request_uris)
         .map_response(|resp: Option<Response>| resp.map(inject_type_hierarchy_provider));
-    // INVARIANT (no lost and no reordered diagnostics under a slow client):
-    // the delivery path needs outbound messages to be *ordered* and *never
-    // dropped*. `tower-lsp-server` 0.23 gives the `Client` a bounded
-    // `futures::mpsc::channel(1)` drained by a single `.forward(FramedWrite(
-    // stdout))`, so a `client.publish_diagnostics(..).await` resolves only
-    // once the message is durably queued — it never `try_send`s
-    // (drop-on-full). Behind that, `stdio_pump` keeps a single FIFO queue
-    // drained by a single writer task, so ordering and no-drop both hold end
-    // to end; what it deliberately does not do is make a slow client stall the
-    // producer, because that coupling is what deadlocked the session (#1334).
+    // INVARIANT (ordered diagnostics without a server-wide backpressure blast
+    // radius): one persistent publisher owns every diagnostics `Client` await.
+    // Producers commit the pull-cache state and a latest-wins per-URI mailbox
+    // entry while their document ordering guard is held, then release that
+    // guard before awaiting the publisher's receipt. A superseded pending state
+    // is settled explicitly; an already-started send is never cancelled or
+    // retried (`SinkExt::send` can have completed `start_send` before parking
+    // in `poll_flush`, so retrying could duplicate it). The single consumer
+    // preserves the cross-URI order of surviving commits and sends a newer
+    // same-URI state after any in-flight predecessor.
     //
-    // Two things must not silently break this — re-audit the whole delivery
-    // path (`deliver_diagnostics`, `deliver_fast_tier_if_current`,
-    // `publish_diagnostics_result`) if either changes:
-    //   1. Swapping `tower-lsp-server` for a build whose client channel uses
-    //      `try_send`, or reordering the outbound path so more than one task
-    //      writes to the pump — outbound would then drop or interleave. The dep
-    //      is version-pinned in `Cargo.toml`; treat an upgrade that touches its
-    //      transport as a delivery-review gate.
-    //   2. Making any diagnostics publish fire-and-forget (e.g. wrapping it in a
-    //      detached `tokio::spawn` to avoid holding the `documents` lock across
-    //      the send). Concurrent publishes would reorder, and a
-    //      state-gated/disconnected drop would go unnoticed. Delivery MUST stay
-    //      an inline `.await`.
+    // `tower-lsp-server` 0.23 then queues each awaited client message through
+    // its bounded `futures::mpsc::channel(1)`, and `stdio_pump` preserves FIFO
+    // order to one writer without coupling stdout backpressure to stdin. Re-
+    // audit `deliver_diagnostics`, `DiagnosticPublisher`,
+    // `deliver_fast_tier_if_current` and `publish_diagnostics_result` if that
+    // transport changes. In particular: never add a second diagnostics
+    // consumer, never timeout/retry an in-flight send, and never await client
+    // I/O while holding `documents` or another request-critical guard.
     // Keep stdin routing independent of handler progress. The transport's
     // queue is always drained into pending futures, while the wrapper retains
     // the original four-handler application concurrency for ordinary work.

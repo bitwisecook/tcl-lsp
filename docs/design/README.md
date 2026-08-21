@@ -217,6 +217,11 @@ against, and how it stays fast under an editor's keystroke load.
   the guardrails that pin it.
 - [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
   performance: results, optimisations, and how to measure.
+- [notes/tokio-task-resumption-wedge-repro.md](notes/tokio-task-resumption-wedge-repro.md)
+  — the #1657 whole-server wedge: the instrumented evidence chain (a task
+  woken twice and never polled again), what is excluded and by what, measured
+  repro rates per tokio version, and a self-contained distillation sample
+  with its honestly-reported results.
 
 ## Optional WASM extensions
 

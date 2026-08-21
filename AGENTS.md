@@ -136,7 +136,7 @@ are *not* debt.
 - Rust stable with cargo, via [rustup](https://rustup.rs/).  The toolchain
   tracks the floating `stable` channel pinned in `rust-toolchain.toml`, so
   `Cargo.toml`'s `rust-version` bumps whenever stable does.  Current stable is
-  1.97.0, released 2026-07-07.  CI resolves `stable` at run time, so a fresh
+  1.98.0, released 2026-08-18.  CI resolves `stable` at run time, so a fresh
   release can fail `pr-gate`'s `cargo clippy -D warnings` on untouched code the
   day it lands — `rustup update` before debugging a clippy failure you cannot
   reproduce locally.
@@ -165,7 +165,7 @@ via [`scripts/dev/ensure-test-deps.sh`](scripts/dev/ensure-test-deps.sh)
 | Wasmtime         | v47.0.3       | `/opt/wasmtime-47.0.3/`         | `/usr/local/bin/wasmtime` |
 | Binaryen         | v132          | `/opt/binaryen-132/`            | `/usr/local/bin/wasm-merge`, `/usr/local/bin/wasm-opt` |
 | wasi-sdk         | 33.0          | `/opt/wasi-sdk-33.0/` (symlink `/opt/wasi-sdk`) | — (found by `runtime/rust/build.rs`) |
-| rustup + Rust    | floating `stable` (currently 1.97.1) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
+| rustup + Rust    | floating `stable` (currently 1.98.0) | `/root/.rustup`, `/root/.cargo` | `/usr/local/bin/{cargo,rustc,rustup,rustfmt,clippy-driver}` |
 | Tcl 8.4 source   | 8.4.20        | `tmp/tcl8.4.20/`                | —                         |
 | Tcl 8.5 source   | 8.5.19        | `tmp/tcl8.5.19/`                | —                         |
 | Tcl 8.6 source   | 8.6.16        | `tmp/tcl8.6.16/`                | —                         |
