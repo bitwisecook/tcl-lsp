@@ -18,10 +18,10 @@ No history. Delete items as they complete. Issues carry per-task detail.
   are branches of ONE `FuturesUnordered` driven by the single
   `Server::serve` task (tower-lsp-server 0.23, unbounded concurrency) —
   parent-poll starvation is the leading mechanism; permit starvation
-  excluded (notifications take no permit). PR #1677 open (instrumentation,
-  `Refs #1657`) — merge on green. Next: shim distinguishing child-not-polled
+  excluded (notifications take no permit). Instrumentation merged through
+  PR #1677 (ac54a51c0). Now building: shim distinguishing child-not-polled
   vs parent-not-polled. 70s pre-send hold split off as #1678
-  (post-release). Checkpoints through 18 on the issue.
+  (post-release). Checkpoints through 19 on the issue.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
