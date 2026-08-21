@@ -20,11 +20,11 @@ No history. Delete items as they complete. Issues carry per-task detail.
   impossible shapes, nudge via external spawns, logs resumed/STILL WEDGED
   (each nudge IS the poke experiment; outcome line is the falsifier).
   Acceptance loop running: 30 loaded runs, full tally. PR #1679
-  (`Refs #1657`): USER HOLD — do NOT merge; user is doing a deeper review
-  personally. Branch stays stable (findings go to #1657, not new pushes,
-  unless broken). test-ext runs WITH the watchdog (second acceptance
-  environment). Close #1657 only on the agreed bar (checkpoint 27).
-  #1678 post-release.
+  (`Refs #1657`): drive to MERGE POINT (green CI on current head, threads
+  resolved, no conflicts) then USER HOLD — user reviews personally before
+  the merge; fixes needed for green are allowed, nothing else. test-ext
+  runs WITH the watchdog (second acceptance environment). Close #1657 only
+  on the agreed bar (checkpoint 27). #1678 post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
