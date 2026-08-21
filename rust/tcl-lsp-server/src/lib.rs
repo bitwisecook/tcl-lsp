@@ -43,10 +43,13 @@ pub mod uri_norm;
 pub mod vfs;
 
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::future::Future;
 use std::ops::ControlFlow;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::str::FromStr;
 use std::sync::Arc;
+use std::task::Poll;
 // `FutureExt::shared` lets the progressive diagnostics path compute the base
 // per-file analysis once and await it from both the deep pass and the fast tier.
 use futures_util::future::FutureExt;
@@ -536,6 +539,94 @@ struct DocumentsTracking {
     /// * **Frozen** — nothing wants the map, and a waiter that *is* queued was
     ///   never woken. That is a lost wakeup in the ordinary sense.
     acquisitions: u64,
+    /// Every task currently parked in [`DocumentStore::lock`]'s contended slow
+    /// path, with its poll/wake telemetry (issue #1657).
+    ///
+    /// Registered on entering the slow path, removed by a drop guard when the
+    /// acquire completes **or is cancelled** — a `did_close` future dropped
+    /// mid-wait must not leave a ghost waiter for the stall line to accuse.
+    /// Each entry is its own `Arc<Mutex<..>>` so the per-poll updates never
+    /// touch this tracking lock.
+    waiters: Vec<Arc<std::sync::Mutex<WaiterTelemetry>>>,
+}
+
+/// Poll/wake telemetry for one task parked on the open-document map.
+///
+/// # What this discriminates (issue #1657)
+///
+/// A captured wedge showed the map **free** with its acquisition count frozen
+/// while `did_open` sat parked on `documents.lock()` — a waiter that was never
+/// resumed. Two mechanisms produce that and they need different fixes:
+///
+/// * **The wake was lost.** The waiter's waker was never invoked: nothing told
+///   the task to run again. `wakes` stays at zero after the park.
+/// * **The wake arrived and nothing polled.** The waker fired — tokio's mutex
+///   handed the lock over — but the future was never polled afterwards. In
+///   this server every handler future is a child of the single
+///   `buffer_unordered` set inside `Server::serve`, so a child is only ever
+///   re-polled when that parent task runs; a fired wake with no subsequent
+///   poll says the parent (or the `FuturesUnordered` bookkeeping between them)
+///   stopped driving this child. `last_wake` newer than `last_poll`.
+///
+/// The stall line prints both counters and both ages so the reader gets the
+/// verdict, not the ambiguity.
+#[derive(Debug)]
+struct WaiterTelemetry {
+    /// The site passed to [`DocumentStore::lock`].
+    site: &'static str,
+    /// When the slow path was entered. `crate::rt::Instant`, never
+    /// `std::time::Instant` (the latter panics on wasm32).
+    parked_since: crate::rt::Instant,
+    /// Times the acquire future has been polled.
+    polls: u64,
+    last_poll: crate::rt::Instant,
+    /// Times this waiter's waker has been invoked.
+    wakes: u64,
+    last_wake: Option<crate::rt::Instant>,
+}
+
+/// One waiter's telemetry, aged against a single clock reading for the report.
+#[derive(Debug, Clone, Copy)]
+struct WaiterSnapshot {
+    site: &'static str,
+    parked_for: std::time::Duration,
+    polls: u64,
+    since_last_poll: std::time::Duration,
+    wakes: u64,
+    since_last_wake: Option<std::time::Duration>,
+}
+
+/// Wraps the real waker so an invocation is recorded before it is forwarded.
+///
+/// The record-then-forward order matters: recording after would let the woken
+/// task run, poll, and be sampled between the two writes, producing a poll
+/// with no wake that explains it.
+struct TelemetryWaker {
+    real: std::task::Waker,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl TelemetryWaker {
+    fn record(&self) {
+        let mut t = self
+            .telemetry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        t.wakes += 1;
+        t.last_wake = Some(crate::rt::Instant::now());
+    }
+}
+
+impl std::task::Wake for TelemetryWaker {
+    fn wake(self: Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
 }
 
 /// Who holds [`DocumentStore::docs`], and since when.
@@ -580,7 +671,14 @@ impl DocumentStore {
     /// `site` is a `&'static str` naming the caller — it ends up in a stall
     /// line a human reads, so name the function, not the file and line.
     async fn lock(&self, site: &'static str) -> DocumentsGuard<'_> {
-        let docs = self.docs.lock().await;
+        // Uncontended fast path: no waiter, so nothing to instrument, and the
+        // poll/wake shim's per-poll waker allocation is never paid. tokio's
+        // mutex is fair, so `try_lock` cannot barge past a queued waiter — a
+        // released permit is handed to the queue head, not left for grabs.
+        let docs = match self.docs.try_lock() {
+            Ok(docs) => docs,
+            Err(_) => self.lock_contended(site).await,
+        };
         // One clock reading for both ages, so a hold still in its first phase
         // reports them equal rather than a sub-millisecond difference to squint
         // at. Count and holder are set under the same lock, so no reader can
@@ -595,6 +693,60 @@ impl DocumentStore {
         });
         drop(tracking);
         DocumentsGuard { docs, store: self }
+    }
+
+    /// The contended acquire, instrumented (issue #1657).
+    ///
+    /// Registers a [`WaiterTelemetry`] for the stall line to read, counts every
+    /// poll of the acquire future, and wraps the waker so every wake of this
+    /// waiter is counted too. The registration is removed by a drop guard, so a
+    /// caller cancelled mid-wait (a dropped handler future) cannot leave a
+    /// ghost waiter behind for the report to accuse.
+    async fn lock_contended(
+        &self,
+        site: &'static str,
+    ) -> tokio::sync::MutexGuard<'_, HashMap<Uri, DocumentState>> {
+        let now = crate::rt::Instant::now();
+        let telemetry = Arc::new(std::sync::Mutex::new(WaiterTelemetry {
+            site,
+            parked_since: now,
+            polls: 0,
+            last_poll: now,
+            wakes: 0,
+            last_wake: None,
+        }));
+        self.tracking().waiters.push(Arc::clone(&telemetry));
+        let _deregister = DeregisterWaiter {
+            store: self,
+            telemetry: Arc::clone(&telemetry),
+        };
+        InstrumentedAcquire {
+            inner: Box::pin(self.docs.lock()),
+            telemetry,
+        }
+        .await
+    }
+
+    /// Every current waiter, aged against one clock reading.
+    fn waiters(&self) -> Vec<WaiterSnapshot> {
+        let now = crate::rt::Instant::now();
+        let entries: Vec<_> = self.tracking().waiters.clone();
+        entries
+            .iter()
+            .map(|entry| {
+                let t = entry
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                WaiterSnapshot {
+                    site: t.site,
+                    parked_for: now.duration_since(t.parked_since),
+                    polls: t.polls,
+                    since_last_poll: now.duration_since(t.last_poll),
+                    wakes: t.wakes,
+                    since_last_wake: t.last_wake.map(|w| now.duration_since(w)),
+                }
+            })
+            .collect()
     }
 
     /// Everything the stall line needs about this map in one sample.
@@ -658,6 +810,63 @@ impl DocumentStore {
     }
 }
 
+/// Removes a [`WaiterTelemetry`] registration when the acquire ends — by
+/// success **or** by cancellation. Identity is the `Arc` pointer, so two
+/// waiters from the same site never remove each other's entries.
+struct DeregisterWaiter<'a> {
+    store: &'a DocumentStore,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl Drop for DeregisterWaiter<'_> {
+    fn drop(&mut self) {
+        self.store
+            .tracking()
+            .waiters
+            .retain(|w| !Arc::ptr_eq(w, &self.telemetry));
+    }
+}
+
+/// Polls the mutex acquire while recording every poll and routing the waker
+/// through [`TelemetryWaker`] so every wake is recorded too.
+///
+/// The inner future is boxed: this only exists on the contended path, so the
+/// allocation is paid exactly when a waiter exists to describe.
+/// The boxed mutex-acquire future [`InstrumentedAcquire`] drives.
+type BoxedMapAcquire<'a> = Pin<
+    Box<dyn Future<Output = tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>> + Send + 'a>,
+>;
+
+struct InstrumentedAcquire<'a> {
+    inner: BoxedMapAcquire<'a>,
+    telemetry: Arc<std::sync::Mutex<WaiterTelemetry>>,
+}
+
+impl<'a> Future for InstrumentedAcquire<'a> {
+    type Output = tokio::sync::MutexGuard<'a, HashMap<Uri, DocumentState>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        {
+            let mut t = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            t.polls += 1;
+            t.last_poll = crate::rt::Instant::now();
+        }
+        // A fresh wrapper per poll, deliberately: futures may only use the
+        // waker from their *most recent* poll, and tokio's mutex replaces its
+        // registered waker on each poll — reusing one wrapper across polls
+        // would record wakes delivered to a waker the mutex no longer holds.
+        let waker = std::task::Waker::from(Arc::new(TelemetryWaker {
+            real: cx.waker().clone(),
+            telemetry: Arc::clone(&self.telemetry),
+        }));
+        let mut shim_cx = std::task::Context::from_waker(&waker);
+        self.inner.as_mut().poll(&mut shim_cx)
+    }
+}
+
 /// A held [`DocumentStore`], which clears the holder tag when dropped.
 ///
 /// Derefs to the map, so every call site reads exactly as it did when the field
@@ -711,6 +920,73 @@ impl Drop for DocumentsGuard<'_> {
             tracking.last = Some(departing);
         }
     }
+}
+
+/// Render the map's waiter telemetry and the parent-liveness counter into the
+/// stall line's poll-discrimination clause (issue #1657).
+///
+/// This is the reading that separates the three remaining stories for a waiter
+/// parked on a free map:
+///
+/// * **woken after its last poll** — the wake arrived and nothing polled the
+///   future again. With `handler_polls` climbing, the parent `buffer_unordered`
+///   is driving *other* children, so this one was lost between the parent and
+///   the child; with it frozen, the parent task itself is not being driven.
+/// * **never woken since parking** — the wake was genuinely lost (or never
+///   sent).
+///
+/// Pure formatting over snapshots, split out for the same reason as
+/// [`describe_documents_contention`].
+fn describe_documents_waiters(waiters: &[WaiterSnapshot], handler_polls: u64) -> String {
+    if waiters.is_empty() {
+        return format!(
+            "No task is in the map's contended-acquire path (its instrumented slow path), \
+             and handler futures were polled {handler_polls} time(s) in the sample window."
+        );
+    }
+    let mut out = String::new();
+    for w in waiters {
+        use std::fmt::Write as _;
+        let wake = match w.since_last_wake {
+            Some(age) if age < w.since_last_poll => format!(
+                "woken {:.1}s ago, AFTER its last poll — the wake arrived and the future was \
+                 never polled again, so its task is not being driven",
+                age.as_secs_f64(),
+            ),
+            Some(age) => format!(
+                "last woken {:.1}s ago, before its last poll — no wake has arrived since it \
+                 parked, so the wake it is waiting for was lost or never sent",
+                age.as_secs_f64(),
+            ),
+            None => "never woken at all — the wake it is waiting for was lost or never \
+                     sent"
+                .to_owned(),
+        };
+        let _ = write!(
+            out,
+            "The map's acquire queue holds {}: parked {:.1}s, polled {} time(s) (last \
+             {:.1}s ago), woken {} time(s) ({wake}). ",
+            w.site,
+            w.parked_for.as_secs_f64(),
+            w.polls,
+            w.since_last_poll.as_secs_f64(),
+            w.wakes,
+        );
+    }
+    {
+        use std::fmt::Write as _;
+        let _ = write!(
+            out,
+            "Handler futures were polled {handler_polls} time(s) in the sample window{}.",
+            if handler_polls == 0 {
+                " — the transport's parent task is not being driven at all, which starves \
+                 every handler child together"
+            } else {
+                " — the parent task is alive and driving other children"
+            },
+        );
+    }
+    out
 }
 
 /// Render the two contention samples a stall report takes into one clause.
@@ -7580,8 +7856,12 @@ impl Backend {
         // enough not to extend a stall anyone is waiting on and long enough for
         // a busy map to move (issue #1657).
         let before = self.documents.contention();
+        let handler_polls_before = crate::transport_liveness::HANDLER_FUTURE_POLLS
+            .load(std::sync::atomic::Ordering::Relaxed);
         crate::rt::sleep(DOCUMENTS_CONTENTION_SAMPLE_GAP).await;
         let after = self.documents.contention();
+        let handler_polls_after = crate::transport_liveness::HANDLER_FUTURE_POLLS
+            .load(std::sync::atomic::Ordering::Relaxed);
         // Re-read the barrier after the sample window, for the same reason
         // #1664 re-reads it after `edits_settled`'s timeout: the edit this
         // report is about may have landed while we slept. Announcing a
@@ -7606,15 +7886,19 @@ impl Backend {
             return;
         }
         let documents_holder = describe_documents_contention(&before, &after);
+        let waiters = describe_documents_waiters(
+            &self.documents.waiters(),
+            handler_polls_after.saturating_sub(handler_polls_before),
+        );
         self.client
             .log_message(
                 MessageType::WARNING,
                 format!(
                     "{EDIT_BARRIER_STALL_LOG} for {}s: now_serving={serving}, waiting for \
                      {target}, so {} document-sync notification(s) are queued behind it. \
-                     The turn is {culprit}. {documents_holder}. {waiting_on}. Every request \
-                     handler is blocked on this barrier and the server will answer nothing \
-                     until it moves (issue #1657).",
+                     The turn is {culprit}. {documents_holder}. {waiters} {waiting_on}. \
+                     Every request handler is blocked on this barrier and the server will \
+                     answer nothing until it moves (issue #1657).",
                     EDIT_BARRIER_STALL_WARN.as_secs(),
                     target.saturating_sub(serving),
                 ),
@@ -34549,6 +34833,190 @@ mod tests {
              limiter untouched — recording it would suppress the next real stall \
              at this position (#1664's lesson, reopened by the sample sleep and \
              closed again here)",
+        );
+    }
+
+    /// A contended acquire must be visible, counted, woken-counted, and gone
+    /// when it is over.
+    ///
+    /// This is the poll-discriminator's ground truth (issue #1657). The wedge
+    /// capture shows a waiter parked on a free map; the verdict the stall line
+    /// draws — wake lost, versus woken-but-never-polled — is only as good as
+    /// these counters. A waiter that did not register would be invisible; polls
+    /// that did not count would read as "never polled" (the parent-starvation
+    /// verdict) for a future being polled constantly; wakes that did not count
+    /// would read as "wake lost" (the extraordinary claim) for a wake that
+    /// arrived.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_contended_map_acquire_reports_its_polls_and_wakes() {
+        let store = Arc::new(DocumentStore::default());
+        assert!(
+            store.waiters().is_empty(),
+            "no waiter exists before anything contends",
+        );
+
+        let held = store.lock("holder").await;
+        assert!(
+            store.waiters().is_empty(),
+            "the fast path must not register a waiter — there is nothing \
+             waiting, and a ghost entry would be accused by the next stall line",
+        );
+
+        let contender = {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                let _guard = store.lock("contender").await;
+            })
+        };
+
+        // The contender parks. Its registration and at least one poll must be
+        // visible while it waits.
+        let parked = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                let waiters = store.waiters();
+                if let [w] = waiters.as_slice()
+                    && w.site == "contender"
+                    && w.polls >= 1
+                {
+                    return *w;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the parked contender must appear in the waiter registry");
+        assert_eq!(
+            parked.wakes, 0,
+            "nothing has released the map, so no wake can have been recorded — \
+             a phantom wake here would later disprove a real lost-wake verdict",
+        );
+
+        // Release. The fair mutex hands the lock to the queued contender, which
+        // requires waking it — that wake must be counted before the waiter
+        // finishes and deregisters. We can't sample the registry after the
+        // handoff (the entry is gone, correctly), so sample the Arc the
+        // registry shared: grab it while the waiter is still parked.
+        let telemetry = {
+            let tracking = store.tracking();
+            Arc::clone(&tracking.waiters[0])
+        };
+        drop(held);
+        crate::rt::timeout(std::time::Duration::from_secs(5), contender)
+            .await
+            .expect("the contender must acquire once the map is released")
+            .expect("the contender task must not panic");
+
+        assert!(
+            store.waiters().is_empty(),
+            "a completed acquire must deregister — a stale entry would be \
+             accused by every later stall line",
+        );
+        let t = telemetry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(
+            t.wakes >= 1,
+            "releasing the map woke the queued waiter, and that wake must be \
+             counted: with it missed, a stall line would report 'never woken' — \
+             the lost-wake verdict — about a wake that demonstrably arrived",
+        );
+        assert!(
+            t.polls >= 2,
+            "the wake leads to a final successful poll, which must be counted \
+             like the first",
+        );
+    }
+
+    /// A waiter cancelled mid-wait must deregister.
+    ///
+    /// Handler futures are dropped wholesale (a closed connection, an aborted
+    /// request), taking any parked acquire with them. The registration is
+    /// removed by a drop guard precisely so that this case cannot leave a ghost
+    /// waiter — an entry that would sit in the registry forever and be accused
+    /// by every subsequent stall line as a decades-old parked task.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_cancelled_map_acquire_leaves_no_ghost_waiter() {
+        let store = Arc::new(DocumentStore::default());
+        let held = store.lock("holder").await;
+
+        {
+            let mut acquire = Box::pin(store.lock("doomed"));
+            assert!(
+                crate::rt::timeout(std::time::Duration::from_millis(50), &mut acquire)
+                    .await
+                    .is_err(),
+                "the acquire must park behind the held map, or dropping it \
+                 proves nothing",
+            );
+            assert_eq!(
+                store.waiters().len(),
+                1,
+                "the parked acquire must be registered",
+            );
+            // `acquire` drops here — cancellation.
+        }
+
+        assert!(
+            store.waiters().is_empty(),
+            "a cancelled acquire must deregister its waiter — the drop guard is \
+             the only thing between this and a permanent ghost entry (#1657)",
+        );
+        drop(held);
+    }
+
+    /// The waiter clause must state the right verdict for each telemetry shape.
+    ///
+    /// The whole point of the shim is that a human reads the verdict off the
+    /// stall line, so the mapping from counters to words is behaviour, not
+    /// cosmetics: woken-after-last-poll must read as a driving problem,
+    /// never-woken as a lost wake, and a frozen parent counter as whole-parent
+    /// starvation.
+    #[test]
+    fn the_waiter_clause_states_the_verdict() {
+        let base = WaiterSnapshot {
+            site: "did_open",
+            parked_for: std::time::Duration::from_secs(18),
+            polls: 1,
+            since_last_poll: std::time::Duration::from_secs(18),
+            wakes: 0,
+            since_last_wake: None,
+        };
+
+        let never_woken = describe_documents_waiters(&[base], 42);
+        assert!(
+            never_woken.contains("lost or never sent"),
+            "a never-woken waiter is the lost-wake verdict: {never_woken}",
+        );
+        assert!(
+            never_woken.contains("driving other children"),
+            "a climbing handler-poll counter names the parent as alive: {never_woken}",
+        );
+
+        let woken_not_polled = describe_documents_waiters(
+            &[WaiterSnapshot {
+                wakes: 1,
+                since_last_wake: Some(std::time::Duration::from_secs(9)),
+                ..base
+            }],
+            42,
+        );
+        assert!(
+            woken_not_polled.contains("never polled again"),
+            "a wake newer than the last poll is the not-being-driven verdict: \
+             {woken_not_polled}",
+        );
+
+        let parent_dead = describe_documents_waiters(&[base], 0);
+        assert!(
+            parent_dead.contains("not being driven at all"),
+            "a frozen handler-poll counter is the parent-starvation verdict: \
+             {parent_dead}",
+        );
+
+        let nobody = describe_documents_waiters(&[], 7);
+        assert!(
+            nobody.contains("No task is in the map's contended-acquire path"),
+            "an empty registry must say so rather than staying silent: {nobody}",
         );
     }
 
