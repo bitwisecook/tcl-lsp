@@ -9,13 +9,12 @@ No history. Delete items as they complete. Issues carry per-task detail.
 ## Pre-release issues
 
 - **#1657** — wedge endgame, ACTIVE (census lane,
-  `claude/f6e-1657-endgame`). #1670 merged (8902ca746): send caps,
-  closed-file retries, holder tag + retags — hardening, not the cure.
-  Hold narrowed to `cache_and_deliver`'s two uncapped awaits
-  (`pull_diag_cache.lock` / `diag_slots.lock` via `redeliver_later`;
-  the latter is new in #1670 and NOT excluded as cause). Lane looping for
-  the naming capture (~2-in-20 loaded runs reproduce). A green loop alone
-  does not close this — repro rate too low.
+  `claude/f6f-1657-capture`). #1670 merged: hardening + 9 markers, not the
+  cure. Hold narrowed to `cache_and_deliver`'s two uncapped awaits
+  (`pull_diag_cache.lock` / `diag_slots.lock` via `redeliver_later` — new
+  in #1670, NOT excluded as cause). The 4 inner markers have never seen a
+  wedge yet; lane looping 30 loaded runs on latest `rust` for the naming
+  capture (~2-in-20 reproduce). A green loop alone does not close this.
 - **#1614** — ACTIVE (F11 lane, `claude/f11-enums-1614`). Closed string
   vocabularies → enums; 7 independent sites inventoried in issue (taint
   basis highest value); wire formats must not change.
