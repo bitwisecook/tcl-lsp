@@ -6131,10 +6131,31 @@ mod class_factories {
         // `after` is the same fact with a different mechanism: the script is
         // scheduled, not run, so both oracles reach the creation even when the
         // scheduled script would raise.
+        // The rest of the list is the widened audit PR #1676's review asked
+        // for: reading the *absence* of `DEFERS_BODY` as "runs now" makes a
+        // missing trait a silent wrong answer, so every store-only form the
+        // registry ships was enumerated and measured. Each row below is one
+        // that gained the trait, and each was proved on tclsh 8.6.16 and
+        // 9.0.4 with `proc p {} { FORM {error stop}; set ::reached 1 }` —
+        // `::reached` is set on both for all of them.
         for prefix in [
             "    proc helper {a} {return $a}\n",
             "    after 0 {error stop}\n",
             "    after idle {error stop}\n",
+            "    package ifneeded probe 1.0 {error stop}\n",
+            "    fileevent $ch readable {error stop}\n",
+            "    ::tcl::OptProc probe {} {error stop}\n",
+            "    tcltest::loadScript {error stop}\n",
+            "    lambda {} {error stop}\n",
+            "    lambda@ :: {} {error stop}\n",
+            "    defer::defer {error stop}\n",
+            "    defer::with {} {error stop}\n",
+            "    defer::autowith {error stop}\n",
+            "    processman::onexit probe {error stop}\n",
+            "    report::defstyle probe {} {error stop}\n",
+            "    snit::macro probe {} {error stop}\n",
+            "    snit::method ::T probe {} {error stop}\n",
+            "    snit::typemethod ::T probe {} {error stop}\n",
         ] {
             let src = COMPUTED_METACLASS.replace(
                 "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",

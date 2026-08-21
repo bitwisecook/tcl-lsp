@@ -37,10 +37,15 @@ pub fn spec() -> CommandSpec {
         // `IRULES_TOP_LEVEL_ONLY` are deliberately omitted — this is a
         // `package require opt` library proc, not a core keyword, and
         // nothing establishes the iRules-top-level restriction for it.
+        // `DEFERS_BODY` for the same reason `proc` carries it: this *defines*
+        // a procedure, so the body is stored, never run here. tclsh 8.6.16 /
+        // 9.0.4, byte-identical: `proc p {} { ::tcl::OptProc q {} {error
+        // stop}; set ::reached 1 }` sets `::reached` (issue #1672 audit).
         traits: Traits::NOT_PROC_FACTORY
             | Traits::BYTE_COMPILED
             | Traits::DEFINES_PROCEDURE
-            | Traits::NEVER_INLINE_BODY,
+            | Traits::NEVER_INLINE_BODY
+            | Traits::DEFERS_BODY,
         arg_roles: &[
             (0, ArgRole::Name),
             (1, ArgRole::ParamList),

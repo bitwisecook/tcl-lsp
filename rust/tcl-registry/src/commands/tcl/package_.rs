@@ -129,12 +129,17 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // it as part of the enclosing `package ifneeded` call's own scope.
         arg_roles: &[(2, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY` — "stored and run later" said in data, and scoped to
+        // this subcommand rather than to `package` as a whole, since it is the
+        // only `package` form with a body. tclsh 8.6.16 and 9.0.4,
+        // byte-identical: `proc p {} { package ifneeded x 1.0 {error stop};
+        // set ::reached 1 }` sets `::reached` (issue #1672 audit).
         analyser_hook: Some(crate::hooks::AnalyserHookId::PackageIfneeded),
         // Registering a load script names *this* file as the thing that
         // supplies `package`, so the commands it defines are public API a
         // `package require` in some other file reaches — the same
         // caller-set widening `provide` declares, one step earlier.
-        traits: Traits::PROVIDES_PACKAGE,
+        traits: Traits::PROVIDES_PACKAGE.union(Traits::DEFERS_BODY),
         ..SubCommand::DEFAULT
     },
     SubCommand {

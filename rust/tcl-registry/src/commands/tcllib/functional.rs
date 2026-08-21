@@ -53,6 +53,11 @@ fn lambda_specs() -> Vec<CommandSpec> {
             arity: Arity::at_least(2),
             arg_roles: &[(0, ArgRole::ParamList), (1, ArgRole::Body)],
             body_kind: BodyKind::Structural,
+            // `DEFERS_BODY`: a lambda *constructor* — it returns a command
+            // prefix, it does not run the body. tclsh 8.6.16 / 9.0.4,
+            // byte-identical: `proc p {} { lambda {} {error stop}; set
+            // ::reached 1 }` sets `::reached` (issue #1672 audit).
+            traits: Traits::DEFERS_BODY,
             hover: Some(HoverSnippet {
                 summary: "Construct an anonymous procedure (a lambda term).",
                 synopsis: &["lambda arguments body ?arg ...?"],
@@ -74,6 +79,9 @@ fn lambda_specs() -> Vec<CommandSpec> {
                 (2, ArgRole::Body),
             ],
             body_kind: BodyKind::Structural,
+            // `DEFERS_BODY`, for the same reason as `lambda` above and proved
+            // the same way on both oracles.
+            traits: Traits::DEFERS_BODY,
             hover: Some(HoverSnippet {
                 summary: "Construct an anonymous procedure that runs in a namespace.",
                 synopsis: &["lambda@ namespace arguments body ?arg ...?"],
@@ -105,6 +113,12 @@ fn defer_cmd(
             1 => &[(1, ArgRole::Body)],
             _ => &[],
         },
+        // `DEFERS_BODY`: the package's whole point is that the script runs at
+        // *scope exit*, not here. tclsh 8.6.16 and 9.0.4, byte-identical, for
+        // all three forms: with `proc p {} { defer::defer error stop; set
+        // ::reached 1 }`, `::reached` is set — the statement after the
+        // registration runs (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet::brief(
             summary,
             synopsis,

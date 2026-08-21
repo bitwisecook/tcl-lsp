@@ -32,6 +32,11 @@ pub fn spec() -> CommandSpec {
         // not the caller's frame.  Body at index 3.
         arg_roles: &[(2, ArgRole::ParamList), (3, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY`: a method *definition* stores the body against the
+        // type; it runs on dispatch, not here. tclsh 8.6.16 / 9.0.4,
+        // byte-identical: a type whose method body is `error stop` defines
+        // cleanly and the next statement runs (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         hover: Some(HoverSnippet {
             summary: "Define an instance method outside a type definition body.",
             synopsis: &["snit::method type name arglist body"],

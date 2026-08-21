@@ -45,6 +45,11 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         arg_roles: &[(1, ArgRole::ParamList), (2, ArgRole::Body)],
+        // `DEFERS_BODY`: the macro body is stored against the name and runs
+        // only when a type definition invokes it. tclsh 8.6.16 / 9.0.4,
+        // byte-identical: `proc p {} { snit::macro m {} {error stop}; set
+        // ::reached 1 }` sets `::reached` (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         tcllib_package: Some("snit"),
         required_package: Some("snit"),
         ..CommandSpec::DEFAULT

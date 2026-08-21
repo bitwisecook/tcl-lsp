@@ -2945,6 +2945,12 @@ fn processman_onexit_spec() -> CommandSpec {
         required_package: Some("processman"),
         arg_roles: &[(1, ArgRole::Body)],
         body_kind: BodyKind::Structural,
+        // `DEFERS_BODY` — the fact the doc comment above already states, now
+        // said in data: the eval happens later, in `::processman::events`.
+        // tclsh 8.6.16 / 9.0.4, byte-identical: `proc p {} {
+        // processman::onexit x {error stop}; set ::reached 1 }` sets
+        // `::reached` (issue #1672 audit).
+        traits: Traits::DEFERS_BODY,
         ..CommandSpec::DEFAULT
     }
 }
