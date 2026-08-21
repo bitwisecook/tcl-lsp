@@ -548,6 +548,75 @@ struct DocumentsTracking {
     /// Each entry is its own `Arc<Mutex<..>>` so the per-poll updates never
     /// touch this tracking lock.
     waiters: Vec<Arc<std::sync::Mutex<WaiterTelemetry>>>,
+    /// Telemetry for the client send the map's holder is currently awaiting,
+    /// if it is in one (issue #1657).
+    ///
+    /// The run-1 poll-shim capture found the holder frozen inside a 2s
+    /// `timeout` for 149.3s — on a runtime whose time driver was demonstrably
+    /// firing other timers, including the two that produced the very report.
+    /// This records what that timeout actually experienced: polls of the
+    /// combined future, wakes delivered by the send half, and wakes delivered
+    /// by the timer half, separately — because "the timer never fired" and
+    /// "the timer fired and the task was never polled again" are different
+    /// faults in different subsystems.
+    holder_send: Option<Arc<std::sync::Mutex<SendTelemetry>>>,
+}
+
+/// What the holder's capped client send has experienced so far.
+#[derive(Debug)]
+struct SendTelemetry {
+    /// Which send — the `[timing]` marker or the publish.
+    what: &'static str,
+    started: crate::rt::Instant,
+    /// The cap the send was given ([`DELIVERY_SEND_BUDGET`]).
+    budget: std::time::Duration,
+    polls: u64,
+    last_poll: crate::rt::Instant,
+    /// Wake deliveries, split by which half of the timeout delivered them.
+    ///
+    /// `Arc`s rather than inline fields: the wakers write these directly from
+    /// the wake path, which must not contend with (or wait on) the telemetry
+    /// lock a sampling reporter might be holding.
+    send_wakes: Arc<std::sync::Mutex<WakeRecord>>,
+    timer_wakes: Arc<std::sync::Mutex<WakeRecord>>,
+}
+
+/// Invocations of one wrapped waker: how many, and when last.
+#[derive(Debug, Clone, Copy, Default)]
+struct WakeRecord {
+    count: u64,
+    last: Option<crate::rt::Instant>,
+}
+
+/// A waker wrapper that records each invocation into a [`WakeRecord`] before
+/// forwarding. Record-then-forward, so a poll caused by this wake can never be
+/// sampled before the wake that caused it.
+struct RecordingWaker {
+    real: std::task::Waker,
+    record: Arc<std::sync::Mutex<WakeRecord>>,
+}
+
+impl RecordingWaker {
+    fn record(&self) {
+        let mut r = self
+            .record
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        r.count += 1;
+        r.last = Some(crate::rt::Instant::now());
+    }
+}
+
+impl std::task::Wake for RecordingWaker {
+    fn wake(self: Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        self.record();
+        self.real.wake_by_ref();
+    }
 }
 
 /// Poll/wake telemetry for one task parked on the open-document map.
@@ -727,6 +796,41 @@ impl DocumentStore {
         .await
     }
 
+    /// Register `telemetry` as the holder's in-flight send, returning a guard
+    /// that deregisters it — on completion or on cancellation alike.
+    ///
+    /// **Precondition:** the caller holds the map (same contract as
+    /// [`Self::retag_held`], and every call site is inside
+    /// `DeliveryCtx::cache_and_deliver`, which both callers run under their
+    /// guard).
+    fn begin_holder_send(
+        &self,
+        telemetry: Arc<std::sync::Mutex<SendTelemetry>>,
+    ) -> HolderSendGuard<'_> {
+        self.tracking().holder_send = Some(telemetry);
+        HolderSendGuard { store: self }
+    }
+
+    /// The holder's in-flight send, if any, aged against `now`.
+    fn holder_send_at(&self, now: crate::rt::Instant) -> Option<SendSnapshot> {
+        let entry = self.tracking().holder_send.clone()?;
+        let t = entry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Some(SendSnapshot {
+            what: t.what,
+            running_for: now.duration_since(t.started),
+            budget: t.budget,
+            polls: t.polls,
+            since_last_poll: now.duration_since(t.last_poll),
+            timer_wakes: read_wake_record(&t.timer_wakes).count,
+            since_last_timer_wake: read_wake_record(&t.timer_wakes)
+                .last
+                .map(|w| now.duration_since(w)),
+            send_wakes: read_wake_record(&t.send_wakes).count,
+        })
+    }
+
     /// Every current waiter, aged against one clock reading.
     fn waiters(&self) -> Vec<WaiterSnapshot> {
         let now = crate::rt::Instant::now();
@@ -761,11 +865,19 @@ impl DocumentStore {
         // *instant*. Both are needed — an earlier version had only the second
         // and could still pair one task's identity with another's metadata.
         let now = crate::rt::Instant::now();
-        let tracking = self.tracking();
+        let (held_by, last, acquisitions) = {
+            let tracking = self.tracking();
+            (
+                tracking.holder.map(|h| held_for(&h, now)),
+                tracking.last.map(|h| (h.site, now.duration_since(h.since))),
+                tracking.acquisitions,
+            )
+        };
         DocumentsContention {
-            held_by: tracking.holder.map(|h| held_for(&h, now)),
-            last: tracking.last.map(|h| (h.site, now.duration_since(h.since))),
-            acquisitions: tracking.acquisitions,
+            held_by,
+            last,
+            acquisitions,
+            holder_send: self.holder_send_at(now),
         }
     }
 
@@ -810,6 +922,118 @@ impl DocumentStore {
     }
 }
 
+/// Clears [`DocumentsTracking::holder_send`] when the send ends — by success,
+/// timeout, or the whole delivery future being dropped.
+struct HolderSendGuard<'a> {
+    store: &'a DocumentStore,
+}
+
+impl Drop for HolderSendGuard<'_> {
+    fn drop(&mut self) {
+        self.store.tracking().holder_send = None;
+    }
+}
+
+/// The holder's in-flight send, aged against one clock reading.
+#[derive(Debug, Clone, Copy)]
+struct SendSnapshot {
+    what: &'static str,
+    running_for: std::time::Duration,
+    budget: std::time::Duration,
+    polls: u64,
+    since_last_poll: std::time::Duration,
+    timer_wakes: u64,
+    since_last_timer_wake: Option<std::time::Duration>,
+    send_wakes: u64,
+}
+
+/// `crate::rt::timeout`, hand-rolled so each half's wakes are recorded
+/// separately (issue #1657).
+///
+/// Polls the send before the sleep, exactly as `tokio::time::timeout` does, so
+/// a send that completes at the deadline still wins. Each half is polled
+/// through its own [`RecordingWaker`], so a later stall line can say **which**
+/// wake arrived — "the timer never fired" and "the timer fired and the task
+/// was never polled again" indict different subsystems.
+struct InstrumentedSendTimeout<S, F> {
+    sleep: Pin<Box<S>>,
+    send: Pin<Box<F>>,
+    telemetry: Arc<std::sync::Mutex<SendTelemetry>>,
+}
+
+/// A [`WakeRecord`] read without poisoning concerns.
+fn read_wake_record(record: &Arc<std::sync::Mutex<WakeRecord>>) -> WakeRecord {
+    *record
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+impl<S: Future<Output = ()>, F: Future> Future for InstrumentedSendTimeout<S, F> {
+    type Output = Result<F::Output, ()>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let (send_record, timer_record) = {
+            let mut t = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            t.polls += 1;
+            t.last_poll = crate::rt::Instant::now();
+            (Arc::clone(&t.send_wakes), Arc::clone(&t.timer_wakes))
+        };
+        // Send half first, exactly as `tokio::time::timeout` orders its polls,
+        // so a send completing at the deadline still wins. Fresh wrappers per
+        // poll for the same reason as `InstrumentedAcquire`: each half replaces
+        // its registered waker on every poll, and a reused wrapper would count
+        // wakes delivered to a waker no longer registered anywhere.
+        let send_waker = std::task::Waker::from(Arc::new(RecordingWaker {
+            real: cx.waker().clone(),
+            record: send_record,
+        }));
+        let mut send_cx = std::task::Context::from_waker(&send_waker);
+        if let Poll::Ready(out) = self.send.as_mut().poll(&mut send_cx) {
+            return Poll::Ready(Ok(out));
+        }
+        let timer_waker = std::task::Waker::from(Arc::new(RecordingWaker {
+            real: cx.waker().clone(),
+            record: timer_record,
+        }));
+        let mut timer_cx = std::task::Context::from_waker(&timer_waker);
+        if self.sleep.as_mut().poll(&mut timer_cx).is_ready() {
+            return Poll::Ready(Err(()));
+        }
+        Poll::Pending
+    }
+}
+
+/// Run `send` under [`DELIVERY_SEND_BUDGET`], with the holder-send telemetry
+/// registered for the stall line while it runs (issue #1657).
+///
+/// The behavioural contract is `crate::rt::timeout(DELIVERY_SEND_BUDGET, send)`
+/// exactly; what is added is the split wake accounting above.
+async fn instrumented_delivery_send<F: Future>(
+    store: &DocumentStore,
+    what: &'static str,
+    send: F,
+) -> Result<F::Output, ()> {
+    let now = crate::rt::Instant::now();
+    let telemetry = Arc::new(std::sync::Mutex::new(SendTelemetry {
+        what,
+        started: now,
+        budget: DELIVERY_SEND_BUDGET,
+        polls: 0,
+        last_poll: now,
+        send_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+        timer_wakes: Arc::new(std::sync::Mutex::new(WakeRecord::default())),
+    }));
+    let _registered = store.begin_holder_send(Arc::clone(&telemetry));
+    InstrumentedSendTimeout {
+        sleep: Box::pin(crate::rt::sleep(DELIVERY_SEND_BUDGET)),
+        send: Box::pin(send),
+        telemetry,
+    }
+    .await
+}
 /// Removes a [`WaiterTelemetry`] registration when the acquire ends — by
 /// success **or** by cancellation. Identity is the `Arc` pointer, so two
 /// waiters from the same site never remove each other's entries.
@@ -922,6 +1146,54 @@ impl Drop for DocumentsGuard<'_> {
     }
 }
 
+/// Render the holder's in-flight send into its verdict clause (issue #1657).
+///
+/// The run-1 poll-shim capture found the holder inside a 2s cap for 149.3s and
+/// could not say why. This clause can. A send past its budget with:
+///
+/// * **zero timer wakes** — the deadline passed and the timer's wake was never
+///   delivered: the fault is in the timer subsystem (or the timer entry was
+///   lost), not in this task's scheduling.
+/// * **a timer wake after the last poll** — the timer fired and the task was
+///   never polled again: the wake was delivered and the scheduler never ran the
+///   task, which is a task-resumption fault.
+/// * **a poll after the deadline** — cannot happen while still parked: a poll
+///   after the deadline completes the timeout. Seeing it here means the clock
+///   and the report disagree, which is its own finding.
+fn describe_holder_send(send: &SendSnapshot) -> String {
+    let over_budget = send.running_for > send.budget;
+    let base = format!(
+        "; its {} has run {:.1}s against a {:.1}s cap, polled {} time(s) (last {:.1}s ago), \
+         send half woken {} time(s), timer half woken {} time(s)",
+        send.what,
+        send.running_for.as_secs_f64(),
+        send.budget.as_secs_f64(),
+        send.polls,
+        send.since_last_poll.as_secs_f64(),
+        send.send_wakes,
+        send.timer_wakes,
+    );
+    if !over_budget {
+        return base;
+    }
+    match send.since_last_timer_wake {
+        None => format!(
+            "{base} — the cap passed and the TIMER WAKE WAS NEVER DELIVERED: the fault is \
+             in the timer subsystem, not this task's scheduling"
+        ),
+        Some(age) if age < send.since_last_poll => format!(
+            "{base} — the timer FIRED {:.1}s ago and the task was NEVER POLLED again: the \
+             wake was delivered and the scheduler never ran this task",
+            age.as_secs_f64(),
+        ),
+        Some(_) => format!(
+            "{base} — a timer wake predates the last poll yet the send is still parked \
+             past its cap, which should be impossible: distrust the clock or this \
+             instrument before the runtime"
+        ),
+    }
+}
+
 /// Render the map's waiter telemetry and the parent-liveness counter into the
 /// stall line's poll-discrimination clause (issue #1657).
 ///
@@ -937,7 +1209,11 @@ impl Drop for DocumentsGuard<'_> {
 ///
 /// Pure formatting over snapshots, split out for the same reason as
 /// [`describe_documents_contention`].
-fn describe_documents_waiters(waiters: &[WaiterSnapshot], handler_polls: u64) -> String {
+fn describe_documents_waiters(
+    waiters: &[WaiterSnapshot],
+    map_held: bool,
+    handler_polls: u64,
+) -> String {
     if waiters.is_empty() {
         return format!(
             "No task is in the map's contended-acquire path (its instrumented slow path), \
@@ -947,6 +1223,22 @@ fn describe_documents_waiters(waiters: &[WaiterSnapshot], handler_polls: u64) ->
     let mut out = String::new();
     for w in waiters {
         use std::fmt::Write as _;
+        // A waiter behind a HELD map has not been woken because no wake was
+        // ever due — the holder has not released. Framing that as a lost wake
+        // (as the first capture with this clause did) invites the reader to
+        // suspect the mutex when the waiters are merely victims of the holder.
+        // The wake analysis below is only evidence when the map is free.
+        if map_held {
+            let _ = write!(
+                out,
+                "The map's acquire queue holds {} (parked {:.1}s, polled {} time(s),                  woken {} time(s) — a victim of the holder above, no wake due until it                  releases). ",
+                w.site,
+                w.parked_for.as_secs_f64(),
+                w.polls,
+                w.wakes,
+            );
+            continue;
+        }
         let wake = match w.since_last_wake {
             Some(age) if age < w.since_last_poll => format!(
                 "woken {:.1}s ago, AFTER its last poll — the wake arrived and the future was \
@@ -1007,12 +1299,17 @@ fn describe_documents_contention(
         // `in_phase` says whether *this* step is what is long. The counter is
         // deliberately not printed here — nobody else can acquire a held map,
         // so it is trivially zero and says nothing (issue #1657).
-        return format!(
+        let mut line = format!(
             "the open-document map is held by {} — {:.1}s in total, {:.1}s at this point",
             h.site,
             h.held.as_secs_f64(),
             h.in_phase.as_secs_f64(),
         );
+        if let Some(send) = after.holder_send {
+            use std::fmt::Write as _;
+            let _ = write!(line, "{}", describe_holder_send(&send));
+        }
+        return line;
     }
     let last = after.last.map_or_else(
         || "never held".to_owned(),
@@ -1071,6 +1368,8 @@ struct DocumentsContention {
     held_by: Option<HeldFor>,
     last: Option<(&'static str, std::time::Duration)>,
     acquisitions: u64,
+    /// The client send the holder is inside, when it is inside one.
+    holder_send: Option<SendSnapshot>,
 }
 
 /// Upper bound `semantic_tokens_full`/`_delta` wait for the fully enriched
@@ -2278,8 +2577,9 @@ impl DeliveryCtx<'_> {
         let mut marker_sent = false;
         self.documents.retag_held("cache_and_deliver: marker send");
         for _ in 0..attempts {
-            if crate::rt::timeout(
-                DELIVERY_SEND_BUDGET,
+            if instrumented_delivery_send(
+                self.documents,
+                "marker send",
                 self.client.log_message(MessageType::LOG, marker.clone()),
             )
             .await
@@ -2304,8 +2604,9 @@ impl DeliveryCtx<'_> {
             } else {
                 diags.clone()
             };
-            if crate::rt::timeout(
-                DELIVERY_SEND_BUDGET,
+            if instrumented_delivery_send(
+                self.documents,
+                "publish send",
                 deliver_diagnostics(
                     self.client,
                     self.uri,
@@ -7888,6 +8189,7 @@ impl Backend {
         let documents_holder = describe_documents_contention(&before, &after);
         let waiters = describe_documents_waiters(
             &self.documents.waiters(),
+            after.held_by.is_some(),
             handler_polls_after.saturating_sub(handler_polls_before),
         );
         self.client
@@ -34982,7 +35284,7 @@ mod tests {
             since_last_wake: None,
         };
 
-        let never_woken = describe_documents_waiters(&[base], 42);
+        let never_woken = describe_documents_waiters(&[base], false, 42);
         assert!(
             never_woken.contains("lost or never sent"),
             "a never-woken waiter is the lost-wake verdict: {never_woken}",
@@ -34998,6 +35300,7 @@ mod tests {
                 since_last_wake: Some(std::time::Duration::from_secs(9)),
                 ..base
             }],
+            false,
             42,
         );
         assert!(
@@ -35006,17 +35309,186 @@ mod tests {
              {woken_not_polled}",
         );
 
-        let parent_dead = describe_documents_waiters(&[base], 0);
+        let parent_dead = describe_documents_waiters(&[base], false, 0);
         assert!(
             parent_dead.contains("not being driven at all"),
             "a frozen handler-poll counter is the parent-starvation verdict: \
              {parent_dead}",
         );
 
-        let nobody = describe_documents_waiters(&[], 7);
+        let nobody = describe_documents_waiters(&[], false, 7);
         assert!(
             nobody.contains("No task is in the map's contended-acquire path"),
             "an empty registry must say so rather than staying silent: {nobody}",
+        );
+
+        // Behind a HELD map, zero wakes is the expected state, not evidence:
+        // the holder has not released, so no wake was ever due. The run-1
+        // poll-shim capture printed the lost-wake wording for four such
+        // victims, which invited suspicion of the mutex for waiters that were
+        // merely queued behind a stuck holder.
+        let held_victim = describe_documents_waiters(&[base], true, 42);
+        assert!(
+            held_victim.contains("a victim of the holder above"),
+            "a waiter behind a held map must be framed as a victim: {held_victim}",
+        );
+        assert!(
+            !held_victim.contains("lost or never sent"),
+            "a waiter behind a held map must not be given the lost-wake verdict:              {held_victim}",
+        );
+    }
+
+    /// The instrumented send must behave exactly like the timeout it replaces,
+    /// and its timer half must record the wake that ends it.
+    ///
+    /// This is the instrument for the sharpest #1657 anomaly so far: a holder
+    /// frozen inside a 2s cap for 149.3s on a runtime whose time driver was
+    /// firing other timers. The verdict it enables — "timer wake never
+    /// delivered" versus "timer fired, task never polled again" — is only as
+    /// good as the timer-wake accounting, so a timeout that fires without its
+    /// wake being counted would print the timer-subsystem verdict for a timer
+    /// that demonstrably worked.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_instrumented_send_records_the_timer_wake_that_expires_it() {
+        let store = Arc::new(DocumentStore::default());
+
+        // A send that completes at once: Ok, and the registration is gone.
+        let ok = instrumented_delivery_send(&store, "marker send", async { 7_u8 }).await;
+        assert_eq!(ok, Ok(7), "a completing send must pass its output through");
+        assert!(
+            store.holder_send_at(crate::rt::Instant::now()).is_none(),
+            "a finished send must deregister — a stale entry would be printed \
+             by every later stall line as an in-flight send",
+        );
+
+        // A send that never completes: visible while pending, Err at the cap,
+        // with the timer wake that expired it recorded.
+        let pending_send = {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                instrumented_delivery_send(&store, "publish send", std::future::pending::<()>())
+                    .await
+            })
+        };
+        let seen = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(snap) = store.holder_send_at(crate::rt::Instant::now())
+                    && snap.what == "publish send"
+                    && snap.polls >= 1
+                {
+                    return snap;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the pending send must be visible while it runs");
+        assert_eq!(
+            seen.timer_wakes, 0,
+            "the cap has not passed yet, so no timer wake can have been recorded",
+        );
+
+        let outcome = crate::rt::timeout(DELIVERY_SEND_BUDGET * 3, pending_send)
+            .await
+            .expect("the cap must expire the send — that is the whole contract")
+            .expect("the send task must not panic");
+        assert_eq!(outcome, Err(()), "a capped-out send reports Err");
+        assert!(
+            store.holder_send_at(crate::rt::Instant::now()).is_none(),
+            "a capped-out send must deregister too",
+        );
+    }
+
+    /// The timer wake that expires a send must be counted as a timer wake.
+    ///
+    /// Split from the lifecycle test so the mutation that unwraps the timer
+    /// waker fails on exactly this claim. The telemetry `Arc` is captured while
+    /// the send is pending and read after it expires — the registration itself
+    /// is (correctly) gone by then.
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_expiring_timer_wake_is_counted() {
+        let store = Arc::new(DocumentStore::default());
+        let send = {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                instrumented_delivery_send(&store, "publish send", std::future::pending::<()>())
+                    .await
+            })
+        };
+        // Capture the live telemetry Arc while the send is pending.
+        let telemetry = crate::rt::timeout(std::time::Duration::from_secs(5), async {
+            loop {
+                if let Some(t) = store.tracking().holder_send.clone() {
+                    return t;
+                }
+                crate::rt::sleep(std::time::Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("the pending send must register its telemetry");
+
+        crate::rt::timeout(DELIVERY_SEND_BUDGET * 3, send)
+            .await
+            .expect("the cap must expire the send")
+            .expect("the send task must not panic")
+            .expect_err("a pending-forever send can only end by cap");
+
+        let t = telemetry
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(
+            read_wake_record(&t.timer_wakes).count >= 1,
+            "the timer wake that expired this send must be counted: with it \
+             missed, a stall line would print 'TIMER WAKE WAS NEVER DELIVERED' — \
+             the timer-subsystem verdict — about a timer that demonstrably fired",
+        );
+        assert!(
+            t.polls >= 2,
+            "the expiry requires a poll after the wake, and it must be counted",
+        );
+    }
+
+    /// The holder-send clause must state the right verdict for each shape.
+    #[test]
+    fn the_holder_send_clause_states_the_verdict() {
+        let base = SendSnapshot {
+            what: "publish send",
+            running_for: std::time::Duration::from_secs(149),
+            budget: std::time::Duration::from_secs(2),
+            polls: 1,
+            since_last_poll: std::time::Duration::from_secs(149),
+            timer_wakes: 0,
+            since_last_timer_wake: None,
+            send_wakes: 0,
+        };
+
+        let never_delivered = describe_holder_send(&base);
+        assert!(
+            never_delivered.contains("TIMER WAKE WAS NEVER DELIVERED"),
+            "over budget with zero timer wakes is the timer-subsystem verdict: \
+             {never_delivered}",
+        );
+
+        let fired_not_polled = describe_holder_send(&SendSnapshot {
+            timer_wakes: 1,
+            since_last_timer_wake: Some(std::time::Duration::from_secs(147)),
+            ..base
+        });
+        assert!(
+            fired_not_polled.contains("NEVER POLLED again"),
+            "a timer wake newer than the last poll is the task-resumption \
+             verdict: {fired_not_polled}",
+        );
+
+        let within_budget = describe_holder_send(&SendSnapshot {
+            running_for: std::time::Duration::from_millis(300),
+            since_last_poll: std::time::Duration::from_millis(300),
+            ..base
+        });
+        assert!(
+            !within_budget.contains("NEVER"),
+            "a send inside its cap gets the plain reading, no verdict: \
+             {within_budget}",
         );
     }
 
