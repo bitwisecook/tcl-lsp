@@ -10,26 +10,22 @@ No history. Delete items as they complete. Issues carry per-task detail.
 ## Pre-release issues
 
 - **#1657** — wedge endgame, ACTIVE (census lane,
-  `claude/f6h-1657-pollshim`). Established (evidence on issue, checkpoints
-  1-28): wakes are delivered but the task is never polled again — LOST
-  WORKER UNPARK frame; tokio-version regression dead (1.51.1 reproduced);
-  full chain + distilled sample (honest: does not reproduce standalone) in
-  `docs/design/notes/tokio-task-resumption-wedge-repro.md`. USER
-  DIRECTIVE: file NOTHING outside this repo. NOW: watchdog mitigation
-  implemented (247ae5d2d) — out-of-runtime thread, fires only on
-  impossible shapes, nudge via external spawns, logs resumed/STILL WEDGED
-  (each nudge IS the poke experiment; outcome line is the falsifier).
-  PR #1679 (`Refs #1657`) AT MERGE POINT — CI fully green on bd48a241e,
-  threads resolved, no conflicts, body current: USER HOLD, user merges (or
-  clears) after their deeper review. MECHANISM PROVEN by taskdump: task in
-  owned list, no queue, NOTIFIED set — every wake no-ops (550+ nudges);
-  unrecoverable in-process, bug in tokio internals, unreachable from repo
-  code. Fix = CONTAINMENT: lane drafting design options on the issue
-  (a: sends outside documents/turn holds w/ epoch revalidation — leaked
-  task holds nothing; b: watchdog force-release; c: detect-and-restart),
-  recommendation + acceptance criteria, NO pushes while the review hold
-  stands. Taskdump doc section rides next sanctioned push. Close #1657
-  only on the new acceptance bar. #1678 post-release.
+  `claude/f6h-1657-pollshim`). Mechanism PROVEN (checkpoints 20-31,
+  taskdump direct observation): task stuck NOTIFIED in tokio internals,
+  every wake no-ops, unrecoverable in-process; not reachable from repo
+  code; nothing files outside this repo (user directive). Evidence doc:
+  `docs/design/notes/tokio-task-resumption-wedge-repro.md` (taskdump
+  section rides next sanctioned push). Fix = CONTAINMENT, design POSTED
+  (checkpoint 32, recommended): coalescing latest-wins mailbox — zero
+  awaits under the documents lock, one publisher task does the capped
+  sends, per-URI epochs written under the removal lock close the
+  did_close race, a swallowed publisher is safely respawnable. Watchdog
+  (merged shape) stays as detector. Acceptance bar: 30+ loaded runs with
+  zero [stall]/SERVER WEDGED (nudge lines expected — leaked-but-harmless
+  tasks); CI test-ext wedge ~1-in-2 → ≈0. AWAITING USER: #1679 merge
+  clearance (AT MERGE POINT: bd48a241e all green, threads resolved, no
+  conflicts) + checkpoint-32 design read; then implement. #1678
+  post-release.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
   job. Do LAST — when the rest of this pool is empty, immediately before the
   release handoff. No time on it before then; Pages deploy stays the gate.
