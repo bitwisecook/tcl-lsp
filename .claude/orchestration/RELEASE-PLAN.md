@@ -25,10 +25,11 @@ No history. Delete items as they complete. Issues carry per-task detail.
   EXPERIMENT RUNNING: tokio pinned 1.51.1 (throwaway lockfile change, not
   committed), 30-run loop; criteria pre-agreed — any capture on 1.51.1
   kills the 1.52+ scheduler hypothesis; ~15+ clean ≈ strong corroboration
-  at the recent ~1-in-2 repro. If corroborated: fix = pin tokio <1.52 +
-  upstream report (3 instrumented captures + bisect + minimal shape:
-  spawned task holding tokio Mutex awaiting timeout around futures::mpsc
-  send, woken twice, never re-polled). PR #1679 (@ f7e0384d0,
+  at the recent ~1-in-2 repro. If corroborated: fix = pin tokio <1.52.
+  USER DIRECTIVE: file NOTHING outside this repo — instead an in-repo
+  markdown doc with full repro details + a small self-contained verified
+  reproducer (lane building it now, parallel to the loop).
+  PR #1679 (@ f7e0384d0,
   `Refs #1657`) — Codex settled; merge on green. #1678 post-release.
   Checkpoints through 24.
 - **#1662** — DECIDED (user): per-PR path-filtered `make lsp-server-wasm-test`
