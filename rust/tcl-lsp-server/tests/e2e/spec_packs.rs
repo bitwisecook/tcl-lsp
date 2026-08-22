@@ -64,7 +64,10 @@ fn workspace(name: &str) -> PathBuf {
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("workspace root");
-    root
+    // macOS exposes its temporary directory through `/var`, a symlink to
+    // `/private/var`. Pack discovery canonicalises paths before publishing
+    // diagnostics, so keep the client-side fixture URI in that same spelling.
+    std::fs::canonicalize(root).expect("canonical workspace root")
 }
 
 fn write(path: &Path, body: &str) {

@@ -441,25 +441,33 @@ suite("Wait discipline (issue #1274)", () => {
       /pid unavailable/,
       `the server pid must still be reachable from the language client: ${evidence}`,
     );
-    assert.match(
-      evidence,
-      /server process: pid \d+, state \S+, \d+ thread\(s\)/,
-      `the process reading must name state and thread count: ${evidence}`,
-    );
-    assert.match(
-      evidence,
-      /CPU tick\(s\) and moved \d+ byte\(s\) in \/ \d+ byte\(s\) out/,
-      `the CPU and byte deltas are what separate spinning from stopped: ${evidence}`,
-    );
-    // The byte counters are process-wide (`/proc/<pid>/io` aggregates every
-    // descriptor), so the reading must say so rather than let a reader take
-    // movement as proof the LSP pipes are draining — a pack-discovery walk
-    // moves them too.
-    assert.match(
-      evidence,
-      /aggregate process I\/O, not the LSP pipes alone/,
-      `the byte counters must be labelled as process-wide: ${evidence}`,
-    );
+    if (process.platform === "linux") {
+      assert.match(
+        evidence,
+        /server process: pid \d+, state \S+, \d+ thread\(s\)/,
+        `the process reading must name state and thread count: ${evidence}`,
+      );
+      assert.match(
+        evidence,
+        /CPU tick\(s\) and moved \d+ byte\(s\) in \/ \d+ byte\(s\) out/,
+        `the CPU and byte deltas are what separate spinning from stopped: ${evidence}`,
+      );
+      // The byte counters are process-wide (`/proc/<pid>/io` aggregates every
+      // descriptor), so the reading must say so rather than let a reader take
+      // movement as proof the LSP pipes are draining — a pack-discovery walk
+      // moves them too.
+      assert.match(
+        evidence,
+        /aggregate process I\/O, not the LSP pipes alone/,
+        `the byte counters must be labelled as process-wide: ${evidence}`,
+      );
+    } else {
+      assert.match(
+        evidence,
+        /server process: pid \d+, but \/proc is unreadable \(already exited, or not Linux\)/,
+        `non-Linux hosts must retain the pid and explain the missing process sample: ${evidence}`,
+      );
+    }
     assert.match(evidence, /server log:/, `the server's last words must be quoted: ${evidence}`);
   });
 
