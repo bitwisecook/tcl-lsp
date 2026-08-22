@@ -1,3 +1,59 @@
+# v2.1.23
+
+**2.x alpha — pre-release channel.**
+
+This prerelease hardens the Rust-native compiler, runtimes, language server,
+SpecTcl packs, and editor integrations. It remains opt-in through the VS Code
+Marketplace **pre-release** channel, the JetBrains Marketplace **eap** channel,
+or the assets on this GitHub release. The stable **1.x** line remains the
+default.
+
+## Tcl, compiler, and runtime correctness
+
+- Tcl 8.x and Tcl 9.x `${...}` parsing now follows one release-aware rule
+  across lexing, expressions, substitution, analysis, refactors, optimisation,
+  code generation, and both execution engines. Nested Tcl 9 names no longer
+  truncate or inherit an 8.x closing-brace rule.
+- Namespace, ensemble, TclOO, variable, trace, list, and dictionary behaviour
+  is aligned more closely with C Tcl. This includes prefix resolution,
+  namespace teardown, export/import options, element references, trace order,
+  last-value-wins dictionaries, and command-binding-aware constant folding.
+- Compiler and analyser fixes cover quoted whole-command evaluation, braced
+  loop lists, lambda and untyped-body fall-through, computed metaclasses,
+  versioned command arguments, and deeply nested source walks without stack
+  overflow.
+
+## Language server, SpecTcl, and editors
+
+- Diagnostic publishing now uses a persistent, latest-wins per-URI mailbox and
+  performs client I/O outside document-ordering locks. A stalled publish can no
+  longer freeze edits and unrelated requests across the language-server
+  session; retained telemetry makes any residual scheduler stall
+  self-diagnosing.
+- Cross-file analysis no longer strands callers on W123 while a definition is
+  opening, or repeatedly re-wakes a deleted-on-disk buffer after facts move.
+  Extension-host liveness verdicts now distinguish load, document-pipeline
+  stalls, and whole-server wedges with process and thread evidence.
+- SpecTcl packs gain versioned arity, per-argument lifecycle rows, ambient
+  package versions, robust malformed-pack notices, deterministic collision
+  handling, and live pack-declared file-extension registration. VS Code keeps
+  user associations intact while adding and retiring pack associations.
+- Editor language IDs, filename patterns, and dialect associations now come
+  from the shared catalogue, closing drift across VS Code, JetBrains, Sublime,
+  and the command-line tools.
+
+## WebAssembly and delivery
+
+- The browser language server uses a JavaScript-backed clock instead of native
+  time primitives that trap in WebAssembly, and the import-free VM build stays
+  import-free.
+- Pull requests now build and execute the browser language-server WebAssembly
+  target, including its complete local Cargo dependency closure, so Pages-only
+  failures are caught before merge.
+- The workspace is clean on Rust 1.98, runtime formatting is part of the Rust
+  gate, and generated and satellite WebAssembly surfaces have stronger drift
+  and real-link coverage.
+
 # v2.1.22
 
 **2.x alpha — pre-release channel.**
@@ -105,13 +161,13 @@ default.
 ## Performance across the 2.1 pre-releases
 
 These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
-`v2.1.22`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+`v2.1.23`, run by `scripts/perf/` against a pinned 113-file corpus (scope
 `small`, revision `1`). The corpus, scope, and revision are fixed across the
 whole series, so the lines are comparable with each other.
 
 There is no `v2.1.2` point: that version was never released.
 
-**`2.1.22` is this release**: it is the bright-blue line in the memory and CPU
+**`2.1.23` is this release**: it is the bright-blue line in the memory and CPU
 graphs and the rightmost bar in each wall-time group. Earlier releases are
 drawn in grey and fade with age.
 
@@ -124,16 +180,16 @@ far less host-sensitive.
 
 ### Resident memory
 
-![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-memory.svg)
+![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-cpu.svg)
+![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-walltime.svg)
+![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-walltime.svg)
 
 [Benchmark table and method
-notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.22/perf-summary.md)
-— the raw result JSON is attached to this release as `perf-2.1.22.json`.
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.1.23.json`.
