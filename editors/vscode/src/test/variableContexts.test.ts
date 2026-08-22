@@ -102,6 +102,22 @@ async function insertProbe(
 }
 
 /**
+ * Revert an edited fixture and wait until the server has finished analysing
+ * the restored text.  VS Code resolves the revert command once its buffer is
+ * restored, before the corresponding didChange has necessarily produced a
+ * fresh diagnostics snapshot.  Returning at that point lets the next test
+ * capture diagnostic ranges from the edited document.
+ */
+async function revertAndWaitForDeepDiagnostics(
+  uri: vscode.Uri,
+  doc: vscode.TextDocument,
+): Promise<void> {
+  const since = getServerLogSize();
+  await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+  await waitForDeepDiagnostics(uri, { since, timeout: 20_000 });
+}
+
+/**
  * Marker-based completion probing: find ``# PROBE_X`` in the fixture,
  * insert the supplied probe text on the line after the marker, position
  * the cursor at the end of the inserted text, request completion (waiting
@@ -123,7 +139,7 @@ async function probeAt(
   try {
     return await completionItemsAt(uri, completionPos, expect);
   } finally {
-    await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+    await revertAndWaitForDeepDiagnostics(uri, doc);
   }
 }
 
@@ -224,8 +240,9 @@ suite("Variable Completion: command contexts", () => {
     }
   });
 
-  suiteTeardown(async () => {
-    await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+  suiteTeardown(async function () {
+    this.timeout(scaledTimeout(30_000));
+    await revertAndWaitForDeepDiagnostics(docUri, doc);
   });
 
   test("variable: namespace var alias is in scope inside the proc", async () => {
@@ -416,7 +433,7 @@ suite("Variable Completion: TextEdit shape", () => {
         `Range end (${te.range.end.character}) must cover the trailing '}' past the cursor (${completionPos.character})`,
       );
     } finally {
-      await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+      await revertAndWaitForDeepDiagnostics(docUri, doc);
     }
   });
 
@@ -453,7 +470,7 @@ suite("Variable Completion: TextEdit shape", () => {
         `Range end (${te.range.end.character}) must extend past cursor (${completionPos.character}) to cover suffix`,
       );
     } finally {
-      await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+      await revertAndWaitForDeepDiagnostics(docUri, doc);
     }
   });
 
@@ -483,7 +500,7 @@ suite("Variable Completion: TextEdit shape", () => {
         `Expected '${"${foo-bar}"}' for hyphenated name, got '${insertedText(item)}'`,
       );
     } finally {
-      await vscode.commands.executeCommand("workbench.action.files.revert", doc);
+      await revertAndWaitForDeepDiagnostics(otherUri, doc);
     }
   });
 });
@@ -549,7 +566,22 @@ suite("Variable Completion: W215 unreachable-name diagnostic", () => {
             edits.some((e) => e.newText === "$arr(name)"),
           )));
     const actions = (await pollUntil(
-      () => vscode.commands.executeCommand("vscode.executeCodeActionProvider", docUri, w216.range),
+      () => {
+        // Re-read diagnostics on every probe.  A preceding edit can still be
+        // in flight when this test starts; pinning the first diagnostic object
+        // would pin its stale range even after the restored-document publish
+        // arrives, so every retry would keep asking at the wrong position.
+        const currentW216 = vscode.languages.getDiagnostics(docUri).find((d) => {
+          const code = typeof d.code === "object" ? d.code.value : d.code;
+          return code === "W216" && d.message.includes("scalar");
+        });
+        if (!currentW216) return Promise.resolve([] as vscode.CodeAction[]);
+        return vscode.commands.executeCommand(
+          "vscode.executeCodeActionProvider",
+          docUri,
+          currentW216.range,
+        );
+      },
       (r) => Array.isArray(r) && (r as vscode.CodeAction[]).some(matchesW216Fix),
       { timeout: 10_000, label: "W216 bare-form quick fix" },
     )) as vscode.CodeAction[];
