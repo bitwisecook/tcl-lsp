@@ -220,8 +220,11 @@ if [ -d "$skills_dir" ]; then
         fail "only $n skills under $skills_dir (expected >= $MIN_SKILLS)"
     fi
 else
-    note "WARN: $skills_dir does not exist — skipping skill count check
-        (set MIN_SKILLS=0 to silence, or pass --no-skills via the installer)"
+    if [ "$MIN_SKILLS" -eq 0 ]; then
+        pass "$skills_dir does not exist (skill count check disabled)"
+    else
+        fail "$skills_dir does not exist (expected >= $MIN_SKILLS skills)"
+    fi
 fi
 
 # ---------------------------------------------------------------- summary

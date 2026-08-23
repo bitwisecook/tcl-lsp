@@ -57,8 +57,11 @@ esac
 
 prefix="$TCL_LSP_PREFIX"
 version="${TCL_LSP_VERSION#v}"
-mkdir -p "$prefix" "$HOME/.claude/skills/tcl-fixture-one" \
-    "$HOME/.claude/skills/tcl-fixture-two"
+mkdir -p "$prefix"
+if [ "${SMOKE_FIXTURE_NO_SKILLS:-0}" != 1 ]; then
+    mkdir -p "$HOME/.claude/skills/tcl-fixture-one" \
+        "$HOME/.claude/skills/tcl-fixture-two"
+fi
 
 for name in tcl f5; do
     cat > "$prefix/$name" <<CLI
@@ -118,5 +121,29 @@ if find "$test_root" -mindepth 1 -maxdepth 1 -name 'tcl-lsp-release-smoke.*' | g
     echo "smoke harness left its isolated root behind" >&2
     exit 1
 fi
+
+set +e
+missing_output="$({
+    TMPDIR="$test_root" \
+    SMOKE_FIXTURE_PARENT="$test_root" \
+    SMOKE_FIXTURE_SUMS="$sums" \
+    SMOKE_FIXTURE_NO_SKILLS=1 \
+    TCL_LSP_INSTALLER_URL="file://$installer" \
+    TCL_LSP_SUMS_URL="file://$sums" \
+    MIN_SKILLS=2 \
+        bash "$repo_root/scripts/release/smoke_installer.sh" v9.9.9
+} 2>&1)"
+missing_status=$?
+set -e
+
+if [ "$missing_status" -eq 0 ]; then
+    printf '%s\n' "$missing_output" >&2
+    echo "smoke harness passed despite missing requested skills" >&2
+    exit 1
+fi
+case "$missing_output" in
+    *"[fail] "*"/.claude/skills does not exist (expected >= 2 skills)"*) ;;
+    *) printf '%s\n' "$missing_output" >&2; echo "missing absent-skills failure" >&2; exit 1 ;;
+esac
 
 echo "ok - release installer smoke selects MCP/skills in an isolated environment"
