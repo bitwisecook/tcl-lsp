@@ -747,6 +747,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 
 test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
 	@bash scripts/install/test_installer.sh
+	@bash scripts/release/test_smoke_installer.sh
 
 # Whole-workspace smoke tier: the fastest meaningful per-module subset, run
 # locally right after `cargo build`/`cargo check` — seconds warm, NOT a

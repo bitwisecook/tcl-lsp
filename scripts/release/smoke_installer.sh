@@ -28,8 +28,10 @@
 #   TCL_LSP_OS          forced detection (e.g. debian) — set if the
 #                       installer can't read /etc/os-release in your
 #                       environment
-#   KEEP_PREFIX=1       skip the final rm of $TCL_LSP_PREFIX (useful
-#                       when poking at a failure)
+#   TCL_LSP_INSTALLER_URL / TCL_LSP_SUMS_URL
+#                       override published assets (fixture testing only)
+#   KEEP_PREFIX=1       retain the isolated home, log, and install prefix
+#                       when poking at a failure
 #   MIN_SKILLS          floor on count of Claude skills the installer
 #                       should leave behind (default: 22)
 #
@@ -48,10 +50,24 @@ if [ -z "$tag" ]; then
 fi
 expected="${tag#v}"
 
-PREFIX="${TCL_LSP_PREFIX:-/tmp/verify-bin}"
+SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/tcl-lsp-release-smoke.XXXXXX")" \
+    || { echo "smoke_installer: could not create isolated test root" >&2; exit 2; }
+SMOKE_HOME="$SMOKE_ROOT/home"
+SMOKE_BIN="$SMOKE_ROOT/bin"
+SMOKE_CONFIG="$SMOKE_HOME/.config"
+mkdir -p "$SMOKE_HOME/.claude" "$SMOKE_CONFIG" "$SMOKE_BIN"
+# Detect Claude without exposing a real CLI or registration store. The stub
+# accepts the affirmative registration selected below, while HOME contains all
+# skills and configuration writes.
+printf '#!/bin/sh\nexit 0\n' > "$SMOKE_BIN/claude"
+chmod +x "$SMOKE_BIN/claude"
+SMOKE_PATH="$SMOKE_BIN:/usr/bin:/bin:/usr/sbin:/sbin"
+
+PREFIX="${TCL_LSP_PREFIX:-$SMOKE_ROOT/prefix}"
 MIN_SKILLS="${MIN_SKILLS:-22}"
-SUMS_URL="https://github.com/$OWNER_REPO/releases/download/$tag/SHA256SUMS"
-INSTALLER_URL="https://github.com/$OWNER_REPO/releases/download/$tag/install.sh"
+SUMS_URL="${TCL_LSP_SUMS_URL:-https://github.com/$OWNER_REPO/releases/download/$tag/SHA256SUMS}"
+INSTALLER_URL="${TCL_LSP_INSTALLER_URL:-https://github.com/$OWNER_REPO/releases/download/$tag/install.sh}"
+LOG="$SMOKE_ROOT/smoke-installer.log"
 
 FAILED=0
 note()  { printf '  %s\n'   "$*"; }
@@ -61,7 +77,11 @@ hdr()   { printf '\n== %s ==\n' "$*"; }
 
 cleanup() {
     if [ "${KEEP_PREFIX:-}" != 1 ]; then
-        rm -rf "$PREFIX"
+        rm -rf -- "$PREFIX"
+        rm -rf -- "$SMOKE_ROOT"
+    else
+        note "retained isolated smoke root: $SMOKE_ROOT"
+        note "retained install prefix: $PREFIX"
     fi
 }
 trap cleanup EXIT
@@ -77,15 +97,26 @@ fi
 # TCL_LSP_VERSION independently pins the smoke test to the tag under test. The
 # published installer is also stamped to select its own tag, but retaining this
 # explicit pin makes this harness catch a broken or missing release stamp.
+# HOME, XDG_CONFIG_HOME, ZDOTDIR, PATH, and every other AI-client switch
+# isolate the affirmative MCP/skills path from real user registrations, shell
+# startup files, and binaries (#1686).
 # shellcheck disable=SC2086
-if curl -fsSL "$INSTALLER_URL" \
-        | env $installer_env TCL_LSP_VERSION="$tag" TCL_LSP_PREFIX="$PREFIX" \
-              TCL_LSP_ASSUME_NO=1 sh \
-        > /tmp/smoke-installer.log 2>&1; then
+if (
+    cd "$SMOKE_ROOT" || exit 1
+    curl -fsSL "$INSTALLER_URL" \
+        | env $installer_env HOME="$SMOKE_HOME" \
+              XDG_CONFIG_HOME="$SMOKE_CONFIG" ZDOTDIR="$SMOKE_HOME" \
+              PATH="$SMOKE_PATH" \
+              TCL_LSP_VERSION="$tag" TCL_LSP_PREFIX="$PREFIX" \
+              TCL_LSP_ASSUME_YES=1 TCL_LSP_NO_CODEX=1 \
+              TCL_LSP_NO_GEMINI=1 TCL_LSP_NO_COPILOT=1 \
+              TCL_LSP_NO_OPENCODE=1 TCL_LSP_NO_HERMES=1 \
+              TCL_LSP_NO_GOOSE=1 TCL_LSP_NO_BOBBIT=1 sh
+) > "$LOG" 2>&1; then
     pass "installer ran cleanly"
 else
-    fail "installer exited non-zero (see /tmp/smoke-installer.log)"
-    tail -10 /tmp/smoke-installer.log | sed 's/^/    /'
+    fail "installer exited non-zero (log: $LOG)"
+    tail -10 "$LOG" | sed 's/^/    /'
     exit 1
 fi
 
@@ -179,9 +210,10 @@ fi
 # ---------------------------------------------------------------- 5. Skills
 
 hdr "Claude skills"
-skills_dir="$HOME/.claude/skills"
+skills_dir="$SMOKE_HOME/.claude/skills"
 if [ -d "$skills_dir" ]; then
-    n=$(find "$skills_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)
+    n=$(find "$skills_dir" -mindepth 1 -maxdepth 1 -type d 2>/dev/null \
+        | wc -l | tr -d ' ')
     if [ "$n" -ge "$MIN_SKILLS" ]; then
         pass "$n skills under $skills_dir (>= $MIN_SKILLS)"
     else
