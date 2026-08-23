@@ -252,7 +252,14 @@ async function main() {
       );
       const group = key?.closest("details.group");
       if (group) group.open = true;
-      return ["EXPANSION_ESCAPE_SAFE", "DEFERS_BODY"].map((name) => {
+      const items = [
+        { name: "EXPANSION_ESCAPE_SAFE", carrier: "puts" },
+        { name: "DEFERS_BODY", carrier: "proc" },
+      ];
+      const rowsWithoutHelp = Array.from(
+        document.querySelectorAll(".trait-toggle"),
+      ).filter((row) => !row.querySelector("button.qbtn")).length;
+      return items.map(({ name, carrier: expectedCarrier }) => {
         const code = Array.from(
           document.querySelectorAll(".trait-copy code"),
         ).find((node) => node.textContent === name);
@@ -260,11 +267,29 @@ async function main() {
         if (toggleGroup) toggleGroup.open = true;
         if (!code?.parentElement)
           throw new Error(`${name} trait toggle is missing`);
+        const row = code.closest(".trait-toggle");
+        const help = row?.querySelector("button.qbtn");
+        if (!row || !help)
+          throw new Error(`${name} Spec-tab inline help is missing`);
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        const checkedBeforeHelp = checkbox?.checked;
+        help.click();
+        const checkedAfterHelp = checkbox?.checked;
+        const carriers = Array.from(row.querySelectorAll("mark.example-carrier"));
+        const arrows = Array.from(row.querySelectorAll("pre.example-arrow"));
         return {
           name,
           tokenWidth: code.getBoundingClientRect().width,
           cellWidth: code.parentElement.getBoundingClientRect().width,
           justifySelf: getComputedStyle(code).justifySelf,
+          expanded: help.getAttribute("aria-expanded"),
+          carriers: carriers.length,
+          carrier: carriers[0]?.textContent ?? "",
+          expectedCarrier,
+          arrows: arrows.length,
+          checkedBeforeHelp,
+          checkedAfterHelp,
+          rowsWithoutHelp,
         };
       });
     });
@@ -272,7 +297,13 @@ async function main() {
       (chip) =>
         chip.justifySelf !== "start" ||
         chip.tokenWidth <= 0 ||
-        chip.tokenWidth >= chip.cellWidth - 8,
+        chip.tokenWidth >= chip.cellWidth - 8 ||
+        chip.expanded !== "true" ||
+        chip.carriers !== 1 ||
+        chip.carrier !== chip.expectedCarrier ||
+        chip.arrows < 2 ||
+        chip.checkedBeforeHelp !== chip.checkedAfterHelp ||
+        chip.rowsWithoutHelp !== 0,
     );
     if (stretchedChip) {
       throw new Error(
@@ -280,7 +311,7 @@ async function main() {
       );
     }
     console.log(
-      "    registry flows have numbered arrows, one command carrier, inline help, and tight trait labels",
+      "    registry flows have numbered arrows, one command carrier, Spec-tab item help, and tight trait labels",
     );
 
     // 2. Opening the Pack DSL tab loads the editor chunk and mounts Monaco.

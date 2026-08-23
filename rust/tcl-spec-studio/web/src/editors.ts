@@ -70,6 +70,8 @@ export const STRUCTURAL_KINDS = new Set([
 /** Everything an editor needs from the surrounding app. */
 export interface EditorContext {
   catalogues: Catalogues;
+  /** Builds the inline documentation control for one catalogue item. */
+  variantHelp: (variant: Variant) => { button: HTMLButtonElement; panel: HTMLElement };
   /** A fresh subcommand draft, for the subcommand list's add button. */
   newSubcommand: () => Record<string, Json>;
   /** Renders a nested subcommand form into `container`. */
@@ -300,13 +302,16 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         const box = el("input", { type: "checkbox" });
         box.checked = bits.includes(entry.key);
         box.disabled = Boolean(kind.optional) && !declared;
-        const row = el("label", { class: "trait-toggle" }, [
+        const help = ctx.variantHelp(entry);
+        const choice = el("label", { class: "trait-choice" }, [
           box,
-          el("span", { class: "trait-copy" }, [
-            el("code", { text: entry.key }),
-            el("span", { class: "doc", text: entry.doc }),
-          ]),
+          el("code", { text: entry.key }),
         ]);
+        const copy = el("div", { class: "trait-copy" }, [
+          el("div", { class: "trait-title" }, [choice, help.button]),
+          el("span", { class: "doc", text: entry.doc }),
+        ]);
+        const row = el("div", { class: "trait-toggle" }, [copy, help.panel]);
         box.addEventListener("change", () => {
           const at = bits.indexOf(entry.key);
           if (box.checked && at < 0) bits.push(entry.key);

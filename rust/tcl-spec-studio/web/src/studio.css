@@ -168,16 +168,18 @@ footer a { color: var(--accent); }
 .toggle-group > summary .n { color: var(--muted); font-weight: 400; margin-left: .4rem; }
 .toggle-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
 .trait-toggle {
-  display: flex; gap: .5rem; align-items: flex-start; padding: .48rem .6rem;
-  border-top: 1px solid var(--border); cursor: pointer;
+  display: block; padding: .48rem .6rem; border-top: 1px solid var(--border);
 }
 .trait-toggle:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
-.trait-toggle input { margin-top: .15rem; }
+.trait-choice { display: flex; gap: .5rem; align-items: flex-start; cursor: pointer; min-width: 0; }
+.trait-choice input { margin-top: .15rem; }
 .trait-copy { display: grid; gap: .12rem; min-width: 0; }
-.trait-copy code {
+.trait-title { display: flex; align-items: center; gap: .35rem; min-width: 0; }
+.trait-choice code {
   justify-self: start; width: fit-content; font-size: .74rem; overflow-wrap: anywhere;
 }
 .trait-copy .doc { margin: 0; font-size: .76rem; }
+.trait-toggle > .helptext { margin: .45rem 0 .1rem 1.35rem; }
 
 /* Long-form help: the ? buttons on groups and fields, and the panels they
    open. The same text backs the Reference tab. */
