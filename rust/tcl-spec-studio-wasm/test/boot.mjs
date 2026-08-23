@@ -240,25 +240,32 @@ async function main() {
 
     // Prove hover is connected to the visible Monaco model, rather than only
     // to the direct readiness probe above.
+    // Semantic repaint can replace a painted span between a bounding-box
+    // lookup and the mouse event in headless Chromium. Resolve the live text
+    // range for each attempt so this still tests the real pointer-driven
+    // Monaco hover path without depending on a stale render node.
     const speclibLine = page.locator("#dslEditor .view-line", { hasText: "speclib" }).first();
-    const speclibPoint = await speclibLine.evaluate((line) => {
-      const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        const offset = node.textContent?.indexOf("speclib") ?? -1;
-        if (offset < 0) continue;
-        const range = document.createRange();
-        range.setStart(node, offset);
-        range.setEnd(node, offset + "speclib".length);
-        const rect = range.getBoundingClientRect();
-        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
-      }
-      throw new Error("rendered speclib token has no text range");
-    });
-    await page.mouse.move(speclibPoint.x, speclibPoint.y);
-    // Monaco retains a hidden hover widget alongside the active one. Waiting
-    // on the broad selector makes Playwright choose that first, hidden node
-    // even when the second widget is already visible.
-    await page.locator("#dslEditor .monaco-hover:visible").waitFor({ timeout: 30_000 });
+    const visibleHover = page.locator("#dslEditor .monaco-hover:visible");
+    for (let attempt = 0; attempt < 6 && !(await visibleHover.isVisible()); attempt += 1) {
+      const speclibPoint = await speclibLine.evaluate((line) => {
+        const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const offset = node.textContent?.indexOf("speclib") ?? -1;
+          if (offset < 0) continue;
+          const range = document.createRange();
+          range.setStart(node, offset);
+          range.setEnd(node, offset + "speclib".length);
+          const rect = range.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+        }
+        throw new Error("rendered speclib token has no text range");
+      });
+      await page.mouse.move(speclibPoint.x, speclibPoint.y - 30);
+      await page.mouse.move(speclibPoint.x, speclibPoint.y, { steps: 4 });
+      await visibleHover.waitFor({ timeout: 5_000 }).catch(() => undefined);
+    }
+    // Monaco retains a hidden hover widget alongside the active one.
+    await visibleHover.waitFor({ timeout: 1_000 });
     console.log("    Pack DSL hover is visible in Monaco on initial load");
 
     // 4. The server actually analyses: type a broken pack line and expect the
