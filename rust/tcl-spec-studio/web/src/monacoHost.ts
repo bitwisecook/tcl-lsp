@@ -82,6 +82,12 @@ const RUST_URI = "file:///__tcl_spec_studio__/command.rs";
 const STUB_URI = "file:///__tcl_spec_studio__/stubs.tcl";
 const EXPLORER_URI = "file:///__tcl_compiler_explorer__/source.tcl";
 
+/** Browser-only hooks installed solely when the deployment test opts in. */
+interface BrowserTestWindow extends Window {
+  __tclSpecStudioTestEnableEditorProbe?: boolean;
+  __tclSpecStudioTestShowDslHover?: (needle: string) => Promise<void>;
+}
+
 /** How long keystrokes settle before the change is pushed on. */
 const SETTLE_MS = 120;
 
@@ -460,6 +466,21 @@ class Surface {
     if (model) monaco.editor.setModelLanguage(model, model.getLanguageId());
   }
 
+  /** Run Monaco's public hover action at the first occurrence of `needle`. */
+  async showHoverAt(needle: string): Promise<void> {
+    const model = this.editor.getModel();
+    if (!model) throw new Error("the Monaco surface has no model");
+    const offset = model.getValue().indexOf(needle);
+    if (offset < 0) throw new Error(`the Monaco model does not contain ${needle}`);
+    const position = model.getPositionAt(offset);
+    this.editor.setPosition(position);
+    this.editor.revealPositionInCenterIfOutsideViewport(position);
+    this.editor.focus();
+    const action = this.editor.getAction("editor.action.showHover");
+    if (!action) throw new Error("Monaco's show-hover action is unavailable");
+    await action.run();
+  }
+
   layout(): void {
     this.editor.layout();
   }
@@ -599,6 +620,15 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
   const sample = new Surface(options.sample, SAMPLE_URI, TCL_LANGUAGE, options.dialect, client);
   const rust = new OutputSurface(options.rust, RUST_URI, "rust", null, client);
   const stub = new OutputSurface(options.stub, STUB_URI, TCL_LANGUAGE, "spectcl", client);
+
+  // Pointer hover synthesis is not portable across headless Chromium builds.
+  // The deployment check opts into this narrow hook before page load so it can
+  // invoke Monaco's own action at an exact model position. Ordinary visitors
+  // get no test API on `window`.
+  const testWindow = window as BrowserTestWindow;
+  if (testWindow.__tclSpecStudioTestEnableEditorProbe) {
+    testWindow.__tclSpecStudioTestShowDslHover = (needle) => dsl.showHoverAt(needle);
+  }
 
   if (client) {
     // `initialize` proves only that the worker booted. `Surface` sent didOpen
