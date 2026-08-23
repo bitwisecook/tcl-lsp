@@ -52,18 +52,72 @@
 use std::fmt;
 use std::ops::{BitOr, BitOrAssign};
 
+/// Declare the closed vocabulary used to organise behavioural traits.
+///
+/// A new category must be added here deliberately, with its author-facing
+/// label. Trait declarations cannot introduce ad-hoc group strings: naming
+/// anything outside this enum is a compiler error. Keep the groups broad and
+/// reuse an existing one unless it describes a genuinely distinct concern.
+macro_rules! declare_trait_categories {
+    ($( $(#[$meta:meta])* $variant:ident => $label:literal );* $(;)?) => {
+        /// Author-facing group used to organise traits in registry browsers.
+        ///
+        /// This lives beside [`Trait`] because the registry owns both the
+        /// behaviour and the words used to explain it. Authoring tools consume
+        /// this metadata and do not maintain another trait taxonomy.
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        pub enum TraitCategory {
+            $( $(#[$meta])* $variant ),*
+        }
+
+        impl TraitCategory {
+            /// Every supported group, in declaration order.
+            pub const ALL: &'static [Self] = &[ $( Self::$variant ),* ];
+
+            /// Stable label shown by registry-backed authoring tools.
+            #[must_use]
+            pub const fn label(self) -> &'static str {
+                match self { $( Self::$variant => $label ),* }
+            }
+        }
+    };
+}
+
+declare_trait_categories! {
+    /// Script evaluation and control-flow shape.
+    ControlFlow => "Control flow & scripts";
+    /// Purity, value representation, and runtime lowering properties.
+    Runtime => "Purity, values & runtime";
+    /// Variables, frames, definitions, and names.
+    Names => "Variables, frames & names";
+    /// Dynamic execution and analysis barriers.
+    DynamicAnalysis => "Dynamic dispatch & analysis";
+    /// I/O, safe interpreters, and taint handling.
+    Security => "I/O, security & taint";
+    /// Deferred callbacks and command prefixes.
+    Callbacks => "Callbacks & command prefixes";
+    /// F5 iRules and BIG-IP behaviour.
+    Irules => "iRules & BIG-IP";
+    /// `TclOO`, class systems, and Tk.
+    Objects => "Objects, classes & Tk";
+    /// Packages and cross-compilation-unit behaviour.
+    Packages => "Packages & external units";
+}
+
 /// Declare every behavioural trait exactly once.
 ///
-/// `Variant => CONST_NAME;` generates the [`Trait`] variant, the [`Traits`]
-/// single-flag constant, and the arm of [`Trait::name`]. Bits come from the
-/// discriminants the compiler assigns, so ordering is free and duplication is
-/// impossible.
+/// `Variant => CONST_NAME, Category, "summary";` generates the [`Trait`]
+/// variant, the [`Traits`] single-flag constant, and all author-facing
+/// metadata. Bits come from the discriminants the compiler assigns, so
+/// ordering is free and duplication is impossible. The required category and
+/// summary keep documentation beside the behavioural declaration: adding a
+/// partially-documented trait cannot compile.
 ///
 /// Each doc comment is copied onto *both* generated items, so `Self` in an
 /// intra-doc link would resolve to `Trait` on the variant and `Traits` on the
 /// constant. Spell such links against `Traits` explicitly, never `Self`.
 macro_rules! declare_traits {
-    ($( $(#[$meta:meta])* $variant:ident => $konst:ident );* $(;)?) => {
+    ($( $(#[$meta:meta])* $variant:ident => $konst:ident, $category:ident, $summary:literal );* $(;)?) => {
         /// The identity of a single behavioural trait.
         ///
         /// One variant per flag. Its bit is its discriminant — see the module
@@ -86,6 +140,27 @@ macro_rules! declare_traits {
             #[must_use]
             pub const fn name(self) -> &'static str {
                 match self { $( Trait::$variant => stringify!($konst) ),* }
+            }
+
+            /// Resolve the spelling used in a registry trait expression.
+            #[must_use]
+            pub fn from_name(name: &str) -> Option<Self> {
+                Self::ALL.iter().copied().find(|item| item.name() == name)
+            }
+
+            /// Short author-facing description used by registry browsers and
+            /// editors.
+            #[must_use]
+            pub const fn summary(self) -> &'static str {
+                match self { $( Trait::$variant => $summary ),* }
+            }
+
+            /// Author-facing group for this trait.
+            #[must_use]
+            pub const fn category(self) -> TraitCategory {
+                match self {
+                    $( Trait::$variant => TraitCategory::$category ),*
+                }
             }
         }
 
@@ -241,88 +316,88 @@ impl fmt::Display for Traits {
 declare_traits! {
     // Control flow
     /// Command is a control-flow construct (`if`, `for`, `while`, `switch`).
-    ControlFlow => CONTROL_FLOW;
+    ControlFlow => CONTROL_FLOW, ControlFlow, "alters control flow";
     /// Language keyword for semantic token classification.
-    LanguageKeyword => LANGUAGE_KEYWORD;
+    LanguageKeyword => LANGUAGE_KEYWORD, ControlFlow, "a language keyword rather than a plain command";
     /// First expression argument is in boolean context (`if`, `while`, `for`).
-    HasBooleanCond => HAS_BOOLEAN_COND;
+    HasBooleanCond => HAS_BOOLEAN_COND, ControlFlow, "takes a boolean condition";
     /// Unconditionally terminates the current block (`error`, `return`, `exit`).
-    TerminatesBlock => TERMINATES_BLOCK;
+    TerminatesBlock => TERMINATES_BLOCK, ControlFlow, "terminates the enclosing basic block";
     /// Ends the interpreter process immediately, without unwinding Tcl
     /// exception ranges or executing enclosing `finally` clauses (`exit`).
     /// This is deliberately narrower than [`Traits::TERMINATES_BLOCK`]:
     /// ordinary Tcl completion codes still propagate through `try`.
-    TerminatesProcess => TERMINATES_PROCESS;
+    TerminatesProcess => TERMINATES_PROCESS, ControlFlow, "terminates the interpreter process without Tcl unwinding";
 
     // Loop/body structure
     /// Contains a loop body (`for`, `while`, `foreach`).
-    HasLoopBody => HAS_LOOP_BODY;
+    HasLoopBody => HAS_LOOP_BODY, ControlFlow, "takes a loop body";
     /// Forbid inlining body arguments.
-    NeverInlineBody => NEVER_INLINE_BODY;
+    NeverInlineBody => NEVER_INLINE_BODY, ControlFlow, "its body must never be inlined";
     /// CFG header with list-expression args evaluated once (`foreach`, `lmap`).
-    LoopListHeader => LOOP_LIST_HEADER;
+    LoopListHeader => LOOP_LIST_HEADER, ControlFlow, "a loop header with list-expression arguments";
 
     // Purity and optimisation
     /// Side-effect-free command.
-    Pure => PURE;
+    Pure => PURE, Runtime, "side-effect free";
     /// Candidate for common subexpression elimination.
-    CseCandidate => CSE_CANDIDATE;
+    CseCandidate => CSE_CANDIDATE, Runtime, "eligible for common-subexpression elimination";
     /// Pure evaluation (`expr` — side-effect-free when braced).
-    PureEvaluation => PURE_EVALUATION;
+    PureEvaluation => PURE_EVALUATION, Runtime, "evaluation itself has no side effects";
 
     // Variable semantics
     /// Defines a procedure (`proc`).
-    DefinesProcedure => DEFINES_PROCEDURE;
+    DefinesProcedure => DEFINES_PROCEDURE, Names, "defines a procedure";
     /// Destroys/removes a variable (`unset`).
-    DestroysVariable => DESTROYS_VARIABLE;
+    DestroysVariable => DESTROYS_VARIABLE, Names, "destroys a variable";
     /// Reads the target variable before writing (`incr`, `append`, `lappend`).
-    ReadsBeforeWrite => READS_BEFORE_WRITE;
+    ReadsBeforeWrite => READS_BEFORE_WRITE, Names, "reads its target before writing it";
     /// Creates a scope alias — upvar-like binding (`upvar`, `global`, `variable`).
-    CreatesScopeAlias => CREATES_SCOPE_ALIAS;
+    CreatesScopeAlias => CREATES_SCOPE_ALIAS, Names, "creates an upvar-like scope alias";
     /// Creates an alias to the interpreter's global namespace (`global`).
     ///
     /// This refines [`Traits::CREATES_SCOPE_ALIAS`] for consumers that need
     /// to distinguish a global binding from a namespace or caller-frame
     /// alias.  Alias recognition and target layout remain registry-owned.
-    AliasesGlobal => ALIASES_GLOBAL;
+    AliasesGlobal => ALIASES_GLOBAL, Names, "creates an alias to the interpreter global namespace";
     /// Creates a runtime control-flow barrier (`eval`, `uplevel`, `upvar`).
-    CreatesBarrier => CREATES_BARRIER;
+    CreatesBarrier => CREATES_BARRIER, DynamicAnalysis, "creates an analysis barrier";
 
     // Analysis check dispatch
     /// Evaluates code dynamically (`eval`, `uplevel`).
-    EvaluatesCode => EVALUATES_CODE;
+    EvaluatesCode => EVALUATES_CODE, ControlFlow, "evaluates its argument as code";
     /// Performs backslash/variable substitution (`subst`).
-    PerformsSubstitution => PERFORMS_SUBSTITUTION;
+    PerformsSubstitution => PERFORMS_SUBSTITUTION, DynamicAnalysis, "performs Tcl substitution";
     /// Opens a channel (`open`).
-    OpensChannel => OPENS_CHANNEL;
+    OpensChannel => OPENS_CHANNEL, Security, "opens an I/O channel";
     /// Sources a file (`source`).
-    SourcesFile => SOURCES_FILE;
+    SourcesFile => SOURCES_FILE, Security, "sources another file";
     /// Has a switch body (`switch`).
-    HasSwitchBody => HAS_SWITCH_BODY;
+    HasSwitchBody => HAS_SWITCH_BODY, ControlFlow, "takes a switch-style clause list";
     /// String/list confusion risk (`append`).
-    StringListConfusion => STRING_LIST_CONFUSION;
+    StringListConfusion => STRING_LIST_CONFUSION, Runtime, "at risk of string/list confusion";
     /// Configures a channel (`fconfigure`, `chan configure`).
-    ConfiguresChannel => CONFIGURES_CHANNEL;
+    ConfiguresChannel => CONFIGURES_CHANNEL, Security, "configures a channel";
     /// Has `interp eval` subcommand.
-    HasInterpEval => HAS_INTERP_EVAL;
+    HasInterpEval => HAS_INTERP_EVAL, DynamicAnalysis, "evaluates code in another interpreter";
     /// Has destructive operations (`file delete`, `namespace delete`).
-    HasDestructiveOps => HAS_DESTRUCTIVE_OPS;
+    HasDestructiveOps => HAS_DESTRUCTIVE_OPS, Security, "has irreversible operations";
     /// iRules event handler (`when`).
-    IsEventHandler => IS_EVENT_HANDLER;
+    IsEventHandler => IS_EVENT_HANDLER, Irules, "an iRules event handler";
     /// Returns unnormalised HTTP path/URI/query.
-    UnnormalisedHttpGetter => UNNORMALISED_HTTP_GETTER;
+    UnnormalisedHttpGetter => UNNORMALISED_HTTP_GETTER, Irules, "returns unnormalised HTTP data";
     /// Requires a live HTTP transaction context and is invalid after a
     /// response has been committed. `HTTP::has_responded` deliberately does
     /// not carry this trait: checking that state is its purpose.
-    RequiresHttpContext => REQUIRES_HTTP_CONTEXT;
+    RequiresHttpContext => REQUIRES_HTTP_CONTEXT, Irules, "requires an uncommitted HTTP transaction";
 
     // Output/value traits
     /// Returns a filesystem path (`pwd`, `file join`).
-    ReturnsPath => RETURNS_PATH;
+    ReturnsPath => RETURNS_PATH, Security, "returns a filesystem path";
     /// Performs unescaping/decoding (`subst`, `URI::decode`).
-    IsUnescape => IS_UNESCAPE;
+    IsUnescape => IS_UNESCAPE, Security, "performs unescaping or decoding";
     /// Produces a canonical Tcl list (`list`, `concat`).
-    ProducesCanonicalList => PRODUCES_CANONICAL_LIST;
+    ProducesCanonicalList => PRODUCES_CANONICAL_LIST, Runtime, "produces a canonical list";
 
     /// Quotes its arguments into a well-formed command reference: when
     /// the first argument is a literal command name, evaluating the
@@ -341,7 +416,7 @@ declare_traits! {
     /// [`crate::arg_role::ArgRole::LambdaLiteral`] argument position
     /// needs to recognise this quoting shape generically — no command
     /// name appears in the consumer.
-    BuildsCommandPrefix => BUILDS_COMMAND_PREFIX;
+    BuildsCommandPrefix => BUILDS_COMMAND_PREFIX, Callbacks, "builds a command prefix";
 
     /// Wraps a script/prefix argument into a value that is *itself* a
     /// command prefix: evaluating the result invokes whatever command
@@ -361,23 +436,23 @@ declare_traits! {
     /// `[namespace code [list X]]`, `[namespace code {X a}]`, and
     /// `[namespace code X]` all resolving through one rule and no
     /// command name in the walker (issue #923 idx 92).
-    WrapsCommandPrefix => WRAPS_COMMAND_PREFIX;
+    WrapsCommandPrefix => WRAPS_COMMAND_PREFIX, Callbacks, "wraps a script into a command prefix";
 
     // Safety
     /// Inherently dangerous command.
-    Unsafe => UNSAFE;
+    Unsafe => UNSAFE, Security, "unsafe in sandboxed dialects";
     /// Password option command.
-    PasswordOption => PASSWORD_OPTION;
+    PasswordOption => PASSWORD_OPTION, Security, "takes a password-bearing option";
 
     // iRules-specific
     /// Side-switching command (`clientside`/`serverside`).
-    IsSideSwitch => IS_SIDE_SWITCH;
+    IsSideSwitch => IS_SIDE_SWITCH, Irules, "switches the iRules connection side";
     /// Must appear at iRules top level (`proc`, `when`, `timing`).
-    IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY;
+    IrulesTopLevelOnly => IRULES_TOP_LEVEL_ONLY, Irules, "iRules: valid only at the top level";
     /// Sets the default priority inherited by subsequent iRules event handlers.
-    SetsEventPriority => SETS_EVENT_PRIORITY;
+    SetsEventPriority => SETS_EVENT_PRIORITY, Irules, "sets the inherited iRules event priority";
     /// `TclOO` metaclass (`oo::class`, `oo::abstract`).
-    IsOoMetaclass => IS_OO_METACLASS;
+    IsOoMetaclass => IS_OO_METACLASS, Objects, "a TclOO metaclass factory";
     /// Registry command whose subcommand table is the universal method
     /// surface inherited by `TclOO` object commands.
     ///
@@ -385,7 +460,7 @@ declare_traits! {
     /// surface generically for method metadata (for example, destructive
     /// lifecycle operations) without naming the registry command that owns
     /// the table.
-    ObjectCommandSurface => OBJECT_COMMAND_SURFACE;
+    ObjectCommandSurface => OBJECT_COMMAND_SURFACE, Objects, "a TclOO object-command method surface";
     /// A metaclass whose **instances** answer `configure` / `cget` against
     /// declared properties — Tcl 9.0's `oo::configurable`.
     ///
@@ -399,42 +474,42 @@ declare_traits! {
     /// per-command fact rather than a grammar flag — it replaces the
     /// `metaclass == "oo::configurable"` spelling test the method-resolution
     /// scan used to make (issue #1275).
-    ConfiguresByProperty => CONFIGURES_BY_PROPERTY;
+    ConfiguresByProperty => CONFIGURES_BY_PROPERTY, Objects, "answers `configure`/`cget` from declared properties";
     /// A metaclass whose manufactured classes cannot themselves manufacture
     /// instances. Tcl 9.0's `oo::abstract` unexports every manufacturer from
     /// the classes it creates.
-    AbstractClassFactory => ABSTRACT_CLASS_FACTORY;
+    AbstractClassFactory => ABSTRACT_CLASS_FACTORY, Objects, "manufactures classes that cannot create instances";
 
     // Codegen/diagram
     /// Included in diagram extraction.
-    DiagramAction => DIAGRAM_ACTION;
+    DiagramAction => DIAGRAM_ACTION, Irules, "an action node in extracted diagrams";
     /// Needs `startCommand` bytecode instruction.
-    NeedsStartCmd => NEEDS_START_CMD;
+    NeedsStartCmd => NEEDS_START_CMD, Callbacks, "needs an explicit start command";
 
     // Taint
     /// Command is a taint sink (absorbs tainted data).
-    TaintSink => TAINT_SINK;
+    TaintSink => TAINT_SINK, Security, "a taint sink";
     /// Command returns attacker-controlled data
     /// (`gets`, `read`, `exec`, `socket`, …).
-    TaintSource => TAINT_SOURCE;
+    TaintSource => TAINT_SOURCE, Security, "a taint source";
     /// Command operates on attacker-controlled iRules data
     /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
     /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
-    IrulesDataGetter => IRULES_DATA_GETTER;
+    IrulesDataGetter => IRULES_DATA_GETTER, Irules, "an iRules data getter";
 
     /// Creates a runtime scope-alias barrier whose `VarWrite`
     /// args are vararg lists (`global x y z`, `variable a b c`,
     /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
     /// handles the per-arg list; SSA must not produce partial
     /// defs from `arg_roles[0]`.
-    CreatesDynamicBarrier => CREATES_DYNAMIC_BARRIER;
+    CreatesDynamicBarrier => CREATES_DYNAMIC_BARRIER, DynamicAnalysis, "creates a dynamic (eval-like) barrier";
 
     /// Command invokes a user-defined Tcl procedure named by
     /// its first argument.  Set on the iRules `call` command
     /// (`call PROC_NAME ?ARGS?`).  Used by the LSP completion
     /// provider to surface user-proc names — and only those,
     /// not built-in commands — at word-index 1.
-    InvokesUserProc => INVOKES_USER_PROC;
+    InvokesUserProc => INVOKES_USER_PROC, DynamicAnalysis, "invokes a user-defined procedure";
 
     /// Core Tcl built-in that the bytecode compiler special-cases
     /// (or that is otherwise load-bearing as a literal command
@@ -444,7 +519,7 @@ declare_traits! {
     /// `$alias`.  Single source of truth for the minifier's
     /// former `_BUILTIN_SKIP` list; query via
     /// [`crate::registry::CommandRegistry::is_byte_compiled`].
-    ByteCompiled => BYTE_COMPILED;
+    ByteCompiled => BYTE_COMPILED, Runtime, "byte-compiled by C Tcl";
 
     /// Command head incidentally matches the
     /// `HEAD NAME BRACED BRACED` four-token shape but is **not** a
@@ -453,7 +528,7 @@ declare_traits! {
     /// former `_FACTORY_SKIP_HEADS` list (registered heads only;
     /// non-command heads like `method` / `itcl::class` are handled
     /// by a small residual set in the scanner).
-    NotProcFactory => NOT_PROC_FACTORY;
+    NotProcFactory => NOT_PROC_FACTORY, Runtime, "never defines a procedure";
 
     /// Command whose codegen always lowers to a dedicated runtime
     /// helper (or to a structured IR node) and never falls back to
@@ -463,20 +538,20 @@ declare_traits! {
     /// `_FRAMELESS_RUNTIME_COMMANDS` allow-list.  Keep audited:
     /// stamping a command that secretly eval-falls-back would
     /// break eval-inside-proc semantics in escape-free procs.
-    FramelessRuntime => FRAMELESS_RUNTIME;
+    FramelessRuntime => FRAMELESS_RUNTIME, Runtime, "runs without pushing a call frame";
 
     /// First argument is a variable *name* (read / write / modify),
     /// not a value — `set` / `incr` / `append` / `lappend` / `unset`.
     /// The var-escape analysis uses this to detect dynamic-name forms
     /// (`set $n value`). Single source of truth for the former
     /// `NAME_FIRST_COMMANDS` allow-list.
-    FirstArgVarname => FIRST_ARG_VARNAME;
+    FirstArgVarname => FIRST_ARG_VARNAME, Names, "its first argument is a variable name";
 
     /// A `VarRead`-role argument names the *whole* array, not a single
     /// element (`array` / `parray`), so a write to any element is
     /// observed by the read. Single source of truth for the former
     /// `WHOLE_ARRAY_COMMANDS` allow-list.
-    WholeArrayArg => WHOLE_ARRAY_ARG;
+    WholeArrayArg => WHOLE_ARRAY_ARG, Names, "takes a whole array as an argument";
 
     /// Executes a body through the interpreter, opening a
     /// name-resolution channel back into the local frame — `eval` /
@@ -486,30 +561,30 @@ declare_traits! {
     /// `DYNAMIC_EVAL_COMMANDS` allow-list. (Distinct from
     /// `HAS_INTERP_EVAL` / `CREATES_DYNAMIC_BARRIER`, which only some
     /// of these carry.)
-    DynamicEvalBody => DYNAMIC_EVAL_BODY;
+    DynamicEvalBody => DYNAMIC_EVAL_BODY, ControlFlow, "its body is evaluated dynamically";
 
     /// (Subcommand) introspects program state by variable *name* —
     /// `info exists|vars|locals|args|default`. The var-escape slot
     /// resolver treats the named variable as ineligible for a slot.
     /// Single source of truth for the former
     /// `INFO_INTROSPECTING_SUBCMDS` list.
-    IntrospectsByName => INTROSPECTS_BY_NAME;
+    IntrospectsByName => INTROSPECTS_BY_NAME, Names, "introspects state by name";
 
     /// The invocation observes the current Tcl call frame (locals, command
     /// words, or stack metadata) and therefore prevents frame elision. This
     /// is target-neutral execution semantics, not a backend lowering hint.
-    CurrentFrameIntrospection => CURRENT_FRAME_INTROSPECTION;
+    CurrentFrameIntrospection => CURRENT_FRAME_INTROSPECTION, Names, "observes the current Tcl call frame";
 
     /// `{*}` expansion cannot introduce a variable-name or frame-sensitive
     /// operand for this invocation, so escape analysis may retain its normal
     /// result despite indeterminate argv width.
-    ExpansionEscapeSafe => EXPANSION_ESCAPE_SAFE;
+    ExpansionEscapeSafe => EXPANSION_ESCAPE_SAFE, Runtime, "expanded arguments cannot introduce a frame-sensitive name";
 
     /// (Subcommand) targets a variable by *name* —
     /// `trace add|remove|info|variable|vdelete|vinfo`. Used by the
     /// var-escape slot resolver. Single source of truth for the former
     /// `TRACE_NAME_TARGETING` list.
-    TargetsVariableByName => TARGETS_VARIABLE_BY_NAME;
+    TargetsVariableByName => TARGETS_VARIABLE_BY_NAME, Names, "targets a variable by name";
 
     /// Aliases / reads / writes variables through the frame's *hash
     /// bucket* by name (`upvar` / `global` / `variable` / `lassign` /
@@ -517,7 +592,7 @@ declare_traits! {
     /// `tkwait`), so a named variable it touches cannot live in an
     /// indexed slot. Single source of truth for the former
     /// `FRAME_HASH_BUILTINS` list.
-    FrameHashBuiltin => FRAME_HASH_BUILTIN;
+    FrameHashBuiltin => FRAME_HASH_BUILTIN, Runtime, "a frame-hash builtin";
 
     /// (Command or subcommand) observes or manipulates **command names as
     /// data** — reflection over the command table (`info procs` / `info
@@ -531,7 +606,7 @@ declare_traits! {
     /// in that program (the observed name is data, not a private symbol).
     /// Consumed generically by the minifier's compact tier; no consumer
     /// matches these commands by spelling.
-    ReflectsCommandNames => REFLECTS_COMMAND_NAMES;
+    ReflectsCommandNames => REFLECTS_COMMAND_NAMES, Names, "can observe procedure names as data";
 
     /// Aliases variables out of a **caller's stack frame chosen at
     /// runtime** (`upvar` — `Tcl_UpvarObjCmd`, `generic/tclVar.c`; the
@@ -545,7 +620,7 @@ declare_traits! {
     /// [`Traits::EVALUATES_IN_SHIFTED_FRAME`] (`uplevel`), which evaluates
     /// a *script* in the shifted frame; both imply the same all-scopes
     /// rename barrier in the minifier.
-    AliasesCallerFrame => ALIASES_CALLER_FRAME;
+    AliasesCallerFrame => ALIASES_CALLER_FRAME, Names, "aliases variables out of a runtime-chosen caller frame";
 
     /// A Tcl auto-loading / library proc that user code is expected to
     /// redefine (`unknown`, `auto_*`, `pkg_*`, `tclLog`,
@@ -553,7 +628,7 @@ declare_traits! {
     /// it must not fire the W113 "overrides a built-in" warning.
     /// Single source of truth for the former
     /// `OVERRIDABLE_LIBRARY_PROCS` list.
-    OverridableLibraryProc => OVERRIDABLE_LIBRARY_PROC;
+    OverridableLibraryProc => OVERRIDABLE_LIBRARY_PROC, Names, "a library proc a script may override";
 
     /// The registry's simple `min..=max` [`crate::Arity`] is a coarse
     /// floor/ceiling only — this command's real grammar is a clause
@@ -563,7 +638,7 @@ declare_traits! {
     /// dedicated structural diagnostic owns arity together with clause
     /// shape — one precise diagnostic per malformed call instead of a
     /// redundant generic one alongside it.
-    StructurallyCheckedArity => STRUCTURALLY_CHECKED_ARITY;
+    StructurallyCheckedArity => STRUCTURALLY_CHECKED_ARITY, ControlFlow, "arity is checked structurally, not by range";
 
     /// The command concatenates its *entire* argument list into a single
     /// expression (`expr` — `expr $a + $b` evaluates the one expression
@@ -575,7 +650,7 @@ declare_traits! {
     /// (`expr {$a + $b}`) or just the marked argument. Kept separate from
     /// the `Expr` arg-role so widening it does not perturb the analyser
     /// passes (expr re-lexing, W110) that consume the role.
-    ExprConcatenatesArgs => EXPR_CONCATENATES_ARGS;
+    ExprConcatenatesArgs => EXPR_CONCATENATES_ARGS, ControlFlow, "concatenates its arguments into one expression";
 
     /// The command evaluates the concatenation of **every** trailing word
     /// from its first [`crate::arg_role::ArgRole::Body`] argument onwards
@@ -618,7 +693,7 @@ declare_traits! {
     ///
     /// [`Traits::SCRIPT_APPENDS_LIST_ARGS`] refines the join rule for the
     /// one family member that does not space-join.
-    ScriptConcatenatesArgs => SCRIPT_CONCATENATES_ARGS;
+    ScriptConcatenatesArgs => SCRIPT_CONCATENATES_ARGS, ControlFlow, "concatenates its trailing words into one script";
 
     /// Refines [`Traits::SCRIPT_CONCATENATES_ARGS`] for the one family
     /// member whose trailing words are appended as **list elements**
@@ -641,7 +716,7 @@ declare_traits! {
     /// trait. Reconstructing the real script needs list quoting the analyser
     /// does not model, so the sound response to any trailing word here is to
     /// consume the command without walking it.
-    ScriptAppendsListArgs => SCRIPT_APPENDS_LIST_ARGS;
+    ScriptAppendsListArgs => SCRIPT_APPENDS_LIST_ARGS, ControlFlow, "appends its trailing words to the script as list elements";
 
     /// (Subcommand) installs or removes an active variable trace on a
     /// named target — `trace add|remove|variable|vdelete` (not
@@ -653,7 +728,7 @@ declare_traits! {
     /// an assignment to it as dead. Single source of truth for the
     /// module-wide traced-variable fact consumed by the propagation
     /// optimiser (`O102` load-forwarding) and dead-store elimination.
-    EstablishesVariableTrace => ESTABLISHES_VARIABLE_TRACE;
+    EstablishesVariableTrace => ESTABLISHES_VARIABLE_TRACE, Names, "establishes a variable trace";
 
     /// Transfers control relative to the enclosing loop, frame, or
     /// coroutine instead of falling through to the next statement —
@@ -668,7 +743,7 @@ declare_traits! {
     /// two traits give consumers the full "diverts control flow" set;
     /// the inline-proc code action and the inliner's splice-safety
     /// query are the current consumers.
-    TransfersControl => TRANSFERS_CONTROL;
+    TransfersControl => TRANSFERS_CONTROL, ControlFlow, "transfers control elsewhere";
 
     /// Teardown/removal command (or subcommand) for which a bare
     /// `catch {…}` with no result variable is the documented
@@ -681,7 +756,7 @@ declare_traits! {
     /// [`crate::spec::SubCommand::destructive`] (`file rename` /
     /// `file mkdir` are destructive but their failures are real
     /// errors, not expected teardown noise).
-    FireAndForgetTeardown => FIRE_AND_FORGET_TEARDOWN;
+    FireAndForgetTeardown => FIRE_AND_FORGET_TEARDOWN, Runtime, "fire-and-forget teardown";
 
     /// Command is a math-operator head (`+`, `eq`, `ne`, `in`, `ni`,
     /// and the `tcl::mathop::*` spellings): a real callable command in
@@ -690,7 +765,7 @@ declare_traits! {
     /// (F5 iRules; `tk` when modelled). Replaces the retired
     /// `NON_IRULES_OPERATORS` membership tag as the operator-head
     /// marker (dialect-profile-model.md §9).
-    OperatorCommand => OPERATOR_COMMAND;
+    OperatorCommand => OPERATOR_COMMAND, Runtime, "an operator in command form";
 
     /// `TclOO` `next` / `nextto` — invokes the next implementation of the
     /// *currently executing* method along the receiver's MRO. Its
@@ -704,7 +779,7 @@ declare_traits! {
     /// `nextto`; `nextto`'s explicit target-class first word is
     /// distinguished structurally via an [`crate::arg_role::ArgRole::Name`]
     /// at argument index 0, not by command name.
-    TclooNextChain => TCLOO_NEXT_CHAIN;
+    TclooNextChain => TCLOO_NEXT_CHAIN, Objects, "participates in the TclOO next chain";
 
     /// `TclOO` `my` — dispatches a method on the **current object**, from
     /// inside that object's own method, constructor, or destructor
@@ -734,7 +809,7 @@ declare_traits! {
     /// spec's `dialects` mask, so consumers query the registry rather than
     /// spelling the name: see
     /// [`crate::registry::CommandRegistry::method_dispatch_keyword`].
-    TclooSelfDispatch => TCLOO_SELF_DISPATCH;
+    TclooSelfDispatch => TCLOO_SELF_DISPATCH, Objects, "dispatches on the current TclOO object";
 
     /// `TclOO` `self` — **introspects** the current method invocation
     /// (`TclOOSelfObjCmd`, `generic/tclOO.c`): which object is running,
@@ -751,7 +826,7 @@ declare_traits! {
     /// See [`Traits::TCLOO_SELF_DISPATCH`] for the full family and
     /// [`crate::registry::CommandRegistry::method_dispatch_keyword`] for
     /// the query consumers use instead of a literal name test.
-    TclooIntrospection => TCLOO_INTROSPECTION;
+    TclooIntrospection => TCLOO_INTROSPECTION, Objects, "introspects the current TclOO method context";
 
     /// Each body argument runs only when this command's own run-time
     /// selection picks it, and the command performs no iteration — `if`
@@ -774,7 +849,7 @@ declare_traits! {
     /// [`Traits::HAS_BOOLEAN_COND`], which is about an argument being read
     /// as a boolean expression (`if` / `while` / `for`) rather than about
     /// which bodies run.
-    BranchSelectedBody => BRANCH_SELECTED_BODY;
+    BranchSelectedBody => BRANCH_SELECTED_BODY, ControlFlow, "its bodies run at most once, chosen by a branch";
 
     /// Raises a *catchable* exception — completes `TCL_ERROR`, which
     /// `catch` / `try` intercept: `error` (`Tcl_ErrorObjCmd`,
@@ -786,7 +861,7 @@ declare_traits! {
     /// `return` pops the frame with `TCL_RETURN`, so neither is a
     /// throw point. Consumed by the CFG builder's throw-block
     /// recording.
-    CatchableThrow => CATCHABLE_THROW;
+    CatchableThrow => CATCHABLE_THROW, ControlFlow, "throws a catchable error";
 
     /// Jumps to the innermost enclosing loop's *post-loop* target —
     /// `break`, which completes `TCL_BREAK` (`Tcl_BreakObjCmd`,
@@ -797,7 +872,7 @@ declare_traits! {
     /// `break`/`continue` edge lowering and the inline emitters'
     /// straight-line-body gate; paired with
     /// [`Traits::CONTINUES_LOOP`].
-    BreaksLoop => BREAKS_LOOP;
+    BreaksLoop => BREAKS_LOOP, ControlFlow, "breaks out of a loop";
 
     /// Jumps to the innermost enclosing loop's *next-iteration*
     /// target — `continue`, which completes `TCL_CONTINUE`
@@ -805,7 +880,7 @@ declare_traits! {
     /// `TclCompileContinueCmd`, `generic/tclCompCmds.c`). The
     /// other half of the loop-jump classification — see
     /// [`Traits::BREAKS_LOOP`].
-    ContinuesLoop => CONTINUES_LOOP;
+    ContinuesLoop => CONTINUES_LOOP, ControlFlow, "continues a loop";
 
     /// Replaces the current procedure's frame — `tailcall`
     /// (`TclNRTailcallObjCmd`, `generic/tclBasic.c`, 8.6+), which
@@ -815,7 +890,7 @@ declare_traits! {
     /// the analysis CFG promotes it to a proc-exit terminator, but
     /// codegen must keep the plain fall-through call shape so the
     /// emitted bytecode matches C Tcl's.
-    ReplacesFrame => REPLACES_FRAME;
+    ReplacesFrame => REPLACES_FRAME, ControlFlow, "replaces the current call frame";
 
     /// Hidden when an interpreter is made **safe** — the command is
     /// *not* part of C Tcl's safe-interpreter command set (its
@@ -829,7 +904,7 @@ declare_traits! {
     /// `interp invokehidden`; the analyser's safe-context walk
     /// consults this flag generically — no command name appears in
     /// the consumer (issue #945 fault 7).
-    SafeInterpHidden => SAFE_INTERP_HIDDEN;
+    SafeInterpHidden => SAFE_INTERP_HIDDEN, Security, "hidden in a safe interpreter";
 
     /// Declares the enclosing file to be a loadable **package**, so the
     /// commands it defines are public API that files this compilation unit
@@ -838,7 +913,7 @@ declare_traits! {
     /// to treat a file's visible call sites as the complete caller set once
     /// this appears, because no project enumeration bounds a consumer in
     /// another checkout (issue #977).
-    ProvidesPackage => PROVIDES_PACKAGE;
+    ProvidesPackage => PROVIDES_PACKAGE, Packages, "declares this file a loadable package";
 
     /// Pulls another compilation unit's script into *this* interpreter, so
     /// that unit's code can call back into the commands this file defines —
@@ -846,14 +921,14 @@ declare_traits! {
     /// weaker signal than [`Traits::PROVIDES_PACKAGE`]: the loaded unit is
     /// normally a file the host's project already contains, so real
     /// cross-file evidence can cover it (issue #977).
-    LoadsExternalUnit => LOADS_EXTERNAL_UNIT;
+    LoadsExternalUnit => LOADS_EXTERNAL_UNIT, Packages, "runs another unit's script in this interpreter";
 
     /// Publishes a command name for another unit to import or dispatch
     /// through — `namespace export`, `namespace ensemble create` /
     /// `configure`.  Like [`Traits::PROVIDES_PACKAGE`], it marks the file's
     /// commands as an API surface whose callers the file does not contain
     /// and no enumeration bounds (issue #977).
-    ExportsCommand => EXPORTS_COMMAND;
+    ExportsCommand => EXPORTS_COMMAND, Packages, "publishes a command name for another unit";
 
     /// The interpreter's fallback for a command word that resolves to
     /// nothing — `unknown`.  Tcl dispatches *every* unresolved command
@@ -875,7 +950,7 @@ declare_traits! {
     /// unknown NAME` registers a per-namespace handler explicitly; that
     /// path is already modelled by its handler argument's
     /// [`crate::arg_role::ArgRole::CommandPrefix`] role.)
-    UnresolvedCommandHandler => UNRESOLVED_COMMAND_HANDLER;
+    UnresolvedCommandHandler => UNRESOLVED_COMMAND_HANDLER, Packages, "handles the dialect's unresolved command words";
 
     /// Evaluates its script argument in a **different stack frame** than
     /// the one the call is written in — `uplevel`, whose body runs in the
@@ -900,7 +975,7 @@ declare_traits! {
     /// tclsh8.6/9.0-confirmed: inside `::foo::runIt`, `uplevel #0 { helper
     /// b }` calls `::helper`, never the `::foo::helper` sitting in the
     /// enclosing namespace.
-    EvaluatesInShiftedFrame => EVALUATES_IN_SHIFTED_FRAME;
+    EvaluatesInShiftedFrame => EVALUATES_IN_SHIFTED_FRAME, Names, "runs its body script in another stack frame";
 
     /// Installs, moves, or extends a **named definition** whose target is
     /// named by an [`crate::arg_role::ArgRole::Name`] argument word —
@@ -923,7 +998,7 @@ declare_traits! {
     /// Not carried by commands that merely *shift context* by name
     /// (`namespace eval`, `coroutine`): re-running those would re-walk a
     /// body, which is what the narrowness above rules out.
-    InstallsNamedDefinition => INSTALLS_NAMED_DEFINITION;
+    InstallsNamedDefinition => INSTALLS_NAMED_DEFINITION, Names, "installs, moves, or extends a definition named by an argument";
 
     /// This spec's **bare** spelling resolves only from inside a `TclOO`
     /// *method context* — a `method`, `constructor`, `destructor`,
@@ -958,7 +1033,7 @@ declare_traits! {
     /// reachable from anywhere — calling it outside a method is a
     /// *runtime* error (`::oo::Helpers::link may only be called from
     /// inside a method`, tclsh 9.0.4), not an unknown command.
-    TclooMethodContext => TCLOO_METHOD_CONTEXT;
+    TclooMethodContext => TCLOO_METHOD_CONTEXT, Objects, "resolves only inside a TclOO method body";
 
     /// Binds each of its argument words as a **bareword alias for a method
     /// of the current object**, in that object's own namespace — `TclOO`'s
@@ -974,7 +1049,7 @@ declare_traits! {
     /// Deliberately *not* one of the three `TclOO` dispatch traits: `link`
     /// creates dispatching barewords, it does not dispatch — see
     /// [`Traits::TCLOO_SELF_DISPATCH`].
-    TclooBindsMethodAlias => TCLOO_BINDS_METHOD_ALIAS;
+    TclooBindsMethodAlias => TCLOO_BINDS_METHOD_ALIAS, Objects, "binds bareword aliases for methods of the current object";
 
     /// Resolving is not enough: **calling** this word needs a real method
     /// invocation, not merely a frame whose namespace path reaches
@@ -1014,7 +1089,7 @@ declare_traits! {
     /// [`crate::registry::CommandRegistry::requires_oo_method_frame`]
     /// paired with the call site's own frame kind. Offering a word the
     /// interpreter will refuse is the defect this trait exists to prevent.
-    TclooRequiresMethodFrame => TCLOO_REQUIRES_METHOD_FRAME;
+    TclooRequiresMethodFrame => TCLOO_REQUIRES_METHOD_FRAME, Objects, "calling it needs a real method invocation, not just an object frame";
 
     /// This command (or subcommand) **declares** the namespace its
     /// [`crate::arg_role::ArgRole::NamespaceName`] word names — it brings
@@ -1034,7 +1109,7 @@ declare_traits! {
     /// layout is identical and which shares `eval`'s analyser hook, is the
     /// reason this is a trait rather than a subcommand-name check in the
     /// handler: it references an existing namespace and never declares one.
-    DeclaresNamespace => DECLARES_NAMESPACE;
+    DeclaresNamespace => DECLARES_NAMESPACE, Names, "declares the namespace its NamespaceName word names";
 
     /// A Tk **geometry manager** — a command that claims a widget's
     /// container and takes over the placement of the widgets given to it
@@ -1050,7 +1125,7 @@ declare_traits! {
     /// open: a `ttk::` megawidget or a vendor Tk fork can ship another
     /// manager, and its spec should switch TK1001 on without an analyser
     /// edit (issue #1390).
-    TkGeometryManager => TK_GEOMETRY_MANAGER;
+    TkGeometryManager => TK_GEOMETRY_MANAGER, Objects, "a Tk geometry manager that claims a container";
 
     /// The command **stores** its script argument instead of running it —
     /// the body is dormant at this invocation and executes later, if ever
@@ -1080,7 +1155,7 @@ declare_traits! {
     /// gets the same treatment with no compiler edit, and an unset flag
     /// keeps the abstaining behaviour a pack author never has to think
     /// about.
-    DefersBody => DEFERS_BODY;
+    DefersBody => DEFERS_BODY, ControlFlow, "stores its script argument instead of running it; unset means the body is treated as executed";
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the

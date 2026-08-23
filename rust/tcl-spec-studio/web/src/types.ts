@@ -28,10 +28,29 @@ export type Json = null | boolean | number | string | Json[] | { [key: string]: 
 /** A draft spec — a flat object keyed by Rust field name. */
 export type Draft = Record<string, Json>;
 
+/** One arrow beneath a line in a help example. */
+export interface HelpAnnotation {
+  /** Zero-based source line. */
+  line: number;
+  /** Exact source text the arrow points at. */
+  needle: string;
+  /** Explanation printed after the arrow. */
+  label: string;
+}
+
+/** Small Tcl example shared by form help and the Reference tab. */
+export interface CodeExample {
+  code: string;
+  annotations: HelpAnnotation[];
+}
+
 /** One selectable value in a picker, from `catalogue::Variant`. */
 export interface Variant {
   key: string;
   doc: string;
+  /** Registry-owned grouping, currently supplied for behavioural traits. */
+  group?: string;
+  example: CodeExample;
 }
 
 /** Catalogue id → its variants. Ids are named by the schema's field kinds. */
@@ -56,6 +75,7 @@ export interface FieldSchema {
   group: string;
   /** Long-form help behind the field's ? button, from `help::field_help`. */
   help: string;
+  example: CodeExample;
   kind: FieldKind;
 }
 
@@ -63,6 +83,7 @@ export interface FieldSchema {
 export interface CatalogueHelp {
   title: string;
   intro: string;
+  example: CodeExample;
 }
 
 /** The whole schema, from `schema::to_json`. */
@@ -70,6 +91,8 @@ export interface Schema {
   groups: string[];
   /** Long-form help per group heading, from `help::GROUP_HELP`. */
   groupHelp: Record<string, string>;
+  /** Annotated example per group heading. */
+  groupExamples: Record<string, CodeExample>;
   catalogues: Catalogues;
   /** Title and introduction per catalogue id, from `help::CATALOGUE_HELP`. */
   catalogueHelp: Record<string, CatalogueHelp>;
@@ -351,28 +374,6 @@ export interface TestInspection {
 }
 
 /**
- * One classified byte span of a `.tclspec` document, from `dsl_highlight`.
- *
- * `start`/`end` are **byte** offsets, not JavaScript string indices — see
- * `dslEditor.ts`'s `byteChunks` for why a plain `String.slice` is the wrong
- * tool. `text` is included so the caller never needs to slice by byte offset
- * at all for the common case of painting the token itself.
- */
-export interface DslToken {
-  start: number;
-  end: number;
-  class: string;
-  text: string;
-}
-
-/** `dsl_hover`'s reply: the DSL vocabulary note for the word at an offset. */
-export interface DslHover {
-  found: boolean;
-  title: string;
-  body: string;
-}
-
-/**
  * The wasm module's exports.
  *
  * Every call takes and returns a JSON string: the Rust side marshals, so the
@@ -416,12 +417,6 @@ export interface StudioWasm {
      what a token carries — never a JavaScript string index. */
   pack_test_analyse(source: string, sample: string, dialect: string): string;
   pack_test_inspect(source: string, sample: string, dialect: string, offset: number): string;
-
-  /* The Pack DSL tab's overlay editor: client-side highlight and hover for
-     the `.tclspec` grammar itself. `offset` in `dsl_hover` is a **byte**
-     offset into `source`, same convention as the Test tab above. */
-  dsl_highlight(source: string): string;
-  dsl_hover(source: string, offset: number): string;
 }
 
 /**

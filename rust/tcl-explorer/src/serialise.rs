@@ -116,10 +116,24 @@ pub fn serialise_meta() -> Value {
         .iter()
         .map(|s| Value::String(s.as_str().to_owned()))
         .collect();
+    // Registry-owned presentation metadata. Compiler Explorer can annotate a
+    // trait wherever a pipeline view exposes it without maintaining another
+    // name, description, or grouping table in JavaScript.
+    let traits: Vec<Value> = tcl_registry::traits::Trait::ALL
+        .iter()
+        .map(|item| {
+            json!({
+                "name": item.name(),
+                "summary": item.summary(),
+                "group": item.category().label(),
+            })
+        })
+        .collect();
     json!({
         "dialects": dialects,
         "views": views,
         "severities": severities,
+        "traits": traits,
     })
 }
 
@@ -3176,6 +3190,17 @@ mod tests {
         // artefact views.
         assert_eq!(meta["views"].as_array().unwrap().len(), 34);
         assert_eq!(meta["severities"], json!(["error", "warning", "info"]));
+        let traits = meta["traits"]
+            .as_array()
+            .expect("trait presentation metadata");
+        assert_eq!(traits.len(), tcl_registry::traits::Trait::ALL.len());
+        assert!(traits.iter().all(|item| {
+            item["name"].as_str().is_some_and(|text| !text.is_empty())
+                && item["summary"]
+                    .as_str()
+                    .is_some_and(|text| !text.is_empty())
+                && item["group"].as_str().is_some_and(|text| !text.is_empty())
+        }));
         // The parse-tree tab is the CST; there is no `greentree` entry.
         assert_eq!(
             meta["views"][0],

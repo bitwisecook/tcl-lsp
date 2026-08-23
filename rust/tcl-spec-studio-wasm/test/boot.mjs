@@ -201,15 +201,28 @@ async function main() {
     );
     console.log(`    LSP: ${(await page.textContent("#lspStatus")).trim()}`);
 
+    const packEditorContract = await page.$eval("#dslEditor", (node) => ({
+      monacoLanguage: node.dataset.monacoLanguage,
+      lspLanguage: node.dataset.lspLanguage,
+      documentUri: node.dataset.documentUri,
+    }));
+    if (
+      packEditorContract.monacoLanguage !== "spectcl" ||
+      packEditorContract.lspLanguage !== "spectcl" ||
+      !packEditorContract.documentUri?.endsWith("/pack.tclspec")
+    ) {
+      throw new Error(`Pack DSL editor contract drifted: ${JSON.stringify(packEditorContract)}`);
+    }
+    console.log("    Pack DSL model is Monaco spectcl + LSP spectcl (Tcl 9.0 profile)");
+
     // The success status is published only after Monaco itself has invoked the
     // semantic-token provider for this model, and hover has answered for it.
     // A direct transport probe is insufficient: editor.api exposes provider
     // registration even when the controller which consumes it was omitted.
     console.log("    Pack DSL semantics and hover are served by the in-page LSP");
 
-    // The fallback overlay already colours the pack before Monaco arrives;
-    // prove the replacement editor gets several semantic colours from the
-    // LSP too. This catches a provider whose legend contains theme scopes
+    // Prove Monaco gets several semantic colours from the LSP. This catches a
+    // provider whose legend contains theme scopes
     // instead of semantic-token identifiers: the worker is healthy, but every
     // token settles back to Monaco's one generic text colour.
     await page.waitForFunction(
@@ -224,6 +237,13 @@ async function main() {
       { timeout: 60_000 },
     );
     console.log("    Pack DSL semantic colours are visible in Monaco");
+
+    // Prove hover is connected to the visible Monaco model, rather than only
+    // to the direct readiness probe above.
+    const speclibLine = page.locator("#dslEditor .view-line", { hasText: "speclib" }).first();
+    await speclibLine.hover();
+    await page.waitForSelector("#dslEditor .monaco-hover", { state: "visible", timeout: 30_000 });
+    console.log("    Pack DSL hover is visible in Monaco on initial load");
 
     // 4. The server actually analyses: type a broken pack line and expect the
     //    editor to show a marker. This is the difference between "the worker
@@ -261,6 +281,16 @@ async function main() {
       null,
       { timeout: 60_000 },
     );
+    const sampleEditorContract = await page.$eval("#testEditor", (node) => ({
+      monacoLanguage: node.dataset.monacoLanguage,
+      lspLanguage: node.dataset.lspLanguage,
+    }));
+    if (
+      sampleEditorContract.monacoLanguage !== "tcl" ||
+      sampleEditorContract.lspLanguage !== "spectcl"
+    ) {
+      throw new Error(`Test editor contract drifted: ${JSON.stringify(sampleEditorContract)}`);
+    }
     console.log("    Monaco mounted on the Test tab");
 
     // 6. A one-snapshot import writes the pack *and* becomes the active draft,

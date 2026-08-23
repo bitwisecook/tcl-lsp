@@ -7,6 +7,7 @@
 const HTML: &str = include_str!("../web/studio.html");
 const STUDIO_TS: &str = include_str!("../web/src/studio.ts");
 const MONACO_TS: &str = include_str!("../web/src/monacoHost.ts");
+const NATIVE_HOST_TS: &str = include_str!("../web/src/nativeEditorHost.ts");
 const TEXTMATE_TS: &str = include_str!("../web/src/textmateHost.ts");
 const BUILD_INFO_TS: &str = include_str!("../web/src/buildInfo.ts");
 const BUILD_MJS: &str = include_str!("../web/build.mjs");
@@ -37,6 +38,22 @@ fn monaco_preserves_the_servers_semantic_token_identifiers() {
 }
 
 #[test]
+fn standalone_uses_only_monaco_and_ides_delegate_to_native_file_tabs() {
+    assert!(STUDIO_TS.contains("Standalone and Pages use Monaco exclusively"));
+    assert!(STUDIO_TS.contains("window.__tclSpecStudioHost !== undefined"));
+    assert!(STUDIO_TS.contains("native-editor-controller"));
+    assert!(BUILD_MJS.contains("nativeEditorHost.ts"));
+    assert!(NATIVE_HOST_TS.contains("Open ${label} beside Studio"));
+    assert!(NATIVE_HOST_TS.contains("using the IDE's native file editor beside Spec Studio"));
+    assert!(!NATIVE_HOST_TS.contains("monaco"));
+    assert!(!HTML.contains("__tclSpecStudioNativeModuleUrl"));
+    assert!(HTML.contains(r#"id="dslText" hidden"#));
+    assert!(HTML.contains(r#"id="testText" hidden"#));
+    assert!(!STUDIO_TS.contains("dslEditor.js"));
+    assert!(!STUDIO_TS.contains("addEventListener(\"input\", scheduleTest)"));
+}
+
+#[test]
 fn importing_a_pack_activates_a_renderable_command() {
     assert!(STUDIO_TS.contains("firstWritten ??= found.name"));
     assert!(
@@ -48,8 +65,7 @@ fn importing_a_pack_activates_a_renderable_command() {
 fn every_pack_source_update_passes_through_the_shared_formatter() {
     assert!(STUDIO_TS.contains("wasm.format_pack(source)"));
     assert!(STUDIO_TS.contains("state.pack.source = formatted"));
-    assert!(STUDIO_TS.contains("writeDsl(formatted, opts.fromDsl)"));
-    assert!(STUDIO_TS.contains("mapSelectionThroughFormat(previous, source"));
+    assert!(STUDIO_TS.contains("writeDsl(formatted)"));
 }
 
 #[test]

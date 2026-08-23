@@ -898,6 +898,21 @@ body {
 .optlens-del { background: rgba(243, 139, 168, 0.12); color: var(--red); }
 .optlens-elide { color: var(--text-dim); font-style: italic; padding: 2px 4px 2px 20px; }
 .generic-explorer-view { margin: 8px; padding: 8px; overflow: auto; white-space: pre-wrap; color: var(--text-dim); }
+.trait-reference-tools { display:flex; align-items:center; gap:10px; margin:8px 8px 12px; }
+.trait-reference-tools input {
+  flex:1; min-width:12rem; padding:7px 9px; border:1px solid var(--border); border-radius:5px;
+  background:var(--bg); color:var(--text); font:inherit;
+}
+.trait-reference-count { color:var(--text-dim); font-size:11px; white-space:nowrap; }
+.trait-group { border:1px solid var(--border); border-radius:6px; margin:0 8px 8px; background:var(--bg-surface); }
+.trait-group > summary { cursor:pointer; padding:8px 10px; color:var(--text); font-weight:600; font-size:12px; }
+.trait-group-count { color:var(--text-dim); font-weight:400; margin-left:6px; }
+.trait-reference-row {
+  display:grid; grid-template-columns:minmax(12rem,.35fr) 1fr; gap:12px;
+  padding:7px 10px; border-top:1px solid var(--border); font-size:12px;
+}
+.trait-reference-row code { color:var(--cyan); overflow-wrap:anywhere; }
+.trait-reference-row span { color:var(--text-dim); }
 </style>
 </head>
 <body>
@@ -947,6 +962,7 @@ body {
         <div class="tab" data-tab="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
+        <div class="tab" data-tab="trait-reference">Trait reference</div>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">
@@ -964,6 +980,13 @@ body {
         <div class="tab-pane" id="pane-callouts"></div>
         <div class="tab-pane" id="pane-asm"></div>
         <div class="tab-pane" id="pane-wasm"></div>
+        <div class="tab-pane" id="pane-trait-reference">
+          <div class="trait-reference-tools">
+            <input id="traitReferenceSearch" type="search" placeholder="Filter traits by name, group, or meaning…" aria-label="Filter trait reference">
+            <span class="trait-reference-count" id="traitReferenceCount"></span>
+          </div>
+          <div id="traitReferenceGroups"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1262,6 +1285,7 @@ function renderAll() {
     { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
     { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
     { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
+    { name: 'Trait reference', pane: '#pane-trait-reference', run: renderTraitReference },
     ...genericViews.map(view => ({
       name: view.label || view.id,
       pane: '#pane-' + explorerPaneId(view.id),

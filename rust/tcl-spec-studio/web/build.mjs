@@ -1,12 +1,13 @@
 // tcl-lsp — a language server and toolchain for Tcl
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// Bundle the spec studio's TypeScript front-end. Two outputs, on purpose:
+// Bundle the spec studio's TypeScript front-end. Three outputs, on purpose:
 //
 //   dist/studio.js               the controller — a plain browser IIFE, inlined
 //                                into `dist/index.html` by build-wasm.sh
 //   dist/assets/monaco-host.js   Monaco plus the language client, an ES module
 //   dist/assets/monaco-host.css  the editor's stylesheet, emitted beside it
+//   dist/assets/native-editor-host.js  IDE bridge to ordinary file-editor tabs
 //
 // The split is the point. The controller is ~120 KB and every visitor loads it;
 // the editor is ~2.5 MB and only an author who opens an editor tab ever does,
@@ -100,10 +101,9 @@ await esbuild.build({
   logLevel: "info",
 });
 
-// Editor integrations inject a tiny host bridge and use their ordinary native
-// editors for Pack DSL, Test Tcl, generated Rust, and the generated stub.
-// Keep this separate from Monaco so embedding Studio does not embed an editor
-// inside an editor.
+// IDE integrations use their ordinary native file editors for Pack DSL, Test
+// Tcl, generated Rust, and the generated stub. Keep this separate from Monaco
+// so embedding Studio does not embed an editor inside an editor.
 await esbuild.build({
   entryPoints: [join(here, "src", "nativeEditorHost.ts")],
   outfile: join(assetsDir, "native-editor-host.js"),

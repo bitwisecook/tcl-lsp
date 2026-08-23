@@ -78,6 +78,29 @@ fn playwright_specifier() -> Option<String> {
     candidate.is_file().then(|| candidate.display().to_string())
 }
 
+fn assert_editor_and_trait_reference(first: &Value) {
+    // The native Web UI has one editor implementation, and its registry-owned
+    // trait glossary renders without a JavaScript name/description table.
+    assert_eq!(first["monacoMounted"], true, "Monaco did not mount");
+    assert_eq!(
+        first["stateEditorDisplay"], "none",
+        "the textarea editor remained visible behind Monaco"
+    );
+    assert!(
+        first["traitRows"].as_u64().unwrap_or(0) > 90,
+        "the trait reference did not render every registry trait"
+    );
+    assert!(
+        first["traitGroups"].as_u64().unwrap_or(0) > 1,
+        "the trait reference was not grouped"
+    );
+    let trait_text = first["traitText"].as_str().unwrap_or_default();
+    assert!(
+        trait_text.contains("TAINT_SOURCE") && trait_text.contains("taint source"),
+        "the registry's trait documentation is not visible: {trait_text}"
+    );
+}
+
 #[test]
 fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     if Command::new("node").arg("--version").output().is_err() {
@@ -183,6 +206,8 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
         "the dialect dropdown was not populated: {dialects:?}"
     );
     assert_eq!(first["hasCompileButton"], true, "no Compile button");
+
+    assert_editor_and_trait_reference(first);
 
     // The Compile button forces a recompile of unchanged source.
     let before = report["compilesBeforeButton"]

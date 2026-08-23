@@ -29,7 +29,7 @@
  */
 
 import { createServer } from 'node:http';
-import { readFile, mkdtemp, cp, writeFile, rm } from 'node:fs/promises';
+import { readFile, mkdtemp, cp, writeFile, rm, mkdir } from 'node:fs/promises';
 import { join, extname } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -70,6 +70,22 @@ await writeFile(
   'globalThis.mermaid={initialize(){},render(){return Promise.resolve({svg:""})}};',
 );
 await writeFile(join(root, 'build_info.json'), '{"version":"smoke-test"}');
+// This harness tests the compiler result renderer, not Monaco (the assembled
+// browser/native editor bundle has its own boot tests). Supply the same module
+// boundary with a tiny test surface so the production page still has exactly
+// one editor path and makes no failed asset requests here.
+await mkdir(join(root, 'editor', 'assets'), { recursive: true });
+await writeFile(
+  join(root, 'editor', 'build-info.json'),
+  '{"version":"smoke-test","assets":[{"name":"editor-controller","sha256":"smoke"}]}',
+);
+await writeFile(
+  join(root, 'editor', 'assets', 'monaco-host.js'),
+  'export async function mountTclEditor(options){' +
+    'options.container.classList.add("monaco-mounted");' +
+    'return {setDialect(){},highlightRanges(){},layout(){},lspReady:true};' +
+  '}',
+);
 
 const MIME = {
   '.html': 'text/html',
@@ -152,6 +168,12 @@ async function snapshot(page) {
       wasmFunctions: wasm.querySelectorAll('.wasm-function').length,
       wasmInstructions: wasm.querySelectorAll('.wasm-instr').length,
       asmFunctions: asm.querySelectorAll('.wasm-function').length,
+      monacoMounted: !!document.querySelector('#monacoSource.monaco-mounted'),
+      stateEditorDisplay: getComputedStyle(document.querySelector('#editorContainer')).display,
+      traitRows: document.querySelectorAll('.trait-reference-row').length,
+      traitGroups: document.querySelectorAll('.trait-group').length,
+      traitText: document.querySelector('#pane-trait-reference').textContent
+        .replace(/\s+/g, ' ').trim().slice(0, 8000),
       errorBoxes: Array.from(document.querySelectorAll('.error-box')).map((e) =>
         e.textContent.slice(0, 200),
       ),

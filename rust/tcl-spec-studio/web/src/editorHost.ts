@@ -19,10 +19,9 @@
 // The contract between the studio controller and its text surface.
 //
 // `studio.ts` is deliberately Monaco-free: it knows only this interface, and
-// gets an implementation either from the lazily-loaded `monacoHost` chunk (the
-// real editor, driven by the real language server) or from the textarea it has
-// always had. Neither side imports the other, which is what makes the fallback
-// a swap of one object rather than a branch through every call site.
+// gets its sole editor implementation from the lazily-loaded `monacoHost`
+// chunk. The hidden textareas remain form/state plumbing, not an alternate
+// editor surface.
 
 /** How a surface reports progress and degradation to the page. */
 export type Report = (message: string, kind?: "ok" | "err") => void;
@@ -31,7 +30,7 @@ export type Report = (message: string, kind?: "ok" | "err") => void;
 export interface SurfaceSpec {
   /** The element the editor is mounted into — it is emptied first. */
   container: HTMLElement;
-  /** The textarea the surface replaces, kept as the fallback and as state. */
+  /** Hidden form/state storage which seeds and mirrors the Monaco model. */
   textarea: HTMLTextAreaElement;
   /** Called on every settled edit, with the surface's full text. */
   onChange: (text: string) => void;
@@ -41,8 +40,8 @@ export interface SurfaceSpec {
 export interface OutputSurfaceSpec {
   /** The element Monaco mounts into. */
   container: HTMLElement;
-  /** The fallback `<pre>` whose current text seeds the model. */
-  fallback: HTMLElement;
+  /** The hidden `<pre>` whose current text seeds the model. */
+  source: HTMLElement;
 }
 
 /** Everything the host needs to stand all four editors up. */
@@ -94,17 +93,19 @@ export interface MonacoHostModule {
   mountEditors(options: EditorHostOptions): Promise<EditorHost>;
 }
 
-/** Native-editor host injected by an editor integration before Studio boots. */
-export interface NativeEditorBridge {
-  postMessage(message: unknown): void;
-}
-
 declare global {
   interface Window {
+    /** IDE bridge: delegates code surfaces to native editor file tabs. */
     __tclSpecStudioHost?: NativeEditorBridge;
+    /** IDE-provided URL for the native editor-controller module. */
     __tclSpecStudioNativeModuleUrl?: string;
     TclLspSiteUpdate?: {
       start(options: { currentVersion: string; manifestUrl?: string; intervalMs?: number }): void;
     };
   }
+}
+
+/** Bridge injected only by an IDE integration before Studio boots. */
+export interface NativeEditorBridge {
+  postMessage(message: unknown): void;
 }

@@ -96,6 +96,17 @@ suite("Compiler Explorer webview", () => {
     );
   });
 
+  test("renders the registry-owned trait reference beside the native editor", () => {
+    assert.ok(html.includes('data-tab="trait-reference"'));
+    assert.ok(html.includes('id="traitReferenceSearch"'));
+    assert.ok(
+      core.includes("function renderTraitReference"),
+      "standalone, VS Code, and JetBrains must share the trait renderer",
+    );
+    assert.ok(core.includes("data.meta.traits"));
+    assert.ok(!core.includes("TAINT_SOURCE"), "trait names and prose must come from Rust metadata");
+  });
+
   test("the spinner is cleared in a finally so a render failure cannot wedge it", () => {
     const handler = html.slice(html.indexOf("case 'result':"));
     const caseBody = handler.slice(0, handler.indexOf("case 'error':"));

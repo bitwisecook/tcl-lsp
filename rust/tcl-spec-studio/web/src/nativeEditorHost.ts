@@ -1,4 +1,5 @@
 // tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import type {
@@ -25,7 +26,7 @@ function openButton(container: HTMLElement, surface: Surface, label: string): vo
   const button = document.createElement("button");
   button.type = "button";
   button.className = "primary native-editor-button";
-  button.textContent = `Open ${label} in editor`;
+  button.textContent = `Open ${label} beside Studio`;
   button.addEventListener("click", () => {
     window.__tclSpecStudioHost?.postMessage({ type: "openSurface", surface });
   });
@@ -33,9 +34,10 @@ function openButton(container: HTMLElement, surface: Surface, label: string): vo
 }
 
 function outputText(spec: OutputSurfaceSpec): string {
-  return spec.fallback.textContent ?? "";
+  return spec.source.textContent ?? "";
 }
 
+/** Delegate every code surface to the IDE's ordinary file-editor tabs. */
 export async function mountEditors(options: EditorHostOptions): Promise<EditorHost> {
   const bridge = window.__tclSpecStudioHost;
   if (!bridge) throw new Error("the native editor bridge was not installed");
@@ -72,12 +74,11 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
     if (update.surface === "sample") acceptEdit(options.sample, "sample", update.text);
   });
 
-  bridge.postMessage({ type: "surfaceUpdate", surface: "dsl", text: texts.dsl });
-  bridge.postMessage({ type: "surfaceUpdate", surface: "sample", text: texts.sample });
-  bridge.postMessage({ type: "surfaceUpdate", surface: "rust", text: texts.rust });
-  bridge.postMessage({ type: "surfaceUpdate", surface: "stub", text: texts.stub });
+  for (const surface of Object.keys(texts) as Surface[]) {
+    bridge.postMessage({ type: "surfaceUpdate", surface, text: texts[surface] });
+  }
   bridge.postMessage({ type: "studioReady" });
-  options.report("using the editor host's native Tcl language support", "ok");
+  options.report("using the IDE's native file editor beside Spec Studio", "ok");
 
   return {
     setDslText: (text) => publish("dsl", text),

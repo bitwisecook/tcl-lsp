@@ -136,7 +136,7 @@ mod tests {
                 field.key
             );
         }
-        for entry in crate::catalogue::TRAITS {
+        for entry in crate::catalogue::TRAITS.iter() {
             assert!(doc.contains(entry.key), "missing trait {}", entry.key);
         }
     }

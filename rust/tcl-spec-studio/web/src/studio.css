@@ -137,6 +137,7 @@ footer a { color: var(--accent); }
 .tabs button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
 .tabs button:hover { color: var(--fg); }
 .pane[hidden] { display: none; }
+.editor-unavailable { display: grid; place-items: center; min-height: 12rem; color: var(--err-fg); }
 
 /* The generated field form. */
 .group { border: 1px solid var(--border); border-radius: 10px; margin-bottom: .7rem; }
@@ -157,14 +158,24 @@ footer a { color: var(--accent); }
 .field .ctl { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .field .ctl select, .field .ctl input[type=text], .field .ctl input[type=number] { width: auto; min-width: 10rem; }
 .checkrow { display: flex; align-items: center; gap: .45rem; font-size: .9rem; }
-.chips { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; }
-.chip {
-  display: inline-flex; align-items: center; gap: .3rem; font-family: var(--mono);
-  font-size: .74rem; padding: .12rem .45rem; border: 1px solid var(--border);
-  border-radius: 999px; background: var(--bg); color: var(--muted);
+.toggle-search { width: min(100%, 34rem); margin: .25rem 0 .45rem; }
+.toggle-groups { display: grid; gap: .4rem; width: min(100%, 54rem); }
+.toggle-group { border: 1px solid var(--border); border-radius: 8px; overflow: clip; }
+.toggle-group > summary {
+  cursor: pointer; padding: .42rem .6rem; font-weight: 600; font-size: .84rem;
+  background: color-mix(in srgb, var(--panel) 86%, var(--accent));
 }
-.chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.toggle-group > summary .n { color: var(--muted); font-weight: 400; margin-left: .4rem; }
+.toggle-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); }
+.trait-toggle {
+  display: flex; gap: .5rem; align-items: flex-start; padding: .48rem .6rem;
+  border-top: 1px solid var(--border); cursor: pointer;
+}
+.trait-toggle:hover { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.trait-toggle input { margin-top: .15rem; }
+.trait-copy { display: grid; gap: .12rem; min-width: 0; }
+.trait-copy code { font-size: .74rem; overflow-wrap: anywhere; }
+.trait-copy .doc { margin: 0; font-size: .76rem; }
 
 /* Long-form help: the ? buttons on groups and fields, and the panels they
    open. The same text backs the Reference tab. */
@@ -184,15 +195,28 @@ summary .qbtn { margin-left: .45rem; }
 .helptext p { margin: 0 0 .5rem; }
 .helptext p:last-child { margin-bottom: 0; }
 .helptext[hidden] { display: none; }
+.code-example {
+  overflow-x: auto; margin: .55rem 0 0; padding: .55rem .65rem;
+  border: 1px solid var(--border); border-radius: 7px;
+  background: color-mix(in srgb, var(--bg) 88%, var(--panel));
+}
+.example-line, .example-arrow {
+  margin: 0; border: 0; background: transparent; font: .76rem/1.35 var(--mono);
+  white-space: pre; overflow: visible;
+}
+.example-line { color: var(--fg); }
+.example-arrow { color: var(--accent); }
 
 /* The Reference tab: searchable sections of fields and catalogue entries. */
 .refbar { display: flex; gap: .6rem; align-items: center; margin-bottom: .8rem; }
 .refbar input[type=search] { flex: 1 1 auto; min-width: 0; }
 .refbar .count { color: var(--muted); font-size: .82rem; white-space: nowrap; }
+.refintro { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(18rem, 1fr); gap: .8rem; }
 .ref .intro { color: var(--muted); font-size: .85rem; margin: .4rem 0 .6rem; }
 .refrow { padding: .45rem 0; border-top: 1px solid var(--border); }
 .refrow:first-of-type { border-top: 0; }
 .refrow[hidden] { display: none; }
+.refrow > summary { cursor: pointer; list-style-position: inside; }
 .refrow .hd { display: flex; align-items: baseline; gap: .5rem; flex-wrap: wrap; }
 .refrow .term { font-weight: 600; }
 .refrow .badge {
@@ -200,8 +224,12 @@ summary .qbtn { margin-left: .45rem; }
   border-radius: 999px; padding: 0 .4rem; white-space: nowrap;
 }
 .refrow .doc { color: var(--muted); font-size: .82rem; margin-top: .1rem; }
-.refrow details { margin-top: .25rem; }
-.refrow details summary { cursor: pointer; font-size: .78rem; color: var(--accent); }
+.refdetail { padding: .2rem 0 .35rem 1rem; }
+.refdetail .helptext { margin-right: .2rem; }
+
+@media (max-width: 720px) {
+  .refintro { grid-template-columns: 1fr; }
+}
 
 /* Repeating rows (arg roles, options, side effects, subcommands …). */
 .rows { display: flex; flex-direction: column; gap: .4rem; margin-top: .3rem; }
@@ -289,67 +317,6 @@ input[type=file] { display: none; }
 .packlist li.packrow .rm:hover { color: var(--err-fg); }
 .packactions { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
 .packactions button { font-size: .78rem; padding: .3rem .5rem; }
-
-/* The DSL pane's editor. A `<pre>` paint layer *in front of* a
-   transparent-text textarea — the classic overlay-editor trick, not a real
-   editor component; Monaco with the LSP itself (compiled to wasm) attached
-   is the later one, and it replaces this file rather than growing it. The
-   textarea underneath stays the single input surface (typing, caret,
-   selection, resize, and its own background) and owns pointer events by
-   default; the `<pre>` on top only paints text colour, with
-   `pointer-events: none` so every click/drag passes straight through to the
-   textarea — except the few spans that opt back in for a hover tooltip (see
-   below). All three layers share one box model (font, padding, line-height,
-   border, no wrap) so they land on the same pixels. */
-.dsl-wrap { position: relative; }
-.dsl-hl, textarea.dsl {
-  width: 100%; margin: 0; font-family: var(--mono); font-size: .8rem; line-height: 1.5;
-  padding: .9rem 1rem; border: 1px solid var(--border); border-radius: 10px;
-  white-space: pre; overflow-wrap: normal;
-}
-textarea.dsl {
-  position: relative; z-index: 1; background: var(--bg); color: transparent;
-  caret-color: var(--fg); resize: vertical; min-height: 22rem; overflow: auto;
-}
-textarea.dsl:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.dsl-hl {
-  position: absolute; inset: 0; z-index: 3; color: var(--fg); background: transparent;
-  border-color: transparent; overflow: hidden; pointer-events: none;
-}
-/* Individual DSL-keyword spans opt back into pointer events (for their
-   native `title=` tooltip) even though the `<pre>` layer they live in does
-   not — a click that lands exactly on one of these words is swallowed
-   rather than reaching the textarea underneath (no caret placement there);
-   everywhere else on the page passes straight through. A deliberate trade
-   for a hover with zero custom positioning code, acceptable for the small
-   fraction of the document these two classes cover. */
-.dsl-hl .tk-command-word, .dsl-hl .tk-property-flag { pointer-events: auto; cursor: help; }
-.dsl-hl .tk-comment { color: var(--muted); font-style: italic; }
-.dsl-hl .tk-command-word { color: var(--accent); font-weight: 600; }
-.dsl-hl .tk-property-flag { color: #8250df; }
-.dsl-hl .tk-string { color: #0a7d3c; }
-.dsl-hl .tk-number { color: #b35900; }
-.dsl-hl .tk-variable { color: #cf222e; }
-.dsl-hl .tk-punctuation { color: var(--muted); }
-.dsl-hl .tk-value { color: var(--fg); }
-@media (prefers-color-scheme: dark) {
-  .dsl-hl .tk-property-flag { color: #c297ff; }
-  .dsl-hl .tk-string { color: #56d364; }
-  .dsl-hl .tk-number { color: #e3b341; }
-  .dsl-hl .tk-variable { color: #ff7b72; }
-}
-/* The validate-notice gutter: a thin coloured tick per flagged line, in the
-   textarea/pre's own left padding strip (not over any text), with the
-   loader's reason as its native tooltip. No per-character mapping, no
-   custom positioning math beyond the shared line-height. Sits between the
-   textarea (z-index 1) and the highlight text (z-index 3). */
-.dsl-markers {
-  position: absolute; inset: 0; z-index: 2; padding: .9rem 0 0; overflow: hidden; pointer-events: none;
-}
-.dsl-marker-line {
-  position: absolute; left: .35rem; width: 4px; border-radius: 2px;
-  background: var(--warn-bd); pointer-events: auto;
-}
 
 /* The DSL pane's report: loader notices and registry collisions. */
 .dslrow { display: flex; gap: .5rem; align-items: baseline; padding: .25rem 0; border-top: 1px solid var(--border); font-size: .82rem; }
