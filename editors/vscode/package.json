@@ -5131,7 +5131,7 @@
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.64.0",
-    "@types/vscode": "~1.125.0",
+    "@types/vscode": "~1.134.0",
     "@types/node": "^26.2.0",
     "@types/mocha": "^10.0.0",
     "@types/glob": "^9.0.0",
@@ -5144,7 +5144,7 @@
     "glob": "^13.0.6",
     "mocha": "^11.8.0",
     "prettier": "^3.9.5",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "vscode-languageclient": "10.1.0"
