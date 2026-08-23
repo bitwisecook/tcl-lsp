@@ -110,9 +110,9 @@ __STYLES__
              Worker — the same server binary an editor talks to, so the
              colouring, hovers, completions, diagnostics and formatting here are
              not an approximation of what your editor shows, they are what it
-             shows. The textarea underneath stays the state of record and takes
-             over verbatim if the worker cannot start (an old browser, wasm
-             disabled, the page opened from `file://`). -->
+             shows. Monaco is the only editable surface in the standalone Web
+             UI. IDE embeddings open ordinary native file tabs beside Studio;
+             the hidden textarea is state plumbing, not a second editor. -->
         <section class="pane" id="pane-dsl" role="tabpanel" aria-labelledby="tab-dsl" hidden>
           <p class="hint" style="margin-top:0">The pack's <code>.tclspec</code> source — the studio's one authoritative document. Every other surface is a live projection of it: edit a field in the form and this text updates; edit this text and the form, the pack list, and the collision report all follow. This is also the deliverable.</p>
           <div class="out">
@@ -125,11 +125,7 @@ __STYLES__
               <span class="path" id="dslPath"></span>
             </div>
             <div class="editorhost" id="dslEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
-            <div class="dsl-wrap" id="dslFallback">
-              <pre class="dsl-hl" id="dslHl" aria-hidden="true"></pre>
-              <div class="dsl-markers" id="dslMarkers" aria-hidden="true"></div>
-              <textarea id="dslText" class="dsl" rows="26" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Pack .tclspec source"></textarea>
-            </div>
+            <textarea id="dslText" hidden aria-hidden="true" tabindex="-1"></textarea>
             <div class="status" id="lspStatus"></div>
             <input type="file" id="dslPicker" accept=".tclspec,text/plain">
             <div class="note info" id="liveSave" style="margin-top:.7rem">Live save is on: every edit is kept in this browser.</div>
@@ -155,7 +151,7 @@ __STYLES__
                  selector at the top of the page names, so the server analyses
                  it exactly as an editor configured for that dialect would. -->
             <div class="editorhost short" id="testEditor" data-language="tcl" data-dialect="spectcl" data-tcl-version="9.0"></div>
-            <textarea id="testText" class="dsl" rows="10" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Tcl to test the pack with"></textarea>
+            <textarea id="testText" hidden aria-hidden="true" tabindex="-1"></textarea>
             <div class="status" id="testStatus"></div>
             <div class="testsplit">
               <div>

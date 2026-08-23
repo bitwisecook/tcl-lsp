@@ -747,6 +747,7 @@ prep-pr: format codegen ## Fast local gate (format + codegen + lint + typecheck 
 
 test-installer: ## Test installer platform, UI, and legacy-migration decisions (no network)
 	@bash scripts/install/test_installer.sh
+	@bash scripts/release/test_smoke_installer.sh
 
 # Whole-workspace smoke tier: the fastest meaningful per-module subset, run
 # locally right after `cargo build`/`cargo check` — seconds warm, NOT a
@@ -1444,8 +1445,13 @@ explorer-wasm: ## Build the Rust → WASM compiler-explorer core into the tcl GU
 		|| echo "    note: node not found — skipping wasm growability check"
 	@ls -lh $(EXPLORER_STATIC)/tcl_explorer_wasm_bg.wasm
 
-explorer-build: explorer-wasm $(MERMAID_JS) $(ROOT)rust/web-shared/site-update.js ## Build the compiler-explorer GUI bundle (Rust → WASM, offline)
+explorer-build: explorer-wasm spec-studio-wasm $(MERMAID_JS) $(ROOT)rust/web-shared/site-update.js ## Build the compiler-explorer GUI bundle (Rust → WASM, offline)
 	cp $(ROOT)rust/web-shared/site-update.js $(EXPLORER_STATIC)/site-update.js
+	rm -rf $(EXPLORER_STATIC)/editor
+	mkdir -p $(EXPLORER_STATIC)/editor
+	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/assets $(EXPLORER_STATIC)/editor/assets
+	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/lsp $(EXPLORER_STATIC)/editor/lsp
+	cp $(ROOT)rust/tcl-spec-studio-wasm/dist/build-info.json $(EXPLORER_STATIC)/editor/build-info.json
 	@echo "==> Compiler explorer bundle ready in $(EXPLORER_STATIC) — rebuild the tcl binary to embed it"
 
 TCL_VM_WASM_DIR := $(ROOT)rust/tcl-vm-wasm

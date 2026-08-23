@@ -133,6 +133,76 @@ function reconcileExplorerViews() {
   return generic;
 }
 
+// Render registry-owned trait presentation metadata in any Explorer shell.
+// Names, descriptions, and groups all come from Rust; adding a Trait therefore
+// updates standalone, VS Code, and JetBrains without another JavaScript table.
+var explorerReferenceMeta = null;
+function setExplorerReferenceMeta(meta) {
+  explorerReferenceMeta = meta || null;
+  renderTraitReference();
+}
+
+function renderTraitReference() {
+  var meta = data && data.meta ? data.meta : explorerReferenceMeta;
+  var traits = meta && Array.isArray(meta.traits) ? meta.traits : [];
+  var groups = new Map();
+  traits.forEach(function (trait) {
+    var group = trait.group || 'Other';
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(trait);
+  });
+  var root = $('#traitReferenceGroups');
+  var input = $('#traitReferenceSearch');
+  var countLabel = $('#traitReferenceCount');
+  if (!root || !input || !countLabel) return;
+  root.replaceChildren();
+  groups.forEach(function (items, group) {
+    var section = document.createElement('details');
+    section.className = 'trait-group';
+    section.open = true;
+    var summary = document.createElement('summary');
+    var label = document.createElement('span');
+    label.textContent = group;
+    var count = document.createElement('span');
+    count.className = 'trait-group-count';
+    count.textContent = items.length;
+    summary.append(label, count);
+    section.appendChild(summary);
+    items.forEach(function (trait) {
+      var row = document.createElement('div');
+      row.className = 'trait-reference-row';
+      row.dataset.search = [trait.name, trait.summary, group].join(' ').toLowerCase();
+      var name = document.createElement('code');
+      name.textContent = trait.name;
+      var description = document.createElement('span');
+      description.textContent = trait.summary;
+      row.append(name, description);
+      section.appendChild(row);
+    });
+    root.appendChild(section);
+  });
+
+  var filter = function () {
+    var query = input.value.trim().toLowerCase();
+    var shown = 0;
+    root.querySelectorAll('.trait-group').forEach(function (group) {
+      var visible = 0;
+      group.querySelectorAll('.trait-reference-row').forEach(function (row) {
+        var on = !query || row.dataset.search.includes(query);
+        row.hidden = !on;
+        if (on) visible += 1;
+      });
+      group.hidden = visible === 0;
+      group.querySelector('.trait-group-count').textContent = visible;
+      if (query && visible) group.open = true;
+      shown += visible;
+    });
+    countLabel.textContent = shown + ' of ' + root.querySelectorAll('.trait-reference-row').length;
+  };
+  input.oninput = filter;
+  filter();
+}
+
 function genericViewCount(value) {
   if (Array.isArray(value)) return value.length;
   if (value && typeof value === 'object') return Object.keys(value).length;

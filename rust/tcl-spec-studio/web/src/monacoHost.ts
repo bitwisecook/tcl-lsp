@@ -22,8 +22,7 @@
 // bundle (`assets/monaco-host.js`), imported on demand the first time the
 // author opens an editor tab. Everything Monaco — some 2.5 MB of it — lives
 // behind that boundary, so a visitor who only browses the registry never
-// downloads an editor, and a browser that cannot run one falls back without
-// having paid for it.
+// downloads an editor. If it cannot load, the editor is explicitly unavailable.
 //
 // The bridge below is deliberately thin. Every provider forwards to
 // `LspClient` and translates the reply; not one of them decides what a word
@@ -391,6 +390,8 @@ class Surface {
 
   private timer: number | undefined;
 
+  private readonly highlights: monaco.editor.IEditorDecorationsCollection;
+
   constructor(
     spec: SurfaceSpec,
     uri: string,
@@ -402,15 +403,19 @@ class Surface {
     this.client = client;
     this.uri = uri;
     this.languageId = languageId;
+    spec.container.dataset.monacoLanguage = language;
+    spec.container.dataset.lspLanguage = languageId;
+    spec.container.dataset.documentUri = uri;
 
-    // The textarea stays in the DOM, hidden: it is still the studio's state
-    // (`state.sample`, the DSL's persisted text) and it is what the fallback
-    // ladder climbs back down to if this whole module is never reached.
+    // The textarea stays in the DOM, hidden, as the studio's form/state
+    // plumbing (`state.sample`, or the DSL's persisted text). It is not an
+    // alternate editor when Monaco is unavailable.
     spec.textarea.hidden = true;
     spec.container.classList.add("monaco-mounted");
 
     const model = monaco.editor.createModel(spec.textarea.value, language, monaco.Uri.parse(uri));
     this.editor = monaco.editor.create(spec.container, { ...editorOptions(), model });
+    this.highlights = this.editor.createDecorationsCollection();
     client?.openDocument(uri, languageId, spec.textarea.value);
 
     this.editor.onDidChangeModelContent(() => {
@@ -445,11 +450,42 @@ class Surface {
   setLanguageId(languageId: string): void {
     if (this.languageId === languageId) return;
     this.languageId = languageId;
+    this.spec.container.dataset.lspLanguage = languageId;
     this.client?.openDocument(this.uri, languageId, this.editor.getValue());
+  }
+
+  /** Re-tokenise after the first successful server analysis. */
+  refreshLanguageFeatures(): void {
+    const model = this.editor.getModel();
+    if (model) monaco.editor.setModelLanguage(model, model.getLanguageId());
   }
 
   layout(): void {
     this.editor.layout();
+  }
+
+  /** Highlight compiler-result source ranges in the shared Explorer editor. */
+  setHighlights(ranges: Array<{ start: number; end: number }>): void {
+    const model = this.editor.getModel();
+    if (!model) return;
+    this.highlights.set(
+      ranges.map((range) => ({
+        range: monaco.Range.fromPositions(
+          model.getPositionAt(range.start),
+          model.getPositionAt(range.end),
+        ),
+        options: { inlineClassName: "tcl-explorer-source-highlight" },
+      })),
+    );
+    const first = ranges[0];
+    if (first) {
+      this.editor.revealRangeInCenter(
+        monaco.Range.fromPositions(
+          model.getPositionAt(first.start),
+          model.getPositionAt(first.end),
+        ),
+      );
+    }
   }
 
   /** Paint the server's diagnostics for this document. */
@@ -482,9 +518,12 @@ class OutputSurface {
   ) {
     this.client = languageId ? client : null;
     this.uri = uri;
+    spec.container.dataset.monacoLanguage = language;
+    if (languageId) spec.container.dataset.lspLanguage = languageId;
+    spec.container.dataset.documentUri = uri;
     spec.container.classList.add("monaco-mounted");
     this.model = monaco.editor.createModel(
-      spec.fallback.textContent ?? "",
+      spec.source.textContent ?? "",
       language,
       monaco.Uri.parse(uri),
     );
@@ -507,6 +546,10 @@ class OutputSurface {
     this.editor.layout();
   }
 
+  refreshLanguageFeatures(): void {
+    monaco.editor.setModelLanguage(this.model, this.model.getLanguageId());
+  }
+
   setDiagnostics(items: LspDiagnostic[]): void {
     monaco.editor.setModelMarkers(this.model, "tcl-lsp", toMarkers(items));
   }
@@ -522,7 +565,7 @@ class OutputSurface {
  * The server failing is *not* a failure of this call: Monaco is worth having
  * on its own, so a dead worker degrades to an editor with brackets and
  * bracket-matching and no analysis, and says so. Only Monaco itself failing —
- * which means this module never loaded — takes the page back to the textarea.
+ * which means this module never loaded — makes the editor unavailable.
  */
 export async function mountEditors(options: EditorHostOptions): Promise<EditorHost> {
   await loadStylesheet(options.stylesheetUrl);
@@ -582,8 +625,19 @@ export async function mountEditors(options: EditorHostOptions): Promise<EditorHo
       if (hoverAt && !(await client.hover(DSL_URI, hoverAt.line, hoverAt.character))) {
         throw new Error("the pack document returned no hover information");
       }
+      // A model mounted while its tab was hidden may have completed its first
+      // lexical pass before the LSP's initial registry was warm. Re-applying
+      // the same Monaco language is the public way to invalidate that pass;
+      // it schedules both the TextMate provider and the registered semantic
+      // provider without changing the document or its LSP dialect.
+      dsl.refreshLanguageFeatures();
+      sample.refreshLanguageFeatures();
+      stub.refreshLanguageFeatures();
       lspReady = true;
-      options.report("the Tcl language server is running in this page", "ok");
+      options.report(
+        `the Tcl language server is running in this page — Pack DSL: SpecTcl on Tcl 9.0; Test: ${options.dialect}`,
+        "ok",
+      );
     } catch (e) {
       options.report(
         `the language server started but could not analyse the pack (${e instanceof Error ? e.message : String(e)}) — ` +
@@ -622,6 +676,8 @@ export interface TclEditorOptions {
   container: HTMLElement;
   textarea: HTMLTextAreaElement;
   onChange(text: string): void;
+  /** Force compilation even when the model text has not changed. */
+  onCompile?(): void;
   dialect: string;
   workerUrl: string;
   stylesheetUrl: string;
@@ -633,6 +689,7 @@ export interface TclEditorOptions {
 /** Mount the same Monaco/TextMate/LSP stack for Compiler Explorer on Pages. */
 export async function mountTclEditor(options: TclEditorOptions): Promise<{
   setDialect(dialect: string): void;
+  highlightRanges(ranges: Array<{ start: number; end: number }>): void;
   layout(): void;
   readonly lspReady: boolean;
 }> {
@@ -657,13 +714,19 @@ export async function mountTclEditor(options: TclEditorOptions): Promise<{
     options.dialect,
     client,
   );
+  if (options.onCompile) {
+    surface.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      options.onCompile?.();
+    });
+  }
   client?.onDiagnostics((uri, items) => {
     if (uri === surface.documentUri) surface.setDiagnostics(items);
   });
-  options.report?.("using the shared Tcl Monaco editor", "ok");
   const ready = client !== null;
+  if (ready) options.report?.("using the shared Tcl Monaco editor", "ok");
   return {
     setDialect: (dialect) => surface.setLanguageId(dialect),
+    highlightRanges: (ranges) => surface.setHighlights(ranges),
     layout: () => surface.layout(),
     get lspReady() {
       return ready;

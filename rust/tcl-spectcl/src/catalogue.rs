@@ -379,213 +379,17 @@ pub const ANALYSER_HOOKS: &[Variant] = &[
     v("Load", "load"),
 ];
 
-/// [`Traits`] bits, in declaration order.
+/// [`Traits`] bits, generated from the authoritative registry declaration.
 ///
-/// The key is the `Traits::` constant spelling — what the `.rs` renderer
-/// emits in the `traits:` union expression.
-pub const TRAITS: &[Variant] = &[
-    v("CONTROL_FLOW", "alters control flow"),
-    v(
-        "LANGUAGE_KEYWORD",
-        "a language keyword rather than a plain command",
-    ),
-    v("HAS_BOOLEAN_COND", "takes a boolean condition"),
-    v("TERMINATES_BLOCK", "terminates the enclosing basic block"),
-    v(
-        "TERMINATES_PROCESS",
-        "terminates the interpreter process without Tcl unwinding",
-    ),
-    v("HAS_LOOP_BODY", "takes a loop body"),
-    v("NEVER_INLINE_BODY", "its body must never be inlined"),
-    v(
-        "LOOP_LIST_HEADER",
-        "a loop header with list-expression arguments",
-    ),
-    v("PURE", "side-effect free"),
-    v(
-        "CSE_CANDIDATE",
-        "eligible for common-subexpression elimination",
-    ),
-    v("PURE_EVALUATION", "evaluation itself has no side effects"),
-    v("DEFINES_PROCEDURE", "defines a procedure"),
-    v("DESTROYS_VARIABLE", "destroys a variable"),
-    v("READS_BEFORE_WRITE", "reads its target before writing it"),
-    v("CREATES_SCOPE_ALIAS", "creates an upvar-like scope alias"),
-    v(
-        "ALIASES_GLOBAL",
-        "creates an alias to the interpreter global namespace",
-    ),
-    v("CREATES_BARRIER", "creates an analysis barrier"),
-    v("EVALUATES_CODE", "evaluates its argument as code"),
-    v("PERFORMS_SUBSTITUTION", "performs Tcl substitution"),
-    v("OPENS_CHANNEL", "opens an I/O channel"),
-    v("SOURCES_FILE", "sources another file"),
-    v("HAS_SWITCH_BODY", "takes a switch-style clause list"),
-    v("STRING_LIST_CONFUSION", "at risk of string/list confusion"),
-    v("CONFIGURES_CHANNEL", "configures a channel"),
-    v("HAS_INTERP_EVAL", "evaluates code in another interpreter"),
-    v("HAS_DESTRUCTIVE_OPS", "has irreversible operations"),
-    v("IS_EVENT_HANDLER", "an iRules event handler"),
-    v("UNNORMALISED_HTTP_GETTER", "returns unnormalised HTTP data"),
-    v(
-        "REQUIRES_HTTP_CONTEXT",
-        "requires an uncommitted HTTP transaction",
-    ),
-    v("RETURNS_PATH", "returns a filesystem path"),
-    v("IS_UNESCAPE", "performs unescaping or decoding"),
-    v("PRODUCES_CANONICAL_LIST", "produces a canonical list"),
-    v("BUILDS_COMMAND_PREFIX", "builds a command prefix"),
-    v(
-        "WRAPS_COMMAND_PREFIX",
-        "wraps a script into a command prefix",
-    ),
-    v("UNSAFE", "unsafe in sandboxed dialects"),
-    v("PASSWORD_OPTION", "takes a password-bearing option"),
-    v("IS_SIDE_SWITCH", "switches the iRules connection side"),
-    v(
-        "IRULES_TOP_LEVEL_ONLY",
-        "iRules: valid only at the top level",
-    ),
-    v(
-        "SETS_EVENT_PRIORITY",
-        "sets the inherited iRules event priority",
-    ),
-    v("IS_OO_METACLASS", "a TclOO metaclass factory"),
-    v(
-        "OBJECT_COMMAND_SURFACE",
-        "a TclOO object-command method surface",
-    ),
-    v(
-        "CONFIGURES_BY_PROPERTY",
-        "answers `configure`/`cget` from declared properties",
-    ),
-    v(
-        "ABSTRACT_CLASS_FACTORY",
-        "manufactures classes that cannot create instances",
-    ),
-    v("DIAGRAM_ACTION", "an action node in extracted diagrams"),
-    v("NEEDS_START_CMD", "needs an explicit start command"),
-    v("TAINT_SINK", "a taint sink"),
-    v("TAINT_SOURCE", "a taint source"),
-    v("IRULES_DATA_GETTER", "an iRules data getter"),
-    v(
-        "CREATES_DYNAMIC_BARRIER",
-        "creates a dynamic (eval-like) barrier",
-    ),
-    v("INVOKES_USER_PROC", "invokes a user-defined procedure"),
-    v("BYTE_COMPILED", "byte-compiled by C Tcl"),
-    v("NOT_PROC_FACTORY", "never defines a procedure"),
-    v("FRAMELESS_RUNTIME", "runs without pushing a call frame"),
-    v("FIRST_ARG_VARNAME", "its first argument is a variable name"),
-    v("WHOLE_ARRAY_ARG", "takes a whole array as an argument"),
-    v("DYNAMIC_EVAL_BODY", "its body is evaluated dynamically"),
-    v("INTROSPECTS_BY_NAME", "introspects state by name"),
-    v(
-        "CURRENT_FRAME_INTROSPECTION",
-        "observes the current Tcl call frame",
-    ),
-    v(
-        "EXPANSION_ESCAPE_SAFE",
-        "expanded arguments cannot introduce a frame-sensitive name",
-    ),
-    v("TARGETS_VARIABLE_BY_NAME", "targets a variable by name"),
-    v("FRAME_HASH_BUILTIN", "a frame-hash builtin"),
-    v(
-        "REFLECTS_COMMAND_NAMES",
-        "can observe procedure names as data",
-    ),
-    v(
-        "ALIASES_CALLER_FRAME",
-        "aliases variables out of a runtime-chosen caller frame",
-    ),
-    v(
-        "OVERRIDABLE_LIBRARY_PROC",
-        "a library proc a script may override",
-    ),
-    v(
-        "STRUCTURALLY_CHECKED_ARITY",
-        "arity is checked structurally, not by range",
-    ),
-    v(
-        "EXPR_CONCATENATES_ARGS",
-        "concatenates its arguments into one expression",
-    ),
-    v(
-        "SCRIPT_CONCATENATES_ARGS",
-        "concatenates its trailing words into one script",
-    ),
-    v(
-        "SCRIPT_APPENDS_LIST_ARGS",
-        "appends its trailing words to the script as list elements",
-    ),
-    v("ESTABLISHES_VARIABLE_TRACE", "establishes a variable trace"),
-    v("TRANSFERS_CONTROL", "transfers control elsewhere"),
-    v("FIRE_AND_FORGET_TEARDOWN", "fire-and-forget teardown"),
-    v("OPERATOR_COMMAND", "an operator in command form"),
-    v("TCLOO_NEXT_CHAIN", "participates in the TclOO next chain"),
-    v(
-        "TCLOO_SELF_DISPATCH",
-        "dispatches on the current TclOO object",
-    ),
-    v(
-        "TCLOO_INTROSPECTION",
-        "introspects the current TclOO method context",
-    ),
-    v(
-        "BRANCH_SELECTED_BODY",
-        "its bodies run at most once, chosen by a branch",
-    ),
-    v("CATCHABLE_THROW", "throws a catchable error"),
-    v("BREAKS_LOOP", "breaks out of a loop"),
-    v("CONTINUES_LOOP", "continues a loop"),
-    v("REPLACES_FRAME", "replaces the current call frame"),
-    v("SAFE_INTERP_HIDDEN", "hidden in a safe interpreter"),
-    v("PROVIDES_PACKAGE", "declares this file a loadable package"),
-    v(
-        "LOADS_EXTERNAL_UNIT",
-        "runs another unit's script in this interpreter",
-    ),
-    v(
-        "EXPORTS_COMMAND",
-        "publishes a command name for another unit",
-    ),
-    v(
-        "UNRESOLVED_COMMAND_HANDLER",
-        "handles the dialect's unresolved command words",
-    ),
-    v(
-        "EVALUATES_IN_SHIFTED_FRAME",
-        "runs its body script in another stack frame",
-    ),
-    v(
-        "INSTALLS_NAMED_DEFINITION",
-        "installs, moves, or extends a definition named by an argument",
-    ),
-    v(
-        "TCLOO_METHOD_CONTEXT",
-        "resolves only inside a TclOO method body",
-    ),
-    v(
-        "TCLOO_BINDS_METHOD_ALIAS",
-        "binds bareword aliases for methods of the current object",
-    ),
-    v(
-        "TCLOO_REQUIRES_METHOD_FRAME",
-        "calling it needs a real method invocation, not just an object frame",
-    ),
-    v(
-        "DECLARES_NAMESPACE",
-        "declares the namespace its NamespaceName word names",
-    ),
-    v(
-        "TK_GEOMETRY_MANAGER",
-        "a Tk geometry manager that claims a container",
-    ),
-    v(
-        "DEFERS_BODY",
-        "stores its script argument instead of running it; unset means the body is treated as executed",
-    ),
-];
+/// A new trait cannot be absent from this catalogue: [`Trait::ALL`] supplies
+/// the rows, while the exhaustive [`Trait::summary`] and [`Trait::category`]
+/// methods make missing author-facing metadata a compile error.
+pub static TRAITS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
+    Trait::ALL
+        .iter()
+        .map(|item| v(item.name(), item.summary()))
+        .collect()
+});
 
 /// [`TaintColour`] bits.
 pub const TAINT_COLOURS: &[Variant] = &[
@@ -1116,7 +920,7 @@ mod tests {
             CODEGEN_HOOKS,
             INLINE_CODEGEN_HOOKS,
             ANALYSER_HOOKS,
-            TRAITS,
+            &TRAITS,
             TAINT_COLOURS,
             DIALECTS.as_slice(),
         ] {

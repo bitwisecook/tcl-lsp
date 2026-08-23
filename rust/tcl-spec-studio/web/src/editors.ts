@@ -250,12 +250,8 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
     return select;
   }
 
-  /** Toggle chips over a bitflag catalogue. */
-  function flagChips(
-    kind: FieldKind,
-    value: Json,
-    onChange: (next: string[] | null) => void,
-  ): HTMLElement {
+  /** Searchable, documented groups over a bitflag catalogue. */
+  function flagChips(kind: FieldKind, value: Json, onChange: Setter): HTMLElement {
     const declared = value !== null;
     const bits = declared ? asStringList(value) : [];
     const wrap = el("div", {});
@@ -264,30 +260,80 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
       wrap.appendChild(checkbox(declared, (on) => onChange(on ? bits : null), "declared"));
     }
 
-    const order = catalogueFor(kind).map((entry) => entry.key);
-    const chips = el("div", { class: "chips" });
-    for (const entry of catalogueFor(kind)) {
-      const on = bits.includes(entry.key);
-      const chip = el("button", {
-        type: "button",
-        class: "chip",
-        title: entry.doc,
-        "aria-pressed": on ? "true" : "false",
-        text: entry.key,
-      });
-      chip.disabled = Boolean(kind.optional) && !declared;
-      chip.addEventListener("click", () => {
-        const at = bits.indexOf(entry.key);
-        if (at >= 0) bits.splice(at, 1);
-        else bits.push(entry.key);
-        // Keep catalogue order so the rendered `.rs` is stable no matter what
-        // order the author clicked in.
-        bits.sort((a, b) => order.indexOf(a) - order.indexOf(b));
-        onChange(bits.slice());
-      });
-      chips.appendChild(chip);
+    const entries = catalogueFor(kind);
+    const order = entries.map((entry) => entry.key);
+    const groups = new Map<string, Variant[]>();
+    for (const entry of entries) {
+      const group = entry.group ?? "Other";
+      groups.set(group, [...(groups.get(group) ?? []), entry]);
     }
-    wrap.appendChild(chips);
+
+    const list = el("div", { class: "toggle-groups" });
+    const search = el("input", {
+      type: "search",
+      class: "toggle-search",
+      placeholder: `Filter ${entries.length} traits…`,
+      "aria-label": "Filter traits",
+    });
+    search.disabled = Boolean(kind.optional) && !declared;
+
+    const rows: Array<{ node: HTMLElement; group: HTMLElement; hay: string }> = [];
+    let groupIndex = 0;
+    for (const [groupName, groupEntries] of groups) {
+      const count = el("span", { class: "n" });
+      const body = el("div", { class: "toggle-list" });
+      const details = el("details", { class: "toggle-group" }, [
+        el("summary", {}, [document.createTextNode(groupName), count]),
+        body,
+      ]);
+      if (groupIndex++ === 0 || groupEntries.some((entry) => bits.includes(entry.key))) {
+        details.open = true;
+      }
+
+      const updateCount = (): void => {
+        const selected = groupEntries.filter((entry) => bits.includes(entry.key)).length;
+        count.textContent = selected
+          ? `${selected} of ${groupEntries.length} selected`
+          : `${groupEntries.length}`;
+      };
+      for (const entry of groupEntries) {
+        const box = el("input", { type: "checkbox" });
+        box.checked = bits.includes(entry.key);
+        box.disabled = Boolean(kind.optional) && !declared;
+        const row = el("label", { class: "trait-toggle" }, [
+          box,
+          el("span", { class: "trait-copy" }, [
+            el("code", { text: entry.key }),
+            el("span", { class: "doc", text: entry.doc }),
+          ]),
+        ]);
+        box.addEventListener("change", () => {
+          const at = bits.indexOf(entry.key);
+          if (box.checked && at < 0) bits.push(entry.key);
+          else if (!box.checked && at >= 0) bits.splice(at, 1);
+          bits.sort((a, b) => order.indexOf(a) - order.indexOf(b));
+          updateCount();
+          onChange(bits.slice(), false);
+        });
+        body.appendChild(row);
+        rows.push({
+          node: row,
+          group: details,
+          hay: `${groupName} ${entry.key} ${entry.doc}`.toLowerCase(),
+        });
+      }
+      updateCount();
+      list.appendChild(details);
+    }
+    search.addEventListener("input", () => {
+      const tokens = search.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+      for (const { node, hay } of rows) node.hidden = !tokens.every((token) => hay.includes(token));
+      for (const details of list.querySelectorAll<HTMLElement>(".toggle-group")) {
+        details.hidden = !rows.some(({ node, group }) => group === details && !node.hidden);
+        if (tokens.length && !details.hidden) (details as HTMLDetailsElement).open = true;
+      }
+    });
+    wrap.append(search, list);
     return wrap;
   }
 

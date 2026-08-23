@@ -30,6 +30,7 @@
 //! when the two drift apart.
 
 use serde_json::{Value, json};
+use tcl_registry::traits::Trait;
 
 use crate::catalogue;
 
@@ -199,6 +200,7 @@ impl FieldSchema {
             "doc": self.doc,
             "group": self.group,
             "help": crate::help::field_help(self.key).unwrap_or(self.doc),
+            "example": crate::examples::field_example(self.key, self.label, self.group),
             "kind": self.kind.to_json(),
         })
     }
@@ -1750,55 +1752,120 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
     ),
 ];
 
+fn catalogue_entries(id: &str, items: &[catalogue::Variant]) -> Value {
+    Value::Array(
+        items
+            .iter()
+            .map(|variant| {
+                json!({
+                    "key": variant.key,
+                    "doc": variant.doc,
+                    "group": (id == "traits")
+                        .then(|| Trait::from_name(variant.key).map(|item| item.category().label()))
+                        .flatten(),
+                    "example": crate::examples::variant_example(
+                        id,
+                        variant.key,
+                        variant.doc,
+                    ),
+                })
+            })
+            .collect(),
+    )
+}
+
+fn custom_variant(id: &str, key: &str, doc: &str) -> Value {
+    json!({
+        "key": key,
+        "doc": doc,
+        "example": crate::examples::variant_example(id, key, doc),
+    })
+}
+
+fn custom_catalogues() -> [(&'static str, Value); 4] {
+    [
+        (
+            "defaultFormFirstWord",
+            json!([custom_variant(
+                "defaultFormFirstWord",
+                "Integer",
+                "an integer first word selects the default form",
+            )]),
+        ),
+        (
+            "prefixMatching",
+            json!([
+                custom_variant(
+                    "prefixMatching",
+                    "Enabled",
+                    "any unique prefix resolves (Tcl_GetIndexFromObj)",
+                ),
+                custom_variant(
+                    "prefixMatching",
+                    "Strict",
+                    "only the exact spelling resolves (TCL_INDEX_STRICT)",
+                ),
+            ]),
+        ),
+        (
+            "appendedArity",
+            json!([
+                custom_variant(
+                    "appendedArity",
+                    "Exactly",
+                    "exactly N arguments are appended"
+                ),
+                custom_variant(
+                    "appendedArity",
+                    "AtLeast",
+                    "at least N arguments are appended"
+                ),
+                custom_variant("appendedArity", "Unknown", "indeterminate — no arity check"),
+            ]),
+        ),
+        (
+            "optionArity",
+            json!([
+                custom_variant("optionArity", "One", "consumes one value word"),
+                custom_variant(
+                    "optionArity",
+                    "Fixed",
+                    "consumes a fixed number of value words",
+                ),
+            ]),
+        ),
+    ]
+}
+
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    fn entries(items: &[catalogue::Variant]) -> Value {
-        Value::Array(
-            items
-                .iter()
-                .map(|v| json!({ "key": v.key, "doc": v.doc }))
-                .collect(),
-        )
-    }
-    json!({
-        "argRole": entries(catalogue::ARG_ROLES),
-        "tclType": entries(catalogue::TCL_TYPES),
-        "bodyKind": entries(catalogue::BODY_KINDS),
-        "argPresentation": entries(catalogue::ARG_PRESENTATIONS),
-        "storageType": entries(catalogue::STORAGE_TYPES),
-        "byteArrayEffect": entries(catalogue::BYTE_ARRAY_EFFECTS),
-        "commandTableEffect": entries(catalogue::COMMAND_TABLE_EFFECTS),
-        "patternType": entries(catalogue::PATTERN_TYPES),
-        "formatType": entries(catalogue::FORMAT_TYPES),
-        "formKind": entries(catalogue::FORM_KINDS),
-        "definedSymbolKind": entries(catalogue::DEFINED_SYMBOL_KINDS),
-        "sideEffectTarget": entries(catalogue::SIDE_EFFECT_TARGETS),
-        "connectionSide": entries(catalogue::CONNECTION_SIDES),
-        "loweringHook": entries(catalogue::LOWERING_HOOKS),
-        "codegenHook": entries(catalogue::CODEGEN_HOOKS),
-        "inlineCodegenHook": entries(catalogue::INLINE_CODEGEN_HOOKS),
-        "analyserHook": entries(catalogue::ANALYSER_HOOKS),
-        "traits": entries(catalogue::TRAITS),
-        "taintColour": entries(catalogue::TAINT_COLOURS),
-        "dialects": entries(&catalogue::DIALECTS),
-        "defaultFormFirstWord": json!([
-            { "key": "Integer", "doc": "an integer first word selects the default form" }
-        ]),
-        "prefixMatching": json!([
-            { "key": "Enabled", "doc": "any unique prefix resolves (Tcl_GetIndexFromObj)" },
-            { "key": "Strict", "doc": "only the exact spelling resolves (TCL_INDEX_STRICT)" }
-        ]),
-        "appendedArity": json!([
-            { "key": "Exactly", "doc": "exactly N arguments are appended" },
-            { "key": "AtLeast", "doc": "at least N arguments are appended" },
-            { "key": "Unknown", "doc": "indeterminate — no arity check" }
-        ]),
-        "optionArity": json!([
-            { "key": "One", "doc": "consumes one value word" },
-            { "key": "Fixed", "doc": "consumes a fixed number of value words" }
-        ]),
-    })
+    let standard: [(&str, &[catalogue::Variant]); 20] = [
+        ("argRole", catalogue::ARG_ROLES),
+        ("tclType", catalogue::TCL_TYPES),
+        ("bodyKind", catalogue::BODY_KINDS),
+        ("argPresentation", catalogue::ARG_PRESENTATIONS),
+        ("storageType", catalogue::STORAGE_TYPES),
+        ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
+        ("commandTableEffect", catalogue::COMMAND_TABLE_EFFECTS),
+        ("patternType", catalogue::PATTERN_TYPES),
+        ("formatType", catalogue::FORMAT_TYPES),
+        ("formKind", catalogue::FORM_KINDS),
+        ("definedSymbolKind", catalogue::DEFINED_SYMBOL_KINDS),
+        ("sideEffectTarget", catalogue::SIDE_EFFECT_TARGETS),
+        ("connectionSide", catalogue::CONNECTION_SIDES),
+        ("loweringHook", catalogue::LOWERING_HOOKS),
+        ("codegenHook", catalogue::CODEGEN_HOOKS),
+        ("inlineCodegenHook", catalogue::INLINE_CODEGEN_HOOKS),
+        ("analyserHook", catalogue::ANALYSER_HOOKS),
+        ("traits", &catalogue::TRAITS),
+        ("taintColour", catalogue::TAINT_COLOURS),
+        ("dialects", &catalogue::DIALECTS),
+    ];
+    let mut values = serde_json::Map::new();
+    values.extend(standard.map(|(id, variants)| (id.to_owned(), catalogue_entries(id, variants))));
+    values.extend(custom_catalogues().map(|(id, value)| (id.to_owned(), value)));
+    Value::Object(values)
 }
 
 /// The whole schema — catalogues, group order, both field tables, and the
@@ -1812,13 +1879,29 @@ pub fn to_json() -> Value {
         .iter()
         .map(|(group, text)| ((*group).to_owned(), json!(text)))
         .collect();
+    let group_examples: serde_json::Map<String, Value> = GROUPS
+        .iter()
+        .filter_map(|group| {
+            crate::examples::group_example(group).map(|example| ((*group).to_owned(), example))
+        })
+        .collect();
     let catalogue_help: serde_json::Map<String, Value> = crate::help::CATALOGUE_HELP
         .iter()
-        .map(|(id, title, intro)| ((*id).to_owned(), json!({ "title": title, "intro": intro })))
+        .map(|(id, title, intro)| {
+            (
+                (*id).to_owned(),
+                json!({
+                    "title": title,
+                    "intro": intro,
+                    "example": crate::examples::catalogue_example(id, title),
+                }),
+            )
+        })
         .collect();
     json!({
         "groups": GROUPS,
         "groupHelp": group_help,
+        "groupExamples": group_examples,
         "catalogues": catalogues(),
         "catalogueHelp": catalogue_help,
         "command": fields(COMMAND_FIELDS),

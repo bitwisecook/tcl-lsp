@@ -36,14 +36,13 @@ import {
   type Child,
 } from "./dom.js";
 import { assetUrl, verifyAssetVersion, verifyBuildInfo, type BuildInfo } from "./buildInfo.js";
-import { renderDslHighlight, renderDslMarkers, syncDslScroll } from "./dslEditor.js";
 import { asRecord, asString, makeEditors, STRUCTURAL_KINDS, type Editor } from "./editors.js";
 import type { EditorHost, MonacoHostModule } from "./editorHost.js";
 import * as idb from "./idb.js";
 import { initReleasesPanel } from "./importReleases.js";
-import { mapSelectionThroughFormat } from "./textSelection.js";
 import type {
   CommandIndex,
+  CodeExample,
   DialectEntry,
   Draft,
   FieldSchema,
@@ -104,8 +103,8 @@ function dialectLabel(name: string): string {
  * the language client, about 2.5 MB of the dist, and a visitor who only browses
  * the registry should not pay for an editor they never open. A failure to load
  * it — an old browser, a `file://` page where module fetches are blocked, a
- * partial deployment — is the top rung of the fallback ladder, and lands the
- * page back on the textarea it has always had.
+ * partial deployment — leaves an explicit unavailable editor. There is no
+ * second editor implementation whose language behaviour can drift.
  */
 const EDITOR_CHUNK = "assets/monaco-host.js";
 const NATIVE_EDITOR_CHUNK = "assets/native-editor-host.js";
@@ -186,10 +185,9 @@ let formDirty = false;
 /**
  * The mounted Monaco/LSP surface, once it exists.
  *
- * `null` means the page is on the textarea path — either because no editor tab
- * has been opened yet, or because the chunk would not load. Every write to a
- * document goes to the textarea *and* to this when it is present, so the two
- * never disagree and the fallback needs no separate state.
+ * `null` means no editor tab has mounted Monaco yet, or Monaco failed to load.
+ * Every write goes to hidden form/state storage and to this host when present,
+ * so the controller and model never disagree.
  */
 let editorHost: EditorHost | null = null;
 /** Set while the chunk is loading, so two tab clicks do not mount twice. */
@@ -213,6 +211,30 @@ function helpParagraphs(text: string): HTMLElement {
   for (const para of text.split(/\n\n+/)) {
     if (para.trim()) node.appendChild(el("p", { text: para }));
   }
+  return node;
+}
+
+/** A compact code sample with source-aligned arrows beneath the relevant words. */
+function annotatedExample(example: CodeExample): HTMLElement {
+  const node = el("figure", { class: "code-example" });
+  const lines = example.code.split("\n");
+  lines.forEach((line, lineNumber) => {
+    node.appendChild(el("pre", { class: "example-line", text: line || " " }));
+    for (const annotation of example.annotations.filter((item) => item.line === lineNumber)) {
+      const at = line.indexOf(annotation.needle);
+      const arrow =
+        `${" ".repeat(Math.max(0, at))}└${"─".repeat(Math.max(1, annotation.needle.length - 1))}` +
+        `→ ${annotation.label}`;
+      node.appendChild(el("pre", { class: "example-arrow", text: arrow }));
+    }
+  });
+  return node;
+}
+
+/** Long-form prose followed by its registry-backed attachment example. */
+function helpWithExample(text: string, example: CodeExample): HTMLElement {
+  const node = helpParagraphs(text);
+  node.appendChild(annotatedExample(example));
   return node;
 }
 
@@ -272,7 +294,7 @@ function buildForm(
     ]);
     const groupHelp = state.schema.groupHelp[group];
     if (groupHelp) {
-      const panel = helpParagraphs(groupHelp);
+      const panel = helpWithExample(groupHelp, state.schema.groupExamples[group]);
       summary.appendChild(helpButton(panel, `the ${group} group`));
       body.appendChild(panel);
     }
@@ -293,7 +315,7 @@ function buildField(
   onChange: () => void,
 ): HTMLElement {
   const ctl = el("div", { class: "ctl" });
-  const help = helpParagraphs(field.help);
+  const help = helpWithExample(field.help, field.example);
   // An enum / flag-set field's vocabulary has a fuller write-up on the
   // Reference tab; link straight to it from the help panel.
   const catalogueId = field.kind.catalogue;
@@ -442,13 +464,10 @@ function unwrap<T extends { error?: string }>(json: string): T {
 /**
  * Adopt `source` as the pack document and re-render every projection of it.
  *
- * `fromDsl` preserves the active editor's selection while the formatter's
- * full-document replacement is written back.
+ * Monaco preserves its own caret while the formatter's full-document
+ * replacement is written back; IDE embeddings update their native document.
  */
-function setPackSource(
-  source: string,
-  opts: { fromDsl?: boolean; refreshForm?: boolean } = {},
-): void {
+function setPackSource(source: string, opts: { refreshForm?: boolean } = {}): void {
   const formatted = unwrap<Formatted>(wasm.format_pack(source)).source;
   state.pack.source = formatted;
   try {
@@ -458,7 +477,7 @@ function setPackSource(
     state.pack.view = null;
     setStatus("dslStatus", `could not read the pack: ${message(e)}`, "err");
   }
-  writeDsl(formatted, opts.fromDsl);
+  writeDsl(formatted);
 
   // A command the document no longer declares cannot stay open.
   const names = new Set((state.pack.view?.commands ?? []).map((c) => c.name));
@@ -466,19 +485,6 @@ function setPackSource(
 
   renderPackList();
   renderDslReport();
-  // The overlay is a pure paint of the same document `pack_load` just read,
-  // so its notices are `state.pack.view`'s own `notices` — no separate
-  // `pack_validate` call, `pack_load` and `pack_validate` both build the
-  // notice list from the same `Resolution::store_view`.
-  //
-  // Skipped entirely once Monaco is mounted: the overlay is then a hidden
-  // fallback, and the language server is painting the same document properly.
-  // Repainting it anyway would cost a full re-tokenise per keystroke for
-  // something nobody can see.
-  if (!usingMonaco()) {
-    renderDslHighlight(wasm, formatted);
-    renderDslMarkers(state.pack.view?.notices ?? []);
-  }
   if (opts.refreshForm && state.pack.open) refreshOpenCommand();
   // The pack decides what the sample resolves to, so a document change is a
   // test result change — but only pay for it while the tab is on screen.
@@ -1652,20 +1658,30 @@ interface RefSection {
 
 const refSections: RefSection[] = [];
 
-function refRow(term: string, badges: string[], doc: string, help?: string): RefRow {
+function refRow(
+  term: string,
+  badges: string[],
+  doc: string,
+  example: CodeExample,
+  help?: string,
+): RefRow {
   const head = el("div", { class: "hd" }, [el("code", { class: "term", text: term })]);
   for (const badge of badges) head.appendChild(el("span", { class: "badge", text: badge }));
-  const kids: Child[] = [head, el("div", { class: "doc", text: doc })];
-  if (help && help !== doc) {
-    kids.push(el("details", {}, [el("summary", { text: "More" }), helpParagraphs(help)]));
-  }
-  const node = el("div", { class: "refrow" }, kids);
+  const detail = el("div", { class: "refdetail" }, [annotatedExample(example)]);
+  if (help && help !== doc) detail.prepend(helpParagraphs(help));
+  const node = el("details", { class: "refrow" }, [
+    el("summary", {}, [head, el("div", { class: "doc", text: doc })]),
+    detail,
+  ]);
   return { node, hay: `${term} ${badges.join(" ")} ${doc} ${help ?? ""}`.toLowerCase() };
 }
 
-function refSection(title: string, intro: string, rows: RefRow[]): void {
+function refSection(title: string, intro: string, example: CodeExample, rows: RefRow[]): void {
   const body = el("div", { class: "body" }, [
-    el("p", { class: "intro", text: intro }),
+    el("div", { class: "refintro" }, [
+      el("p", { class: "intro", text: intro }),
+      annotatedExample(example),
+    ]),
     ...rows.map((row) => row.node),
   ]);
   const count = el("span", { class: "n", text: `${rows.length}` });
@@ -1692,11 +1708,14 @@ function buildReference(): void {
     const badges = [field.group];
     if (!onSubcommand.has(field.key)) badges.push("command only");
     else if (!onCommand.has(field.key)) badges.push("subcommand only");
-    fieldRows.push(refRow(field.key, badges, `${field.label} — ${field.doc}`, field.help));
+    fieldRows.push(
+      refRow(field.key, badges, `${field.label} — ${field.doc}`, field.example, field.help),
+    );
   }
   refSection(
     "Spec fields",
     "Every field a command specification can set, with what it drives. The same keys appear in the editor form, grouped the same way.",
+    schema.groupExamples.Identity,
     fieldRows,
   );
 
@@ -1712,7 +1731,10 @@ function buildReference(): void {
     refSection(
       help?.title ?? id,
       help?.intro ?? "",
-      variants.map((variant) => refRow(variant.key, [], variant.doc)),
+      help.example,
+      variants.map((variant) =>
+        refRow(variant.key, variant.group ? [variant.group] : [], variant.doc, variant.example),
+      ),
     );
   }
 
@@ -1761,22 +1783,9 @@ function openReference(query: string): void {
 
 /* The editor surface ---------------------------------------------------- */
 
-// The fallback ladder, top to bottom:
-//
-//   1. Monaco + the real language server in a Web Worker  (the full experience)
-//   2. Monaco alone — the worker did not start, so no analysis, and the status
-//      line says so  (handled inside the chunk, which still resolves)
-//   3. the textarea plus the `dsl_highlight` overlay, exactly as before
-//
-// Only rung 3 is decided here, because only rung 3 means the chunk itself never
-// arrived. Every degradation is announced in `#lspStatus` rather than swallowed:
-// a page that quietly stops giving you diagnostics is worse than one that says
-// it has.
-
-/** Whether the Monaco surface is live — the overlay repaints only when it is not. */
-function usingMonaco(): boolean {
-  return editorHost !== null;
-}
+// Standalone Studio uses Monaco as its only editor. An IDE embedding delegates
+// these surfaces to ordinary native file tabs beside the Studio panel. Neither
+// mode exposes the hidden state textarea as an alternate editor.
 
 /**
  * Load the editor chunk and mount both surfaces, once.
@@ -1801,6 +1810,9 @@ async function mountEditorHost(): Promise<void> {
   };
   editorMounting = (async () => {
     report("loading the editor…");
+    // Standalone and Pages use Monaco exclusively. IDE integrations inject a
+    // bridge which materialises these surfaces as ordinary native file tabs,
+    // beside the Studio panel, so an editor never embeds another editor.
     const native = window.__tclSpecStudioHost !== undefined;
     const specifier = native
       ? (window.__tclSpecStudioNativeModuleUrl ??
@@ -1818,7 +1830,7 @@ async function mountEditorHost(): Promise<void> {
       dsl: {
         container: byId("dslEditor"),
         textarea: byId<HTMLTextAreaElement>("dslText"),
-        onChange: (text) => setPackSource(text, { fromDsl: true, refreshForm: true }),
+        onChange: (text) => setPackSource(text, { refreshForm: true }),
       },
       sample: {
         container: byId("testEditor"),
@@ -1827,16 +1839,15 @@ async function mountEditorHost(): Promise<void> {
       },
       rust: {
         container: byId("rsEditor"),
-        fallback: byId("rsOut"),
+        source: byId("rsOut"),
       },
       stub: {
         container: byId("stubEditor"),
-        fallback: byId("stubOut"),
+        source: byId("stubOut"),
       },
     });
-    // The overlay was the text surface; now it is a hidden fallback that must
-    // not keep painting over the editor that replaced it.
-    byId("dslFallback").hidden = true;
+    // Generated-code state remains in hidden elements which seed Monaco or
+    // the IDE's native file tabs.
     byId("rsOut").hidden = true;
     byId("stubOut").hidden = true;
   })();
@@ -1844,9 +1855,16 @@ async function mountEditorHost(): Promise<void> {
     await editorMounting;
   } catch (e) {
     editorHost = null;
+    byId<HTMLTextAreaElement>("testText").hidden = true;
+    const editorName = window.__tclSpecStudioHost ? "Native editor integration" : "Monaco";
+    byId("dslEditor").replaceChildren(
+      el("div", { class: "editor-unavailable", text: `${editorName} could not be loaded.` }),
+    );
+    byId("testEditor").replaceChildren(
+      el("div", { class: "editor-unavailable", text: `${editorName} could not be loaded.` }),
+    );
     report(
-      `the code editor could not load (${message(e)}) — falling back to the plain text editor, ` +
-        "which keeps highlighting and the pack's own validation but has no language server",
+      `the ${editorName.toLowerCase()} could not load (${message(e)}); reload after restoring the editor assets`,
       "err",
     );
   } finally {
@@ -1854,18 +1872,10 @@ async function mountEditorHost(): Promise<void> {
   }
 }
 
-/** Push text into whichever surface is live, without echoing a change back. */
-function writeDsl(source: string, preserveSelection = false): void {
+/** Push text into state storage and the active editor host, without echo. */
+function writeDsl(source: string): void {
   const textarea = byId<HTMLTextAreaElement>("dslText");
-  const previous = textarea.value;
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const direction = textarea.selectionDirection ?? "none";
   textarea.value = source;
-  if (preserveSelection && !usingMonaco()) {
-    const mapped = mapSelectionThroughFormat(previous, source, { start, end });
-    textarea.setSelectionRange(mapped.start, mapped.end, direction);
-  }
   editorHost?.setDslText(source);
 }
 
@@ -1956,21 +1966,6 @@ function bindUi(): void {
     selectTab("dsl");
   });
 
-  // The one place a keystroke edits the model directly. Everything else — the
-  // form, the pack list, the collision report — re-renders from what this
-  // produces.
-  byId("dslText").addEventListener("input", () => {
-    const text = byId<HTMLTextAreaElement>("dslText").value;
-    if (renderTimer !== undefined) window.clearTimeout(renderTimer);
-    renderTimer = window.setTimeout(() => {
-      setPackSource(text, { fromDsl: true, refreshForm: true });
-    }, SETTLE_MS);
-  });
-  // The overlay layers are paint-only (`pointer-events: none` except a few
-  // hoverable spans), so they never scroll themselves — keep them glued to
-  // the textarea's own scroll position.
-  byId("dslText").addEventListener("scroll", syncDslScroll);
-
   byId("dslCopy").addEventListener("click", () => copyText(state.pack.source, "dslStatus"));
   byId("dslDownload").addEventListener("click", () => download(packPath(), state.pack.source));
   byId("dslAdd").addEventListener("click", () => addFile(packPath(), state.pack.source));
@@ -1989,7 +1984,6 @@ function bindUi(): void {
 
   /* The Test tab. */
 
-  byId("testText").addEventListener("input", scheduleTest);
   byId("testRun").addEventListener("click", runTest);
   byId("testSample").addEventListener("click", insertSampleCall);
 

@@ -196,6 +196,28 @@ mod tests {
         }
     }
 
+    /// A release tag must publish all Pages applications from the exact tagged
+    /// commit, even when the release commit only changed notes or performance
+    /// assets and therefore misses the development-branch path filter (#1687).
+    #[test]
+    fn pages_workflow_deploys_every_release_tag() {
+        let root = crate::util::repo_root();
+        let text = std::fs::read_to_string(root.join(CANONICAL_DIR).join("github-pages.yml"))
+            .expect("read canonical Pages workflow");
+        assert!(
+            text.contains("    tags: [\"v*\"]"),
+            "Pages workflow no longer runs for release tags"
+        );
+        assert!(
+            text.contains("    branches: [rust, main]") && text.contains("    paths:"),
+            "Pages workflow lost its path-filtered development deployments"
+        );
+        assert!(
+            text.contains("  cancel-in-progress: false"),
+            "a branch deployment could cancel the exact-tag deployment"
+        );
+    }
+
     #[test]
     fn describe_flags_a_missing_installed_copy() {
         assert_eq!(describe("a\nb\n", ""), "installed copy is missing or empty");

@@ -55,8 +55,12 @@ name: Deploy GitHub Pages (BIG-IP report + compiler explorer + spec studio)
 on:
   push:
     # `rust` is the active development line these features land on; `main` is the
-    # long-term default. Deploy from whichever holds the merged code.
+    # long-term default. Deploy from whichever holds the merged code. Every
+    # release tag also deploys from its exact commit: GitHub does not evaluate
+    # `paths` filters for tag pushes, so a release-notes-only tag cannot leave
+    # the live tools stamped with the preceding development version.
     branches: [rust, main]
+    tags: ["v*"]
     paths:
       # BIG-IP report generator + demo sources (query engine, model, renderer).
       - "rust/bigip-report-gen/python/**"
@@ -94,6 +98,8 @@ permissions:
   contents: read
 
 concurrency:
+  # Tagging follows the release-commit branch push. Do not cancel the queued tag
+  # run: serial execution makes the exact-tag deployment the final publication.
   group: pages
   cancel-in-progress: false
 

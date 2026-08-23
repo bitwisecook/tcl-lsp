@@ -140,8 +140,12 @@ body {
 }
 #monacoSource { position: absolute; inset: 0; display: none; }
 #monacoSource.monaco-mounted { display: block; }
+.monaco-editor .tcl-explorer-source-highlight {
+  background: var(--highlight-strong);
+  border-bottom: 1px solid var(--yellow);
+}
 .editor-container {
-  display: flex;
+  display: none;
   height: 100%;
   overflow: auto;
   position: relative;
@@ -232,6 +236,47 @@ textarea#source::placeholder { color: var(--text-dim); }
 .output-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .tab-pane { display: none; }
 .tab-pane.active { display: block; }
+.trait-reference-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.trait-reference-tools input {
+  flex: 1;
+  min-width: 12rem;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+}
+.trait-reference-count { color: var(--text-dim); font-size: 11px; white-space: nowrap; }
+.trait-group {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: var(--bg-surface);
+}
+.trait-group > summary {
+  cursor: pointer;
+  padding: 8px 10px;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 12px;
+}
+.trait-group-count { color: var(--text-dim); font-weight: 400; margin-left: 6px; }
+.trait-reference-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.35fr) 1fr;
+  gap: 12px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+.trait-reference-row code { color: var(--cyan); overflow-wrap: anywhere; }
+.trait-reference-row span { color: var(--text-dim); }
 .ir-tree { font-size: 12px; }
 .ir-node { margin-left: 16px; }
 .ir-node-header {
@@ -999,6 +1044,7 @@ puts $x"></textarea>
         <div class="tab" data-tab="callouts">Callouts</div>
         <div class="tab" data-tab="asm">Tcl ASM</div>
         <div class="tab" data-tab="wasm">WASM</div>
+        <div class="tab" data-tab="trait-reference">Trait reference</div>
       </div>
       <div class="output-content" id="outputContent">
         <div class="tab-pane active" id="pane-ir">
@@ -1027,6 +1073,13 @@ puts $x"></textarea>
         <div class="tab-pane" id="pane-callouts"></div>
         <div class="tab-pane" id="pane-asm"></div>
         <div class="tab-pane" id="pane-wasm"></div>
+        <div class="tab-pane" id="pane-trait-reference">
+          <div class="trait-reference-tools">
+            <input id="traitReferenceSearch" type="search" placeholder="Filter traits by name, group, or meaning…" aria-label="Filter trait reference">
+            <span class="trait-reference-count" id="traitReferenceCount"></span>
+          </div>
+          <div id="traitReferenceGroups"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1051,6 +1104,24 @@ let lastSource = '';
 let lastDialect = '';
 let workerReady = false;
 let pendingCompile = false;
+let monacoSourceHost = null;
+let editorHealthError = '';
+
+function reportEditorStatus(message, kind) {
+  if (kind === 'err') editorHealthError = message;
+  if (kind === 'ok') editorHealthError = '';
+  $('#statusMsg').style.display = '';
+  $('#statusMsg').textContent = message;
+}
+
+function settleEditorStatus() {
+  if (editorHealthError) {
+    $('#statusMsg').style.display = '';
+    $('#statusMsg').textContent = editorHealthError;
+  } else {
+    $('#statusMsg').style.display = 'none';
+  }
+}
 
 // Mac shortcut display fix
 const shortcutKey = isMac ? '\u2318' : 'Ctrl';
@@ -1059,20 +1130,21 @@ $('#shortcutHint').textContent = shortcutKey + '+Enter to compile';
 // Web Worker
 const worker = new Worker('worker.js');
 
-// Pages uses the exact Monaco/TextMate/LSP bundle shipped by Spec Studio.
-// Editor integrations render a different, host-adapted document and therefore
-// never reach this path: their ordinary VS Code/IntelliJ editor stays the one
-// authoritative Tcl surface.
-if ((location.protocol === 'https:' && /(?:^|\.)github\.io$/i.test(location.hostname))
-    || new URLSearchParams(location.search).has('pages-test')) {
-  (async function mountSharedMonaco() {
+// The full standalone Web UI uses the exact Monaco/TextMate/LSP bundle shipped
+// by Spec Studio. Native `tcl explore --serve` carries a local copy under
+// `editor/`; Pages shares `/spec-studio/`. IDE integrations use their own
+// Compiler Explorer panel beside the IDE's ordinary active file tab instead.
+(async function mountSharedMonaco() {
     try {
-      const manifestUrl = new URL('../spec-studio/build-info.json', document.baseURI);
+      const onPages = (location.protocol === 'https:' && /(?:^|\.)github\.io$/i.test(location.hostname))
+        || new URLSearchParams(location.search).has('pages-test');
+      const editorBase = new URL(onPages ? '../spec-studio/' : 'editor/', document.baseURI);
+      const manifestUrl = new URL('build-info.json', editorBase);
       manifestUrl.searchParams.set('editor-check', String(Date.now()));
       const info = await fetch(manifestUrl, { cache: 'no-store' }).then(r => r.json());
       const asset = name => info.assets.find(a => a.name === name);
       const url = (name, relative) => {
-        const value = new URL('../spec-studio/' + relative, document.baseURI);
+        const value = new URL(relative, editorBase);
         value.searchParams.set('v', (asset(name) || {}).sha256 || info.version);
         return value.href;
       };
@@ -1086,33 +1158,43 @@ if ((location.protocol === 'https:' && /(?:^|\.)github\.io$/i.test(location.host
         grammarUrl: url('tcl-grammar', 'assets/tcl.tmLanguage.json'),
         onigurumaUrl: url('oniguruma', 'assets/onig.wasm'),
         onChange: function() { $('#source').dispatchEvent(new Event('input')); },
-        report: function(message) { $('#statusMsg').textContent = message; },
+        onCompile: forceCompile,
+        report: reportEditorStatus,
       });
-      $('#lineNumbers').style.display = 'none';
-      $('#sourceHighlights').style.display = 'none';
+      monacoSourceHost = host;
+      // Monaco is the only visible editor. The textarea remains hidden state
+      // plumbing for the compiler worker and form events.
+      $('#editorContainer').style.display = 'none';
       $('#dialect').addEventListener('change', function() { host.setDialect($('#dialect').value); });
       window.addEventListener('resize', function() { host.layout(); });
     } catch (error) {
-      console.warn('Shared Monaco editor unavailable; keeping textarea', error);
+      $('#editorContainer').style.display = 'none';
+      $('#monacoSource').style.display = 'grid';
+      $('#monacoSource').style.placeItems = 'center';
+      $('#monacoSource').textContent = 'Monaco could not be loaded. Restore the editor assets and reload.';
+      reportEditorStatus(
+        'Monaco unavailable: ' + (error && error.message ? error.message : String(error)),
+        'err'
+      );
     }
-  })();
-}
+})();
 
 worker.onmessage = function(e) {
   const msg = e.data;
   switch (msg.type) {
     case 'status':
-      $('#statusMsg').textContent = msg.message;
+      if (!editorHealthError) $('#statusMsg').textContent = msg.message;
       break;
     case 'ready':
       workerReady = true;
-      $('#statusMsg').style.display = 'none';
+      settleEditorStatus();
       $('#emptyState').textContent = 'Enter Tcl code and press ' + shortcutKey + '+Enter';
       setStatus('synced');
       // The dialect list needs no compile, so fill the dropdown as soon as
       // the module loads rather than leaving the hard-coded tcl8.6 fallback
       // up until a first result lands.
       populateDialectOptions(msg.meta && msg.meta.dialects);
+      setExplorerReferenceMeta(msg.meta);
       // Auto-compile if there's content.
       if (pendingCompile || textarea.value.trim()) {
         pendingCompile = false;
@@ -1132,7 +1214,7 @@ worker.onmessage = function(e) {
             + (failures.length === 1 ? '' : 's') + ' failed to render: '
             + failures.map(f => f.name).join(', ');
         } else {
-          $('#statusMsg').style.display = 'none';
+          settleEditorStatus();
         }
       } finally {
         // The spinner must stop whatever the renderers did — a stuck
@@ -1192,10 +1274,6 @@ textarea.addEventListener('keydown', e => {
     textarea.selectionStart = textarea.selectionEnd = start + 4;
     updateLineNumbers();
     scheduleCompile();
-  }
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    forceCompile();           // recompile even if source unchanged
   }
 });
 
@@ -1352,6 +1430,7 @@ function renderAll() {
     { name: 'Callouts', pane: '#pane-callouts', run: renderCallouts },
     { name: 'Tcl ASM', pane: '#pane-asm', run: renderAsm },
     { name: 'WASM', pane: '#pane-wasm', run: renderWasm },
+    { name: 'Trait reference', pane: '#pane-trait-reference', run: renderTraitReference },
     ...genericViews.map(view => ({
       name: view.label || view.id,
       pane: '#pane-' + explorerPaneId(view.id),
@@ -1400,24 +1479,16 @@ function updateBadges() {
 
 // Source highlighting (standalone-only)
 function scrollSourceToCenter(start, end) {
-  textarea.focus();
-  textarea.setSelectionRange(start, end);
-  const text = textarea.value.substring(0, Math.floor((start + end) / 2));
-  const line = (text.match(/\n/g) || []).length;
-  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 16;
-  const viewportHeight = textarea.clientHeight;
-  const targetScroll = line * lineHeight - viewportHeight / 2;
-  textarea.scrollTop = Math.max(0, targetScroll);
+  monacoSourceHost?.highlightRanges([{start, end}]);
 }
 function scrollSourceToCenterNoSelect(start, end) {
-  const text = textarea.value.substring(0, Math.floor((start + end) / 2));
-  const line = (text.match(/\n/g) || []).length;
-  const lineHeight = parseFloat(getComputedStyle(textarea).lineHeight) || 16;
-  const viewportHeight = textarea.clientHeight;
-  const targetScroll = line * lineHeight - viewportHeight / 2;
-  textarea.scrollTop = Math.max(0, targetScroll);
+  monacoSourceHost?.highlightRanges([{start, end}]);
 }
 function highlightSourceRanges(ranges) {
+  if (monacoSourceHost) {
+    monacoSourceHost.highlightRanges(ranges || []);
+    return;
+  }
   const hl = sourceHighlights;
   if (!ranges || !ranges.length) { hl.textContent = ''; return; }
   // Position overlay to match textarea
@@ -1449,6 +1520,7 @@ function highlightSourceRanges(ranges) {
   scrollSourceToCenterNoSelect(merged[0].start, merged[0].end);
 }
 function clearSourceHighlights() {
+  if (monacoSourceHost) monacoSourceHost.highlightRanges([]);
   sourceHighlights.textContent = '';
 }
 

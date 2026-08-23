@@ -69,6 +69,7 @@
 pub mod corpus;
 pub mod coverage;
 pub mod draft;
+pub mod examples;
 pub mod help;
 pub mod infer;
 pub mod reference;
