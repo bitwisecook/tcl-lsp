@@ -103,7 +103,10 @@ suite("Compiler Explorer webview", () => {
       core.includes("function renderTraitReference"),
       "standalone, VS Code, and JetBrains must share the trait renderer",
     );
-    assert.ok(core.includes("data.meta.traits"));
+    assert.ok(
+      core.includes("explorerReferenceMeta") && core.includes("Array.isArray(meta.traits)"),
+      "the shared renderer must accept ready-time metadata before a compile result exists",
+    );
     assert.ok(!core.includes("TAINT_SOURCE"), "trait names and prose must come from Rust metadata");
   });
 
