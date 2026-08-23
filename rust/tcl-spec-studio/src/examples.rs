@@ -366,7 +366,15 @@ fn registry_example_json(example: DocumentationExample, subject: &str) -> Value 
             })
         })
         .collect();
-    json!({ "code": example.code, "annotations": annotations })
+    let mut value = json!({ "code": example.code, "annotations": annotations });
+    if let Some(carrier) = example.carrier {
+        value["carrier"] = json!({
+            "line": carrier.line,
+            "needle": carrier.needle,
+            "label": format!("{subject} is carried by this command"),
+        });
+    }
+    value
 }
 
 /// Annotated example for a field's **?** panel and Reference row.
@@ -433,6 +441,21 @@ mod tests {
                 errors.push(format!("{owner} has an empty arrow label"));
             }
         }
+        if let Some(carrier) = example.get("carrier") {
+            let line = usize::try_from(carrier["line"].as_u64().expect("carrier line"))
+                .expect("carrier line fits usize");
+            let needle = carrier["needle"].as_str().expect("carrier needle");
+            if needle.is_empty() {
+                errors.push(format!("{owner} has an empty carrier token"));
+            } else if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+                errors.push(format!(
+                    "{owner}: carrier line {line} does not contain {needle:?} in {code:?}"
+                ));
+            }
+            if carrier["label"].as_str().is_none_or(str::is_empty) {
+                errors.push(format!("{owner} has an empty carrier label"));
+            }
+        }
         errors
     }
 
@@ -472,6 +495,9 @@ mod tests {
                 let doc = variant["doc"].as_str().expect("doc");
                 let example = variant_example(id, key, doc)
                     .unwrap_or_else(|| panic!("no variant example for {id}/{key}"));
+                if id == "traits" && example.get("carrier").is_none() {
+                    errors.push(format!("{id}/{key} has no command-token carrier"));
+                }
                 errors.extend(validation_errors(&example, &format!("{id}/{key}")));
             }
         }

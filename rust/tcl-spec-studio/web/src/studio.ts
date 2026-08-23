@@ -225,22 +225,21 @@ function annotatedExample(example: CodeExample): HTMLElement {
       .map(({ annotation, step }) => ({ annotation, step, at: line.indexOf(annotation.needle) }))
       .sort((left, right) => left.at - right.at);
     const source = el("pre", { class: "example-line" });
-    let cursor = 0;
-    for (const { annotation, step, at } of onLine) {
-      // Overlapping annotations share the earlier highlight but still receive
-      // their own flow arrow below.
-      if (at < cursor) continue;
-      source.appendChild(document.createTextNode(line.slice(cursor, at)));
+    const carrier = example.carrier?.line === lineNumber ? example.carrier : undefined;
+    const carrierAt = carrier ? line.indexOf(carrier.needle) : -1;
+    if (carrier && carrierAt >= 0) {
+      source.appendChild(document.createTextNode(line.slice(0, carrierAt)));
       source.appendChild(
         el("mark", {
-          class: `example-token flow-step-${((step - 1) % 4) + 1}`,
-          text: annotation.needle,
-          title: `Flow step ${step}: ${annotation.label}`,
+          class: "example-carrier",
+          text: carrier.needle,
+          title: carrier.label,
         }),
       );
-      cursor = at + annotation.needle.length;
+      source.appendChild(document.createTextNode(line.slice(carrierAt + carrier.needle.length)));
+    } else {
+      source.appendChild(document.createTextNode(line || " "));
     }
-    source.appendChild(document.createTextNode(line.slice(cursor) || (line ? "" : " ")));
     node.appendChild(source);
     for (const { annotation, step, at } of onLine) {
       const arrow =
@@ -1695,10 +1694,30 @@ function refRow(
   for (const badge of badges) head.appendChild(el("span", { class: "badge", text: badge }));
   const detail = el("div", { class: "refdetail" }, [annotatedExample(example)]);
   if (help && help !== doc) detail.prepend(helpParagraphs(help));
+  const button = el("button", {
+    type: "button",
+    class: "qbtn",
+    text: "?",
+    title: `Show ${term} inline help`,
+    "aria-label": `Show ${term} inline help`,
+    "aria-expanded": "false",
+  });
+  head.appendChild(button);
   const node = el("details", { class: "refrow" }, [
     el("summary", {}, [head, el("div", { class: "doc", text: doc })]),
     detail,
   ]);
+  const syncButton = (): void => {
+    button.setAttribute("aria-expanded", node.open ? "true" : "false");
+    button.setAttribute("aria-label", `${node.open ? "Hide" : "Show"} ${term} inline help`);
+  };
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    node.open = !node.open;
+    syncButton();
+  });
+  node.addEventListener("toggle", syncButton);
   return { node, hay: `${term} ${badges.join(" ")} ${doc} ${help ?? ""}`.toLowerCase() };
 }
 

@@ -193,10 +193,11 @@ async function main() {
     console.log(`    registry loaded: ${count.trim()}`);
 
     // Registry-owned worked examples must show the full flow, not merely a
-    // generic attachment point. Each source span is highlighted with the same
-    // numbered colour as its arrow. Use a historically long trait name here
-    // too: its picker label used to stretch its background across the whole
-    // grid cell instead of hugging the token.
+    // generic attachment point. Arrows identify source, processing, and
+    // destination, while exactly one independent highlight marks the command
+    // token carrying the trait. Use a historically long trait name here too:
+    // its picker label used to stretch its background across the whole grid
+    // cell instead of hugging the token.
     await page.click("#tab-reference");
     const flowContract = await page.evaluate(() => {
       const term = Array.from(document.querySelectorAll("code.term")).find(
@@ -205,24 +206,40 @@ async function main() {
       const row = term?.closest("details.refrow");
       if (!row)
         throw new Error("EXPANSION_ESCAPE_SAFE reference row is missing");
-      row.open = true;
-      const tokens = Array.from(row.querySelectorAll("mark.example-token"));
+      const help = row.querySelector("button.qbtn");
+      if (!help)
+        throw new Error("EXPANSION_ESCAPE_SAFE inline help button is missing");
+      help.click();
+      const carriers = Array.from(row.querySelectorAll("mark.example-carrier"));
       const arrows = Array.from(row.querySelectorAll("pre.example-arrow"));
       return {
-        tokens: tokens.length,
+        open: row.open,
+        expanded: help.getAttribute("aria-expanded"),
+        carriers: carriers.length,
+        carrier: carriers[0]?.textContent ?? "",
+        marks: row.querySelectorAll("mark").length,
         arrows: arrows.length,
         numbered: arrows.every((arrow, index) =>
           (arrow.textContent ?? "").includes(`→ ${index + 1}.`),
         ),
-        colours: new Set(tokens.map((token) => getComputedStyle(token).color))
+        colours: new Set(arrows.map((arrow) => getComputedStyle(arrow).color))
           .size,
+        rowsWithoutHelp: Array.from(
+          document.querySelectorAll("details.refrow"),
+        ).filter((referenceRow) => !referenceRow.querySelector("button.qbtn"))
+          .length,
       };
     });
     if (
-      flowContract.tokens < 3 ||
-      flowContract.arrows !== flowContract.tokens ||
+      !flowContract.open ||
+      flowContract.expanded !== "true" ||
+      flowContract.carriers !== 1 ||
+      flowContract.carrier !== "puts" ||
+      flowContract.marks !== 1 ||
+      flowContract.arrows < 3 ||
       !flowContract.numbered ||
-      flowContract.colours < 3
+      flowContract.colours < 3 ||
+      flowContract.rowsWithoutHelp !== 0
     ) {
       throw new Error(
         `annotated flow rendering drifted: ${JSON.stringify(flowContract)}`,
@@ -263,7 +280,7 @@ async function main() {
       );
     }
     console.log(
-      "    registry flows have numbered token highlights and tight trait labels",
+      "    registry flows have numbered arrows, one command carrier, inline help, and tight trait labels",
     );
 
     // 2. Opening the Pack DSL tab loads the editor chunk and mounts Monaco.

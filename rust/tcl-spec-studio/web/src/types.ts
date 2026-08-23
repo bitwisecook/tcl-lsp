@@ -38,10 +38,22 @@ export interface HelpAnnotation {
   label: string;
 }
 
+/** The sole command token that carries the documented trait. */
+export interface HelpCarrier {
+  /** Zero-based source line. */
+  line: number;
+  /** Exact command token to highlight. */
+  needle: string;
+  /** Accessible explanation of why this token is marked. */
+  label: string;
+}
+
 /** Small Tcl example shared by form help and the Reference tab. */
 export interface CodeExample {
   code: string;
   annotations: HelpAnnotation[];
+  /** Present for behavioural traits; independent of the flow arrows. */
+  carrier?: HelpCarrier;
 }
 
 /** One selectable value in a picker, from `catalogue::Variant`. */
