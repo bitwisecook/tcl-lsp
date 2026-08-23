@@ -61,6 +61,7 @@ import type {
   TestInspection,
   TestReport,
   TestToken,
+  Variant,
 } from "./types.js";
 
 const GITHUB_REPO = "bitwisecook/tcl-lsp";
@@ -2236,6 +2237,10 @@ function boot(): void {
 
       editors = makeEditors({
         catalogues: schema.catalogues,
+        variantHelp: (variant: Variant) => {
+          const panel = helpWithExample(variant.doc, variant.example);
+          return { button: helpButton(panel, variant.key), panel };
+        },
         newSubcommand: () => JSON.parse(wasm.new_subcommand()) as Draft,
         buildSubcommandForm: (container, draft, onChange) => {
           buildForm(container, schema.subcommand, draft, "subcommand", () => {
