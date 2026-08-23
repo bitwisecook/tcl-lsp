@@ -4867,7 +4867,7 @@ mod tests {
             (
                 "side-effect target",
                 names(SIDE_EFFECT_TARGETS),
-                catalogue::SIDE_EFFECT_TARGETS,
+                catalogue::SIDE_EFFECT_TARGETS.as_slice(),
             ),
             (
                 "connection side",

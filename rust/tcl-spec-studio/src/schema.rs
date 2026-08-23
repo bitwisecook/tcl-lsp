@@ -1852,14 +1852,14 @@ pub fn catalogues() -> Value {
         ("formatType", catalogue::FORMAT_TYPES),
         ("formKind", catalogue::FORM_KINDS),
         ("definedSymbolKind", catalogue::DEFINED_SYMBOL_KINDS),
-        ("sideEffectTarget", catalogue::SIDE_EFFECT_TARGETS),
+        ("sideEffectTarget", &catalogue::SIDE_EFFECT_TARGETS),
         ("connectionSide", catalogue::CONNECTION_SIDES),
         ("loweringHook", catalogue::LOWERING_HOOKS),
         ("codegenHook", catalogue::CODEGEN_HOOKS),
         ("inlineCodegenHook", catalogue::INLINE_CODEGEN_HOOKS),
         ("analyserHook", catalogue::ANALYSER_HOOKS),
         ("traits", &catalogue::TRAITS),
-        ("taintColour", catalogue::TAINT_COLOURS),
+        ("taintColour", &catalogue::TAINT_COLOURS),
         ("dialects", &catalogue::DIALECTS),
     ];
     let mut values = serde_json::Map::new();

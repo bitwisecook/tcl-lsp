@@ -27,7 +27,10 @@
 
 use serde_json::{Value, json};
 
-use tcl_registry::traits::{Trait, TraitCategory};
+use tcl_registry::documentation::DocumentationExample;
+use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::taint::TaintColourAtom;
+use tcl_registry::traits::Trait;
 
 /// One span in a source line that the browser annotates.
 #[derive(Debug, Clone, Copy)]
@@ -336,93 +339,6 @@ fn catalogue_template(id: &str) -> Option<Example> {
     }
 }
 
-const TRAIT_CONTROL: Example = Example {
-    code: "myflow {$ready} {\n    publish $payload\n}",
-    focuses: &[focus(
-        0,
-        "myflow",
-        "describes how this command controls scripts and execution",
-    )],
-};
-const TRAIT_PURITY: Example = Example {
-    code: "set result [mycommand $value]",
-    focuses: &[focus(
-        0,
-        "[mycommand $value]",
-        "describes optimisation and runtime properties of this call",
-    )],
-};
-const TRAIT_VARIABLES: Example = Example {
-    code: "mycommand target $value",
-    focuses: &[focus(
-        0,
-        "target",
-        "describes the name, variable, or frame selected here",
-    )],
-};
-const TRAIT_DYNAMIC: Example = Example {
-    code: "mycommand $script",
-    focuses: &[focus(
-        0,
-        "$script",
-        "marks dynamic execution or an analysis boundary here",
-    )],
-};
-const TRAIT_SECURITY: Example = Example {
-    code: "mycommand $untrusted",
-    focuses: &[focus(
-        0,
-        "$untrusted",
-        "describes I/O or security handling at this call",
-    )],
-};
-const TRAIT_CALLBACK: Example = Example {
-    code: "mycommand callback",
-    focuses: &[focus(
-        0,
-        "callback",
-        "describes a command prefix invoked from here",
-    )],
-};
-const TRAIT_IRULES: Example = Example {
-    code: "when HTTP_REQUEST {\n    mycommand $value\n}",
-    focuses: &[focus(
-        1,
-        "mycommand $value",
-        "describes this BIG-IP/iRules invocation",
-    )],
-};
-const TRAIT_OBJECTS: Example = Example {
-    code: "oo::class create Widget {\n    mycommand render {} { ... }\n}",
-    focuses: &[focus(
-        1,
-        "mycommand",
-        "describes this object/class operation",
-    )],
-};
-const TRAIT_PACKAGES: Example = Example {
-    code: "package mycommand demo 1.0",
-    focuses: &[focus(
-        0,
-        "mycommand",
-        "describes this package or external-unit operation",
-    )],
-};
-
-fn trait_template(key: &str) -> Option<Example> {
-    match Trait::from_name(key)?.category() {
-        TraitCategory::ControlFlow => Some(TRAIT_CONTROL),
-        TraitCategory::Runtime => Some(TRAIT_PURITY),
-        TraitCategory::Names => Some(TRAIT_VARIABLES),
-        TraitCategory::DynamicAnalysis => Some(TRAIT_DYNAMIC),
-        TraitCategory::Security => Some(TRAIT_SECURITY),
-        TraitCategory::Callbacks => Some(TRAIT_CALLBACK),
-        TraitCategory::Irules => Some(TRAIT_IRULES),
-        TraitCategory::Objects => Some(TRAIT_OBJECTS),
-        TraitCategory::Packages => Some(TRAIT_PACKAGES),
-    }
-}
-
 fn example_json(example: Example, subject: &str) -> Value {
     let annotations: Vec<Value> = example
         .focuses
@@ -432,6 +348,21 @@ fn example_json(example: Example, subject: &str) -> Value {
                 "line": item.line,
                 "needle": item.needle,
                 "label": format!("{subject} — {}", item.note),
+            })
+        })
+        .collect();
+    json!({ "code": example.code, "annotations": annotations })
+}
+
+fn registry_example_json(example: DocumentationExample, subject: &str) -> Value {
+    let annotations: Vec<Value> = example
+        .annotations
+        .iter()
+        .map(|item| {
+            json!({
+                "line": item.line,
+                "needle": item.needle,
+                "label": format!("{subject} — {}", item.label),
             })
         })
         .collect();
@@ -461,12 +392,19 @@ pub fn catalogue_example(id: &str, title: &str) -> Option<Value> {
 /// attachment point.
 #[must_use]
 pub fn variant_example(id: &str, key: &str, doc: &str) -> Option<Value> {
-    let example = if id == "traits" {
-        trait_template(key)
-    } else {
-        catalogue_template(id)
-    }?;
-    Some(example_json(example, &format!("{key}: {doc}")))
+    let subject = format!("{key}: {doc}");
+    match id {
+        "traits" => Trait::from_name(key)
+            .map(Trait::example)
+            .map(|example| registry_example_json(example, &subject)),
+        "taintColour" => TaintColourAtom::from_name(key)
+            .map(TaintColourAtom::example)
+            .map(|example| registry_example_json(example, &subject)),
+        "sideEffectTarget" => SideEffectTarget::from_name(key)
+            .map(SideEffectTarget::example)
+            .map(|example| registry_example_json(example, &subject)),
+        _ => catalogue_template(id).map(|example| example_json(example, &subject)),
+    }
 }
 
 #[cfg(test)]
@@ -474,26 +412,33 @@ mod tests {
     use super::*;
     use crate::{catalogue, schema};
 
-    fn assert_valid(example: &Value, owner: &str) {
+    fn validation_errors(example: &Value, owner: &str) -> Vec<String> {
+        let mut errors = Vec::new();
         let code = example["code"].as_str().expect("example code");
         let lines: Vec<&str> = code.lines().collect();
         let annotations = example["annotations"].as_array().expect("annotations");
-        assert!(!annotations.is_empty(), "{owner} has no arrow annotations");
+        if annotations.is_empty() {
+            errors.push(format!("{owner} has no arrow annotations"));
+        }
         for annotation in annotations {
             let line = usize::try_from(annotation["line"].as_u64().expect("line"))
                 .expect("line fits usize");
             let needle = annotation["needle"].as_str().expect("needle");
-            assert!(
-                lines.get(line).is_some_and(|text| text.contains(needle)),
-                "{owner}: line {line} does not contain {needle:?} in {code:?}"
-            );
-            assert!(
-                annotation["label"]
-                    .as_str()
-                    .is_some_and(|label| !label.is_empty()),
-                "{owner} has an empty arrow label"
-            );
+            if !lines.get(line).is_some_and(|text| text.contains(needle)) {
+                errors.push(format!(
+                    "{owner}: line {line} does not contain {needle:?} in {code:?}"
+                ));
+            }
+            if annotation["label"].as_str().is_none_or(str::is_empty) {
+                errors.push(format!("{owner} has an empty arrow label"));
+            }
         }
+        errors
+    }
+
+    fn assert_valid(example: &Value, owner: &str) {
+        let errors = validation_errors(example, owner);
+        assert!(errors.is_empty(), "{}", errors.join("\n"));
     }
 
     #[test]
@@ -514,10 +459,11 @@ mod tests {
 
     #[test]
     fn every_catalogue_and_variant_has_a_valid_example() {
+        let mut errors = Vec::new();
         for (id, title, _) in crate::help::CATALOGUE_HELP {
             let example = catalogue_example(id, title)
                 .unwrap_or_else(|| panic!("no catalogue example for {id}"));
-            assert_valid(&example, id);
+            errors.extend(validation_errors(&example, id));
         }
         let catalogues = schema::catalogues();
         for (id, variants) in catalogues.as_object().expect("catalogues") {
@@ -526,9 +472,10 @@ mod tests {
                 let doc = variant["doc"].as_str().expect("doc");
                 let example = variant_example(id, key, doc)
                     .unwrap_or_else(|| panic!("no variant example for {id}/{key}"));
-                assert_valid(&example, &format!("{id}/{key}"));
+                errors.extend(validation_errors(&example, &format!("{id}/{key}")));
             }
         }
+        assert!(errors.is_empty(), "{}", errors.join("\n"));
     }
 
     #[test]

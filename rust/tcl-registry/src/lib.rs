@@ -66,6 +66,7 @@ pub mod definer;
 pub mod deprecation;
 pub mod dialects;
 pub mod dispatch_stability;
+pub mod documentation;
 mod event_descriptions;
 pub mod event_facts;
 pub mod events;
@@ -140,6 +141,7 @@ pub mod prelude {
         DispatchDependencies, DispatchDependencyComposition, DispatchDependencyDescriptor,
         DispatchDependencyDomain,
     };
+    pub use crate::documentation::{DocumentationAnnotation, DocumentationExample};
     pub use crate::events::{
         ASM_PAYLOAD, BIGIP_EVENT_HANDLER_PRIORITY, CACHE_PAYLOAD, DIAMETER_PAYLOAD,
         DataCollectionAction, DataCollectionOperation, EventHandlerPriority, EventRequirementForm,

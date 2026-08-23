@@ -1236,7 +1236,7 @@ How untrusted data is tracked. A value read from the network is marked `TAINTED`
 | `PORT` | a validated port number |
 | `FQDN` | a validated fully-qualified domain name |
 | `PATH_JOINED` | produced by `file join` |
-| `CHANNEL` | a channel handle |
+| `CHANNEL` | an I/O channel handle |
 
 ### Traits
 

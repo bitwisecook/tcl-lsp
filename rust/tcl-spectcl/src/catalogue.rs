@@ -34,7 +34,8 @@
 use std::sync::LazyLock;
 
 use tcl_dialect::{DialectProfile, DialectSet};
-use tcl_registry::taint::TaintColour;
+use tcl_registry::side_effects::SideEffectTarget;
+use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
 
 /// One selectable value in a picker — the Rust spelling plus a one-line
@@ -206,51 +207,13 @@ pub const DEFINED_SYMBOL_KINDS: &[Variant] = &[
     ),
 ];
 
-/// [`SideEffectTarget`] — what kind of state an effect touches.
-pub const SIDE_EFFECT_TARGETS: &[Variant] = &[
-    v("Variable", "Tcl variable read or write"),
-    v("SessionTable", "session table entry"),
-    v("PersistenceTable", "persistence record"),
-    v("DataGroup", "data group / class lookup"),
-    v("HttpHeader", "HTTP header read or write"),
-    v("HttpBody", "HTTP payload / body"),
-    v("HttpStatus", "HTTP status code"),
-    v("HttpUri", "HTTP URI components"),
-    v("HttpCookie", "HTTP cookie"),
-    v("HttpMethod", "HTTP method"),
-    v("Http2State", "HTTP/2 protocol state"),
-    v("ResponseCommit", "commits or sends an HTTP response"),
-    v("ConnectionControl", "drop / reject / discard / forward"),
-    v("TcpState", "TCP connection state"),
-    v("SslState", "SSL/TLS state"),
-    v("UdpState", "UDP state"),
-    v("PoolSelection", "pool selection"),
-    v("NodeSelection", "node selection"),
-    v("SnatSelection", "SNAT selection"),
-    v("FileIo", "filesystem I/O"),
-    v("NetworkIo", "network I/O"),
-    v("LogIo", "logging output"),
-    v("StreamProfile", "stream profile state"),
-    v("DnsState", "DNS state"),
-    v("ClassificationState", "classification state"),
-    v("Dosl7State", "L7 DoS state"),
-    v("FlowState", "flow state"),
-    v("LsnState", "LSN state"),
-    v("FtpState", "FTP state"),
-    v("IcapState", "ICAP state"),
-    v("MessageState", "message-routing state"),
-    v("IStats", "iStats counters"),
-    v("ApmState", "APM state"),
-    v("AsmState", "ASM state"),
-    v("BigipConfig", "BIG-IP configuration"),
-    v("ProcDefinition", "procedure definition table"),
-    v("NamespaceState", "namespace state"),
-    v("InterpState", "interpreter state"),
-    v("Process", "process creation / control"),
-    v("ChannelIo", "channel I/O"),
-    v("EventControl", "iRules event control flow"),
-    v("Unknown", "unclassified effect"),
-];
+/// [`SideEffectTarget`] — generated from the registry-owned names and prose.
+pub static SIDE_EFFECT_TARGETS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
+    SideEffectTarget::ALL
+        .iter()
+        .map(|item| v(item.name(), item.summary()))
+        .collect()
+});
 
 /// [`ConnectionSide`] — which side of an iRules connection an effect applies to.
 pub const CONNECTION_SIDES: &[Variant] = &[
@@ -391,29 +354,13 @@ pub static TRAITS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
         .collect()
 });
 
-/// [`TaintColour`] bits.
-pub const TAINT_COLOURS: &[Variant] = &[
-    v("TAINTED", "attacker-controlled"),
-    v("PATH_PREFIXED", "guaranteed to start with a path separator"),
-    v(
-        "NON_DASH_PREFIXED",
-        "cannot begin with `-` (option-injection safe)",
-    ),
-    v("CRLF_FREE", "contains no CR or LF (header-injection safe)"),
-    v("SHELL_ATOM", "a single shell atom (exec-safe)"),
-    v("LIST_CANONICAL", "canonical list form (eval-safe)"),
-    v("REGEX_LITERAL", "quoted as a regex literal"),
-    v("PATH_NORMALISED", "path-normalised"),
-    v("PATH_BOUNDED", "bounded within a known path root"),
-    v("HEADER_TOKEN_SAFE", "safe as an HTTP header token"),
-    v("HTML_ESCAPED", "HTML-escaped"),
-    v("URL_ENCODED", "URL-encoded"),
-    v("IP_ADDRESS", "a validated IP address"),
-    v("PORT", "a validated port number"),
-    v("FQDN", "a validated fully-qualified domain name"),
-    v("PATH_JOINED", "produced by `file join`"),
-    v("CHANNEL", "a channel handle"),
-];
+/// [`TaintColour`] bits, generated from the registry-owned atoms and prose.
+pub static TAINT_COLOURS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
+    TaintColourAtom::ALL
+        .iter()
+        .map(|item| v(item.name(), item.summary()))
+        .collect()
+});
 
 /// Canonical dialect name ↔ primitive [`DialectSet`] bit — the vocabulary
 /// [`DIALECTS`] and [`dialect_bit`] both read.
@@ -914,14 +861,14 @@ mod tests {
             FORMAT_TYPES,
             FORM_KINDS,
             DEFINED_SYMBOL_KINDS,
-            SIDE_EFFECT_TARGETS,
+            SIDE_EFFECT_TARGETS.as_slice(),
             CONNECTION_SIDES,
             LOWERING_HOOKS,
             CODEGEN_HOOKS,
             INLINE_CODEGEN_HOOKS,
             ANALYSER_HOOKS,
             &TRAITS,
-            TAINT_COLOURS,
+            TAINT_COLOURS.as_slice(),
             DIALECTS.as_slice(),
         ] {
             let mut seen: Vec<&str> = Vec::new();

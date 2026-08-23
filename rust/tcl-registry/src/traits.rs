@@ -52,6 +52,8 @@
 use std::fmt;
 use std::ops::{BitOr, BitOrAssign};
 
+use crate::documentation::{DocumentationAnnotation, DocumentationExample};
+
 /// Declare the closed vocabulary used to organise behavioural traits.
 ///
 /// A new category must be added here deliberately, with its author-facing
@@ -1156,6 +1158,132 @@ declare_traits! {
     /// keeps the abstaining behaviour a pack author never has to think
     /// about.
     DefersBody => DEFERS_BODY, ControlFlow, "stores its script argument instead of running it; unset means the body is treated as executed";
+}
+
+/// Declare the required end-to-end example for every behavioural trait.
+///
+/// This second exhaustive declaration is intentional: the behavioural flag
+/// and its prose stay compact in [`declare_traits!`], while adding a flag makes
+/// this generated `match` non-exhaustive until the author supplies a complete
+/// input → operation → outcome example. The Spec Studio serialises this data
+/// directly; it does not own a parallel trait-example table.
+macro_rules! declare_trait_examples {
+    ($($variant:ident => $example:expr);* $(;)?) => {
+        impl Trait {
+            /// A registry-owned Tcl program showing this trait's observable
+            /// end-to-end consequence.
+            #[must_use]
+            pub const fn example(self) -> DocumentationExample {
+                match self { $( Self::$variant => $example ),* }
+            }
+        }
+    };
+}
+
+macro_rules! flow {
+    ($code:literal; $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+        {
+            const ANNOTATIONS: &[DocumentationAnnotation] =
+                &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+            DocumentationExample::new($code, ANNOTATIONS)
+        }
+    };
+}
+
+declare_trait_examples! {
+    ControlFlow => flow!("set ready 1\nif {$ready} { set result accepted }\nputs $result"; (0, "ready 1", "supplies the branch input"), (1, "if", "changes the control-flow graph"), (2, "$result", "only the selected path supplies the result"));
+    LanguageKeyword => flow!("set ready 1\nif {$ready} { puts accepted }"; (0, "ready 1", "supplies the tested value"), (1, "if", "is highlighted and analysed as a language keyword"), (1, "puts accepted", "the selected body runs"));
+    HasBooleanCond => flow!("set user_count [gets stdin]\nif {$user_count > 0} { puts busy }"; (0, "[gets stdin]", "supplies an external value"), (1, "$user_count > 0", "is parsed in boolean expression context"), (1, "puts busy", "runs only when the condition is true"));
+    TerminatesBlock => flow!("proc requireName {name} {\n    if {$name eq {}} { error {name required} }\n    puts $name\n}"; (1, "error", "terminates this basic block"), (2, "puts $name", "is unreachable on the error path"));
+    TerminatesProcess => flow!("set status 2\nexit $status\nputs unreachable"; (0, "status 2", "selects the process status"), (1, "exit", "ends the interpreter without Tcl unwinding"), (2, "puts unreachable", "can never execute"));
+    HasLoopBody => flow!("set items {alpha beta}\nforeach item $items { lappend seen $item }\nputs $seen"; (0, "{alpha beta}", "supplies loop values"), (1, "lappend seen $item", "is the recursively analysed loop body"), (2, "$seen", "contains the values produced by each iteration"));
+    NeverInlineBody => flow!("set items {alpha beta}\nforeach item $items { puts $item }\nputs done"; (0, "{alpha beta}", "supplies runtime iterations"), (1, "{ puts $item }", "must remain a distinct loop body"), (2, "puts done", "runs after the loop completes"));
+    LoopListHeader => flow!("set items {alpha beta}\nforeach item $items { puts $item }"; (0, "{alpha beta}", "supplies the list expression"), (1, "$items", "is evaluated once in the loop header"), (1, "$item", "receives one element per iteration"));
+    Pure => flow!("set input hello\nset n [string length $input]\nputs $n"; (0, "hello", "is the only input"), (1, "[string length $input]", "has no externally visible side effect"), (2, "$n", "is the complete observable result"));
+    CseCandidate => flow!("set input hello\nset a [string length $input]\nset b [string length $input]\nputs [expr {$a + $b}]"; (1, "[string length $input]", "computes the expression once"), (2, "[string length $input]", "can reuse the equivalent result"), (3, "$a + $b", "observes identical values"));
+    PureEvaluation => flow!("set price 20\nset total [expr {$price * 2}]\nputs $total"; (0, "price 20", "supplies the expression input"), (1, "expr {$price * 2}", "evaluates without changing external state"), (2, "$total", "receives the numeric result"));
+    DefinesProcedure => flow!("proc greet {name} { return \"hello $name\" }\nputs [greet Ada]"; (0, "proc greet", "adds a command definition"), (0, "{name}", "declares its parameter"), (1, "[greet Ada]", "resolves to the new procedure"));
+    DestroysVariable => flow!("set token secret\nunset token\ninfo exists token"; (0, "token", "creates variable state"), (1, "unset token", "destroys that state"), (2, "info exists token", "now returns false"));
+    ReadsBeforeWrite => flow!("set count 4\nincr count 2\nputs $count"; (0, "count 4", "supplies the old value"), (1, "incr count 2", "reads it before writing the incremented value"), (2, "$count", "observes 6"));
+    CreatesScopeAlias => flow!("set outer initial\nproc update {} { upvar 1 outer local; set local changed }\nupdate\nputs $outer"; (0, "outer", "lives in the caller"), (1, "upvar 1 outer local", "aliases it into the procedure"), (3, "$outer", "observes the write through the alias"));
+    AliasesGlobal => flow!("set ::mode old\nproc update {} { global mode; set mode new }\nupdate\nputs $::mode"; (0, "::mode", "lives in the global namespace"), (1, "global mode", "aliases it in the procedure"), (3, "$::mode", "observes the global write"));
+    CreatesBarrier => flow!("set script {set changed 1}\neval $script\nputs $changed"; (0, "{set changed 1}", "contains runtime-selected code"), (1, "eval $script", "blocks ordinary static dataflow across dynamic execution"), (2, "$changed", "is created by that code"));
+    EvaluatesCode => flow!("set user_script [gets stdin]\neval $user_script\nputs done"; (0, "[gets stdin]", "supplies attacker-controlled text"), (1, "eval $user_script", "executes the text as Tcl and reports T100"), (2, "puts done", "is reached only if that code returns normally"));
+    PerformsSubstitution => flow!("set template {[read $channel]}\nset value [subst $template]\nputs $value"; (0, "{[read $channel]}", "contains substitutions as data"), (1, "subst $template", "performs those substitutions at runtime"), (2, "$value", "carries their result"));
+    OpensChannel => flow!("set path [gets stdin]\nset channel [open $path r]\nputs [read $channel]"; (0, "[gets stdin]", "supplies an untrusted path"), (1, "open $path r", "opens an external resource"), (2, "read $channel", "observes data from the channel"));
+    SourcesFile => flow!("set path ./plugin.tcl\nsource $path\nplugin::run"; (0, "./plugin.tcl", "selects another source file"), (1, "source $path", "evaluates that file in this interpreter"), (2, "plugin::run", "uses a command the file defined"));
+    HasSwitchBody => flow!("set mode [gets stdin]\nswitch -- $mode { safe {puts ok} default {puts rejected} }"; (0, "[gets stdin]", "supplies the selector"), (1, "switch", "selects one clause body"), (1, "default {puts rejected}", "handles unmatched input"));
+    StringListConfusion => flow!("set values [list alpha beta]\nappend values { gamma delta}\nllength $values"; (0, "[list alpha beta]", "starts as a canonical list"), (1, "append values", "performs a string operation on it"), (2, "llength $values", "later reinterprets the changed string as a list"));
+    ConfiguresChannel => flow!("set channel [open data.bin r]\nfconfigure $channel -translation binary\nset bytes [read $channel]"; (0, "open data.bin r", "creates the channel"), (1, "fconfigure $channel", "changes its I/O semantics"), (2, "read $channel", "uses the configured translation"));
+    HasInterpEval => flow!("set child [interp create -safe]\ninterp eval $child {set value 42}\ninterp eval $child {puts $value}"; (0, "[interp create -safe]", "creates another interpreter"), (1, "interp eval", "evaluates code in that interpreter"), (2, "$value", "observes its separate state"));
+    HasDestructiveOps => flow!("set path ./cache.tmp\nfile delete -- $path\nfile exists $path"; (0, "./cache.tmp", "identifies existing state"), (1, "file delete", "irreversibly removes it"), (2, "file exists $path", "now reports false"));
+    IsEventHandler => flow!("when HTTP_REQUEST {\n    set uri [HTTP::uri]\n    log local0. $uri\n}"; (0, "when HTTP_REQUEST", "registers the deferred event handler"), (1, "HTTP::uri", "reads request data when the event fires"), (2, "$uri", "flows to the handler output"));
+    UnnormalisedHttpGetter => flow!("when HTTP_REQUEST {\n    set path [HTTP::path]\n    HTTP::respond 200 content $path\n}"; (1, "HTTP::path", "returns attacker-controlled, unnormalised path data"), (2, "$path", "reaches an output without protection and reports taint"));
+    RequiresHttpContext => flow!("when HTTP_REQUEST {\n    HTTP::respond 200\n    HTTP::header value Host\n}"; (1, "HTTP::respond 200", "commits the HTTP response"), (2, "HTTP::header", "requires the now-unavailable HTTP transaction and is diagnosed"));
+    ReturnsPath => flow!("set base /srv/app\nset path [file join $base data.txt]\nputs $path"; (0, "/srv/app", "supplies a path component"), (1, "file join", "returns a filesystem path"), (2, "$path", "carries that path to the caller"));
+    IsUnescape => flow!("set encoded [gets stdin]\nset decoded [encoding convertfrom utf-8 $encoded]\nputs $decoded"; (0, "[gets stdin]", "supplies encoded attacker-controlled data"), (1, "encoding convertfrom", "decodes and can reintroduce dangerous characters"), (2, "$decoded", "remains tainted at the output"));
+    ProducesCanonicalList => flow!("set user [gets stdin]\nset command [list puts $user]\neval $command"; (0, "[gets stdin]", "supplies one dynamic value"), (1, "list puts $user", "quotes it into canonical list form"), (2, "eval $command", "preserves it as one argument during evaluation"));
+    BuildsCommandPrefix => flow!("set user [gets stdin]\nset callback [list save $user]\nafter idle $callback"; (0, "[gets stdin]", "supplies a dynamic argument"), (1, "list save $user", "builds a safely quoted command prefix"), (2, "after idle $callback", "invokes that prefix later"));
+    WrapsCommandPrefix => flow!("namespace eval app { proc save {v} { puts $v } }\nset callback [namespace code [list save value]]\nafter idle $callback"; (0, "app", "defines the target namespace"), (1, "namespace code", "wraps the script with namespace context"), (2, "after idle $callback", "runs it later in that context"));
+    Unsafe => flow!("set child [interp create -safe]\ninterp eval $child {open secret.txt r}\nputs denied"; (0, "-safe", "creates a restricted interpreter"), (1, "open secret.txt r", "uses an unsafe command and is rejected"), (2, "puts denied", "represents the denied operation"));
+    PasswordOption => flow!("set password [gets stdin]\nlogin -password $password\nputs authenticated"; (0, "[gets stdin]", "supplies sensitive text"), (1, "-password $password", "marks the option value as a credential"), (2, "puts authenticated", "uses only the authentication result"));
+    IsSideSwitch => flow!("when HTTP_REQUEST {\n    serverside { TCP::collect }\n}"; (0, "HTTP_REQUEST", "starts on the client side"), (1, "serverside", "switches analysis to the server side"), (1, "TCP::collect", "mutates server-side TCP state"));
+    IrulesTopLevelOnly => flow!("when HTTP_REQUEST { puts request }\nproc invalid {} { when CLIENT_ACCEPTED { puts nested } }"; (0, "when HTTP_REQUEST", "is valid at iRules top level"), (1, "when CLIENT_ACCEPTED", "is nested and therefore diagnosed"));
+    SetsEventPriority => flow!("when HTTP_REQUEST priority 700 {\n    log local0. late-handler\n}"; (0, "priority 700", "sets this handler's inherited priority"), (1, "late-handler", "runs after lower-priority handlers"));
+    IsOoMetaclass => flow!("oo::class create Factory {}\nFactory create Product\nProduct create instance"; (0, "oo::class create Factory", "creates a class object"), (1, "Factory create Product", "uses it as a metaclass factory"), (2, "Product create instance", "constructs an instance of the manufactured class"));
+    ObjectCommandSurface => flow!("oo::class create Widget { method render {} {return ok} }\nset w [Widget new]\nputs [$w render]"; (0, "method render", "defines the object-command surface"), (1, "Widget new", "creates an object command"), (2, "$w render", "dispatches through that surface"));
+    ConfiguresByProperty => flow!("Widget create .w -text old\n.w configure -text new\nputs [.w cget -text]"; (0, "-text old", "initialises a declared property"), (1, "configure -text new", "writes that property"), (2, "cget -text", "reads the updated value"));
+    AbstractClassFactory => flow!("oo::class create AbstractWidget {}\nAbstractWidget create ConcreteWidget\nConcreteWidget create instance"; (0, "AbstractWidget", "is the class-manufacturing surface"), (1, "ConcreteWidget", "is a concrete class it manufactures"), (2, "instance", "is created by the concrete class, not the abstract factory"));
+    DiagramAction => flow!("when HTTP_REQUEST {\n    pool application_pool\n}"; (0, "HTTP_REQUEST", "starts the extracted event flow"), (1, "pool application_pool", "becomes an action node with a routing outcome"));
+    NeedsStartCmd => flow!("set command [list worker run]\nstart $command\nwait-for-result"; (0, "[list worker run]", "describes deferred work"), (1, "start $command", "explicitly starts it"), (2, "wait-for-result", "consumes the started operation"));
+    TaintSink => flow!("set user [gets stdin]\nputs $user"; (0, "[gets stdin]", "introduces attacker-controlled data"), (1, "puts $user", "is an unprotected output sink and reports T101"));
+    TaintSource => flow!("set user [gets stdin]\nset copy $user\nputs $copy"; (0, "gets stdin", "marks the returned value as attacker-controlled"), (1, "$user", "propagates through assignment"), (2, "$copy", "reaches an output sink and reports T101"));
+    IrulesDataGetter => flow!("when HTTP_REQUEST {\n    set host [HTTP::host]\n    log local0. $host\n}"; (1, "HTTP::host", "reads request data from BIG-IP state"), (2, "$host", "carries that data to the log sink"));
+    CreatesDynamicBarrier => flow!("set command [gets stdin]\n$command run\nputs done"; (0, "[gets stdin]", "supplies a runtime command name"), (1, "$command run", "creates a dynamic dispatch barrier"), (2, "puts done", "is analysed after an unknown call target"));
+    InvokesUserProc => flow!("proc transform {value} { return [string toupper $value] }\nset result [transform hello]\nputs $result"; (0, "proc transform", "defines user code"), (1, "transform hello", "invokes that procedure"), (2, "$result", "observes its returned value"));
+    ByteCompiled => flow!("set total 0\nforeach n {1 2 3} { incr total $n }\nputs $total"; (0, "set total 0", "initialises runtime state"), (1, "foreach", "is emitted through C Tcl bytecode compilation"), (2, "$total", "observes the compiled execution result"));
+    NotProcFactory => flow!("set name dynamic\nrename puts $name\n$name hello"; (0, "dynamic", "supplies a command name"), (1, "rename puts $name", "moves a command but does not create a procedure"), (2, "$name hello", "dispatches to the moved command"));
+    FramelessRuntime => flow!("proc caller {} { set before [info level]; set n [string length abc]; list $before [info level] $n }\nputs [caller]"; (0, "info level", "records the current call frame"), (0, "string length abc", "runs without pushing another Tcl frame"), (1, "caller", "returns matching before/after frame levels"));
+    FirstArgVarname => flow!("set value old\nunset value\nputs [info exists value]"; (0, "value", "names the variable"), (1, "unset value", "treats its first argument as that name"), (2, "info exists value", "observes that it was removed"));
+    WholeArrayArg => flow!("array set colours {sky blue grass green}\nparray colours\nputs $colours(sky)"; (0, "colours", "names the whole array"), (1, "parray colours", "reads the array as a unit"), (2, "$colours(sky)", "still addresses one element"));
+    DynamicEvalBody => flow!("set body [gets stdin]\napply [list {} $body]\nputs done"; (0, "[gets stdin]", "supplies a runtime body"), (1, "$body", "is dynamically evaluated as Tcl"), (2, "puts done", "runs only if that body completes"));
+    IntrospectsByName => flow!("proc worker {} {}\nset target worker\nputs [info args $target]"; (0, "proc worker", "creates named state"), (1, "target worker", "selects that state by name"), (2, "info args", "returns its parameter metadata"));
+    CurrentFrameIntrospection => flow!("proc where {} { return [info level] }\nset level [where]\nputs $level"; (0, "info level", "observes the active Tcl frame"), (1, "where", "returns the frame-dependent result"), (2, "$level", "cannot be treated as a context-free constant"));
+    ExpansionEscapeSafe => flow!("set args [list hello world]\nputs {*}$args\nputs done"; (0, "[list hello world]", "creates the expanded words"), (1, "{*}$args", "cannot introduce a frame-sensitive command name here"), (2, "puts done", "continues in the same frame"));
+    TargetsVariableByName => flow!("set name counter\nset $name 1\nincr $name\nputs [set $name]"; (0, "counter", "is the variable name carried as data"), (1, "set $name 1", "writes the named target"), (2, "incr $name", "reads and rewrites the same target"), (3, "set $name", "observes 2"));
+    FrameHashBuiltin => flow!("proc readLocal {} { set local value; return [set local] }\nputs [readLocal]"; (0, "set local value", "writes the frame's variable table"), (0, "set local", "reads through the frame-hash builtin"), (1, "readLocal", "returns the value"));
+    ReflectsCommandNames => flow!("proc hidden {} {}\nset names [info procs]\nputs [expr {hidden in $names}]"; (0, "proc hidden", "adds a command name"), (1, "info procs", "reflects command names as data"), (2, "hidden in $names", "observes the definition"));
+    AliasesCallerFrame => flow!("set outer old\nproc inner {} { upvar 1 outer alias; set alias new }\ninner\nputs $outer"; (0, "outer old", "lives in the caller frame"), (1, "upvar 1 outer alias", "aliases through a runtime-selected frame"), (3, "$outer", "observes the write"));
+    OverridableLibraryProc => flow!("proc ::tcl::mathfunc::custom {x} { expr {$x * 2} }\nset result [expr {custom(4)}]\nputs $result"; (0, "proc ::tcl::mathfunc::custom", "overrides a library-visible procedure"), (1, "custom(4)", "dispatches through that overridable surface"), (2, "$result", "observes 8"));
+    StructurallyCheckedArity => flow!("set args {name value extra}\nset {*}$args\nputs done"; (0, "{name value extra}", "supplies a runtime word shape"), (1, "set {*}$args", "validates arity after expansion"), (2, "puts done", "is unreachable when the structure is invalid"));
+    ExprConcatenatesArgs => flow!("set operator +\nset result [expr 1 $operator 2]\nputs $result"; (0, "operator +", "supplies one expression word"), (1, "expr 1 $operator 2", "concatenates all words before parsing the expression"), (2, "$result", "observes 3"));
+    ScriptConcatenatesArgs => flow!("set command puts\neval $command hello world\nputs done"; (0, "command puts", "supplies the first script fragment"), (1, "eval $command hello world", "concatenates trailing words into one script"), (2, "puts done", "runs after the constructed script"));
+    ScriptAppendsListArgs => flow!("set prefix [list puts]\nnamespace inscope :: $prefix hello\nputs done"; (0, "[list puts]", "builds a script prefix"), (1, "$prefix hello", "appends trailing words as list elements"), (2, "puts done", "runs after the safely extended script"));
+    EstablishesVariableTrace => flow!("proc changed {name index op} { puts $op }\ntrace add variable watched write changed\nset watched value"; (0, "proc changed", "defines the callback"), (1, "trace add variable watched write changed", "establishes the variable trace"), (2, "set watched value", "fires the callback with a write operation"));
+    TransfersControl => flow!("proc target {} { return reached }\nproc caller {} { tailcall target; return unreachable }\nputs [caller]"; (0, "target", "is the destination"), (1, "tailcall target", "transfers control away from caller"), (1, "return unreachable", "cannot run"), (2, "caller", "returns reached"));
+    FireAndForgetTeardown => flow!("set child [interp create]\ninterp delete $child\nputs deleted"; (0, "[interp create]", "creates live runtime state"), (1, "interp delete $child", "starts teardown with no value dependency"), (2, "puts deleted", "continues after teardown"));
+    OperatorCommand => flow!("set left 20\nset total [+ $left 22]\nputs $total"; (0, "left 20", "supplies an operand"), (1, "+ $left 22", "runs the operator in command form"), (2, "$total", "observes 42"));
+    TclooNextChain => flow!("oo::class create Base { method run {} {return base} }\noo::class create Child { superclass Base; method run {} { return [next] } }\nputs [[Child new] run]"; (0, "method run", "defines the superclass implementation"), (1, "next", "dispatches to the next method in the chain"), (2, "run", "returns base"));
+    TclooSelfDispatch => flow!("oo::class create Widget { method render {} {return ok}; method run {} {return [my render]} }\nputs [[Widget new] run]"; (0, "my render", "dispatches on the current object"), (1, "run", "observes the delegated result"));
+    TclooIntrospection => flow!("oo::class create Widget { method describe {} { return [self class] } }\nputs [[Widget new] describe]"; (0, "self class", "introspects the current method context"), (1, "describe", "returns the declaring class"));
+    BranchSelectedBody => flow!("set enabled [gets stdin]\nif {$enabled} { set value on } else { set value off }\nputs $value"; (0, "[gets stdin]", "supplies the branch input"), (1, "if {$enabled}", "selects at most one body"), (2, "$value", "joins the selected definition"));
+    CatchableThrow => flow!("set status [catch {error failure} message]\nputs [list $status $message]"; (0, "error failure", "throws a catchable Tcl error"), (0, "catch", "intercepts the error edge"), (1, "$status $message", "observes code 1 and the message"));
+    BreaksLoop => flow!("set seen {}\nforeach item {a stop c} { if {$item eq {stop}} break; lappend seen $item }\nputs $seen"; (1, "$item eq {stop}", "selects the loop exit"), (1, "break", "jumps to the post-loop target"), (2, "$seen", "contains only a"));
+    ContinuesLoop => flow!("set seen {}\nforeach item {a skip c} { if {$item eq {skip}} continue; lappend seen $item }\nputs $seen"; (1, "$item eq {skip}", "selects the skipped iteration"), (1, "continue", "jumps to the next iteration"), (2, "$seen", "contains a and c"));
+    ReplacesFrame => flow!("proc target {} { return reached }\nproc caller {} { tailcall target }\nputs [caller]"; (0, "target", "defines the replacement call"), (1, "tailcall target", "replaces caller's frame"), (2, "caller", "returns the target result directly"));
+    SafeInterpHidden => flow!("set child [interp create -safe]\nset status [catch {interp eval $child {open secret.txt}} message]\nputs [list $status $message]"; (0, "-safe", "creates the restricted command surface"), (1, "open secret.txt", "names a hidden command"), (2, "$status $message", "observes the rejection"));
+    ProvidesPackage => flow!("proc demo::run {} { return ok }\npackage provide demo 1.0\nputs [demo::run]"; (0, "demo::run", "defines public code"), (1, "package provide demo 1.0", "declares this unit loadable by external callers"), (2, "demo::run", "represents one such caller"));
+    LoadsExternalUnit => flow!("package require json\nset value [json::json2dict {\"ok\":true}]\nputs $value"; (0, "package require json", "loads another compilation unit"), (1, "json::json2dict", "uses a command it supplied"), (2, "$value", "observes the external result"));
+    ExportsCommand => flow!("namespace eval demo { proc run {} {return ok}; namespace export run }\nnamespace import demo::run\nputs [run]"; (0, "namespace export run", "publishes the command name"), (1, "namespace import demo::run", "binds it in another namespace"), (2, "run", "dispatches through the exported API"));
+    UnresolvedCommandHandler => flow!("proc unknown {command args} { return [list missing $command] }\nset result [doesNotExist value]\nputs $result"; (0, "proc unknown", "defines the fallback handler"), (1, "doesNotExist value", "cannot resolve normally and dispatches to it"), (2, "$result", "observes missing doesNotExist"));
+    EvaluatesInShiftedFrame => flow!("set value global\nproc caller {} { set value local; uplevel #0 {set value} }\nputs [caller]"; (0, "value global", "defines state in the selected frame"), (1, "uplevel #0", "runs the body in the global frame"), (2, "caller", "returns global, not local"));
+    InstallsNamedDefinition => flow!("set name dynamic\nproc $name {} { return ok }\nputs [$name]"; (0, "dynamic", "supplies the definition name"), (1, "proc $name", "installs the named command"), (2, "$name", "dispatches to the installed definition"));
+    TclooMethodContext => flow!("oo::class create Widget { method run {} { my render }; method render {} {return ok} }\nputs [[Widget new] run]"; (0, "my render", "resolves only inside this method context"), (1, "run", "observes the method dispatch"));
+    TclooBindsMethodAlias => flow!("oo::class create Widget { method render {} {return ok}; method run {} { link render; return [render] } }\nputs [[Widget new] run]"; (0, "link render", "binds a bareword alias for the method"), (0, "[render]", "uses the new alias"), (1, "run", "returns ok"));
+    TclooRequiresMethodFrame => flow!("oo::class create Widget { method run {} { return [self method] } }\nset result [[Widget new] run]\nputs $result"; (0, "self method", "is callable only with a real method frame"), (1, "run", "creates that frame"), (2, "$result", "observes run"));
+    DeclaresNamespace => flow!("namespace eval ::app::model { set ready 1 }\nputs $::app::model::ready"; (0, "namespace eval ::app::model", "creates missing parent and target namespaces"), (0, "set ready 1", "defines state inside the namespace"), (1, "$::app::model::ready", "observes the declaration"));
+    TkGeometryManager => flow!("frame .panel\nlabel .panel.name -text Name\npack .panel.name\nputs [winfo manager .panel.name]"; (0, ".panel", "creates a container"), (2, "pack .panel.name", "claims it with a geometry manager"), (3, "winfo manager", "observes pack"));
+    DefersBody => flow!("set body {puts later}\nproc runLater {} $body\nputs registered\nrunLater"; (0, "{puts later}", "contains the script"), (1, "proc runLater {} $body", "stores it without running it"), (2, "puts registered", "runs before the deferred body"), (3, "runLater", "runs the body later"));
 }
 
 /// Every trait that widens a file's caller set beyond the file itself — the
