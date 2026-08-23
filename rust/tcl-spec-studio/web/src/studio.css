@@ -207,19 +207,16 @@ summary .qbtn { margin-left: .45rem; }
   white-space: pre; overflow: visible;
 }
 .example-line { color: var(--fg); }
-.example-token {
-  border: 1px solid currentColor; border-radius: 3px; color: inherit;
+.example-carrier {
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  border-radius: 3px; color: inherit;
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
   font: inherit; padding: 0 1px;
 }
 .flow-step-1 { color: #3b82f6; }
 .flow-step-2 { color: #a855f7; }
 .flow-step-3 { color: #d97706; }
 .flow-step-4 { color: #059669; }
-.example-token.flow-step-1 { background: color-mix(in srgb, #3b82f6 22%, transparent); }
-.example-token.flow-step-2 { background: color-mix(in srgb, #a855f7 22%, transparent); }
-.example-token.flow-step-3 { background: color-mix(in srgb, #f59e0b 22%, transparent); }
-.example-token.flow-step-4 { background: color-mix(in srgb, #10b981 22%, transparent); }
-
 /* The Reference tab: searchable sections of fields and catalogue entries. */
 .refbar { display: flex; gap: .6rem; align-items: center; margin-bottom: .8rem; }
 .refbar input[type=search] { flex: 1 1 auto; min-width: 0; }

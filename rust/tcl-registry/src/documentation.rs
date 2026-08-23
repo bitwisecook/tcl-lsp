@@ -47,6 +47,27 @@ impl DocumentationAnnotation {
     }
 }
 
+/// The one command token that owns the documented behavioural trait.
+///
+/// Flow annotations explain source, processing, and destination. This span is
+/// deliberately separate so presentation code never mistakes every flow step
+/// for the trait-bearing command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DocumentationCarrier {
+    /// Zero-based source line.
+    pub line: usize,
+    /// Exact command token on `line` that carries the trait.
+    pub needle: &'static str,
+}
+
+impl DocumentationCarrier {
+    /// Construct one trait-carrier span.
+    #[must_use]
+    pub const fn new(line: usize, needle: &'static str) -> Self {
+        Self { line, needle }
+    }
+}
+
 /// A complete Tcl example plus the source spans that explain its dataflow or
 /// observable effect.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,12 +77,33 @@ pub struct DocumentationExample {
     pub code: &'static str,
     /// Ordered source annotations rendered as arrows by registry browsers.
     pub annotations: &'static [DocumentationAnnotation],
+    /// One command token that carries the documented trait, when the example
+    /// describes a behavioural trait rather than another registry vocabulary.
+    pub carrier: Option<DocumentationCarrier>,
 }
 
 impl DocumentationExample {
     /// Construct a required worked example.
     #[must_use]
     pub const fn new(code: &'static str, annotations: &'static [DocumentationAnnotation]) -> Self {
-        Self { code, annotations }
+        Self {
+            code,
+            annotations,
+            carrier: None,
+        }
+    }
+
+    /// Construct a trait example whose carrier is declared beside its flow.
+    #[must_use]
+    pub const fn with_carrier(
+        code: &'static str,
+        carrier: DocumentationCarrier,
+        annotations: &'static [DocumentationAnnotation],
+    ) -> Self {
+        Self {
+            code,
+            annotations,
+            carrier: Some(carrier),
+        }
     }
 }
