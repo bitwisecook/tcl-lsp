@@ -26,6 +26,7 @@
 //! than maintaining its own command-name set.
 
 use crate::dialects::DialectSet;
+use crate::documentation::{DocumentationAnnotation, DocumentationExample};
 use crate::registry::CommandRegistry;
 use crate::traits::Traits;
 use crate::types::TclType;
@@ -154,6 +155,128 @@ impl TaintColourAtom {
         Self::PathJoined,
         Self::Channel,
     ];
+
+    /// Rust spelling used by specs and registry browsers.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Tainted => "TAINTED",
+            Self::PathPrefixed => "PATH_PREFIXED",
+            Self::NonDashPrefixed => "NON_DASH_PREFIXED",
+            Self::CrlfFree => "CRLF_FREE",
+            Self::ShellAtom => "SHELL_ATOM",
+            Self::ListCanonical => "LIST_CANONICAL",
+            Self::RegexLiteral => "REGEX_LITERAL",
+            Self::PathNormalised => "PATH_NORMALISED",
+            Self::PathBounded => "PATH_BOUNDED",
+            Self::HeaderTokenSafe => "HEADER_TOKEN_SAFE",
+            Self::HtmlEscaped => "HTML_ESCAPED",
+            Self::UrlEncoded => "URL_ENCODED",
+            Self::IpAddress => "IP_ADDRESS",
+            Self::Port => "PORT",
+            Self::Fqdn => "FQDN",
+            Self::PathJoined => "PATH_JOINED",
+            Self::Channel => "CHANNEL",
+        }
+    }
+
+    /// Resolve the spelling used by specs and registry browsers.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.iter().copied().find(|item| item.name() == name)
+    }
+
+    /// Short author-facing description, owned with the colour declaration.
+    #[must_use]
+    pub const fn summary(self) -> &'static str {
+        match self {
+            Self::Tainted => "attacker-controlled",
+            Self::PathPrefixed => "guaranteed to start with a path separator",
+            Self::NonDashPrefixed => "cannot begin with `-` (option-injection safe)",
+            Self::CrlfFree => "contains no CR or LF (header-injection safe)",
+            Self::ShellAtom => "a single shell atom (exec-safe)",
+            Self::ListCanonical => "canonical list form (eval-safe)",
+            Self::RegexLiteral => "quoted as a regex literal",
+            Self::PathNormalised => "path-normalised",
+            Self::PathBounded => "bounded within a known path root",
+            Self::HeaderTokenSafe => "safe as an HTTP header token",
+            Self::HtmlEscaped => "HTML-escaped",
+            Self::UrlEncoded => "URL-encoded",
+            Self::IpAddress => "a validated IP address",
+            Self::Port => "a validated port number",
+            Self::Fqdn => "a validated fully-qualified domain name",
+            Self::PathJoined => "produced by `file join`",
+            Self::Channel => "an I/O channel handle",
+        }
+    }
+
+    /// Registry-owned source → transform → sink example for this colour.
+    /// The exhaustive match makes missing documentation a compile error.
+    #[must_use]
+    pub const fn example(self) -> DocumentationExample {
+        macro_rules! taint_flow {
+            ($code:literal; $(($line:literal, $needle:literal, $label:literal)),+ $(,)?) => {
+                {
+                    const ANNOTATIONS: &[DocumentationAnnotation] =
+                        &[$(DocumentationAnnotation::new($line, $needle, $label)),+];
+                    DocumentationExample::new($code, ANNOTATIONS)
+                }
+            };
+        }
+        match self {
+            Self::Tainted => {
+                taint_flow!("set user [gets stdin]\nset copy $user\nputs $copy"; (0, "[gets stdin]", "introduces attacker-controlled data"), (1, "$user", "propagates without protection"), (2, "puts $copy", "reaches an output sink and reports T101"))
+            }
+            Self::PathPrefixed => {
+                taint_flow!("set uri [HTTP::uri]\nset path [string range $uri 0 end]\nopen $path r"; (0, "HTTP::uri", "returns tainted data that starts with /"), (1, "$uri", "retains the path-prefix proof"), (2, "open $path r", "uses the absolute path but still requires a bounded-root proof"))
+            }
+            Self::NonDashPrefixed => {
+                taint_flow!("set user [gets stdin]\nset value \"value:$user\"\nexec helper -- $value"; (0, "[gets stdin]", "introduces attacker-controlled data"), (1, "value:$user", "adds a literal non-dash prefix"), (2, "-- $value", "cannot be reinterpreted as an option"))
+            }
+            Self::CrlfFree => {
+                taint_flow!("set user [gets stdin]\nset clean [string map {\"\\r\" {} \"\\n\" {}} $user]\nHTTP::header replace X-Value $clean"; (0, "[gets stdin]", "may contain header delimiters"), (1, "string map", "removes CR and LF"), (2, "$clean", "is safe from header splitting at the sink"))
+            }
+            Self::ShellAtom => {
+                taint_flow!("set user [gets stdin]\nif {![regexp {^[[:alnum:]_.-]+$} $user]} { error invalid }\nexec helper -- $user"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "regexp", "proves one shell-safe atom"), (2, "-- $user", "passes that atom as one process argument"))
+            }
+            Self::ListCanonical => {
+                taint_flow!("set user [gets stdin]\nset command [list puts $user]\neval $command"; (0, "[gets stdin]", "introduces attacker-controlled text"), (1, "list puts $user", "quotes it into canonical list form"), (2, "eval $command", "evaluates fixed structure with the value as one word"))
+            }
+            Self::RegexLiteral => {
+                taint_flow!("set user [gets stdin]\nset literal [regsub -all {[][(){}.*+?^$\\|]} $user {\\&}]\nregexp $literal $document"; (0, "[gets stdin]", "may contain regex syntax"), (1, "regsub -all", "escapes metacharacters"), (2, "$literal", "is consumed as literal pattern text"))
+            }
+            Self::PathNormalised => {
+                taint_flow!("set user [gets stdin]\nset normal [file normalize $user]\nopen $normal r"; (0, "[gets stdin]", "may contain traversal components"), (1, "file normalize $user", "canonicalises the path shape"), (2, "open $normal r", "still needs a bounded-root check before access"))
+            }
+            Self::PathBounded => {
+                taint_flow!("set user [gets stdin]\nset path [file normalize [file join /srv/data $user]]\nif {![string match /srv/data/* $path]} { error outside-root }\nopen $path r"; (0, "[gets stdin]", "supplies an untrusted relative path"), (1, "file normalize", "resolves traversal"), (2, "/srv/data/*", "proves the result remains under the intended root"), (3, "open $path r", "uses the bounded path"))
+            }
+            Self::HeaderTokenSafe => {
+                taint_flow!("set user [gets stdin]\nif {![regexp {^[!#$%&'*+.^_`|~0-9A-Za-z-]+$} $user]} { error invalid }\nHTTP::header replace $user value"; (0, "[gets stdin]", "may contain invalid header-name bytes"), (1, "regexp", "validates the HTTP token grammar"), (2, "$user", "is safe in the header-name position"))
+            }
+            Self::HtmlEscaped => {
+                taint_flow!("set user [gets stdin]\nset escaped [string map {& &amp; < &lt; > &gt; \" &quot;} $user]\nHTTP::respond 200 content \"<p>$escaped</p>\""; (0, "[gets stdin]", "may contain HTML markup"), (1, "string map", "escapes HTML text-context metacharacters"), (2, "$escaped", "is emitted in HTML text context"))
+            }
+            Self::UrlEncoded => {
+                taint_flow!("set user [gets stdin]\nset encoded [uri::encode $user]\nHTTP::redirect \"/search?q=$encoded\""; (0, "[gets stdin]", "may contain URL delimiters"), (1, "uri::encode $user", "percent-encodes the component"), (2, "$encoded", "is inserted as one query value"))
+            }
+            Self::IpAddress => {
+                taint_flow!("set user [gets stdin]\nif {![string is entier -strict [string map {. {}} $user]]} { error invalid-ip }\nsocket $user 443"; (0, "[gets stdin]", "supplies an untrusted address"), (1, "invalid-ip", "rejects values outside the accepted IP grammar"), (2, "socket $user 443", "uses the validated address"))
+            }
+            Self::Port => {
+                taint_flow!("set user [gets stdin]\nif {![string is integer -strict $user] || $user < 0 || $user > 65535} { error invalid-port }\nsocket example.test $user"; (0, "[gets stdin]", "supplies an untrusted port"), (1, "$user > 65535", "bounds it to the port domain"), (2, "$user", "is used as a validated port"))
+            }
+            Self::Fqdn => {
+                taint_flow!("set user [gets stdin]\nif {![regexp {^(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}$} $user]} { error invalid-host }\nsocket $user 443"; (0, "[gets stdin]", "supplies an untrusted hostname"), (1, "regexp", "validates a fully-qualified domain name"), (2, "$user", "is used as the validated endpoint"))
+            }
+            Self::PathJoined => {
+                taint_flow!("set user [gets stdin]\nset path [file join /srv/data $user]\nopen $path r"; (0, "[gets stdin]", "supplies an untrusted path component"), (1, "file join", "assembles a portable path but does not bound traversal"), (2, "open $path r", "still requires normalisation and a root check"))
+            }
+            Self::Channel => {
+                taint_flow!("set path ./data.txt\nset channel [open $path r]\nset data [read $channel]\nputs $data"; (1, "open $path r", "returns a channel handle"), (2, "$channel", "is accepted in channel position"), (3, "$data", "contains tainted bytes read through the handle"))
+            }
+        }
+    }
 
     /// The registry bit represented by this atom.
     #[must_use]

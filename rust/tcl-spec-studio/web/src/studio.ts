@@ -218,14 +218,40 @@ function helpParagraphs(text: string): HTMLElement {
 function annotatedExample(example: CodeExample): HTMLElement {
   const node = el("figure", { class: "code-example" });
   const lines = example.code.split("\n");
+  const ordered = example.annotations.map((annotation, index) => ({ annotation, step: index + 1 }));
   lines.forEach((line, lineNumber) => {
-    node.appendChild(el("pre", { class: "example-line", text: line || " " }));
-    for (const annotation of example.annotations.filter((item) => item.line === lineNumber)) {
-      const at = line.indexOf(annotation.needle);
+    const onLine = ordered
+      .filter(({ annotation }) => annotation.line === lineNumber)
+      .map(({ annotation, step }) => ({ annotation, step, at: line.indexOf(annotation.needle) }))
+      .sort((left, right) => left.at - right.at);
+    const source = el("pre", { class: "example-line" });
+    let cursor = 0;
+    for (const { annotation, step, at } of onLine) {
+      // Overlapping annotations share the earlier highlight but still receive
+      // their own flow arrow below.
+      if (at < cursor) continue;
+      source.appendChild(document.createTextNode(line.slice(cursor, at)));
+      source.appendChild(
+        el("mark", {
+          class: `example-token flow-step-${((step - 1) % 4) + 1}`,
+          text: annotation.needle,
+          title: `Flow step ${step}: ${annotation.label}`,
+        }),
+      );
+      cursor = at + annotation.needle.length;
+    }
+    source.appendChild(document.createTextNode(line.slice(cursor) || (line ? "" : " ")));
+    node.appendChild(source);
+    for (const { annotation, step, at } of onLine) {
       const arrow =
         `${" ".repeat(Math.max(0, at))}└${"─".repeat(Math.max(1, annotation.needle.length - 1))}` +
-        `→ ${annotation.label}`;
-      node.appendChild(el("pre", { class: "example-arrow", text: arrow }));
+        `→ ${step}. ${annotation.label}`;
+      node.appendChild(
+        el("pre", {
+          class: `example-arrow flow-step-${((step - 1) % 4) + 1}`,
+          text: arrow,
+        }),
+      );
     }
   });
   return node;

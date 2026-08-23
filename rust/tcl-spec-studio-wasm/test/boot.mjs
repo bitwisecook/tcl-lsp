@@ -64,7 +64,10 @@ const TYPES = {
 function serve() {
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? "/", "http://localhost");
-    const rel = normalize(decodeURIComponent(url.pathname)).replace(/^(\.\.[/\\])+/, "");
+    const rel = normalize(decodeURIComponent(url.pathname)).replace(
+      /^(\.\.[/\\])+/,
+      "",
+    );
     const path = join(distDir, rel === "/" ? "index.html" : rel);
     if (!path.startsWith(distDir)) {
       res.writeHead(403).end("no");
@@ -72,7 +75,9 @@ function serve() {
     }
     readFile(path).then(
       (body) => {
-        res.writeHead(200, { "content-type": TYPES[extname(path)] ?? "application/octet-stream" });
+        res.writeHead(200, {
+          "content-type": TYPES[extname(path)] ?? "application/octet-stream",
+        });
         res.end(body);
       },
       () => res.writeHead(404).end("not found"),
@@ -169,7 +174,9 @@ async function main() {
     if (m.type() === "error") problems.push(`console error: ${m.text()}`);
   });
   page.on("requestfailed", (r) =>
-    problems.push(`request failed: ${r.url()} (${r.failure()?.errorText ?? "?"})`),
+    problems.push(
+      `request failed: ${r.url()} (${r.failure()?.errorText ?? "?"})`,
+    ),
   );
 
   try {
@@ -185,9 +192,85 @@ async function main() {
     const count = await page.textContent("#count");
     console.log(`    registry loaded: ${count.trim()}`);
 
+    // Registry-owned worked examples must show the full flow, not merely a
+    // generic attachment point. Each source span is highlighted with the same
+    // numbered colour as its arrow. Use a historically long trait name here
+    // too: its picker label used to stretch its background across the whole
+    // grid cell instead of hugging the token.
+    await page.click("#tab-reference");
+    const flowContract = await page.evaluate(() => {
+      const term = Array.from(document.querySelectorAll("code.term")).find(
+        (node) => node.textContent === "EXPANSION_ESCAPE_SAFE",
+      );
+      const row = term?.closest("details.refrow");
+      if (!row)
+        throw new Error("EXPANSION_ESCAPE_SAFE reference row is missing");
+      row.open = true;
+      const tokens = Array.from(row.querySelectorAll("mark.example-token"));
+      const arrows = Array.from(row.querySelectorAll("pre.example-arrow"));
+      return {
+        tokens: tokens.length,
+        arrows: arrows.length,
+        numbered: arrows.every((arrow, index) =>
+          (arrow.textContent ?? "").includes(`→ ${index + 1}.`),
+        ),
+        colours: new Set(tokens.map((token) => getComputedStyle(token).color))
+          .size,
+      };
+    });
+    if (
+      flowContract.tokens < 3 ||
+      flowContract.arrows !== flowContract.tokens ||
+      !flowContract.numbered ||
+      flowContract.colours < 3
+    ) {
+      throw new Error(
+        `annotated flow rendering drifted: ${JSON.stringify(flowContract)}`,
+      );
+    }
+    await page.click("#tab-editor");
+    const chipContracts = await page.evaluate(() => {
+      const key = Array.from(document.querySelectorAll(".field .key")).find(
+        (node) => node.textContent === "traits",
+      );
+      const group = key?.closest("details.group");
+      if (group) group.open = true;
+      return ["EXPANSION_ESCAPE_SAFE", "DEFERS_BODY"].map((name) => {
+        const code = Array.from(
+          document.querySelectorAll(".trait-copy code"),
+        ).find((node) => node.textContent === name);
+        const toggleGroup = code?.closest("details.toggle-group");
+        if (toggleGroup) toggleGroup.open = true;
+        if (!code?.parentElement)
+          throw new Error(`${name} trait toggle is missing`);
+        return {
+          name,
+          tokenWidth: code.getBoundingClientRect().width,
+          cellWidth: code.parentElement.getBoundingClientRect().width,
+          justifySelf: getComputedStyle(code).justifySelf,
+        };
+      });
+    });
+    const stretchedChip = chipContracts.find(
+      (chip) =>
+        chip.justifySelf !== "start" ||
+        chip.tokenWidth <= 0 ||
+        chip.tokenWidth >= chip.cellWidth - 8,
+    );
+    if (stretchedChip) {
+      throw new Error(
+        `trait token background still stretches: ${JSON.stringify(stretchedChip)}`,
+      );
+    }
+    console.log(
+      "    registry flows have numbered token highlights and tight trait labels",
+    );
+
     // 2. Opening the Pack DSL tab loads the editor chunk and mounts Monaco.
     await page.click("#tab-dsl");
-    await page.waitForSelector("#dslEditor .monaco-editor", { timeout: 60_000 });
+    await page.waitForSelector("#dslEditor .monaco-editor", {
+      timeout: 60_000,
+    });
     console.log("    Monaco mounted on the Pack DSL tab");
 
     // 3. The language server worker reaches `initialize`.
@@ -214,15 +297,21 @@ async function main() {
       packEditorContract.lspLanguage !== "spectcl" ||
       !packEditorContract.documentUri?.endsWith("/pack.tclspec")
     ) {
-      throw new Error(`Pack DSL editor contract drifted: ${JSON.stringify(packEditorContract)}`);
+      throw new Error(
+        `Pack DSL editor contract drifted: ${JSON.stringify(packEditorContract)}`,
+      );
     }
-    console.log("    Pack DSL model is Monaco spectcl + LSP spectcl (Tcl 9.0 profile)");
+    console.log(
+      "    Pack DSL model is Monaco spectcl + LSP spectcl (Tcl 9.0 profile)",
+    );
 
     // The success status is published only after Monaco itself has invoked the
     // semantic-token provider for this model, and hover has answered for it.
     // A direct transport probe is insufficient: editor.api exposes provider
     // registration even when the controller which consumes it was omitted.
-    console.log("    Pack DSL semantics and hover are served by the in-page LSP");
+    console.log(
+      "    Pack DSL semantics and hover are served by the in-page LSP",
+    );
 
     // Prove Monaco gets several semantic colours from the LSP. This catches a
     // provider whose legend contains theme scopes
@@ -231,8 +320,11 @@ async function main() {
     await page.waitForFunction(
       () => {
         const colours = new Set(
-          Array.from(document.querySelectorAll("#dslEditor .view-lines span[class*='mtk']"))
-            .map((node) => getComputedStyle(node).color),
+          Array.from(
+            document.querySelectorAll(
+              "#dslEditor .view-lines span[class*='mtk']",
+            ),
+          ).map((node) => getComputedStyle(node).color),
         );
         return colours.size > 1;
       },
@@ -247,11 +339,15 @@ async function main() {
     // invokes Monaco's public show-hover action at the exact model position.
     await page.evaluate(async () => {
       if (typeof window.__tclSpecStudioTestShowDslHover !== "function") {
-        throw new Error("the Monaco deployment-test hover hook was not installed");
+        throw new Error(
+          "the Monaco deployment-test hover hook was not installed",
+        );
       }
       await window.__tclSpecStudioTestShowDslHover("speclib");
     });
-    const visibleHover = page.locator(".monaco-hover:visible", { hasText: "speclib" });
+    const visibleHover = page.locator(".monaco-hover:visible", {
+      hasText: "speclib",
+    });
     // Monaco retains a hidden hover widget alongside the active one.
     await visibleHover.waitFor({ timeout: 30_000 });
     console.log("    Pack DSL hover is visible in Monaco on initial load");
@@ -261,14 +357,20 @@ async function main() {
     //    booted" and "the worker is doing the job".
     await page.click("#dslEditor .monaco-editor .view-lines");
     await page.keyboard.type("\ncommand");
-    const markers = await page.waitForFunction(
-      () => {
-        const node = document.querySelector("#dslEditor .monaco-editor");
-        return node && node.querySelectorAll(".squiggly-error, .squiggly-warning").length > 0;
-      },
-      null,
-      { timeout: 60_000 },
-    ).catch(() => null);
+    const markers = await page
+      .waitForFunction(
+        () => {
+          const node = document.querySelector("#dslEditor .monaco-editor");
+          return (
+            node &&
+            node.querySelectorAll(".squiggly-error, .squiggly-warning").length >
+              0
+          );
+        },
+        null,
+        { timeout: 60_000 },
+      )
+      .catch(() => null);
     console.log(
       markers
         ? "    the language server published diagnostics into the editor"
@@ -277,15 +379,20 @@ async function main() {
 
     // 5. The Test tab's second editor mounts on its own model.
     await page.click("#tab-test");
-    await page.waitForSelector("#testEditor .monaco-editor", { timeout: 30_000 });
+    await page.waitForSelector("#testEditor .monaco-editor", {
+      timeout: 30_000,
+    });
     await page.click("#testEditor .monaco-editor .view-lines");
     await page.keyboard.press("Control+End");
     await page.keyboard.type("set colour red\nputs $colour");
     await page.waitForFunction(
       () => {
         const colours = new Set(
-          Array.from(document.querySelectorAll("#testEditor .view-lines span[class*='mtk']"))
-            .map((node) => getComputedStyle(node).color),
+          Array.from(
+            document.querySelectorAll(
+              "#testEditor .view-lines span[class*='mtk']",
+            ),
+          ).map((node) => getComputedStyle(node).color),
         );
         return colours.size > 1;
       },
@@ -300,7 +407,9 @@ async function main() {
       sampleEditorContract.monacoLanguage !== "tcl" ||
       sampleEditorContract.lspLanguage !== "spectcl"
     ) {
-      throw new Error(`Test editor contract drifted: ${JSON.stringify(sampleEditorContract)}`);
+      throw new Error(
+        `Test editor contract drifted: ${JSON.stringify(sampleEditorContract)}`,
+      );
     }
     console.log("    Monaco mounted on the Test tab");
 
@@ -311,20 +420,28 @@ async function main() {
     await page.setInputFiles("#picker", {
       name: "widget.tcl",
       mimeType: "text/plain",
-      buffer: Buffer.from("proc widget::paint {colour} { return $colour }\n", "utf8"),
+      buffer: Buffer.from(
+        "proc widget::paint {colour} { return $colour }\n",
+        "utf8",
+      ),
     });
     await page.waitForSelector("#importOut .found", { timeout: 30_000 });
     await page.click("#importAll");
     await page.click("#tab-rs");
     await page.waitForFunction(
       () => {
-        const text = document.querySelector("#rsEditor .view-lines")?.textContent ?? "";
-        return text.includes("widget::paint") && !text.includes('name: "mycommand"');
+        const text =
+          document.querySelector("#rsEditor .view-lines")?.textContent ?? "";
+        return (
+          text.includes("widget::paint") && !text.includes('name: "mycommand"')
+        );
       },
       null,
       { timeout: 30_000 },
     );
-    console.log("    imported Tcl activates generated Rust for the imported command");
+    console.log(
+      "    imported Tcl activates generated Rust for the imported command",
+    );
 
     // 7. The Releases import mode and its GitHub panel are present and inert
     //    until asked — no request is made by opening them.
@@ -345,7 +462,8 @@ async function main() {
         mimeType: "application/zip",
         buffer: storedZip({
           "mylib-1.0/pkgIndex.tcl": "package ifneeded mylib 1.0 {}\n",
-          "mylib-1.0/mylib.tcl": "package provide mylib 1.0\nproc greet {who} { return $who }\n",
+          "mylib-1.0/mylib.tcl":
+            "package provide mylib 1.0\nproc greet {who} { return $who }\n",
         }),
       },
       {
@@ -363,25 +481,35 @@ async function main() {
       null,
       { timeout: 30_000 },
     );
-    const labels = await page.$$eval("#releaseList .ver", (nodes) => nodes.map((n) => n.value));
+    const labels = await page.$$eval("#releaseList .ver", (nodes) =>
+      nodes.map((n) => n.value),
+    );
     if (labels.join(",") !== "1.0,1.1") {
-      throw new Error(`version labels were not suggested from the file names: ${labels}`);
+      throw new Error(
+        `version labels were not suggested from the file names: ${labels}`,
+      );
     }
     await page.click("#releasesRun");
     await page.waitForSelector("#releasesOut .found", { timeout: 60_000 });
     const derived = await page.$$eval("#releasesOut .found", (cards) =>
       cards.map((card) => ({
         name: card.querySelector(".nm")?.textContent ?? "",
-        ranges: Array.from(card.querySelectorAll(".range")).map((r) => r.textContent ?? ""),
+        ranges: Array.from(card.querySelectorAll(".range")).map(
+          (r) => r.textContent ?? "",
+        ),
       })),
     );
     const farewell = derived.find((c) => c.name === "farewell");
     const greet = derived.find((c) => c.name === "greet");
     if (!farewell || !greet) {
-      throw new Error(`expected greet and farewell, got ${JSON.stringify(derived)}`);
+      throw new Error(
+        `expected greet and farewell, got ${JSON.stringify(derived)}`,
+      );
     }
     if (!farewell.ranges.includes("introduced 1.1")) {
-      throw new Error(`farewell should be introduced at 1.1: ${farewell.ranges.join(", ")}`);
+      throw new Error(
+        `farewell should be introduced at 1.1: ${farewell.ranges.join(", ")}`,
+      );
     }
     if (!greet.ranges.includes("introduced —")) {
       throw new Error(
@@ -410,7 +538,9 @@ async function main() {
       { timeout: 60_000 },
     );
     await mutation.click("#tab-dsl");
-    await mutation.waitForSelector("#dslEditor .monaco-editor", { timeout: 60_000 });
+    await mutation.waitForSelector("#dslEditor .monaco-editor", {
+      timeout: 60_000,
+    });
     await mutation.waitForFunction(
       () =>
         (document.getElementById("lspStatus")?.textContent ?? "").includes(
@@ -420,10 +550,14 @@ async function main() {
       { timeout: 60_000 },
     );
     await mutation.close();
-    console.log("    explicit post-didOpen LSP readiness survives a suppressed Monaco provider");
+    console.log(
+      "    explicit post-didOpen LSP readiness survives a suppressed Monaco provider",
+    );
   } catch (e) {
     const status = await page.textContent("#lspStatus").catch(() => "");
-    fail(`${e instanceof Error ? e.message : String(e)}; LSP status: ${status?.trim() ?? ""}`);
+    fail(
+      `${e instanceof Error ? e.message : String(e)}; LSP status: ${status?.trim() ?? ""}`,
+    );
   } finally {
     await browser.close();
     server.close();
@@ -431,7 +565,8 @@ async function main() {
 
   // A request to GitHub during a boot check would mean the panel is not opt-in.
   const network = problems.filter((p) => /github\.com/.test(p));
-  if (network.length) fail(`the page reached GitHub without being asked: ${network.join("; ")}`);
+  if (network.length)
+    fail(`the page reached GitHub without being asked: ${network.join("; ")}`);
   for (const problem of problems) fail(problem);
   if (!process.exitCode) console.log("==> boot check passed");
 }
