@@ -1105,6 +1105,23 @@ let lastDialect = '';
 let workerReady = false;
 let pendingCompile = false;
 let monacoSourceHost = null;
+let editorHealthError = '';
+
+function reportEditorStatus(message, kind) {
+  if (kind === 'err') editorHealthError = message;
+  if (kind === 'ok') editorHealthError = '';
+  $('#statusMsg').style.display = '';
+  $('#statusMsg').textContent = message;
+}
+
+function settleEditorStatus() {
+  if (editorHealthError) {
+    $('#statusMsg').style.display = '';
+    $('#statusMsg').textContent = editorHealthError;
+  } else {
+    $('#statusMsg').style.display = 'none';
+  }
+}
 
 // Mac shortcut display fix
 const shortcutKey = isMac ? '\u2318' : 'Ctrl';
@@ -1141,7 +1158,8 @@ const worker = new Worker('worker.js');
         grammarUrl: url('tcl-grammar', 'assets/tcl.tmLanguage.json'),
         onigurumaUrl: url('oniguruma', 'assets/onig.wasm'),
         onChange: function() { $('#source').dispatchEvent(new Event('input')); },
-        report: function(message) { $('#statusMsg').textContent = message; },
+        onCompile: forceCompile,
+        report: reportEditorStatus,
       });
       monacoSourceHost = host;
       // Monaco is the only visible editor. The textarea remains hidden state
@@ -1154,7 +1172,10 @@ const worker = new Worker('worker.js');
       $('#monacoSource').style.display = 'grid';
       $('#monacoSource').style.placeItems = 'center';
       $('#monacoSource').textContent = 'Monaco could not be loaded. Restore the editor assets and reload.';
-      $('#statusMsg').textContent = 'Monaco unavailable: ' + (error && error.message ? error.message : String(error));
+      reportEditorStatus(
+        'Monaco unavailable: ' + (error && error.message ? error.message : String(error)),
+        'err'
+      );
     }
 })();
 
@@ -1162,17 +1183,18 @@ worker.onmessage = function(e) {
   const msg = e.data;
   switch (msg.type) {
     case 'status':
-      $('#statusMsg').textContent = msg.message;
+      if (!editorHealthError) $('#statusMsg').textContent = msg.message;
       break;
     case 'ready':
       workerReady = true;
-      $('#statusMsg').style.display = 'none';
+      settleEditorStatus();
       $('#emptyState').textContent = 'Enter Tcl code and press ' + shortcutKey + '+Enter';
       setStatus('synced');
       // The dialect list needs no compile, so fill the dropdown as soon as
       // the module loads rather than leaving the hard-coded tcl8.6 fallback
       // up until a first result lands.
       populateDialectOptions(msg.meta && msg.meta.dialects);
+      setExplorerReferenceMeta(msg.meta);
       // Auto-compile if there's content.
       if (pendingCompile || textarea.value.trim()) {
         pendingCompile = false;
@@ -1192,7 +1214,7 @@ worker.onmessage = function(e) {
             + (failures.length === 1 ? '' : 's') + ' failed to render: '
             + failures.map(f => f.name).join(', ');
         } else {
-          $('#statusMsg').style.display = 'none';
+          settleEditorStatus();
         }
       } finally {
         // The spinner must stop whatever the renderers did — a stuck
@@ -1252,10 +1274,6 @@ textarea.addEventListener('keydown', e => {
     textarea.selectionStart = textarea.selectionEnd = start + 4;
     updateLineNumbers();
     scheduleCompile();
-  }
-  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-    e.preventDefault();
-    forceCompile();           // recompile even if source unchanged
   }
 });
 

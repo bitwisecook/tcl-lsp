@@ -136,8 +136,15 @@ function reconcileExplorerViews() {
 // Render registry-owned trait presentation metadata in any Explorer shell.
 // Names, descriptions, and groups all come from Rust; adding a Trait therefore
 // updates standalone, VS Code, and JetBrains without another JavaScript table.
+var explorerReferenceMeta = null;
+function setExplorerReferenceMeta(meta) {
+  explorerReferenceMeta = meta || null;
+  renderTraitReference();
+}
+
 function renderTraitReference() {
-  var traits = data && data.meta && Array.isArray(data.meta.traits) ? data.meta.traits : [];
+  var meta = data && data.meta ? data.meta : explorerReferenceMeta;
+  var traits = meta && Array.isArray(meta.traits) ? meta.traits : [];
   var groups = new Map();
   traits.forEach(function (trait) {
     var group = trait.group || 'Other';

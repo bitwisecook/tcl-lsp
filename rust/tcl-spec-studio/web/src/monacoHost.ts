@@ -676,6 +676,8 @@ export interface TclEditorOptions {
   container: HTMLElement;
   textarea: HTMLTextAreaElement;
   onChange(text: string): void;
+  /** Force compilation even when the model text has not changed. */
+  onCompile?(): void;
   dialect: string;
   workerUrl: string;
   stylesheetUrl: string;
@@ -712,11 +714,16 @@ export async function mountTclEditor(options: TclEditorOptions): Promise<{
     options.dialect,
     client,
   );
+  if (options.onCompile) {
+    surface.editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      options.onCompile?.();
+    });
+  }
   client?.onDiagnostics((uri, items) => {
     if (uri === surface.documentUri) surface.setDiagnostics(items);
   });
-  options.report?.("using the shared Tcl Monaco editor", "ok");
   const ready = client !== null;
+  if (ready) options.report?.("using the shared Tcl Monaco editor", "ok");
   return {
     setDialect: (dialect) => surface.setLanguageId(dialect),
     highlightRanges: (ranges) => surface.setHighlights(ranges),

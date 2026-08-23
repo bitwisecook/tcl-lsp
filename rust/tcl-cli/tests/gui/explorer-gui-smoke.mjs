@@ -83,6 +83,10 @@ await writeFile(
   join(root, 'editor', 'assets', 'monaco-host.js'),
   'export async function mountTclEditor(options){' +
     'options.container.classList.add("monaco-mounted");' +
+    'options.container.tabIndex=0;' +
+    'options.container.addEventListener("keydown",event=>{' +
+      'if(event.key==="Enter"&&(event.ctrlKey||event.metaKey)){event.preventDefault();options.onCompile?.();}' +
+    '});' +
     'return {setDialect(){},highlightRanges(){},layout(){},lspReady:true};' +
   '}',
 );
@@ -119,6 +123,19 @@ const pageErrors = [];
 const browser = await chromium.launch(launchOptions);
 let report;
 try {
+  // Registry metadata arrives on the worker's ready message, independently of
+  // compilation. A blank explorer must therefore have a usable trait reference.
+  const referencePage = await browser.newPage();
+  referencePage.on('pageerror', (err) => pageErrors.push(err.stack || String(err)));
+  await referencePage.goto(base);
+  await referencePage.waitForFunction(
+    () => document.querySelectorAll('.trait-reference-row').length > 90,
+    null,
+    { timeout: 30_000 },
+  );
+  const traitRowsBeforeCompile = await referencePage.locator('.trait-reference-row').count();
+  await referencePage.close();
+
   const page = await browser.newPage();
   page.on('pageerror', (err) => pageErrors.push(err.stack || String(err)));
 
@@ -141,11 +158,25 @@ try {
     after = await compileCount(page);
   }
 
+  // Monaco owns focus in the shipped UI. Its Ctrl/Cmd+Enter command must
+  // reach the same force-compile path as the toolbar button.
+  const beforeShortcut = after;
+  await page.focus('#monacoSource');
+  await page.keyboard.press('Control+Enter');
+  let afterShortcut = beforeShortcut;
+  for (let i = 0; i < 100 && afterShortcut === beforeShortcut; i += 1) {
+    await page.waitForTimeout(100);
+    afterShortcut = await compileCount(page);
+  }
+
   report = {
     ok: true,
     first: afterFirst,
+    traitRowsBeforeCompile,
     compilesBeforeButton: before,
     compilesAfterButton: after,
+    compilesBeforeShortcut: beforeShortcut,
+    compilesAfterShortcut: afterShortcut,
     pageErrors,
   };
 } finally {

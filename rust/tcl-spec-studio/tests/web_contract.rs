@@ -54,6 +54,15 @@ fn standalone_uses_only_monaco_and_ides_delegate_to_native_file_tabs() {
 }
 
 #[test]
+fn compiler_explorer_monaco_preserves_shortcuts_and_lsp_failures() {
+    assert!(MONACO_TS.contains("monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter"));
+    assert!(MONACO_TS.contains("if (ready) options.report?."));
+    assert!(!MONACO_TS.contains(
+        "options.report?.(\"using the shared Tcl Monaco editor\", \"ok\");\n  const ready"
+    ));
+}
+
+#[test]
 fn importing_a_pack_activates_a_renderable_command() {
     assert!(STUDIO_TS.contains("firstWritten ??= found.name"));
     assert!(

@@ -45,6 +45,9 @@ use std::process::Command;
 
 use serde_json::Value;
 
+const BUILD_RS: &str = include_str!("../build.rs");
+const GUI_RS: &str = include_str!("../src/commands/gui.rs");
+
 fn manifest_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
@@ -98,6 +101,48 @@ fn assert_editor_and_trait_reference(first: &Value) {
     assert!(
         trait_text.contains("TAINT_SOURCE") && trait_text.contains("taint source"),
         "the registry's trait documentation is not visible: {trait_text}"
+    );
+}
+
+#[test]
+fn native_serve_requires_the_complete_monaco_bundle() {
+    for asset in [
+        "editor/build-info.json",
+        "editor/assets/monaco-host.js",
+        "editor/lsp/worker.js",
+        "editor/lsp/tcl_lsp_server_wasm_bg.wasm",
+    ] {
+        assert!(BUILD_RS.contains(asset), "build completeness omits {asset}");
+    }
+    assert!(BUILD_RS.contains("GUI_HAS_EDITOR"));
+    assert!(GUI_RS.contains("!assets::GUI_HAS_WASM || !assets::GUI_HAS_EDITOR"));
+    assert!(GUI_RS.contains("make explorer-build && cargo build -p tcl-cli --release"));
+    assert!(!GUI_RS.contains("make explorer-wasm && cargo build -p tcl-cli --release"));
+}
+
+fn assert_forced_compiles(report: &Value) {
+    let before = report["compilesBeforeButton"]
+        .as_u64()
+        .expect("compile count");
+    let after = report["compilesAfterButton"]
+        .as_u64()
+        .expect("compile count");
+    assert_eq!(
+        after,
+        before + 1,
+        "clicking Compile did not trigger a fresh compile ({before} -> {after})"
+    );
+
+    let before_shortcut = report["compilesBeforeShortcut"]
+        .as_u64()
+        .expect("shortcut compile count");
+    let after_shortcut = report["compilesAfterShortcut"]
+        .as_u64()
+        .expect("shortcut compile count");
+    assert_eq!(
+        after_shortcut,
+        before_shortcut + 1,
+        "Ctrl/Cmd+Enter in Monaco did not force compilation ({before_shortcut} -> {after_shortcut})"
     );
 }
 
@@ -208,17 +253,10 @@ fn gui_renders_the_wasm_tab_and_settles_the_spinner() {
     assert_eq!(first["hasCompileButton"], true, "no Compile button");
 
     assert_editor_and_trait_reference(first);
-
-    // The Compile button forces a recompile of unchanged source.
-    let before = report["compilesBeforeButton"]
-        .as_u64()
-        .expect("compile count");
-    let after = report["compilesAfterButton"]
-        .as_u64()
-        .expect("compile count");
-    assert_eq!(
-        after,
-        before + 1,
-        "clicking Compile did not trigger a fresh compile ({before} -> {after})"
+    assert!(
+        report["traitRowsBeforeCompile"].as_u64().unwrap_or(0) > 90,
+        "the ready-message trait reference was empty before compilation"
     );
+
+    assert_forced_compiles(&report);
 }
