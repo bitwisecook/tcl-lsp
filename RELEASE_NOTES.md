@@ -1,3 +1,37 @@
+# v2.1.24
+
+**2.x alpha — pre-release channel.**
+
+This prerelease makes the Spec Studio and Compiler Explorer reference surfaces
+easier to navigate, keeps their embedded language tooling aligned with the
+compiler registry, and strengthens the release path. It remains opt-in through
+the VS Code Marketplace **pre-release** channel, the JetBrains Marketplace
+**eap** channel, or the assets on this GitHub release. The stable **1.x** line
+remains the default.
+
+## Spec Studio and Compiler Explorer
+
+- Compiler traits now have one typed, closed registry definition for their
+  names, groups, author-facing documentation, and annotated examples. New or
+  unknown trait groups fail at compile time, while Spec Studio and Compiler
+  Explorer receive the same generated reference automatically.
+- Spec Studio replaces the flat trait-label bucket with grouped, searchable
+  toggles. Every help and reference entry includes a small Tcl example with
+  callouts showing where the trait, taint rule, or other behaviour applies.
+- Standalone web interfaces use Monaco exclusively, with the SpecTcl/Tcl 9
+  language configuration, semantic highlighting, and hover available from the
+  initial render. Editor extensions keep their native file tabs and place the
+  Studio or Explorer beside them.
+
+## Release delivery
+
+- Every `v*` release tag now deploys the unified Pages site from the exact
+  tagged commit, while branch deployments retain their path filtering. A drift
+  gate protects the trigger and concurrency contract.
+- Post-release installer verification now affirmatively installs and validates
+  MCP and Claude skills in an isolated temporary home, including an offline
+  checksum, protocol, version, skills, and cleanup regression test.
+
 # v2.1.23
 
 **2.x alpha — pre-release channel.**
@@ -161,13 +195,13 @@ default.
 ## Performance across the 2.1 pre-releases
 
 These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
-`v2.1.23`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+`v2.1.24`, run by `scripts/perf/` against a pinned 113-file corpus (scope
 `small`, revision `1`). The corpus, scope, and revision are fixed across the
 whole series, so the lines are comparable with each other.
 
 There is no `v2.1.2` point: that version was never released.
 
-**`2.1.23` is this release**: it is the bright-blue line in the memory and CPU
+**`2.1.24` is this release**: it is the bright-blue line in the memory and CPU
 graphs and the rightmost bar in each wall-time group. Earlier releases are
 drawn in grey and fade with age.
 
@@ -180,16 +214,16 @@ far less host-sensitive.
 
 ### Resident memory
 
-![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-memory.svg)
+![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-cpu.svg)
+![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-walltime.svg)
+![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-walltime.svg)
 
 [Benchmark table and method
-notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.23/perf-summary.md)
-— the raw result JSON is attached to this release as `perf-2.1.23.json`.
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.1.24.json`.
