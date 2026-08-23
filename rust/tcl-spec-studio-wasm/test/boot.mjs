@@ -245,7 +245,10 @@ async function main() {
     // range for each attempt so this still tests the real pointer-driven
     // Monaco hover path without depending on a stale render node.
     const speclibLine = page.locator("#dslEditor .view-line", { hasText: "speclib" }).first();
-    const visibleHover = page.locator("#dslEditor .monaco-hover:visible");
+    // Monaco may portal an overflow widget outside the editor container. Its
+    // documented symbol content, not that platform-dependent parent, ties the
+    // visible widget to this DSL editor and this hover request.
+    const visibleHover = page.locator(".monaco-hover:visible", { hasText: "speclib" });
     for (let attempt = 0; attempt < 6 && !(await visibleHover.isVisible()); attempt += 1) {
       const speclibPoint = await speclibLine.evaluate((line) => {
         const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
