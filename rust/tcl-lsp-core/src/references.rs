@@ -1650,6 +1650,13 @@ pub(crate) fn list_built_self_method_target_at_cursor(
     // runs, so an unexported target is not a candidate here.
     let (provider, _) =
         crate::oo_dispatch::method_dispatch_provider(analysis, receiver_q, word, true, bucket)?;
+    // `method_references_for_class` deliberately excludes callback captures
+    // from inheriting receivers until #1705 models their effective export
+    // state.  Cursor-origin resolution must make the same abstention or rename
+    // would accept this site but omit it from the edit set.
+    if provider != receiver_q {
+        return None;
+    }
     let provider = provider.to_owned();
     // Compare against callback-only spans from this one containing body. An
     // ordinary `my method`, direct `[self] method`, external call, or member
@@ -6018,6 +6025,29 @@ mod tests {
         assert!(
             !refs.iter().any(|r| r.start_line == 7),
             "provider visibility cannot be reused for the child receiver: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn inherited_callback_cursor_abstains_with_the_reference_set() {
+        // Even a publicly declared provider is not enough: the inheriting
+        // receiver can independently export or unexport the effective method.
+        // Until #1705 models that state, both declaration-origin collection
+        // and cursor-origin navigation must abstain together.
+        let src = "oo::class create Base {\n    method tick {} { return 1 }\n}\noo::class create Child {\n    superclass Base\n    method wire {} {\n        after idle [list [self] tick]\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_dialect::DialectProfile::by_name("tcl");
+        let cursor = u32::try_from(src.find("] tick").unwrap() + 2).unwrap();
+        assert!(
+            list_built_self_method_target_at_cursor(src, dialect, &analysis, "tick", cursor,)
+                .is_none(),
+            "cursor-origin resolution must not produce a partial rename family"
+        );
+
+        let refs = references(src, dialect, 1, 11, &analysis, true);
+        assert!(
+            !refs.iter().any(|range| range.start_line == 6),
+            "declaration-origin references must make the same abstention: {refs:?}"
         );
     }
 

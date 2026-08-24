@@ -362,6 +362,52 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
     );
 }
 
+/// Inherited callback capture is deliberately conservative until #1705 can
+/// prove effective receiver visibility.  A cursor on such a callback must not
+/// offer a partial rename that edits the ancestor declaration but leaves this
+/// occurrence behind.
+#[test]
+fn tp_inherited_list_built_self_callback_cursor_abstains_everywhere() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "oo::class create Base {\n\
+             method tick {} { return 1 }\n\
+         }\n\
+         oo::class create Child {\n\
+             superclass Base\n\
+             method wire {} {\n\
+                 after idle [list [self] tick]\n\
+             }\n\
+         }\n",
+    );
+
+    let from_declaration = lsp.references(&uri, 1, 11, false);
+    assert!(
+        !location_lines(&from_declaration, &uri).contains(&6),
+        "the inherited callback is outside the proven edit family: {from_declaration:?}"
+    );
+    let definition = lsp.definition(&uri, 6, 36);
+    assert!(
+        definition.is_null() || definition.as_array().is_some_and(Vec::is_empty),
+        "definition from an abstained callback cursor must be empty: {definition:?}"
+    );
+    let references = lsp.references(&uri, 6, 36, false);
+    assert!(
+        references.is_null() || references.as_array().is_some_and(Vec::is_empty),
+        "references from an abstained callback cursor must be empty: {references:?}"
+    );
+    assert!(
+        lsp.prepare_rename(&uri, 6, 36).is_null(),
+        "prepareRename must reject a callback that cannot join the edit family"
+    );
+    assert!(
+        lsp.rename(&uri, 6, 36, "tock").is_null(),
+        "rename must not offer a partial ancestor-only edit"
+    );
+}
+
 /// TP: the lens above `Animal`'s `speak` must count — and, on click, open —
 /// the sibling document's override declaration and its `$d speak` dispatch,
 /// exactly as Find All References on the same declaration does.
