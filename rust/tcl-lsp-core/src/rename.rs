@@ -277,24 +277,22 @@ pub fn prepare_rename_in_program(
     // Proc?  Declaration-span hit, else the namespace-aware candidate
     // resolution — never a namespace-blind `p.name == word` first-hit scan
     // (which could seed the rename with an arbitrary same-named proc).
-    let (word, _start, _end) = find_word_span_at_position(source, line, character)?;
+    let (word, word_start, word_end) = find_word_span_at_position(source, line, character)?;
     let word_off = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((_, proc_def)) =
-        crate::definition::resolve_proc_target_at(analysis, source, word_off, &word, resolution)
-    {
-        return Some(PrepareRename {
-            range: span_to_range(source, &line_index, proc_def.name_span),
-            placeholder: proc_def.name.clone(),
-        });
+    if let Some(preparation) = prepare_list_built_self_method_rename(
+        source,
+        line,
+        (word_start, word_end),
+        analysis,
+        &word,
+        word_off,
+    ) {
+        return Some(preparation);
     }
-    // Class?  Same resolution shape against `all_classes`.
-    if let Some((_, class_def)) =
-        crate::definition::resolve_class_target_at(analysis, resolution, word_off, &word)
+    if let Some(preparation) =
+        prepare_named_command_rename(source, &line_index, analysis, resolution, (&word, word_off))
     {
-        return Some(PrepareRename {
-            range: span_to_range(source, &line_index, class_def.name_span),
-            placeholder: class_def.name.clone(),
-        });
+        return Some(preparation);
     }
     // Method / classmethod / property inside a class body?
     let cursor_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
@@ -492,25 +490,24 @@ pub fn rename_in_program(
         return Ok(Vec::new());
     };
 
-    if let Some(edits) = rename_proc(
+    if let Some(edits) = rename_list_built_self_method(
         source,
-        &word,
-        def_byte,
-        new_name,
+        dialect,
         analysis,
-        resolution,
         &line_index,
+        (&word, new_name),
+        def_byte,
     ) {
         return Ok(edits);
     }
-    if let Some(edits) = rename_class(
+
+    if let Some(edits) = rename_named_command(
         source,
-        &word,
-        def_byte,
-        new_name,
         analysis,
         resolution,
         &line_index,
+        (&word, new_name),
+        def_byte,
     ) {
         return Ok(edits);
     }
@@ -565,6 +562,113 @@ pub fn rename_in_program(
         &line_index,
     )
     .map(Option::unwrap_or_default)
+}
+
+fn prepare_list_built_self_method_rename(
+    source: &str,
+    line: u32,
+    word_range: (u32, u32),
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<PrepareRename> {
+    crate::references::list_built_self_method_target_at_cursor(
+        source,
+        crate::profile_for_dialect(&analysis.dialect),
+        analysis,
+        word,
+        cursor_offset,
+    )?;
+    Some(PrepareRename {
+        range: LspRange {
+            start_line: line,
+            start_character: word_range.0,
+            end_line: line,
+            end_character: word_range.1,
+        },
+        placeholder: word.to_owned(),
+    })
+}
+
+fn rename_list_built_self_method(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    line_index: &LineIndex,
+    names: (&str, &str),
+    cursor_offset: u32,
+) -> Option<Vec<TextEdit>> {
+    let (word, new_name) = names;
+    let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
+        source,
+        dialect,
+        analysis,
+        word,
+        cursor_offset,
+    )?;
+    rename_method_in_class(
+        source,
+        dialect,
+        (&provider, word, is_classmethod),
+        new_name,
+        analysis,
+        line_index,
+    )
+}
+
+fn prepare_named_command_rename(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+    target: (&str, u32),
+) -> Option<PrepareRename> {
+    let (word, cursor_offset) = target;
+    if let Some((_, proc_def)) =
+        crate::definition::resolve_proc_target_at(analysis, source, cursor_offset, word, resolution)
+    {
+        return Some(PrepareRename {
+            range: span_to_range(source, line_index, proc_def.name_span),
+            placeholder: proc_def.name.clone(),
+        });
+    }
+    let (_, class_def) =
+        crate::definition::resolve_class_target_at(analysis, resolution, cursor_offset, word)?;
+    Some(PrepareRename {
+        range: span_to_range(source, line_index, class_def.name_span),
+        placeholder: class_def.name.clone(),
+    })
+}
+
+fn rename_named_command(
+    source: &str,
+    analysis: &AnalysisResult,
+    resolution: crate::definition::CallResolution<'_>,
+    line_index: &LineIndex,
+    names: (&str, &str),
+    cursor_offset: u32,
+) -> Option<Vec<TextEdit>> {
+    let (word, new_name) = names;
+    rename_proc(
+        source,
+        word,
+        cursor_offset,
+        new_name,
+        analysis,
+        resolution,
+        line_index,
+    )
+    .or_else(|| {
+        rename_class(
+            source,
+            word,
+            cursor_offset,
+            new_name,
+            analysis,
+            resolution,
+            line_index,
+        )
+    })
 }
 
 /// The **untargeted** member-rename tier, behind the safety gate — the last
@@ -971,6 +1075,17 @@ pub fn method_target_with_access_in_workspace(
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some((provider, is_classmethod)) =
+        crate::references::list_built_self_method_target_at_cursor(
+            source,
+            crate::profile_for_dialect(&analysis.dialect),
+            analysis,
+            &word,
+            cursor,
+        )
+    {
+        return Some((provider, word, is_classmethod, MethodAccess::External));
+    }
     // A bare receiver word resolves like any other command word — against the
     // namespace in effect where it is written, then the global one, then
     // through whatever `namespace import` has made reachable there. Both facts

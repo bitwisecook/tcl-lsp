@@ -297,6 +297,71 @@ fn tp_consumer_rename_and_references_agree_on_the_same_sites() {
 
 // Issue #991 — code-lens click and count must match Find All References.
 
+/// Issue #1701: a Tk binding built with `[list [self] METHOD ...]` captures
+/// the current object command and later invokes the exported method.  The
+/// declaration's references, code lens, and rename must agree on that method
+/// word even though it is data inside the prefix-building `list` call.
+#[test]
+fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "package require Tk\n\
+         oo::class create Test {\n\
+             method animTick {x y} { return {} }\n\
+             method anim {wl} {\n\
+                 bind $wl <ButtonPress-1> [list [self] animTick %x %y]\n\
+             }\n\
+         }\n",
+    );
+
+    let refs = lsp.references(&uri, 2, 11, false);
+    assert_eq!(
+        location_lines(&refs, &uri),
+        std::collections::BTreeSet::from([4]),
+        "Find All References must return the callback method word: {refs:?}"
+    );
+
+    let command = resolve_lens_on_line(&mut lsp, &uri, 2);
+    assert_eq!(command["title"], expected_title(1), "{command:?}");
+    assert_eq!(
+        location_lines(&lens_locations(&command), &uri),
+        std::collections::BTreeSet::from([4]),
+        "the lens must open the same callback site: {command:?}"
+    );
+
+    let definition = lsp.definition(&uri, 4, 44);
+    assert_eq!(
+        location_lines(&definition, &uri),
+        std::collections::BTreeSet::from([2]),
+        "go-to-definition from the callback word must reach the method: {definition:?}"
+    );
+    let callback_refs = lsp.references(&uri, 4, 44, false);
+    assert_eq!(
+        location_lines(&callback_refs, &uri),
+        std::collections::BTreeSet::from([4]),
+        "references started on the callback must agree with the declaration: {callback_refs:?}"
+    );
+
+    let prepare = lsp.prepare_rename(&uri, 4, 44);
+    assert_eq!(prepare["placeholder"], "animTick", "{prepare:?}");
+    assert_eq!(prepare["range"]["start"]["line"], 4, "{prepare:?}");
+
+    let edits = rename_edits(&lsp.rename(&uri, 2, 11, "frameTick"));
+    assert_eq!(
+        edit_lines(&edits, &uri),
+        vec![2, 4],
+        "rename must update the declaration and callback word: {edits:?}"
+    );
+    let callback_edits = rename_edits(&lsp.rename(&uri, 4, 44, "frameTick"));
+    assert_eq!(
+        edit_lines(&callback_edits, &uri),
+        vec![2, 4],
+        "rename from the callback word must update the same family: {callback_edits:?}"
+    );
+}
+
 /// TP: the lens above `Animal`'s `speak` must count — and, on click, open —
 /// the sibling document's override declaration and its `$d speak` dispatch,
 /// exactly as Find All References on the same declaration does.

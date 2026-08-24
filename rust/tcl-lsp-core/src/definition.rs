@@ -276,9 +276,8 @@ pub fn definition_with(
     let line_index = LineIndex::new(source);
 
     let decl_byte_offset = byte_offset_at(&line_index, source, line, character);
-    // Steps 1a-1d: everything decided by the cursor's *position* rather than
-    // by resolving a bareword — a `$var` read, a bareword declaration, an
-    // `expr` math-function call, and the two positions that are pure data.
+    // Steps 1a-1d are cursor-position decisions: a `$var` read, bareword
+    // declaration, `expr` math-function call, and two pure-data positions.
     // `Some` is definitive (including `Some(vec![])`).
     if let Some(result) = position_definition(
         source,
@@ -298,6 +297,11 @@ pub fn definition_with(
     let Some((word, _start, _end)) = find_word_span_at_position(source, line, character) else {
         return Vec::new();
     };
+    if let Some(result) =
+        list_built_self_method_definition(source, &line_index, analysis, &word, decl_byte_offset)
+    {
+        return result;
+    }
     // `$obj method` / `[$obj method]` — when the cursor sits on
     // the method-name token of an instance-method call and the
     // instance variable's class is known, jump to the method
@@ -337,11 +341,10 @@ pub fn definition_with(
     // `next` / `nextto` inside a method body — jump to the super-method in
     // the MRO chain that the enclosing method overrides (`next`), or to the
     // named class's copy of it (`nextto Cls`).
-    if is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), &word)
-        && let Some(span) =
-            next_dispatch_target(analysis, source, &line_index, line, character, &word)
+    if let Some(result) =
+        next_dispatch_definition(analysis, source, &line_index, line, character, &word)
     {
-        return vec![span_to_range(source, &line_index, span)];
+        return result;
     }
     // Prefer the declaration whose own name span covers the cursor (so a
     // same-named proc in another namespace's own decl resolves to *that*
@@ -441,6 +444,43 @@ pub fn definition_with(
         return vec![span_to_range(source, &line_index, span)];
     }
     Vec::new()
+}
+
+fn list_built_self_method_definition(
+    source: &str,
+    line_index: &LineIndex,
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<Vec<LspRange>> {
+    let (provider, is_classmethod) = crate::references::list_built_self_method_target_at_cursor(
+        source,
+        crate::profile_for_dialect(&analysis.dialect),
+        analysis,
+        word,
+        cursor_offset,
+    )?;
+    let class_def = analysis.all_classes.get(&provider)?;
+    let method = if is_classmethod {
+        class_def.class_methods.get(word)
+    } else {
+        class_def.methods.get(word)
+    }?;
+    Some(vec![span_to_range(source, line_index, method.name_span)])
+}
+
+fn next_dispatch_definition(
+    analysis: &AnalysisResult,
+    source: &str,
+    line_index: &LineIndex,
+    line: u32,
+    character: u32,
+    word: &str,
+) -> Option<Vec<LspRange>> {
+    is_next_chain_keyword_in(crate::profile_for_dialect(&analysis.dialect), word)
+        .then(|| next_dispatch_target(analysis, source, line_index, line, character, word))
+        .flatten()
+        .map(|span| vec![span_to_range(source, line_index, span)])
 }
 
 /// The declaration span a word reaches through the document's command-table
