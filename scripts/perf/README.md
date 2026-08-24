@@ -15,6 +15,10 @@ evidence rather than impression. It was built after a memory-leak review
 against the issue #1181 corpus, and its first output showed v2.1.14 holding
 479 MiB where v2.1.15 holds 170 MiB.
 
+For the human-readable source, dialect, age/recency, licence, and coding-style
+catalogue, see [`docs/CORPUS.md`](../../docs/CORPUS.md). The manifest below
+remains the sole machine-readable source of benchmark pins.
+
 ## Quick start
 
 ```bash
