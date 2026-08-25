@@ -94,8 +94,8 @@ def _series(version: str, versions: Sequence[str]) -> tuple[str, str]:
     return f"{semver_key(version)[0]}.x", f"{semver_key(version)[0]}.x"
 
 
-def _noun(version: str) -> str:
-    """The channel noun for this version: "pre-release" or "release".
+def _is_prerelease(version: str) -> bool:
+    """Whether `version` belongs to the pre-release channel.
 
     Delegated to `prerelease.sh` rather than re-deriving the minor parity here:
     that script is the single source of truth every other pre-release switch
@@ -107,7 +107,20 @@ def _noun(version: str) -> str:
         text=True,
         check=True,
     )
-    return "pre-release" if out.stdout.strip() == "true" else "release"
+    return out.stdout.strip() == "true"
+
+
+def _noun(versions: Sequence[str]) -> str:
+    """The noun for the whole measured range: "pre-release" or "release".
+
+    Derived from every version in the range, not from the one being cut. The
+    noun is applied to the series as a whole, so a range that mixes channels —
+    which it does from the first stable even-minor onward — cannot honestly be
+    called a pre-release series. "Release" is the safe superset: a pre-release
+    is still a release, so a mixed range reads correctly under it, while a
+    wholly pre-release range keeps the narrower and more informative word.
+    """
+    return "pre-release" if all(map(_is_prerelease, versions)) else "release"
 
 
 def _load(version: str) -> dict:
@@ -183,7 +196,7 @@ def build_section(version: str, versions: Sequence[str]) -> str:
     corpus += f", revision `{revision}`)" if revision else ")"
 
     line, glob = _series(version, versions)
-    noun = _noun(version)
+    noun = _noun(versions)
 
     lines = [f"{HEADING} across the {line} {noun}s", ""]
     lines += _para(
