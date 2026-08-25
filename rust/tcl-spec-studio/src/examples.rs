@@ -497,14 +497,30 @@ fn example_json(example: Example, subject: &str) -> Value {
 }
 
 fn registry_example_json(example: DocumentationExample, subject: &str) -> Value {
+    let owner_annotation = example.carrier.and_then(|carrier| {
+        example
+            .annotations
+            .iter()
+            .position(|item| item.line == carrier.line && item.needle == carrier.needle)
+            .or_else(|| {
+                example.annotations.iter().position(|item| {
+                    item.line == carrier.line && item.needle.contains(carrier.needle)
+                })
+            })
+    });
     let annotations: Vec<Value> = example
         .annotations
         .iter()
-        .map(|item| {
+        .enumerate()
+        .map(|(index, item)| {
             json!({
                 "line": item.line,
                 "needle": item.needle,
-                "label": format!("{subject} — {}", item.label),
+                "label": if Some(index) == owner_annotation {
+                    format!("{subject} — {}", item.label)
+                } else {
+                    item.label.to_owned()
+                },
             })
         })
         .collect();
@@ -662,6 +678,41 @@ mod tests {
                 !item.category().label().is_empty(),
                 "{} has no group",
                 entry.key
+            );
+        }
+    }
+
+    #[test]
+    fn trait_subject_labels_only_the_carrier_arrow() {
+        for &item in Trait::ALL {
+            let subject = format!("{}: {}", item.name(), item.summary());
+            let example = registry_example_json(item.example(), &subject);
+            let carrier = example["carrier"].as_object().expect("trait carrier");
+            let carrier_line = carrier["line"].as_u64().expect("carrier line");
+            let carrier_needle = carrier["needle"].as_str().expect("carrier needle");
+            let labelled: Vec<_> = example["annotations"]
+                .as_array()
+                .expect("annotations")
+                .iter()
+                .filter(|annotation| {
+                    annotation["label"]
+                        .as_str()
+                        .is_some_and(|label| label.starts_with(&subject))
+                })
+                .collect();
+            assert_eq!(
+                labelled.len(),
+                1,
+                "{} must label exactly its owning command arrow",
+                item.name()
+            );
+            assert_eq!(labelled[0]["line"].as_u64(), Some(carrier_line));
+            assert!(
+                labelled[0]["needle"]
+                    .as_str()
+                    .is_some_and(|needle| needle.contains(carrier_needle)),
+                "{} labels an arrow that does not contain its carrier",
+                item.name()
             );
         }
     }

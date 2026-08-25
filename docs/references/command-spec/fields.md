@@ -1409,6 +1409,7 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `SCRIPT_APPENDS_LIST_ARGS` | appends its trailing words to the script as list elements |
 | `ESTABLISHES_VARIABLE_TRACE` | establishes a variable trace |
 | `TRANSFERS_CONTROL` | transfers control elsewhere |
+| `COROUTINE_PRIMITIVE` | participates in Tcl coroutine execution |
 | `FIRE_AND_FORGET_TEARDOWN` | fire-and-forget teardown |
 | `OPERATOR_COMMAND` | an operator in command form |
 | `TCLOO_NEXT_CHAIN` | participates in the TclOO next chain |

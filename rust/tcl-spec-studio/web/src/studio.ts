@@ -600,6 +600,8 @@ function writeBackOpenCommand(): void {
           `cannot re-render and the write could not reach. Undo, or restore it by hand in this pane.`,
         "err",
       );
+    } else if (written.upgraded_from) {
+      setStatus("dslStatus", vocabularyUpgradeMessage(written) ?? "", "ok");
     } else if (written.writeback === "rerendered") {
       setStatus(
         "dslStatus",
@@ -621,13 +623,23 @@ function addDraftToPack(): void {
     return;
   }
   try {
+    // Preserve an existing declaration's collision policy. In particular, a
+    // registry command selected below is seeded as `-override`; pressing this
+    // button again must not silently turn its live replacement into a shadowed
+    // reference copy.
+    const overrides =
+      state.pack.view?.commands.find((command) => command.name === name)?.override ?? false;
     const written = unwrap<PackWrite>(
-      wasm.pack_set_command(state.pack.source, name, JSON.stringify(state.draft), false),
+      wasm.pack_set_command(state.pack.source, name, JSON.stringify(state.draft), overrides),
     );
     state.pack.open = name;
     setPackSource(written.source);
     openPackCommand(name);
-    setStatus("status", `${name} added to pack ${state.pack.view?.pack ?? ""}`, "ok");
+    setStatus(
+      "status",
+      vocabularyUpgradeMessage(written) ?? `${name} added to pack ${state.pack.view?.pack ?? ""}`,
+      "ok",
+    );
   } catch (e) {
     setStatus("status", `could not add ${name} to the pack: ${message(e)}`, "err");
   }
@@ -808,12 +820,18 @@ function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+function vocabularyUpgradeMessage(write: PackWrite): string | null {
+  return write.upgraded_from
+    ? `Pack DSL upgraded from SpecTcl ${write.upgraded_from} to ${write.upgraded_to ?? "the current vocabulary"} because this command uses newer vocabulary.`
+    : null;
+}
+
 /**
  * Load `draft` into the form.
  *
  * `packCommand` names the pack declaration this draft came from, or is `null`
- * when the draft is a registry command or a fresh one — in which case edits go
- * nowhere near the pack document until the author says "Add to pack".
+ * when the draft is fresh — registry selections are first copied into the
+ * working pack, so the form and Pack DSL remain projections of one document.
  */
 function loadDraft(draft: Draft, origin: string, packCommand: string | null = null): void {
   state.draft = draft;
@@ -947,18 +965,33 @@ function loadTypedCommand(): void {
 }
 
 function openCommand(name: string): void {
+  // A pack declaration is the editable source of truth, even when the same
+  // name also appears in the registry list. Re-opening it must not overwrite
+  // the author's in-progress pack edit with a fresh shipped snapshot.
+  if (state.pack.view?.commands.some((command) => command.name === name)) {
+    openPackCommand(name);
+    return;
+  }
   try {
     const loaded = JSON.parse(wasm.load_command(name, state.dialect)) as Draft & { error?: string };
     if (loaded.error) {
       setStatus("status", loaded.error, "err");
       return;
     }
-    loadDraft(
-      loaded,
-      `Loaded ${name} from the ${dialectLabel(state.dialect)} registry — reference material. ` +
-        `Use “+ Add to pack” to start editing it as one of your own.`,
+    // The Pack DSL is deliberately the one authoritative document rather than
+    // a second, export-only projection. Seed a selected shipped command into
+    // it before displaying the form, and use `-override` so the selected draft
+    // is also the one the pack would install over the registry.
+    const written = unwrap<PackWrite>(
+      wasm.pack_set_command(state.pack.source, name, JSON.stringify(loaded), true),
     );
-    setStatus("status", "");
+    state.pack.open = name;
+    setPackSource(written.source);
+    const view = unwrap<PackCommandView>(wasm.pack_command(state.pack.source, name, state.dialect));
+    if (!view.pack) throw new Error(`the pack did not retain ${name}`);
+    loadDraft(view.pack, packOrigin(view), name);
+    const upgraded = vocabularyUpgradeMessage(written);
+    setStatus("status", upgraded ?? "", upgraded ? "ok" : undefined);
     pushHistory({ name, where: "registry" });
   } catch (e) {
     setStatus("status", `could not load ${name}: ${String(e)}`, "err");

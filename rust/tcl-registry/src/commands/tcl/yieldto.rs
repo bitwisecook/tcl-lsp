@@ -122,6 +122,7 @@ pub fn spec() -> CommandSpec {
         traits: Traits::BYTE_COMPILED
             | Traits::LANGUAGE_KEYWORD
             | Traits::NOT_PROC_FACTORY
+            | Traits::COROUTINE_PRIMITIVE
             | Traits::TRANSFERS_CONTROL,
         arity: Arity::at_least(1),
         // "The return value of the yieldto call will be the list of

@@ -44,7 +44,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Retrieve data from the clipboard on the specified display.",
         synopsis: "clipboard get ?-displayof window? ?-type type?",
         options: GET_OPTIONS,
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT

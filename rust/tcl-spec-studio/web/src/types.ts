@@ -273,8 +273,12 @@ export interface PackCommandView {
 /** The reply to a write-back: the new document, and how it was reached. */
 export interface PackWrite {
   source: string;
-  /** `"spliced"` kept every other byte; `"rerendered"` rebuilt the file. */
-  writeback?: "spliced" | "rerendered";
+  /** How the store wrote the edit: byte splice, full render, or vocabulary upgrade. */
+  writeback?: "spliced" | "rerendered" | "vocabulary-upgraded";
+  /** Previous SpecTcl vocabulary when this edit required newer DSL words. */
+  upgraded_from?: string;
+  /** New declared SpecTcl vocabulary paired with `upgraded_from`. */
+  upgraded_to?: string;
   /**
    * Properties the declaration stated before the edit and does not after it.
    *

@@ -69,14 +69,22 @@ fn rejects_unknown_command() {
 fn rejects_concurrency_primitives() {
     for body in [
         "coroutine c mygen",
+        "::coroutine c mygen",
         "yield 1",
+        "::yield 1",
         "yieldto foo",
+        "::yieldto foo",
         "coroinject c foo",
+        "::coroinject c foo",
         "coroprobe c bar",
+        "::coroprobe c bar",
         "thread::create {}",
+        "::thread::create {}",
         "thread::send $id {}",
         "tsv::set arr k 1",
+        "::tsv::set arr k 1",
         "tpool::create",
+        "::tpool::create",
     ] {
         let src = format!("when SOCKET_FILTER {{ {body}\n accept }}\n");
         let Err(e) = compile_module(&src) else {

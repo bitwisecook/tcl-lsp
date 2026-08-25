@@ -50,7 +50,7 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroinject",
-        traits: Traits::EVALUATES_CODE,
+        traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(2),
         // `coroinject coroName command ?arg ...?` — `command` (index 1) is a

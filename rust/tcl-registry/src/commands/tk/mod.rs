@@ -753,7 +753,11 @@ mod tests {
             let spec = specs.iter().find(|spec| spec.name == command).unwrap();
             let get = spec.resolve_subcommand("get").unwrap();
             assert!(get.traits.contains(Traits::TAINT_SOURCE));
-            assert!(get.pure && get.return_type.is_some());
+            assert!(get.return_type.is_some());
+            assert!(
+                !get.pure,
+                "{command} get reads externally mutable selection state"
+            );
         }
     }
 

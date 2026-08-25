@@ -430,6 +430,47 @@ fn frame_sensitive_membership() {
     }
 }
 
+/// Coroutine-family membership is registry data consumed by restricted
+/// backends; spelling and release handling must therefore resolve here rather
+/// than in each backend.
+#[test]
+fn coroutine_primitive_membership_is_versioned_and_qualified() {
+    let (tcl86, tcl86_set) = reg_and_set("tcl8.6");
+    for name in ["coroutine", "::coroutine", "yield", "::yield", "yieldto"] {
+        assert!(
+            tcl86
+                .invocation_traits(name, &[], tcl86_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} must resolve through the Tcl 8.6 coroutine family"
+        );
+    }
+    for name in ["coroinject", "coroprobe"] {
+        assert!(
+            !tcl86
+                .invocation_traits(name, &[], tcl86_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} is not available before Tcl 9.0"
+        );
+    }
+
+    let (tcl90, tcl90_set) = reg_and_set("tcl9.0");
+    for name in ["coroinject", "::coroinject", "coroprobe", "::coroprobe"] {
+        assert!(
+            tcl90
+                .invocation_traits(name, &[], tcl90_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} must resolve through the Tcl 9.0 coroutine family"
+        );
+    }
+
+    let (tcl85, tcl85_set) = reg_and_set("tcl8.5");
+    assert!(
+        !tcl85
+            .invocation_traits("coroutine", &[], tcl85_set)
+            .contains(Traits::COROUTINE_PRIMITIVE)
+    );
+}
+
 /// The fire-and-forget teardown set (`FIRE_AND_FORGET_TEARDOWN`) must cover
 /// the W302 suppression idiom's documented members, at both the command and
 /// the subcommand level, and stay off destructive-but-not-teardown

@@ -159,6 +159,9 @@ pub enum WriteBack {
     /// The whole document was re-rendered from drafts — correct, and no
     /// comment or layout choice outside the rendered shape survives.
     Rerendered,
+    /// The edited draft uses the current vocabulary, so an older pack header
+    /// was raised before the otherwise-targeted command write.
+    VocabularyUpgraded,
 }
 
 impl WriteBack {
@@ -168,6 +171,7 @@ impl WriteBack {
         match self {
             Self::Spliced => "spliced",
             Self::Rerendered => "rerendered",
+            Self::VocabularyUpgraded => "vocabulary-upgraded",
         }
     }
 }
@@ -188,6 +192,9 @@ pub struct Write {
     /// text verbatim wherever it can (see `carry_forward`), and everything it
     /// still could not keep is named here rather than lost quietly.
     pub dropped: Vec<String>,
+    /// Previous declared vocabulary when this edit had to raise the pack to
+    /// the renderer's current vocabulary.
+    pub upgraded_from: Option<String>,
 }
 
 /// The user's definitions, backed by one `.tclspec` document.
@@ -247,6 +254,19 @@ impl PackStore {
     #[must_use]
     pub fn dsl_version(&self) -> &str {
         &self.pack.dsl_version
+    }
+
+    /// Version used when rendering this store back to DSL.  A malformed or
+    /// non-pack source has no declared vocabulary; a newly materialised pack
+    /// must use the renderer's current vocabulary rather than emitting an
+    /// invalid empty `speclib NAME { … }` header.
+    #[must_use]
+    fn render_version(&self) -> &str {
+        if self.pack.dsl_version.is_empty() {
+            render_spectcl::DSL_VERSION
+        } else {
+            &self.pack.dsl_version
+        }
     }
 
     /// The human-readable name the document declares (`display_name {IEEE
@@ -370,7 +390,10 @@ impl PackStore {
             .filter(|c| c.overrides_shipped)
             .map(|c| c.spec.name)
             .collect();
-        with_override_flags(&render_spectcl::render_pack(&drafts, self.name()), &flags)
+        with_override_flags(
+            &render_spectcl::render_pack_with_version(&drafts, self.name(), self.render_version()),
+            &flags,
+        )
     }
 
     /// Write `draft` back as the definition of `name`.
@@ -384,6 +407,10 @@ impl PackStore {
     /// Returns how the document was reached — see [`WriteBack`], and this
     /// module's header for what "spliced" does and does not preserve.
     pub fn set_command(&mut self, name: &str, draft: &Draft, overrides: bool) -> Write {
+        let upgraded_from = self
+            .draft_requires_vocabulary_upgrade(draft)
+            .then(|| self.upgrade_vocabulary_for_edit())
+            .flatten();
         let existed = self.draft(name).is_some();
         let before = self.declared_properties(name);
         let block = self.carry_forward(name, &self.render_block(draft, overrides));
@@ -399,10 +426,13 @@ impl PackStore {
         } else {
             None
         };
-        let how = how.unwrap_or_else(|| {
+        let mut how = how.unwrap_or_else(|| {
             self.rerender_with(name, draft, overrides);
             WriteBack::Rerendered
         });
+        if upgraded_from.is_some() && how == WriteBack::Spliced {
+            how = WriteBack::VocabularyUpgraded;
+        }
 
         let written = draft.get("name").and_then(Value::as_str).unwrap_or(name);
         let after = self.declared_properties(written);
@@ -415,7 +445,11 @@ impl PackStore {
             })
             .map(|(word, _)| word.clone())
             .collect();
-        Write { how, dropped }
+        Write {
+            how,
+            dropped,
+            upgraded_from,
+        }
     }
 
     /// Drop `name` from the document.
@@ -456,12 +490,58 @@ impl PackStore {
             .map(|c| c.spec.name)
             .collect();
         let drafts: Vec<Draft> = keep.iter().map(|(_, d)| d.clone()).collect();
-        let text = with_override_flags(&render_spectcl::render_pack(&drafts, self.name()), &flags);
+        let text = with_override_flags(
+            &render_spectcl::render_pack_with_version(&drafts, self.name(), self.render_version()),
+            &flags,
+        );
         *self = Self::from_source(text);
         true
     }
 
     // ── write-back internals ───────────────────────────────────────────
+
+    fn draft_requires_vocabulary_upgrade(&self, draft: &Draft) -> bool {
+        let previous = self.dsl_version();
+        if previous.is_empty()
+            || !tcl_registry::version::compare(previous, render_spectcl::DSL_VERSION).is_lt()
+        {
+            return false;
+        }
+        let probe = render_spectcl::render_pack_with_version(
+            std::slice::from_ref(draft),
+            "vocabulary-probe",
+            previous,
+        );
+        loader::load_pack(&probe).notices.iter().any(|notice| {
+            notice.message.contains(" is SpecTcl ")
+                && notice
+                    .message
+                    .contains(" vocabulary, but this pack declares vocabulary ")
+        })
+    }
+
+    /// Raise an older pack header before writing a draft rendered with the
+    /// current vocabulary. This changes only the version word; comments,
+    /// layout, metadata, and existing declarations remain byte-for-byte.
+    fn upgrade_vocabulary_for_edit(&mut self) -> Option<String> {
+        let previous = self.dsl_version().to_owned();
+        if previous.is_empty()
+            || !tcl_registry::version::compare(&previous, render_spectcl::DSL_VERSION).is_lt()
+        {
+            return None;
+        }
+        let version_span = segments(&self.source)
+            .into_iter()
+            .find(|statement| statement.words.first().map(String::as_str) == Some("speclib"))?
+            .spans
+            .get(2)?
+            .inner
+            .clone();
+        let mut source = self.source.clone();
+        source.replace_range(version_span, render_spectcl::DSL_VERSION);
+        *self = Self::from_source(source);
+        Some(previous)
+    }
 
     /// The pack-body text for one command: whatever a one-command pack would
     /// put inside its `speclib` braces, which is the command block plus any
@@ -722,7 +802,10 @@ impl PackStore {
         } else {
             self.name()
         };
-        let text = with_override_flags(&render_spectcl::render_pack(&drafts, pack_name), &flags);
+        let text = with_override_flags(
+            &render_spectcl::render_pack_with_version(&drafts, pack_name, self.render_version()),
+            &flags,
+        );
         *self = Self::from_source(text);
     }
 }
@@ -1586,6 +1669,85 @@ command add_parameter {\narity 1..\n}\n}\n";
             "speclib mylib {} {{",
             crate::render_spectcl::DSL_VERSION
         )));
+    }
+
+    #[test]
+    fn selecting_a_shipped_command_and_canonicalising_preserves_the_pack_version() {
+        // Browser repro: selecting `doctools::search` seeds it into a fresh
+        // 1.1 pack, then Pack DSL → Re-render canonically used to rewrite the
+        // header to the renderer's newest (1.2) vocabulary. Selection itself
+        // is a normal `set_command` write, so exercise the shared store rather
+        // than teaching the browser a version rule of its own.
+        let mut store = PackStore::from_source("speclib mylib 1.1 {\n}\n");
+        let selected = Builtins::for_dialect("tcl9.0")
+            .draft("doctools::search")
+            .expect("doctools::search is a browsable shipped command");
+        store.set_command("doctools::search", &selected, true);
+        assert!(store.source().starts_with("speclib mylib 1.1 {"));
+
+        // The browser hydrates every tab from this one stored draft.  Keep
+        // the DSL, generated Rust, and Tcl stub outputs coupled so selecting
+        // a registry command cannot leave either generated tab blank.
+        let hydrated = store
+            .draft("doctools::search")
+            .expect("selected command is retained in the pack");
+        let rust = crate::render_rs::render(hydrated);
+        let stub = crate::render_stub::render(
+            std::slice::from_ref(hydrated),
+            crate::render_stub::Mode::Inline,
+            "tcl9.0",
+        );
+        assert!(
+            store
+                .source()
+                .contains("command doctools::search -override"),
+            "DSL tab must contain the selected command:\n{}",
+            store.source()
+        );
+        assert!(
+            !rust.trim().is_empty() && rust.contains("doctools::search"),
+            "Rust tab must render the selected command:\n{rust}"
+        );
+        assert!(
+            !stub.trim().is_empty() && stub.contains("doctools::search"),
+            "Tcl stub tab must render the selected command:\n{stub}"
+        );
+
+        let canonical = store.canonical();
+        assert!(
+            canonical.contains("\nspeclib mylib 1.1 {\n"),
+            "canonical rendering must preserve the loaded header:\n{canonical}"
+        );
+        let round_tripped = PackStore::from_source(canonical);
+        assert_eq!(round_tripped.dsl_version(), "1.1");
+        assert!(round_tripped.draft("doctools::search").is_some());
+        assert!(round_tripped.overrides_shipped("doctools::search"));
+    }
+
+    #[test]
+    fn adding_newer_registry_data_upgrades_the_header_before_the_first_render() {
+        let mut store = PackStore::from_source("speclib mylib 1.1 {\n}\n");
+        let selected = Builtins::for_dialect("tcl9.0")
+            .draft("ttk::treeview")
+            .expect("ttk::treeview is a browsable shipped command");
+        let write = store.set_command("ttk::treeview", &selected, true);
+
+        assert_eq!(write.how, WriteBack::VocabularyUpgraded);
+        assert_eq!(write.upgraded_from.as_deref(), Some("1.1"));
+        assert_eq!(store.dsl_version(), render_spectcl::DSL_VERSION);
+        assert!(store.source().contains("command ttk::treeview -override"));
+        assert!(
+            store.notices().iter().all(|notice| !notice
+                .message
+                .contains("vocabulary, but this pack declares vocabulary")),
+            "an upgraded document must not contain newer words under an older header: {:?}",
+            store.notices()
+        );
+        assert_eq!(
+            PackStore::from_source(store.canonical()).dsl_version(),
+            render_spectcl::DSL_VERSION,
+            "canonical re-render is stable after the edit-time upgrade"
+        );
     }
 
     #[test]

@@ -1543,6 +1543,26 @@ mod tests {
     }
 
     #[test]
+    fn external_tk_selection_reads_are_neither_pure_nor_deterministic() {
+        let registry = tcl_registry::registry_for_dialect("tk");
+        let profile = tcl_dialect::DialectProfile::by_name("tk");
+        for command in ["clipboard", "selection"] {
+            let effect =
+                classify_side_effects(registry, command, &["get".to_owned()], Some(profile), None);
+            assert!(!effect.pure, "{command} get reads mutable external state");
+            assert!(
+                !effect.deterministic,
+                "{command} get can change without any Tcl-side write"
+            );
+            assert!(
+                effect.reads_any(),
+                "{command} get must retain its read effect"
+            );
+            assert!(!effect.writes_any(), "{command} get is not itself a writer");
+        }
+    }
+
+    #[test]
     fn pure_command_mutator_subcommand_downgrades_purity() {
         // `HTTP::header` carries `Traits::PURE` + a structured `HttpHeader`
         // read+write hint + `mutator` subcommands. The getter stays pure with

@@ -62,7 +62,6 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Retrieve the selection and return it as a string.",
         synopsis: "selection get ?-displayof window? ?-selection selection? ?-type type?",
         options: GET_OPTIONS,
-        pure: true,
         return_type: Some(TclType::String),
         side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT

@@ -72,6 +72,25 @@ fn importing_a_pack_activates_a_renderable_command() {
 }
 
 #[test]
+fn selecting_a_registry_command_seeds_the_shared_pack_document() {
+    // A selected built-in must not live only in the form/Rust renderer while
+    // Pack DSL remains an unrelated empty document. The controller writes it
+    // as a live override, reloads the one pack-backed draft, and protects that
+    // draft from a later registry-list click overwriting the user's edits.
+    assert!(
+        STUDIO_TS.contains(
+            "wasm.pack_set_command(state.pack.source, name, JSON.stringify(loaded), true)"
+        )
+    );
+    assert!(STUDIO_TS.contains("setPackSource(written.source)"));
+    assert!(STUDIO_TS.contains("loadDraft(view.pack, packOrigin(view), name)"));
+    assert!(
+        STUDIO_TS.contains("state.pack.view?.commands.some((command) => command.name === name)")
+    );
+    assert!(STUDIO_TS.contains("openPackCommand(name);\n    return;"));
+}
+
+#[test]
 fn nested_option_metadata_has_inline_and_reference_help() {
     assert!(EDITORS_TS.contains(r#"ctx.fieldHelp("taints_var_write")"#));
     assert!(EDITORS_TS.contains("hasVarWriteRole"));

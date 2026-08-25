@@ -412,6 +412,297 @@ mod tcl_taint_sources {
     }
 
     #[test]
+    fn constant_variable_command_head_reaches_sink_at_the_use_site() {
+        let ws = of_code(
+            "set command eval\nset line [gets stdin]\n$command $line",
+            D,
+            "T100",
+        );
+        assert!(
+            ws.iter().any(|warning| warning.variable == "line"),
+            "a phase-correct constant command head must retain eval's sink semantics: {ws:?}"
+        );
+    }
+
+    #[test]
+    fn eval_braced_nested_command_substitution_reaches_inner_sink() {
+        for source in [
+            "set x [gets stdin]\neval {[eval $x]}",
+            r"set x [gets stdin]
+[e\166al $x]",
+            "set x [gets stdin]\n[{eval} $x]",
+            "set x [gets stdin]\n[\"eval\" $x]",
+        ] {
+            let ws = of_code(source, D, "T100");
+            assert!(
+                ws.iter().any(|warning| warning.variable == "x"),
+                "a variable in a nested statically-headed eval reaches its sink: {source:?}: {ws:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn braced_literal_command_name_does_not_execute_its_bracket_text() {
+        assert!(
+            of_code("set x [gets stdin]\n{[eval $x]}", D, "T100").is_empty(),
+            "a braced command name is literal; its bracket text is never evaluated"
+        );
+    }
+
+    #[test]
+    fn quoted_whole_command_substitution_reaches_inner_sink() {
+        let ws = of_code("set x [gets stdin]\n\"[eval $x]\"", D, "T100");
+        assert!(
+            ws.iter().any(|warning| warning.variable == "x"),
+            "quotes do not suppress a whole command substitution in command position: {ws:?}"
+        );
+    }
+
+    #[test]
+    fn escaped_static_command_head_obeys_release_grammar() {
+        let source = r"set x [gets stdin]
+[e\x76al $x]";
+        assert!(
+            of_code(source, "tcl8.4", "T100").is_empty(),
+            "Tcl 8.4 consumes more than two hex digits, so this command is not eval"
+        );
+        assert!(
+            of_code(source, "tcl8.6", "T100")
+                .iter()
+                .any(|warning| warning.variable == "x"),
+            "Tcl 8.6 consumes two hex digits, so this command is eval"
+        );
+    }
+
+    #[test]
+    fn static_expanded_command_head_preserves_argv_semantics() {
+        let positive = of_code("set x [gets stdin]\n{*}{{eval} safe} $x", "tcl9.0", "T100");
+        assert!(
+            positive.iter().any(|warning| warning.variable == "x"),
+            "the first expanded list element is the command and the rest prefix its argv: {positive:?}"
+        );
+        assert!(
+            of_code("set x [gets stdin]\n{*}{{puts} safe} $x", "tcl9.0", "T100",).is_empty(),
+            "an expanded non-sink command head must stay clean"
+        );
+        assert!(
+            !of_code("set x [gets stdin]\n{*}{} eval $x", "tcl9.0", "T100",).is_empty(),
+            "an empty leading expansion removes itself and exposes the next command word"
+        );
+    }
+
+    #[test]
+    fn reaching_list_value_expands_into_command_and_argv() {
+        for source in [
+            "set prefix [list eval safe]\nset x [gets stdin]\n{*}$prefix $x",
+            "set prefix {}\nset x [gets stdin]\n{*}$prefix eval $x",
+            "if {$flag} {set prefix [list eval safe]} else {set prefix [list puts safe]}\nset x [gets stdin]\n{*}$prefix $x",
+        ] {
+            assert!(
+                !of_code(source, "tcl9.0", "T100").is_empty(),
+                "a reaching list constant must retain expanded dispatch semantics: {source}"
+            );
+        }
+        assert!(
+            of_code(
+                "set prefix [list puts safe]\nset x [gets stdin]\n{*}$prefix $x",
+                "tcl9.0",
+                "T100",
+            )
+            .is_empty(),
+            "a reaching expanded non-sink must stay clean"
+        );
+    }
+
+    #[test]
+    fn unknown_expansion_arms_do_not_erase_a_reaching_sink() {
+        for source in [
+            r"if {$flag} {set command eval} else {set command \x7b}
+set x [gets stdin]
+{*}$command $x",
+            "if {$flag} {set command eval} else {set command {}}\nset next puts\nset x [gets stdin]\n{*}$command $next $x",
+        ] {
+            assert!(
+                !of_code(source, "tcl9.0", "T100").is_empty(),
+                "a malformed or unresolved expansion arm must not erase another arm's eval sink: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_command_head_sink_does_not_consume_outer_arguments() {
+        for (source, code) in [
+            ("set x [gets stdin]\n[eval {string cat puts}] $x", "T100"),
+            ("set x [gets stdin]\n[puts {$x}] $x", "T101"),
+        ] {
+            assert!(
+                of_code(source, D, code).is_empty(),
+                "a nested sink must not consume a braced literal or a later outer argument: {source:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn whole_command_substitution_classifies_each_executed_inner_sink() {
+        for (source, code) in [
+            ("set x [gets stdin]\n[puts $x]", "T101"),
+            ("set x [gets stdin]\n[puts safe; eval $x]", "T100"),
+            ("set x [gets stdin]\nprefix[eval $x]", "T100"),
+            ("set x [gets stdin]\n\"[puts safe][eval $x]\"", "T100"),
+        ] {
+            let ws = of_code(source, D, code);
+            assert!(
+                ws.iter().any(|warning| warning.variable == "x"),
+                "every inner command receives only its own substituted arguments: {source:?}: {ws:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn nested_script_sink_distinguishes_deferred_from_literal_arguments() {
+        let ws = of_code("set x [gets stdin]\n[eval {$x}]", D, "T100");
+        assert!(
+            ws.iter().any(|warning| warning.variable == "x"),
+            "eval reparses its braced argument as Tcl source: {ws:?}"
+        );
+
+        assert!(
+            of_code("set x [gets stdin]\n[exec {$x}]", D, "T100").is_empty(),
+            "exec receives a literal dollar spelling; it does not evaluate Tcl source"
+        );
+
+        let ws = of_code("set x [gets stdin]\n[interp eval child {$x}]", D, "T105");
+        assert!(
+            ws.iter().any(|warning| warning.variable == "x"),
+            "interp eval reparses only its registry-declared body tail: {ws:?}"
+        );
+        assert!(
+            of_code(
+                "set x [gets stdin]\n[interp eval {$x} {set y safe}] $x",
+                D,
+                "T105",
+            )
+            .is_empty(),
+            "a braced interpreter path and an outer argument are not child-interpreter code"
+        );
+
+        let ws = of_code("set x [gets stdin]\n[set y $x; eval {$y}]", D, "T100");
+        assert!(
+            ws.iter().any(|warning| warning.variable == "y"),
+            "inner commands must propagate taint in Tcl evaluation order: {ws:?}"
+        );
+        assert!(
+            of_code(
+                "set x [gets stdin]\n[eval {set x safe; puts $x}]",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a script-local clean overwrite must cut off the enclosing tainted version"
+        );
+        assert!(
+            of_code(
+                "proc eval args {}\nset x [gets stdin]\n[eval $x]",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a nested call inherits the enclosing user-proc rebinding"
+        );
+        let ws = of_code(
+            "interp alias {} myEval {} eval\nset x [gets stdin]\n[myEval $x]",
+            D,
+            "T100",
+        );
+        assert!(
+            ws.iter().any(|warning| warning.variable == "x"),
+            "a nested call inherits the enclosing static alias: {ws:?}"
+        );
+        for source in [
+            "set command eval\nset x [gets stdin]\n[$command $x]",
+            "set x [gets stdin]\nset script {$x}\n[eval $script]",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "nested analysis inherits phase-correct outer constants: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn variable_command_head_uses_reaching_not_lexically_earlier_value() {
+        assert!(
+            of_code(
+                "set command eval\nset command string\nset line [gets stdin]\n$command length $line",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a superseded eval spelling must not classify the later string call as a sink"
+        );
+    }
+
+    #[test]
+    fn variable_command_head_warns_when_any_reaching_literal_is_a_sink() {
+        let ws = of_code(
+            "if {$flag} {set command eval} else {set command puts}\n\
+             set line [gets stdin]\n$command $line",
+            D,
+            "T100",
+        );
+        assert!(
+            ws.iter().any(|warning| warning.variable == "line"),
+            "a may-dispatch to eval is security-relevant even when another arm is safe: {ws:?}"
+        );
+    }
+
+    #[test]
+    fn equivalent_variable_command_head_spellings_emit_one_warning() {
+        let ws = of_code(
+            "if {$flag} {set command eval} else {set command ::eval}\n\
+             set line [gets stdin]\n$command $line",
+            D,
+            "T100",
+        );
+        assert_eq!(
+            ws.len(),
+            1,
+            "equivalent qualified sink spellings must not duplicate one use-site diagnostic: {ws:?}"
+        );
+        assert_eq!(ws[0].sink_command, "eval");
+    }
+
+    #[test]
+    fn namespace_shadowed_variable_command_head_is_not_a_builtin_sink() {
+        assert!(
+            of_code(
+                "proc ::ns::eval args {}\n\
+                 proc ::ns::run {} {set command eval; set line [gets stdin]; $command $line}\n\
+                 ::ns::run",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a namespace-local proc named eval must not inherit the builtin's sink semantics"
+        );
+    }
+
+    #[test]
+    fn namespace_shadowed_catch_cannot_hijack_nested_analysis_scaffolding() {
+        let ws = of_code(
+            "proc ::ns::catch args {}\n\
+             proc ::ns::run {} {set x [gets stdin]; [catch {}; eval $x]}\n\
+             ::ns::run",
+            D,
+            "T100",
+        );
+        assert!(
+            ws.iter().any(|warning| warning.variable == "x"),
+            "a user proc named catch must not suppress the real nested eval sink: {ws:?}"
+        );
+    }
+
+    #[test]
     fn exec_taints() {
         // tclsh: `exec ls` returns subprocess stdout.
         let ws = of_code("set output [exec ls]\neval $output", D, "T100");
@@ -554,11 +845,41 @@ mod object_instance_taint_sources {
         for source in [
             "entry .password -validatecommand {set proposed %P; eval $proposed}",
             "entry .password -validatecommand [list eval %P]",
+            "entry .password -validatecommand \"[list eval %P]\"",
+            "entry .password -validatecommand \"eval %P\"",
+            r"entry .password -validatecommand eval\ %P",
             "bind .password <Key> {set typed %A; eval $typed}",
         ] {
             assert!(
                 !of_code(source, D, "T100").is_empty(),
                 "registry-declared callback input must reach its sink: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_percent_value_in_command_position_is_dynamic_dispatch() {
+        for source in [
+            "entry .password -validatecommand {%P}",
+            "entry .password -validatecommand {{*}%P}",
+            "entry .password -validatecommand [list %P]",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "a callback-provided command head is tainted dynamic dispatch: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn callback_replay_scaffold_ignores_user_catch_and_proc_commands() {
+        for source in [
+            "proc catch args {}\nentry .password -validatecommand {eval %P}",
+            "proc proc args {}\nentry .password -validatecommand {eval %P}",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "user commands named like replay plumbing must not suppress the callback sink: {source}"
             );
         }
     }
@@ -603,6 +924,98 @@ mod object_instance_taint_sources {
                 "Tk callback replacement must remain tainted across word quoting: {source}"
             );
         }
+    }
+
+    #[test]
+    fn validation_callback_replay_preserves_later_word_substitutions() {
+        for source in [
+            "entry .password -validatecommand {set x %P; eval \"puts $x\"}",
+            "entry .password -validatecommand {set x %P; eval prefix-$x}",
+            "entry .password -validatecommand {set x %P; eval \"puts [set y $x]\"}",
+            "entry .password -validatecommand {set command eval; $command %P}",
+            r"entry .password -validatecommand {set x %P; e\166al $x}",
+            r"entry .password -validatecommand {set x %P; eval \[eval\ \$x\]}",
+            r"entry .password -validatecommand {set x %P; [e\166al $x]}",
+            "entry .password -validatecommand {set x %P; [puts safe; eval $x]}",
+            "entry .password -validatecommand {set command eval; set x %P; [$command $x]}",
+            "entry .password -validatecommand {set x %P; [set y $x; eval {$y}]}",
+            r"entry .password -validatecommand [list e\166al %P]",
+            r"entry .password -validatecommand {set x %P; eval {eval\
+ $x}}",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "replay must preserve quoted, compound, and command substitutions: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_callback_replay_preserves_argument_expansion() {
+        for source in [
+            "entry .password -validatecommand {set x %P; {*}{{eval} safe} $x}",
+            "entry .password -validatecommand {set x %P; set prefix [list eval safe]; {*}$prefix $x}",
+            "entry .password -validatecommand [list {*}{{eval} safe} %P]",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "callback replay must retain the list-expanded eval prefix: {source}"
+            );
+        }
+        assert!(
+            of_code(
+                "entry .password -validatecommand {set x %P; {*}{{puts} safe} $x}",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a list-expanded non-sink callback command must remain clean"
+        );
+    }
+
+    #[test]
+    fn validation_list_prefix_builder_uses_source_position_command_identity() {
+        for source in [
+            "interp alias {} make {} list\nentry .password -validatecommand [make eval %P]",
+            "interp alias {} make {} list\nentry .password -validatecommand \"[make eval %P]\"",
+            "rename list make\nentry .password -validatecommand [make eval %P]",
+        ] {
+            assert!(
+                !of_code(source, D, "T100").is_empty(),
+                "an alias or rename of list constructs the same callback prefix: {source}"
+            );
+        }
+        for source in [
+            "proc list args {return {puts safe}}\nentry .password -validatecommand [list eval %P]",
+            "interp alias {} make {} list puts\nentry .password -validatecommand [make eval %P]",
+        ] {
+            assert!(
+                of_code(source, D, "T100").is_empty(),
+                "a rebound builder or alias with prepended argv must not inherit bare list semantics: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn validation_callback_replay_decodes_static_non_head_backslashes() {
+        let source = r"entry .password -validatecommand {set x %P; eval puts\ \$x}";
+        assert!(
+            !of_code(source, D, "T101").is_empty(),
+            "a backslash-built script argument must retain its decoded output-sink semantics"
+        );
+    }
+
+    #[test]
+    fn validation_list_prefix_preserves_a_quoted_command_name() {
+        assert!(
+            of_code(
+                "entry .password -validatecommand [list {eval foo} %P]",
+                D,
+                "T100",
+            )
+            .is_empty(),
+            "a list element naming one command with a space must not be replayed as builtin eval"
+        );
     }
 
     #[test]
@@ -1583,6 +1996,14 @@ mod option_injection {
                 "T102",
             )
             .is_empty()
+        );
+    }
+
+    #[test]
+    fn braced_exec_argument_is_not_option_injection() {
+        assert!(
+            of_code("set x [read $fd]\nexec {$x}", D, "T102").is_empty(),
+            "a braced dollar spelling is literal and cannot become an exec option"
         );
     }
 
@@ -3004,6 +3425,14 @@ mod t103_regexp_pattern_injection {
     }
 
     #[test]
+    fn braced_regexp_argument_is_not_a_tainted_pattern() {
+        assert!(
+            of_code("set x [read $fd]\nregexp {$x} literal", D, "T103").is_empty(),
+            "a braced dollar spelling is a literal regular expression, not a tainted use"
+        );
+    }
+
+    #[test]
     fn untainted_regexp_no_warning() {
         assert!(of_code("regexp {^[a-z]+$} teststring", D, "T103").is_empty());
     }
@@ -3210,6 +3639,15 @@ mod t106_double_encoding {
         // Literal data through an encoder does not fire T106.
         let source = "set x [HTML::encode \"hello\"]\nset y [HTML::encode $x]";
         assert!(of_code(source, IR, "T106").is_empty());
+    }
+
+    #[test]
+    fn braced_encoder_argument_is_not_a_second_encoding() {
+        let source = "set raw [read $fd]\nset x [URI::encode $raw]\nURI::encode {$x}";
+        assert!(
+            of_code(source, IR, "T106").is_empty(),
+            "a braced dollar spelling is literal data, not a second use of the encoded variable"
+        );
     }
 
     #[test]

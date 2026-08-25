@@ -100,6 +100,7 @@
 //! declared output/log sink code) rather than matching command names.
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Write as _;
 use tcl_core_types::{DiagCode, DiagFamily};
 
 use bitflags::bitflags;
@@ -113,13 +114,13 @@ use crate::cfg::{BlockId, Function as CfgFunction, Terminator};
 use crate::depth_guard::{MAX_BRACKET_TEXT_DEPTH, MAX_EXPR_NODE_DEPTH};
 use crate::expr_ast::ExprNode;
 use crate::interprocedural::InterproceduralAnalysis;
-use crate::ir::{CommandTokens, Statement};
+use crate::ir::{CommandTokens, Statement, WordExpr, WordPart};
 use crate::irules_checks::CodeFix;
 use crate::naming::{normalise_qualified_name, normalise_var_name};
 use crate::regex_source::regexp_pattern_index;
 use crate::rendered_properties::{RenderedProperties, RenderedValueProps};
 use crate::sccp::{SccpResult, cfg_order};
-use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey};
+use crate::ssa::{SsaFunction, SsaStatement, Symbol, ValueKey, Version};
 use crate::value_shapes::{
     is_pure_var_ref, parse_command_substitution, parse_command_substitution_with_spans,
 };
@@ -1980,6 +1981,7 @@ fn classify_sink(
     args: &[String],
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<(DiagCode, String)> {
+    let canonical_command = registry.get(command).map_or(command, |spec| spec.name);
     // A call whose own option flags disable this command's hazard for
     // *this* invocation (e.g. `subst -nocommands $tainted`) is not a sink
     // at all — checked before any classification below.
@@ -2015,15 +2017,15 @@ fn classify_sink(
                         .and_then(|spec| spec.resolve_subcommand(s))
                 })
                 .map_or_else(|| subcommand.unwrap_or_default(), |sub| sub.name);
-            format!("{command} {canonical}")
+            format!("{canonical_command} {canonical}")
         } else {
-            command.to_owned()
+            canonical_command.to_owned()
         };
         return Some((code, label));
     }
 
     if info.is_code_sink {
-        return Some((DiagCode::T100, command.to_owned()));
+        return Some((DiagCode::T100, canonical_command.to_owned()));
     }
 
     None
@@ -2048,7 +2050,7 @@ fn classify_network_interp_sinks(
         return out;
     };
     if spec.taint_network_sink_args.is_some() {
-        out.push((DiagCode::T104, command.to_owned()));
+        out.push((DiagCode::T104, spec.name.to_owned()));
     }
     // Resolve the subcommand prefix-aware (`interp ev` ⇒ `eval`) before testing
     // membership, so a legal abbreviation does not dodge the cross-interpreter
@@ -2058,7 +2060,7 @@ fn classify_network_interp_sinks(
             .resolve_subcommand(sub)
             .map_or(sub.as_str(), |s| s.name);
         if spec.taint_interp_eval_subcommands.contains(&canonical) {
-            out.push((DiagCode::T105, format!("{command} {canonical}")));
+            out.push((DiagCode::T105, format!("{} {canonical}", spec.name)));
         }
     }
     out
@@ -2476,6 +2478,7 @@ fn propagate_guard(
 /// already carries a command's `taint_double_encode_colour` is passed
 /// through that command again (e.g. `uri::encode [uri::encode $x]`).
 /// Emit T106 (double-encode) warnings — one warning per variable.
+#[allow(clippy::too_many_arguments)]
 fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     command: &str,
     call_args: &[String],
@@ -2484,6 +2487,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     span: Span,
     warnings: &mut Vec<TaintWarning>,
     ctx: TaintCtx<'_>,
+    quoted_uses: &HashSet<Symbol>,
 ) {
     let Some(dup_colour) = ctx
         .registry
@@ -2498,7 +2502,7 @@ fn emit_double_encode_warnings<S: std::hash::BuildHasher>(
     // Named-variable double-encode: `set e [enc $x]; enc $e`.
     for (&sym, &ver) in uses {
         let name = ctx.ssa.var_name(sym);
-        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) {
+        if is_seeded_global_v0(name, ver) || emitted.contains(&sym) || quoted_uses.contains(&sym) {
             continue;
         }
         let t = taints
@@ -2732,6 +2736,13 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
     };
+    let identities = crate::head_identity::command_head_identities_with_config(
+        &cu.source,
+        dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+            tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+        }),
+        registry,
+    );
     // `analysable_body_function_units` (not `analysable_functions`) so a
     // sink inside a TclOO method body — or an `apply` lambda / `namespace
     // eval` body — is still checked; see its doc comment.
@@ -2744,8 +2755,15 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
         );
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
         let shadowed = shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
-        out.extend(find_taint_warnings(
-            &fu.cfg, &fu.ssa, &taints, exec, registry, dialect, &shadowed,
+        out.extend(find_taint_warnings_for_function_with_identities(
+            fu,
+            &taints,
+            exec,
+            registry,
+            dialect,
+            &shadowed,
+            module_traces,
+            &identities,
         ));
         out.extend(find_setter_constraint_warnings(
             registry, &fu.cfg, &fu.ssa, &taints, exec, dialect,
@@ -2907,6 +2925,13 @@ fn find_callback_substitution_warnings(
     baseline: &[TaintWarning],
 ) -> Vec<TaintWarning> {
     let mut candidates = Vec::new();
+    // Most files have no statically replayable command-substitution callback.
+    // Build the source-position command table only when one actually needs its
+    // builder head resolved, while still sharing the one map across candidates.
+    let callback_head_identities = std::cell::OnceCell::new();
+    let lexer_config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+    });
 
     'units: for fu in cu.all_body_function_units() {
         let instance_classes = instance_classes_for_function(
@@ -2940,13 +2965,44 @@ fn find_callback_substitution_warnings(
                     if inputs.is_empty() {
                         continue;
                     }
-                    let callback_input_label = callback_input_label(callback, inputs);
-                    let Some(callback_input_label) = callback_input_label else {
+                    let callback_word = tokens.and_then(|tokens| tokens.word_exprs.get(index + 1));
+                    let command_substitution = callback_word.and_then(whole_command_substitution);
+                    let source_is_command_substitution = command_substitution.is_some()
+                        || tokens
+                            .and_then(|tokens| tokens.argv_kinds.get(index + 1))
+                            .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
+                    // The callback argument is evaluated once when registered.
+                    // Reduce static brace/quote/bare/backslash forms to that
+                    // runtime value before parsing it as the later callback
+                    // script. A whole command substitution remains source for
+                    // the specialised list-prefix builder below.
+                    let materialised_callback = if source_is_command_substitution {
+                        command_substitution.unwrap_or(callback).to_owned()
+                    } else if let Some(word) = callback_word {
+                        let Some(value) = static_word_expr_value(word, lexer_config.escapes) else {
+                            continue;
+                        };
+                        value
+                    } else {
+                        callback.clone()
+                    };
+                    let Some(callback_input_label) =
+                        callback_input_label(&materialised_callback, inputs)
+                    else {
                         continue;
                     };
-                    let source_is_command_substitution = tokens
-                        .and_then(|tokens| tokens.argv_kinds.get(index + 1))
-                        .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
+                    let callback_span = tokens
+                        .and_then(|tokens| tokens.argv.get(index + 1).copied())
+                        .unwrap_or_else(|| stmt.span());
+                    let head_identities = source_is_command_substitution.then(|| {
+                        callback_head_identities.get_or_init(|| {
+                            crate::head_identity::command_head_identities_with_config(
+                                &cu.source,
+                                lexer_config,
+                                registry,
+                            )
+                        })
+                    });
                     // Prove the callback can be materialised before choosing
                     // synthetic names. The probe is never compiled or
                     // evaluated, so it need not be collision-free; it only
@@ -2954,21 +3010,20 @@ fn find_callback_substitution_warnings(
                     // dynamic registrations from consuming the replay cap or
                     // making callback-free files scan their full source.
                     if callback_replay_source(
-                        callback,
+                        &materialised_callback,
                         inputs,
                         source_is_command_substitution,
                         "__tcl_lsp_callback_probe",
                         "::__tcl_lsp_callback_probe",
+                        dialect,
+                        head_identities.map(|identities| (identities, callback_span.start())),
                     )
                     .is_none()
                     {
                         continue;
                     }
-                    let callback_span = tokens
-                        .and_then(|tokens| tokens.argv.get(index + 1).copied())
-                        .unwrap_or_else(|| stmt.span());
                     candidates.push(CallbackReplayCandidate {
-                        callback: callback.clone(),
+                        callback: materialised_callback,
                         inputs,
                         source_is_command_substitution,
                         callback_span,
@@ -2996,6 +3051,10 @@ fn find_callback_substitution_warnings(
             candidate.source_is_command_substitution,
             &input_var,
             &proc_name,
+            dialect,
+            callback_head_identities
+                .get()
+                .map(|identities| (identities, candidate.callback_span.start())),
         )
         .expect("callback replay preflight proved this script is static");
         replays.push((
@@ -3080,6 +3139,29 @@ fn find_callback_substitution_warnings(
     out
 }
 
+/// A word whose runtime value is exactly one command substitution. Quotes
+/// contribute empty text fragments, so `"[list ...]"` is equivalent to the
+/// unquoted form; any real prefix/suffix makes it a different value.
+fn whole_command_substitution(word: &WordExpr) -> Option<&str> {
+    match word {
+        WordExpr::CommandSubstitution { spelling, .. } => Some(spelling),
+        WordExpr::Template { parts, .. } => {
+            let mut substitution = None;
+            for part in parts {
+                match part {
+                    WordPart::Text { text, .. } if text.is_empty() => {}
+                    WordPart::CommandSubstitution { spelling, .. } if substitution.is_none() => {
+                        substitution = Some(spelling.as_str());
+                    }
+                    _ => return None,
+                }
+            }
+            substitution
+        }
+        _ => None,
+    }
+}
+
 /// Convert one statically materialised callback script into normal Tcl source
 /// whose registry-declared external `%` fields are explicit taint sources.
 ///
@@ -3094,6 +3176,8 @@ fn callback_replay_source(
     source_is_command_substitution: bool,
     input_var: &str,
     proc_name: &str,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
 ) -> Option<String> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
     // Current lowering normally preserves the brackets in `args`; older
@@ -3103,25 +3187,84 @@ fn callback_replay_source(
     let bracketed = (source_is_command_substitution && !callback.starts_with('['))
         .then(|| format!("[{callback}]"));
     let callback_command = bracketed.as_deref().unwrap_or(callback);
-    if let Some((builder, elements)) = parse_command_substitution(callback_command) {
-        if builder != "list" || !callback_list_builder_is_static(callback_command) {
-            return None;
-        }
-        if elements.is_empty() {
-            return None;
-        }
-        let script = elements
-            .iter()
-            .enumerate()
-            .map(|(index, element)| {
-                callback_replay_list_word(element, inputs, index == 0, input_var)
-            })
-            .collect::<Option<Vec<_>>>()?
-            .join(" ");
+    if callback_command.starts_with('[') {
+        let script = callback_replay_list_prefix(
+            callback_command,
+            inputs,
+            input_var,
+            dialect,
+            builder_context,
+        )?;
         return Some(callback_replay_with_input(&script, proc_name, input_var));
     }
-    let script = callback_replay_script(callback, inputs, input_var)?;
+    let script = callback_replay_script(callback, inputs, input_var, dialect)?;
     Some(callback_replay_with_input(&script, proc_name, input_var))
+}
+
+/// Materialise one static `[list COMMAND ARG ...]` callback prefix.
+///
+/// The list builder executes while the callback is registered, so each source
+/// word is first reduced to its Tcl value under the document's release grammar.
+/// Variable/command substitutions remain dynamic and make the replay abstain.
+fn callback_replay_list_prefix(
+    callback: &str,
+    inputs: &[tcl_registry::CallbackTaintInput],
+    input_var: &str,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
+) -> Option<String> {
+    let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
+    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+    });
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let [command] = commands.as_slice() else {
+        return None;
+    };
+    if command.is_partial || !command.word_views_aligned() {
+        return None;
+    }
+    let expand = command.expand_word.as_deref().unwrap_or_default();
+    let mut values = Vec::new();
+    for (index, (word, fragments)) in command
+        .texts
+        .iter()
+        .zip(&command.word_fragments)
+        .enumerate()
+    {
+        let value = callback_static_word_value(word, fragments, config.escapes)?;
+        if expand.get(index).copied().unwrap_or(false) {
+            values.extend(
+                tcl_syntax::list::split_list(&value)
+                    .ok()?
+                    .into_iter()
+                    .map(std::borrow::Cow::into_owned),
+            );
+        } else {
+            values.push(value);
+        }
+    }
+    let written_builder = values.first()?;
+    let resolved_builder =
+        builder_context.map_or(written_builder.as_str(), |(identities, source_position)| {
+            identities
+                .resolve(written_builder, source_position)
+                .spec_name()
+        });
+    if resolved_builder != "list" && resolved_builder != "::list" {
+        return None;
+    }
+    let elements = &values[1..];
+    if elements.is_empty() {
+        return None;
+    }
+    Some(
+        elements
+            .iter()
+            .map(|element| callback_replay_list_word(element, inputs, input_var))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
 }
 
 /// Build a callback script that is taint-equivalent at Tcl word granularity.
@@ -3131,90 +3274,88 @@ fn callback_replay_source(
 /// a braced word wrong: `eval {%P}` would become `eval {$input}`, whose first
 /// evaluation only sees a literal.  The segmenter gives us Tcl's actual word
 /// boundaries, so a marked non-head word instead becomes the symbolic input
-/// value itself (`eval ${input}`).  This also keeps quoted/bare embedded
-/// prefix/suffix as one tainted word.  Dynamic heads are deliberately not
-/// guessed.
+/// value itself (`eval ${input}`). This also keeps quoted/bare embedded
+/// prefix/suffix as one tainted word. A marked head is preserved as the
+/// seeded dynamic value and classified by the ordinary dynamic-dispatch sink.
 fn callback_replay_script(
     callback: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
+    dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<String> {
-    let commands = crate::segmenter::segment_commands(callback);
+    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+    });
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(callback, 0, config);
     if commands.is_empty() {
         return None;
     }
     let mut replayed = Vec::with_capacity(commands.len());
     for command in commands {
-        if command.is_partial || command.texts.is_empty() {
+        if command.is_partial || command.texts.is_empty() || !command.word_views_aligned() {
             return None;
         }
         let mut words = Vec::with_capacity(command.texts.len());
-        for (index, word) in command.texts.iter().enumerate() {
+        let expand = command.expand_word.as_deref().unwrap_or_default();
+        for (index, (word, fragments)) in command
+            .texts
+            .iter()
+            .zip(&command.word_fragments)
+            .enumerate()
+        {
             let marked = callback_word_has_input(word, inputs);
-            if index == 0 && marked {
-                return None;
-            }
-            if marked {
-                words.push(callback_replay_tainted_word(word, inputs, input_var));
-            } else if index == 0 {
-                // The command head is static (checked above), and command
-                // names never need Tcl list quoting.
-                words.push(word.clone());
+            let rendered = if marked {
+                callback_replay_tainted_word(word, inputs, input_var)
             } else {
-                words.push(callback_replay_static_word(word));
-            }
+                // Preserve dynamic substitutions for the ordinary compiler
+                // pipeline (including a phase-correct `$command` head), while
+                // reducing static words to their exact runtime value.
+                callback_replay_script_word(word, fragments, config.escapes)?
+            };
+            // `{*}` is an argv operation outside the word itself. Canonical
+            // word rendering must retain that marker or a callback whose
+            // command prefix is a list silently changes into one command name.
+            words.push(if expand.get(index).copied().unwrap_or(false) {
+                format!("{{*}}{rendered}")
+            } else {
+                rendered
+            });
         }
         replayed.push(words.join(" "));
     }
     Some(replayed.join("\n"))
 }
 
-/// Render a list-prefix element back into a source word. The head may not be
-/// a replacement value; accepting one would invent a dynamic command name.
+/// Render a list-prefix element back into a source word. A replacement in head
+/// position remains a seeded dynamic value; the ordinary taint pass diagnoses
+/// that runtime dispatch without inventing a concrete target.
 fn callback_replay_list_word(
     word: &str,
     inputs: &[tcl_registry::CallbackTaintInput],
-    is_head: bool,
     input_var: &str,
-) -> Option<String> {
+) -> String {
     if callback_word_has_input(word, inputs) {
-        if is_head {
-            return None;
-        }
-        return Some(callback_replay_tainted_word(word, inputs, input_var));
+        return callback_replay_tainted_word(word, inputs, input_var);
     }
-    if is_head {
-        Some(word.to_owned())
-    } else {
-        Some(callback_replay_static_word(word))
-    }
-}
-
-/// A `[list ...]` callback prefix is statically recoverable only when its
-/// builder is literal.  Variables and nested substitutions make the actual
-/// callback command depend on registration-time execution, so replay abstains.
-fn callback_list_builder_is_static(callback: &str) -> bool {
-    let inner = callback
-        .trim()
-        .strip_prefix('[')
-        .and_then(|text| text.strip_suffix(']'))
-        .unwrap_or(callback);
-    !inner.contains('$') && !inner.contains('[')
+    // The list builder has already reduced each element to one Tcl value. The
+    // command head still needs canonical one-word quoting: `{eval foo}` names
+    // a single command containing a space and must never be replayed as the
+    // builtin `eval` plus an argument.
+    tcl_syntax::list::list_element(word)
 }
 
 /// Replay source contains only callback text; its input variable is seeded
 /// directly in the taint solver, so user definitions of `gets`, `set`, or
 /// aliases cannot influence the callback-source model. Every callback runs in
 /// its own synthetic procedure: event handlers are independent invocations,
-/// not a registration-ordered shared local scope. `catch` contains abnormal
-/// completion at the invocation boundary while calls inside the callback still
-/// resolve against the real global procedure table.
+/// not a registration-ordered shared local scope. A direct invocation keeps
+/// user rebindings of `catch` out of the scaffold; abnormal completion remains
+/// inside the callback procedure's own CFG.
 fn callback_replay_with_input(script: &str, proc_name: &str, input_var: &str) -> String {
     let invocation = format!("{proc_name} ${{::{input_var}}}");
     format!(
-        "proc {proc_name} {{{input_var}}} {}\ncatch {}",
+        "::proc {proc_name} {{{input_var}}} {}\n{invocation}",
         tcl_syntax::list::list_element(script),
-        tcl_syntax::list::list_element(&invocation),
     )
 }
 
@@ -3242,14 +3383,70 @@ fn callback_input_label(text: &str, inputs: &[tcl_registry::CallbackTaintInput])
     }
 }
 
-/// Render a non-source callback word. A pure variable reference must remain a
-/// substitution so `set value %P; eval $value` retains its ordinary SSA flow;
-/// all other static values use Tcl's canonical one-word renderer.
-fn callback_replay_static_word(word: &str) -> String {
-    if is_pure_var_ref(word) {
-        word.to_owned()
-    } else {
-        tcl_syntax::list::list_element(word)
+/// Render one callback-script word without changing its substitution shape.
+///
+/// The segmenter's logical `word` value alone cannot distinguish a dynamic
+/// quoted word (`"puts $x"`) from literal list data (`{puts $x}`).  Its
+/// lossless fragments can: variable and command fragments remain executable,
+/// while every literal byte is escaped inside one quoted Tcl word.  A word
+/// with no substitution stays a canonical literal list element.
+fn callback_replay_script_word(
+    word: &str,
+    fragments: &[crate::segmenter::WordFragment],
+    escapes: tcl_dialect::EscapeSyntax,
+) -> Option<String> {
+    if !fragments
+        .iter()
+        .any(|fragment| matches!(fragment.token.kind, TokenType::Var | TokenType::Cmd))
+    {
+        return callback_static_word_value(word, fragments, escapes)
+            .map(|value| tcl_syntax::list::list_element(&value));
+    }
+
+    let mut out = String::with_capacity(word.len() + 2);
+    out.push('"');
+    for fragment in fragments {
+        match fragment.token.kind {
+            TokenType::Var | TokenType::Cmd => out.push_str(&fragment.text),
+            TokenType::Esc => {
+                let decoded = tcl_lexer::backslash_subst_in(&fragment.text, escapes);
+                for ch in decoded.chars() {
+                    if matches!(ch, '\\' | '"' | '$' | '[') {
+                        out.push('\\');
+                    }
+                    out.push(ch);
+                }
+            }
+            // A braced literal cannot legally concatenate with a substitution
+            // in one Tcl word; recovery-shaped input is not safe to replay.
+            _ => return None,
+        }
+    }
+    out.push('"');
+    Some(out)
+}
+
+/// Exact runtime value of one word containing no variable/command
+/// substitutions. Braced words preserve backslashes except Tcl's universal
+/// backslash-newline continuation; bare/quoted words decode them under the
+/// document release's escape grammar.
+fn callback_static_word_value(
+    word: &str,
+    fragments: &[crate::segmenter::WordFragment],
+    escapes: tcl_dialect::EscapeSyntax,
+) -> Option<String> {
+    match fragments {
+        [fragment] if fragment.token.kind == TokenType::Str => {
+            Some(tcl_syntax::backslash::collapse_brace_continuations_str(word).into_owned())
+        }
+        fragments
+            if fragments
+                .iter()
+                .all(|fragment| fragment.token.kind == TokenType::Esc) =>
+        {
+            Some(tcl_lexer::backslash_subst_in(word, escapes).into_owned())
+        }
+        _ => None,
     }
 }
 
@@ -3387,6 +3584,112 @@ pub fn find_taint_warnings<
     dialect: Option<&tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
 ) -> Vec<TaintWarning> {
+    find_taint_warnings_impl(
+        cfg,
+        ssa,
+        taints,
+        executable_blocks,
+        &SinkWarningContext {
+            registry,
+            dialect,
+            shadowed_builtins,
+        },
+        None,
+    )
+}
+
+/// Emit taint sink warnings for one complete compiler function unit.
+///
+/// Unlike [`find_taint_warnings`], this form can settle a whole-word variable
+/// command head (`$command`) from its phase-correct reaching constant
+/// definitions. The value-provenance walk is shared with constant-dispatch
+/// navigation and remains conservative across traces, frame aliases, dynamic
+/// writes, and unprovable joins.
+#[must_use]
+pub fn find_taint_warnings_for_function<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+) -> Vec<TaintWarning> {
+    find_taint_warnings_for_function_with_identities(
+        fu,
+        taints,
+        executable_blocks,
+        registry,
+        dialect,
+        shadowed_builtins,
+        module_traces,
+        crate::head_identity::HeadIdentityMap::none(),
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn find_taint_warnings_for_function_with_identities<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    fu: &crate::compilation_unit::FunctionUnit,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    shadowed_builtins: &HashSet<String, H>,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
+    identities: &crate::head_identity::HeadIdentityMap,
+) -> Vec<TaintWarning> {
+    find_taint_warnings_impl(
+        &fu.cfg,
+        &fu.ssa,
+        taints,
+        executable_blocks,
+        &SinkWarningContext {
+            registry,
+            dialect,
+            shadowed_builtins,
+        },
+        Some(CommandHeadContext {
+            fu,
+            module_traces,
+            identities,
+        }),
+    )
+}
+
+#[derive(Clone, Copy)]
+struct CommandHeadContext<'a> {
+    fu: &'a crate::compilation_unit::FunctionUnit,
+    module_traces: crate::compilation_unit::ModuleTraceFacts<'a>,
+    identities: &'a crate::head_identity::HeadIdentityMap,
+}
+
+#[derive(Clone, Copy)]
+struct SinkWarningContext<'a, H> {
+    registry: &'a CommandRegistry,
+    dialect: Option<&'a tcl_dialect::DialectProfile>,
+    shadowed_builtins: &'a HashSet<String, H>,
+}
+
+fn find_taint_warnings_impl<
+    S: std::hash::BuildHasher,
+    E: std::hash::BuildHasher,
+    H: std::hash::BuildHasher,
+>(
+    cfg: &CfgFunction,
+    ssa: &SsaFunction,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    executable_blocks: &HashSet<BlockId, E>,
+    context: &SinkWarningContext<'_, H>,
+    command_head_ctx: Option<CommandHeadContext<'_>>,
+) -> Vec<TaintWarning> {
     let mut warnings: Vec<TaintWarning> = Vec::new();
 
     for bn in cfg_order(cfg) {
@@ -3401,19 +3704,18 @@ pub fn find_taint_warnings<
             emit_statement_warnings(
                 ssa_stmt,
                 taints,
-                registry,
-                dialect,
-                shadowed_builtins,
                 &mut warnings,
                 ssa,
+                context,
+                command_head_ctx,
             );
         }
         let branch_ctx = BranchTaintCtx {
             ssa_block,
             ssa,
             taints,
-            registry,
-            dialect,
+            registry: context.registry,
+            dialect: context.dialect,
         };
         emit_branch_condition_warnings(cfg, bn, &branch_ctx, &mut warnings);
     }
@@ -3431,32 +3733,19 @@ pub fn find_taint_warnings<
 fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
     ssa_stmt: &SsaStatement,
     taints: &HashMap<ValueKey, TaintLattice, S>,
-    registry: &CommandRegistry,
-    dialect: Option<&tcl_dialect::DialectProfile>,
-    shadowed_builtins: &HashSet<String, H>,
     warnings: &mut Vec<TaintWarning>,
     ssa: &SsaFunction,
+    context: &SinkWarningContext<'_, H>,
+    command_head_ctx: Option<CommandHeadContext<'_>>,
 ) {
-    let stmt = &ssa_stmt.statement;
-    let span = stmt.span();
-
-    // AssignExpr / ExprEval: a tainted variable in a numeric-coercion
-    // position of the expression is a T100 violation (direct expr
-    // injection) — see `collect_coercion_operands` for which operator
-    // positions coerce and which (string/list comparisons) don't.
-    let expr = match stmt {
-        Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. } => Some(expr),
-        _ => None,
-    };
-    if let Some(expr) = expr {
-        let resolve = |name: &str| {
-            let sym = ssa.var_symbol(name)?;
-            let ver = *ssa_stmt.uses.get(&sym)?;
-            Some((sym, ver))
-        };
-        emit_expr_coercion_warnings(expr, None, span, resolve, taints, warnings);
+    if emit_expr_statement_warnings(ssa_stmt, taints, warnings, ssa) {
         return;
     }
+
+    let registry = context.registry;
+    let dialect = context.dialect;
+    let shadowed_builtins = context.shadowed_builtins;
+    let stmt = &ssa_stmt.statement;
 
     // Owned fallback for `AssignValue` — `parse_command_substitution`
     // returns an owned (String, Vec<String>) so we stash it in this
@@ -3465,7 +3754,9 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // `set _ [HTTP::header insert X-Foo $v]` still reaches the
     // IRULE3002 subcommand gate.
     let assign_parsed: Option<(String, Vec<String>)> = match stmt {
-        Statement::AssignValue { value, .. } => parse_command_substitution(value.trim()),
+        Statement::AssignValue { value, .. } => {
+            parse_taint_command_substitution(value.trim(), dialect)
+        }
         _ => None,
     };
     // Prefer the canonical target the lowerer already resolved
@@ -3481,7 +3772,7 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // real `Call`/`Barrier` statement; the `AssignValue` fallback
     // re-parses a nested `[cmd …]` out of the `set` RHS text and has no
     // per-word spans for it, so it falls back to the whole-statement span.
-    let (command, call_args, tokens): (&str, &[String], Option<&CommandTokens>) = match stmt {
+    let (raw_command, call_args, tokens): (&str, &[String], Option<&CommandTokens>) = match stmt {
         Statement::Call { args, tokens, .. } | Statement::Barrier { args, tokens, .. } => (
             stmt.canonical_command_or_source(),
             args.as_slice(),
@@ -3493,6 +3784,819 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
         },
         _ => return,
     };
+    let has_canonical_override = matches!(
+        stmt,
+        Statement::Call { command, .. } | Statement::Barrier { command, .. }
+            if raw_command != command
+    );
+    let static_invocation = (!has_canonical_override)
+        .then(|| static_invocation(tokens?, call_args, dialect))
+        .flatten();
+    let written_command = static_invocation
+        .as_ref()
+        .map_or(raw_command, |invocation| invocation.head.command.as_str());
+    let call_args = static_invocation
+        .as_ref()
+        .and_then(|invocation| invocation.effective_args.as_deref())
+        .unwrap_or(call_args);
+    // Once a head expansion inserts or removes argv elements, the original
+    // per-word token indices no longer line up with the effective invocation.
+    // Preserve correctness and use the statement span rather than pointing a
+    // sink diagnostic at the wrong source word.
+    let sink_tokens = static_invocation
+        .as_ref()
+        .map_or(tokens, |invocation| invocation.sink_tokens(tokens));
+
+    // Every command substitution in command position executes before Tcl can
+    // dispatch the outer result. Eval's inline-body lowering can produce this
+    // generic IR shape for `eval {[eval $x]}`; compound heads such as
+    // `prefix[eval $x]` and `"[puts ok][eval $x]"` execute their substitutions
+    // too. Classify every one against the registry. The eventual outer command
+    // name remains unknown and follows the ordinary conservative path below.
+    emit_command_head_substitution_warnings(
+        tokens,
+        ssa_stmt,
+        taints,
+        warnings,
+        ssa,
+        context,
+        command_head_ctx,
+    );
+
+    let resolved_heads =
+        resolve_taint_command_heads(written_command, stmt, tokens, dialect, command_head_ctx);
+    if resolved_heads.is_empty() {
+        emit_dynamic_command_head_warning(written_command, tokens, ssa_stmt, taints, warnings, ssa);
+        return;
+    }
+    if resolved_heads.len() <= 1 {
+        if let Some(head) = resolved_heads.first() {
+            let resolved_args = head.effective_args(call_args);
+            emit_resolved_statement_warnings(
+                &head.command,
+                resolved_args.as_deref().unwrap_or(call_args),
+                (!head.affects_args()).then_some(sink_tokens).flatten(),
+                ssa_stmt,
+                &ssa_stmt.uses,
+                taints,
+                registry,
+                dialect,
+                shadowed_builtins,
+                warnings,
+                ssa,
+            );
+        }
+        return;
+    }
+
+    // A finite command-head join can contain equivalent source spellings
+    // (`eval` / `::eval`). Keep one diagnostic for the semantic invocation,
+    // while still evaluating every candidate independently so namespace
+    // shadowing cannot hide an explicitly-global sink arm.
+    let start = warnings.len();
+    let mut candidates = Vec::new();
+    for head in &resolved_heads {
+        let resolved_args = head.effective_args(call_args);
+        emit_resolved_statement_warnings(
+            &head.command,
+            resolved_args.as_deref().unwrap_or(call_args),
+            (!head.affects_args()).then_some(sink_tokens).flatten(),
+            ssa_stmt,
+            &ssa_stmt.uses,
+            taints,
+            registry,
+            dialect,
+            shadowed_builtins,
+            &mut candidates,
+            ssa,
+        );
+    }
+    for warning in candidates {
+        if !warnings[start..].contains(&warning) {
+            warnings.push(warning);
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct StaticCommandHead {
+    command: String,
+    prepended_args: Vec<String>,
+    /// Number of source argument words consumed while leading empty `{*}`
+    /// expansions were skipped before finding the runtime command word.
+    consumed_source_args: usize,
+    expanded: bool,
+}
+
+impl StaticCommandHead {
+    fn affects_args(&self) -> bool {
+        self.expanded || self.consumed_source_args != 0 || !self.prepended_args.is_empty()
+    }
+
+    fn effective_args(&self, call_args: &[String]) -> Option<Vec<String>> {
+        self.affects_args().then(|| {
+            let mut args = self.prepended_args.clone();
+            args.extend_from_slice(
+                call_args
+                    .get(self.consumed_source_args..)
+                    .unwrap_or_default(),
+            );
+            args
+        })
+    }
+}
+
+#[derive(Debug)]
+struct StaticInvocation {
+    head: StaticCommandHead,
+    effective_args: Option<Vec<String>>,
+}
+
+impl StaticInvocation {
+    fn sink_tokens<'a>(&self, tokens: Option<&'a CommandTokens>) -> Option<&'a CommandTokens> {
+        self.effective_args.is_none().then_some(tokens).flatten()
+    }
+}
+
+fn static_invocation(
+    tokens: &CommandTokens,
+    call_args: &[String],
+    dialect: Option<&tcl_dialect::DialectProfile>,
+) -> Option<StaticInvocation> {
+    let head = static_command_head(tokens, tcl_dialect::EscapeSyntax::of_profile(dialect))?;
+    let effective_args = head.effective_args(call_args);
+    Some(StaticInvocation {
+        head,
+        effective_args,
+    })
+}
+
+/// Resolve the first runtime argv element, accounting for static leading
+/// `{*}` list expansions. Expansion can both prepend arguments
+/// (`{*}{{eval} safe}`) and disappear entirely (`{*}{}`), in which case a
+/// later source word becomes the command.
+fn static_command_head(
+    tokens: &CommandTokens,
+    escapes: tcl_dialect::EscapeSyntax,
+) -> Option<StaticCommandHead> {
+    static_command_head_from(tokens, escapes, 0)
+}
+
+fn static_command_head_from(
+    tokens: &CommandTokens,
+    escapes: tcl_dialect::EscapeSyntax,
+    start: usize,
+) -> Option<StaticCommandHead> {
+    for (source_index, word) in tokens.word_exprs.iter().enumerate().skip(start) {
+        match word {
+            WordExpr::Expand { word, .. } => {
+                let value = static_word_expr_value(word, escapes)?;
+                let elements = tcl_syntax::list::split_list(&value).ok()?;
+                let Some((command, rest)) = elements.split_first() else {
+                    continue;
+                };
+                return Some(StaticCommandHead {
+                    command: command.to_string(),
+                    prepended_args: rest.iter().map(ToString::to_string).collect(),
+                    consumed_source_args: source_index,
+                    expanded: true,
+                });
+            }
+            _ => {
+                return Some(StaticCommandHead {
+                    command: static_word_expr_value(word, escapes)?,
+                    prepended_args: Vec::new(),
+                    consumed_source_args: source_index,
+                    expanded: false,
+                });
+            }
+        }
+    }
+    None
+}
+
+/// Exact static value of a command-head word retained by semantic IR.
+/// Variable/command substitutions abstain; literal, braced, quoted, and
+/// backslash-built heads reduce under Tcl's shared decoder.
+fn static_word_expr_value(word: &WordExpr, escapes: tcl_dialect::EscapeSyntax) -> Option<String> {
+    match word {
+        WordExpr::Literal { text, .. } => Some(text.clone()),
+        WordExpr::BracedLiteral { text, .. } => {
+            Some(tcl_syntax::backslash::collapse_brace_continuations_str(text).into_owned())
+        }
+        WordExpr::Template { parts, .. } => {
+            let mut value = String::new();
+            for part in parts {
+                let WordPart::Text { text, .. } = part else {
+                    return None;
+                };
+                value.push_str(&tcl_lexer::backslash_subst_in(text, escapes));
+            }
+            Some(value)
+        }
+        WordExpr::Opaque { text, .. } if !text.contains(['$', '[']) => {
+            Some(tcl_lexer::backslash_subst_in(text, escapes).into_owned())
+        }
+        _ => None,
+    }
+}
+
+/// A tainted value used directly as a command name is itself code injection,
+/// even when no finite constant target can be proven. This also covers the
+/// canonical IR produced when a static `eval` body reduces to a dynamic head.
+fn emit_dynamic_command_head_warning<S: std::hash::BuildHasher>(
+    written_command: &str,
+    tokens: Option<&CommandTokens>,
+    statement: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+) {
+    if !is_pure_var_ref(written_command) {
+        return;
+    }
+    let name = normalise_var_name(written_command);
+    let Some(symbol) = ssa.var_symbol(name) else {
+        return;
+    };
+    let Some(&version) = statement.uses.get(&symbol) else {
+        return;
+    };
+    if !taints
+        .get(&(symbol, version))
+        .copied()
+        .is_some_and(TaintLattice::is_tainted)
+    {
+        return;
+    }
+    let span = tokens
+        .and_then(|tokens| tokens.argv.first())
+        .copied()
+        .unwrap_or_else(|| statement.statement.span());
+    warnings.push(TaintWarning {
+        span,
+        variable: name.to_owned(),
+        sink_command: "dynamic command dispatch".to_owned(),
+        code: DiagCode::T100,
+        message: format!(
+            "Tainted variable ${name} is used as a dynamic command name; possible code injection"
+        ),
+        replacement: None,
+        fixes: Vec::new(),
+    });
+}
+
+/// Classify commands executed while substituting a dynamic command head.
+fn emit_command_head_substitution_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    tokens: Option<&CommandTokens>,
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+    context: &SinkWarningContext<'_, H>,
+    command_head_ctx: Option<CommandHeadContext<'_>>,
+) {
+    let mut substitutions = Vec::new();
+    if let Some(word) = tokens.and_then(|tokens| tokens.word_exprs.first()) {
+        command_substitutions_in_word(word, &mut substitutions);
+    }
+    for (substitution, source_span) in substitutions {
+        let Some(inner) = substitution
+            .trim()
+            .strip_prefix('[')
+            .and_then(|text| text.strip_suffix(']'))
+        else {
+            continue;
+        };
+        emit_isolated_script_warnings(
+            inner,
+            source_span,
+            ssa_stmt,
+            taints,
+            warnings,
+            ssa,
+            context,
+            command_head_ctx,
+        );
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    script: &str,
+    source_span: Span,
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+    context: &SinkWarningContext<'_, H>,
+    command_head_ctx: Option<CommandHeadContext<'_>>,
+) {
+    let names: FxHashSet<String> = arg_var_names(
+        script,
+        tcl_dialect::BracedVarStyle::of_profile(context.dialect),
+    )
+    .into_iter()
+    .collect();
+    let mut outer_uses = uses_for_names_at_statement(&names, ssa_stmt, ssa);
+    if let Some(head_context) = command_head_ctx {
+        expand_constant_outer_uses(
+            &mut outer_uses,
+            ssa_stmt,
+            ssa,
+            head_context,
+            context.dialect,
+        );
+    }
+    let build_nested = |source: &str| {
+        context.dialect.map_or_else(
+            || crate::compilation_unit::CompilationUnit::build_for(source, context.registry, true),
+            |profile| {
+                crate::compilation_unit::CompilationUnit::build_for_profile(
+                    source,
+                    context.registry,
+                    true,
+                    tcl_dialect::DialectProfile::resolve_known(profile.name)
+                        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name(profile.name)),
+                )
+            },
+        )
+    };
+    let preliminary_cu = build_nested(script);
+    let command_setup = command_head_ctx.map_or_else(String::new, |head_context| {
+        ambient_command_setup(
+            &preliminary_cu,
+            head_context.identities,
+            source_span.start(),
+            context.shadowed_builtins,
+        )
+    });
+    let constant_setup = command_head_ctx.map_or_else(String::new, |head_context| {
+        ambient_constant_setup(&outer_uses, head_context, ssa)
+    });
+    let (replay, seeds) = nested_script_replay(
+        script,
+        &command_setup,
+        &constant_setup,
+        &outer_uses,
+        taints,
+        ssa,
+    );
+    let nested_cu = build_nested(&replay);
+    for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+        &nested_cu,
+        context.registry,
+        context.dialect,
+        Some(&seeds),
+    ) {
+        warning.span = source_span;
+        warning.replacement = None;
+        warning.fixes.clear();
+        if !warnings.contains(&warning) {
+            warnings.push(warning);
+        }
+    }
+}
+
+/// Close the nested replay's outer bindings over variables referenced by
+/// recovered constant values (`script` = `{$x}` needs both `script` and `x`).
+/// The walk is bounded and uses the same exact reaching SSA versions as the
+/// first-level names; traced or unprovable values simply stop that branch.
+fn expand_constant_outer_uses(
+    uses: &mut HashMap<Symbol, Version>,
+    statement: &SsaStatement,
+    ssa: &SsaFunction,
+    context: CommandHeadContext<'_>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+) {
+    const MAX_NAMES: usize = 128;
+    for _ in 0..16 {
+        let mut discovered = FxHashSet::default();
+        for (&symbol, &version) in uses.iter() {
+            let name = ssa.var_name(symbol);
+            if context.module_traces.has_dynamic_variable_trace
+                || context.module_traces.traced_variables.contains(name)
+            {
+                continue;
+            }
+            let Some(contributors) =
+                crate::value_provenance::const_contributors_for_version(context.fu, name, version)
+            else {
+                continue;
+            };
+            for contributor in contributors {
+                discovered.extend(arg_var_names(
+                    &contributor.value,
+                    tcl_dialect::BracedVarStyle::of_profile(dialect),
+                ));
+            }
+        }
+        let additions = uses_for_names_at_statement(&discovered, statement, ssa);
+        let before = uses.len();
+        for (symbol, version) in additions {
+            if uses.len() >= MAX_NAMES {
+                return;
+            }
+            uses.entry(symbol).or_insert(version);
+        }
+        if uses.len() == before {
+            return;
+        }
+    }
+}
+
+/// Put an isolated command substitution in a synthetic procedure and pass its
+/// referenced outer values as ordinary parameters. This is the same proven
+/// shape as callback replay: interprocedural entry seeding then reaches
+/// structured `eval` bodies, while assignments inside the substitution retain
+/// their normal CFG/SSA evaluation order.
+fn nested_script_replay<S: std::hash::BuildHasher>(
+    inner: &str,
+    command_setup: &str,
+    constant_setup: &str,
+    uses: &HashMap<Symbol, Version>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    ssa: &SsaFunction,
+) -> (String, HashMap<String, TaintLattice>) {
+    let collision_text = format!("{command_setup}{constant_setup}{inner}");
+    let proc_name = fresh_nested_name(&collision_text, "__tcl_lsp_nested");
+    let mut bindings: Vec<(String, Symbol, Version)> = uses
+        .iter()
+        .map(|(&symbol, &version)| (ssa.var_name(symbol).to_owned(), symbol, version))
+        .collect();
+    bindings.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let mut params = Vec::with_capacity(bindings.len());
+    let mut invocation = Vec::with_capacity(bindings.len() + 1);
+    invocation.push(proc_name.clone());
+    let mut assignments = String::new();
+    let mut seeds = HashMap::new();
+    for (index, (name, symbol, version)) in bindings.into_iter().enumerate() {
+        let param = fresh_nested_name(&collision_text, &format!("__tcl_lsp_arg_{index}"));
+        let seed = fresh_nested_name(&collision_text, &format!("__tcl_lsp_seed_{index}"));
+        params.push(param.clone());
+        invocation.push(format!("${{::{seed}}}"));
+        let _ = writeln!(
+            assignments,
+            "set {} ${param}",
+            tcl_syntax::list::list_element(&name)
+        );
+        if let Some(taint) = taints.get(&(symbol, version)).copied() {
+            seeds.insert(param, taint);
+            seeds.insert(format!("::{seed}"), taint);
+        }
+    }
+    // Plumbing runs before the ambient table is materialised and uses global
+    // spellings, so an outer user command named `set`, `proc`, or `catch`
+    // cannot hijack the replay itself. Ambient facts then affect only the user
+    // script they are meant to model.
+    let body = format!("{assignments}{constant_setup}{command_setup}{inner}");
+    let source = format!(
+        "::proc {proc_name} {{{}}} {}\n{}",
+        params.join(" "),
+        tcl_syntax::list::list_element(&body),
+        invocation.join(" "),
+    );
+    (source, seeds)
+}
+
+fn fresh_nested_name(source: &str, base: &str) -> String {
+    if !source.contains(base) {
+        return base.to_owned();
+    }
+    (1_u32..=u32::MAX)
+        .map(|suffix| format!("{base}_{suffix}"))
+        .find(|candidate| !source.contains(candidate))
+        .unwrap_or_else(|| format!("{base}_{}", source.len()))
+}
+
+/// Materialise phase-correct outer constants referenced by a nested script.
+/// This preserves a constant `$command` head and deferred script values such
+/// as `set script {$x}; [eval $script]`. Traced variables and non-singleton
+/// reaching constants abstain rather than guessing one runtime value.
+fn ambient_constant_setup(
+    uses: &HashMap<Symbol, Version>,
+    context: CommandHeadContext<'_>,
+    ssa: &SsaFunction,
+) -> String {
+    let mut values = Vec::new();
+    for (&symbol, &version) in uses {
+        let name = ssa.var_name(symbol);
+        if context.module_traces.has_dynamic_variable_trace
+            || context.module_traces.traced_variables.contains(name)
+        {
+            continue;
+        }
+        let Some(contributors) =
+            crate::value_provenance::const_contributors_for_version(context.fu, name, version)
+        else {
+            continue;
+        };
+        let Some(first) = contributors.first() else {
+            continue;
+        };
+        if contributors
+            .iter()
+            .any(|contributor| contributor.value != first.value)
+        {
+            continue;
+        }
+        values.push((name.to_owned(), first.value.clone()));
+    }
+    values.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut setup = String::new();
+    for (name, value) in values {
+        let _ = writeln!(
+            setup,
+            "set {} {}",
+            tcl_syntax::list::list_element(&name),
+            tcl_syntax::list::list_element(&value),
+        );
+    }
+    setup
+}
+
+/// Materialise the enclosing command table for an isolated nested-script
+/// analysis. The offset-keyed identity owner already composed imports,
+/// aliases, renames, and user-proc rebindings; this adapter merely spells its
+/// answer as analysis-only Tcl setup so the ordinary lowerer applies the same
+/// identity to sources, sinks, argument roles, and nested bodies.
+fn ambient_command_setup<H: std::hash::BuildHasher>(
+    cu: &crate::compilation_unit::CompilationUnit,
+    identities: &crate::head_identity::HeadIdentityMap,
+    at: u32,
+    shadowed_builtins: &HashSet<String, H>,
+) -> String {
+    if identities.is_empty() && shadowed_builtins.is_empty() {
+        return String::new();
+    }
+    let mut heads = FxHashSet::default();
+    for function in cu.analysable_body_function_units() {
+        for block in function.ssa.blocks.values() {
+            for statement in &block.statements {
+                match &statement.statement {
+                    Statement::Call { command, .. } | Statement::Barrier { command, .. }
+                        if !command.contains(['$', '[']) =>
+                    {
+                        heads.insert(command.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    let mut heads: Vec<String> = heads.into_iter().collect();
+    heads.sort();
+    let mut aliases = String::new();
+    let mut rebindings = Vec::new();
+    for head in heads {
+        let quoted_head = tcl_syntax::list::list_element(&head);
+        if shadowed_builtins.contains(&head) {
+            rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
+            continue;
+        }
+        match identities.binding_at(&head, at) {
+            crate::head_identity::HeadBinding::Unchanged => {}
+            crate::head_identity::HeadBinding::Rebound => {
+                rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
+            }
+            crate::head_identity::HeadBinding::Command(target) => {
+                let quoted_target = tcl_syntax::list::list_element(target);
+                let _ = writeln!(
+                    aliases,
+                    "::interp alias {{}} {quoted_head} {{}} {quoted_target}"
+                );
+            }
+        }
+    }
+    // Establish every alias while `::interp` is still the scaffold builtin;
+    // establish a requested `interp`/`proc` rebinding only afterwards.
+    rebindings.sort_by_key(|(head, _)| matches!(head.as_str(), "interp" | "proc"));
+    for (_, rebinding) in rebindings {
+        aliases.push_str(&rebinding);
+    }
+    aliases
+}
+
+/// Emit the direct expression-injection case and report whether this statement
+/// was expression-shaped. Keeping it separate leaves call classification
+/// focused on registry-backed command invocations.
+fn emit_expr_statement_warnings<S: std::hash::BuildHasher>(
+    ssa_stmt: &SsaStatement,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+) -> bool {
+    let stmt = &ssa_stmt.statement;
+    let (Statement::AssignExpr { expr, .. } | Statement::ExprEval { expr, .. }) = stmt else {
+        return false;
+    };
+    let resolve = |name: &str| {
+        let sym = ssa.var_symbol(name)?;
+        let ver = *ssa_stmt.uses.get(&sym)?;
+        Some((sym, ver))
+    };
+    emit_expr_coercion_warnings(expr, None, stmt.span(), resolve, taints, warnings);
+    true
+}
+
+/// Parse one command substitution for registry-backed sink classification,
+/// reducing a statically valued command word with the document's escape
+/// grammar. The shared shape parser retains the original argument spellings;
+/// the segmenter supplies the missing Tcl value of heads such as `e\166al`,
+/// `{eval}`, and `"eval"`. Dynamic or compound heads remain unchanged and are
+/// handled conservatively by command-head provenance.
+fn parse_taint_command_substitution(
+    text: &str,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+) -> Option<(String, Vec<String>)> {
+    let (written_head, args) = parse_command_substitution(text)?;
+    let inner = text.trim().strip_prefix('[')?.strip_suffix(']')?;
+    let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
+        tcl_lexer::LexerConfig::from_grammar(profile.grammar)
+    });
+    let commands = crate::segmenter::segment_commands_with_offset_and_config(inner, 0, config);
+    let [command] = commands.as_slice() else {
+        return None;
+    };
+    if command.is_partial || !command.word_views_aligned() {
+        return None;
+    }
+    let semantic_head = command
+        .texts
+        .first()
+        .zip(command.word_fragments.first())
+        .and_then(|(word, fragments)| callback_static_word_value(word, fragments, config.escapes))
+        .unwrap_or(written_head);
+    Some((semantic_head, args))
+}
+
+fn uses_for_names_at_statement(
+    names: &FxHashSet<String>,
+    statement: &SsaStatement,
+    ssa: &SsaFunction,
+) -> HashMap<Symbol, Version> {
+    let mut uses: HashMap<Symbol, Version> = statement
+        .uses
+        .iter()
+        .filter(|(symbol, _)| names.contains(ssa.var_name(**symbol)))
+        .map(|(&symbol, &version)| (symbol, version))
+        .collect();
+    if uses.len() == names.len() {
+        return uses;
+    }
+
+    // A variable mentioned only in brace-quoted script text is not necessarily
+    // a direct SSA use of the generic outer call. Recover its version at this
+    // precise statement by replaying definitions from the containing block's
+    // entry. Pointer identity is valid here: callers iterate the statements in
+    // this same `SsaFunction`, rather than passing a clone.
+    for block in ssa.blocks.values() {
+        let mut versions = block.entry_versions.clone();
+        for candidate in &block.statements {
+            if std::ptr::eq(candidate, statement) {
+                for name in names {
+                    if let Some(symbol) = ssa.var_symbol(name) {
+                        uses.entry(symbol)
+                            .or_insert_with(|| versions.get(&symbol).copied().unwrap_or_default());
+                    }
+                }
+                return uses;
+            }
+            versions.extend(
+                candidate
+                    .defs
+                    .iter()
+                    .map(|(&symbol, &version)| (symbol, version)),
+            );
+        }
+    }
+    uses
+}
+
+/// Collect every command substitution executed while constructing a command
+/// head. Literal prefixes/suffixes affect only the eventual outer command;
+/// they do not suppress the nested commands. A [`WordExpr::BracedLiteral`]
+/// has no executable parts and therefore contributes nothing.
+fn command_substitutions_in_word<'a>(word: &'a WordExpr, out: &mut Vec<(&'a str, Span)>) {
+    match word {
+        WordExpr::CommandSubstitution { spelling, source } => {
+            out.push((spelling, source.span));
+        }
+        WordExpr::Template { parts, .. } => {
+            for part in parts {
+                if let WordPart::CommandSubstitution { spelling, source } = part {
+                    out.push((spelling, source.span));
+                }
+            }
+        }
+        WordExpr::Expand { word, .. } => command_substitutions_in_word(word, out),
+        _ => {}
+    }
+}
+
+/// Resolve a whole-word `$var` command head from the definitions reaching this
+/// exact call site. Literal heads take the allocation-free path. A traced or
+/// otherwise unprovable variable head yields no candidate rather than guessing.
+fn resolve_taint_command_heads(
+    written_command: &str,
+    stmt: &Statement,
+    tokens: Option<&CommandTokens>,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    ctx: Option<CommandHeadContext<'_>>,
+) -> Vec<StaticCommandHead> {
+    if !is_pure_var_ref(written_command) {
+        return vec![StaticCommandHead {
+            command: written_command.to_owned(),
+            prepended_args: Vec::new(),
+            consumed_source_args: 0,
+            expanded: false,
+        }];
+    }
+    let Some(ctx) = ctx else {
+        return vec![StaticCommandHead {
+            command: written_command.to_owned(),
+            prepended_args: Vec::new(),
+            consumed_source_args: 0,
+            expanded: false,
+        }];
+    };
+    let var_name = normalise_var_name(written_command);
+    if ctx.module_traces.has_dynamic_variable_trace
+        || ctx.module_traces.traced_variables.contains(var_name)
+    {
+        return Vec::new();
+    }
+    let absolute_offset = ctx.fu.abs_span(stmt.span()).start();
+    let contributors =
+        crate::value_provenance::known_const_contributors(ctx.fu, absolute_offset, var_name);
+    if contributors.is_empty() {
+        return Vec::new();
+    }
+    let expanded = tokens
+        .and_then(|tokens| tokens.word_exprs.first())
+        .is_some_and(|word| matches!(word, WordExpr::Expand { .. }));
+    let escapes = tcl_dialect::EscapeSyntax::of_profile(dialect);
+    let mut heads = Vec::with_capacity(contributors.len());
+    for contributor in contributors {
+        let head = if expanded {
+            let Ok(elements) = tcl_syntax::list::split_list(&contributor.value) else {
+                // This reaching arm raises while expanding and never invokes a
+                // command. It must not erase other arms that do reach a sink.
+                continue;
+            };
+            if let Some((command, rest)) = elements.split_first() {
+                StaticCommandHead {
+                    command: command.to_string(),
+                    prepended_args: rest.iter().map(ToString::to_string).collect(),
+                    consumed_source_args: 0,
+                    expanded: true,
+                }
+            } else {
+                let Some(tokens) = tokens else {
+                    continue;
+                };
+                let Some(mut following) = static_command_head_from(tokens, escapes, 1) else {
+                    // This arm's command remains dynamic. Retain any other
+                    // reaching arm already proven to invoke a concrete sink.
+                    continue;
+                };
+                following.expanded = true;
+                following
+            }
+        } else if contributor.value.is_empty() {
+            continue;
+        } else {
+            StaticCommandHead {
+                command: contributor.value,
+                prepended_args: Vec::new(),
+                consumed_source_args: 0,
+                expanded: false,
+            }
+        };
+        if !heads.contains(&head) {
+            heads.push(head);
+        }
+    }
+    heads
+}
+
+#[allow(clippy::too_many_arguments)]
+fn emit_resolved_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>(
+    command: &str,
+    call_args: &[String],
+    tokens: Option<&CommandTokens>,
+    ssa_stmt: &SsaStatement,
+    uses: &HashMap<Symbol, Version>,
+    taints: &HashMap<ValueKey, TaintLattice, S>,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    shadowed_builtins: &HashSet<String, H>,
+    warnings: &mut Vec<TaintWarning>,
+    ssa: &SsaFunction,
+) {
+    let stmt = &ssa_stmt.statement;
+    let span = stmt.span();
 
     // A namespace-scoped user proc shadows this bare/canonical name (e.g.
     // `proc ::myns::puts {...}` shadowing the real `puts` for calls made
@@ -3512,10 +4616,11 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     // they read the same closer the lexer did (issue #1604).
     let braced_var = tcl_dialect::BracedVarStyle::of_profile(dialect);
     let env = TaintScan {
-        uses: &ssa_stmt.uses,
+        uses,
         taints,
         ssa,
         braced_var,
+        quoted_uses: Some(&ssa_stmt.quoted_uses),
     };
 
     // T103: tainted data in a regexp/regsub pattern position.
@@ -3539,11 +4644,12 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
     emit_double_encode_warnings(
         command,
         call_args,
-        &ssa_stmt.uses,
+        uses,
         taints,
         span,
         warnings,
         dbl_ctx,
+        &ssa_stmt.quoted_uses,
     );
 
     let sink_call = SinkCall {
@@ -3585,6 +4691,8 @@ struct TaintScan<'a, S> {
     /// [`tcl_lexer::braced_var_name_end`] — carried here so every name scan
     /// below reads the same closer the lexer did (issue #1604).
     braced_var: tcl_dialect::BracedVarStyle,
+    /// Uses mentioned only in brace-quoted words at this statement.
+    quoted_uses: Option<&'a HashSet<Symbol>>,
 }
 
 /// Emit `T103` (regex injection / `ReDoS`) for a tainted variable sitting in
@@ -3618,6 +4726,9 @@ fn emit_regexp_pattern_warnings<S: std::hash::BuildHasher>(
         let Some(sym) = ssa.var_symbol(&var) else {
             continue;
         };
+        if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym)) {
+            continue;
+        }
         let Some(&ver) = uses.get(&sym) else { continue };
         if is_seeded_global_v0(&var, ver) {
             continue;
@@ -3946,6 +5057,7 @@ fn emit_branch_condition_nested_command_warnings<S: std::hash::BuildHasher>(
             taints: ctx.taints,
             ssa: ctx.ssa,
             braced_var,
+            quoted_uses: None,
         };
         let sink_call = SinkCall {
             command: &command,
@@ -4256,6 +5368,11 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         if !t.is_tainted() {
             continue;
         }
+        if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym))
+            && !quoted_sink_use_is_evaluated(call, name)
+        {
+            continue;
+        }
         // The value reaching the sink is clean when every appearance of `name`
         // in the sink arguments is consumed by an embedded sanitiser
         // substitution — `puts [string length $x]` outputs the integer length,
@@ -4362,6 +5479,37 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
         });
         emitted.insert(sym);
     }
+}
+
+/// Whether a brace-quoted occurrence is in a registry-declared Tcl body slot.
+/// A quoted word is literal data for `exec`/`puts`, but deferred source for
+/// `eval`, `uplevel`, and `interp eval`; the role/trait projection owns that
+/// distinction and the concatenating eval family extends through the tail.
+fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
+    let arg_refs: Vec<&str> = call.args.iter().map(String::as_str).collect();
+    let traits = call
+        .registry
+        .invocation_traits(call.command, &arg_refs, DialectSet::empty());
+    let is_eval = traits.contains(Traits::EVALUATES_CODE)
+        || classify_network_interp_sinks(call.registry, call.command, call.args)
+            .iter()
+            .any(|(code, _)| *code == DiagCode::T105);
+    if !is_eval {
+        return false;
+    }
+    let mut indices = call
+        .registry
+        .arg_indices_for_role(call.command, &arg_refs, ArgRole::Body);
+    if traits.contains(Traits::SCRIPT_CONCATENATES_ARGS)
+        && let Some(&first) = indices.first()
+    {
+        indices = (first..call.args.len()).collect();
+    }
+    indices.into_iter().any(|index| {
+        call.args
+            .get(index)
+            .is_some_and(|arg| arg_var_names(arg, call.braced_var).contains(name))
+    })
 }
 
 /// Emit T102 warnings for option injection into a command declaring a `--`
@@ -4549,6 +5697,9 @@ fn emit_option_injection<S: std::hash::BuildHasher>(
             let Some(sym) = ssa.var_symbol(&var) else {
                 continue;
             };
+            if env.quoted_uses.is_some_and(|quoted| quoted.contains(&sym)) {
+                continue;
+            }
             if emitted.contains(&sym) {
                 continue;
             }

@@ -2666,7 +2666,17 @@ pub fn render(draft: &Draft) -> String {
 /// Render a pack of drafts as one `.tclspec` file.
 #[must_use]
 pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
-    render_pack_reporting(drafts, pack_name).0
+    render_pack_with_version(drafts, pack_name, DSL_VERSION)
+}
+
+/// Render a pack of drafts with its declared SpecTcl vocabulary version.
+///
+/// A newly-created or exported pack uses [`DSL_VERSION`], while a document
+/// loaded into the studio must retain the version its own `speclib` header
+/// declared when a canonical re-render or write-back fallback rebuilds it.
+#[must_use]
+pub fn render_pack_with_version(drafts: &[Draft], pack_name: &str, dsl_version: &str) -> String {
+    render_pack_reporting_with_version(drafts, pack_name, dsl_version).0
 }
 
 /// [`render_pack`], plus every field the render could not carry.
@@ -2675,6 +2685,20 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
 /// caller can list what the pack does not say without re-reading its comments.
 #[must_use]
 pub fn render_pack_reporting(drafts: &[Draft], pack_name: &str) -> (String, Vec<Loss>) {
+    render_pack_reporting_with_version(drafts, pack_name, DSL_VERSION)
+}
+
+/// [`render_pack_reporting`] with an explicit `speclib` vocabulary version.
+///
+/// Kept separate from the default entry point so exports continue to target
+/// the newest vocabulary, while an already-authored document round-trips its
+/// header byte-for-byte in meaning.
+#[must_use]
+pub fn render_pack_reporting_with_version(
+    drafts: &[Draft],
+    pack_name: &str,
+    dsl_version: &str,
+) -> (String, Vec<Loss>) {
     let mut tables = ValueTables::default();
     let mut bodies: Vec<(String, Out)> = Vec::new();
 
@@ -2706,7 +2730,7 @@ pub fn render_pack_reporting(drafts: &[Draft], pack_name: &str) -> (String, Vec<
     );
     out.line("");
     out.line(&format!(
-        "speclib {} {DSL_VERSION} {{",
+        "speclib {} {dsl_version} {{",
         name_word(pack_name)
     ));
     // The ports do not indent a pack's own declarations — a `.tclspec` is one

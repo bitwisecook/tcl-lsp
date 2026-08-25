@@ -920,6 +920,12 @@ impl CfgBuilder {
             canonical_command,
             span,
             ..
+        }
+        | Statement::Barrier {
+            command,
+            canonical_command,
+            span,
+            ..
         } = stmt
             && self.block_mut(current).terminator.is_none()
         {
@@ -1974,13 +1980,25 @@ pub(crate) fn flow_facts_stmt(stmt: &Statement) -> (BTreeSet<String>, Completion
             (set, Completion::Normal)
         }
         Statement::Return { .. } => (BTreeSet::new(), Completion::ProcExit),
-        Statement::Barrier { reason, .. } => {
+        Statement::Barrier {
+            reason,
+            command,
+            canonical_command,
+            ..
+        } => {
             // A `return -options …` / `return {*}…` barrier unconditionally
-            // exits the proc.
+            // exits the proc.  An opaque callback barrier still retains its
+            // host command identity; preserve registry-declared unconditional
+            // control transfer such as `tailcall` rather than treating the
+            // callback's unknown effects as evidence that the host falls
+            // through.
+            let canon = canonical_command.as_deref().unwrap_or(command);
             if matches!(
                 reason.as_str(),
                 "return with options" | "return with expansion"
-            ) {
+            ) || is_block_terminating_command(canon)
+                || is_tailcall_command(canon)
+            {
                 (BTreeSet::new(), Completion::ProcExit)
             } else {
                 (BTreeSet::new(), Completion::Normal)
@@ -2441,8 +2459,89 @@ pub(super) fn words_from_text(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ir::{ForeachIterator, IfClause, Script};
+    use crate::ir::{ForeachIterator, IfClause, Script, SwitchArm, SwitchMode};
     use tcl_lexer::Span;
+
+    /// The registry-derived commands which leave a procedure when they appear
+    /// as ordinary calls. Keep test data tied to traits rather than duplicating
+    /// command names alongside the production lookup.
+    fn proc_exit_host_commands() -> Vec<&'static str> {
+        let mut commands: Vec<_> = CFG_COMMAND_CLASSES
+            .terminates_block
+            .iter()
+            .chain(CFG_COMMAND_CLASSES.replaces_frame.iter())
+            .copied()
+            .collect();
+        commands.sort_unstable();
+        commands.dedup();
+        commands
+    }
+
+    fn host_call(command: String) -> Statement {
+        Statement::Call {
+            span: Span::new(0, 1),
+            command,
+            canonical_command: None,
+            args: Vec::new(),
+            defs: Vec::new(),
+            reads: Vec::new(),
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
+        }
+    }
+
+    fn host_barrier(command: String) -> Statement {
+        Statement::Barrier {
+            span: Span::new(0, 1),
+            reason: "opaque host command".into(),
+            command,
+            canonical_command: None,
+            args: Vec::new(),
+            tokens: None,
+        }
+    }
+
+    fn build_analysis_cfg(name: &str, script: &Script) -> Function {
+        CfgBuilder::new(true)
+            .with_faithful_exceptions()
+            .build_function(name, script)
+    }
+
+    fn proc_exit_barrier_switch(mode: SwitchMode) -> Script {
+        let commands = proc_exit_host_commands();
+        let arms = commands
+            .iter()
+            .enumerate()
+            .map(|(i, command)| SwitchArm {
+                pattern: i.to_string(),
+                pattern_span: Span::new(0, 1),
+                // Exercise absolute spellings inside both flattened and opaque
+                // switch paths; classification must normalise the `::` prefix.
+                body: Some(Script::from_statements(vec![host_barrier(format!(
+                    "::{command}"
+                ))])),
+                body_span: Some(Span::new(0, 1)),
+                fallthrough: false,
+            })
+            .collect();
+        Script::from_statements(vec![Statement::Switch {
+            span: Span::new(0, 1),
+            subject: "$which".into(),
+            subject_span: Span::new(0, 1),
+            arms,
+            default_body: Some(Script::from_statements(vec![host_barrier(format!(
+                "::{}",
+                commands[0]
+            ))])),
+            default_span: Some(Span::new(0, 1)),
+            mode,
+            nocase: false,
+            raw_args: Vec::new(),
+            patterns_braced: true,
+        }])
+    }
 
     /// Drift guard: the registry-derived classification sets must equal
     /// the name lists this file used to hardcode, so a future trait
@@ -2488,6 +2587,93 @@ mod tests {
         assert!(!is_loop_break_command("::break"));
         assert!(is_loop_continue_command("continue"));
         assert!(!is_loop_continue_command("break"));
+    }
+
+    #[test]
+    fn opaque_host_barriers_match_calls_for_every_registry_proc_exit_command() {
+        // This is deliberately registry-driven: today the traits yield
+        // `error`, `exit`, `throw`, and `tailcall`, but a trait change must
+        // extend this test automatically. Test both source spellings the CFG
+        // accepts, including the global-qualified form.
+        for command in proc_exit_host_commands() {
+            for spelling in [command.to_owned(), format!("::{command}")] {
+                for (kind, statement) in [
+                    ("Call", host_call(spelling.clone())),
+                    ("Barrier", host_barrier(spelling.clone())),
+                ] {
+                    assert_eq!(
+                        flow_facts_stmt(&statement).1,
+                        Completion::ProcExit,
+                        "{kind} {spelling} must leave the procedure",
+                    );
+
+                    let script = Script::from_statements(vec![
+                        statement,
+                        Statement::AssignConst {
+                            span: Span::new(2, 3),
+                            name: "dead".into(),
+                            name_braced: false,
+                            value: "1".into(),
+                            value_span: None,
+                        },
+                    ]);
+                    let func = build_analysis_cfg("::test", &script);
+                    let entry = &func.blocks[&func.entry];
+                    assert_eq!(
+                        entry.statements.len(),
+                        1,
+                        "{kind} {spelling} must keep following statements unreachable",
+                    );
+                    assert!(
+                        matches!(entry.terminator, Some(Terminator::Return { .. })),
+                        "{kind} {spelling} must terminate its CFG block, got {:?}",
+                        entry.terminator,
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn proc_exit_host_barriers_terminate_direct_and_opaque_switch_forms() {
+        // Exact switches lower each arm directly; glob switches remain an
+        // opaque Statement::Switch. In both representations, barriers whose
+        // host command is a registry-described proc exit must retain the same
+        // completion fact as a Call.
+        let commands = proc_exit_host_commands();
+        let direct = build_analysis_cfg("::direct", &proc_exit_barrier_switch(SwitchMode::Exact));
+        assert!(matches!(
+            direct.blocks[&direct.entry].terminator,
+            Some(Terminator::Branch { .. })
+        ));
+        let direct_barriers: Vec<_> = direct
+            .blocks
+            .values()
+            .filter(|block| {
+                block
+                    .statements
+                    .iter()
+                    .any(|stmt| matches!(stmt, Statement::Barrier { .. }))
+            })
+            .collect();
+        assert_eq!(direct_barriers.len(), commands.len() + 1);
+        assert!(
+            direct_barriers
+                .iter()
+                .all(|block| { matches!(block.terminator, Some(Terminator::Return { .. })) })
+        );
+
+        let opaque = build_analysis_cfg("::opaque", &proc_exit_barrier_switch(SwitchMode::Glob));
+        let entry = &opaque.blocks[&opaque.entry];
+        assert!(matches!(
+            entry.statements.as_slice(),
+            [Statement::Switch { .. }]
+        ));
+        assert!(
+            matches!(entry.terminator, Some(Terminator::Return { .. })),
+            "an all-proc-exit opaque switch must not fall through, got {:?}",
+            entry.terminator,
+        );
     }
 
     #[test]

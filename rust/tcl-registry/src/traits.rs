@@ -760,6 +760,13 @@ declare_traits! {
     /// query are the current consumers.
     TransfersControl => TRANSFERS_CONTROL, ControlFlow, "transfers control elsewhere";
 
+    /// Creates, suspends, resumes, injects, or probes Tcl coroutine execution
+    /// (`coroutine`, `yield`, `yieldto`, `coroinject`, `coroprobe`).  This is a
+    /// semantic family rather than a backend policy: restricted consumers such
+    /// as BPF-Tcl use the registry-owned fact to explain why the operation has
+    /// no representation, without maintaining a command-name list.
+    CoroutinePrimitive => COROUTINE_PRIMITIVE, ControlFlow, "participates in Tcl coroutine execution";
+
     /// Teardown/removal command (or subcommand) for which a bare
     /// `catch {…}` with no result variable is the documented
     /// fire-and-forget idiom: the operation errors when its target is
@@ -1277,6 +1284,7 @@ declare_trait_examples! {
     ScriptAppendsListArgs => flow!("set prefix [list puts]\nnamespace inscope :: $prefix hello\nputs done"; (1, "namespace"); (0, "[list puts]", "builds a script prefix"), (1, "namespace inscope :: $prefix hello", "appends trailing words as list elements"), (2, "puts done", "runs after the safely extended script"));
     EstablishesVariableTrace => flow!("proc changed {name index op} { puts $op }\ntrace add variable watched write changed\nset watched value"; (1, "trace"); (0, "proc changed", "defines the callback"), (1, "trace add variable watched write changed", "establishes the variable trace"), (2, "set watched value", "fires the callback with a write operation"));
     TransfersControl => flow!("proc target {} { return reached }\nproc caller {} { tailcall target; return unreachable }\nputs [caller]"; (1, "tailcall"); (0, "target", "is the destination"), (1, "tailcall target", "transfers control away from caller"), (1, "return unreachable", "cannot run"), (2, "caller", "returns reached"));
+    CoroutinePrimitive => flow!("proc worker {} { yield ready; return done }\ncoroutine task worker\nputs [task]"; (1, "coroutine"); (0, "yield ready", "defines the suspension point"), (1, "coroutine task worker", "creates and starts coroutine execution"), (2, "task", "resumes it to completion"));
     FireAndForgetTeardown => flow!("set child [interp create]\ninterp delete $child\nputs deleted"; (1, "interp"); (0, "[interp create]", "creates live runtime state"), (1, "interp delete $child", "starts teardown with no value dependency"), (2, "puts deleted", "continues after teardown"));
     OperatorCommand => flow!("set left 20\nset total [+ $left 22]\nputs $total"; (1, "+"); (0, "left 20", "supplies an operand"), (1, "+ $left 22", "runs the operator in command form"), (2, "$total", "observes 42"));
     TclooNextChain => flow!("oo::class create Base { method run {} {return base} }\noo::class create Child { superclass Base; method run {} { return [next] } }\nputs [[Child new] run]"; (1, "next"); (0, "method run", "defines the superclass implementation"), (1, "next", "dispatches to the next method in the chain"), (2, "run", "returns base"));
