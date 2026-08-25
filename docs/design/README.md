@@ -53,6 +53,13 @@ rules for the KCS/documentation split live in
   version-range targeting (declare tcl 8.5–9.0 or a library range and get
   cross-version compatibility warnings), SpecTcl 2.0 vocabulary, and the
   phased migration plan with the open questions.
+- [dialect-and-package-registry-redesign-adversarial-review.md](dialect-and-package-registry-redesign-adversarial-review.md)
+  — **request-changes review** of the #1631 proposal, grounded in immutable Tcl,
+  Tk, JimTcl, picol, tcllib, ticklecharts, pave, and SpiceGenTcl sources plus
+  reproducible interpreter/build experiments. It identifies the blocking
+  separation between provider catalogues and per-interpreter live bindings,
+  then specifies corrected version-set, build-profile, trust, lifetime,
+  editor-identity, and behavioural-parity contracts.
 
 ## Name resolution
 
