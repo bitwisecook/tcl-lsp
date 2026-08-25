@@ -188,18 +188,10 @@ async function handleTkPreview(ctx: CommandContext): Promise<vscode.ChatResult> 
     return {};
   }
 
-  const source = editor.document.getText();
-  if (!source.includes("package require Tk") && !source.includes("package require tk")) {
-    ctx.response.markdown(
-      "The current file does not contain `package require Tk`. " +
-        "The Tk Preview pane only works with Tk applications.",
-    );
-    return {};
-  }
-
   await vscode.commands.executeCommand("tclLsp.openTkPreview");
   ctx.response.markdown(
-    "Opened the Tk Preview pane. The preview updates automatically as you edit.",
+    "Opened the static Tk Preview pane. It updates automatically as you edit and marks dynamic " +
+      "layout that cannot be resolved without running the program.",
   );
   return { metadata: { command: "preview" } };
 }

@@ -16,12 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { randomBytes } from "crypto";
 import * as vscode from "vscode";
 import { getClient, isTclLanguage } from "./extension";
 import { getTkPreviewHtml } from "./tkPreviewPanelHtml";
 
 let panel: vscode.WebviewPanel | undefined;
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+let renderedDocument: { uri: string; version: number } | undefined;
+let requestSerial = 0;
 
 export function openTkPreview(): void {
   if (panel) {
@@ -35,16 +38,21 @@ export function openTkPreview(): void {
     retainContextWhenHidden: true,
   });
 
-  panel.webview.html = getTkPreviewHtml();
+  const nonce = randomBytes(16).toString("hex");
+  panel.webview.html = getTkPreviewHtml(panel.webview.cspSource, nonce);
 
-  panel.webview.onDidReceiveMessage((msg: { type: string }) => {
+  panel.webview.onDidReceiveMessage((msg: { type: string; start?: number; end?: number }) => {
     if (msg.type === "ready") {
       refreshPreview();
+    } else if (msg.type === "revealSource") {
+      void revealSource(msg.start, msg.end);
     }
   });
 
   panel.onDidDispose(() => {
     panel = undefined;
+    renderedDocument = undefined;
+    requestSerial += 1;
     if (debounceTimer) {
       clearTimeout(debounceTimer);
       debounceTimer = undefined;
@@ -56,11 +64,15 @@ export function openTkPreview(): void {
 
 export function tkPreviewEditorChanged(): void {
   if (!panel) return;
+  requestSerial += 1;
+  renderedDocument = undefined;
   refreshPreview();
 }
 
 export function tkPreviewDocChanged(): void {
   if (!panel) return;
+  requestSerial += 1;
+  renderedDocument = undefined;
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     debounceTimer = undefined;
@@ -70,17 +82,35 @@ export function tkPreviewDocChanged(): void {
 
 function refreshPreview(): void {
   const editor = vscode.window.activeTextEditor;
-  if (!editor || !isTclLanguage(editor.document.languageId) || !panel) return;
+  if (!panel) return;
+  if (!editor || !isTclLanguage(editor.document.languageId)) {
+    requestSerial += 1;
+    renderedDocument = undefined;
+    void panel.webview.postMessage({
+      type: "unavailable",
+      message: "Tk preview is available for an active Tcl editor.",
+    });
+    return;
+  }
 
-  const source = editor.document.getText();
-  if (!source.includes("package require Tk") && !source.includes("package require tk")) return;
-
-  void runTkPreview(source);
+  void runTkPreview(editor.document);
 }
 
-async function runTkPreview(source: string): Promise<void> {
+async function runTkPreview(document: vscode.TextDocument): Promise<void> {
   const client = getClient();
-  if (!client || !panel) return;
+  if (!panel) return;
+  if (!client) {
+    requestSerial += 1;
+    renderedDocument = undefined;
+    void panel.webview.postMessage({
+      type: "unavailable",
+      message: "Tk preview is waiting for the Tcl language server.",
+    });
+    return;
+  }
+  const uri = document.uri.toString();
+  const version = document.version;
+  const request = ++requestSerial;
 
   try {
     void panel.webview.postMessage({
@@ -90,19 +120,86 @@ async function runTkPreview(source: string): Promise<void> {
 
     const result = await client.sendRequest("workspace/executeCommand", {
       command: "tcl-lsp.tkPreview",
-      arguments: [source],
+      arguments: [{ uri, version }],
     });
 
-    if (!panel) return;
+    if (!panel || request !== requestSerial) return;
 
     if (result && typeof result === "object") {
+      const model = result as {
+        schema_version?: unknown;
+        document_uri?: unknown;
+        document_version?: unknown;
+      };
+      const active = vscode.window.activeTextEditor?.document;
+      if (!active || active.uri.toString() !== uri || active.version !== version) {
+        // A newer edit or editor selection won the race. Its own change event
+        // has already queued a fresh request, so never paint this old model.
+        return;
+      }
+      if (model.schema_version !== 1) {
+        void panel.webview.postMessage({
+          type: "error",
+          message: `Unsupported Tk preview schema: ${String(model.schema_version)}.`,
+        });
+        return;
+      }
+      if (model.document_uri !== uri || model.document_version !== version) {
+        void panel.webview.postMessage({
+          type: "error",
+          message: "The server returned a Tk preview for a different document snapshot.",
+        });
+        return;
+      }
+      renderedDocument = { uri, version };
       void panel.webview.postMessage({ type: "layout", data: result });
     } else {
       void panel.webview.postMessage({ type: "empty" });
     }
   } catch (err) {
-    if (!panel) return;
+    if (!panel || request !== requestSerial) return;
     const message = err instanceof Error ? err.message : String(err);
     void panel.webview.postMessage({ type: "error", message });
   }
+}
+
+async function revealSource(start: number | undefined, end: number | undefined): Promise<void> {
+  const rendered = renderedDocument;
+  if (
+    !rendered ||
+    typeof start !== "number" ||
+    typeof end !== "number" ||
+    start < 0 ||
+    end < start ||
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    !Number.isInteger(start) ||
+    !Number.isInteger(end)
+  ) {
+    return;
+  }
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(rendered.uri));
+  if (
+    renderedDocument?.uri !== rendered.uri ||
+    renderedDocument.version !== rendered.version ||
+    document.uri.toString() !== rendered.uri ||
+    document.version !== rendered.version
+  ) {
+    refreshPreview();
+    return;
+  }
+  const bytes = Buffer.from(document.getText(), "utf8");
+  if (end > bytes.length) return;
+  const utf16Offset = (byteOffset: number): number =>
+    bytes.subarray(0, Math.min(byteOffset, bytes.length)).toString("utf8").length;
+  const range = new vscode.Range(
+    document.positionAt(utf16Offset(start)),
+    document.positionAt(utf16Offset(end)),
+  );
+  const editor = await vscode.window.showTextDocument(document, {
+    viewColumn: vscode.ViewColumn.One,
+    preserveFocus: false,
+  });
+  editor.selection = new vscode.Selection(range.start, range.end);
+  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
 }

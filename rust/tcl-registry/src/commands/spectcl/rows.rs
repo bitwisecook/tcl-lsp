@@ -238,7 +238,7 @@ fn call_shape_rows() -> Vec<CommandSpec> {
             KEYWORD0,
             FORM_OPTIONS,
             "Declare one documented call form.",
-            "`form KIND {synopsis} ?-dialects {…}?`. `forms` covers the getter/setter split every pack has needed; the structured `command_forms` is excluded — a command needing it is deep enough in the compiler to be a contribution.",
+            "`form KIND {synopsis} ?-dialects {…}?`. This row documents synopsis and lifecycle only. The structured `command_forms` descriptor also carries semantic and native compiler routing; it is excluded from SpecTcl as one all-or-nothing value rather than partially authored here.",
         ),
         row(
             "side_effect",

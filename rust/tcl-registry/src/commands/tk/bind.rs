@@ -24,6 +24,11 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+/// Event text which Tk substitutes from the user event. `%A` carries the
+/// character payload. `%K` (keysym), `%W`, coordinates, and modifiers are
+/// framework metadata rather than arbitrary user text and remain clean.
+const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
+
 /// Dynamic arg-role resolver for `bind`.
 ///
 /// `bind tag` and `bind tag sequence` are *query* forms that return an
@@ -36,6 +41,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 fn bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     if args.len() == 3 {
         vec![(2, ArgRole::Body)]
+    } else {
+        Vec::new()
+    }
+}
+
+fn bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    if args.len() == 3 {
+        vec![(2, ScriptTiming::Deferred)]
     } else {
         Vec::new()
     }
@@ -56,6 +69,8 @@ pub fn spec() -> CommandSpec {
         // the caller's frame), so recurse into it for highlighting and
         // treat it as structural.
         arg_role_resolver: Some(bind_arg_roles),
+        script_timing_resolver: Some(bind_script_timing),
+        callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,
         // `DEFERS_BODY` — the "deferred event-handler body" above, said where
         // a consumer asking "can this body stop control reaching my next

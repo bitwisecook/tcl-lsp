@@ -63,6 +63,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_chooseColor",
+        traits: Traits::TAINT_SOURCE,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
@@ -78,6 +79,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        return_type: Some(TclType::String),
         ..CommandSpec::DEFAULT
     }
 }

@@ -207,6 +207,23 @@ pub fn const_contributors(
     }
     let sym = fu.ssa.var_symbol(var_name)?;
     let version = use_version_at(fu, use_offset, sym)?;
+    const_contributors_for_version(fu, var_name, version)
+}
+
+/// [`const_contributors`] when the caller already owns the exact reaching SSA
+/// version. This is the phase-correct adapter for deferred text: a variable in
+/// a brace-quoted script may not be a direct use of the enclosing statement,
+/// even though a registry-declared evaluator will read that same version.
+#[must_use]
+pub fn const_contributors_for_version(
+    fu: &FunctionUnit,
+    var_name: &str,
+    version: Version,
+) -> Option<Vec<ValueContributor>> {
+    if fu.complexity_guarded {
+        return None;
+    }
+    let sym = fu.ssa.var_symbol(var_name)?;
     let index = def_index(fu);
     let mut visited: HashSet<(Symbol, Version)> = HashSet::new();
     let mut out: Vec<ValueContributor> = Vec::new();
@@ -214,8 +231,58 @@ pub fn const_contributors(
     if out.is_empty() {
         return None;
     }
-    // De-duplicate while keeping first-seen order (a literal feeding the
-    // use along several φ-paths contributes once).
+    deduplicate_contributors(&mut out);
+    Some(out)
+}
+
+/// Evidence-backed constant contributors even when another reaching arm is
+/// unknown.
+///
+/// Security may-analysis uses this to retain a proven sink target at a join
+/// without claiming the command value is closed. Rename and other exact-value
+/// consumers must continue to use [`const_contributors_for_version`].
+#[must_use]
+pub fn known_const_contributors_for_version(
+    fu: &FunctionUnit,
+    var_name: &str,
+    version: Version,
+) -> Vec<ValueContributor> {
+    if fu.complexity_guarded {
+        return Vec::new();
+    }
+    let Some(sym) = fu.ssa.var_symbol(var_name) else {
+        return Vec::new();
+    };
+    let index = def_index(fu);
+    let mut visited = HashSet::new();
+    let mut out = Vec::new();
+    let _ = collect(fu, &index, sym, version, &mut visited, &mut out);
+    deduplicate_contributors(&mut out);
+    out
+}
+
+/// [`known_const_contributors_for_version`] at the SSA use covering an
+/// absolute source offset.
+#[must_use]
+pub fn known_const_contributors(
+    fu: &FunctionUnit,
+    use_offset: u32,
+    var_name: &str,
+) -> Vec<ValueContributor> {
+    if fu.complexity_guarded {
+        return Vec::new();
+    }
+    let Some(sym) = fu.ssa.var_symbol(var_name) else {
+        return Vec::new();
+    };
+    let Some(version) = use_version_at(fu, use_offset, sym) else {
+        return Vec::new();
+    };
+    known_const_contributors_for_version(fu, var_name, version)
+}
+
+fn deduplicate_contributors(out: &mut Vec<ValueContributor>) {
+    // Keep first-seen order; one literal can feed a use along several φ paths.
     let mut seen: HashSet<(String, Option<(u32, u32)>)> = HashSet::new();
     out.retain(|c| {
         seen.insert((
@@ -223,7 +290,6 @@ pub fn const_contributors(
             c.literal_span.map(|s| (s.start(), s.end())),
         ))
     });
-    Some(out)
 }
 
 /// Recursive collector for [`const_contributors`]: resolve the defining
@@ -248,10 +314,13 @@ fn collect(
         // undefined".  Not provable.
         None => None,
         Some(DefSite::Phi(phi)) => {
+            let mut complete = true;
             for &incoming in phi.incoming.values() {
-                collect(fu, index, sym, incoming, visited, out)?;
+                if collect(fu, index, sym, incoming, visited, out).is_none() {
+                    complete = false;
+                }
             }
-            Some(())
+            complete.then_some(())
         }
         Some(DefSite::Stmt(stmt)) => contributor_from_stmt(fu, index, stmt, visited, out),
     }

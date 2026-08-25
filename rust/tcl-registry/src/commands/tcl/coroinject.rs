@@ -25,6 +25,13 @@
 //! `yieldto`) and unchanged, word-for-word, between the 9.0.4 and 9.1b0
 //! pages.
 use crate::prelude::*;
+
+fn coroinject_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() >= 2)
+        .then_some((1, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "coroinject coroName command ?arg ...?",
     ..FormSpec::DEFAULT
@@ -43,7 +50,7 @@ static SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroinject",
-        traits: Traits::EVALUATES_CODE,
+        traits: Traits::EVALUATES_CODE | Traits::COROUTINE_PRIMITIVE,
         dialects: Some(DialectSet::TCL90_PLUS),
         arity: Arity::at_least(2),
         // `coroinject coroName command ?arg ...?` — `command` (index 1) is a
@@ -54,6 +61,7 @@ pub fn spec() -> CommandSpec {
         // arguments are appended to the list of arguments to be run" per
         // the Tcl 9.0/9.1 `coroutine(n)` manpage.
         command_prefixes: &[(1, AppendedArity::Exactly(2))],
+        script_timing_resolver: Some(coroinject_script_timing),
         return_type: Some(TclType::String),
         side_effects: SIDE_EFFECTS,
         hover: Some(HoverSnippet {

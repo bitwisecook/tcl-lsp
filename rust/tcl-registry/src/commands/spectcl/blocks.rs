@@ -81,7 +81,8 @@ fn named_block(
     }
 }
 
-/// `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`.
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown?`
+/// `?-method-prefix-matching Enabled|Strict? ?{ method … }?`.
 const OBJECT_CLASS_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-superclass",
@@ -92,6 +93,12 @@ const OBJECT_CLASS_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-allow-unknown",
         detail: "an unrecognised method on this class is not flagged",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-method-prefix-matching",
+        value: OptionValue::value("Enabled|Strict"),
+        detail: "whether instance methods accept unique-prefix abbreviations (default Strict)",
         ..OptionSpec::DEFAULT
     },
 ];
@@ -113,14 +120,14 @@ fn object_class_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
 
 fn object_class() -> CommandSpec {
     CommandSpec {
-        arity: Arity::new(1, 4),
+        arity: Arity::new(1, 7),
         options: OBJECT_CLASS_OPTIONS,
         arg_role_resolver: Some(object_class_arg_roles),
         ..block(
             "object_class",
             &crate::definer::SPECTCL_OBJECT_CLASS_GRAMMAR,
             "Declare the class this command's instances belong to.",
-            "`object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }`. The NAME word is the class name, which is not always the command name — a factory command may manufacture a differently-named class. `method` rows reuse the `subcommand` body grammar.",
+            "`object_class NAME ?-superclass {…}? ?-allow-unknown? ?-method-prefix-matching Enabled|Strict? ?{ method … }?`. The NAME word is the class name, which is not always the command name — a factory command may manufacture a differently-named class. Method matching defaults to `Strict`; opt into `Enabled` only when the runtime accepts unique prefixes. `method` rows reuse the `subcommand` body grammar.",
         )
     }
 }

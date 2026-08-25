@@ -27,7 +27,7 @@ use std::sync::OnceLock;
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::abbrev::PrefixMatching;
+use crate::abbrev::{Keyword, KeywordTable, PrefixMatching};
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
@@ -38,6 +38,7 @@ use crate::events::{
 };
 use crate::forms::CommandForm;
 use crate::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
+use crate::hover::CallbackTaintInput;
 use crate::invocation_words::{CommandPrefixArguments, InvocationWord};
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::resolved_invocation::{
@@ -557,6 +558,92 @@ fn push_option_value_roles(
             i += 1;
         }
     }
+}
+
+/// Return the timing of the script-valued option that consumes `index`.
+///
+/// The scan deliberately mirrors [`push_option_value_roles`]: aliases and
+/// unique abbreviations resolve through the same table, and value arity / `--`
+/// handling comes from [`OptionSpec::value_indices`].  `None` means either that
+/// `index` is not an option value or that the consuming value is not a script.
+fn option_script_timing_at(
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+    index: usize,
+) -> Option<crate::hover::ScriptTiming> {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
+            let vals = opt.value_indices(args, i);
+            if vals.contains(&index) {
+                return opt.value_script_timing();
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// Return the external callback substitutions declared by the option value
+/// that consumes `index`. The empty slice is a meaningful answer: the option
+/// is a callback, but it carries no user-controlled replacement value.
+fn option_callback_taint_inputs_at(
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+    index: usize,
+) -> Option<&'static [CallbackTaintInput]> {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
+            let vals = opt.value_indices(args, i);
+            if vals.contains(&index) {
+                return Some(opt.value_callback_taint_inputs());
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
+    None
+}
+
+/// Return the variable frame of the option value that consumes `index`.
+///
+/// The scan is identical to [`option_script_timing_at`] and
+/// [`push_option_value_roles`], so aliases, unique prefixes, arity, and the
+/// option terminator cannot disagree between role and scope consumers.
+fn option_variable_scope_at(
+    options: &[crate::hover::OptionSpec],
+    args: &[&str],
+    scan_start: usize,
+    index: usize,
+) -> Option<crate::hover::VariableScope> {
+    let mut i = scan_start;
+    while i < args.len() {
+        if args[i] == "--" {
+            break;
+        }
+        if let Some(opt) = crate::spec::resolve_option_prefix(options, args[i]) {
+            let vals = opt.value_indices(args, i);
+            if vals.contains(&index) {
+                return opt.value_variable_scope();
+            }
+            i += 1 + vals.len();
+        } else {
+            i += 1;
+        }
+    }
+    None
 }
 
 /// Collect option values whose role is [`ArgRole::CommandPrefix`], paired with
@@ -1507,35 +1594,243 @@ impl CommandRegistry {
         self.get(class_name).and_then(|s| s.object_class)
     }
 
+    /// The version floor this registry itself guarantees for `spec`'s owning
+    /// package. A profile supplies its pinned runtime library version; a
+    /// `SpecTcl` ambient-package declaration supplies the pack equivalent.
+    /// When both make a claim, their strongest floor wins.
+    ///
+    /// Request-time consumers that have `package require` facts can raise this
+    /// floor through `DocumentFloor`; registry-only lookup deliberately keeps
+    /// the static, resolved-profile answer. `None` remains permissive for an
+    /// unpinned package or a hand-assembled registry with no ambient claim.
+    fn package_floor_for_spec(&self, spec: &CommandSpec) -> Option<&'static str> {
+        let package = spec.owning_package()?;
+        let profile_floor = self
+            .profile
+            .and_then(|profile| profile.library_floor_default(package));
+        let ambient_floor = self.ambient_package_floor(package);
+        match (profile_floor, ambient_floor) {
+            (Some(profile), Some(ambient)) => (crate::version::compare(profile, ambient).is_lt())
+                .then_some(ambient)
+                .or(Some(profile)),
+            (profile, ambient) => profile.or(ambient),
+        }
+    }
+
+    /// The stronger of the registry's own package floor and a caller's
+    /// document-resolved floor. `package_version` is intentionally supplied
+    /// by the caller rather than inferred from a command spelling: an explicit
+    /// `package require` is document data, while the profile/ambient floor is
+    /// registry data.
+    fn package_floor_for_spec_at<'a>(
+        &self,
+        spec: &CommandSpec,
+        package_version: Option<&'a str>,
+    ) -> Option<&'a str> {
+        match (self.package_floor_for_spec(spec), package_version) {
+            (Some(registry), Some(document)) => {
+                if crate::version::compare(registry, document).is_lt() {
+                    Some(document)
+                } else {
+                    Some(registry)
+                }
+            }
+            (Some(registry), None) => Some(registry),
+            (None, document) => document,
+        }
+    }
+
+    /// Assemble the visible instance-method table for `class_name`, walking
+    /// declared superclasses breadth-first.
+    ///
+    /// The owning *class command* supplies the lifecycle axis for each row,
+    /// rather than assuming every inherited method belongs to the receiver's
+    /// package. This is the object-method counterpart of normal subcommand
+    /// filtering: a Tk 9.1-only widget operation must not become a hover,
+    /// semantic-token, taint, or completion fact in a profile that resolves
+    /// Tk 9.0. The filter is entirely descriptor-driven, so the registry knows
+    /// no widget or method spellings.
+    #[must_use]
+    pub fn instance_methods(&self, class_name: &str) -> Vec<&'static SubCommand> {
+        self.instance_methods_at(
+            class_name,
+            None,
+            self.profile.map(|profile| profile.availability_mask),
+        )
+    }
+
+    /// [`Self::instance_methods`] with a document-resolved floor for the
+    /// owning package and an explicit availability mask.
+    ///
+    /// A request-time caller obtains `package_version` from its document's
+    /// package-require facts for the class command, which can only raise the
+    /// profile/ambient floor. Passing `None` retains the registry's static
+    /// profile answer. `dialect` similarly lets an unprofiled, hand-assembled
+    /// registry honour a caller's resolved command surface.
+    #[must_use]
+    pub fn instance_methods_at(
+        &self,
+        class_name: &str,
+        package_version: Option<&str>,
+        dialect: Option<DialectSet>,
+    ) -> Vec<&'static SubCommand> {
+        // FIFO so the walk is genuinely breadth-first and visits siblings in
+        // declaration order — `Vec::pop` would make this a reversed-sibling
+        // depth-first search, contradicting the documented contract.
+        let mut queue = std::collections::VecDeque::from([class_name.to_string()]);
+        let mut seen = std::collections::HashSet::new();
+        let mut method_names = std::collections::HashSet::new();
+        let mut visible_methods = Vec::new();
+        while let Some(cls) = queue.pop_front() {
+            if !seen.insert(cls.clone()) {
+                continue;
+            }
+            // Resolve the owning command through this registry's profile,
+            // then gate each of its method descriptors on that command's
+            // package axis. A class absent from this profile cannot donate
+            // inherited methods either.
+            let Some(class_spec) = self.spec_for_this_registry(&cls) else {
+                continue;
+            };
+            let Some(class) = class_spec.object_class else {
+                continue;
+            };
+            let package_floor = self.package_floor_for_spec_at(class_spec, package_version);
+            for candidate in class.instance_methods {
+                let method_dialects = candidate.dialects.or(class_spec.dialects);
+                if !candidate.available_for_version(package_floor)
+                    || !method_dialects.is_none_or(|gate| {
+                        dialect.is_none_or(|requested| gate.intersects(requested))
+                    })
+                {
+                    continue;
+                }
+                // Breadth-first order implements ordinary override lookup:
+                // the first declaration of a canonical name is the visible
+                // one. Prefix ambiguity is resolved only after the complete
+                // visible method table has been assembled.
+                if method_names.insert(candidate.name) {
+                    visible_methods.push(candidate);
+                }
+            }
+            for sup in class.superclasses {
+                queue.push_back((*sup).to_string());
+            }
+        }
+        visible_methods
+    }
+
     /// Resolve an instance method `method` on class `class_name`, walking
-    /// declared superclasses breadth-first.  Returns the owning class's
-    /// [`SubCommand`] method spec, or `None` when unresolved.
+    /// declared superclasses breadth-first. Lifecycle-gated methods are
+    /// filtered against their owning class command's resolved package floor.
+    /// Returns the owning class's [`SubCommand`] method spec, or `None` when
+    /// unresolved.
     #[must_use]
     pub fn instance_method(
         &self,
         class_name: &str,
         method: &str,
     ) -> Option<&crate::spec::SubCommand> {
-        // FIFO so the walk is genuinely breadth-first and visits siblings in
-        // declaration order — `Vec::pop` would make this a reversed-sibling
-        // depth-first search, contradicting the documented contract.
-        let mut queue = std::collections::VecDeque::from([class_name.to_string()]);
-        let mut seen = std::collections::HashSet::new();
-        while let Some(cls) = queue.pop_front() {
-            if !seen.insert(cls.clone()) {
-                continue;
-            }
-            let Some(class_spec) = self.object_class(&cls) else {
-                continue;
-            };
-            if let Some(m) = class_spec.instance_method(method) {
-                return Some(m);
-            }
-            for sup in class_spec.superclasses {
-                queue.push_back((*sup).to_string());
-            }
-        }
-        None
+        self.instance_method_at(
+            class_name,
+            method,
+            None,
+            self.profile.map(|profile| profile.availability_mask),
+        )
+    }
+
+    /// [`Self::instance_method`] with a document-resolved owning-package
+    /// floor and explicit availability mask. See [`Self::instance_methods_at`]
+    /// for the two axes' composition.
+    #[must_use]
+    pub fn instance_method_at(
+        &self,
+        class_name: &str,
+        method: &str,
+        package_version: Option<&str>,
+        dialect: Option<DialectSet>,
+    ) -> Option<&crate::spec::SubCommand> {
+        let visible_methods = self.instance_methods_at(class_name, package_version, dialect);
+        let method_prefix_matching = self
+            .spec_for_this_registry(class_name)
+            .and_then(|spec| spec.object_class)
+            .map_or(crate::abbrev::PrefixMatching::Strict, |class| {
+                class.method_prefix_matching
+            });
+        let table = KeywordTable::from_keywords(
+            visible_methods.iter().map(|candidate| Keyword {
+                name: candidate.name,
+                min_abbrev: candidate.min_abbrev,
+            }),
+            method_prefix_matching,
+        );
+        let canonical = table.resolve(method).unique()?;
+        visible_methods
+            .into_iter()
+            .find(|candidate| candidate.name == canonical)
+    }
+
+    /// Resolve a concrete object-instance invocation to the same
+    /// target-neutral semantic projection used for ordinary commands.
+    ///
+    /// `args` starts with the method word and is followed by its arguments.
+    /// The class/factory command supplies the registry-owned method table, but
+    /// constructor-only command traits and effects are deliberately not
+    /// inherited by the instance call. A matching [`SubCommandForm`] may
+    /// replace the method row's coarse traits, mutator flag, and legacy side
+    /// effects for the concrete argument shape.
+    ///
+    /// [`SubCommandForm`]: crate::forms::SubCommandForm
+    #[must_use]
+    pub fn resolve_instance_invocation<'r, 'w>(
+        &'r self,
+        class_name: &str,
+        receiver: &'w str,
+        args: &'w [&'w str],
+        dialect: DialectSet,
+    ) -> Option<ResolvedInvocation<'r, 'w>> {
+        self.resolve_structured_instance_invocation(
+            class_name,
+            InvocationWords::literals(receiver, args),
+            dialect,
+        )
+    }
+
+    /// Source-aware companion to [`Self::resolve_instance_invocation`].
+    ///
+    /// The receiver is the invocation head. Only a literal method word can
+    /// select the class method table. Form-level literal selectors likewise
+    /// inspect only known literal words; a substituted operation word keeps
+    /// the conservative method-row semantics rather than guessing a form.
+    #[must_use]
+    pub fn resolve_structured_instance_invocation<'r, 'w>(
+        &'r self,
+        class_name: &str,
+        words: InvocationWords<'w>,
+        dialect: DialectSet,
+    ) -> Option<ResolvedInvocation<'r, 'w>> {
+        let arguments = words.arguments();
+        let method_spelling = arguments.literal_at(0)?;
+        let class_spec = if dialect.is_empty() {
+            self.get(class_name)?
+        } else {
+            self.get_for_dialect(class_name, dialect)?
+        };
+        class_spec.object_class?;
+        let method = self.instance_method(class_name, method_spelling)?;
+        let form = pick_form(method.subcommand_forms, arguments, 1, dialect);
+        let resolved_method = ResolvedSubcommand {
+            spelling: method_spelling,
+            canonical_name: method.name,
+        };
+        let subcommand = if method_spelling == method.name {
+            SubcommandResolution::Exact(resolved_method)
+        } else {
+            SubcommandResolution::UniquePrefix(resolved_method)
+        };
+        Some(ResolvedInvocation::new_instance(
+            words, class_spec, method, form, subcommand,
+        ))
     }
 
     /// Resolve the [`ArgRole::CommandPrefix`] positions and appended arities for
@@ -2096,6 +2391,241 @@ impl CommandRegistry {
             return Traits::empty();
         };
         resolved.spec.traits | resolved.sub.map_or_else(Traits::empty, |sub| sub.traits)
+    }
+
+    /// When the script at 0-based argument `index` runs relative to this
+    /// concrete invocation.
+    ///
+    /// Script-valued options carry an exact per-value [`ScriptTiming`] fact, so
+    /// one invocation may safely mix immediate, deferred, and reference-only
+    /// executable text. A command or subcommand [`ScriptTimingResolver`]
+    /// supplies the same exact fact for positional forms whose timing depends
+    /// on their written arguments.
+    /// Invocation-wide [`Traits::DEFERS_BODY`] remains the compatibility
+    /// fallback. `None` means `index` is not a supplied executable position.
+    ///
+    /// [`ScriptTiming`]: crate::hover::ScriptTiming
+    /// [`ScriptTimingResolver`]: crate::spec::ScriptTimingResolver
+    #[must_use]
+    pub fn script_timing(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+        dialect: DialectSet,
+    ) -> Option<crate::hover::ScriptTiming> {
+        let resolved = self.resolve_invocation(name, args, dialect)?;
+        let spec = if dialect.is_empty() {
+            self.get(resolved.canonical_command)?
+        } else {
+            self.get_for_dialect(resolved.canonical_command, dialect)?
+        };
+        let sub = resolved
+            .subcommand
+            .resolved()
+            .and_then(|subcommand| spec.subcommand(subcommand.canonical_name));
+        let is_executable = ArgRole::ALL
+            .iter()
+            .copied()
+            .filter(|role| role.has_script_timing())
+            .any(|role| self.arg_indices_for_role(name, args, role).contains(&index));
+        if !is_executable {
+            return None;
+        }
+
+        let (timing_resolver, offset) = sub.map_or((spec.script_timing_resolver, 0usize), |sub| {
+            (sub.script_timing_resolver, 1usize)
+        });
+        if let Some(resolve) = timing_resolver
+            && let Some(relative) = index.checked_sub(offset)
+            && let Some((_, timing)) = resolve(args.get(offset..).unwrap_or(&[]))
+                .into_iter()
+                .find(|(position, _)| usize::from(*position) == relative)
+        {
+            return Some(timing);
+        }
+
+        // An invocation-sensitive resolver is the exact fact and therefore
+        // precedes an option's static default. This matters for APIs such as
+        // `bibtex::parse`: the same callback option runs synchronously for an
+        // in-memory input but is stored when `-channel` selects background
+        // parsing. Resolver silence deliberately falls through to the option.
+        let options = resolved.semantics.options.base;
+        let scan_start = resolved.semantics.argument_offset;
+        if let Some(timing) = option_script_timing_at(options, args, scan_start, index) {
+            return Some(timing);
+        }
+
+        Some(if resolved.semantics.traits.contains(Traits::DEFERS_BODY) {
+            crate::hover::ScriptTiming::Deferred
+        } else {
+            crate::hover::ScriptTiming::SameInvocation
+        })
+    }
+
+    /// User-controlled values that this concrete deferred callback host
+    /// substitutes into argument `index` before Tcl evaluates it.
+    ///
+    /// This is deliberately a registry query rather than a Tk-specific
+    /// compiler table. It unifies positional callback bodies (`bind`) and
+    /// option values (`entry -validatecommand`), and only returns a non-empty
+    /// list when the selected executable position is declared to receive an
+    /// external value. Framework metadata is not inferred as taint.
+    #[must_use]
+    pub fn callback_taint_inputs(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+        dialect: DialectSet,
+    ) -> &'static [CallbackTaintInput] {
+        let Some(resolved) = self.resolve_invocation(name, args, dialect) else {
+            return &[];
+        };
+        let Some(spec) = (if dialect.is_empty() {
+            self.get(resolved.canonical_command)
+        } else {
+            self.get_for_dialect(resolved.canonical_command, dialect)
+        }) else {
+            return &[];
+        };
+        let sub = resolved
+            .subcommand
+            .resolved()
+            .and_then(|subcommand| spec.subcommand(subcommand.canonical_name));
+        let (table, offset) = sub.map_or((spec.callback_taint_inputs, 0usize), |sub| {
+            (sub.callback_taint_inputs, 1usize)
+        });
+        let options = resolved.semantics.options.base;
+        let scan_start = resolved.semantics.argument_offset;
+        if let Some(inputs) = option_callback_taint_inputs_at(options, args, scan_start, index) {
+            return if option_script_timing_at(options, args, scan_start, index)
+                == Some(crate::hover::ScriptTiming::Deferred)
+            {
+                inputs
+            } else {
+                &[]
+            };
+        }
+        if self
+            .script_timing(name, args, index, dialect)
+            .is_none_or(|timing| timing != crate::hover::ScriptTiming::Deferred)
+        {
+            return &[];
+        }
+        let Some(relative) = index.checked_sub(offset) else {
+            return &[];
+        };
+        table
+            .iter()
+            .find_map(|(at, inputs)| (usize::from(*at) == relative).then_some(*inputs))
+            .unwrap_or(&[])
+    }
+
+    /// User-controlled values that a resolved instance method substitutes
+    /// into argument `index` before evaluating its deferred callback.
+    ///
+    /// `args` starts with the instance method word. The query is the
+    /// object-dispatch counterpart of [`Self::callback_taint_inputs`]: it
+    /// resolves the receiver class and method through the same registry table,
+    /// then consults the method's positional callback table or its declared
+    /// options. A method form carrying [`Traits::CONFIGURES_INSTANCE_OPTIONS`]
+    /// inherits the owning class's option table, which is how widget
+    /// `configure` setters expose constructor options without a command-name
+    /// branch. Unknown/dynamic methods and non-deferred positions abstain.
+    #[must_use]
+    pub fn instance_callback_taint_inputs(
+        &self,
+        class_name: &str,
+        receiver: &str,
+        args: &[&str],
+        index: usize,
+        dialect: DialectSet,
+    ) -> &'static [CallbackTaintInput] {
+        let Some(resolved) = self.resolve_instance_invocation(class_name, receiver, args, dialect)
+        else {
+            return &[];
+        };
+        let Some(method_spelling) = args.first() else {
+            return &[];
+        };
+        let Some(method) = self.instance_method(class_name, method_spelling) else {
+            return &[];
+        };
+        let Some(relative) = index.checked_sub(1) else {
+            return &[];
+        };
+
+        let options = if resolved
+            .semantics
+            .traits
+            .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
+        {
+            let class_spec = if dialect.is_empty() {
+                self.get(class_name)
+            } else {
+                self.get_for_dialect(class_name, dialect)
+            };
+            let Some(class_spec) = class_spec else {
+                return &[];
+            };
+            class_spec.options
+        } else {
+            method.options
+        };
+        let option_inputs = option_callback_taint_inputs_at(options, args, 1, index);
+        if let Some(inputs) = option_inputs {
+            return if option_script_timing_at(options, args, 1, index)
+                == Some(crate::hover::ScriptTiming::Deferred)
+            {
+                inputs
+            } else {
+                &[]
+            };
+        }
+
+        let timing = method
+            .script_timing_resolver
+            .and_then(|resolve| {
+                resolve(args.get(1..).unwrap_or(&[]))
+                    .into_iter()
+                    .find_map(|(at, timing)| (usize::from(at) == relative).then_some(timing))
+            })
+            .unwrap_or_else(|| {
+                if resolved.semantics.traits.contains(Traits::DEFERS_BODY) {
+                    crate::hover::ScriptTiming::Deferred
+                } else {
+                    crate::hover::ScriptTiming::SameInvocation
+                }
+            });
+        if timing != crate::hover::ScriptTiming::Deferred {
+            return &[];
+        }
+        method
+            .callback_taint_inputs
+            .iter()
+            .find_map(|(at, inputs)| (usize::from(*at) == relative).then_some(*inputs))
+            .unwrap_or(&[])
+    }
+
+    /// Variable frame of the option value at 0-based argument `index`.
+    ///
+    /// `None` means that `index` is not a variable-name option value. The
+    /// returned scope is registry data and therefore applies uniformly to
+    /// lowering, SSA, and taint analysis without command-name branches.
+    #[must_use]
+    pub fn option_variable_scope(
+        &self,
+        name: &str,
+        args: &[&str],
+        index: usize,
+        dialect: DialectSet,
+    ) -> Option<crate::hover::VariableScope> {
+        let resolved = self.resolve_call(name, args, dialect)?;
+        let (options, scan_start) = resolved
+            .sub
+            .map_or((resolved.spec.options, 0), |sub| (sub.options, 1));
+        option_variable_scope_at(options, args, scan_start, index)
     }
 
     /// Classify one body argument of a typed control-flow invocation.
@@ -3713,16 +4243,10 @@ impl CommandRegistry {
         let arguments = words.arguments();
         let (subcommand, sub) = resolve_semantic_subcommand(spec, arguments, dialect);
         let form = match (sub, spec.subcommands.is_empty(), arguments.is_empty()) {
-            (Some(sub), _, _) => arguments.exact_argv_len().and_then(|argument_count| {
-                argument_count
-                    .checked_sub(1)
-                    .and_then(|sub_argument_count| {
-                        pick_form(sub.subcommand_forms, sub_argument_count, dialect)
-                    })
-            }),
-            (None, true, _) | (None, false, true) => arguments
-                .exact_argv_len()
-                .and_then(|argument_count| pick_form(spec.command_forms, argument_count, dialect)),
+            (Some(sub), _, _) => pick_form(sub.subcommand_forms, arguments, 1, dialect),
+            (None, true, _) | (None, false, true) => {
+                pick_form(spec.command_forms, arguments, 0, dialect)
+            }
             (None, false, false) => None,
         };
         StructuredInvocationResolution {
@@ -3813,20 +4337,27 @@ impl CommandRegistry {
             && let Some(first) = args.first()
             && let Some(sub) = spec.subcommand(first)
         {
-            // Re-slice rather than allocating a fresh `Vec<&str>` — this is
-            // on the lowering, analysis, and codegen hot path.
-            let sub_args: &[&str] = args.get(1..).unwrap_or(&[]);
             return Some(InvocationSelection {
                 spec,
                 sub: Some(sub),
-                form: pick_form(sub.subcommand_forms, sub_args.len(), dialect),
+                form: pick_form(
+                    sub.subcommand_forms,
+                    InvocationArguments::literals(args),
+                    1,
+                    dialect,
+                ),
             });
         }
 
         Some(InvocationSelection {
             spec,
             sub: None,
-            form: pick_form(spec.command_forms, args.len(), dialect),
+            form: pick_form(
+                spec.command_forms,
+                InvocationArguments::literals(args),
+                0,
+                dialect,
+            ),
         })
     }
 
@@ -4171,8 +4702,8 @@ impl ResolvedCall<'_> {
     }
 }
 
-/// The first [`CommandForm`] whose arity accepts `argument_count` and whose
-/// dialect gate admits `dialect`.
+/// Select the [`CommandForm`] whose arity, dialect, and optional literal
+/// argument-prefix selector match the invocation.
 ///
 /// **No lifecycle filter, because there is nothing to filter on.**
 /// [`CommandForm`] — the *semantic* form, which routes lowering / codegen
@@ -4183,20 +4714,98 @@ impl ResolvedCall<'_> {
 /// gains a lifecycle, this is where the same `package_version: Option<&str>`
 /// parameter belongs — every caller here already threads a `dialect` through
 /// and could thread a floor beside it.
-fn pick_form(
-    forms: &[CommandForm],
-    argument_count: usize,
+fn pick_form<'r>(
+    forms: &'r [CommandForm],
+    arguments: InvocationArguments<'_>,
+    argument_offset: usize,
     dialect: DialectSet,
-) -> Option<&CommandForm> {
+) -> Option<&'r CommandForm> {
+    let argument_count = arguments.exact_argv_len()?.checked_sub(argument_offset)?;
     let n = u16::try_from(argument_count).unwrap_or(u16::MAX);
-    forms.iter().find(|f| {
-        if !f.arity.accepts(n) {
-            return false;
+    let admits_dialect = |form: &CommandForm| !matches!(form.dialects, Some(d) if !dialect.is_empty() && !d.intersects(dialect));
+    // Resolve each selector word as its own Tcl keyword table. This matters
+    // for nested operations: `tag c ...` is ambiguous between `cell` and
+    // `configure` before a later word can be inspected, while `tag cell h`
+    // first resolves `cell` exactly and then uniquely prefixes `has`.
+    //
+    // Keep walking after a selector completes: a sibling may extend it
+    // (`tag` beside `tag bind`), and the longest statically matched selector
+    // wins. A dynamic word while such an extension remains viable abstains;
+    // it may turn out to be the longer selector at runtime.
+    let mut active: Vec<&CommandForm> = forms
+        .iter()
+        .filter(|form| admits_dialect(form) && form.literal_argument_prefix.is_some())
+        .collect();
+    let mut selected = None;
+    for selector_index in 0..argument_count {
+        active.retain(|form| {
+            form.literal_argument_prefix
+                .is_some_and(|selector| selector.words.len() > selector_index)
+        });
+        if active.is_empty() {
+            break;
         }
-        match f.dialects {
-            Some(d) if !dialect.is_empty() => d.intersects(dialect),
-            _ => true,
+        let spelling = arguments.literal_at(argument_offset + selector_index)?;
+        let mut has_exact_word = false;
+        let mut abbreviated_word = None;
+        let mut abbreviated_ambiguous = false;
+
+        for form in &active {
+            let selector = form
+                .literal_argument_prefix
+                .expect("active forms have literal selectors");
+            let canonical = selector.words[selector_index];
+            if spelling == canonical {
+                has_exact_word = true;
+            } else if selector.prefix_matching.accepts_prefixes()
+                && !spelling.is_empty()
+                && canonical.starts_with(spelling)
+            {
+                if abbreviated_word.is_some_and(|word| word != canonical) {
+                    abbreviated_ambiguous = true;
+                } else {
+                    abbreviated_word = Some(canonical);
+                }
+            }
         }
+
+        let canonical = if has_exact_word {
+            spelling
+        } else if abbreviated_ambiguous {
+            return None;
+        } else if let Some(abbreviated) = abbreviated_word {
+            abbreviated
+        } else {
+            break;
+        };
+        active.retain(|form| {
+            let selector = form
+                .literal_argument_prefix
+                .expect("active forms have literal selectors");
+            selector.words[selector_index] == canonical
+                && (spelling == canonical || selector.prefix_matching.accepts_prefixes())
+        });
+        if let Some(form) = active.iter().copied().find(|form| {
+            form.arity.accepts(n)
+                && form
+                    .literal_argument_prefix
+                    .is_some_and(|selector| selector.words.len() == selector_index + 1)
+        }) {
+            selected = Some(form);
+        }
+    }
+    if selected.is_some() {
+        return selected;
+    }
+
+    let selector_overlaps_arity = forms.iter().any(|form| {
+        admits_dialect(form) && form.arity.accepts(n) && form.literal_argument_prefix.is_some()
+    });
+    if selector_overlaps_arity {
+        return None;
+    }
+    forms.iter().find(|form| {
+        admits_dialect(form) && form.arity.accepts(n) && form.literal_argument_prefix.is_none()
     })
 }
 
@@ -4266,6 +4875,7 @@ impl std::fmt::Debug for CommandRegistry {
 #[cfg(test)]
 mod tests {
     use super::CommandRegistry;
+    use crate::forms::LiteralArgumentPrefix;
 
     // -- ambient packages (issue #1627) -----------------------------------
 
@@ -4505,24 +5115,28 @@ mod tests {
             instance_methods: &[],
             superclasses: &["Left", "Right"],
             allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
         };
         static LEFT: ObjectClassSpec = ObjectClassSpec {
             class_name: "Left",
             instance_methods: &M_LEFT,
             superclasses: &["Base"],
             allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
         };
         static RIGHT: ObjectClassSpec = ObjectClassSpec {
             class_name: "Right",
             instance_methods: &M_RIGHT,
             superclasses: &["Base"],
             allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
         };
         static BASE: ObjectClassSpec = ObjectClassSpec {
             class_name: "Base",
             instance_methods: &M_BASE,
             superclasses: &[],
             allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
         };
 
         let mut reg = CommandRegistry::build_default();
@@ -4540,6 +5154,64 @@ mod tests {
         assert_eq!(
             resolved.detail, "left",
             "breadth-first, declaration-ordered walk visits Left before Right"
+        );
+    }
+
+    #[test]
+    fn instance_method_at_honours_explicit_package_and_dialect_gates() {
+        use crate::spec::ObjectClassSpec;
+
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "later",
+            dialects: Some(DialectSet::TCL91),
+            lifecycle: Lifecycle::introduced_in("9.1"),
+            ..SubCommand::DEFAULT
+        }];
+        static CLASS: ObjectClassSpec = ObjectClassSpec {
+            class_name: "VersionedClass",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: CLASS.class_name,
+            required_package: Some("Demo"),
+            object_class: Some(&CLASS),
+            ..CommandSpec::DEFAULT
+        });
+
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.0"),
+                Some(DialectSet::TCL91)
+            )
+            .is_none(),
+            "the explicit owning-package floor rejects a future method"
+        );
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.1"),
+                Some(DialectSet::TCL90)
+            )
+            .is_none(),
+            "the method's own dialect gate remains independent of lifecycle"
+        );
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.1"),
+                Some(DialectSet::TCL91)
+            )
+            .is_some(),
+            "both registry-declared availability axes admit the method"
         );
     }
 
@@ -5725,6 +6397,483 @@ mod tests {
     }
 
     #[test]
+    fn script_timing_is_exact_for_mixed_immediate_and_deferred_arguments() {
+        use crate::hover::{OptionSpec, OptionValue, ScriptTiming};
+
+        static OPTIONS: &[OptionSpec] = &[OptionSpec {
+            name: "-later",
+            value: OptionValue::deferred_script(),
+            detail: "stored callback",
+            ..OptionSpec::DEFAULT
+        }];
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: "mixed-script-timing",
+            arity: crate::Arity::exact(3),
+            arg_roles: &[(0, ArgRole::Body)],
+            options: OPTIONS,
+            ..CommandSpec::DEFAULT
+        });
+
+        let args = ["{error now}", "-later", "{error later}"];
+        assert_eq!(
+            reg.script_timing("mixed-script-timing", &args, 0, DialectSet::empty()),
+            Some(ScriptTiming::SameInvocation),
+        );
+        assert_eq!(
+            reg.script_timing("mixed-script-timing", &args, 2, DialectSet::empty()),
+            Some(ScriptTiming::Deferred),
+        );
+        assert_eq!(
+            reg.script_timing("mixed-script-timing", &args, 1, DialectSet::empty()),
+            None,
+        );
+    }
+
+    #[test]
+    fn shipped_script_options_distinguish_tk_callbacks_from_tcltest_bodies() {
+        use crate::hover::ScriptTiming;
+
+        let reg = CommandRegistry::build_default();
+        let button = [".b", "-command", "{return}"];
+        assert_eq!(
+            reg.script_timing("button", &button, 2, DialectSet::empty()),
+            Some(ScriptTiming::Deferred),
+        );
+
+        let test = ["sample", "description", "-body", "{error failure}"];
+        assert_eq!(
+            reg.script_timing("tcltest::test", &test, 3, DialectSet::empty()),
+            Some(ScriptTiming::SameInvocation),
+        );
+
+        let dump = ["dump", "-command", "visit", "1.0"];
+        assert_eq!(
+            reg.script_timing("text", &dump, 2, DialectSet::empty()),
+            Some(ScriptTiming::SameInvocation),
+            "text dump calls its prefix synchronously for each returned item"
+        );
+        let sync = ["sync", "-command", "ready"];
+        assert_eq!(
+            reg.script_timing("text", &sync, 2, DialectSet::empty()),
+            Some(ScriptTiming::Deferred),
+            "text sync schedules its prefix after metrics become current"
+        );
+    }
+
+    #[test]
+    fn callback_taint_inputs_are_exact_and_exclude_tk_bookkeeping() {
+        use crate::CallbackTaintInput;
+
+        let reg = CommandRegistry::build_default();
+        let validation = [".entry", "-validatecommand", "{eval %P}"];
+        assert_eq!(
+            reg.callback_taint_inputs("entry", &validation, 2, DialectSet::empty()),
+            &[
+                CallbackTaintInput::TK_PROPOSED_VALUE,
+                CallbackTaintInput::TK_CURRENT_VALUE,
+                CallbackTaintInput::TK_EDIT_TEXT,
+            ],
+        );
+        let bind = [".entry", "<Key>", "{eval %A}"];
+        assert_eq!(
+            reg.callback_taint_inputs("bind", &bind, 2, DialectSet::empty()),
+            &[CallbackTaintInput::TK_EVENT_CHAR],
+        );
+        let plain_command = [".entry", "-command", "{eval %P}"];
+        assert!(
+            reg.callback_taint_inputs("button", &plain_command, 2, DialectSet::empty())
+                .is_empty(),
+            "a deferred callback without user substitutions must stay clean"
+        );
+
+        let canvas_bind = ["bi", "item", "<Key>", "{eval %A}"];
+        assert_eq!(
+            reg.callback_taint_inputs("canvas", &canvas_bind, 3, DialectSet::empty()),
+            &[CallbackTaintInput::TK_EVENT_CHAR],
+            "a unique-prefix widget subcommand must select its callback table"
+        );
+
+        let abbreviated_configure = ["conf", "-validatecommand", "{eval %P}"];
+        assert_eq!(
+            reg.instance_callback_taint_inputs(
+                "entry",
+                ".entry",
+                &abbreviated_configure,
+                2,
+                DialectSet::empty(),
+            ),
+            &[
+                CallbackTaintInput::TK_PROPOSED_VALUE,
+                CallbackTaintInput::TK_CURRENT_VALUE,
+                CallbackTaintInput::TK_EDIT_TEXT,
+            ],
+            "a unique-prefix widget method must inherit constructor callback options"
+        );
+
+        let instance_bind = ["bind", "all", "<Key>", "{eval %A}"];
+        assert_eq!(
+            reg.instance_callback_taint_inputs(
+                "canvas",
+                ".canvas",
+                &instance_bind,
+                3,
+                DialectSet::empty(),
+            ),
+            &[CallbackTaintInput::TK_EVENT_CHAR],
+            "a positional instance-method callback must use its method table"
+        );
+        assert!(
+            reg.instance_callback_taint_inputs(
+                "entry",
+                ".entry",
+                &["configure", "-validatecommand"],
+                1,
+                DialectSet::empty(),
+            )
+            .is_empty(),
+            "the option word itself is not callback text"
+        );
+    }
+
+    #[test]
+    fn argument_sensitive_timing_distinguishes_registration_and_send_forms() {
+        use crate::hover::ScriptTiming;
+
+        let reg = CommandRegistry::build_default();
+        assert_eq!(
+            reg.script_timing(
+                "canvas",
+                &["bind", "tag", "<Button-1>", "clicked"],
+                3,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+        );
+        assert_eq!(
+            reg.script_timing(
+                "canvas",
+                &["bi", "tag", "<Button-1>", "clicked"],
+                3,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+            "canvas bind's unique prefix must select the positional timing resolver",
+        );
+        assert_eq!(
+            reg.script_timing(
+                "wm",
+                &["protocol", ".w", "WM_DELETE_WINDOW", "close"],
+                3,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+        );
+        assert_eq!(
+            reg.script_timing(
+                "wm",
+                &["prot", ".w", "WM_DELETE_WINDOW", "close"],
+                3,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+            "wm protocol's unique prefix must not fall back to same-invocation timing",
+        );
+        assert_eq!(
+            reg.script_timing("send", &["other", "work"], 1, DialectSet::empty()),
+            Some(ScriptTiming::SameInvocation),
+        );
+        assert_eq!(
+            reg.script_timing("send", &["-async", "other", "work"], 2, DialectSet::empty(),),
+            Some(ScriptTiming::Deferred),
+        );
+        assert_eq!(
+            reg.script_timing(
+                "send",
+                &["-async", "other", "work", "argument"],
+                2,
+                DialectSet::empty(),
+            ),
+            None,
+            "a concatenated multi-word script is not a fictional Body position",
+        );
+        assert_eq!(
+            reg.script_timing(
+                "selection",
+                &["handle", "-type", "UTF8_STRING", ".w", "provide"],
+                4,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+        );
+        assert_eq!(
+            reg.script_timing(
+                "selection",
+                &["h", "-type", "UTF8_STRING", ".w", "provide"],
+                4,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+            "selection handle's unique prefix must select its positional timing resolver",
+        );
+        assert_eq!(
+            reg.script_timing(
+                "selection",
+                &["o", "-command", "lost", ".w"],
+                2,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+            "subcommand option timing must use the same unique-prefix resolution",
+        );
+    }
+
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn command_prefix_hosts_report_their_exact_phase() {
+        use crate::hover::ScriptTiming;
+
+        let reg = CommandRegistry::build_default();
+        let cases: &[(&str, &[&str], usize, ScriptTiming)] = &[
+            // Immediate consumers execute the prefix before returning.
+            (
+                "lsort",
+                &["-command", "compare", "{b a}"],
+                1,
+                ScriptTiming::SameInvocation,
+            ),
+            (
+                "coroprobe",
+                &["worker", "inspect"],
+                1,
+                ScriptTiming::SameInvocation,
+            ),
+            (
+                "generator",
+                &["reduce", "combine", "0", "values"],
+                1,
+                ScriptTiming::SameInvocation,
+            ),
+            // Registration and asynchronous forms store the prefix.
+            (
+                "socket",
+                &["-server", "accept", "0"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "fcopy",
+                &["in", "out", "-command", "done"],
+                3,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "chan",
+                &["copy", "in", "out", "-command", "done"],
+                4,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "interp",
+                &["alias", "", "aliasName", "", "target"],
+                4,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "interp",
+                &["bgerror", "", "handler"],
+                2,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "namespace",
+                &["unknown", "handler"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "package",
+                &["unknown", "handler"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "coroinject",
+                &["worker", "handler"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "tcltest::customMatch",
+                &["mode", "handler"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "trace",
+                &["add", "variable", "v", "write", "handler"],
+                4,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "trace",
+                &["variable", "v", "w", "handler"],
+                3,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "generator",
+                &["map", "transform", "values"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "hook",
+                &["bind", "subject", "name", "observer", "handler"],
+                4,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "comm::comm",
+                &["send", "-command", "handler", "peer", "work"],
+                2,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "mime::getbody",
+                &["token", "-command", "handler"],
+                2,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "stringprep::register",
+                &["profile", "-prohibitedCommand", "handler"],
+                2,
+                ScriptTiming::Deferred,
+            ),
+            (
+                "tcl::chan::halfpipe",
+                &["-close-command", "handler"],
+                1,
+                ScriptTiming::Deferred,
+            ),
+            // Removal forms name executable text without running or storing it.
+            (
+                "trace",
+                &["remove", "variable", "v", "write", "handler"],
+                4,
+                ScriptTiming::ReferenceOnly,
+            ),
+            (
+                "trace",
+                &["vdelete", "v", "w", "handler"],
+                3,
+                ScriptTiming::ReferenceOnly,
+            ),
+        ];
+
+        for &(command, args, index, expected) in cases {
+            assert_eq!(
+                reg.script_timing(command, args, index, DialectSet::empty()),
+                Some(expected),
+                "wrong phase for {command} {args:?} argument {index}",
+            );
+        }
+
+        assert_eq!(
+            reg.script_timing(
+                "trace",
+                &["a", "v", "v", "write", "handler"],
+                4,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::Deferred),
+            "unique-prefix subcommands and trace types preserve phase metadata",
+        );
+    }
+
+    #[test]
+    fn option_timing_resolver_overrides_static_default_for_bibtex_input_mode() {
+        use crate::hover::ScriptTiming;
+
+        let reg = CommandRegistry::build_default();
+        let in_memory = ["-recordcommand", "record", "@book{x}"];
+        assert_eq!(
+            reg.script_timing("bibtex::parse", &in_memory, 1, DialectSet::empty()),
+            Some(ScriptTiming::SameInvocation),
+        );
+
+        let channel = ["-recordcommand", "record", "-channel", "input"];
+        assert_eq!(
+            reg.script_timing("bibtex::parse", &channel, 1, DialectSet::empty()),
+            Some(ScriptTiming::Deferred),
+        );
+
+        let completion = ["-command", "done", "-channel", "input"];
+        assert_eq!(
+            reg.script_timing("bibtex::parse", &completion, 1, DialectSet::empty()),
+            Some(ScriptTiming::Deferred),
+        );
+    }
+
+    #[test]
+    fn known_stored_tk_command_prefixes_are_deferred() {
+        use crate::hover::ScriptTiming;
+
+        let reg = CommandRegistry::build_default();
+        let stored = [
+            ("canvas", "-xscrollcommand"),
+            ("canvas", "-yscrollcommand"),
+            ("entry", "-xscrollcommand"),
+            ("listbox", "-xscrollcommand"),
+            ("listbox", "-yscrollcommand"),
+            ("menu", "-tearoffcommand"),
+            ("scale", "-command"),
+            ("scrollbar", "-command"),
+            ("spinbox", "-xscrollcommand"),
+            ("text", "-xscrollcommand"),
+            ("text", "-yscrollcommand"),
+            ("ttk::combobox", "-xscrollcommand"),
+            ("ttk::entry", "-xscrollcommand"),
+            ("ttk::scale", "-command"),
+            ("ttk::scrollbar", "-command"),
+            ("ttk::spinbox", "-xscrollcommand"),
+            ("ttk::treeview", "-xscrollcommand"),
+            ("ttk::treeview", "-yscrollcommand"),
+            ("tk_chooseDirectory", "-command"),
+            ("tk_getOpenFile", "-command"),
+            ("tk_getSaveFile", "-command"),
+            ("tk_messageBox", "-command"),
+        ];
+        for (command, option) in stored {
+            assert_eq!(
+                reg.script_timing(command, &[".w", option, "callback"], 2, DialectSet::empty()),
+                Some(ScriptTiming::Deferred),
+                "{command} {option} stores its command prefix",
+            );
+        }
+
+        assert_eq!(
+            reg.script_timing(
+                "text",
+                &["dump", "-command", "visit", "1.0"],
+                2,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::SameInvocation),
+        );
+        assert_eq!(
+            reg.script_timing(
+                "ttk::treeview",
+                &["sort", "-command", "compare"],
+                2,
+                DialectSet::empty(),
+            ),
+            Some(ScriptTiming::SameInvocation),
+        );
+    }
+
+    #[test]
     fn option_value_fixed_arity_emits_n_indices() {
         use crate::hover::OptionValue;
         let options = [opt("-rect", OptionValue::fixed(4, ArgRole::Value, "coord"))];
@@ -6269,10 +7418,13 @@ mod tests {
             reg.command_prefixes("ttk::scale", &[".s", "-command", "cb"]),
             vec![(2, AppendedArity::Exactly(1))],
         );
-        // scrollbar -command: `moveto frac` (2) or `scroll n units` (3) ⇒ AtLeast(2).
+        // scrollbar -command: `moveto frac` (2) or `scroll n units` (3).
         assert_eq!(
             reg.command_prefixes("scrollbar", &[".sb", "-command", "cb"]),
-            vec![(2, AppendedArity::AtLeast(2))],
+            vec![(
+                2,
+                AppendedArity::OneOf(crate::AppendedAritySet::from_sorted_unique(&[2, 3]))
+            )],
         );
         // menu -tearoffcommand appends the parent + torn-off menu paths (2).
         assert_eq!(
@@ -7872,6 +9024,82 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn literal_form_selectors_choose_the_longest_static_match() {
+        const FORMS: &[CommandForm] = &[
+            CommandForm {
+                name: "tag-one",
+                arity: Arity::exact(1),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["tag"])),
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "tag-fallback",
+                arity: Arity::exact(3),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["tag"])),
+                ..CommandForm::DEFAULT
+            },
+            CommandForm {
+                name: "tag-bind",
+                arity: Arity::exact(3),
+                literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["tag", "bind"])),
+                ..CommandForm::DEFAULT
+            },
+        ];
+        const SPEC: CommandSpec = CommandSpec {
+            name: "literal-form-fixture",
+            arity: Arity::any(),
+            command_forms: FORMS,
+            ..CommandSpec::DEFAULT
+        };
+
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(SPEC);
+        let form = |args: &[&str]| {
+            registry
+                .resolve_invocation("literal-form-fixture", args, DialectSet::empty())
+                .and_then(|resolved| resolved.form)
+                .map(|form| form.name)
+        };
+
+        assert_eq!(form(&["tag"]), Some("tag-one"), "arity disambiguates");
+        assert_eq!(
+            form(&["tag", "bind", "script"]),
+            Some("tag-bind"),
+            "the longer selector overrides its completed prefix"
+        );
+        assert_eq!(
+            form(&["ta", "bi", "script"]),
+            Some("tag-bind"),
+            "each selector word still accepts a unique abbreviation"
+        );
+        assert_eq!(
+            form(&["tag", "other", "value"]),
+            Some("tag-fallback"),
+            "a static non-match proves that the shorter selector applies"
+        );
+
+        let dynamic = [
+            InvocationWord::Literal("tag"),
+            InvocationWord::Dynamic,
+            InvocationWord::Literal("script"),
+        ];
+        let resolved = registry
+            .resolve_structured_invocation(
+                InvocationWords::structured(
+                    InvocationWord::Literal("literal-form-fixture"),
+                    &dynamic,
+                ),
+                DialectSet::empty(),
+            )
+            .resolved()
+            .expect("fixture command resolves");
+        assert!(
+            resolved.form.is_none(),
+            "a dynamic word that could extend a completed selector must abstain"
+        );
     }
 
     #[test]

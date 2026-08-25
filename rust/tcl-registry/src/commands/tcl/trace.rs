@@ -859,8 +859,22 @@ fn trace_add_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appe
     trace_type_command_prefix(args, true)
 }
 
+fn trace_add_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() > 3)
+        .then_some((3, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 fn trace_remove_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_type_command_prefix(args, false)
+}
+
+fn trace_remove_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() > 3)
+        .then_some((3, ScriptTiming::ReferenceOnly))
+        .into_iter()
+        .collect()
 }
 
 /// Deprecated `trace variable name ops command` / `trace vdelete …` — the
@@ -886,8 +900,22 @@ fn trace_variable_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8,
     trace_legacy_command_prefix(args, true)
 }
 
+fn trace_variable_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() > 2)
+        .then_some((2, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 fn trace_vdelete_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
     trace_legacy_command_prefix(args, false)
+}
+
+fn trace_vdelete_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() > 2)
+        .then_some((2, ScriptTiming::ReferenceOnly))
+        .into_iter()
+        .collect()
 }
 
 /// The `type` word taken by `trace add|remove|info` (relative index 0,
@@ -1037,7 +1065,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // spelled name, so command identities are observable data here too.
         traits: Traits::TARGETS_VARIABLE_BY_NAME
             .union(Traits::ESTABLISHES_VARIABLE_TRACE)
-            .union(Traits::REFLECTS_COMMAND_NAMES),
+            .union(Traits::REFLECTS_COMMAND_NAMES)
+            .union(Traits::DEFERS_BODY),
         arity: Arity::exact(4),
         detail: "Arrange for commandPrefix to be invoked, with operation-specific arguments appended, whenever the variable/command/execution named by name undergoes one of the operations in ops. For type command or execution, name must already exist or this throws an error; for type variable, a nonexistent name is instead silently created without a value (visible to a namespace which query but not to info exists, until something writes it). Present, with this exact 4-argument shape, in every Tcl release from 8.4 through 9.1.",
         synopsis: "trace add type name ops commandPrefix",
@@ -1045,6 +1074,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_add_arg_roles),
         command_prefix_resolver: Some(trace_add_command_prefixes),
+        script_timing_resolver: Some(trace_add_script_timing),
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -1097,6 +1127,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_remove_arg_roles),
         command_prefix_resolver: Some(trace_remove_command_prefixes),
+        script_timing_resolver: Some(trace_remove_script_timing),
         arg_values: &[(0, TRACE_TYPE_VALUES), (2, TRACE_OPS_VALUES)],
         closed_value_args: &[0],
         arg_values_accept_prefix: true,
@@ -1113,7 +1144,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "variable",
-        traits: Traits::TARGETS_VARIABLE_BY_NAME.union(Traits::ESTABLISHES_VARIABLE_TRACE),
+        traits: Traits::TARGETS_VARIABLE_BY_NAME
+            .union(Traits::ESTABLISHES_VARIABLE_TRACE)
+            .union(Traits::DEFERS_BODY),
         arity: Arity::exact(3),
         detail: "Arrange for command to be executed whenever variable name is accessed, using the legacy single-letter ops encoding (a/r/w/u, concatenated with no separator, e.g. rwu). Equivalent to trace add variable name ops command. Deprecated throughout 8.4-8.6; removed in Tcl 9.0 (absent from the 9.0/9.1 manpages' synopsis and body alike).",
         synopsis: "trace variable name ops command",
@@ -1121,6 +1154,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_legacy_arg_roles),
         command_prefix_resolver: Some(trace_variable_command_prefixes),
+        script_timing_resolver: Some(trace_variable_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,
@@ -1152,6 +1186,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         mutator: true,
         arg_role_resolver: Some(trace_legacy_arg_roles),
         command_prefix_resolver: Some(trace_vdelete_command_prefixes),
+        script_timing_resolver: Some(trace_vdelete_script_timing),
         arg_values: &[(1, TRACE_LEGACY_OPS_VALUES)],
         side_effects: &[SideEffect {
             target: SideEffectTarget::InterpState,

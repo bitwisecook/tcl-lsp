@@ -658,8 +658,21 @@ fn registry_barrier_defs(
                 // A brace-quoted name word is a literal name, `$` and all
                 // (issue #1078).
                 let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
-                args.get(idx)
-                    .map(|s| crate::naming::element_var_name_braced(s, braced).to_owned())
+                args.get(idx).map(|s| {
+                    let name = crate::naming::element_var_name_braced(s, braced);
+                    if reg.option_variable_scope(
+                        command,
+                        &arg_strs,
+                        idx,
+                        reg.own_availability_mask(),
+                    ) == Some(tcl_registry::VariableScope::Global)
+                        && !name.starts_with("::")
+                    {
+                        format!("::{name}")
+                    } else {
+                        name.to_owned()
+                    }
+                })
             })
             .filter(|n| !n.is_empty()),
     );
@@ -2309,6 +2322,191 @@ struct RenameOutputs {
     stmt_infos: HashMap<BlockId, Vec<SsaStatement>>,
 }
 
+/// Add variable definitions introduced through a registry-typed instance's
+/// class option table (for example a widget's linked input variable).
+///
+/// The ordinary registry def scan sees direct command heads. Runtime object
+/// commands (`.entry configure …`, `$widget configure …`) need the same scan
+/// after resolving their receiver class. The method opt-in and the option's
+/// external-input bit are both registry data; this layer names neither a
+/// method nor an option.
+fn enrich_instance_option_defs(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+) -> Option<cfg::Function> {
+    let mut enriched = func.clone();
+    let defs = enrich_instance_option_defs_with_initial(
+        &mut enriched,
+        registry,
+        &crate::taint::InstanceClassState::new(),
+    );
+    (!defs.is_empty()).then_some(enriched)
+}
+
+/// Mirror a registry-proven top-level global option definition under Tcl's
+/// equivalent bare spelling.
+///
+/// A widget's deferred `-textvariable` must name a global so it outlives the
+/// constructor frame.  The registry/lowerer therefore records its static
+/// `VarWrite` as `::name`. At module scope, however, Tcl resolves `$name` to
+/// that same global variable.  SSA otherwise interns those spellings as two
+/// unrelated variables and loses the input source at the overwhelmingly
+/// common top-level `$name` read.  Only the one-segment global spelling has
+/// this equivalence: `::ns::name` is not a bare `name` in `::top`.
+///
+/// This is a scope rule, not a Tk rule. Any registry option declaring a global
+/// `VarWrite` gets the same top-level alias, while an ordinary qualified write
+/// (`set ::x`, `unset ::x`) does not manufacture a second SSA definition.
+/// Procedure bodies retain Tcl's strict local/global distinction.
+fn mirror_top_level_global_option_defs(
+    func: &mut cfg::Function,
+    registry: &CommandRegistry,
+) -> bool {
+    let mut changed = false;
+    for block in func.blocks.values_mut() {
+        for statement in &mut block.statements {
+            let Statement::Call {
+                command,
+                canonical_command,
+                args,
+                defs,
+                tokens,
+                ..
+            } = statement
+            else {
+                continue;
+            };
+            let name = canonical_command.as_deref().unwrap_or(command);
+            let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            let aliases: Vec<String> = registry
+                .arg_indices_for_role(name, &arg_refs, tcl_registry::ArgRole::VarWrite)
+                .into_iter()
+                .filter(|&index| {
+                    registry.option_variable_scope(
+                        name,
+                        &arg_refs,
+                        index,
+                        registry.own_availability_mask(),
+                    ) == Some(tcl_registry::VariableScope::Global)
+                })
+                .filter_map(|index| {
+                    let raw = args.get(index)?;
+                    let braced = tokens
+                        .as_ref()
+                        .is_some_and(|tokens| tokens.arg_is_braced_literal(index));
+                    let declared = crate::naming::element_var_name_braced(raw, braced);
+                    let global = if declared.starts_with("::") {
+                        declared.to_owned()
+                    } else {
+                        format!("::{declared}")
+                    };
+                    let bare = global.strip_prefix("::")?;
+                    (!bare.is_empty() && !bare.contains("::") && defs.contains(&global))
+                        .then_some(bare.to_owned())
+                })
+                .filter(|alias| !defs.contains(alias))
+                .collect();
+            changed |= !aliases.is_empty();
+            defs.extend(aliases);
+        }
+    }
+    changed
+}
+
+/// In-place form used by module CFG construction when a procedure begins with
+/// proven interpreter-global receiver facts.
+pub(crate) fn enrich_instance_option_defs_with_initial(
+    func: &mut cfg::Function,
+    registry: &CommandRegistry,
+    initial: &crate::taint::InstanceClassState,
+) -> HashSet<String> {
+    let is_top_level = func.name == "::top";
+    let classes = crate::taint::local_instance_classes_with_initial(func, registry, initial);
+    let mut instance_defs = HashSet::new();
+    for block in func.blocks.values_mut() {
+        for statement in &mut block.statements {
+            let Statement::Call {
+                span,
+                command,
+                args,
+                defs,
+                ..
+            } = statement
+            else {
+                continue;
+            };
+            if args.is_empty() {
+                continue;
+            }
+            let Some(class) =
+                crate::taint::unique_instance_class(command, Some(&classes), Some(span.start()))
+            else {
+                continue;
+            };
+            let invocation_args: Vec<&str> = args.iter().map(String::as_str).collect();
+            let Some(invocation) = registry.resolve_instance_invocation(
+                class,
+                command,
+                &invocation_args,
+                registry.own_availability_mask(),
+            ) else {
+                continue;
+            };
+            if !invocation
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::CONFIGURES_INSTANCE_OPTIONS)
+            {
+                continue;
+            }
+            let option_args: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+            for (option_index, candidate) in args[1..].iter().enumerate() {
+                if candidate.is_empty() || candidate.contains(['$', '[']) {
+                    continue;
+                }
+                if tcl_registry::taint::taints_var_write(
+                    registry,
+                    class,
+                    &option_args,
+                    registry.own_availability_mask(),
+                    candidate,
+                ) {
+                    let name = crate::naming::element_var_name(candidate);
+                    let name = if registry.option_variable_scope(
+                        class,
+                        &option_args,
+                        option_index,
+                        registry.own_availability_mask(),
+                    ) == Some(tcl_registry::VariableScope::Global)
+                        && !name.starts_with("::")
+                    {
+                        format!("::{name}")
+                    } else {
+                        name.to_owned()
+                    };
+                    if !name.is_empty() {
+                        instance_defs.insert(name.clone());
+                        if !defs.contains(&name) {
+                            defs.push(name.clone());
+                        }
+                        if is_top_level
+                            && let Some(bare) = name.strip_prefix("::")
+                            && !bare.is_empty()
+                            && !bare.contains("::")
+                        {
+                            instance_defs.insert(bare.to_owned());
+                            if !defs.iter().any(|defined| defined == bare) {
+                                defs.push(bare.to_owned());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    instance_defs
+}
+
 /// Build SSA with dominator-based phi placement and renaming.
 ///
 /// Computes dominators, places phi nodes, then walks the dominator
@@ -2653,6 +2851,13 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
         return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
     }
 
+    let mut enriched = enrich_instance_option_defs(func, registry);
+    if func.name == "::top" {
+        let target = enriched.get_or_insert_with(|| func.clone());
+        let _ = mirror_top_level_global_option_defs(target, registry);
+    }
+    let func = enriched.as_ref().unwrap_or(func);
+
     // 1. Compute dominance information.  Use the Cooper-Harvey-
     //    Kennedy immediate-dominator algorithm directly — it is
     //    O(N) memory, where the set-based `compute_dominators` is
@@ -2780,6 +2985,21 @@ mod tests {
             span: None,
             expr: None,
             braced: false,
+        }
+    }
+
+    fn call(span: Span, command: &str, args: &[&str], defs: &[&str]) -> Statement {
+        Statement::Call {
+            span,
+            command: command.into(),
+            canonical_command: None,
+            args: args.iter().map(|arg| (*arg).into()).collect(),
+            defs: defs.iter().map(|name| (*name).into()).collect(),
+            reads: vec![],
+            reads_own_defs: false,
+            safe_on_uninit: false,
+            tokens: None,
+            foreach_groups: None,
         }
     }
 
@@ -3969,6 +4189,155 @@ mod tests {
         // Second statement (set y $x): uses x=1, defs y=1
         assert_eq!(entry_blk.statements[1].uses.get(&sx), Some(&1));
         assert_eq!(entry_blk.statements[1].defs.get(&sy), Some(&1));
+    }
+
+    #[test]
+    fn build_ssa_top_level_global_widget_option_defs_both_spellings() {
+        let reg = default_registry();
+        let mut func = Function::new("::top", "entry");
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements.push(call(
+            Span::new(0, 34),
+            "entry",
+            &[".e", "-textvariable", "value"],
+            &["::value"],
+        ));
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        let absolute = ssa.var_symbol("::value").expect("global spelling interned");
+        let bare = ssa.var_symbol("value").expect("top-level alias interned");
+        let statement = &ssa.blocks[&entry].statements[0];
+        assert_eq!(statement.defs.get(&absolute), Some(&1));
+        assert_eq!(statement.defs.get(&bare), Some(&1));
+    }
+
+    #[test]
+    fn build_ssa_top_level_instance_option_defs_both_spellings() {
+        let reg = default_registry();
+        let mut func = Function::new("::top", "entry");
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements = vec![
+            call(Span::new(0, 8), "entry", &[".e"], &[]),
+            call(
+                Span::new(9, 48),
+                ".e",
+                &["configure", "-textvariable", "value"],
+                &[],
+            ),
+        ];
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        let absolute = ssa.var_symbol("::value").expect("global spelling interned");
+        let bare = ssa.var_symbol("value").expect("top-level alias interned");
+        let configure = &ssa.blocks[&entry].statements[1];
+        assert_eq!(configure.defs.get(&absolute), Some(&1));
+        assert_eq!(configure.defs.get(&bare), Some(&1));
+    }
+
+    #[test]
+    fn build_ssa_top_level_ordinary_global_set_has_no_bare_alias() {
+        let reg = default_registry();
+        let mut func = Function::new("::top", "entry");
+        let entry = func.entry;
+        func.blocks
+            .get_mut(&entry)
+            .unwrap()
+            .statements
+            .push(Statement::AssignConst {
+                span: Span::new(0, 13),
+                name: "::value".into(),
+                name_braced: false,
+                value: "1".into(),
+                value_span: None,
+            });
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        let absolute = ssa.var_symbol("::value").expect("global spelling interned");
+        assert_eq!(
+            ssa.blocks[&entry].statements[0].defs.get(&absolute),
+            Some(&1)
+        );
+        assert_eq!(ssa.var_symbol("value"), None);
+    }
+
+    #[test]
+    fn build_ssa_top_level_namespaced_global_option_has_no_bare_alias() {
+        let reg = default_registry();
+        let mut func = Function::new("::top", "entry");
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements.push(call(
+            Span::new(0, 40),
+            "entry",
+            &[".e", "-textvariable", "::ns::value"],
+            &["::ns::value"],
+        ));
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        let absolute = ssa
+            .var_symbol("::ns::value")
+            .expect("qualified global spelling interned");
+        assert_eq!(
+            ssa.blocks[&entry].statements[0].defs.get(&absolute),
+            Some(&1)
+        );
+        assert_eq!(ssa.var_symbol("ns::value"), None);
+        assert_eq!(ssa.var_symbol("value"), None);
+    }
+
+    #[test]
+    fn build_ssa_global_option_without_absolute_def_has_no_bare_alias() {
+        let reg = default_registry();
+        let mut func = Function::new("::top", "entry");
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements.push(call(
+            Span::new(0, 34),
+            "entry",
+            &[".e", "-textvariable", "value"],
+            &[],
+        ));
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        assert_eq!(ssa.var_symbol("::value"), None);
+        assert_eq!(ssa.var_symbol("value"), None);
+    }
+
+    #[test]
+    fn build_ssa_procedure_global_widget_option_keeps_scope_distinct() {
+        let reg = default_registry();
+        let mut func = Function::new("::make_entry", "entry");
+        let entry = func.entry;
+        func.blocks.get_mut(&entry).unwrap().statements = vec![
+            call(
+                Span::new(0, 34),
+                "entry",
+                &[".e", "-textvariable", "value"],
+                &["::value"],
+            ),
+            call(
+                Span::new(35, 74),
+                ".e",
+                &["configure", "-textvariable", "value"],
+                &[],
+            ),
+        ];
+        func.blocks.get_mut(&entry).unwrap().terminator = Some(make_return());
+
+        let ssa = build_ssa(&func, &reg);
+        let absolute = ssa.var_symbol("::value").expect("global spelling interned");
+        assert_eq!(
+            ssa.blocks[&entry].statements[0].defs.get(&absolute),
+            Some(&1)
+        );
+        assert_eq!(
+            ssa.blocks[&entry].statements[1].defs.get(&absolute),
+            Some(&2)
+        );
+        assert_eq!(ssa.var_symbol("value"), None);
     }
 
     #[test]

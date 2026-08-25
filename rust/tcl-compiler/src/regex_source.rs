@@ -26,9 +26,8 @@
 //!
 //! # How it works
 //!
-//! This is a dataflow query over an already-built [`CompilationUnit`] (the
-//! SSA/SCCP tier), mirroring how [`crate::minify`] resolves a `$var` to its
-//! constant value:
+//! This is a dataflow query over an already-built [`CompilationUnit`] (the SSA
+//! tier), using the exact reaching definition visible at the pattern word:
 //!
 //! 1. Walk every function's CFG statements in parallel with its SSA statements
 //!    (keyed by [`BlockId`]), maintaining the in-scope SSA version of each
@@ -41,9 +40,10 @@
 //!      / re-assigned pattern resolves to *all* its reaching literals.
 //! 3. Record every `regexp` / `regsub` call whose pattern argument is a bare
 //!    `$var`, with the variable's SSA version at that use.
-//! 4. For each such use, gate on the SCCP lattice proving the value is a
-//!    string constant (`Const(String)` or an all-`String` `ConstSet`), then
-//!    resolve its reaching def-site value spans (recursing through φs).
+//! 4. For each such use, require every reaching definition to be a lexical
+//!    source literal, then resolve its def-site spans (recursing through φs).
+//!    This point-in-time proof remains valid when a callback-bearing command
+//!    conservatively widens SCCP after its arguments have already substituted.
 //!
 //! The pattern grammar is version-invariant across Tcl 8.4–9.0, and `set` /
 //! variable resolution are identical across versions, so this query needs no
@@ -66,16 +66,15 @@ use tcl_lexer::{Span, TokenType};
 use tcl_registry::CommandRegistry;
 use tcl_registry::patterns::PatternType;
 
-use crate::analyses::{ConstValue, LatticeValue};
 use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::ir::Statement;
 use crate::segmenter::segment_commands_with_offset_and_config;
 use crate::ssa::Version;
 
 /// Source spans of the def-site value literals that feed a `regexp` / `regsub`
-/// pattern through a provably-constant string variable.  Sorted by start,
-/// de-duplicated.  Empty when the unit has no such flow (the common case), so
-/// callers pay nothing extra.
+/// pattern through a variable whose reaching definitions are all lexical
+/// string literals. Sorted by start, de-duplicated. Empty when the unit has no
+/// such flow (the common case), so callers pay nothing extra.
 #[must_use]
 pub fn regex_source_literal_spans(
     source: &str,
@@ -111,6 +110,9 @@ struct Scan {
     /// `(name, version)` → absolute source span of the assigned value word,
     /// for a literal-assignment def.
     const_def_span: HashMap<(String, Version), Span>,
+    /// Definitions whose assigned value is a source literal, used for the
+    /// point-in-time fallback when a later callback barrier widens SCCP.
+    literal_source_defs: HashSet<(String, Version)>,
     /// `(name, version)` → φ incoming versions (control-flow merge defs).
     phi_incoming: HashMap<(String, Version), Vec<Version>>,
     /// `(pattern-variable name, SSA version at the use)` for each `regexp` /
@@ -165,9 +167,19 @@ fn collect_in_function(
                 && let Some(vspan) = value_word_span(source, dialect, fu.abs_span(stmt.span()))
             {
                 for (sym, ver) in &ssa_stmt.defs {
-                    scan.const_def_span
-                        .entry((fu.ssa.var_name(*sym).to_owned(), *ver))
-                        .or_insert(vspan);
+                    let key = (fu.ssa.var_name(*sym).to_owned(), *ver);
+                    scan.const_def_span.entry(key.clone()).or_insert(vspan);
+                    // `AssignValue` also covers a quoted or bare literal
+                    // (`set re "x+"`, `set re x+`) when the word has no
+                    // substitution.  Admit only that statically literal
+                    // subset; `$x`, `[cmd]`, and compound words remain
+                    // dynamic and must never become regex sources merely
+                    // because SCCP happens to infer a string value.
+                    if matches!(stmt, Statement::AssignConst { .. })
+                        || value_word_is_static_literal(source, dialect, fu.abs_span(stmt.span()))
+                    {
+                        scan.literal_source_defs.insert(key);
+                    }
                 }
             }
 
@@ -186,9 +198,13 @@ fn collect_in_function(
     }
 
     // Resolve each pattern-variable use to its def-site literal span(s), gated
-    // on the SCCP lattice proving a string constant.
+    // on every reaching definition being a source literal.
     for (name, use_ver) in &scan.regex_uses {
-        if !is_string_constant(fu, name, *use_ver) {
+        let mut literal_proof = HashSet::new();
+        // Source provenance is the final gate: a substituted/dynamic
+        // `AssignValue` must not count as a literal even if SCCP has inferred
+        // a string for it.
+        if !all_reaching_defs_are_literals(&scan, name, *use_ver, &mut literal_proof) {
             continue;
         }
         let mut visited: HashSet<(String, Version)> = HashSet::new();
@@ -196,19 +212,44 @@ fn collect_in_function(
     }
 }
 
-/// True when the SCCP lattice proves `(name, version)` is a string constant —
-/// a single `Const(String)` or an all-`String` `ConstSet`.
-fn is_string_constant(fu: &FunctionUnit, name: &str, version: Version) -> bool {
-    let Some(sym) = fu.ssa.var_symbol(name) else {
+/// Whether every reaching definition of `(name, version)` is a source literal.
+///
+/// A same-invocation callback barrier conservatively widens SCCP after the
+/// call, but Tcl substitutes the pattern word before entering the command and
+/// before that callback can run. The SSA use version is therefore the exact
+/// point-in-time proof needed here. Requiring every reaching definition to
+/// have a literal source span preserves abstention at dynamic or mixed phis.
+fn all_reaching_defs_are_literals(
+    scan: &Scan,
+    name: &str,
+    version: Version,
+    visited: &mut HashSet<(String, Version)>,
+) -> bool {
+    let key = (name.to_owned(), version);
+    if !visited.insert(key.clone()) {
+        // A cyclic phi needs a fixed-point proof, which this source-span query
+        // deliberately does not attempt. Abstain rather than let the cycle
+        // prove itself literal.
         return false;
-    };
-    match fu.sccp.values.get(&(sym, version)) {
-        Some(LatticeValue::Const(ConstValue::String(_))) => true,
-        Some(LatticeValue::ConstSet(vs)) => {
-            !vs.is_empty() && vs.iter().all(|v| matches!(v, ConstValue::String(_)))
-        }
-        _ => false,
     }
+    // `visited` is a recursion *stack*, not a memo table.  A definition can
+    // legitimately be shared by two arms of a diamond; leaving it marked
+    // after the first arm would mistake that ordinary DAG sharing for a phi
+    // cycle and reject an otherwise literal proof.  Keep the mark only while
+    // this definition is on the active recursion path, so a genuine back-edge
+    // still abstains above.
+    let proven = if scan.literal_source_defs.contains(&key) {
+        true
+    } else {
+        scan.phi_incoming.get(&key).is_some_and(|incoming| {
+            !incoming.is_empty()
+                && incoming
+                    .iter()
+                    .all(|&version| all_reaching_defs_are_literals(scan, name, version, visited))
+        })
+    };
+    visited.remove(&key);
+    proven
 }
 
 /// Push the def-site value spans reaching `(name, version)`, recursing through
@@ -275,10 +316,51 @@ fn value_word_span(
     Some(delimited_word_span(source, word_start))
 }
 
+/// Whether the `set` value word is lexically a single literal with no Tcl
+/// substitution.  `AssignValue` is also used for quoted/bare literals, but
+/// its flattened `value` cannot distinguish those from `$var`, `[cmd]`, or a
+/// compound word.  Reuse the segmenter's lossless fragments for that gate.
+fn value_word_is_static_literal(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    stmt_span: Span,
+) -> bool {
+    let start = stmt_span.start() as usize;
+    let end = (stmt_span.end() as usize).min(source.len());
+    let Some(text) = source.get(start..end.max(start)) else {
+        return false;
+    };
+    let Some(seg) = segment_commands_with_offset_and_config(
+        text,
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::from_grammar(dialect.grammar),
+    )
+    .into_iter()
+    .next() else {
+        return false;
+    };
+    let Some(fragments) = seg.word_fragments.get(2) else {
+        return false;
+    };
+    let [fragment] = fragments.as_slice() else {
+        return false;
+    };
+    // Braced words are AssignConst in the normal lowering path.  Esc is both
+    // bare and quoted text; reject backslash-bearing words because their value
+    // depends on Tcl backslash substitution rather than source spelling.  Use
+    // the raw token slice here: the compatibility fragment text may already
+    // have normalised an escape away.
+    let raw = source
+        .get(fragment.token.span.start() as usize..fragment.token.span.end() as usize)
+        .unwrap_or_default();
+    fragment.token.kind == TokenType::Esc && !raw.contains('\\')
+}
+
 /// The full span of the word beginning at byte `start`: for a `"…"` / `{…}`
 /// word, extend to the matching close delimiter (honouring `\`-escapes and
-/// brace nesting); a bareword ends at the next whitespace.  Recovers the
-/// closing delimiter the segmenter's token span clamps off.
+/// brace nesting); a bareword ends at the next unescaped whitespace or command
+/// separator. Recovers the closing delimiter the segmenter's token span clamps
+/// off.
 fn delimited_word_span(source: &str, start: usize) -> Span {
     let bytes = source.as_bytes();
     let s32 = u32::try_from(start).unwrap_or(0);
@@ -287,8 +369,18 @@ fn delimited_word_span(source: &str, start: usize) -> Span {
         Some(b'{') => scan_to_close(bytes, start + 1, b'{', b'}'),
         _ => {
             let mut i = start;
-            while i < bytes.len() && !bytes[i].is_ascii_whitespace() {
-                i += 1;
+            // A bare Tcl word ends at whitespace *or* an unquoted command
+            // separator.  The enclosing IR span stops before `;`, so failing
+            // to stop here would make `set re x+; regsub ...` highlight the
+            // semicolon and possibly the next command as part of `x+`.
+            while i < bytes.len() {
+                if bytes[i] == b'\\' && i + 1 < bytes.len() {
+                    i += 2;
+                } else if bytes[i].is_ascii_whitespace() || bytes[i] == b';' {
+                    break;
+                } else {
+                    i += 1;
+                }
             }
             i
         }
@@ -355,12 +447,20 @@ pub(crate) fn regexp_pattern_index(args: &[String]) -> Option<usize> {
 /// argument is a bare `$var`, return that variable's name.  Mirrors the
 /// semantic-token layer's option-skip.
 fn regex_pattern_var(stmt: &Statement, registry: &CommandRegistry) -> Option<String> {
-    let Statement::Call {
+    let (Statement::Call {
         command,
         canonical_command,
+        args,
         tokens: Some(toks),
         ..
-    } = stmt
+    }
+    | Statement::Barrier {
+        command,
+        canonical_command,
+        args,
+        tokens: Some(toks),
+        ..
+    }) = stmt
     else {
         return None;
     };
@@ -372,9 +472,15 @@ fn regex_pattern_var(stmt: &Statement, registry: &CommandRegistry) -> Option<Str
     if !is_regex {
         return None;
     }
-    // `argv[0]` is the command; skip leading option words to find the pattern.
-    let args = toks.argv_texts.get(1..)?;
-    let idx = regexp_pattern_index(args)?;
+    // `argv[0]` is the command.  The registry owns option availability and
+    // positional shifting (including version-mismatched options that still
+    // consume their value before version diagnostics run), so source
+    // harvesting must not maintain a second option skipper.
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let idx = registry
+        .arg_indices_for_role(name, &arg_refs, tcl_registry::ArgRole::Pattern)
+        .into_iter()
+        .next()?;
     let argv_idx = idx + 1; // shift back past the command word
     if toks.argv_kinds.get(argv_idx) != Some(&TokenType::Var) {
         return None;
@@ -682,5 +788,85 @@ mod tests {
             spans_text_dialect(src, tcl_dialect::DialectProfile::by_name("tcl9.0")),
             vec!["{x+}".to_owned()]
         );
+    }
+
+    #[test]
+    fn callback_barrier_does_not_promote_a_mixed_pattern_phi() {
+        let src =
+            "if {$flag} { set re {x+} } else { set re $dynamic }\nregsub -command $re $s Y out\n";
+        assert!(
+            spans_text(src).is_empty(),
+            "a same-invocation callback barrier must not make one literal arm stand for a dynamic phi"
+        );
+    }
+
+    #[test]
+    fn substituted_assign_value_is_not_a_regex_source() {
+        for value in ["$dynamic", "x+$dynamic", "[make_pattern]"] {
+            let src = format!("set re {value}\nregsub -command $re $s callback out\n");
+            assert!(spans_text(&src).is_empty(), "source {src:?}");
+        }
+    }
+
+    #[test]
+    fn regsub_command_tracks_all_literal_word_forms() {
+        for (value, expected) in [("{x+}", "{x+}"), ("\"x+\"", "\"x+\""), ("x+", "x+")] {
+            let src = format!("set re {value}\nregsub -command $re $s callback out\n");
+            assert_eq!(
+                spans_text(&src),
+                vec![expected.to_owned()],
+                "source {src:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn bare_literal_span_stops_at_command_separator() {
+        let got = spans_text("set re x+; regsub -command $re $s callback out\n");
+        assert_eq!(got, vec!["x+".to_owned()]);
+        assert_eq!(delimited_word_span(r"x\;y; puts", 0), Span::new(0, 4));
+    }
+
+    #[test]
+    fn regsub_command_tracks_global_qualified_spelling() {
+        let got = spans_text("set re {x+}\n::regsub -command $re $s callback out\n");
+        assert_eq!(got, vec!["{x+}".to_owned()]);
+    }
+
+    #[test]
+    fn regsub_command_tracks_static_command_alias() {
+        let src = "interp alias {} myregsub {} regsub\n\
+                   set re {x+}\n\
+                   myregsub -command $re $s callback out\n";
+        assert_eq!(spans_text(src), vec!["{x+}".to_owned()]);
+    }
+
+    #[test]
+    fn shared_diamond_literal_phi_is_not_rejected_as_cycle() {
+        // The seed definition is shared by two nested-diamond arms.  The
+        // proof must revisit that same incoming version after the first arm;
+        // a global visited set would falsely treat the second visit as a
+        // cycle and abstain.
+        let src = "set re {seed}\n\
+                   if {$outer} {\
+                     if {$inner} { set re {left} }\
+                   }\n\
+                   regsub -command $re $s callback out\n";
+        let mut got = spans_text(src);
+        got.sort();
+        assert_eq!(got, vec!["{left}".to_owned(), "{seed}".to_owned()]);
+    }
+
+    #[test]
+    fn literal_proof_uses_stack_for_cycles_but_revisits_shared_defs() {
+        let mut scan = Scan::default();
+        scan.literal_source_defs.insert(("re".to_owned(), 1));
+        scan.phi_incoming.insert(("re".to_owned(), 2), vec![1, 1]);
+        scan.phi_incoming.insert(("re".to_owned(), 3), vec![3, 1]);
+
+        let mut stack = HashSet::new();
+        assert!(all_reaching_defs_are_literals(&scan, "re", 2, &mut stack));
+        stack.clear();
+        assert!(!all_reaching_defs_are_literals(&scan, "re", 3, &mut stack));
     }
 }

@@ -34,8 +34,8 @@ use tcl_compiler::ir::Module as IrModule;
 use tcl_compiler::path_concat::find_path_concat_warnings;
 use tcl_compiler::side_effects::EffectRegion;
 use tcl_compiler::taint::{
-    find_destructive_file_warnings, find_setter_constraint_warnings, find_taint_warnings,
-    is_irules_dialect,
+    find_destructive_file_warnings, find_setter_constraint_warnings,
+    find_taint_warnings_for_function, is_irules_dialect,
 };
 use tcl_compiler::uri_split::find_uri_split_suggestions;
 use tcl_lexer::{LineIndex, Span};
@@ -624,14 +624,14 @@ fn collect_taint_warnings(
     let taints = &taints;
 
     // 1. Sink injection (T100 / T101 / T102 families).
-    for w in find_taint_warnings(
-        &fu.cfg,
-        &fu.ssa,
+    for w in find_taint_warnings_for_function(
+        fu,
         taints,
         &fu.sccp.executable_blocks,
         registry,
         Some(profile),
         &shadowed,
+        module_traces,
     ) {
         push(
             w.code.as_str(),

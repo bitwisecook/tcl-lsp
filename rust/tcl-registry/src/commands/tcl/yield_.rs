@@ -72,7 +72,10 @@ pub fn spec() -> CommandSpec {
         // mask carries no Tcl-version bit at all (a config-file surface, not
         // a Tcl command surface).
         dialects: Some(DialectSet::TCL86_PLUS),
-        traits: Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD | Traits::TRANSFERS_CONTROL,
+        traits: Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::TRANSFERS_CONTROL
+            | Traits::COROUTINE_PRIMITIVE,
         arity: Arity::new(0, 1),
         return_type: Some(TclType::String),
         hover: Some(HoverSnippet {

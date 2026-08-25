@@ -81,6 +81,42 @@ suite("LSP Command Execution", () => {
     assert.ok(typeof result.symbolMap === "string", "compact mode should include symbolMap");
   });
 
+  test("tcl-lsp.tkPreview returns the versioned static UI model", async () => {
+    const tkUri = getDocUri("tk-preview.tcl");
+    await activate(tkUri);
+    const document = vscode.workspace.textDocuments.find(
+      (candidate) => candidate.uri.toString() === tkUri.toString(),
+    );
+    assert.ok(document, "Tk fixture should be open");
+    const result = (await execLspCommand("tcl-lsp.tkPreview", {
+      uri: tkUri.toString(),
+      version: document.version,
+    })) as {
+      schema_version: number;
+      tk_active: boolean;
+      document_uri: string;
+      document_version: number;
+      widget_count: number;
+      root?: { path: string; children: Array<{ path: string }> };
+    } | null;
+    assert.ok(result, "tkPreview should return a model");
+    assert.strictEqual(result.schema_version, 1);
+    assert.strictEqual(result.tk_active, true);
+    assert.strictEqual(result.document_uri, tkUri.toString());
+    assert.strictEqual(result.document_version, document.version);
+    assert.strictEqual(result.widget_count, 4);
+    assert.strictEqual(result.root?.path, ".");
+    assert.strictEqual(result.root?.children[0]?.path, ".main");
+  });
+
+  test("tcl-lsp.tkPreview refuses a detached source string", async () => {
+    const result = await execLspCommand(
+      "tcl-lsp.tkPreview",
+      "package require Tk\nbutton .run -command dangerous",
+    );
+    assert.strictEqual(result, null);
+  });
+
   test("tcl-lsp.minifyDocument aggressive returns full result", async () => {
     const uri = docUri.toString();
     const result = (await execLspCommand("tcl-lsp.minifyDocument", uri, false, true, false)) as {

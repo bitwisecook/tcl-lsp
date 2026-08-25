@@ -388,10 +388,16 @@ pub fn pack_set_command(source: &str, name: &str, draft_json: &str, overrides: b
         Err(message) => return error(&message),
     };
     let (next, write) = with_store_mut(source, |store| store.set_command(name, &draft, overrides));
+    let upgraded_to = write
+        .upgraded_from
+        .as_ref()
+        .map(|_| tcl_spec_studio::render_spectcl::DSL_VERSION);
     to_string(&json!({
         "source": next,
         "writeback": write.how.key(),
         "dropped": write.dropped,
+        "upgraded_from": write.upgraded_from,
+        "upgraded_to": upgraded_to,
         "name": name,
     }))
 }

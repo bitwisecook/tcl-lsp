@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Variable whose value is used as the button text.",
         dialects: None,
         aliases: &[],
@@ -45,7 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Script to evaluate when the button is invoked.",
         dialects: None,
         aliases: &[],
@@ -153,6 +153,23 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(
+    SUBCOMMANDS,
+    CLASS,
+    "ttk::button",
+    SubCommand {
+        name: "invoke",
+        arity: Arity::exact(0),
+        detail: "Invoke the script associated with the button.",
+        synopsis: "pathName invoke",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::button pathName ?options?",
     ..FormSpec::DEFAULT
@@ -177,6 +194,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

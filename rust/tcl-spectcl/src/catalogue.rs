@@ -124,6 +124,34 @@ pub const BODY_KINDS: &[Variant] = &[
     ),
 ];
 
+/// [`ScriptTiming`] — when a script-valued argument is evaluated.
+pub const SCRIPT_TIMINGS: &[Variant] = &[
+    v(
+        "SameInvocation",
+        "may run before the receiving invocation returns",
+    ),
+    v(
+        "Deferred",
+        "stored by the receiving invocation for a later callback",
+    ),
+    v(
+        "ReferenceOnly",
+        "identified for registration matching or lookup, but not invoked",
+    ),
+];
+
+/// [`VariableScope`] — frame used to resolve a variable-name option value.
+pub const VARIABLE_SCOPES: &[Variant] = &[
+    v(
+        "CurrentFrame",
+        "unqualified names resolve in the invocation's current Tcl frame",
+    ),
+    v(
+        "Global",
+        "unqualified names resolve from the interpreter's global namespace",
+    ),
+];
+
 /// [`ArgPresentation`] — how a formatter lays an argument out.
 pub const ARG_PRESENTATIONS: &[Variant] = &[
     v(
@@ -525,7 +553,7 @@ mod tests {
     use tcl_registry::byte_array_effect::ByteArrayEffect;
     use tcl_registry::command_table::CommandTableEffect;
     use tcl_registry::hooks::{AnalyserHookId, CodegenHookId, InlineCodegenHookId, LoweringHookId};
-    use tcl_registry::hover::FormKind;
+    use tcl_registry::hover::{FormKind, ScriptTiming, VariableScope};
     use tcl_registry::patterns::{FormatType, PatternType};
     use tcl_registry::side_effects::{ConnectionSide, SideEffectTarget, StorageType};
     use tcl_registry::symbol_def::DefinedSymbolKind;
@@ -636,6 +664,18 @@ mod tests {
         fn body(k: BodyKind) -> bool {
             matches!(k, BodyKind::Plain | BodyKind::Structural)
         }
+        fn script_timing(timing: ScriptTiming) -> bool {
+            match timing {
+                ScriptTiming::SameInvocation
+                | ScriptTiming::Deferred
+                | ScriptTiming::ReferenceOnly => true,
+            }
+        }
+        fn variable_scope(scope: VariableScope) -> bool {
+            match scope {
+                VariableScope::CurrentFrame | VariableScope::Global => true,
+            }
+        }
         fn storage(k: StorageType) -> bool {
             match k {
                 StorageType::Dict | StorageType::List | StorageType::Array => true,
@@ -694,6 +734,8 @@ mod tests {
             }
         }
         body(BodyKind::Plain)
+            && script_timing(ScriptTiming::SameInvocation)
+            && variable_scope(VariableScope::CurrentFrame)
             && storage(StorageType::List)
             && byte_array(ByteArrayEffect::None)
             && command_table(CommandTableEffect::DefinesProcedure)
@@ -853,6 +895,8 @@ mod tests {
             ARG_ROLES,
             TCL_TYPES,
             BODY_KINDS,
+            SCRIPT_TIMINGS,
+            VARIABLE_SCOPES,
             ARG_PRESENTATIONS,
             STORAGE_TYPES,
             BYTE_ARRAY_EFFECTS,

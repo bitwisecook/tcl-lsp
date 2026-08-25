@@ -195,6 +195,7 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::TCLOO_NEXT_CHAIN,
     Traits::ESTABLISHES_VARIABLE_TRACE,
     Traits::TRANSFERS_CONTROL,
+    Traits::COROUTINE_PRIMITIVE,
     Traits::FIRE_AND_FORGET_TEARDOWN,
     Traits::SCRIPT_CONCATENATES_ARGS,
     Traits::SCRIPT_APPENDS_LIST_ARGS,
@@ -1980,6 +1981,109 @@ fn boolean_argument_role_is_declared_and_consistent() {
     // valid integers there, so a rewriting consumer must abstain.
     assert!(!ArgRole::NumericOrBoolean.consumes_boolean());
     assert!(!ArgRole::Value.consumes_boolean());
+}
+
+/// Option and positional callback metadata must be internally meaningful in
+/// every shipped spec. The `SpecTcl` loader rejects the same contradictions for
+/// packs; this sweep keeps hand-written Rust declarations equally honest.
+#[test]
+fn callback_and_variable_option_metadata_is_well_formed() {
+    use tcl_registry::hover::{OptionSpec, OptionValue, ScriptTiming, VariableScope};
+
+    fn check_options(path: &str, options: &[OptionSpec]) {
+        for option in options {
+            let OptionValue::Takes(arg) = option.value else {
+                continue;
+            };
+            let executable = arg.role.has_script_timing()
+                || arg.also_role.is_some_and(ArgRole::has_script_timing);
+            let variable = matches!(arg.role, ArgRole::VarRead | ArgRole::VarWrite)
+                || matches!(arg.also_role, Some(ArgRole::VarRead | ArgRole::VarWrite));
+            let variable_write =
+                arg.role == ArgRole::VarWrite || arg.also_role == Some(ArgRole::VarWrite);
+            assert!(
+                executable || arg.script_timing == ScriptTiming::SameInvocation,
+                "{path} {} gives timing to a non-executable option",
+                option.name
+            );
+            assert!(
+                arg.callback_taint_inputs.is_empty()
+                    || executable && arg.script_timing == ScriptTiming::Deferred,
+                "{path} {} gives callback inputs to a non-deferred executable",
+                option.name
+            );
+            assert!(
+                variable || arg.variable_scope == VariableScope::CurrentFrame,
+                "{path} {} gives variable scope to a non-variable option",
+                option.name
+            );
+            assert!(
+                !arg.taints_var_write || variable_write,
+                "{path} {} taints writes without a VarWrite role",
+                option.name
+            );
+        }
+    }
+
+    fn check_callbacks(
+        path: &str,
+        roles: &[(u8, ArgRole)],
+        callbacks: &[(u8, &'static [tcl_registry::CallbackTaintInput])],
+        has_role_resolver: bool,
+        can_defer: bool,
+    ) {
+        for (index, inputs) in callbacks {
+            assert!(
+                !inputs.is_empty(),
+                "{path} argument {index} has an empty callback-input row"
+            );
+            assert!(
+                has_role_resolver
+                    || roles.iter().any(|(candidate, role)| {
+                        candidate == index && role.has_script_timing()
+                    }),
+                "{path} argument {index} has callback inputs but is not executable"
+            );
+            assert!(
+                can_defer,
+                "{path} argument {index} has callback inputs but cannot be deferred"
+            );
+        }
+    }
+
+    for dialect in LOADABLE_DIALECTS {
+        let registry = registry_for_dialect(dialect);
+        let names: Vec<String> = registry.command_names().map(str::to_owned).collect();
+        for name in names {
+            let Some(spec) = registry.get(&name) else {
+                continue;
+            };
+            check_options(spec.name, spec.options);
+            check_callbacks(
+                spec.name,
+                spec.arg_roles,
+                spec.callback_taint_inputs,
+                spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
+                spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
+            );
+            for sub in spec.subcommands.iter().chain(
+                spec.object_class
+                    .into_iter()
+                    .flat_map(|class| class.instance_methods),
+            ) {
+                let path = format!("{} {}", spec.name, sub.name);
+                check_options(&path, sub.options);
+                check_callbacks(
+                    &path,
+                    sub.arg_roles,
+                    sub.callback_taint_inputs,
+                    sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
+                    sub.script_timing_resolver.is_some()
+                        || sub.traits.contains(Traits::DEFERS_BODY),
+                );
+            }
+        }
+    }
 }
 
 /// A conditionally-bound local must never carry an `ArgRole` SSA models as

@@ -37,7 +37,9 @@ use crate::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, ConstFoldFn, InlineCodegenHookId, LoweringHookId,
     TclVersion, VersionedConstFoldFn,
 };
-use crate::hover::{ArgValue, FormSpec, HoverSnippet, OptionSpec};
+use crate::hover::{
+    ArgValue, CallbackTaintInput, FormSpec, HoverSnippet, OptionSpec, ScriptTiming,
+};
 use crate::invocation_words::CommandPrefixArguments;
 use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
@@ -68,6 +70,15 @@ pub type ArgRoleResolver = fn(args: &[&str]) -> Vec<(u8, ArgRole)>;
 /// [`CommandSpec::command_prefixes`] table — either may be set.
 pub type CommandPrefixResolver =
     for<'a> fn(CommandPrefixArguments<'a>) -> Vec<(u8, crate::arg_role::AppendedArity)>;
+
+/// Resolver for invocation-sensitive executable-argument timing.
+///
+/// Returns `(arg_index, timing)` pairs in the same coordinates as
+/// [`ArgRoleResolver`]. The registry only accepts an answer for an argument
+/// currently classified as [`ArgRole::Body`], [`ArgRole::LambdaLiteral`], or
+/// [`ArgRole::CommandPrefix`], so a resolver cannot turn ordinary data into
+/// executable code by itself.
+pub type ScriptTimingResolver = fn(args: &[&str]) -> Vec<(u8, ScriptTiming)>;
 
 /// A call-site restriction that depends on *where* the call sits — a
 /// lexical/dispatch context arity and dialect gating can't see — rather
@@ -280,15 +291,38 @@ pub struct ObjectClassSpec {
     /// methods).  Highlighting-only today; reserved for a future
     /// unknown-method diagnostic.
     pub allow_unknown_methods: bool,
+
+    /// Whether the instance-method command table accepts unique prefixes.
+    ///
+    /// Object commands are not ensembles by default: `TclOO` and most
+    /// extension object APIs dispatch the method word exactly.  Tk widget
+    /// command tables are the deliberately documented exception and opt in
+    /// where the Tk source proves `Tk_GetIndexFromObj`-style dispatch.
+    /// Keeping this strict by default prevents a guessed object method from
+    /// becoming a completion, hover, or taint fact.
+    pub method_prefix_matching: PrefixMatching,
 }
 
 impl ObjectClassSpec {
     /// Look up an instance method by name (this class only — no superclass
     /// walk; the registry's [`crate::CommandRegistry::instance_method`] does
-    /// the inherited resolution).
+    /// the inherited resolution). Lookup follows this class's declared
+    /// [`Self::method_prefix_matching`] policy: strict classes require the
+    /// complete spelling, while an enabled table accepts a unique non-empty
+    /// prefix. An exact spelling wins and an ambiguous prefix abstains.
     #[must_use]
     pub fn instance_method(&self, name: &str) -> Option<&SubCommand> {
-        self.instance_methods.iter().find(|m| m.name == name)
+        let table = KeywordTable::from_keywords(
+            self.instance_methods.iter().map(|method| Keyword {
+                name: method.name,
+                min_abbrev: method.min_abbrev,
+            }),
+            self.method_prefix_matching,
+        );
+        let canonical = table.resolve(name).unique()?;
+        self.instance_methods
+            .iter()
+            .find(|method| method.name == canonical)
     }
 }
 
@@ -1319,6 +1353,17 @@ pub struct CommandSpec {
     /// (`trace add …`, `interp alias`, `selection handle`).
     pub command_prefix_resolver: Option<CommandPrefixResolver>,
 
+    /// Dynamic phase for executable arguments whose evaluation depends on the
+    /// actual invocation (`send -async`, callback registration/removal forms).
+    /// Static option values carry timing directly on [`crate::hover::OptionArg`].
+    pub script_timing_resolver: Option<ScriptTimingResolver>,
+
+    /// External callback substitutions for deferred executable arguments,
+    /// keyed by their argument index. Option values carry the same fact on
+    /// [`crate::hover::OptionArg`]; this table covers positional callback
+    /// scripts such as `bind tag sequence script`.
+    pub callback_taint_inputs: &'static [(u8, &'static [CallbackTaintInput])],
+
     /// Return type of the command.
     pub return_type: Option<TclType>,
 
@@ -1499,6 +1544,10 @@ pub struct CommandSpec {
 
     /// Package requirement (command only visible when package is `require`d).
     pub required_package: Option<&'static str>,
+
+    /// Tk geometry-manager semantics. `None` means this command does not have
+    /// a registry-declared direct geometry-placement form.
+    pub tk_geometry: Option<crate::tk_geometry::TkGeometryManagerSpec>,
 
     /// Excluded iRules events.
     pub excluded_events: &'static [&'static str],
@@ -2111,6 +2160,8 @@ impl CommandSpec {
         clause_shape_check: None,
         command_prefixes: &[],
         command_prefix_resolver: None,
+        script_timing_resolver: None,
+        callback_taint_inputs: &[],
         return_type: None,
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,
@@ -2144,6 +2195,7 @@ impl CommandSpec {
         literal_argument_validator: None,
         inferred_storage_type: None,
         required_package: None,
+        tk_geometry: None,
         excluded_events: &[],
         unsafe_command: false,
         closed_value_args: &[],
@@ -2932,6 +2984,15 @@ pub struct SubCommand {
     /// Dynamic command-prefix resolver (after the subcommand word).
     pub command_prefix_resolver: Option<CommandPrefixResolver>,
 
+    /// Dynamic executable-argument phase (after the subcommand word).
+    pub script_timing_resolver: Option<ScriptTimingResolver>,
+
+    /// External callback substitutions for deferred executable arguments,
+    /// keyed by their index after the subcommand word.  Option values carry
+    /// the same fact on [`crate::hover::OptionArg`]; this table covers plain
+    /// positional callback scripts such as `bind tag sequence script`.
+    pub callback_taint_inputs: &'static [(u8, &'static [CallbackTaintInput])],
+
     /// Return type.
     pub return_type: Option<TclType>,
 
@@ -3332,6 +3393,8 @@ impl SubCommand {
         repeated_args: &[],
         command_prefixes: &[],
         command_prefix_resolver: None,
+        script_timing_resolver: None,
+        callback_taint_inputs: &[],
         return_type: None,
         var_write_typing: VarWriteTyping::ReturnValue,
         return_elements: None,

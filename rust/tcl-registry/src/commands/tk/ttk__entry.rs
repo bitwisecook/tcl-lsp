@@ -18,6 +18,12 @@
 
 //! `ttk::entry` command.
 use crate::prelude::*;
+
+const VALIDATION_USER_INPUTS: &[CallbackTaintInput] = &[
+    CallbackTaintInput::TK_PROPOSED_VALUE,
+    CallbackTaintInput::TK_CURRENT_VALUE,
+    CallbackTaintInput::TK_EDIT_TEXT,
+];
 const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     target: SideEffectTarget::InterpState,
     writes: true,
@@ -26,8 +32,14 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
+        name: "-background",
+        value: OptionValue::value("color"),
+        detail: "Background colour for the entry field.",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Variable linked to the entry value.",
         dialects: None,
         aliases: &[],
@@ -72,7 +84,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate for input validation.",
         dialects: None,
         aliases: &[],
@@ -81,7 +93,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -89,8 +101,15 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
+        name: "-locale",
+        value: OptionValue::value("locale name"),
+        detail: "Locale used to determine word and character boundaries (Tk 9.1+).",
+        lifecycle: Lifecycle::introduced_in("9.1"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for horizontal scroll communication.",
         dialects: None,
         aliases: &[],
@@ -189,6 +208,110 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(
+    SUBCOMMANDS,
+    CLASS,
+    "ttk::entry",
+    SubCommand {
+        name: "bbox",
+        arity: Arity::exact(1),
+        detail: "Return the bounding box of the indexed character.",
+        synopsis: "pathName bbox index",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "delete",
+        arity: Arity::new(1, 2),
+        detail: "Delete one or more characters.",
+        synopsis: "pathName delete first ?last?",
+        // With `-validate key`, editing invokes validation (and possibly the
+        // invalid callback), so this is a callback-capable mutation.
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        traits: Traits::TAINT_SOURCE,
+        arity: Arity::exact(0),
+        detail: "Return the entry's current string.",
+        synopsis: "pathName get",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "icursor",
+        arity: Arity::exact(1),
+        detail: "Set the insertion cursor position.",
+        synopsis: "pathName icursor index",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "index",
+        arity: Arity::exact(1),
+        detail: "Resolve an entry index to its numeric position.",
+        synopsis: "pathName index index",
+        pure: true,
+        return_type: Some(TclType::Int),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "insert",
+        arity: Arity::exact(2),
+        detail: "Insert text at the indexed position.",
+        synopsis: "pathName insert index string",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "selection",
+        arity: Arity::new(1, 3),
+        detail: "Query or change the entry selection.",
+        synopsis: "pathName selection option ?arg ...?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::ENTRY_SELECTION_FORMS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "validate",
+        arity: Arity::exact(0),
+        detail: "Force revalidation of the current value.",
+        synopsis: "pathName validate",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::Boolean),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "xview",
+        arity: Arity::at_least(0),
+        detail: "Query or change the horizontal view.",
+        synopsis: "pathName xview ?args?",
+        mutator: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
+        ..SubCommand::DEFAULT
+    },
+);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::entry pathName ?options?",
     ..FormSpec::DEFAULT
@@ -197,6 +320,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::entry",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
@@ -213,6 +337,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

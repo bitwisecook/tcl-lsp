@@ -284,6 +284,9 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
         HookFamily::CommandPrefixResolver => {
             spec.command_prefix_resolver = pack_hooks::command_prefix_resolver_fn(slot);
         }
+        HookFamily::ScriptTimingResolver => {
+            spec.script_timing_resolver = pack_hooks::script_timing_resolver_fn(slot);
+        }
         HookFamily::ConstFold => spec.const_fold = pack_hooks::const_fold_fn(slot),
         HookFamily::ConstFoldVersioned => {
             spec.const_fold_versioned = pack_hooks::const_fold_versioned_fn(slot);
@@ -314,6 +317,9 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                 }
                 HookFamily::CommandPrefixResolver => {
                     sub.command_prefix_resolver = pack_hooks::command_prefix_resolver_fn(slot);
+                }
+                HookFamily::ScriptTimingResolver => {
+                    sub.script_timing_resolver = pack_hooks::script_timing_resolver_fn(slot);
                 }
                 HookFamily::ConstFold => sub.const_fold = pack_hooks::const_fold_fn(slot),
                 HookFamily::ConstFoldVersioned => {

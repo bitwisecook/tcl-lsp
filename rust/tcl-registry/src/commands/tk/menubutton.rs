@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the menubutton text.",
         dialects: None,
         aliases: &[],
@@ -293,6 +293,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+super::common::classic_widget_class!(MENUBUTTON_CLASS, "menubutton");
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "menubutton",
@@ -311,6 +313,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        object_class: Some(&MENUBUTTON_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

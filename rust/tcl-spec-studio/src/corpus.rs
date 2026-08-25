@@ -221,6 +221,7 @@ fn option_row(option: &OptionShape) -> Value {
             "integer": Value::Null,
             "hint": "value",
             "appended_arity": { "kind": "Unknown" },
+            "taints_var_write": false,
         })
     } else {
         Value::Null

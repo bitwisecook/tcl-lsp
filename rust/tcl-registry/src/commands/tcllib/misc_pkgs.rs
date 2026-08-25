@@ -440,7 +440,7 @@ const BIBTEX_PARSE_OPTIONS: &[OptionSpec] = &[
         name: "-command",
         // `Callback $token {} $result` (bibtex.tcl 294) — batch mode: token +
         // the whole accumulated records list.
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Batch callback invoked once at EOF with the token and the full record list.",
         ..OptionSpec::DEFAULT
     },
@@ -490,6 +490,54 @@ const BIBTEX_PARSE_OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// Resolve the phase of `bibtex::parse` callbacks from its input mode.
+///
+/// `-command` is the completion callback and is only valid with `-channel`,
+/// hence always deferred. The SAX-style callbacks run inline for an in-memory
+/// text argument, but `-channel` makes the parser install a `fileevent` and
+/// return a token before any of them run.
+fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    let mut channel_mode = false;
+    let mut callbacks = Vec::new();
+    let mut index = 0usize;
+    while index + 1 < args.len() {
+        let option = args[index];
+        if option == "-channel" {
+            channel_mode = true;
+        } else if matches!(
+            option,
+            "-command"
+                | "-recordcommand"
+                | "-preamblecommand"
+                | "-stringcommand"
+                | "-commentcommand"
+                | "-progresscommand"
+        ) {
+            callbacks.push((index + 1, option == "-command"));
+        } else if !matches!(option, "-casesensitivestrings") {
+            // Options precede the optional in-memory text. Stop at that text
+            // (or an unknown switch) so a literal callback value/text named
+            // `-channel` cannot accidentally select background semantics.
+            break;
+        }
+        index += 2;
+    }
+
+    callbacks
+        .into_iter()
+        .filter_map(|(position, completion_callback)| {
+            let timing = if completion_callback || channel_mode {
+                ScriptTiming::Deferred
+            } else {
+                ScriptTiming::SameInvocation
+            };
+            u8::try_from(position)
+                .ok()
+                .map(|position| (position, timing))
+        })
+        .collect()
+}
+
 /// `bibtex::parse` — structured so its callback options carry command prefixes.
 fn bibtex_parse_spec() -> CommandSpec {
     CommandSpec {
@@ -501,6 +549,7 @@ fn bibtex_parse_spec() -> CommandSpec {
             "tcllib bibtex package",
         )),
         options: BIBTEX_PARSE_OPTIONS,
+        script_timing_resolver: Some(bibtex_parse_script_timing),
         tcllib_package: Some("bibtex"),
         required_package: Some("bibtex"),
         ..CommandSpec::DEFAULT

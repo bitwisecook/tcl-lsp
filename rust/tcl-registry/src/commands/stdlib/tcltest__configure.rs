@@ -184,7 +184,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-load",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "script that loads the tested commands",
         ..OptionSpec::DEFAULT
     },

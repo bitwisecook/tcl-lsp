@@ -39,10 +39,13 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::at_least(0),
         detail: "Retrieve data from the clipboard on the specified display.",
         synopsis: "clipboard get ?-displayof window? ?-type type?",
         options: GET_OPTIONS,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
 ];

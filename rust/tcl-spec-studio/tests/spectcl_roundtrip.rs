@@ -131,6 +131,15 @@ fn field_of(key: &str) -> &str {
 
 /// The object a diff key names — the draft itself, or the subcommand inside it.
 fn at_level<'a>(key: &str, draft: &'a Value) -> Option<&'a Value> {
+    if let Some(rest) = key.strip_prefix("object_class.methods[") {
+        let name = rest.split(']').next()?;
+        return draft
+            .get("object_class")?
+            .get("instance_methods")?
+            .as_array()?
+            .iter()
+            .find(|method| method["name"].as_str() == Some(name));
+    }
     let Some(rest) = key.strip_prefix("subcommands[") else {
         return Some(draft);
     };
@@ -183,6 +192,51 @@ fn diffs(rendered: &Value, shipped: &Value) -> Vec<Diff> {
                 &mut out,
             );
             compare_unrenderable(x, y, &prefix, &mut out);
+        }
+    }
+
+    // `object_class.instance_methods` uses the same SubCommand schema.  Once
+    // the class descriptor itself became round-trippable, keeping it atomic
+    // hid which documented method-level gap remained and misreported that
+    // loss as an undocumented failure of the whole class.
+    let class_methods = |value: &Value| -> Vec<String> {
+        value
+            .get("object_class")
+            .and_then(|class| class.get("instance_methods"))
+            .and_then(Value::as_array)
+            .map(|methods| {
+                methods
+                    .iter()
+                    .map(|method| method["name"].as_str().unwrap_or("").to_owned())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let (a, b) = (class_methods(rendered), class_methods(shipped));
+    if a == b && rendered.get("object_class").is_some() && shipped.get("object_class").is_some() {
+        let mut rendered_class = rendered["object_class"].clone();
+        let mut shipped_class = shipped["object_class"].clone();
+        rendered_class
+            .as_object_mut()
+            .map(|class| class.remove("instance_methods"));
+        shipped_class
+            .as_object_mut()
+            .map(|class| class.remove("instance_methods"));
+        if rendered_class == shipped_class {
+            out.retain(|diff| diff.key != "object_class");
+            for (i, name) in a.iter().enumerate() {
+                let x = &rendered["object_class"]["instance_methods"][i];
+                let y = &shipped["object_class"]["instance_methods"][i];
+                let prefix = format!("object_class.methods[{name}].");
+                compare_keys(
+                    x,
+                    y,
+                    schema::SUBCOMMAND_FIELDS.iter().map(|field| field.key),
+                    &prefix,
+                    &mut out,
+                );
+                compare_unrenderable(x, y, &prefix, &mut out);
+            }
         }
     }
     out

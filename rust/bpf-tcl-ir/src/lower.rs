@@ -32,6 +32,7 @@ use std::collections::HashMap;
 use tcl_compiler::cfg::{Block as CfgBlock, Function, Terminator};
 use tcl_compiler::{BinOp, ExprNode, Statement, UnaryOp, parse_expr};
 use tcl_lexer::Span;
+use tcl_registry::Traits;
 use tcl_registry::bpf_op::{
     BpfDeclKind, BpfOpKind, BpfProgTypeSet, BpfScalarWidth, BpfVerdictKind,
 };
@@ -204,6 +205,18 @@ impl Lowerer<'_> {
     /// The registry descriptor for a command, if it is a BPF-Tcl command.
     fn bpf_op(&self, cmd: &str) -> Option<&'static tcl_registry::bpf_op::BpfOpSpec> {
         self.registry.bpf_op(cmd)
+    }
+
+    /// Whether this concrete invocation belongs to Tcl's coroutine family.
+    ///
+    /// The registry owns family membership and canonical alias resolution;
+    /// the BPF consumer owns only its backend policy that the family cannot be
+    /// represented by a single bounded kernel-program invocation.
+    fn is_coroutine_primitive(&self, cmd: &str, args: &[String]) -> bool {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.registry
+            .invocation_traits(cmd, &args, self.registry.own_availability_mask())
+            .contains(Traits::COROUTINE_PRIMITIVE)
     }
 
     /// Pre-scan every block for `map` declarations so `map_get`/`map_set`/
@@ -623,6 +636,20 @@ impl Lowerer<'_> {
                 let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
                 self.lower_call(cmd, args, *span, insts)
             }
+            Statement::Barrier {
+                command,
+                canonical_command,
+                args,
+                span,
+                ..
+            } if self.is_coroutine_primitive(
+                canonical_command.as_deref().unwrap_or(command.as_str()),
+                args,
+            ) =>
+            {
+                let cmd = canonical_command.as_deref().unwrap_or(command.as_str());
+                Err(concurrency_error(cmd, *span))
+            }
             Statement::AssignConst { span, .. }
             | Statement::AssignValue { span, .. }
             | Statement::AssignExpr { span, .. }
@@ -714,16 +741,8 @@ impl Lowerer<'_> {
         insts: &mut Vec<Inst>,
     ) -> Result<Option<Term>, BpfError> {
         let Some(op) = self.bpf_op(cmd) else {
-            if is_concurrency_command(cmd) {
-                return Err(BpfError::new(
-                    BpfDiag::OutOfSubset,
-                    span,
-                    format!(
-                        "`{cmd}`: concurrency is not supported on the eBPF backend \
-                         (no coroutines, threads, or event loop — an eBPF program is a \
-                         single bounded run to a verdict)"
-                    ),
-                ));
+            if self.is_coroutine_primitive(cmd, args) || is_unregistered_thread_command(cmd) {
+                return Err(concurrency_error(cmd, span));
             }
             return Err(BpfError::new(
                 BpfDiag::UnknownCommand,
@@ -1037,22 +1056,25 @@ fn arity(span: Span, cmd: &str, usage: &str) -> BpfError {
     )
 }
 
-/// Whether `cmd` is a Tcl concurrency primitive — coroutines
-/// (`coroutine`/`yield`/`yieldto`/`coroinject`/`coroprobe`) or the `thread`
-/// package (`thread::*`, `tsv::*`, `tpool::*`). None can exist on eBPF (a program
-/// is a single bounded run to a verdict), so they earn a specific `OutOfSubset`
-/// diagnostic rather than the generic "unknown command". (The event loop —
-/// `after`/`vwait`/`update` — is rejected earlier by the typed front-end as an
-/// out-of-subset construct.)  This is a diagnostics nicety over commands the
-/// BPF registry deliberately does *not* describe, not per-command lowering
-/// knowledge.
-fn is_concurrency_command(cmd: &str) -> bool {
-    matches!(
-        cmd,
-        "coroutine" | "yield" | "yieldto" | "coroinject" | "coroprobe"
-    ) || cmd.starts_with("thread::")
-        || cmd.starts_with("tsv::")
-        || cmd.starts_with("tpool::")
+fn concurrency_error(cmd: &str, span: Span) -> BpfError {
+    BpfError::new(
+        BpfDiag::OutOfSubset,
+        span,
+        format!(
+            "`{cmd}`: concurrency is not supported on the eBPF backend \
+             (no coroutines, threads, or event loop — an eBPF program is a \
+             single bounded run to a verdict)"
+        ),
+    )
+}
+
+/// Whether `cmd` names the optional Thread package, which has no registry pack
+/// yet. Core Tcl coroutine membership is deliberately registry-owned above;
+/// this narrow prefix test is only a diagnostic hint for otherwise unknown
+/// extension commands and must not drive lowering semantics.
+fn is_unregistered_thread_command(cmd: &str) -> bool {
+    let cmd = cmd.trim_start_matches(':');
+    cmd.starts_with("thread::") || cmd.starts_with("tsv::") || cmd.starts_with("tpool::")
 }
 
 fn map_bin(op: BinOp) -> Option<IntBinOp> {
@@ -1269,6 +1291,31 @@ mod tests {
         let src = "when SOCKET_FILTER {\n  setbuf pkt ctx\n  pktlen len pkt\n  if {$len eq 36} { accept }\n  drop\n}\n";
         let err = crate::frontend::compile_module(src).unwrap_err();
         assert_eq!(err.code, BpfDiag::OutOfSubset);
+    }
+
+    #[test]
+    fn coroutine_barrier_uses_registry_identity_for_specific_diagnostic() {
+        let registry = tcl_registry::registry_for_dialect("bpf");
+        let mut func = Function::new("::handler", "entry");
+        let entry = func.entry;
+        func.blocks
+            .get_mut(&entry)
+            .expect("entry block")
+            .statements
+            .push(Statement::Barrier {
+                span: Span::new(4, 11),
+                reason: "opaque callback".into(),
+                command: "local_yield".into(),
+                canonical_command: Some("yield".into()),
+                args: vec!["value".into()],
+                tokens: None,
+            });
+
+        let err = lower_function(&func, ProgType::SocketFilter, registry)
+            .expect_err("a coroutine barrier cannot lower to one bounded BPF run");
+        assert_eq!(err.code, BpfDiag::OutOfSubset);
+        assert_eq!(err.span, Span::new(4, 11));
+        assert!(err.msg.contains("`yield`: concurrency is not supported"));
     }
 
     /// Integer literals in the DSL come from the toolchain's one number

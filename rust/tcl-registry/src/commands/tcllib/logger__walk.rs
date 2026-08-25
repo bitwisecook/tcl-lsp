@@ -43,8 +43,9 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         // `command` (index 1) is applied to each walked service.  The man page
-        // does not pin the appended-arg count, so treat it as a reference-only
-        // prefix (Unknown ⇒ never arity-checked).
+        // does not pin the appended-arg count, so retain an unknown appended
+        // arity (Unknown ⇒ never arity-checked). The prefix itself still runs
+        // synchronously during this walk; this is not ReferenceOnly timing.
         command_prefixes: &[(1, AppendedArity::Unknown)],
         forms: FORMS,
         side_effects: SIDE_EFFECTS,

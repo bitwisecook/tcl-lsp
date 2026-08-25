@@ -97,6 +97,40 @@ fn str_slice(values: &[Value]) -> String {
     format!("&[{}]", items.join(", "))
 }
 
+/// Render the data-only Tk geometry-manager descriptor.  This is deliberately
+/// a struct literal rather than a named shared constant: the Studio draft
+/// exposes every semantic field, so a user can safely adjust any manager
+/// without dropping back to arbitrary Rust.
+fn tk_geometry_expr(value: &Value) -> Option<String> {
+    let geometry = value.as_object()?;
+    let policy = match geometry.get("container_policy").and_then(Value::as_str) {
+        Some("Exclusive") => "Exclusive",
+        Some("Independent") => "Independent",
+        _ => return None,
+    };
+    let container_option = match geometry.get("container_option") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(value) => format!("Some({})", rust_string(value.as_str()?)),
+    };
+    let placement_subcommand = match geometry.get("placement_subcommand") {
+        None | Some(Value::Null) => "None".to_owned(),
+        Some(value) => format!("Some({})", rust_string(value.as_str()?)),
+    };
+    let direct_form = geometry
+        .get("direct_form")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let release_subcommands = str_slice(as_array(
+        geometry.get("release_subcommands").unwrap_or(&Value::Null),
+    ));
+    Some(format!(
+        "Some(TkGeometryManagerSpec {{ container_policy: \
+         TkGeometryContainerPolicy::{policy}, container_option: {container_option}, \
+         direct_form: {direct_form}, placement_subcommand: {placement_subcommand}, \
+         release_subcommands: {release_subcommands} }})"
+    ))
+}
+
 /// Render a `&'static [u8]` literal.
 fn index_slice(values: &[Value]) -> String {
     let items: Vec<String> = values.iter().map(|v| as_u64(v).to_string()).collect();
@@ -266,6 +300,36 @@ fn prefix_map_expr(values: &[Value]) -> String {
                 "({}, {})",
                 as_u64(&entry["index"]),
                 appended_arity_expr(&entry["arity"])
+            )
+        })
+        .collect();
+    format!("&[{}]", items.join(", "))
+}
+
+fn callback_taint_input_expr(value: &Value) -> String {
+    match as_str(value) {
+        "%P" => "CallbackTaintInput::TK_PROPOSED_VALUE".to_owned(),
+        "%s" => "CallbackTaintInput::TK_CURRENT_VALUE".to_owned(),
+        "%S" => "CallbackTaintInput::TK_EDIT_TEXT".to_owned(),
+        "%A" => "CallbackTaintInput::TK_EVENT_CHAR".to_owned(),
+        "%K" => "CallbackTaintInput::TK_EVENT_KEYSYM".to_owned(),
+        spelling => format!("CallbackTaintInput::TkPercent({})", rust_string(spelling)),
+    }
+}
+
+fn callback_taint_inputs_expr(values: &[Value]) -> String {
+    let inputs: Vec<String> = values.iter().map(callback_taint_input_expr).collect();
+    format!("&[{}]", inputs.join(", "))
+}
+
+fn callback_taint_map_expr(values: &[Value]) -> String {
+    let items: Vec<String> = values
+        .iter()
+        .map(|entry| {
+            format!(
+                "({}, {})",
+                as_u64(&entry["index"]),
+                callback_taint_inputs_expr(as_array(&entry["inputs"]))
             )
         })
         .collect();
@@ -485,6 +549,9 @@ fn lifecycle_line(key: &str, draft: &Value, indent: &str) -> LifecycleLine {
     LifecycleLine::Other
 }
 
+// Keep every OptionArg field in one renderer so adding registry metadata
+// cannot silently miss one shorthand or generic literal path.
+#[allow(clippy::too_many_lines)]
 fn option_expr(entry: &Value, indent: &str) -> String {
     let inner = format!("{indent}    ");
     let mut parts = vec![format!(
@@ -519,12 +586,31 @@ fn option_expr(entry: &Value, indent: &str) -> String {
         if !role.is_empty() && role != "Value" {
             arg_parts.push(format!("{arg_indent}    role: ArgRole::{role},"));
         }
-        if let Some(also) = value["also_role"].as_str() {
+        let also_role = value["also_role"].as_str();
+        if let Some(also) = also_role {
             arg_parts.push(format!("{arg_indent}    also_role: Some(ArgRole::{also}),"));
         }
         let body_kind = as_str(&value["body_kind"]);
         if body_kind == "Structural" {
             arg_parts.push(format!("{arg_indent}    body_kind: BodyKind::Structural,"));
+        }
+        let script_timing = as_str(&value["script_timing"]);
+        if !script_timing.is_empty() && script_timing != "SameInvocation" {
+            arg_parts.push(format!(
+                "{arg_indent}    script_timing: ScriptTiming::{script_timing},"
+            ));
+        }
+        let callback_inputs = as_array(&value["callback_taint_inputs"]);
+        if !callback_inputs.is_empty() {
+            arg_parts.push(format!(
+                "{arg_indent}    callback_taint_inputs: {},",
+                callback_taint_inputs_expr(callback_inputs)
+            ));
+        }
+        if as_str(&value["variable_scope"]) == "Global" {
+            arg_parts.push(format!(
+                "{arg_indent}    variable_scope: VariableScope::Global,"
+            ));
         }
         let values = as_array(&value["values"]);
         if !values.is_empty() {
@@ -550,6 +636,11 @@ fn option_expr(entry: &Value, indent: &str) -> String {
         let appended = appended_arity_expr(&value["appended_arity"]);
         if appended != "AppendedArity::Unknown" {
             arg_parts.push(format!("{arg_indent}    appended_arity: {appended},"));
+        }
+        if as_bool(&value["taints_var_write"])
+            && (role == "VarWrite" || also_role == Some("VarWrite"))
+        {
+            arg_parts.push(format!("{arg_indent}    taints_var_write: true,"));
         }
         parts.push(format!(
             "{inner}value: OptionValue::Takes(OptionArg {{\n{}\n{arg_indent}..OptionArg::DEFAULT\n{inner}}}),",
@@ -762,6 +853,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         FieldKind::Arity => arity_expr(value),
         FieldKind::RoleMap => role_map_expr(as_array(value)),
         FieldKind::PrefixMap => prefix_map_expr(as_array(value)),
+        FieldKind::CallbackTaintMap => callback_taint_map_expr(as_array(value)),
         FieldKind::PresentationMap => presentation_map_expr(as_array(value)),
         FieldKind::ArgTypeMap => arg_type_map_expr(as_array(value), indent),
         FieldKind::ArgValueMap => arg_value_map_expr(as_array(value), indent),
@@ -777,6 +869,7 @@ fn field_expr(field: &FieldSchema, value: &Value, default: &Value, indent: &str)
         // The descriptor is hoisted to a `static` beside the command, the way
         // every shipped class spec is written; the field just names it.
         FieldKind::ObjectClass => "Some(&OBJECT_CLASS)".to_owned(),
+        FieldKind::TkGeometry => tk_geometry_expr(value)?,
         FieldKind::Hover => {
             if value.is_null() {
                 return None;
@@ -989,13 +1082,21 @@ fn object_class_statics(draft: &Draft, default_sub: &Draft) -> String {
             "OBJECT_CLASS_METHODS".to_owned(),
         )
     };
+    // Older saved Studio drafts predate this field.  Preserve the registry's
+    // conservative object-method default instead of emitting an invalid empty
+    // enum variant when one is reopened and rendered.
+    let method_prefix_matching = match as_str(&class["method_prefix_matching"]) {
+        "Enabled" => "Enabled",
+        _ => "Strict",
+    };
     format!(
         "{table}static OBJECT_CLASS: ObjectClassSpec = ObjectClassSpec {{\n    class_name: \
          {},\n    instance_methods: {methods_expr},\n    superclasses: {},\n    \
-         allow_unknown_methods: {},\n}};\n\n",
+         allow_unknown_methods: {},\n    method_prefix_matching: PrefixMatching::{},\n}};\n\n",
         rust_string(as_str(&class["class_name"])),
         str_slice(as_array(&class["superclasses"])),
         as_bool(&class["allow_unknown_methods"]),
+        method_prefix_matching,
     )
 }
 
@@ -1153,6 +1254,32 @@ pub fn suggested_path(name: &str, pack: &str) -> String {
 mod tests {
     use super::*;
 
+    fn invalid_non_write_taint_draft() -> Draft {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let entry = registry.get("entry").expect("Tk entry spec");
+        let seeded = draft::from_command_spec(entry);
+        let mut option = seeded["options"]
+            .as_array()
+            .expect("entry options")
+            .iter()
+            .find(|option| as_str(&option["name"]) == "-textvariable")
+            .expect("entry -textvariable")
+            .clone();
+        option["value"]["role"] = serde_json::json!("Value");
+        option["value"]["also_role"] = Value::Null;
+        option["value"]["taints_var_write"] = serde_json::json!(true);
+        let mut draft = draft::default_command_draft();
+        draft.insert("name".into(), serde_json::json!("probe"));
+        draft.insert("options".into(), Value::Array(vec![option]));
+        draft
+    }
+
+    #[test]
+    fn invalid_taint_link_is_not_rendered_without_var_write_role() {
+        let out = render(&invalid_non_write_taint_draft());
+        assert!(!out.contains("taints_var_write: true"), "{out}");
+    }
+
     /// `return`'s `-errorstack` is the registry's real `OptionArity::Hook`.
     ///
     /// Seeding cannot recover `errorstack_value` from a function pointer, so
@@ -1272,6 +1399,69 @@ mod tests {
     }
 
     #[test]
+    fn renders_option_timing_and_object_method_prefix_policy() {
+        static VALIDATION: &[tcl_registry::CallbackTaintInput] =
+            &[tcl_registry::CallbackTaintInput::TK_PROPOSED_VALUE];
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[
+            tcl_registry::hover::OptionSpec {
+                name: "-command",
+                value: tcl_registry::hover::OptionValue::deferred_tainted_script(VALIDATION),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-textvariable",
+                value: tcl_registry::hover::OptionValue::user_input_var(),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-remove",
+                value: tcl_registry::hover::OptionValue::Takes(tcl_registry::hover::OptionArg {
+                    role: tcl_registry::ArgRole::CommandPrefix,
+                    script_timing: tcl_registry::hover::ScriptTiming::ReferenceOnly,
+                    hint: "prefix",
+                    ..tcl_registry::hover::OptionArg::DEFAULT
+                }),
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+        ];
+        static CLASS: tcl_registry::spec::ObjectClassSpec = tcl_registry::spec::ObjectClassSpec {
+            class_name: "probe",
+            instance_methods: &[],
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Enabled,
+        };
+        let spec = CommandSpec {
+            name: "probe",
+            options: OPTIONS,
+            object_class: Some(&CLASS),
+            ..CommandSpec::DEFAULT
+        };
+
+        let out = render(&draft::from_command_spec(&spec));
+        assert!(
+            out.contains("script_timing: ScriptTiming::Deferred,"),
+            "{out}"
+        );
+        assert!(
+            out.contains("script_timing: ScriptTiming::ReferenceOnly,"),
+            "{out}"
+        );
+        assert!(
+            out.contains("callback_taint_inputs: &[CallbackTaintInput::TK_PROPOSED_VALUE],"),
+            "{out}"
+        );
+        assert!(
+            out.contains("variable_scope: VariableScope::Global,"),
+            "{out}"
+        );
+        assert!(
+            out.contains("method_prefix_matching: PrefixMatching::Enabled,"),
+            "{out}"
+        );
+    }
+
+    #[test]
     fn notes_a_field_it_could_not_recover() {
         fn resolver(_args: &[&str]) -> Vec<(u8, ArgRole)> {
             Vec::new()
@@ -1291,6 +1481,10 @@ mod tests {
         d.insert("name".into(), json!("if"));
         d.insert("arg_role_resolver".into(), json!("resolve_if_roles"));
         d.insert(
+            "script_timing_resolver".into(),
+            json!("Some(resolve_if_timing)"),
+        );
+        d.insert(
             "event_requirement_forms".into(),
             json!("&[FIX_TAG_GET_FORM]"),
         );
@@ -1305,10 +1499,50 @@ mod tests {
         );
         let out = render(&d);
         assert!(out.contains("arg_role_resolver: resolve_if_roles,"));
+        assert!(
+            out.contains("script_timing_resolver: Some(resolve_if_timing),"),
+            "{out}"
+        );
         assert!(out.contains("event_requirement_forms: &[FIX_TAG_GET_FORM],"));
         assert!(out.contains("data_collection: Some(HTTP_COLLECT),"));
         assert!(out.contains("side_switch_target: Some(SideSwitchTarget::Client),"));
         assert!(out.contains("event_handler_priority: Some(BIGIP_EVENT_HANDLER_PRIORITY),"));
+    }
+
+    #[test]
+    fn renders_tk_geometry_from_the_structured_draft() {
+        let mut draft = draft::default_command_draft();
+        draft.insert("name".into(), json!("layout"));
+        draft.insert(
+            "tk_geometry".into(),
+            json!({
+                "container_policy": "Independent",
+                "container_option": "-inside",
+                "direct_form": false,
+                "placement_subcommand": "arrange",
+                "release_subcommands": ["release", "unmanage"],
+            }),
+        );
+
+        let out = render(&draft);
+        assert!(
+            out.contains("tk_geometry: Some(TkGeometryManagerSpec {"),
+            "{out}"
+        );
+        assert!(
+            out.contains("container_policy: TkGeometryContainerPolicy::Independent"),
+            "{out}"
+        );
+        assert!(out.contains("container_option: Some(\"-inside\")"), "{out}");
+        assert!(out.contains("direct_form: false"), "{out}");
+        assert!(
+            out.contains("placement_subcommand: Some(\"arrange\")"),
+            "{out}"
+        );
+        assert!(
+            out.contains("release_subcommands: &[\"release\", \"unmanage\"]"),
+            "{out}"
+        );
     }
 
     /// Every dialect the catalogue offers must have a Rust constant to render,

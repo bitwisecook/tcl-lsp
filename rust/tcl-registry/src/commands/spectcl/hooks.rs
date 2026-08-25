@@ -16,7 +16,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The eight `SpecTcl` **hook property** statements.
+//! The nine `SpecTcl` **hook property** statements.
 //!
 //! Each is written one of three ways:
 //!
@@ -83,6 +83,12 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             CALLING_CONVENTION,
             "emitter verb: `prefix IDX {Exactly N}`. Silence means no prefix positions.",
             "Resolve which argument positions carry a callback command prefix.",
+        ),
+        hook_statement(
+            "script_timing_resolver",
+            CALLING_CONVENTION,
+            "emitter verb: `timing IDX SameInvocation|Deferred|ReferenceOnly`. Silence means no timing override; the exact option timing or invocation-wide fallback remains in force. The index must already carry Body, LambdaLiteral, or CommandPrefix.",
+            "Resolve when executable arguments run for this invocation.",
         ),
         hook_statement(
             "const_fold",

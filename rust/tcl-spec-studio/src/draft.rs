@@ -59,7 +59,8 @@ use tcl_registry::handle_binding::{
 };
 use tcl_registry::hooks::ArgTypeHint;
 use tcl_registry::hover::{
-    ArgValue, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec, OptionValue,
+    ArgValue, CallbackTaintInput, FormSpec, HoverSnippet, IntegerDomain, OptionArity, OptionSpec,
+    OptionValue,
 };
 use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::presentation::ArgPresentation;
@@ -244,6 +245,20 @@ fn prefix_map(entries: &[(u8, AppendedArity)]) -> Value {
         entries
             .iter()
             .map(|(i, a)| json!({ "index": i, "arity": appended_arity(*a) }))
+            .collect(),
+    )
+}
+
+fn callback_taint_map(entries: &[(u8, &'static [CallbackTaintInput])]) -> Value {
+    Value::Array(
+        entries
+            .iter()
+            .map(|(index, inputs)| {
+                json!({
+                    "index": index,
+                    "inputs": inputs.iter().map(|input| input.spelling()).collect::<Vec<_>>(),
+                })
+            })
             .collect(),
     )
 }
@@ -438,11 +453,15 @@ pub(crate) fn option_spec(opt: &OptionSpec) -> (Value, OptionDraftCompleteness) 
                     "role": catalogue::variant_name(&arg.role),
                     "also_role": arg.also_role.map_or(Value::Null, |r| json!(catalogue::variant_name(&r))),
                     "body_kind": catalogue::variant_name(&arg.body_kind),
+                    "script_timing": catalogue::variant_name(&arg.script_timing),
+                    "callback_taint_inputs": arg.callback_taint_inputs.iter().map(|input| input.spelling()).collect::<Vec<_>>(),
+                    "variable_scope": catalogue::variant_name(&arg.variable_scope),
                     "values": Value::Array(values),
                     "closed": arg.closed,
                     "integer": integer_domain(arg.integer),
                     "hint": arg.hint,
                     "appended_arity": appended_arity(arg.appended_arity),
+                    "taints_var_write": arg.taints_var_write,
                 }),
                 arity_complete,
             )
@@ -518,8 +537,8 @@ fn manufacturer_method(method: &ManufacturerMethod) -> Value {
 
 /// Seed the `object_class` value from a live [`ObjectClassSpec`].
 ///
-/// The four fields are plain data — a class name, a method table that *is*
-/// `&[SubCommand]`, superclass names, and a flag — so the draft holds the
+/// The five fields are plain data — a class name, a method table that *is*
+/// `&[SubCommand]`, superclass names, and two policies — so the draft holds the
 /// descriptor itself rather than an [`Unrecovered`] note. Each instance method
 /// is drafted with the same [`subcommand_body`] the command's own subcommands
 /// use, which is what lets the `SpecTcl` renderer write `method NAME { … }`
@@ -546,6 +565,7 @@ fn object_class(class: Option<&'static ObjectClassSpec>, lost: &mut Unrecovered)
         "instance_methods": Value::Array(methods),
         "superclasses": str_list(class.superclasses),
         "allow_unknown_methods": class.allow_unknown_methods,
+        "method_prefix_matching": catalogue::variant_name(&class.method_prefix_matching),
     })
 }
 
@@ -926,10 +946,21 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     );
     d.insert("command_prefixes".into(), prefix_map(sub.command_prefixes));
     d.insert(
+        "callback_taint_inputs".into(),
+        callback_taint_map(sub.callback_taint_inputs),
+    );
+    d.insert(
         "command_prefix_resolver".into(),
         lost.expr(
             "command_prefix_resolver",
             sub.command_prefix_resolver.is_some(),
+        ),
+    );
+    d.insert(
+        "script_timing_resolver".into(),
+        lost.expr(
+            "script_timing_resolver",
+            sub.script_timing_resolver.is_some(),
         ),
     );
 }
@@ -1207,10 +1238,21 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     );
     d.insert("command_prefixes".into(), prefix_map(spec.command_prefixes));
     d.insert(
+        "callback_taint_inputs".into(),
+        callback_taint_map(spec.callback_taint_inputs),
+    );
+    d.insert(
         "command_prefix_resolver".into(),
         lost.expr(
             "command_prefix_resolver",
             spec.command_prefix_resolver.is_some(),
+        ),
+    );
+    d.insert(
+        "script_timing_resolver".into(),
+        lost.expr(
+            "script_timing_resolver",
+            spec.script_timing_resolver.is_some(),
         ),
     );
 }
@@ -1372,6 +1414,23 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
 /// Options, enumerable values, and availability gating.
 fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("required_package".into(), opt_str(spec.required_package));
+    d.insert(
+        "tk_geometry".into(),
+        spec.tk_geometry.map_or(Value::Null, |geometry| {
+            use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
+            let container_policy = match geometry.container_policy {
+                TkGeometryContainerPolicy::Exclusive => "Exclusive",
+                TkGeometryContainerPolicy::Independent => "Independent",
+            };
+            json!({
+                "container_policy": container_policy,
+                "container_option": geometry.container_option,
+                "direct_form": geometry.direct_form,
+                "placement_subcommand": geometry.placement_subcommand,
+                "release_subcommands": geometry.release_subcommands,
+            })
+        }),
+    );
     d.insert("excluded_events".into(), str_list(spec.excluded_events));
     d.insert("unsafe_command".into(), json!(spec.unsafe_command));
     d.insert(
@@ -1766,6 +1825,34 @@ mod tests {
         let draft = from_command_spec(&spec);
         assert_eq!(draft["arg_role_resolver"], Value::Null);
         assert_eq!(draft[UNRENDERABLE_KEY], json!(["arg_role_resolver"]));
+    }
+
+    #[test]
+    fn tk_geometry_is_seeded_as_structured_data_not_a_rust_expression() {
+        let spec = CommandSpec {
+            name: "layout",
+            tk_geometry: Some(tcl_registry::tk_geometry::TkGeometryManagerSpec {
+                container_policy: tcl_registry::tk_geometry::TkGeometryContainerPolicy::Independent,
+                container_option: Some("-inside"),
+                direct_form: false,
+                placement_subcommand: Some("arrange"),
+                release_subcommands: &["release", "unmanage"],
+            }),
+            ..CommandSpec::DEFAULT
+        };
+
+        let draft = from_command_spec(&spec);
+        assert_eq!(
+            draft["tk_geometry"],
+            json!({
+                "container_policy": "Independent",
+                "container_option": "-inside",
+                "direct_form": false,
+                "placement_subcommand": "arrange",
+                "release_subcommands": ["release", "unmanage"],
+            })
+        );
+        assert!(draft["tk_geometry"].is_object());
     }
 
     #[test]

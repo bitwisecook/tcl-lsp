@@ -102,6 +102,12 @@ const ROWS: &[Row] = &[
         "The package that must be loaded for the command to exist.",
         "Also settable pack-wide with `default required_package NAME`.",
     ),
+    (
+        "tk_geometry",
+        Arity::new(1, 3),
+        "Declare static Tk geometry-manager container semantics.",
+        "`Exclusive` or `Independent`, optionally followed by `-container-option OPTION` (normally `-in`). SpecTcl 1.2.",
+    ),
     one(
         "tcllib_package",
         "The tcllib package the command belongs to.",

@@ -6,6 +6,7 @@
 
 const HTML: &str = include_str!("../web/studio.html");
 const STUDIO_TS: &str = include_str!("../web/src/studio.ts");
+const EDITORS_TS: &str = include_str!("../web/src/editors.ts");
 const MONACO_TS: &str = include_str!("../web/src/monacoHost.ts");
 const NATIVE_HOST_TS: &str = include_str!("../web/src/nativeEditorHost.ts");
 const TEXTMATE_TS: &str = include_str!("../web/src/textmateHost.ts");
@@ -68,6 +69,42 @@ fn importing_a_pack_activates_a_renderable_command() {
     assert!(
         STUDIO_TS.contains("if (view.pack) loadDraft(view.pack, packOrigin(view), firstWritten)")
     );
+}
+
+#[test]
+fn selecting_a_registry_command_seeds_the_shared_pack_document() {
+    // A selected built-in must not live only in the form/Rust renderer while
+    // Pack DSL remains an unrelated empty document. The controller writes it
+    // as a live override, reloads the one pack-backed draft, and protects that
+    // draft from a later registry-list click overwriting the user's edits.
+    assert!(
+        STUDIO_TS.contains(
+            "wasm.pack_set_command(state.pack.source, name, JSON.stringify(loaded), true)"
+        )
+    );
+    assert!(STUDIO_TS.contains("setPackSource(written.source)"));
+    assert!(STUDIO_TS.contains("loadDraft(view.pack, packOrigin(view), name)"));
+    assert!(
+        STUDIO_TS.contains("state.pack.view?.commands.some((command) => command.name === name)")
+    );
+    assert!(STUDIO_TS.contains("openPackCommand(name);\n    return;"));
+}
+
+#[test]
+fn nested_option_metadata_has_inline_and_reference_help() {
+    assert!(EDITORS_TS.contains(r#"ctx.fieldHelp("taints_var_write")"#));
+    assert!(EDITORS_TS.contains("hasVarWriteRole"));
+    assert!(EDITORS_TS.contains(r#"ctx.fieldHelp("variable_scope")"#));
+    assert!(EDITORS_TS.contains(r#"ctx.fieldHelp("script_timing")"#));
+    assert!(EDITORS_TS.contains(r#"ctx.fieldHelp("method_prefix_matching")"#));
+    assert!(STUDIO_TS.contains("for (const field of schema.nestedFields)"));
+    assert!(STUDIO_TS.contains("schema.nestedFields.find"));
+}
+
+#[test]
+fn annotated_effect_arrows_keep_semantic_numbers_in_source_aligned_rows() {
+    assert!(STUDIO_TS.contains("annotation, step: index + 1"));
+    assert!(STUDIO_TS.contains(".sort((left, right) => left.at - right.at)"));
 }
 
 #[test]

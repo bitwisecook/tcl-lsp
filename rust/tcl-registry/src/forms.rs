@@ -30,6 +30,7 @@
 //! completion text, where only the synopsis matters; the descriptors
 //! defined here drive compiler routing in ARCH2.
 
+use crate::abbrev::PrefixMatching;
 use crate::arg_role::ArgRole;
 use crate::arity::Arity;
 use crate::completion::CompletionDescriptor;
@@ -41,9 +42,51 @@ use crate::literal_validation::LiteralArgumentValidator;
 use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
+use crate::side_effects::SideEffect;
 use crate::spec::OptionConstraint;
 use crate::state_transition::StateTransitionDescriptor;
+use crate::traits::Traits;
 use crate::world_effect::WorldEffectDescriptor;
+
+/// Literal words that select one invocation form from siblings with the same
+/// arity.
+///
+/// The words are matched from the start of the form's own argument list: after
+/// the command head for a [`CommandForm`], or after the resolved subcommand /
+/// instance-method word for a [`SubCommandForm`]. Runtime substitutions and
+/// expansions never match. When prefix matching is enabled, an abbreviation
+/// selects a form only when it uniquely identifies one sibling selector word.
+/// If one selector is a complete prefix of another, the longest statically
+/// matched selector whose form admits the invocation arity wins. A dynamic
+/// word while the longer selector remains viable abstains to the parent facts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LiteralArgumentPrefix {
+    /// Canonical literal words at the beginning of this form.
+    pub words: &'static [&'static str],
+
+    /// Whether each word accepts a unique-prefix abbreviation.
+    pub prefix_matching: PrefixMatching,
+}
+
+impl LiteralArgumentPrefix {
+    /// A selector whose words honour Tcl unique-prefix abbreviation.
+    #[must_use]
+    pub const fn unique(words: &'static [&'static str]) -> Self {
+        Self {
+            words,
+            prefix_matching: PrefixMatching::Enabled,
+        }
+    }
+
+    /// A selector whose words must be spelled exactly.
+    #[must_use]
+    pub const fn exact(words: &'static [&'static str]) -> Self {
+        Self {
+            words,
+            prefix_matching: PrefixMatching::Strict,
+        }
+    }
+}
 
 /// Self-contained metadata for one invocation form of a top-level
 /// command.
@@ -59,6 +102,13 @@ pub struct CommandForm {
 
     /// Argument count constraint after the command name.
     pub arity: Arity,
+
+    /// Optional literal argument prefix selecting this form among siblings
+    /// with overlapping arities. Dynamic or expanded source words abstain from
+    /// form selection while a selector remains unresolved, so the conservative
+    /// parent descriptor remains effective. Prefix-overlapping selectors are
+    /// legal; the longest statically matched selector wins.
+    pub literal_argument_prefix: Option<LiteralArgumentPrefix>,
 
     /// Static argument roles (no dynamic resolver — forms are
     /// already disambiguated by arity / option presence, so role
@@ -97,6 +147,30 @@ pub struct CommandForm {
     /// the subcommand or command declaration.
     pub representation_effect: Option<RepresentationEffect>,
 
+    /// Effective behavioural traits for this concrete invocation shape.
+    ///
+    /// `Some` replaces the inherited command/subcommand trait set rather than
+    /// extending it.  Replacement is intentional: a conservative parent row
+    /// may describe both a getter and setter, while the zero-argument getter
+    /// form must be able to remove `EVALUATES_CODE` or other mutation-only
+    /// traits. `None` inherits the parent resolution unchanged.
+    pub traits: Option<Traits>,
+
+    /// Whether this concrete invocation shape mutates its receiver or other
+    /// command-specific state. `None` inherits the resolved subcommand's
+    /// coarse classification; top-level command forms otherwise default to
+    /// `false`.
+    pub mutator: Option<bool>,
+
+    /// Legacy structured side effects for this concrete invocation shape.
+    ///
+    /// `Some` replaces the inherited subcommand/command slice, including
+    /// `Some(&[])` to declare no legacy effect. `None` inherits. New common
+    /// compiler work should prefer [`Self::world_effects`], but this
+    /// refinement keeps established consumers exact while legacy effects are
+    /// migrated.
+    pub side_effects: Option<&'static [SideEffect]>,
+
     /// Mutable Tcl-world effects specific to this concrete form.
     ///
     /// A matching form is applied after its subcommand and parent-command
@@ -131,6 +205,7 @@ impl CommandForm {
     pub const DEFAULT: Self = Self {
         name: "",
         arity: Arity::any(),
+        literal_argument_prefix: None,
         arg_roles: &[],
         options: &[],
         option_constraints: &[],
@@ -139,6 +214,9 @@ impl CommandForm {
         completion: None,
         result_stability: None,
         representation_effect: None,
+        traits: None,
+        mutator: None,
+        side_effects: None,
         world_effects: None,
         state_transitions: None,
         dispatch_dependencies: None,

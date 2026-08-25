@@ -78,7 +78,7 @@ const REGISTER_OPTS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-prohibitedCommand",
-        value: OptionValue::command_prefix("command"),
+        value: OptionValue::deferred_command_prefix("command"),
         detail: "A command that decides whether a character is prohibited.",
         ..OptionSpec::DEFAULT
     },

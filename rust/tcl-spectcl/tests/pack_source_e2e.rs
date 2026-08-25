@@ -35,6 +35,8 @@ use std::rc::Rc;
 
 use tcl_compiler::optimiser::manager::optimise_raw;
 use tcl_registry::CommandRegistry;
+use tcl_registry::dialects::DialectSet;
+use tcl_registry::hover::ScriptTiming;
 use tcl_registry::pack_hooks::{self, HookInputs};
 use tcl_spec_hooks::tclvm_host;
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
@@ -57,9 +59,29 @@ speclib mylib 1 {
 }
 ";
 
+/// A command-prefix position whose timing depends on another argument. This
+/// exercises the new family through the loader, binder, host, thunk and the
+/// registry's exact current-position query rather than testing any seam in
+/// isolation.
+const TIMING_SOURCE: &str = r#"
+speclib mylib 1.2 {
+    command mylib::callback {
+        arity 2
+        arg 1 -appends {Exactly 0}
+        script_timing_resolver {words ctx} {
+            if {[lindex $words 0] eq "later"} {
+                timing 1 Deferred
+            } else {
+                timing 1 SameInvocation
+            }
+        }
+    }
+}
+"#;
+
 /// The same source as a discovered, merged pack set — the shape the install
 /// path takes.
-fn pack_set(name: &str) -> PackSet {
+fn pack_set_from(name: &str, source: &str) -> PackSet {
     let dir = std::env::temp_dir().join(format!(
         "tcl-spectcl-pack-source-{name}-{}-{:?}",
         std::process::id(),
@@ -68,12 +90,16 @@ fn pack_set(name: &str) -> PackSet {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("temp dir");
     let path: PathBuf = dir.join("mylib.tclspec");
-    std::fs::write(&path, SOURCE).expect("write pack");
+    std::fs::write(&path, source).expect("write pack");
     tcl_spectcl::pack::load(&[PackFile {
         tier: Tier::Workspace,
         path,
         origin: Origin::DotDir,
     }])
+}
+
+fn pack_set(name: &str) -> PackSet {
+    pack_set_from(name, SOURCE)
 }
 
 fn folds(registry: &CommandRegistry) -> Vec<String> {
@@ -145,4 +171,54 @@ fn without_a_host_the_installed_pack_simply_does_not_fold() {
     let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
     pack_hooks::clear_host();
     assert!(folds(&registry).is_empty());
+}
+
+#[test]
+fn a_pack_timing_hook_controls_a_live_command_prefix_position() {
+    let packs = pack_set_from("timing", TIMING_SOURCE);
+    assert!(
+        packs.notices.is_empty(),
+        "the timing pack loads cleanly: {:?}",
+        packs.notices
+    );
+
+    let plan = hooks::plan_for(&packs);
+    assert_eq!(
+        plan.packs()
+            .iter()
+            .map(|programs| programs.programs.len())
+            .sum::<usize>(),
+        1,
+        "the pack declares one timing hook"
+    );
+    let host = Rc::new(tclvm_host());
+    for programs in plan.packs() {
+        let installed = host.load_pack(programs.clone());
+        assert!(
+            installed.iter().all(|entry| entry.declined.is_none()),
+            "the timing hook installs: {installed:?}"
+        );
+    }
+    pack_hooks::install_host(host);
+
+    let registry = tcl_spectcl::install::registry_for_dialect_with_packs("tcl8.6", &packs);
+    assert_eq!(
+        registry.script_timing(
+            "mylib::callback",
+            &["now", "callback"],
+            1,
+            DialectSet::empty(),
+        ),
+        Some(ScriptTiming::SameInvocation),
+    );
+    assert_eq!(
+        registry.script_timing(
+            "mylib::callback",
+            &["later", "callback"],
+            1,
+            DialectSet::empty(),
+        ),
+        Some(ScriptTiming::Deferred),
+    );
+    pack_hooks::clear_host();
 }

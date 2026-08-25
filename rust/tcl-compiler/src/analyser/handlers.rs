@@ -6993,9 +6993,10 @@ impl Analyser {
                 // `oo::define C {error stop}` cannot be walked past on the
                 // strength of having no descriptor, which is what this branch
                 // used to do.
-                if self.body_runs_now(&arm.controller)
-                    && self.untyped_body_provably_blocks(arm.body_span, depth + 1)
-                {
+                let body_runs_now = self
+                    .control_arm_body_index(&arm)
+                    .is_none_or(|index| self.body_runs_now(&arm.controller, index));
+                if body_runs_now && self.untyped_body_provably_blocks(arm.body_span, depth + 1) {
                     return false;
                 }
                 continue;
@@ -7257,6 +7258,19 @@ impl Analyser {
     ) -> Option<tcl_registry::registry::ControlArmSemantics> {
         let registry = self.registry.as_deref()?;
         let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
+        let body_index = self.control_arm_body_index(arm)?;
+        registry.control_arm_semantics(arm.controller.name(), &args, body_index)
+    }
+
+    /// Recover the owning argv position for a direct body, a case-list body,
+    /// or a body nested inside a lambda literal.
+    ///
+    /// Timing and control-arm semantics are both per script position, so they
+    /// must share this mapping rather than falling back to an invocation-wide
+    /// trait when a command mixes immediate and deferred scripts.
+    fn control_arm_body_index(&self, arm: &ControlArm) -> Option<usize> {
+        let registry = self.registry.as_deref()?;
+        let args: Vec<&str> = arm.controller.args().iter().map(String::as_str).collect();
         let direct = arm
             .controller
             .arg_tokens()
@@ -7296,7 +7310,7 @@ impl Analyser {
                             })
                     })
             })?;
-        registry.control_arm_semantics(arm.controller.name(), &args, body_index)
+        Some(body_index)
     }
 
     /// Whether a body argument this walk could **not** read makes the arm set
@@ -7311,15 +7325,17 @@ impl Analyser {
     ///    runs now (`namespace eval $ns $script`), a bounded iteration. An
     ///    unreadable body there is a missing answer, so the arm set really is
     ///    incomplete.
-    /// 2. **[`Traits::DEFERS_BODY`].** With no typed semantics the question
-    ///    left is whether the body runs as part of *this* invocation, and that
-    ///    is registry data, never an inference. `proc ${ns}::define {a}
-    ///    [string map … {…}]` stores its body — nothing in it executes here,
-    ///    so an unreadable body word costs the walk nothing about the
-    ///    declaration, which falls through like any other command.
+    /// 2. **[`ScriptTiming`].** With no typed semantics the question left is
+    ///    whether this exact body argument runs as part of *this* invocation,
+    ///    and that is registry data, never an inference. `proc ${ns}::define
+    ///    {a} [string map … {…}]` stores its body — nothing in it executes
+    ///    here, so an unreadable body word costs the walk nothing about the
+    ///    declaration, which falls through like any other command. Legacy
+    ///    positional bodies without an exact timing descriptor fall back to
+    ///    the command-level [`Traits::DEFERS_BODY`] fact.
     ///
     /// The default is deliberately the abstaining one: a command that has not
-    /// declared `DEFERS_BODY` is assumed to run its body now. The first
+    /// declared deferred timing is assumed to run its body now. The first
     /// version of this helper read the *absence* of control-arm semantics as
     /// proof of dormancy, which is not what that absence means —
     /// `uplevel 1 $script` and `oo::define $c $script` have no control-arm
@@ -7338,6 +7354,8 @@ impl Analyser {
     ///
     /// [`ArgRole::Body`]: tcl_registry::ArgRole::Body
     /// [`ArgRole::LambdaLiteral`]: tcl_registry::ArgRole::LambdaLiteral
+    /// [`ScriptTiming`]: tcl_registry::ScriptTiming
+    /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
     fn unreadable_body_is_material(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
         let Some(registry) = self.registry.as_deref() else {
             return true;
@@ -7349,7 +7367,7 @@ impl Analyser {
         {
             return true;
         }
-        self.body_runs_now(seg)
+        self.body_runs_now(seg, body_index)
     }
 
     /// Whether `seg` runs its body argument as part of **this** invocation.
@@ -7360,23 +7378,29 @@ impl Analyser {
     /// the same question asked in two places, and only one of them was asking
     /// it.
     ///
-    /// Registry data, never an inference: [`Traits::DEFERS_BODY`] is declared
-    /// by the commands that *store* a script (`proc`, `after`'s scheduling
-    /// forms, the iRules `when` registration), and everything that has not
-    /// declared it is assumed to run its body now. That default is the
-    /// abstaining direction — a body that runs can raise or return before the
-    /// walk reaches the statement it cares about, while a body that is merely
-    /// stored cannot.
+    /// Registry data, never an inference: an option or argument can declare
+    /// its exact [`ScriptTiming`], so a command with both immediate and stored
+    /// scripts does not force one answer onto both. Legacy positional bodies
+    /// fall back to command-level [`Traits::DEFERS_BODY`]. Everything else is
+    /// assumed to run now. That default is the abstaining direction — a body
+    /// that runs can raise or return before the walk reaches the statement it
+    /// cares about, while a body that is merely stored cannot.
     ///
     /// [`Traits::DEFERS_BODY`]: tcl_registry::Traits::DEFERS_BODY
-    fn body_runs_now(&self, seg: &SegmentedCommand) -> bool {
+    /// [`ScriptTiming`]: tcl_registry::ScriptTiming
+    fn body_runs_now(&self, seg: &SegmentedCommand, body_index: usize) -> bool {
         let Some(registry) = self.registry.as_deref() else {
             return true;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        !registry
-            .invocation_traits(seg.name(), &args, self.profile.availability_mask)
-            .contains(tcl_registry::Traits::DEFERS_BODY)
+        registry
+            .script_timing(
+                seg.name(),
+                &args,
+                body_index,
+                self.profile.availability_mask,
+            )
+            .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
     }
 
     /// Whether a body the registry gives **no** control-arm semantics for is

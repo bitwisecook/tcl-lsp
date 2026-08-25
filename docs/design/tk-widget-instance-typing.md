@@ -121,18 +121,19 @@ resolves it with no widget-specific code at all.
 
 ## The model
 
-1. **Registry data** (~34 widget-constructor `CommandSpec`s under
+1. **Registry data** (widget-constructor `CommandSpec`s under
    `rust/tcl-registry/src/commands/tk/`): each gets
-   `creates_instance_at: Some(0)`. The 9 with a real `SUBCOMMANDS` table
-   (`treeview`, `notebook`, `listbox`, `text`, `canvas`, `entry`, `menu`,
-   `panedwindow`, `spinbox`) additionally get a self-referential
+   `creates_instance_at: Some(0)`. Widgets with a real `SUBCOMMANDS` table
+   additionally get a self-referential
    `object_class: Some(&<WIDGET>_CLASS)` whose `instance_methods` is the
    *same* `SUBCOMMANDS` slice the spec's own `subcommands` field already
-   uses — no duplication. The remaining ~25 option-only widgets (`button`,
-   `frame`, `label`, …) get `creates_instance_at` alone (`object_class`
-   stays `None`): there is nothing to dispatch against yet, but the
-   binding is still useful for definition/references/W123 suppression via
-   `record_registry_factory_instance`'s existing `cmd_name` fallback.
+   uses — no duplication. Classic widgets whose widget-specific methods are
+   absent or not yet transcribed (`button`, `frame`, `label`, `message`,
+   `toplevel`, `menubutton`, `labelframe`, and `scrollbar`) use the
+   registry-owned shared classic base containing the proven `cget` and
+   `configure` methods. `button` and `scrollbar` extend that shared base with
+   their small documented method sets, including callback effects for
+   `button invoke`; all of these class tables are therefore closed.
 2. **Widget-command identity is a registry query**, not a name list:
    `Analyser::is_widget_command` (`analyser/tk_checks.rs`) asks
    `creates_instance_at.is_some() && required_package == Some("Tk")`. A
@@ -382,12 +383,14 @@ following are explicit non-goals, not accidental gaps:
 ## Testing
 
 - **Registry** (`tcl-registry/tests/registry_commands.rs`):
-  `tk_widget_constructors_declare_creates_instance_at` (all 34 widgets) and
-  `tk_widgets_with_subcommands_self_reference_their_object_class` (the 9
+  `tk_widget_constructors_declare_creates_instance_at` and
+  `tk_widgets_with_subcommands_self_reference_their_object_class` (widgets
   with a real subcommand table — round-trips `object_class.instance_methods`
   against `subcommands` by literal slice identity, `std::ptr::eq`, and
   proves cross-widget subcommand names don't leak, e.g. `ttk::treeview`
-  never accepts `curselection`).
+  never accepts `curselection`). The inline Tk registry test additionally
+  proves every shared classic class has prefix-aware `cget`/`configure`,
+  registry-driven instance-option configuration, and read/write effects.
 - **Propagation** (`tcl-compiler/src/object_types.rs`,
   `analyser/commands.rs` inline `#[cfg(test)]` modules):
   `bareword_widget_path_is_a_handle` / `var_captured_widget_path_is_a_handle`

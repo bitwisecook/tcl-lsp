@@ -162,6 +162,27 @@ it is not simply a Body role.",
 say). Code, carried by reference — describe the rule in the issue notes.",
     ),
     (
+        "script_timing_resolver",
+        "The dynamic sibling of per-option `script_timing`: use it when the \
+same executable position runs now in one invocation shape but is stored in \
+another, as with `send -async`. It emits an exact index plus \
+`SameInvocation`, `Deferred`, or `ReferenceOnly`; the index must already be a `Body`, \
+`LambdaLiteral`, or `CommandPrefix`. Silence leaves the option timing or \
+command-level compatibility fallback in force. In SpecTcl the body calls \
+`timing IDX SameInvocation|Deferred|ReferenceOnly`.",
+    ),
+    (
+        "callback_taint_inputs",
+        "Lists only callback substitutions whose bytes are externally controlled. \
+For Tk validation, `%P`, `%s`, and `%S` carry editable text; for key bindings, \
+`%A` and `%K` carry the typed character or keysym. Do not declare widget paths, \
+indices, validation actions, or reasons (`%W`, `%i`, `%d`, `%V`) here: those are \
+framework metadata, not taint sources. The callback must be deferred; dynamic \
+script construction remains intentionally unanalyzed. In SpecTcl, write an \
+option's `-callback-taint-inputs {%P %S}` or the positional \
+`callback_taint_inputs {{INDEX {%A %K}}}` table.",
+    ),
+    (
         "return_type",
         "The kind of value `[cmd …]` produces: string, integer, double, \
 boolean, list, dict, byte array, object handle, or channel. `llength` \
@@ -263,21 +284,32 @@ the easiest high-value field to fill in.",
     ),
     (
         "forms",
-        "The distinct ways the command can be called, each with its own \
-synopsis and argument count — most usefully a read form and a write form: \
+        "The distinct documented ways the command can be called, each with a \
+synopsis and kind — most usefully a read form and a write form: \
 `$w cget -opt` versus `$w configure -opt value`, or `testConstraint NAME` \
-(getter) versus `testConstraint NAME value` (setter). The right form is \
-picked by argument count, so each can carry its own purity and effects: a \
-getter is harmless where its setter is not.\n\nA form can also come and go \
-with the package: each row carries the same three releases the command does, \
-so a form added in 1.4 and dropped in 2.0 says so on its own row.",
+(getter) versus `testConstraint NAME value` (setter). These rows document \
+what users see in hover and reference output; they do not select an invocation \
+or change arity, traits, effects, taint, or purity. Use `command_forms` when \
+one call shape needs different executable semantics.\n\nA form may also be \
+limited to a dialect or package lifecycle. Those facts are preserved when the \
+Studio opens an existing spec; set them in the source or SpecTcl until the \
+form editor exposes availability controls.",
     ),
     (
         "command_forms",
-        "A structured, per-form bundle of arity, roles, options, and hooks \
-for commands whose forms differ more deeply than a synopsis line can say. \
-Expression-valued and rarely needed — plain `forms` covers the common \
-getter/setter split.",
+        "A structured, per-form Rust descriptor for commands whose forms \
+differ more deeply than a synopsis line can say. Alongside arity, roles, \
+options, and hooks, each `CommandForm` may replace the inherited `traits`, \
+`mutator`, and `side_effects` facts. Replacement lets a query form remove a \
+coarse parent mutation or callback classification instead of only adding more \
+effects. `literal_argument_prefix` selects overlapping-arity forms from known \
+literal source words, with optional unique-prefix matching. The longest static \
+selector wins when one selector extends another; substitutions and expansions \
+abstain while a longer selector remains possible and retain the conservative \
+parent facts.\n\nThis is deliberately one opaque Rust expression editor. The \
+descriptor also contains native validators, compiler hooks, and proof metadata, \
+so SpecTcl cannot author or round-trip any `command_forms` descriptor today. \
+Use plain `forms` only when the difference is documentation-only.",
     ),
     (
         "semantic_operation",
@@ -432,10 +464,90 @@ missing-import warning; after it, everything lights up. Leave unset for \
 commands that are simply always there.",
     ),
     (
+        "tk_geometry",
+        "Declares how a Tk geometry manager chooses and owns its effective \
+container. `Exclusive` managers such as `pack` and `grid` conflict when both \
+claim one container; `Independent` managers such as `place` do not claim that \
+exclusive ownership. Set the container option to `-in` when calls may redirect \
+placement away from the widget's lexical parent. Static preview and TK1001 \
+consume that target. Declare whether the default form places widgets, the \
+placement subcommand (usually `configure`), and every subcommand that releases \
+widgets (`forget`, plus `remove` for `grid`). Both consumers read the whole \
+descriptor through the registry, so adding a manager needs no command-name \
+branch in either consumer.",
+    ),
+    (
+        "container_policy",
+        "`Exclusive` claims propagation ownership of the effective container, \
+so a different exclusive manager conflicts there; `Independent` positions \
+widgets without making that claim.",
+    ),
+    (
+        "container_option",
+        "The geometry option whose literal value replaces the widget pathname's \
+parent as the effective container. Tk's built-in managers use `-in`; leave it \
+unset only when the manager has no such redirection option.",
+    ),
+    (
+        "direct_form",
+        "Set when `manager widget ?options?` itself places widgets. Clear it for \
+a manager that only places through a named subcommand.",
+    ),
+    (
+        "placement_subcommand",
+        "The subcommand that places or reconfigures its widget arguments, such \
+as `configure` for `pack`, `grid`, and `place`. Leave unset when none exists.",
+    ),
+    (
+        "release_subcommands",
+        "Every subcommand that stops managing its widget arguments. Order is \
+descriptive; include both `forget` and `remove` when their persistence details \
+differ but both release current placement.",
+    ),
+    (
         "excluded_events",
         "iRules only: event contexts where this command must not be used, \
 by event name (`HTTP_REQUEST`, `CLIENT_ACCEPTED`, …). The validity check \
 reports a use inside any listed event.",
+    ),
+    (
+        "taints_var_write",
+        "Marks one variable-valued option as an external-input link. Use it \
+when later user interaction can write the named variable, as with an editable \
+entry or combobox `-textvariable`. Leave it off for display-only links such as \
+a label's `-textvariable`. This taints the linked variable's SSA definition; \
+it does not taint the widget command returned by its constructor. The option \
+value must have `VarWrite` as its role or secondary role; the Studio hides \
+this control for values that cannot write a variable.",
+    ),
+    (
+        "variable_scope",
+        "Controls where a variable-valued option resolves an unqualified name. \
+`CurrentFrame` is Tcl's ordinary rule: a name used inside a procedure denotes \
+that procedure's local unless aliased. `Global` is for APIs such as Tk \
+`-textvariable` and `-variable`, whose manuals explicitly link a global \
+variable; `value` therefore denotes `::value` even when the widget is created \
+inside a procedure. Set this only on a `VarRead` or `VarWrite` option value.",
+    ),
+    (
+        "script_timing",
+        "Separates *when* a script runs from `body_kind`, which says only which \
+frame it uses. `SameInvocation` means the receiving command may evaluate the \
+script before it returns, so an error or return can affect current control \
+flow. `Deferred` means the command stores it for a later callback, as Tk does \
+for `-command` and `-validatecommand`; `ReferenceOnly` means executable text \
+is matched or queried but never invoked, as in `trace remove`. Neither can \
+abort the receiving command or hide its definitions. Set this only on an \
+executable option (`Body`, `LambdaLiteral`, or `CommandPrefix`).",
+    ),
+    (
+        "method_prefix_matching",
+        "Controls lookup in this object's instance-method table, independently \
+of the command's own `prefix_matching`. `Strict` (the safe default) requires \
+the complete method spelling. `Enabled` accepts a non-empty prefix only when \
+it identifies exactly one declared method; an ambiguous prefix still abstains. \
+Enable it only when the runtime's object dispatcher is documented or source-proven \
+to accept unique prefixes, as Tk widget commands do.",
     ),
     (
         "unsafe_command",
@@ -914,8 +1026,15 @@ value.",
     (
         "subcommand_forms",
         "Structured per-form routing for this subcommand — the \
-subcommand-level twin of the command's structured forms. \
-Expression-valued and rarely needed.",
+subcommand-level twin of `command_forms`. A `SubCommandForm` may replace the \
+parent row's `traits`, `mutator`, and `side_effects`, which is how one method \
+can be a read at one arity and a mutation at another. Its optional \
+`literal_argument_prefix` also separates same-arity operation words without \
+treating a computed word as literal, and the longest statically matched \
+selector wins when selectors overlap.\n\nThe studio preserves the whole value \
+as an opaque Rust expression. Because the same descriptor may carry native \
+compiler routing and proof metadata, SpecTcl cannot author or round-trip any \
+`subcommand_forms` descriptor today; no partial form DSL is claimed.",
     ),
     (
         "loop_list_header",
@@ -1122,6 +1241,22 @@ separate definition context of its own, like a `proc` body. The first \
 joins the surrounding data flow; the second deliberately does not.",
     ),
     (
+        "scriptTiming",
+        "Script timing",
+        "When a script-valued option is evaluated relative to the command that \
+receives it. This is independent of scope: timing answers *when*; Body kind \
+answers *which frame*. Use `Deferred` for stored callbacks, `ReferenceOnly` \
+for executable text identified but not invoked, and `SameInvocation` for \
+scripts the command may run before returning.",
+    ),
+    (
+        "variableScope",
+        "Variable scopes",
+        "Where a variable-name option resolves an unqualified name. Use \
+`CurrentFrame` for normal Tcl call-frame lookup and `Global` only when the \
+command's documentation defines an interpreter-global link.",
+    ),
+    (
         "argPresentation",
         "Argument presentation",
         "Formatter layout preferences for body arguments: expanded onto \
@@ -1169,9 +1304,10 @@ follows the declared language.",
     (
         "formKind",
         "Form kinds",
-        "Classifies an invocation form: the default, a read-only getter, or \
-a modifying setter. Getter and setter forms of one command can differ in \
-arity, purity, and effects.",
+        "Labels a documented invocation form as the default, a read-only \
+getter, or a modifying setter. The label improves reference output; it does \
+not select semantics. Use `command_forms` when forms need different arity, \
+traits, purity, effects, or argument roles.",
     ),
     (
         "definedSymbolKind",
@@ -1330,6 +1466,7 @@ mod tests {
             .chain(schema::SUBCOMMAND_FIELDS)
             .map(|f| f.key)
             .collect();
+        keys.extend(schema::NESTED_FIELDS.iter().map(|field| field.key));
         keys.sort_unstable();
         keys.dedup();
         keys

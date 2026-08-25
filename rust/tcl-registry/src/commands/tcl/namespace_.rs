@@ -165,13 +165,22 @@ const ENSEMBLE_OPT_SUBCOMMANDS: OptionSpec = OptionSpec {
 
 const ENSEMBLE_OPT_UNKNOWN: OptionSpec = OptionSpec {
     name: "-unknown",
-    value: OptionValue::command_prefix("prefix"),
+    value: OptionValue::deferred_command_prefix("prefix"),
     detail: "Command prefix invoked, with the ensemble's own invocation words appended, when a subcommand is not recognised (default: none, which raises a standard \"unknown subcommand\" error).",
     dialects: None,
     aliases: &[],
     lifecycle: Lifecycle::UNSPECIFIED,
     min_abbrev: None,
 };
+
+/// A namespace unknown handler is installed for a future failed dispatch;
+/// setting or querying it never invokes the prefix in this call.
+fn namespace_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (!args.is_empty())
+        .then_some((0, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
 
 /// `ensembleCreateOptions` (`tclEnsemble.c`), in C's own order.
 static ENSEMBLE_CREATE_OPTIONS: &[OptionSpec] = &[
@@ -1122,6 +1131,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // prefix invoked with the unknown command name + its args appended
         // (variadic ⇒ AtLeast(1)). The zero-arg query form has no prefix.
         command_prefixes: &[(0, AppendedArity::AtLeast(1))],
+        script_timing_resolver: Some(namespace_unknown_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::NamespaceUnknown),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
         state_transitions: Some(NAMESPACE_UNKNOWN_TRANSITIONS),

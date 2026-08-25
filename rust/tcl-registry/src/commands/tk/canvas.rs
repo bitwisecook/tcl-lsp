@@ -19,6 +19,8 @@
 //! `canvas` command.
 use crate::prelude::*;
 
+const USER_EVENT_INPUTS: &[CallbackTaintInput] = &[CallbackTaintInput::TK_EVENT_CHAR];
+
 /// Dynamic arg-role resolver for the canvas `bind` subcommand.
 ///
 /// `pathName bind tagOrId ?sequence? ?command?` — like the top-level
@@ -35,7 +37,25 @@ fn canvas_bind_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
+fn canvas_bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    if args.len() == 3 {
+        vec![(2, ScriptTiming::Deferred)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The command's subcommands.
+const SELECT_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "item",
+    arity: Arity::exact(1),
+    literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["item"])),
+    traits: Some(Traits::PURE),
+    mutator: Some(false),
+    side_effects: Some(super::common::TTK_WIDGET_READS),
+    ..SubCommandForm::DEFAULT
+}];
+
 static SUBCOMMANDS: [SubCommand; 30] = [
     SubCommand {
         name: "addtag",
@@ -58,7 +78,10 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         detail: "Associate a command with a canvas item event.",
         synopsis: "pathName bind tagOrId ?sequence? ?command?",
         arg_role_resolver: Some(canvas_bind_arg_roles),
+        script_timing_resolver: Some(canvas_bind_script_timing),
+        callback_taint_inputs: &[(2, USER_EVENT_INPUTS)],
         body_kind: BodyKind::Structural,
+        traits: Traits::DEFERS_BODY,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -224,6 +247,8 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         arity: Arity::at_least(1),
         detail: "Implement scanning for the canvas.",
         synopsis: "pathName scan option args",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -231,6 +256,9 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         arity: Arity::at_least(1),
         detail: "Manipulate the selection in text, line, or polygon items.",
         synopsis: "pathName select option ?tagOrId arg?",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: SELECT_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -245,6 +273,9 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         arity: Arity::at_least(0),
         detail: "Query or change the horizontal view position.",
         synopsis: "pathName xview ?args?",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -252,6 +283,9 @@ static SUBCOMMANDS: [SubCommand; 30] = [
         arity: Arity::at_least(0),
         detail: "Query or change the vertical view position.",
         synopsis: "pathName yview ?args?",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
 ];
@@ -337,7 +371,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -346,7 +380,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
@@ -530,6 +564,7 @@ static CANVAS_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
 };
 
 pub fn spec() -> CommandSpec {

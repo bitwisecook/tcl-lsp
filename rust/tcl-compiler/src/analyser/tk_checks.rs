@@ -82,10 +82,9 @@
 //!
 //! Diagnostic codes:
 //!
-//! - **TK1001** (WARNING): geometry-manager conflict — two of the commands
-//!   carrying [`Traits::TK_GEOMETRY_MANAGER`](tcl_registry::Traits) (`pack`,
-//!   `grid`, `place`) used on the same parent *in the same interpreter* (a
-//!   runtime error in Tk).
+//! - **TK1001** (WARNING): geometry-container conflict — two distinct managers
+//!   whose registry descriptors claim exclusive propagation ownership (Tk's
+//!   `pack` and `grid`) use the same effective container in one interpreter.
 //! - **TK1002** (WARNING): widget path references a parent that does not exist
 //!   *in that interpreter's* hierarchy.
 //! - **TK1003** (HINT): unknown option for a widget command (per-command, so
@@ -101,13 +100,21 @@ use super::types::Severity;
 /// TK1001 can be decided post-walk.
 #[derive(Debug, Default)]
 pub(super) struct TkGeometryUsage {
-    /// The distinct geometry managers (whatever carries
-    /// `Traits::TK_GEOMETRY_MANAGER` — `pack` / `grid` / `place` today)
-    /// seen for this parent.
+    /// The distinct registry-declared managers that claim exclusive geometry
+    /// propagation ownership of this effective container.
     pub managers: std::collections::BTreeSet<String>,
     /// Each geometry call site `(manager, span)`, in document order, so a
     /// conflict reports on every offending call.
     pub sites: Vec<(String, tcl_lexer::Span)>,
+}
+
+/// The active geometry claim for one widget. Tk allows a content window to
+/// switch managers; the previous manager's claim disappears at that point.
+#[derive(Debug, Clone)]
+pub(super) struct TkActiveGeometry {
+    pub manager: String,
+    pub container: String,
+    pub span: tcl_lexer::Span,
 }
 
 /// One interpreter's Tk window hierarchy as the walk models it (issue
@@ -137,6 +144,26 @@ pub(super) struct TkDomainState {
     /// parent widget path, flushed post-walk so a `pack`/`grid` conflict
     /// can be decided (TK1001).
     pub geometry: std::collections::BTreeMap<String, TkGeometryUsage>,
+    /// Current manager/container per content widget. This is deliberately
+    /// temporal: historical calls cannot conflict after `forget`/`remove` or
+    /// after the same widget switches manager.
+    pub geometry_by_widget: std::collections::HashMap<String, TkActiveGeometry>,
+    /// Geometry claims whose widget pathname may or may not exist or be
+    /// managed after a control-flow arm.  These are kept path-scoped so an
+    /// uncertain `.left` operation does not suppress a definite `.right`
+    /// conflict.
+    pub uncertain_geometry_widgets: std::collections::HashSet<String>,
+    /// Effective containers whose manager ownership may differ by path.
+    pub uncertain_geometry_containers: std::collections::HashSet<String>,
+    /// Possible widget-to-container relationships for path-sensitive claims.
+    /// The paths need not be lexically related because `-in` can redirect a
+    /// widget into an unrelated container.
+    pub uncertain_geometry_claims:
+        std::collections::HashMap<String, std::collections::HashSet<String>>,
+    /// A dynamic pathname/container leaves no sound finite scope.  This is
+    /// the only domain-wide widening; definite destroy/release can clear the
+    /// path-scoped sets without touching unrelated containers.
+    pub geometry_uncertain: bool,
 }
 
 /// The package name whose presence activates the TK checks.  The single
@@ -163,10 +190,8 @@ pub(super) fn tk_checks_could_apply(source: &str, availability: tcl_dialect::Dia
     availability.contains(tcl_dialect::DialectSet::TK) || source.contains(TK_PACKAGE)
 }
 
-/// Return `true` if `path` matches Tcl/Tk widget-path syntax — a leading
-/// `.`, then a letter/underscore, then letters / digits / `_` / `.`
-/// (`^\.[a-zA-Z_][a-zA-Z0-9_.]*$`); note the bare root `.` does *not*
-/// match (it has no first component).
+/// Compiler-facing wrapper around the registry-owned Tk widget-path grammar.
+/// The bare root `.` is not a widget command and therefore does not match.
 ///
 /// `pub(crate)`: also the single source of truth for
 /// `signature_scan::command_prefix`'s command-prefix-head guard — a widget
@@ -174,15 +199,7 @@ pub(super) fn tk_checks_could_apply(source: &str, availability: tcl_dialect::Dia
 /// user proc, so a callback prefix whose head is one (`-yscrollcommand
 /// {.sb set}`) must not be treated as a checkable command reference.
 pub(crate) fn is_widget_path(path: &str) -> bool {
-    let mut chars = path.chars();
-    if chars.next() != Some('.') {
-        return false;
-    }
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return false,
-    }
-    chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+    !path.contains(['$', '[', ']']) && tcl_registry::tk_geometry::is_widget_path(path)
 }
 
 /// Return the parent widget path for `widget_path`: `.` has no parent
@@ -196,6 +213,10 @@ fn parent_widget_path(widget_path: &str) -> &str {
         Some(idx) if idx > 0 => &widget_path[..idx],
         _ => ".",
     }
+}
+
+fn widget_is_within(candidate: &str, ancestor: &str) -> bool {
+    tcl_registry::tk_geometry::widget_path_is_within(candidate, ancestor)
 }
 
 impl Analyser {
@@ -215,17 +236,12 @@ impl Analyser {
         })
     }
 
-    /// Return `true` if `name` is a Tk geometry-manager command — the
-    /// registry's [`Traits::TK_GEOMETRY_MANAGER`], not a hand-maintained
-    /// three-name list.  TK1001's question is "did two managers claim one
-    /// container", and which commands are managers is spec data: a `ttk::`
-    /// megawidget manager or a vendor Tk fork joins the check by stamping
-    /// the trait, with no edit here (issue #1390).
-    fn is_geometry_command(&self, name: &str) -> bool {
-        self.registry.as_deref().is_some_and(|r| {
-            r.get(name)
-                .is_some_and(|s| s.traits.contains(tcl_registry::Traits::TK_GEOMETRY_MANAGER))
-        })
+    /// Return the registry-declared semantics for a Tk geometry manager.
+    fn geometry_spec(
+        &self,
+        name: &str,
+    ) -> Option<tcl_registry::tk_geometry::TkGeometryManagerSpec> {
+        self.registry.as_deref()?.get(name)?.tk_geometry
     }
 
     /// Per-command Tk dispatch.  Tracks widget creation and geometry-manager
@@ -234,6 +250,10 @@ impl Analyser {
     /// activation condition (`tk` dialect or a `package require Tk`) is a
     /// whole-file fact only resolved post-walk.  A no-op unless
     /// [`tk_possibly_active`] held for this document.
+    // One registry-dispatched transaction updates the shared widget,
+    // geometry, and option-use state. Splitting it would make those facts
+    // order-dependent across helpers.
+    #[allow(clippy::too_many_lines)]
     pub(super) fn emit_tk_checks(
         &mut self,
         cmd_name: &str,
@@ -248,6 +268,19 @@ impl Analyser {
         // Every widget/geometry fact belongs to the Tk hierarchy of the
         // interpreter this command runs in, never to a file-wide pool.
         let (domain, resolved) = self.current_tk_domain();
+        let path_uncertain = self.control_flow_body_depth > 0 || self.conditional_depth > 0;
+
+        if self.is_widget_command(cmd_name) {
+            if let Some(path) = args.first().filter(|path| is_widget_path(path)) {
+                if path_uncertain {
+                    self.mark_tk_geometry_paths_uncertain(&domain, resolved, Some(path), None);
+                }
+            } else {
+                // A dynamic constructor can establish any widget path, so no
+                // finite scope is sound here, whether or not it is branched.
+                self.mark_tk_geometry_domain_uncertain(&domain, resolved);
+            }
+        }
 
         if self.is_widget_command(cmd_name)
             && let Some(path) = args.first()
@@ -278,21 +311,430 @@ impl Analyser {
             self.emit_tk1003_unknown_options(cmd_name, args, arg_tokens, cmd_tok);
         }
 
-        // Track geometry-manager usage for the post-walk TK1001 check.
-        if self.is_geometry_command(cmd_name)
-            && let Some(widget_path) = args.first()
-            && is_widget_path(widget_path)
-        {
-            let parent = parent_widget_path(widget_path).to_string();
-            let span = arg_tokens.first().map_or(cmd_tok.span, |t| t.span);
-            let usage = self
-                .tk_domain_state(&domain, resolved)
-                .geometry
-                .entry(parent)
-                .or_default();
-            usage.managers.insert(cmd_name.to_string());
-            usage.sites.push((cmd_name.to_string(), span));
+        // Registry-declared Tk teardown ends both the pathname lifetime and
+        // any geometry claim held by that widget. Keep this generic: the
+        // analyser does not name `destroy`.
+        let tears_down_tk_widget = self
+            .registry
+            .as_deref()
+            .and_then(|registry| registry.get(cmd_name))
+            .is_some_and(|spec| {
+                spec.required_package == Some(TK_PACKAGE)
+                    && spec
+                        .traits
+                        .contains(tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN)
+            });
+        if tears_down_tk_widget {
+            let paths: Vec<String> = args
+                .iter()
+                .filter(|path| *path == "." || is_widget_path(path))
+                .cloned()
+                .collect();
+            let has_dynamic_path = args
+                .iter()
+                .any(|path| *path != "." && !is_widget_path(path));
+            if has_dynamic_path {
+                self.mark_tk_geometry_domain_uncertain(&domain, resolved);
+            } else if path_uncertain {
+                if paths.is_empty() {
+                    self.mark_tk_geometry_domain_uncertain(&domain, resolved);
+                } else {
+                    for path in paths {
+                        let affected: Vec<(String, String)> = self
+                            .tk_domain_state(&domain, resolved)
+                            .geometry_by_widget
+                            .iter()
+                            .filter(|(widget, _)| widget_is_within(widget, &path))
+                            .map(|(widget, active)| (widget.clone(), active.container.clone()))
+                            .collect();
+                        if affected.is_empty() {
+                            self.mark_tk_geometry_paths_uncertain(
+                                &domain,
+                                resolved,
+                                Some(&path),
+                                None,
+                            );
+                        }
+                        for (widget, container) in affected {
+                            self.mark_tk_geometry_paths_uncertain(
+                                &domain,
+                                resolved,
+                                Some(&widget),
+                                Some(&container),
+                            );
+                        }
+                    }
+                }
+                return;
+            } else {
+                for path in paths {
+                    let descendants: Vec<String> = {
+                        let state = self.tk_domain_state(&domain, resolved);
+                        state
+                            .created_widgets
+                            .iter()
+                            .filter(|candidate| widget_is_within(candidate, &path))
+                            .cloned()
+                            .collect()
+                    };
+                    for descendant in descendants {
+                        self.tk_domain_state(&domain, resolved)
+                            .created_widgets
+                            .remove(&descendant);
+                        self.release_tk_geometry(&domain, resolved, &descendant);
+                    }
+                    self.clear_tk_geometry_uncertainty_for_path(&domain, resolved, &path);
+                }
+            }
+            return;
         }
+
+        // Track the active geometry state in source order. Tk permits one
+        // content window to switch managers, and forget/remove releases its
+        // old claim; only simultaneously active siblings can conflict.
+        if let Some(geometry) = self.geometry_spec(cmd_name) {
+            let Some(spec) = self
+                .registry
+                .as_deref()
+                .and_then(|registry| registry.get(cmd_name))
+            else {
+                return;
+            };
+
+            let resolved_subcommand = args.first().and_then(|word| spec.resolve_subcommand(word));
+            if let Some(subcommand) = resolved_subcommand
+                && geometry.release_subcommands.contains(&subcommand.name)
+            {
+                if geometry.container_policy
+                    != tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive
+                {
+                    return;
+                }
+                let release_paths: Vec<String> = args
+                    .iter()
+                    .skip(1)
+                    .filter(|path| is_widget_path(path))
+                    .cloned()
+                    .collect();
+                let has_dynamic_release = args.iter().skip(1).any(|path| !is_widget_path(path));
+                if has_dynamic_release {
+                    // A computed pathname may name any currently managed
+                    // widget, so even a neighbouring literal release cannot
+                    // keep the remaining container ownership exact.
+                    self.mark_tk_geometry_domain_uncertain(&domain, resolved);
+                    return;
+                }
+                for widget_path in release_paths {
+                    let container = self
+                        .tk_domains
+                        .get(&domain)
+                        .and_then(|state| {
+                            state
+                                .geometry_by_widget
+                                .get(&widget_path)
+                                .map(|active| active.container.clone())
+                        })
+                        .unwrap_or_else(|| parent_widget_path(&widget_path).to_owned());
+                    if path_uncertain {
+                        self.mark_tk_geometry_paths_uncertain(
+                            &domain,
+                            resolved,
+                            Some(&widget_path),
+                            Some(&container),
+                        );
+                    } else {
+                        self.release_tk_geometry(&domain, resolved, &widget_path);
+                        self.clear_tk_geometry_uncertainty_for_release(
+                            &domain,
+                            resolved,
+                            &widget_path,
+                            &container,
+                        );
+                    }
+                }
+                return;
+            }
+
+            let (target_start, options) =
+                if geometry.direct_form && args.first().is_some_and(|path| is_widget_path(path)) {
+                    (0, spec.options)
+                } else if let Some(subcommand) = resolved_subcommand
+                    && geometry.placement_subcommand == Some(subcommand.name)
+                {
+                    (1, subcommand.options)
+                } else {
+                    return;
+                };
+            let option_start = args
+                .iter()
+                .skip(target_start)
+                .position(|word| tcl_registry::spec::resolve_option_prefix(options, word).is_some())
+                .map_or(args.len(), |index| index + target_start);
+            // Walk option/value groups, rather than searching every word:
+            // an option value may itself look like `-in`. Tk processes
+            // duplicate options in order, so the final `-in` wins.
+            let explicit_container = geometry.container_option.and_then(|container_option| {
+                let mut found = None;
+                let mut index = option_start;
+                while index < args.len() {
+                    if args[index] == "--" {
+                        break;
+                    }
+                    let Some(option) =
+                        tcl_registry::spec::resolve_option_prefix(options, &args[index])
+                    else {
+                        index += 1;
+                        continue;
+                    };
+                    let values = option.value_indices(args, index);
+                    if option.name == container_option {
+                        found = values.last().and_then(|value| args.get(*value));
+                    }
+                    index += 1 + values.len();
+                }
+                found
+            });
+            let has_dynamic_target = args
+                .iter()
+                .skip(target_start)
+                .take(option_start.saturating_sub(target_start))
+                .any(|path| !is_widget_path(path));
+            let targets: Vec<(String, tcl_lexer::Span)> = args
+                .iter()
+                .skip(target_start)
+                .take(option_start.saturating_sub(target_start))
+                .enumerate()
+                .filter(|(_, path)| is_widget_path(path))
+                .map(|(index, path)| {
+                    (
+                        path.clone(),
+                        arg_tokens
+                            .get(index + target_start)
+                            .map_or(cmd_tok.span, |token| token.span),
+                    )
+                })
+                .collect();
+            if geometry.container_policy
+                == tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive
+                && (has_dynamic_target
+                    || targets.is_empty()
+                    || explicit_container
+                        .is_some_and(|container| container != "." && !is_widget_path(container)))
+            {
+                self.mark_tk_geometry_domain_uncertain(&domain, resolved);
+                return;
+            }
+            for (widget_path, span) in targets {
+                let parent = match explicit_container {
+                    Some(container) if container == "." || is_widget_path(container) => {
+                        (*container).clone()
+                    }
+                    Some(_) => continue,
+                    None => parent_widget_path(&widget_path).to_string(),
+                };
+                if path_uncertain {
+                    if geometry.container_policy
+                        == tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive
+                    {
+                        self.mark_tk_geometry_paths_uncertain(
+                            &domain,
+                            resolved,
+                            Some(&widget_path),
+                            Some(&parent),
+                        );
+                    }
+                    continue;
+                }
+                if self.tk_geometry_path_uncertain(&domain, resolved, &widget_path)
+                    || self.tk_geometry_path_uncertain(&domain, resolved, &parent)
+                {
+                    continue;
+                }
+                self.release_tk_geometry(&domain, resolved, &widget_path);
+                if geometry.container_policy
+                    == tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive
+                    && self.claim_tk_geometry(
+                        &domain,
+                        resolved,
+                        &widget_path,
+                        cmd_name,
+                        &parent,
+                        span,
+                    )
+                {
+                    // A Tk geometry command stops at the first failed claim;
+                    // later targets in the same command are not processed.
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Mark only the widget/container that a branch-selected operation can
+    /// affect.  A source-order walk has no branch join, but it can still keep
+    /// unrelated containers precise.
+    fn mark_tk_geometry_paths_uncertain(
+        &mut self,
+        domain: &str,
+        resolved: bool,
+        widget_path: Option<&str>,
+        container: Option<&str>,
+    ) {
+        let state = self.tk_domain_state(domain, resolved);
+        if let Some(path) = widget_path {
+            state.uncertain_geometry_widgets.insert(path.to_owned());
+        }
+        if let Some(container) = container {
+            state
+                .uncertain_geometry_containers
+                .insert(container.to_owned());
+            if let Some(path) = widget_path {
+                state
+                    .uncertain_geometry_claims
+                    .entry(path.to_owned())
+                    .or_default()
+                    .insert(container.to_owned());
+            }
+        }
+    }
+
+    fn mark_tk_geometry_domain_uncertain(&mut self, domain: &str, resolved: bool) {
+        self.tk_domain_state(domain, resolved).geometry_uncertain = true;
+    }
+
+    fn tk_geometry_path_uncertain(&self, domain: &str, resolved: bool, path: &str) -> bool {
+        let Some(state) = self.tk_domains.get(domain) else {
+            return false;
+        };
+        if state.resolved != resolved {
+            return true;
+        }
+        state.geometry_uncertain
+            || state
+                .uncertain_geometry_containers
+                .iter()
+                .any(|candidate| candidate == path)
+            || state
+                .uncertain_geometry_widgets
+                .iter()
+                .any(|candidate| widget_is_within(path, candidate))
+    }
+
+    fn clear_tk_geometry_uncertainty_for_release(
+        &mut self,
+        domain: &str,
+        resolved: bool,
+        widget_path: &str,
+        _container: &str,
+    ) {
+        let state = self.tk_domain_state(domain, resolved);
+        state.uncertain_geometry_widgets.remove(widget_path);
+        state.uncertain_geometry_claims.remove(widget_path);
+        Self::rebuild_uncertain_geometry_containers(state);
+    }
+
+    fn clear_tk_geometry_uncertainty_for_path(&mut self, domain: &str, resolved: bool, path: &str) {
+        let state = self.tk_domain_state(domain, resolved);
+        if path == "." {
+            state.uncertain_geometry_widgets.clear();
+            state.uncertain_geometry_containers.clear();
+            state.uncertain_geometry_claims.clear();
+            state.geometry_uncertain = false;
+            return;
+        }
+        state
+            .uncertain_geometry_widgets
+            .retain(|candidate| !widget_is_within(candidate, path));
+        state
+            .uncertain_geometry_claims
+            .retain(|candidate, _| !widget_is_within(candidate, path));
+        Self::rebuild_uncertain_geometry_containers(state);
+    }
+
+    fn rebuild_uncertain_geometry_containers(state: &mut TkDomainState) {
+        state.uncertain_geometry_containers.clear();
+        for containers in state.uncertain_geometry_claims.values() {
+            state
+                .uncertain_geometry_containers
+                .extend(containers.iter().cloned());
+        }
+    }
+
+    fn release_tk_geometry(&mut self, domain: &str, resolved: bool, widget_path: &str) {
+        let state = self.tk_domain_state(domain, resolved);
+        let Some(active) = state.geometry_by_widget.remove(widget_path) else {
+            return;
+        };
+        let Some(usage) = state.geometry.get_mut(&active.container) else {
+            return;
+        };
+        usage.sites.retain(|(_, span)| *span != active.span);
+        if !usage
+            .sites
+            .iter()
+            .any(|(manager, _)| manager == &active.manager)
+        {
+            usage.managers.remove(&active.manager);
+        }
+        if usage.sites.is_empty() {
+            state.geometry.remove(&active.container);
+        }
+    }
+
+    /// Claim `container` for `manager`; returns true when Tk would reject the
+    /// claim because another exclusive manager still has active content.
+    fn claim_tk_geometry(
+        &mut self,
+        domain: &str,
+        resolved: bool,
+        widget_path: &str,
+        manager: &str,
+        container: &str,
+        span: tcl_lexer::Span,
+    ) -> bool {
+        if self.tk_geometry_path_uncertain(domain, resolved, widget_path)
+            || self.tk_geometry_path_uncertain(domain, resolved, container)
+        {
+            return false;
+        }
+        let conflict = self
+            .tk_domain_state(domain, resolved)
+            .geometry
+            .get(container)
+            .and_then(|usage| {
+                usage
+                    .sites
+                    .iter()
+                    .find(|(active, _)| active != manager)
+                    .map(|(active, _)| active.clone())
+            });
+        if let Some(active) = conflict {
+            self.tk_pending_diags
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::Tk1001,
+                    span,
+                    format!(
+                        "Geometry manager conflict: cannot use '{manager}' in parent \
+                         '{container}' while '{active}' still manages content there."
+                    ),
+                    Severity::Warning,
+                ));
+            return true;
+        }
+
+        let state = self.tk_domain_state(domain, resolved);
+        let usage = state.geometry.entry(container.to_owned()).or_default();
+        usage.managers.insert(manager.to_owned());
+        usage.sites.push((manager.to_owned(), span));
+        state.geometry_by_widget.insert(
+            widget_path.to_owned(),
+            TkActiveGeometry {
+                manager: manager.to_owned(),
+                container: container.to_owned(),
+                span,
+            },
+        );
+        false
     }
 
     /// The interpreter domain the walk is currently inside, as
@@ -456,13 +898,13 @@ impl Analyser {
     }
 
     /// Post-walk flush of all TK diagnostics.  Emits the buffered TK1002 /
-    /// TK1003 and decides TK1001 (a parent mixing `pack` and `grid` is a Tk
-    /// runtime error, reported on every offending geometry call) — but only
+    /// TK1003 and publishes TK1001 conflicts recorded by the temporal geometry
+    /// transfer — but only
     /// when the document is actually Tk: the `tk` dialect, or a detected
     /// `package require Tk`.  Clears the accumulated state either way so a
     /// reused [`Analyser`] starts clean.
     pub(super) fn flush_tk_geometry_diagnostics(&mut self) {
-        let domains = std::mem::take(&mut self.tk_domains);
+        let _domains = std::mem::take(&mut self.tk_domains);
         let pending = std::mem::take(&mut self.tk_pending_diags);
 
         if !self.tk_dialect && !self.has_tk_require() {
@@ -470,49 +912,6 @@ impl Analyser {
         }
 
         self.result.diagnostics.extend(pending);
-        // Each interpreter's containers are decided separately: a `pack` in
-        // the parent script and a `grid` in a child's eval body claim two
-        // different `TkWindow`s that merely share a path string, so they can
-        // never conflict.
-        for state in domains.into_values() {
-            for (parent, usage) in state.geometry {
-                // *Any* two managers conflict — Tk allows one per container,
-                // whichever it is.  The old rule asked for `pack` and `grid`
-                // by name, so a `place`/`grid` clash (a real
-                // `TkSetGeometryContainer` error) was silent and the
-                // registry's manager set could never grow (issue #1390).
-                if usage.managers.len() < 2 {
-                    continue;
-                }
-                // Name the first two in the order they claim the container,
-                // so the message reads the way the file does.
-                let mut named: Vec<&str> = Vec::new();
-                for (manager, _) in &usage.sites {
-                    if !named.contains(&manager.as_str()) {
-                        named.push(manager);
-                    }
-                    if named.len() == 2 {
-                        break;
-                    }
-                }
-                let [first, second] = named[..] else {
-                    continue;
-                };
-                for (_manager, span) in &usage.sites {
-                    self.result
-                        .diagnostics
-                        .push(crate::analyser::types::Diagnostic::new(
-                            DiagCode::Tk1001,
-                            *span,
-                            format!(
-                                "Geometry manager conflict: cannot mix '{first}' and '{second}' \
-                             in the same parent '{parent}'."
-                            ),
-                            Severity::Warning,
-                        ));
-                }
-            }
-        }
     }
 }
 
@@ -548,6 +947,20 @@ mod tests {
     }
 
     #[test]
+    fn tk_widget_paths_share_the_registry_grammar() {
+        assert!(!has(
+            "frame .main-pane\nframe .main-pane.child",
+            "tk",
+            "TK1002"
+        ));
+        assert!(!super::is_widget_path("."));
+        assert!(!super::is_widget_path(".bad..child"));
+        assert!(!super::is_widget_path(".dynamic$tail"));
+        assert!(!super::is_widget_path(".dynamic[set tail]"));
+        assert!(super::is_widget_path(".main-pane.child"));
+    }
+
+    #[test]
     fn tk1002_quiet_for_root_child() {
         // The root `.` always exists, so `.top` is fine.
         assert!(!has("frame .top", "tk", "TK1002"));
@@ -560,18 +973,143 @@ mod tests {
     }
 
     #[test]
+    fn tk1001_abstains_across_mutually_exclusive_placements() {
+        // The source-order walk must not claim that both managers are active:
+        // only one arm executes for any one run of the script.
+        let src = "frame .top\nif {$use_pack} {\n    pack .top.a\n} else {\n    grid .top.b\n}";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn tk1001_abstains_after_a_path_dependent_placement() {
+        // A later placement cannot be proved to conflict when the earlier
+        // manager was installed only on one control-flow path.
+        let src = "frame .top\nif {$use_pack} {\n    pack .top.a\n}\ngrid .top.b";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn tk1001_keeps_unrelated_containers_definite_after_path_uncertainty() {
+        let src = "frame .left\nframe .right\nif {$use_pack} {\n    pack .left.a\n}\npack .right.a\ngrid .right.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn root_container_uncertainty_does_not_widen_to_nested_containers() {
+        let src =
+            "if {$use_pack} {\n    pack .root_child\n}\nframe .left\npack .left.a\ngrid .left.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn conditional_constructor_does_not_poison_unrelated_geometry() {
+        let src = "frame .left\nframe .right\nif {$make_child} {\n    frame .conditional\n}\npack .right.a\ngrid .right.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn conditional_teardown_marks_active_geometry_container_uncertain() {
+        let src = "frame .top\nframe .top.a\npack .top.a\nif {$remove} {\n    destroy .top.a\n}\ngrid .top.b";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn unrelated_release_does_not_clear_conditional_teardown_container() {
+        let src = "frame .top\nframe .top.a\npack .top.a\nif {$remove} {\n    destroy .top.a\n}\npack forget .unrelated\ngrid .top.b";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn conditional_release_uses_explicit_in_container() {
+        let src = "frame .holder\nframe .a\nframe .b\npack .a -in .holder\nif {$release} {\n    pack forget .a\n}\ngrid .b -in .holder";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn releasing_one_uncertain_in_claim_keeps_shared_container_uncertain() {
+        let src = "frame .holder\nframe .a\nframe .b\nif {$place_a} {\n    pack .a -in .holder\n}\nif {$place_b} {\n    pack .b -in .holder\n}\npack forget .a\ngrid .c -in .holder";
+        assert!(!has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn conditional_independent_place_does_not_poison_exclusive_geometry() {
+        let src = "frame .left\nframe .right\nif {$place_it} {\n    place .left.a\n}\npack .right.a\ngrid .right.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn definite_release_clears_path_scoped_geometry_uncertainty() {
+        let src = "frame .left\nif {$use_pack} {\n    pack .left.a\n}\npack forget .left.a\npack .left.b\ngrid .left.c";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn definite_destroy_and_recreate_clears_path_scoped_uncertainty() {
+        let src = "frame .left\nif {$remove} {\n    destroy .left\n}\ndestroy .left\nframe .left\npack .left.a\ngrid .left.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
+    fn tk1001_still_fires_for_definite_straight_line_placements() {
+        let src = "frame .top\nif {$condition} { set noop 1 }\npack .top.a\ngrid .top.b";
+        assert!(has(src, "tk", "TK1001"), "{:?}", codes(src, "tk"));
+    }
+
+    #[test]
     fn tk1001_quiet_for_pack_only() {
         let src = "frame .top\npack .top.a\npack .top.b";
         assert!(!has(src, "tk", "TK1001"));
     }
 
     #[test]
-    fn tk1001_covers_place_and_qualified_spellings() {
-        // Every manager is whatever carries `TK_GEOMETRY_MANAGER`, resolved
-        // through the registry — so `place` conflicts with `pack`, and the
-        // `::`-qualified spelling the old three-name `contains` rejected
-        // resolves to the same spec (issue #1390).
-        assert!(has("frame .top\nplace .top.a\ngrid .top.b", "tk", "TK1001"));
+    fn tk1001_tracks_active_placements_not_command_history() {
+        // Tk unmanages a content window from its old manager before handing
+        // it to the new one; with no other packed sibling, this is legal.
+        assert!(!has(
+            "frame .top\nframe .top.a\npack .top.a\ngrid .top.a",
+            "tk",
+            "TK1001"
+        ));
+        // Explicit release likewise frees the container claim.
+        assert!(!has(
+            "frame .top\nframe .top.a\nframe .top.b\npack .top.a\npack forget .top.a\ngrid .top.b",
+            "tk",
+            "TK1001"
+        ));
+        // A query names a widget but never places it.
+        assert!(!has(
+            "frame .top\nframe .top.a\nframe .top.b\npack .top.a\ngrid info .top.b",
+            "tk",
+            "TK1001"
+        ));
+        // Switching one of two packed siblings leaves the other's pack claim
+        // active, so grid is rejected.
+        assert!(has(
+            "frame .top\nframe .top.a\nframe .top.b\npack .top.a .top.b\ngrid .top.a",
+            "tk",
+            "TK1001"
+        ));
+
+        // Destroying the root tears down the entire Tk window hierarchy and
+        // every active geometry claim. The root's spelling must not be
+        // treated as the ordinary prefix `..`.
+        assert!(!has(
+            "frame .top\nframe .top.a\npack .top.a\ndestroy .\nframe .top\nframe .top.b\ngrid .top.b",
+            "tk",
+            "TK1001"
+        ));
+    }
+
+    #[test]
+    fn tk1001_uses_registry_container_policy_and_qualified_spellings() {
+        // `place` manages content but does not call TkSetGeometryContainer, so
+        // it can coexist with grid/pack. Qualified exclusive managers still
+        // resolve to the same registry descriptors.
+        assert!(!has(
+            "frame .top\nplace .top.a\ngrid .top.b",
+            "tk",
+            "TK1001"
+        ));
         assert!(has(
             "frame .top\n::pack .top.a\n::grid .top.b",
             "tk",
@@ -583,6 +1121,33 @@ mod tests {
             "tk",
             "TK1001"
         ));
+    }
+
+    #[test]
+    fn tk1001_uses_the_effective_in_container_and_every_direct_target() {
+        let source = "frame .left\nframe .right\nframe .a\nframe .b\nframe .c\npack .a .b -in .left\ngrid .c -in .right";
+        assert!(!has(source, "tk", "TK1001"));
+        let conflict =
+            "frame .holder\nframe .a\nframe .b\npack .a -in .holder\ngrid .b -in .holder";
+        assert!(has(conflict, "tk", "TK1001"));
+    }
+
+    #[test]
+    fn tk1001_abstains_when_a_mixed_release_can_remove_another_claim() {
+        let source = "frame .left\nframe .right\nframe .left.a\nframe .right.a\nframe .right.b\npack .left.a\npack .right.a\npack forget .left.a $which\ngrid .right.b";
+        assert!(!has(source, "tk", "TK1001"), "{:?}", codes(source, "tk"));
+    }
+
+    #[test]
+    fn tk1001_abstains_when_a_mixed_placement_can_move_another_claim() {
+        let source = "frame .left\nframe .right\nframe .left.a\nframe .right.a\nframe .right.b\npack .right.a\npack .left.a $which -in .left\ngrid .right.b";
+        assert!(!has(source, "tk", "TK1001"), "{:?}", codes(source, "tk"));
+    }
+
+    #[test]
+    fn tk1001_uses_the_last_duplicate_container_option() {
+        let source = "frame .left\nframe .right\nframe .a\nframe .b\npack .a -in .left -in .right\ngrid .b -in .right";
+        assert!(has(source, "tk", "TK1001"), "{:?}", codes(source, "tk"));
     }
 
     #[test]

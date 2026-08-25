@@ -50,7 +50,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-server",
         // Accept callback invoked as `command channel addr port` → 3 args.
-        value: OptionValue::command_prefix_n("command", AppendedArity::Exactly(3)),
+        value: OptionValue::deferred_command_prefix_n("command", AppendedArity::Exactly(3)),
         detail: "Create a listening server socket instead of a client connection. command (a command prefix) is invoked as \"command channel clientAddr clientPort\" for each accepted connection.",
         dialects: None,
         aliases: &[],

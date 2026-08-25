@@ -54,7 +54,10 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "coroutine",
-        traits: Traits::NOT_PROC_FACTORY | Traits::BYTE_COMPILED | Traits::LANGUAGE_KEYWORD,
+        traits: Traits::NOT_PROC_FACTORY
+            | Traits::BYTE_COMPILED
+            | Traits::LANGUAGE_KEYWORD
+            | Traits::COROUTINE_PRIMITIVE,
         dialects: Some(DialectSet::TCL86_PLUS),
         arity: Arity::at_least(2),
         arg_roles: &[(0, ArgRole::Name)],

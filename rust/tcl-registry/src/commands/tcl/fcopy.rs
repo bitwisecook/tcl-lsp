@@ -47,7 +47,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix_n("callback", AppendedArity::AtLeast(1)),
+        value: OptionValue::deferred_command_prefix_n("callback", AppendedArity::AtLeast(1)),
         detail: "Run the copy in the background and return immediately; callback is invoked when the copy completes or fails, with the byte/character count appended and an error-message argument on failure. inputChan/outputChan are switched to non-blocking mode automatically; an active event loop (vwait or Tk) is required to drive the copy.",
         ..OptionSpec::DEFAULT
     },

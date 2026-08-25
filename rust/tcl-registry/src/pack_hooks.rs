@@ -57,12 +57,12 @@ use tcl_dialect::TclVersion;
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::clause_shape::{ClauseShapeChecker, ClauseShapeError};
 use crate::hooks::{ConstFoldFn, VersionedConstFoldFn};
-use crate::hover::{OptionValueHook, OptionValueOutcome};
+use crate::hover::{OptionValueHook, OptionValueOutcome, ScriptTiming};
 use crate::invocation_words::{
     CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
 };
 use crate::literal_validation::{LiteralArgumentValidation, LiteralArgumentValidator};
-use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate};
+use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate, ScriptTimingResolver};
 
 /// How many hooks of one family a process may install.
 ///
@@ -74,7 +74,7 @@ use crate::spec::{ArgRoleResolver, CommandPrefixResolver, ContextGate};
 /// folders loses the 65th's behaviour, never its facts.
 pub const SLOTS_PER_FAMILY: usize = 64;
 
-/// The nine hook families, which is what fixes a hook's calling convention:
+/// The ten hook families, which is what fixes a hook's calling convention:
 /// its emitter verbs, what silence means, and whether it may run on a call
 /// carrying a non-literal word.
 ///
@@ -86,6 +86,9 @@ pub enum HookFamily {
     ArgRoleResolver,
     /// `command_prefix_resolver` — emits `prefix IDX {Exactly N}`.
     CommandPrefixResolver,
+    /// `script_timing_resolver` — emits
+    /// `timing IDX SameInvocation|Deferred|ReferenceOnly`.
+    ScriptTimingResolver,
     /// `const_fold` — emits `fold VALUE`.
     ConstFold,
     /// `const_fold_versioned` — `const_fold` with `tcl-version` in `ctx`.
@@ -106,9 +109,10 @@ pub enum HookFamily {
 
 /// Every family, in declaration order — the index a slot's family contributes
 /// to the per-family tables.
-pub const HOOK_FAMILIES: [HookFamily; 9] = [
+pub const HOOK_FAMILIES: [HookFamily; 10] = [
     HookFamily::ArgRoleResolver,
     HookFamily::CommandPrefixResolver,
+    HookFamily::ScriptTimingResolver,
     HookFamily::ConstFold,
     HookFamily::ConstFoldVersioned,
     HookFamily::TaintSinkGate,
@@ -125,6 +129,7 @@ impl HookFamily {
         match self {
             Self::ArgRoleResolver => &["role"],
             Self::CommandPrefixResolver => &["prefix"],
+            Self::ScriptTimingResolver => &["timing"],
             Self::ConstFold | Self::ConstFoldVersioned => &["fold"],
             Self::TaintSinkGate => &["sink-applies", "sink-suppressed"],
             Self::ContextGate => &["reject"],
@@ -140,6 +145,7 @@ impl HookFamily {
         match self {
             Self::ArgRoleResolver => "no roles (fall back to arg_roles)",
             Self::CommandPrefixResolver => "no prefix positions",
+            Self::ScriptTimingResolver => "no timing override",
             Self::ConstFold | Self::ConstFoldVersioned => "no fold",
             // The one family whose silence is not "no opinion": a security
             // finding must survive a hook that says nothing.
@@ -174,6 +180,7 @@ impl HookFamily {
         match self {
             Self::ArgRoleResolver => "arg_role_resolver",
             Self::CommandPrefixResolver => "command_prefix_resolver",
+            Self::ScriptTimingResolver => "script_timing_resolver",
             Self::ConstFold => "const_fold",
             Self::ConstFoldVersioned => "const_fold_versioned",
             Self::TaintSinkGate => "taint_sink_gate",
@@ -188,13 +195,14 @@ impl HookFamily {
         match self {
             Self::ArgRoleResolver => 0,
             Self::CommandPrefixResolver => 1,
-            Self::ConstFold => 2,
-            Self::ConstFoldVersioned => 3,
-            Self::TaintSinkGate => 4,
-            Self::ContextGate => 5,
-            Self::LiteralArgumentValidator => 6,
-            Self::ClauseShapeCheck => 7,
-            Self::OptionArity => 8,
+            Self::ScriptTimingResolver => 2,
+            Self::ConstFold => 3,
+            Self::ConstFoldVersioned => 4,
+            Self::TaintSinkGate => 5,
+            Self::ContextGate => 6,
+            Self::LiteralArgumentValidator => 7,
+            Self::ClauseShapeCheck => 8,
+            Self::OptionArity => 9,
         }
     }
 }
@@ -435,7 +443,7 @@ impl HookCall<'_> {
 /// What a hook invocation produced: the emitter verb it called, or an
 /// abstention.
 ///
-/// One enum for all nine families because the *protocol* is one protocol; the
+/// One enum for all ten families because the *protocol* is one protocol; the
 /// thunk that receives it knows its family and converts, applying that
 /// family's silence to [`Self::Abstain`] and to any answer of the wrong shape
 /// (a host bug must degrade, not mis-answer).
@@ -449,6 +457,8 @@ pub enum HookAnswer {
     Roles(Vec<(u8, ArgRole)>),
     /// `prefix IDX {Exactly N}`.
     Prefixes(Vec<(u8, AppendedArity)>),
+    /// `timing IDX SameInvocation|Deferred|ReferenceOnly`.
+    Timings(Vec<(u8, ScriptTiming)>),
     /// `fold VALUE`.
     Fold(String),
     /// `sink-suppressed`. (`sink-applies` is the silence, so it arrives as
@@ -485,7 +495,8 @@ pub trait PackHookHost {
 
 /// Per-family allocation counters. Process-global because a slot is baked
 /// into a leaked `&'static CommandSpec` that every thread shares.
-static NEXT_SLOT: [AtomicU32; 9] = [
+static NEXT_SLOT: [AtomicU32; 10] = [
+    AtomicU32::new(0),
     AtomicU32::new(0),
     AtomicU32::new(0),
     AtomicU32::new(0),
@@ -498,8 +509,8 @@ static NEXT_SLOT: [AtomicU32; 9] = [
 ];
 
 /// Per-slot cacheability, decided by the declared inputs at allocation.
-static CACHEABLE: [[AtomicBool; SLOTS_PER_FAMILY]; 9] =
-    [const { [const { AtomicBool::new(false) }; SLOTS_PER_FAMILY] }; 9];
+static CACHEABLE: [[AtomicBool; SLOTS_PER_FAMILY]; 10] =
+    [const { [const { AtomicBool::new(false) }; SLOTS_PER_FAMILY] }; 10];
 
 /// Allocate a slot for a hook of `family` whose body declared `inputs`.
 ///
@@ -900,6 +911,20 @@ fn command_prefix_thunk<const N: u16>(
     }
 }
 
+fn script_timing_thunk<const N: u16>(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    let words = literal_words(args);
+    match dispatch(
+        HookSlot {
+            family: HookFamily::ScriptTimingResolver,
+            index: N,
+        },
+        &call_of(&words, None),
+    ) {
+        HookAnswer::Timings(timings) => timings,
+        _ => Vec::new(),
+    }
+}
+
 fn const_fold_thunk<const N: u16>(args: &[&str]) -> Option<String> {
     let words = literal_words(args);
     match dispatch(
@@ -1052,6 +1077,8 @@ macro_rules! slot_tables {
             [$(arg_role_thunk::<$index>),*];
         static COMMAND_PREFIX_THUNKS: [CommandPrefixResolver; SLOTS_PER_FAMILY] =
             [$(command_prefix_thunk::<$index>),*];
+        static SCRIPT_TIMING_THUNKS: [ScriptTimingResolver; SLOTS_PER_FAMILY] =
+            [$(script_timing_thunk::<$index>),*];
         static CONST_FOLD_THUNKS: [ConstFoldFn; SLOTS_PER_FAMILY] =
             [$(const_fold_thunk::<$index>),*];
         static CONST_FOLD_VERSIONED_THUNKS: [VersionedConstFoldFn; SLOTS_PER_FAMILY] =
@@ -1085,6 +1112,12 @@ pub fn arg_role_resolver_fn(slot: HookSlot) -> Option<ArgRoleResolver> {
 #[must_use]
 pub fn command_prefix_resolver_fn(slot: HookSlot) -> Option<CommandPrefixResolver> {
     thunk_index(slot, HookFamily::CommandPrefixResolver).map(|index| COMMAND_PREFIX_THUNKS[index])
+}
+
+/// The `script_timing_resolver` function pointer for `slot`.
+#[must_use]
+pub fn script_timing_resolver_fn(slot: HookSlot) -> Option<ScriptTimingResolver> {
+    thunk_index(slot, HookFamily::ScriptTimingResolver).map(|index| SCRIPT_TIMING_THUNKS[index])
 }
 
 /// The `const_fold` function pointer for `slot`.

@@ -127,7 +127,9 @@ abstract class TclLspActionBase : AnAction() {
             }
 
             ApplicationManager.getApplication().invokeLater {
-                presentResult(project, result)
+                if (acceptResult(project, result, args)) {
+                    presentResult(project, result)
+                }
             }
         } catch (ex: Exception) {
             notify(project, ex.message ?: "Command failed", NotificationType.ERROR)
@@ -161,6 +163,13 @@ abstract class TclLspActionBase : AnAction() {
         FileEditorManager.getInstance(project)
             .openTextEditor(OpenFileDescriptor(project, virtual), true)
     }
+
+    /**
+     * Gives a source-backed action a final chance to reject a response before
+     * it is presented. Most command results are not snapshot-sensitive, but a
+     * static preview must never open a model for an obsolete document.
+     */
+    protected open fun acceptResult(project: Project, result: Any?, args: List<Any>): Boolean = true
 
     /** File extension for the scratch result, without the leading dot. */
     protected open fun resultExtension(result: Any?): String = "txt"

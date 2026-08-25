@@ -158,6 +158,7 @@ const NAMED_CONSTANT: &str = "the studio edits the whole descriptor as one Rust 
 /// satisfied. Keep new fields one per line until the budget forces another
 /// pairing.
 #[rustfmt::skip]
+#[allow(clippy::too_many_lines)]
 pub fn witness_command_spec(spec: &CommandSpec) {
     // THE GATE.  Do NOT add `..` to silence this — that is the drift it exists
     // to catch.  A new field belongs in FOUR places: `schema::COMMAND_FIELDS`
@@ -177,6 +178,8 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         clause_shape_check: _,
         command_prefixes: _,
         command_prefix_resolver: _,
+        script_timing_resolver: _,
+        callback_taint_inputs: _,
         return_type: _,
         var_write_typing: _,
         return_elements: _,
@@ -209,7 +212,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         result_stability: _,
         literal_argument_validator: _,
         inferred_storage_type: _,
-        required_package: _,
+        required_package: _, tk_geometry: _,
         excluded_events: _,
         unsafe_command: _,
         closed_value_args: _,
@@ -284,8 +287,16 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("clause_shape_check", Surface::Key("clause_shape_check")),
     f("command_prefixes", Surface::Key("command_prefixes")),
     f(
+        "callback_taint_inputs",
+        Surface::Key("callback_taint_inputs"),
+    ),
+    f(
         "command_prefix_resolver",
         Surface::Key("command_prefix_resolver"),
+    ),
+    f(
+        "script_timing_resolver",
+        Surface::Key("script_timing_resolver"),
     ),
     f("return_type", Surface::Key("return_type")),
     f("var_write_typing", Surface::Key("var_write_typing")),
@@ -338,6 +349,7 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("inferred_storage_type"),
     ),
     f("required_package", Surface::Key("required_package")),
+    f("tk_geometry", Surface::Key("tk_geometry")),
     f("excluded_events", Surface::Key("excluded_events")),
     f("unsafe_command", Surface::Key("unsafe_command")),
     f("closed_value_args", Surface::Key("closed_value_args")),
@@ -462,6 +474,8 @@ pub fn witness_sub_command(sub: &SubCommand) {
         repeated_args: _,
         command_prefixes: _,
         command_prefix_resolver: _,
+        script_timing_resolver: _,
+        callback_taint_inputs: _,
         return_type: _,
         var_write_typing: _,
         return_elements: _,
@@ -538,8 +552,16 @@ pub const SUB_COMMAND: &[Field] = &[
     f("repeated_args", Surface::Key("repeated_args")),
     f("command_prefixes", Surface::Key("command_prefixes")),
     f(
+        "callback_taint_inputs",
+        Surface::Key("callback_taint_inputs"),
+    ),
+    f(
         "command_prefix_resolver",
         Surface::Key("command_prefix_resolver"),
+    ),
+    f(
+        "script_timing_resolver",
+        Surface::Key("script_timing_resolver"),
     ),
     f("return_type", Surface::Key("return_type")),
     f("var_write_typing", Surface::Key("var_write_typing")),
@@ -686,11 +708,15 @@ pub fn witness_option_arg(arg: &OptionArg) {
         role: _,
         also_role: _,
         body_kind: _,
+        script_timing: _,
+        callback_taint_inputs: _,
         values: _,
         closed: _,
         integer: _,
         hint: _,
         appended_arity: _,
+        taints_var_write: _,
+        variable_scope: _,
     } = arg;
 }
 
@@ -701,11 +727,18 @@ pub const OPTION_ARG: &[Field] = &[
     f("role", Surface::Key("role")),
     f("also_role", Surface::Key("also_role")),
     f("body_kind", Surface::Key("body_kind")),
+    f("script_timing", Surface::Key("script_timing")),
+    f(
+        "callback_taint_inputs",
+        Surface::Key("callback_taint_inputs"),
+    ),
     f("values", Surface::Key("values")),
     f("closed", Surface::Key("closed")),
     f("integer", Surface::Key("integer")),
     f("hint", Surface::Key("hint")),
     f("appended_arity", Surface::Key("appended_arity")),
+    f("taints_var_write", Surface::Key("taints_var_write")),
+    f("variable_scope", Surface::Key("variable_scope")),
 ];
 
 /// Compile-time witness for [`ARG_VALUE`].
@@ -1125,6 +1158,7 @@ pub fn witness_object_class_spec(spec: &ObjectClassSpec) {
         instance_methods: _,
         superclasses: _,
         allow_unknown_methods: _,
+        method_prefix_matching: _,
     } = spec;
 }
 
@@ -1142,6 +1176,10 @@ pub const OBJECT_CLASS_SPEC: &[Field] = &[
     f(
         "allow_unknown_methods",
         Surface::Key("allow_unknown_methods"),
+    ),
+    f(
+        "method_prefix_matching",
+        Surface::Key("method_prefix_matching"),
     ),
 ];
 
@@ -1443,9 +1481,10 @@ mod tests {
             instance_methods: &[],
             superclasses: &[],
             allow_unknown_methods: false,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Strict,
         });
         witness_case_list_spec(&CaseListSpec::SWITCH);
-        // `ObjectClassSpec` is deliberately NOT in this list: its four fields
+        // `ObjectClassSpec` is deliberately NOT in this list: its five fields
         // are plain data the draft carries and the `SpecTcl` renderer writes,
         // so they are `Surface::Key`s inside the `object_class` editor rather
         // than exclusions.

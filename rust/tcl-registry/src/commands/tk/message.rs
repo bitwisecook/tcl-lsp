@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the message text.",
         dialects: None,
         aliases: &[],
@@ -185,6 +185,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+super::common::classic_widget_class!(MESSAGE_CLASS, "message");
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "message",
@@ -203,6 +205,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        object_class: Some(&MESSAGE_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

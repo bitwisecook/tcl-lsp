@@ -46,7 +46,7 @@ use crate::shimmer::{
 };
 use crate::taint::{
     TaintWarning, find_destructive_file_warnings, find_setter_constraint_warnings,
-    find_taint_warnings, is_irules_dialect,
+    find_taint_warnings_for_function, is_irules_dialect,
 };
 use crate::uri_split::find_uri_split_suggestions;
 use tcl_registry::CommandRegistry;
@@ -478,14 +478,14 @@ pub fn push_taint_and_module_checks(
         let namespace = crate::optimiser::helpers::naming::namespace_from_qualified(&fu.name);
         let shadowed =
             crate::taint::shadowed_builtin_names(&namespace, proc_qnames.iter().copied(), registry);
-        for w in find_taint_warnings(
-            &fu.cfg,
-            &fu.ssa,
+        for w in find_taint_warnings_for_function(
+            fu,
             &taints,
             &fu.sccp.executable_blocks,
             registry,
             dialect,
             &shadowed,
+            module_traces,
         ) {
             out.push(shift(fu, Diagnostic::from_taint(&w)));
         }

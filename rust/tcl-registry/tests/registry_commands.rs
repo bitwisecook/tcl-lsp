@@ -430,6 +430,47 @@ fn frame_sensitive_membership() {
     }
 }
 
+/// Coroutine-family membership is registry data consumed by restricted
+/// backends; spelling and release handling must therefore resolve here rather
+/// than in each backend.
+#[test]
+fn coroutine_primitive_membership_is_versioned_and_qualified() {
+    let (tcl86, tcl86_set) = reg_and_set("tcl8.6");
+    for name in ["coroutine", "::coroutine", "yield", "::yield", "yieldto"] {
+        assert!(
+            tcl86
+                .invocation_traits(name, &[], tcl86_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} must resolve through the Tcl 8.6 coroutine family"
+        );
+    }
+    for name in ["coroinject", "coroprobe"] {
+        assert!(
+            !tcl86
+                .invocation_traits(name, &[], tcl86_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} is not available before Tcl 9.0"
+        );
+    }
+
+    let (tcl90, tcl90_set) = reg_and_set("tcl9.0");
+    for name in ["coroinject", "::coroinject", "coroprobe", "::coroprobe"] {
+        assert!(
+            tcl90
+                .invocation_traits(name, &[], tcl90_set)
+                .contains(Traits::COROUTINE_PRIMITIVE),
+            "{name} must resolve through the Tcl 9.0 coroutine family"
+        );
+    }
+
+    let (tcl85, tcl85_set) = reg_and_set("tcl8.5");
+    assert!(
+        !tcl85
+            .invocation_traits("coroutine", &[], tcl85_set)
+            .contains(Traits::COROUTINE_PRIMITIVE)
+    );
+}
+
 /// The fire-and-forget teardown set (`FIRE_AND_FORGET_TEARDOWN`) must cover
 /// the W302 suppression idiom's documented members, at both the command and
 /// the subcommand level, and stay off destructive-but-not-teardown
@@ -1873,6 +1914,69 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
             "{name} instance dispatch must not accept `{foreign_sub}` from an unrelated widget"
         );
     }
+}
+
+#[test]
+fn instance_methods_follow_the_owning_package_lifecycle() {
+    // `current` is a Tk 9.1 addition to ttk::treeview. The class itself is
+    // older, so this exercises method-row lifecycle filtering rather than
+    // command-level availability. The registry must make the same answer
+    // available to every downstream object-method consumer.
+    for (dialect, current_is_available) in [("tcl9.0", false), ("tcl9.1", true)] {
+        let reg = registry_for_dialect(dialect);
+        assert_eq!(
+            reg.instance_method("ttk::treeview", "current").is_some(),
+            current_is_available,
+            "ttk::treeview current under {dialect}"
+        );
+        assert_eq!(
+            reg.instance_methods("ttk::treeview")
+                .iter()
+                .any(|method| method.name == "current"),
+            current_is_available,
+            "instance-method enumeration under {dialect}"
+        );
+        assert!(
+            reg.instance_method("ttk::treeview", "instate").is_some(),
+            "an older ttk::treeview method remains available under {dialect}"
+        );
+    }
+}
+
+#[test]
+fn object_method_prefix_policy_is_strict_by_default_and_enabled_for_tk() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+
+    let entry = reg.get_for_dialect("entry", ds).unwrap();
+    let entry_class = entry.object_class.unwrap();
+    assert_eq!(
+        entry_class.method_prefix_matching,
+        tcl_registry::abbrev::PrefixMatching::Enabled
+    );
+    assert!(
+        reg.instance_method("entry", "get").is_some(),
+        "exact Tk method"
+    );
+    assert!(
+        reg.instance_method("entry", "conf").is_some(),
+        "unique Tk method prefix"
+    );
+    assert!(
+        reg.instance_method("entry", "c").is_none(),
+        "ambiguous Tk method prefix must abstain"
+    );
+
+    let report = reg.get_for_dialect("report::report", ds).unwrap();
+    let report_class = report.object_class.unwrap();
+    assert_eq!(
+        report_class.method_prefix_matching,
+        tcl_registry::abbrev::PrefixMatching::Strict
+    );
+    assert!(reg.instance_method("report::report", "destroy").is_some());
+    assert!(
+        reg.instance_method("report::report", "des").is_none(),
+        "non-Tk object methods are exact by default"
+    );
 }
 
 /// Every `::report::*` command has a dedicated, hover-bearing spec.
