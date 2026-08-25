@@ -1846,8 +1846,8 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "tk_layout",
-        description: "Extract the Tk widget tree (types, geometry managers, visual options) + pack/grid conflicts for preview.",
-        params: &[SRC],
+        description: "Build the shared, versioned static Tk UI model without executing source. Returns registry-resolved widgets, literal options, geometry evidence, source spans, conflicts, and explicit uncertainty.",
+        params: &[SRC, DIALECT],
         required: &["source"],
         handler: crate::tk::tk_layout,
     },

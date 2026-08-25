@@ -224,6 +224,9 @@ function annotatedExample(example: CodeExample): HTMLElement {
     const onLine = ordered
       .filter(({ annotation }) => annotation.line === lineNumber)
       .map(({ annotation, step }) => ({ annotation, step, at: line.indexOf(annotation.needle) }))
+      // Draw arrows in source order while retaining semantic step numbers.
+      // A nested throw therefore appears as `catch` step 2 before the
+      // lexically-later `error` step 1, matching Tcl's evaluation flow.
       .sort((left, right) => left.at - right.at);
     const source = el("pre", { class: "example-line" });
     const carrier = example.carrier?.line === lineNumber ? example.carrier : undefined;
@@ -1758,6 +1761,17 @@ function buildReference(): void {
       refRow(field.key, badges, `${field.label} — ${field.doc}`, field.example, field.help),
     );
   }
+  for (const field of schema.nestedFields) {
+    fieldRows.push(
+      refRow(
+        field.key,
+        [field.group, field.owner],
+        `${field.label} — ${field.doc}`,
+        field.example,
+        field.help,
+      ),
+    );
+  }
   refSection(
     "Spec fields",
     "Every field a command specification can set, with what it drives. The same keys appear in the editor form, grouped the same way.",
@@ -2240,6 +2254,12 @@ function boot(): void {
         variantHelp: (variant: Variant) => {
           const panel = helpWithExample(variant.doc, variant.example);
           return { button: helpButton(panel, variant.key), panel };
+        },
+        fieldHelp: (key: string) => {
+          const field = schema.nestedFields.find((candidate) => candidate.key === key);
+          if (!field) throw new Error(`No nested-field help for ${key}`);
+          const panel = helpWithExample(field.help, field.example);
+          return { button: helpButton(panel, field.label), panel };
         },
         newSubcommand: () => JSON.parse(wasm.new_subcommand()) as Draft,
         buildSubcommandForm: (container, draft, onChange) => {

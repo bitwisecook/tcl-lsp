@@ -27,6 +27,13 @@
 
 use crate::prelude::*;
 
+fn deferred_first_arg(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (!args.is_empty())
+        .then_some((0, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 /// The `generator` ensemble's sub-commands.
 const GENERATOR_SUBS: &[SubCommand] = &[
     SubCommand {
@@ -115,6 +122,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         // multiple values per step, so the appended count is not statically
         // fixed ⇒ Unknown (a reference, not arity-checked).
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -123,6 +131,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Another classic functional programming gem.",
         synopsis: "generator filter predicate generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -184,6 +193,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Given a function which maps a value to a series of values, and a generator of values of that type, returns a genera",
         synopsis: "generator concatMap function generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -199,6 +209,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Removes all elements from the front of the generator that satisfy the predicate.",
         synopsis: "generator dropWhile predicate generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -273,6 +284,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Returns an infinite generator formed by repeatedly applying the function to the initial argument.",
         synopsis: "generator iterate function init",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -325,6 +337,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Returns a generator of the first elements in the argument generator that satisfy the predicate.",
         synopsis: "generator takeWhile predicate generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -333,6 +346,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Splits the generator into lists of elements using the predicate to identify delimiters.",
         synopsis: "generator splitWhen predicate generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -341,6 +355,7 @@ const GENERATOR_SUBS: &[SubCommand] = &[
         detail: "Similar to foldl, but returns a generator of all of the intermediate values for the accumulator argument.",
         synopsis: "generator scanl function zero generator",
         command_prefixes: &[(0, AppendedArity::Unknown)],
+        script_timing_resolver: Some(deferred_first_arg),
         ..SubCommand::DEFAULT
     },
 ];
@@ -509,6 +524,13 @@ fn hook_bind_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, Appe
     }
 }
 
+fn hook_bind_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() == 4)
+        .then_some((3, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 /// The `hook` ensemble's sub-commands.
 const HOOK_SUBS: &[SubCommand] = &[
     SubCommand {
@@ -517,6 +539,7 @@ const HOOK_SUBS: &[SubCommand] = &[
         detail: "This subcommand is used to create, update, delete, and query hook bindings.",
         synopsis: "hook bind ?subject? ?hook? ?observer? ?binding?",
         command_prefix_resolver: Some(hook_bind_command_prefixes),
+        script_timing_resolver: Some(hook_bind_script_timing),
         ..SubCommand::DEFAULT
     },
     SubCommand {

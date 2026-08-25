@@ -1101,6 +1101,7 @@ fn family_key(family: loader::HookFamily) -> &'static str {
     match family {
         F::ArgRoleResolver => "arg_role_resolver",
         F::CommandPrefixResolver => "command_prefix_resolver",
+        F::ScriptTimingResolver => "script_timing_resolver",
         F::ConstFold => "const_fold",
         F::ConstFoldVersioned => "const_fold_versioned",
         F::TaintSinkGate => "taint_sink_gate",

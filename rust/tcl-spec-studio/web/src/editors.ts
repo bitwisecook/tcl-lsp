@@ -54,6 +54,7 @@ export const STRUCTURAL_KINDS = new Set([
   "roleMap",
   "presentationMap",
   "prefixMap",
+  "callbackTaintMap",
   "argTypeMap",
   "argValueMap",
   "options",
@@ -65,6 +66,7 @@ export const STRUCTURAL_KINDS = new Set([
   "subCommands",
   "hover",
   "objectClass",
+  "tkGeometry",
 ]);
 
 /** Everything an editor needs from the surrounding app. */
@@ -72,6 +74,8 @@ export interface EditorContext {
   catalogues: Catalogues;
   /** Builds the inline documentation control for one catalogue item. */
   variantHelp: (variant: Variant) => { button: HTMLButtonElement; panel: HTMLElement };
+  /** Builds help for a property inside a composite editor. */
+  fieldHelp: (key: string) => { button: HTMLButtonElement; panel: HTMLElement };
   /** A fresh subcommand draft, for the subcommand list's add button. */
   newSubcommand: () => Record<string, Json>;
   /** Renders a nested subcommand form into `container`. */
@@ -223,6 +227,36 @@ function rowList<T extends Json>(
 
 /** Build the set of editors bound to `ctx`. */
 export function makeEditors(ctx: EditorContext): Record<string, Editor> {
+  const CALLBACK_TAINT_INPUTS = [
+    ["%P", "proposed editable value"],
+    ["%s", "current editable value"],
+    ["%S", "inserted/deleted text"],
+    ["%A", "typed event character"],
+    ["%K", "typed event keysym"],
+  ] as const;
+
+  /** Curated source markers only — bookkeeping substitutions cannot be authored here. */
+  function callbackTaintInputChips(value: Json, set: (next: Json) => void): HTMLElement {
+    const selected = new Set(asStringList(value));
+    return el(
+      "div",
+      { class: "ctl" },
+      CALLBACK_TAINT_INPUTS.map(([marker, meaning]) =>
+        checkbox(
+          selected.has(marker),
+          (on) => {
+            if (on) selected.add(marker);
+            else selected.delete(marker);
+            set(
+              CALLBACK_TAINT_INPUTS.map(([candidate]) => candidate).filter((m) => selected.has(m)),
+            );
+          },
+          `${marker} ${meaning}`,
+        ),
+      ),
+    );
+  }
+
   const catalogueFor = (kind: FieldKind): Variant[] =>
     (kind.catalogue ? ctx.catalogues[kind.catalogue] : undefined) ?? [];
 
@@ -422,11 +456,15 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
                     role: "Value",
                     also_role: null,
                     body_kind: "Plain",
+                    script_timing: "SameInvocation",
+                    callback_taint_inputs: [],
+                    variable_scope: "CurrentFrame",
                     values: [],
                     closed: false,
                     integer: null,
                     hint: "",
                     appended_arity: { kind: "Unknown" },
+                    taints_var_write: false,
                   }
                 : null,
             }),
@@ -453,6 +491,8 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
     if (takesValue) {
       const value = asRecord(opt.value);
       const arity = asRecord(value.arity);
+      const hasVarWriteRole =
+        asString(value.role) === "VarWrite" || asString(value.also_role) === "VarWrite";
       const patchValue = (next: Record<string, Json>, structural = true): void => {
         patch({ value: { ...clone(value), ...next } }, structural);
       };
@@ -479,7 +519,12 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           labelled(
             "role",
             catalogueSelect({ tag: "enum", catalogue: "argRole" }, asString(value.role), (r) =>
-              patchValue({ role: r }),
+              patchValue({
+                role: r,
+                ...(r !== "VarWrite" && asString(value.also_role) !== "VarWrite"
+                  ? { taints_var_write: false }
+                  : {}),
+              }),
             ),
           ),
           labelled("words", words),
@@ -512,6 +557,71 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             textInput(asString(value.hint), (t) => patchValue({ hint: t }, false), { size: 10 }),
           ),
           checkbox(asBool(value.closed), (on) => patchValue({ closed: on }), "closed set"),
+          hasVarWriteRole
+            ? (() => {
+                const help = ctx.fieldHelp("taints_var_write");
+                return el("div", { class: "inline-field-help" }, [
+                  checkbox(
+                    asBool(value.taints_var_write),
+                    (on) => patchValue({ taints_var_write: on }),
+                    "external input link",
+                  ),
+                  help.button,
+                  help.panel,
+                ]);
+              })()
+            : null,
+          ["VarRead", "VarWrite"].includes(asString(value.role)) ||
+          ["VarRead", "VarWrite"].includes(asString(value.also_role))
+            ? (() => {
+                const help = ctx.fieldHelp("variable_scope");
+                return el("div", { class: "inline-field-help" }, [
+                  labelled(
+                    "variable scope",
+                    catalogueSelect(
+                      { tag: "enum", catalogue: "variableScope" },
+                      asString(value.variable_scope) || "CurrentFrame",
+                      (scope) => patchValue({ variable_scope: scope }),
+                    ),
+                  ),
+                  help.button,
+                  help.panel,
+                ]);
+              })()
+            : null,
+          ["Body", "LambdaLiteral", "CommandPrefix"].includes(asString(value.role)) ||
+          ["Body", "LambdaLiteral", "CommandPrefix"].includes(asString(value.also_role))
+            ? (() => {
+                const help = ctx.fieldHelp("script_timing");
+                return el("div", { class: "inline-field-help" }, [
+                  labelled(
+                    "script timing",
+                    catalogueSelect(
+                      { tag: "enum", catalogue: "scriptTiming" },
+                      asString(value.script_timing) || "SameInvocation",
+                      (timing) => patchValue({ script_timing: timing }),
+                    ),
+                  ),
+                  help.button,
+                  help.panel,
+                ]);
+              })()
+            : null,
+          (["Body", "LambdaLiteral", "CommandPrefix"].includes(asString(value.role)) ||
+            ["Body", "LambdaLiteral", "CommandPrefix"].includes(asString(value.also_role))) &&
+          asString(value.script_timing) === "Deferred"
+            ? (() => {
+                const help = ctx.fieldHelp("callback_taint_inputs");
+                return el("div", { class: "inline-field-help" }, [
+                  el("span", { class: "hint", text: "callback external inputs" }),
+                  callbackTaintInputChips(value.callback_taint_inputs ?? [], (inputs) =>
+                    patchValue({ callback_taint_inputs: inputs }),
+                  ),
+                  help.button,
+                  help.panel,
+                ]);
+              })()
+            : null,
         ]),
       );
       rows.push(
@@ -736,6 +846,29 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
         },
         set,
         "command prefix",
+      ),
+
+    callbackTaintMap: (_kind, value, set) =>
+      rowList<Json>(
+        asArray(value),
+        () => ({ index: 0, inputs: [] }),
+        (item, _i, update, remove) => {
+          const row = asRecord(item);
+          return el("div", { class: "row wide" }, [
+            labelled(
+              "argument index",
+              numberInput(asNumber(row.index) ?? 0, (n) =>
+                update({ index: n ?? 0, inputs: row.inputs ?? [] }),
+              ),
+            ),
+            callbackTaintInputChips(row.inputs ?? [], (inputs) =>
+              update({ index: row.index ?? 0, inputs }),
+            ),
+            removeButton(remove),
+          ]);
+        },
+        set,
+        "callback inputs",
       ),
 
     argTypeMap: (_kind, value, set) =>
@@ -1128,6 +1261,7 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
                     instance_methods: [],
                     superclasses: [],
                     allow_unknown_methods: false,
+                    method_prefix_matching: "Strict",
                   }
                 : null,
             ),
@@ -1172,6 +1306,24 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
           "accept unrecognised instance methods (the class has an `unknown` handler or builds methods at runtime)",
         ),
       );
+      {
+        const help = ctx.fieldHelp("method_prefix_matching");
+        wrap.appendChild(
+          field(
+            "Method prefix matching",
+            "Strict by default; enable only for a runtime object dispatcher that accepts unique method prefixes.",
+            el("div", { class: "inline-field-help" }, [
+              catalogueSelect(
+                { tag: "enum", catalogue: "prefixMatching" },
+                asString(cls.method_prefix_matching) || "Strict",
+                (mode) => patch({ method_prefix_matching: mode }),
+              ),
+              help.button,
+              help.panel,
+            ]),
+          ),
+        );
+      }
 
       // Instance methods are `&[SubCommand]`, so they take the subcommand form
       // unchanged — the same shape the DSL reuses for its `method` rows.
@@ -1214,6 +1366,108 @@ export function makeEditors(ctx: EditorContext): Record<string, Editor> {
             patch({ instance_methods: [...methods, fresh] });
           },
         }),
+      );
+      return wrap;
+    },
+
+    tkGeometry: (_kind, value, set) => {
+      const declared = value !== null;
+      const wrap = el("div", {});
+      wrap.appendChild(
+        checkbox(
+          declared,
+          (on) =>
+            set(
+              on
+                ? {
+                    container_policy: "Exclusive",
+                    container_option: "-in",
+                    direct_form: true,
+                    placement_subcommand: "configure",
+                    release_subcommands: ["forget"],
+                  }
+                : null,
+            ),
+          "declared",
+        ),
+      );
+      if (!declared) return wrap;
+
+      const geometry = asRecord(value);
+      const patch = (next: Record<string, Json>, structural = false): void => {
+        set({ ...clone(geometry), ...next }, structural);
+      };
+      const field = (label: string, hint: string, control: Child): HTMLElement =>
+        el("div", { class: "field" }, [
+          el("div", { class: "lbl" }, [el("span", { class: "name", text: label })]),
+          control,
+          el("span", { class: "hint", text: hint }),
+        ]);
+      const withHelp = (key: string, control: Child): HTMLElement => {
+        const help = ctx.fieldHelp(key);
+        return el("div", { class: "inline-field-help" }, [control, help.button, help.panel]);
+      };
+
+      const policy = el("select", {}, [
+        el("option", { value: "Exclusive", text: "Exclusive" }),
+        el("option", { value: "Independent", text: "Independent" }),
+      ]);
+      policy.value = asString(geometry.container_policy) || "Exclusive";
+      policy.addEventListener("change", () => patch({ container_policy: policy.value }));
+      wrap.appendChild(
+        field(
+          "Container policy",
+          "Exclusive managers claim the target container; independent managers do not.",
+          withHelp("container_policy", policy),
+        ),
+      );
+      wrap.appendChild(
+        field(
+          "Container option",
+          "An option such as -in can redirect placement away from a widget's parent.",
+          withHelp(
+            "container_option",
+            textInput(asString(geometry.container_option), (text) =>
+              patch({ container_option: text.trim() === "" ? null : text }),
+            ),
+          ),
+        ),
+      );
+      wrap.appendChild(
+        field(
+          "Direct placement",
+          "The bare manager command places widgets.",
+          withHelp(
+            "direct_form",
+            checkbox(asBool(geometry.direct_form), (on) => patch({ direct_form: on }), "places"),
+          ),
+        ),
+      );
+      wrap.appendChild(
+        field(
+          "Placement subcommand",
+          "A named operation that places or reconfigures widgets.",
+          withHelp(
+            "placement_subcommand",
+            textInput(asString(geometry.placement_subcommand), (text) =>
+              patch({ placement_subcommand: text.trim() === "" ? null : text }),
+            ),
+          ),
+        ),
+      );
+      wrap.appendChild(
+        field(
+          "Release subcommands",
+          "Every operation that stops managing a widget.",
+          withHelp(
+            "release_subcommands",
+            editors.textList(
+              { tag: "textList" },
+              asStringList(geometry.release_subcommands ?? []),
+              (names, structural) => patch({ release_subcommands: names }, structural),
+            ),
+          ),
+        ),
       );
       return wrap;
     },

@@ -37,6 +37,14 @@ fn wm_protocol_arg_roles(args: &[&str]) -> Vec<(u8, ArgRole)> {
     }
 }
 
+fn wm_protocol_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    if args.len() == 3 {
+        vec![(2, ScriptTiming::Deferred)]
+    } else {
+        Vec::new()
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -223,6 +231,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Register a handler for a window manager protocol.",
         synopsis: "wm protocol window ?name? ?command?",
         arg_role_resolver: Some(wm_protocol_arg_roles),
+        script_timing_resolver: Some(wm_protocol_script_timing),
         body_kind: BodyKind::Structural,
         ..SubCommand::DEFAULT
     },

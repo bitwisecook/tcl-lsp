@@ -74,32 +74,33 @@ external libraries (ticklecharts, apave, SpiceGenTcl, uncovered tcllib
 modules) rather than by inventing syntax in the abstract.
 
 **Where the migration half of that ambition stops, exactly.** The DSL
-excludes `command_forms` and `subcommand_forms` — per-form bundles of
-arity, roles, options, and hooks — on the grounds that `forms` covers
-the getter/setter split every pack has needed and that a command needing
-the structured version is deep enough in the compiler to be a
-contribution. That exclusion is kept, but it has a consequence worth
-naming rather than discovering later: **six shipped modules use those
-fields today and therefore cannot round-trip through the DSL at all.**
+excludes `command_forms` and `subcommand_forms`. These are not just another
+declarative row: one value bundles arity, roles and options with native
+literal validators, lowering/codegen hooks, and compiler proof descriptors.
+The Studio can preserve a hand-written value as an opaque Rust expression,
+but the runtime loader cannot construct every member and a loaded spec cannot
+recover the identity of every function pointer. Consequently the exclusion is
+**whole-descriptor and all-or-nothing**. Adding syntax for only a literal
+selector and effect overrides would make a partially authorable form look
+round-trippable when it is not.
 
-| module | field |
-|---|---|
-| `commands/tcl/lset.rs` | `command_forms` |
-| `commands/tcl/incr_.rs` | `command_forms` |
-| `commands/tcl/package_.rs` | `subcommand_forms` (`vsatisfies`) |
-| `commands/tcl/namespace_.rs` | `subcommand_forms` (`upvar`) |
-| `commands/irules/http__cookie.rs` | `subcommand_forms` |
-| `commands/irules/http2__stream.rs` | `subcommand_forms` |
+The old rationale that plain `forms` covers every getter/setter split is no
+longer true. `FormSpec` documents synopsis and lifecycle only; it carries no
+semantic traits or effects. In addition to the original Tcl/iRules compiler
+routing users (`lset`, `incr`, `package vsatisfies`, `namespace upvar`,
+`HTTP::cookie`, and `HTTP2::stream`), compiled-in Tk widget methods now use
+structured subcommand forms to distinguish queries from mutations and to
+select nested literal operations. Those compiled-in specs therefore cannot
+round-trip through SpecTcl either.
 
-Six of ~2,210 modules is not a v1 problem, and none of the six is a
-command a private pack would want to redeclare. It is written down
-because "shipped sources migrate to DSL" is stated above as an ambition,
-and this is the precise, finite set for which it is false — and because
-the same construct is what the `tls::socket` class of real third-party
-library wants (one command whose positional count, option set, and
-callback shape all change together with a mode flag). If that pressure
-grows, un-excluding `command_forms` is the change to weigh, with these
-six as the migration test.
+The tractable way to close this gap is not a four-field subset of
+`CommandForm`. Split out a fully declarative invocation-refinement descriptor
+(literal selector, arity, replacement traits/mutator/effects) with complete
+Studio, loader, emitter, help, and equivalence coverage, then let the native
+`CommandForm` layer add compiler-only routing. Alternatively, make every
+member of `CommandForm` authorable by first giving each native/proof member a
+stable closed identity. Either is a deliberate format change whose migration
+test is **all** current structured-form users, not only the historical six.
 
 ## Performance: the format does not decide it
 
@@ -389,7 +390,8 @@ Two things it found on its first run, both now true rather than claimed:
   drafts lost their handle-returning factories' method tables at load, with
   a notice each. Nothing under `specs/` uses the statement, which is how the
   gap survived the EDA migration. The loader now reads
-  `object_class NAME ?-superclass {…}? ?-allow-unknown? { method … }` into a
+  `object_class NAME ?-superclass {…}? ?-allow-unknown?
+  ?-method-prefix-matching Enabled|Strict? { method … }` into a
   real `ObjectClassSpec` — `method` rows are the `subcommand` body grammar
   unchanged, because `instance_methods` *is* `&[SubCommand]` — and the spec
   studio's `SpecTcl` renderer writes it back out, so the descriptor left the
@@ -533,8 +535,9 @@ document does not duplicate it.
 
 1.2 is additive in the same sense 1.1 was — no word's meaning changed, so
 a 1.0 or 1.1 pack loads unaltered, and a 1.2 pack loads on this server
-whatever it declares. It adds three things, all of them consequences of
-one gap: the *signature* was the last axis nothing could version.
+whatever it declares. It closes the versioned-signature gap and adds the
+  registry data needed to author Tk input links, callback timing, geometry
+  managers, and source-proven object-method prefix dispatch.
 
 - **The three lifecycle flags on an `arity` row.** An `arity` row without
   them is the command's plain arity, exactly as before. One with them is
@@ -578,6 +581,67 @@ one gap: the *signature* was the last axis nothing could version.
   are equal, the diagnostic names the one closest to the author's own
   control: the require in this file, then the pack in this workspace,
   then the profile compiled into the server.
+
+- **`option … -taints-var-write`.** Marks a variable-valued option whose
+  linked variable can be written from external input. The bit belongs to the
+  individual option argument, so an editable widget's `-variable` can be a
+  source while a display-only `-textvariable` remains clean.
+
+- **`option … -variable-scope CurrentFrame|Global`.** Declares where an
+  unqualified variable-name option resolves. `CurrentFrame` is the default;
+  `Global` models documented interpreter-global links such as Tk
+  `-textvariable` and `-variable`, allowing SSA and taint summaries to treat
+  `value` as `::value` even when the option appears inside a procedure.
+
+- **`option … -script-timing SameInvocation|Deferred|ReferenceOnly`.** Separates temporal
+  control flow from `-body-kind`, which describes only a Body's scope. The
+  timing also applies to executable `CommandPrefix` and `LambdaLiteral` values.
+  `SameInvocation` is the default and remains a lowering barrier;
+  `Deferred` says the receiver stores the script for a later callback;
+  `ReferenceOnly` says it identifies code without invoking or storing it.
+  Neither can abort the current command or hide definitions after it.
+
+- **`option … -callback-taint-inputs {%P …}` and
+  `callback_taint_inputs {{INDEX {%A …}} …}`.** Declare the finite set of
+  externally controlled substitutions a *deferred* callback host injects.
+  The option form applies to its script value; the table form applies to a
+  positional callback argument (indices use the normal command/subcommand
+  coordinates). Today the authorable Tk values are validation text `%P`, `%s`,
+  `%S` and key-event text `%A`, `%K`. Widget paths, validation actions,
+  indices, and reasons (`%W`, `%d`, `%i`, `%V`) are intentionally rejected:
+  they are framework metadata, not user input. Static analysis replays only a
+  literal script or a literal `[list command …]` prefix; dynamic construction
+  abstains rather than guessing. Each recoverable replay has an independent
+  synthetic callback frame and direct external-input seed, so one handler's
+  locals, `return`, or `error` cannot affect another handler's result. Calls
+  to real global procedures retain ordinary interprocedural propagation. The
+  deliberate remaining limit is an explicit shared global (for example
+  `set ::state …`): real events can race or run in either order, while the
+  static model does not attempt an event-order proof.
+
+- **`script_timing_resolver {words ctx} { … }`.** Handles executable
+  positions whose timing depends on the written form rather than one option
+  row. It emits `timing IDX SameInvocation|Deferred|ReferenceOnly`; silence preserves the
+  exact option timing and then the invocation-wide fallback. The index must
+  already be a `Body`, `LambdaLiteral`, or `CommandPrefix`, so the resolver
+  cannot turn ordinary data into code. Command and subcommand hooks use their
+  usual coordinates: after the command name, or after the subcommand word.
+  This is what lets one `send`-shaped command describe a synchronous form and
+  a `-async` form without applying command-wide `DEFERS_BODY` to both.
+
+- **`object_class … -method-prefix-matching Enabled|Strict`.** Controls the
+  instance-method table rather than the factory command's own subcommand
+  table. It defaults to `Strict`; use `Enabled` only when runtime source or
+  documentation proves unique-prefix dispatch (as for Tk widget commands).
+
+- **`tk_geometry POLICY ?-container-option OPTION? ?-direct-form?
+  ?-placement-subcommand NAME? ?-release-subcommands {NAME …}?`.** Declares a
+  Tk geometry manager's container policy as `Exclusive` or `Independent`, the
+  option that redirects placement into another container, and the exact forms
+  that place or release widgets. For example, `grid` has a direct placement
+  form, `configure` also places, and both `forget` and `remove` release current
+  placement. Static preview and TK1001 consume this descriptor without naming
+  `pack`, `grid`, or `place`.
 
 `ambient_package` is also the prerequisite for modelling a package as a
 pack at all (issue #1631): a package's version floor must not depend on

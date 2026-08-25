@@ -77,6 +77,9 @@ pub enum FieldKind {
     RoleMap,
     /// `&'static [(u8, AppendedArity)]` — command-prefix positions.
     PrefixMap,
+    /// `&'static [(u8, &'static [CallbackTaintInput])]` — externally
+    /// controlled substitutions injected into a deferred callback argument.
+    CallbackTaintMap,
     /// `&'static [(u8, ArgPresentation)]` — formatter layout overrides.
     PresentationMap,
     /// `&'static [(u8, ArgTypeHint)]`.
@@ -103,6 +106,9 @@ pub enum FieldKind {
     /// an unknown-method flag, and an instance-method table edited with the
     /// subcommand schema.
     ObjectClass,
+    /// `Option<TkGeometryManagerSpec>` — static geometry-container and
+    /// placement semantics, edited field by field.
+    TkGeometry,
     /// A field the studio cannot model as data — a function pointer or a
     /// reference to a `&'static` descriptor. Held (and emitted) as a verbatim
     /// Rust expression the author supplies.
@@ -132,6 +138,7 @@ impl FieldKind {
             Self::Arity => "arity",
             Self::RoleMap => "roleMap",
             Self::PrefixMap => "prefixMap",
+            Self::CallbackTaintMap => "callbackTaintMap",
             Self::PresentationMap => "presentationMap",
             Self::ArgTypeMap => "argTypeMap",
             Self::ArgValueMap => "argValueMap",
@@ -144,6 +151,7 @@ impl FieldKind {
             Self::SubCommands => "subCommands",
             Self::SubSubCommands => "subSubCommands",
             Self::ObjectClass => "objectClass",
+            Self::TkGeometry => "tkGeometry",
             Self::RustExpr { .. } => "rustExpr",
         }
     }
@@ -186,6 +194,115 @@ pub struct FieldSchema {
     /// How the field is edited and emitted.
     pub kind: FieldKind,
 }
+
+/// One editable property nested below a top-level spec field.
+///
+/// Nested properties use the same help/example pipeline as `CommandSpec`
+/// fields so composite editors and the Reference tab cannot document them
+/// differently.
+#[derive(Debug, Clone, Copy)]
+pub struct NestedFieldSchema {
+    /// Rust field name on the nested registry type.
+    pub key: &'static str,
+    /// Human label shown beside the composite control.
+    pub label: &'static str,
+    /// One-line meaning shown in the Reference row.
+    pub doc: &'static str,
+    /// Owning registry type.
+    pub owner: &'static str,
+    /// Form group containing the composite editor.
+    pub group: &'static str,
+}
+
+impl NestedFieldSchema {
+    #[must_use]
+    pub fn to_json(&self) -> Value {
+        json!({
+            "key": self.key,
+            "label": self.label,
+            "doc": self.doc,
+            "owner": self.owner,
+            "group": self.group,
+            "help": crate::help::field_help(self.key).unwrap_or(self.doc),
+            "example": crate::examples::field_example(self.key, self.label, self.group),
+        })
+    }
+}
+
+/// Properties edited inside composite field rows rather than as top-level
+/// `CommandSpec` controls.
+pub const NESTED_FIELDS: &[NestedFieldSchema] = &[
+    NestedFieldSchema {
+        key: "taints_var_write",
+        label: "External input link",
+        doc: "Whether this VarWrite option links a variable that external input can update.",
+        owner: "OptionArg",
+        group: "Options and values",
+    },
+    NestedFieldSchema {
+        key: "variable_scope",
+        label: "Variable scope",
+        doc: "Where an unqualified variable-name option value resolves.",
+        owner: "OptionArg",
+        group: "Options and values",
+    },
+    NestedFieldSchema {
+        key: "script_timing",
+        label: "Script timing",
+        doc: "Whether this script option runs now or is stored for a later callback.",
+        owner: "OptionArg",
+        group: "Options and values",
+    },
+    NestedFieldSchema {
+        key: "callback_taint_inputs",
+        label: "Callback external inputs",
+        doc: "User-controlled callback substitutions that must be treated as taint sources.",
+        owner: "OptionArg",
+        group: "Options and values",
+    },
+    NestedFieldSchema {
+        key: "method_prefix_matching",
+        label: "Method prefix matching",
+        doc: "Whether this object's instance methods accept unique-prefix abbreviations.",
+        owner: "ObjectClassSpec",
+        group: "Advanced",
+    },
+    NestedFieldSchema {
+        key: "container_policy",
+        label: "Container policy",
+        doc: "Whether the geometry manager claims exclusive ownership of a container.",
+        owner: "TkGeometryManagerSpec",
+        group: "Advanced",
+    },
+    NestedFieldSchema {
+        key: "container_option",
+        label: "Container option",
+        doc: "Option whose value overrides the widget pathname's parent container.",
+        owner: "TkGeometryManagerSpec",
+        group: "Advanced",
+    },
+    NestedFieldSchema {
+        key: "direct_form",
+        label: "Direct placement form",
+        doc: "Whether the manager's no-subcommand form places widgets.",
+        owner: "TkGeometryManagerSpec",
+        group: "Advanced",
+    },
+    NestedFieldSchema {
+        key: "placement_subcommand",
+        label: "Placement subcommand",
+        doc: "Subcommand that places or reconfigures widgets.",
+        owner: "TkGeometryManagerSpec",
+        group: "Advanced",
+    },
+    NestedFieldSchema {
+        key: "release_subcommands",
+        label: "Release subcommands",
+        doc: "Subcommands that stop managing their widget arguments.",
+        owner: "TkGeometryManagerSpec",
+        group: "Advanced",
+    },
+];
 
 impl FieldSchema {
     /// The JSON the front-end builds its editor from.
@@ -372,6 +489,22 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Callback locating command-prefix positions that depend on the argument list.",
     ),
     f(
+        "script_timing_resolver",
+        "Script-timing resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_timing_resolver)",
+        },
+        "Callback assigning SameInvocation, Deferred, or ReferenceOnly to executable positions from the actual argument list.",
+    ),
+    f(
+        "callback_taint_inputs",
+        "Callback external inputs",
+        TAINT,
+        FieldKind::CallbackTaintMap,
+        "User-controlled substitutions injected into deferred positional callback arguments.",
+    ),
+    f(
         "return_type",
         "Return type",
         TYPES,
@@ -471,16 +604,16 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Invocation forms",
         DOCS,
         FieldKind::Forms,
-        "Synopsis per invocation form, for completion and arity-dependent lookup; each form has its own release window.",
+        "Documented synopsis and getter/setter classification; does not select semantic routing.",
     ),
     f(
         "command_forms",
         "Structured command forms",
         ADVANCED,
         FieldKind::RustExpr {
-            hint: "COMMAND_FORMS",
+            hint: "&[CommandForm { name: \"query\", literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[\"get\"])), traits: Some(Traits::PURE), mutator: Some(false), side_effects: Some(READS), ..CommandForm::DEFAULT }]",
         },
-        "Per-form arity, roles, options, and hooks, for form-specific routing.",
+        "Opaque Rust form descriptors, including longest-static literal-prefix selection and replacement traits, mutator status, and side effects.",
     ),
     f(
         "semantic_operation",
@@ -662,6 +795,13 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         AVAILABILITY,
         FieldKind::OptText,
         "Package that must be `require`d before the command is visible.",
+    ),
+    f(
+        "tk_geometry",
+        "Tk geometry manager",
+        ADVANCED,
+        FieldKind::TkGeometry,
+        "Structured container, placement-form, and release semantics for a Tk geometry manager.",
     ),
     f(
         "excluded_events",
@@ -1253,6 +1393,22 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Callback locating command-prefix positions after the subcommand word.",
     ),
     f(
+        "script_timing_resolver",
+        "Script-timing resolver",
+        ADVANCED,
+        FieldKind::RustExpr {
+            hint: "Some(my_timing_resolver)",
+        },
+        "Callback assigning timing to executable positions after the subcommand word.",
+    ),
+    f(
+        "callback_taint_inputs",
+        "Callback external inputs",
+        TAINT,
+        FieldKind::CallbackTaintMap,
+        "User-controlled substitutions injected into deferred positional callback arguments.",
+    ),
+    f(
         "return_type",
         "Return type",
         TYPES,
@@ -1443,8 +1599,10 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "subcommand_forms",
         "Structured subcommand forms",
         ADVANCED,
-        FieldKind::RustExpr { hint: "SUB_FORMS" },
-        "Per-form arity, roles, options, and hooks matched after the subcommand word.",
+        FieldKind::RustExpr {
+            hint: "&[SubCommandForm { name: \"query\", literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&[\"present\"])), traits: Some(Traits::PURE), mutator: Some(false), side_effects: Some(READS), ..SubCommandForm::DEFAULT }]",
+        },
+        "Opaque Rust form descriptors matched after the subcommand word by arity and longest-static optional literal prefix, including replacement traits, mutator status, and side effects.",
     ),
     f(
         "semantic_operation",
@@ -1840,10 +1998,12 @@ fn custom_catalogues() -> [(&'static str, Value); 4] {
 /// The variant catalogues the form's pickers read, keyed by catalogue id.
 #[must_use]
 pub fn catalogues() -> Value {
-    let standard: [(&str, &[catalogue::Variant]); 20] = [
+    let standard: [(&str, &[catalogue::Variant]); 22] = [
         ("argRole", catalogue::ARG_ROLES),
         ("tclType", catalogue::TCL_TYPES),
         ("bodyKind", catalogue::BODY_KINDS),
+        ("scriptTiming", catalogue::SCRIPT_TIMINGS),
+        ("variableScope", catalogue::VARIABLE_SCOPES),
         ("argPresentation", catalogue::ARG_PRESENTATIONS),
         ("storageType", catalogue::STORAGE_TYPES),
         ("byteArrayEffect", catalogue::BYTE_ARRAY_EFFECTS),
@@ -1904,6 +2064,7 @@ pub fn to_json() -> Value {
         "groupExamples": group_examples,
         "catalogues": catalogues(),
         "catalogueHelp": catalogue_help,
+        "nestedFields": Value::Array(NESTED_FIELDS.iter().map(NestedFieldSchema::to_json).collect()),
         "command": fields(COMMAND_FIELDS),
         "subcommand": fields(SUBCOMMAND_FIELDS),
     })
@@ -1975,5 +2136,16 @@ mod tests {
             Some(SUBCOMMAND_FIELDS.len())
         );
         assert_eq!(schema["command"][0]["key"], "name");
+        assert_eq!(
+            schema["nestedFields"].as_array().map(Vec::len),
+            Some(NESTED_FIELDS.len())
+        );
+        assert_eq!(schema["nestedFields"][0]["key"], "taints_var_write");
+        assert!(schema["nestedFields"][0]["help"].as_str().is_some());
+        assert!(
+            schema["nestedFields"][0]["example"]["code"]
+                .as_str()
+                .is_some()
+        );
     }
 }

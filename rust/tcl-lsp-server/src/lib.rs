@@ -53,6 +53,7 @@ use std::task::Poll;
 // `FutureExt::shared` lets the progressive diagnostics path compute the base
 // per-file analysis once and await it from both the deep pass and the fast tier.
 use futures_util::future::FutureExt;
+use sha2::{Digest, Sha256};
 use tcl_compiler::compiler_checks::DiagCode;
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult, NonAsciiMode};
@@ -90,6 +91,7 @@ use tcl_lsp_core::signature_help::{
     SignatureHelp as CoreSignatureHelp, SignatureInformation as CoreSignatureInformation,
 };
 use tcl_lsp_core::tcl_install as core_tcl_install;
+use tcl_lsp_core::tk_preview as core_tk_preview;
 use tcl_lsp_core::type_definition as core_type_definition;
 use tcl_lsp_core::type_hierarchy as core_type_hierarchy;
 use tcl_lsp_core::workspace_index as core_workspace_index;
@@ -146,6 +148,18 @@ use tower_lsp_server::ls_types::{
     },
 };
 use tower_lsp_server::{Client, LanguageServer};
+
+fn sha256_hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+
+    let digest = Sha256::digest(bytes);
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}")
+            .expect("writing a SHA-256 digest to a String cannot fail");
+    }
+    encoded
+}
 
 /// Document store value: source text + dialect string.
 ///
@@ -12736,6 +12750,119 @@ impl Backend {
         Ok(Some(value))
     }
 
+    /// Build the versioned, static Tk UI model for an open document.
+    ///
+    /// Arguments are `[ { "uri": string, "version"?: integer,
+    /// "document_sha256"?: string } ]`. Source text is deliberately not
+    /// accepted: preview must analyse the same versioned snapshot as
+    /// diagnostics and navigation, not execute or trust an editor-supplied
+    /// second copy of a workspace program. Clients whose platform LSP API does
+    /// not expose its document version may send a SHA-256 of their open text;
+    /// that fingerprint is compared without accepting a second source copy.
+    /// The result is stamped with the snapshot version and fingerprint so a
+    /// client can discard a response that lost a race with a later edit.
+    async fn tk_preview_command(
+        &self,
+        args: &[serde_json::Value],
+    ) -> jsonrpc::Result<Option<serde_json::Value>> {
+        let Some(request) = args.first().and_then(serde_json::Value::as_object) else {
+            return Ok(None);
+        };
+        let Some(uri_str) = request.get("uri").and_then(serde_json::Value::as_str) else {
+            return Ok(None);
+        };
+        let Ok(uri) = Uri::from_str(uri_str) else {
+            return Ok(None);
+        };
+        let requested_version = match request.get("version") {
+            None => None,
+            Some(value) => {
+                let Some(version) = value.as_i64().and_then(|value| i32::try_from(value).ok())
+                else {
+                    return Err(jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InvalidParams,
+                        message: "Tk preview version must be a 32-bit integer".into(),
+                        data: None,
+                    });
+                };
+                Some(version)
+            }
+        };
+        let requested_sha256 = match request.get("document_sha256") {
+            None => None,
+            Some(value) => {
+                let Some(hash) = value.as_str() else {
+                    return Err(jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InvalidParams,
+                        message: "Tk preview document_sha256 must be a string".into(),
+                        data: None,
+                    });
+                };
+                if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                    return Err(jsonrpc::Error {
+                        code: jsonrpc::ErrorCode::InvalidParams,
+                        message: "Tk preview document_sha256 must be a SHA-256 hex digest".into(),
+                        data: None,
+                    });
+                }
+                Some(hash.to_ascii_lowercase())
+            }
+        };
+        let Some(doc) = self.read_document(&uri).await else {
+            return Ok(None);
+        };
+        if requested_version.is_some() && requested_version != doc.version {
+            return Err(jsonrpc::Error {
+                code: jsonrpc::ErrorCode::ContentModified,
+                message: format!(
+                    "Tk preview requested document version {:?}, but the open snapshot is {:?}",
+                    requested_version, doc.version
+                )
+                .into(),
+                data: None,
+            });
+        }
+        // The editor fingerprints the bytes in its buffer. Analysis uses the
+        // byte-length-preserving lone-CR normalisation in `doc.text`, but the
+        // snapshot identity must use the client's original spelling.
+        let document_sha256 = sha256_hex(doc.raw().as_bytes());
+        if requested_sha256.is_some() && requested_sha256.as_deref() != Some(&document_sha256) {
+            return Err(jsonrpc::Error {
+                code: jsonrpc::ErrorCode::ContentModified,
+                message: "Tk preview requested document text differs from the open snapshot".into(),
+                data: None,
+            });
+        }
+        let registry = self.registry_for_dialect(&doc.dialect).await;
+        let text = doc.text.clone();
+        let dialect = doc.dialect.clone();
+        let document_uri = uri_str.to_owned();
+        let document_version = doc.version;
+        let mut model = crate::rt::spawn_blocking(move || {
+            core_tk_preview::analyse_tk_ui(
+                &text,
+                tcl_lsp_core::profile_for_dialect(&dialect),
+                &registry,
+            )
+        })
+        .await
+        .map_err(|err| jsonrpc::Error {
+            code: jsonrpc::ErrorCode::InternalError,
+            message: format!("Tk preview worker panicked: {err}").into(),
+            data: None,
+        })?;
+        model.document_uri = Some(document_uri);
+        model.document_version = document_version;
+        model.document_sha256 = Some(document_sha256);
+        serde_json::to_value(model)
+            .map(Some)
+            .map_err(|err| jsonrpc::Error {
+                code: jsonrpc::ErrorCode::InternalError,
+                message: format!("Tk preview serialisation failed: {err}").into(),
+                data: None,
+            })
+    }
+
     /// Handle the `tcl-lsp.optimiseDocument` workspace command.
     ///
     /// Arguments: `[uri, profile?]`.  Runs the optimiser over the document
@@ -19832,6 +19959,7 @@ impl LanguageServer for Backend {
                     .await
             }
             "tcl-lsp.compilerExplorer" => self.compiler_explorer_command(&params.arguments).await,
+            "tcl-lsp.tkPreview" => self.tk_preview_command(&params.arguments).await,
             _ => Ok(None),
         }
     }
@@ -24410,6 +24538,7 @@ fn build_server_capabilities(
                 "tcl-lsp.setDialect".to_owned(),
                 "tcl-lsp.setSessionDialectOverride".to_owned(),
                 "tcl-lsp.compilerExplorer".to_owned(),
+                "tcl-lsp.tkPreview".to_owned(),
             ],
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),

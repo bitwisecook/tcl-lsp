@@ -178,6 +178,184 @@ opened from `file://` — the page says so and falls back to a plain text
 editor with the pack's own highlighting and validation, so nothing is
 silently missing.
 
+### Tk input, callback, geometry, and method metadata
+
+The studio preserves seven Tk-relevant registry facts added in SpecTcl 1.2:
+
+- For a value-taking option, **external input link** sets
+  `OptionArg.taints_var_write`. Use it only when the named variable can receive
+  user input, such as an entry's `-textvariable`; leave it off for a label's
+  display-only link.
+- A variable-valued option's **variable scope** selects `CurrentFrame` or
+  `Global`. Tk `-textvariable` and `-variable` links are global even when the
+  constructor is called inside a procedure.
+- **Advanced → Tk geometry manager** sets `CommandSpec.tk_geometry`. Use
+  `PACK_GEOMETRY`, `GRID_GEOMETRY`, or `PLACE_GEOMETRY` for the built-ins. A
+  custom descriptor records its container policy/option, whether the direct
+  form places widgets, its placement subcommand, and every release subcommand.
+- An executable option's **script timing** separates `SameInvocation` bodies
+  and command prefixes from `Deferred` callbacks and `ReferenceOnly` text
+  matched by removal forms without being run or stored. Scope remains a
+  separate `body_kind` choice for Body values.
+- A deferred executable option's **callback external inputs**, or the
+  command/subcommand `callback_taint_inputs` table, lists only user-controlled
+  substitutions such as `%P`, `%s`, `%S`, `%A`, and `%K`. Framework metadata
+  such as `%W` and `%V` is rejected rather than promoted to a taint source.
+- **Advanced → Script-timing resolver** handles positional forms whose timing
+  depends on their arguments. In SpecTcl it is a `{words ctx}` hook that emits
+  `timing IDX SameInvocation|Deferred|ReferenceOnly`; in Rust it is the
+  corresponding function pointer. The index must already be classified as
+  `Body`, `LambdaLiteral`, or `CommandPrefix`.
+- An object's **method prefix matching** is `Strict` by default. Set it to
+  `Enabled` only when the runtime accepts unambiguous method prefixes, as Tk's
+  source-proven widget command tables do.
+
+The equivalent SpecTcl is short:
+
+```tcl
+speclib tk-extra 1.2 {
+    command entrylike {
+        traits TAINTS_VAR_WRITES
+        option -textvariable -takes variable -role VarWrite \
+            -also-role VarRead -taints-var-write -variable-scope Global
+        option -validatecommand -takes script -role Body \
+            -body-kind Structural -script-timing Deferred \
+            -callback-taint-inputs {%P %s %S}
+    }
+    command buttonlike {
+        option -command -takes script -role Body -body-kind Structural \
+            -script-timing Deferred
+        object_class ::example::Button -method-prefix-matching Enabled {
+            method activate { arity 0 }
+        }
+    }
+    command layout {
+        tk_geometry Exclusive -container-option {-in} -direct-form \
+            -placement-subcommand configure -release-subcommands {forget}
+    }
+    command sendlike {
+        arg 1 -role Body
+        script_timing_resolver {words ctx} {
+            if {[lindex $words 0] eq "later"} {
+                timing 1 Deferred
+            } else {
+                timing 1 SameInvocation
+            }
+        }
+    }
+    command removelike {
+        arg 1 -role CommandPrefix
+        script_timing_resolver {words ctx} {
+            timing 1 ReferenceOnly
+        }
+    }
+    command bindlike {
+        traits DEFERS_BODY
+        arity 2
+        arg 1 -role Body
+        callback_taint_inputs {{1 {%A %K}}}
+    }
+}
+```
+
+The rendered Rust carries the same facts:
+
+```rust
+const VALIDATION_INPUTS: &[CallbackTaintInput] = &[
+    CallbackTaintInput::TK_PROPOSED_VALUE,
+    CallbackTaintInput::TK_CURRENT_VALUE,
+    CallbackTaintInput::TK_EDIT_TEXT,
+];
+const EVENT_INPUTS: &[CallbackTaintInput] = &[
+    CallbackTaintInput::TK_EVENT_CHAR,
+    CallbackTaintInput::TK_EVENT_KEYSYM,
+];
+static ENTRYLIKE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-textvariable",
+        value: OptionValue::user_input_var(),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-validatecommand",
+        value: OptionValue::deferred_tainted_script(VALIDATION_INPUTS),
+        ..OptionSpec::DEFAULT
+    },
+];
+static BUTTONLIKE_OPTIONS: &[OptionSpec] = &[
+    OptionSpec {
+        name: "-command",
+        value: OptionValue::deferred_script(),
+        ..OptionSpec::DEFAULT
+    },
+];
+static BUTTON_METHODS: &[SubCommand] = &[SubCommand {
+    name: "activate",
+    arity: Arity::exact(0),
+    ..SubCommand::DEFAULT
+}];
+static CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "::example::Button",
+    instance_methods: BUTTON_METHODS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
+let entrylike = CommandSpec {
+    name: "entrylike",
+    traits: Traits::TAINTS_VAR_WRITES,
+    options: ENTRYLIKE_OPTIONS,
+    ..CommandSpec::DEFAULT
+};
+let buttonlike = CommandSpec {
+    name: "buttonlike",
+    options: BUTTONLIKE_OPTIONS,
+    object_class: Some(&CLASS),
+    ..CommandSpec::DEFAULT
+};
+let layout = CommandSpec {
+    name: "layout",
+    tk_geometry: Some(crate::tk_geometry::PACK_GEOMETRY),
+    ..CommandSpec::DEFAULT
+};
+
+fn sendlike_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    vec![(1, if args.first() == Some(&"later") {
+        ScriptTiming::Deferred
+    } else {
+        ScriptTiming::SameInvocation
+    })]
+}
+let sendlike = CommandSpec {
+    name: "sendlike",
+    arg_roles: &[(1, ArgRole::Body)],
+    script_timing_resolver: Some(sendlike_timing),
+    ..CommandSpec::DEFAULT
+};
+fn removelike_timing(_args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    vec![(1, ScriptTiming::ReferenceOnly)]
+}
+let removelike = CommandSpec {
+    name: "removelike",
+    arg_roles: &[(1, ArgRole::CommandPrefix)],
+    script_timing_resolver: Some(removelike_timing),
+    ..CommandSpec::DEFAULT
+};
+let bindlike = CommandSpec {
+    name: "bindlike",
+    traits: Traits::DEFERS_BODY,
+    arity: Arity::exact(2),
+    arg_roles: &[(1, ArgRole::Body)],
+    callback_taint_inputs: &[(1, EVENT_INPUTS)],
+    ..CommandSpec::DEFAULT
+};
+```
+
+Editing either representation and re-rendering must retain the fact. The
+registry-wide round-trip gate checks every shipped command, while the schema
+coverage gate checks that every `CommandSpec` and nested option field has a
+studio surface.
+
 ### What a stub cannot carry
 
 The stub language is deliberately narrower than a command specification: it

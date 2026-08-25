@@ -100,10 +100,14 @@ fn resolved_operation(
     .unwrap_or(SemanticOperationId::Invoke)
 }
 
+// This is the single exhaustive projection from three nested registry owners
+// into one semantic view; splitting it would duplicate the inheritance rules.
+#[allow(clippy::too_many_lines)]
 fn resolve_invocation_semantics<'r>(
     spec: &'r CommandSpec,
     sub: Option<&'r SubCommand>,
     form: Option<&'r CommandForm>,
+    inherit_command: bool,
 ) -> InvocationSemantics<'r> {
     let (arg_roles, arg_role_resolver) = match form {
         Some(form) => (form.arg_roles, None),
@@ -112,32 +116,75 @@ fn resolve_invocation_semantics<'r>(
             None => (spec.arg_roles, spec.arg_role_resolver),
         },
     };
+    let inherited_traits = if inherit_command {
+        spec.traits
+    } else {
+        Traits::empty()
+    } | sub.map_or_else(Traits::empty, |sub| {
+        sub.traits
+            | if sub.pure {
+                Traits::PURE
+            } else {
+                Traits::empty()
+            }
+    });
+    let inherited_side_effects = sub.filter(|sub| !sub.side_effects.is_empty()).map_or_else(
+        || {
+            if inherit_command {
+                spec.side_effects
+            } else {
+                &[]
+            }
+        },
+        |sub| sub.side_effects,
+    );
     InvocationSemantics {
-        operation: resolved_operation(spec, sub, form),
+        operation: if inherit_command {
+            resolved_operation(spec, sub, form)
+        } else {
+            form.and_then(|form| {
+                descriptor_operation(
+                    form.semantic_operation,
+                    form.lowering_hook,
+                    form.codegen_hook,
+                    None,
+                )
+            })
+            .or_else(|| {
+                sub.and_then(|sub| {
+                    descriptor_operation(
+                        sub.semantic_operation,
+                        sub.lowering_hook,
+                        sub.codegen_hook,
+                        sub.inline_codegen_hook,
+                    )
+                })
+            })
+            .unwrap_or(SemanticOperationId::Invoke)
+        },
         completion: form
             .and_then(|form| form.completion)
             .or(sub.and_then(|sub| sub.completion))
-            .or(spec.completion)
+            .or(inherit_command.then_some(spec.completion).flatten())
             .unwrap_or(CompletionDescriptor::CONSERVATIVE),
         result_stability: form
             .and_then(|form| form.result_stability)
             .or(sub.and_then(|sub| sub.result_stability))
-            .or(spec.result_stability)
+            .or(inherit_command.then_some(spec.result_stability).flatten())
             .unwrap_or_default(),
         representation_effect: form
             .and_then(|form| form.representation_effect)
             .or(sub.and_then(|sub| sub.representation_effect))
-            .or(spec.representation_effect)
+            .or(inherit_command
+                .then_some(spec.representation_effect)
+                .flatten())
             .unwrap_or_default(),
-        traits: spec.traits
-            | sub.map_or_else(Traits::empty, |sub| {
-                sub.traits
-                    | if sub.pure {
-                        Traits::PURE
-                    } else {
-                        Traits::empty()
-                    }
-            }),
+        traits: form
+            .and_then(|form| form.traits)
+            .unwrap_or(inherited_traits),
+        mutator: form
+            .and_then(|form| form.mutator)
+            .unwrap_or_else(|| sub.is_some_and(|sub| sub.mutator)),
         arity: form.map_or_else(
             || sub.map_or(spec.arity, |sub| sub.arity),
             |form| form.arity,
@@ -152,41 +199,47 @@ fn resolve_invocation_semantics<'r>(
         return_type: sub.map_or(spec.return_type, |sub| sub.return_type),
         safe_on_uninit: sub
             .and_then(|sub| sub.safe_on_uninit)
-            .or(spec.safe_on_uninit),
+            .or(inherit_command.then_some(spec.safe_on_uninit).flatten()),
         var_write_typing: sub.map_or(spec.var_write_typing, |sub| sub.var_write_typing),
         return_elements: sub.map_or(spec.return_elements, |sub| sub.return_elements),
         var_elements_effect: sub.map_or(spec.var_elements_effect, |sub| sub.var_elements_effect),
-        frame_effect: spec.frame_effect,
+        frame_effect: inherit_command.then_some(spec.frame_effect).flatten(),
         body_kind: sub.map_or(spec.body_kind, |sub| sub.body_kind),
         lowering_hook: form
             .and_then(|form| form.lowering_hook)
             .or(sub.and_then(|sub| sub.lowering_hook))
-            .or(spec.lowering_hook),
+            .or(inherit_command.then_some(spec.lowering_hook).flatten()),
         command_table_effect: sub
             .and_then(|sub| sub.command_table_effect)
-            .or(spec.command_table_effect),
-        side_effects: sub
-            .filter(|sub| !sub.side_effects.is_empty())
-            .map_or(spec.side_effects, |sub| sub.side_effects),
+            .or(inherit_command
+                .then_some(spec.command_table_effect)
+                .flatten()),
+        side_effects: form
+            .and_then(|form| form.side_effects)
+            .unwrap_or(inherited_side_effects),
         world_effects: ResolvedWorldEffects {
-            command: spec.world_effects,
+            command: inherit_command.then_some(spec.world_effects).flatten(),
             subcommand: sub.and_then(|sub| sub.world_effects),
             form: form.and_then(|form| form.world_effects),
         },
         state_transitions: ResolvedStateTransitions {
-            command: spec.state_transitions,
+            command: inherit_command.then_some(spec.state_transitions).flatten(),
             subcommand: sub.and_then(|sub| sub.state_transitions),
             form: form.and_then(|form| form.state_transitions),
         },
         dispatch_dependencies: ResolvedDispatchDependencies {
-            command: spec.dispatch_dependencies,
+            command: inherit_command
+                .then_some(spec.dispatch_dependencies)
+                .flatten(),
             subcommand: sub.and_then(|sub| sub.dispatch_dependencies),
             form: form.and_then(|form| form.dispatch_dependencies),
         },
         literal_argument_validator: form
             .and_then(|form| form.literal_argument_validator)
             .or(sub.and_then(|sub| sub.literal_argument_validator))
-            .or(spec.literal_argument_validator),
+            .or(inherit_command
+                .then_some(spec.literal_argument_validator)
+                .flatten()),
     }
 }
 
@@ -475,6 +528,9 @@ pub struct InvocationSemantics<'r> {
     pub representation_effect: RepresentationEffect,
     /// Additive command and subcommand behaviour traits.
     pub traits: Traits,
+    /// Whether the selected command/subcommand/form mutates its receiver or
+    /// other command-specific state.
+    pub mutator: bool,
     /// Effective arity after command/subcommand/form resolution.
     pub arity: Arity,
     /// Number of leading post-head words before `arg_roles` starts.
@@ -598,6 +654,8 @@ pub struct InvocationFacts {
     pub dispatch_dependencies: DispatchDependencies,
     /// Effective command and subcommand traits.
     pub traits: Traits,
+    /// Whether the selected invocation form mutates command-specific state.
+    pub mutator: bool,
     /// Effective arity after command, subcommand, and form selection.
     pub arity: Arity,
     /// Number of leading post-head words before static argument roles start.
@@ -651,10 +709,32 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         form: Option<&'r CommandForm>,
         subcommand: SubcommandResolution<'w>,
     ) -> Self {
-        let semantics = resolve_invocation_semantics(spec, sub, form);
+        let semantics = resolve_invocation_semantics(spec, sub, form, true);
         Self {
             words,
             canonical_command: spec.name,
+            subcommand,
+            form: form.map(|form| ResolvedForm {
+                name: form.name,
+                arity: form.arity,
+                arg_roles: form.arg_roles,
+                options: form.options,
+            }),
+            semantics,
+        }
+    }
+
+    pub(crate) fn new_instance(
+        words: InvocationWords<'w>,
+        class_spec: &'r CommandSpec,
+        method: &'r SubCommand,
+        form: Option<&'r CommandForm>,
+        subcommand: SubcommandResolution<'w>,
+    ) -> Self {
+        let semantics = resolve_invocation_semantics(class_spec, Some(method), form, false);
+        Self {
+            words,
+            canonical_command: class_spec.name,
             subcommand,
             form: form.map(|form| ResolvedForm {
                 name: form.name,
@@ -775,6 +855,7 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             transition_effect_coverage,
             dispatch_dependencies: self.semantics.dispatch_dependencies.resolve(),
             traits: self.semantics.traits,
+            mutator: self.semantics.mutator,
             arity: self.semantics.arity,
             argument_offset: self.semantics.argument_offset,
             arg_roles,

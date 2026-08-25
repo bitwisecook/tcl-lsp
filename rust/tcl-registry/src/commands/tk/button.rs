@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the button text.",
         dialects: None,
         aliases: &[],
@@ -45,7 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Tcl command to invoke when the button is pressed.",
         dialects: None,
         aliases: &[],
@@ -329,6 +329,40 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+static BUTTON_METHODS: &[SubCommand] = &[
+    super::common::CLASSIC_WIDGET_CGET,
+    super::common::CLASSIC_WIDGET_CONFIGURE,
+    SubCommand {
+        name: "flash",
+        arity: Arity::exact(0),
+        detail: "Flash the button using its active and normal colours.",
+        synopsis: "pathName flash",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "invoke",
+        arity: Arity::exact(0),
+        detail: "Invoke the button's associated command unless the button is disabled.",
+        synopsis: "pathName invoke",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+];
+
+static BUTTON_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "button",
+    instance_methods: BUTTON_METHODS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "button",
@@ -347,6 +381,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        object_class: Some(&BUTTON_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

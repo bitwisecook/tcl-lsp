@@ -54,7 +54,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Variable linked to the scale value.",
         dialects: None,
         aliases: &[],
@@ -81,7 +81,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(1)),
         detail: "Command prefix invoked when the scale value changes (the new value is appended).",
         dialects: None,
         aliases: &[],
@@ -135,6 +135,40 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(
+    SUBCOMMANDS,
+    CLASS,
+    "ttk::scale",
+    SubCommand {
+        name: "coords",
+        arity: Arity::new(0, 1),
+        detail: "Return the coordinates corresponding to a value.",
+        synopsis: "pathName coords ?value?",
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        traits: Traits::TAINT_SOURCE_ZERO_ARGS,
+        arity: Arity::new(0, 2),
+        detail: "Return the current value or the value at coordinates x y.",
+        synopsis: "pathName get ?x y?",
+        pure: true,
+        return_type: Some(TclType::Double),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::exact(1),
+        detail: "Set the scale value.",
+        synopsis: "pathName set value",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::scale pathName ?options?",
     ..FormSpec::DEFAULT
@@ -143,6 +177,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "ttk::scale",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
@@ -159,6 +194,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

@@ -35,8 +35,15 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
+        name: "-textangle",
+        value: OptionValue::value("degrees"),
+        detail: "Anticlockwise rotation of the displayed text in degrees (Tk 9.1+).",
+        lifecycle: Lifecycle::introduced_in("9.1"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the label text.",
         dialects: None,
         aliases: &[],
@@ -226,7 +233,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-activebackground",
         value: OptionValue::value("color"),
-        detail: "Specifies background color to use when drawing active elements. An element (a widget or portion of a widget).",
+        detail: "Background colour while the label is active.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -235,7 +242,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-disabledforeground",
         value: OptionValue::value("color"),
-        detail: "Specifies foreground color to use when drawing a disabled element. If the option is specified as an empty.",
+        detail: "Foreground colour while disabled; empty uses a dimmed normal foreground.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -244,7 +251,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-activeforeground",
         value: OptionValue::value("color"),
-        detail: "Specifies foreground color to use when drawing active elements. See above for definition of active elements.",
+        detail: "Foreground colour while the label is active.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -253,7 +260,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-state",
         value: OptionValue::value("stateSpec"),
-        detail: "Specifies one of three states for the label: normal, active, or disabled. In normal state the button is.",
+        detail: "Display state: normal, active, or disabled.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -265,6 +272,8 @@ const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "label pathName ?option value ...?",
     ..FormSpec::DEFAULT
 }];
+
+super::common::classic_widget_class!(LABEL_CLASS, "label");
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
@@ -284,6 +293,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        object_class: Some(&LABEL_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

@@ -53,6 +53,10 @@ const EMPTY_LIST_DIGEST: &str =
 const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("byte_compiled", Traits::BYTE_COMPILED),
     ("configures_channel", Traits::CONFIGURES_CHANNEL),
+    (
+        "configures_instance_options",
+        Traits::CONFIGURES_INSTANCE_OPTIONS,
+    ),
     ("creates_dynamic_barrier", Traits::CREATES_DYNAMIC_BARRIER),
     ("aliases_global", Traits::ALIASES_GLOBAL),
     ("creates_scope_alias", Traits::CREATES_SCOPE_ALIAS),
@@ -71,6 +75,8 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
         Traits::STRING_LIST_CONFUSION,
     ),
     ("has_switch_body", Traits::HAS_SWITCH_BODY),
+    ("taints_var_writes", Traits::TAINTS_VAR_WRITES),
+    ("taint_source_zero_args", Traits::TAINT_SOURCE_ZERO_ARGS),
     ("irules_top_level_only", Traits::IRULES_TOP_LEVEL_ONLY),
     ("sets_event_priority", Traits::SETS_EVENT_PRIORITY),
     ("is_control_flow", Traits::CONTROL_FLOW),
@@ -99,6 +105,7 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("returns_path", Traits::RETURNS_PATH),
     ("sources_file", Traits::SOURCES_FILE),
     ("taint_sink", Traits::TAINT_SINK),
+    ("taint_source", Traits::TAINT_SOURCE),
     ("terminates_block", Traits::TERMINATES_BLOCK),
     ("terminates_process", Traits::TERMINATES_PROCESS),
     ("unsafe", Traits::UNSAFE),

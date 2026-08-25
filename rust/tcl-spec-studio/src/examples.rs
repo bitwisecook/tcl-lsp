@@ -208,6 +208,132 @@ const FIELD_COMMAND_PREFIX: Example = Example {
         ),
     ],
 };
+const FIELD_TK_GEOMETRY: Example = Example {
+    code: "frame .panel\nlabel .name -text Name\npack .name -in .panel\npack configure .name -padx 8\npack forget .name",
+    focuses: &[
+        focus(2, "pack .name", "the direct form places the widget"),
+        focus(2, "-in .panel", "selects the effective container"),
+        focus(
+            3,
+            "configure .name",
+            "the placement subcommand reconfigures it",
+        ),
+        focus(4, "forget .name", "a release subcommand stops managing it"),
+    ],
+};
+const FIELD_TAINTS_VAR_WRITE: Example = Example {
+    code: "ttk::combobox .country -textvariable country -values {UK US}\neval $country",
+    focuses: &[
+        focus(
+            0,
+            "-textvariable country",
+            "lets user input update this variable",
+        ),
+        focus(
+            1,
+            "$country",
+            "carries the untrusted value to a code-evaluation sink",
+        ),
+    ],
+};
+const FIELD_VARIABLE_SCOPE: Example = Example {
+    code: "proc build {} {\n    ttk::entry .country -textvariable country\n}\nbuild\nputs $::country",
+    focuses: &[
+        focus(
+            1,
+            "-textvariable country",
+            "Global resolves the unqualified link as ::country",
+        ),
+        focus(
+            4,
+            "$::country",
+            "reads the same linked variable outside the procedure",
+        ),
+    ],
+};
+const FIELD_SCRIPT_TIMING: Example = Example {
+    code: "button .save -command {save_document}\nputs ready",
+    focuses: &[
+        focus(
+            0,
+            "-command {save_document}",
+            "stores this script for a later button event",
+        ),
+        focus(
+            1,
+            "puts ready",
+            "runs when construction returns, before any future click",
+        ),
+    ],
+};
+const FIELD_SCRIPT_TIMING_RESOLVER: Example = Example {
+    code: "send other {work now}\nsend -async other {work later}",
+    focuses: &[
+        focus(
+            0,
+            "{work now}",
+            "the resolver reports SameInvocation without -async",
+        ),
+        focus(
+            1,
+            "{work later}",
+            "the resolver reports Deferred when -async is present",
+        ),
+    ],
+};
+const FIELD_CALLBACK_TAINT_INPUTS: Example = Example {
+    code: "entry .password -validatecommand {set proposed %P; eval $proposed}\nbind .password <Key> {set typed %A; eval $typed}",
+    focuses: &[
+        focus(
+            0,
+            "%P",
+            "the proposed editable value is external input when validation runs",
+        ),
+        focus(
+            0,
+            "$proposed",
+            "carries that value to the code-evaluation sink",
+        ),
+        focus(
+            1,
+            "%A",
+            "the typed event character is external input for this binding",
+        ),
+    ],
+};
+const FIELD_METHOD_PREFIX_MATCHING: Example = Example {
+    code: "entry .editor\n.editor g\n.editor c",
+    focuses: &[
+        focus(
+            1,
+            "g",
+            "resolves to the one matching method, get, when Enabled",
+        ),
+        focus(
+            2,
+            "c",
+            "stays unresolved because cget and configure are ambiguous",
+        ),
+    ],
+};
+const FIELD_COMMAND_FORMS: Example = Example {
+    code: "cache get document\ncache set document contents",
+    focuses: &[
+        focus(0, "get", "a literal selector can choose the read-only form"),
+        focus(
+            1,
+            "set",
+            "a sibling selector can choose replacement mutation effects",
+        ),
+    ],
+};
+const FIELD_SUBCOMMAND_FORMS: Example = Example {
+    code: "entry .editor\n.editor selection present\n.editor selection clear",
+    focuses: &[
+        focus(1, "present", "selects the nested read-only operation form"),
+        focus(2, "clear", "keeps the parent method's mutation effects"),
+    ],
+};
 
 /// The example inherited by every field in a form group.
 fn group_template(group: &str) -> Option<Example> {
@@ -240,6 +366,20 @@ fn field_template(key: &str, group: &str) -> Option<Example> {
             Some(FIELD_COMMAND_PREFIX)
         }
         "taint_source" => Some(FIELD_TAINT_SOURCE),
+        "taints_var_write" => Some(FIELD_TAINTS_VAR_WRITE),
+        "variable_scope" => Some(FIELD_VARIABLE_SCOPE),
+        "script_timing" => Some(FIELD_SCRIPT_TIMING),
+        "script_timing_resolver" => Some(FIELD_SCRIPT_TIMING_RESOLVER),
+        "callback_taint_inputs" => Some(FIELD_CALLBACK_TAINT_INPUTS),
+        "method_prefix_matching" => Some(FIELD_METHOD_PREFIX_MATCHING),
+        "command_forms" => Some(FIELD_COMMAND_FORMS),
+        "subcommand_forms" => Some(FIELD_SUBCOMMAND_FORMS),
+        "tk_geometry"
+        | "container_policy"
+        | "container_option"
+        | "direct_form"
+        | "placement_subcommand"
+        | "release_subcommands" => Some(FIELD_TK_GEOMETRY),
         "taint_transform" | "taint_double_encode_colour" => Some(FIELD_TAINT_TRANSFORM),
         "taint_output_sink"
         | "taint_output_sink_subcommands"
@@ -322,6 +462,8 @@ fn catalogue_template(id: &str) -> Option<Example> {
         "argRole" => Some(CATALOGUE_ARG_ROLE),
         "tclType" | "storageType" | "byteArrayEffect" => Some(CATALOGUE_TYPE),
         "bodyKind" | "argPresentation" => Some(CATALOGUE_PRESENTATION),
+        "scriptTiming" => Some(FIELD_SCRIPT_TIMING),
+        "variableScope" => Some(FIELD_VARIABLE_SCOPE),
         "commandTableEffect" | "definedSymbolKind" | "sideEffectTarget" | "connectionSide"
         | "formKind" => Some(CATALOGUE_EFFECT),
         "patternType" | "formatType" | "defaultFormFirstWord" | "prefixMatching" => {
@@ -417,6 +559,8 @@ pub fn variant_example(id: &str, key: &str, doc: &str) -> Option<Value> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use crate::{catalogue, schema};
 
@@ -478,6 +622,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("no example for {}", field.key));
             assert_valid(&example, field.key);
         }
+        for field in schema::NESTED_FIELDS {
+            let example = field_example(field.key, field.label, field.group)
+                .unwrap_or_else(|| panic!("no example for {}", field.key));
+            assert_valid(&example, field.key);
+        }
     }
 
     #[test]
@@ -515,5 +664,81 @@ mod tests {
                 entry.key
             );
         }
+    }
+
+    #[test]
+    fn registry_examples_are_distinct_and_source_aligned() {
+        let mut trait_programs = HashSet::new();
+        for &item in Trait::ALL {
+            let example = item.example();
+            assert!(
+                trait_programs.insert(example.code),
+                "{} reuses another trait's worked example",
+                item.name()
+            );
+            assert!(
+                example.annotations.len() >= 2,
+                "{} has too little flow",
+                item.name()
+            );
+            let labels: HashSet<_> = example.annotations.iter().map(|item| item.label).collect();
+            assert!(
+                labels.len() >= 2,
+                "{} has boilerplate-only arrows",
+                item.name()
+            );
+            let carrier = example
+                .carrier
+                .expect("trait examples must identify their carrier");
+            let lines: Vec<_> = example.code.lines().collect();
+            assert!(
+                lines
+                    .get(carrier.line)
+                    .is_some_and(|line| line.contains(carrier.needle)),
+                "{} carrier is not source-aligned",
+                item.name()
+            );
+            assert!(
+                example.annotations.iter().any(|annotation| {
+                    annotation.line == carrier.line && annotation.needle.contains(carrier.needle)
+                }),
+                "{} carrier is not explained by an arrow",
+                item.name()
+            );
+        }
+
+        let mut effect_programs = HashSet::new();
+        for &target in SideEffectTarget::ALL {
+            let example = target.example();
+            assert!(
+                effect_programs.insert(example.code),
+                "{} reuses another side-effect target's worked example",
+                target.name()
+            );
+            assert!(
+                example.annotations.len() >= 2,
+                "{} has too little flow",
+                target.name()
+            );
+            let labels: HashSet<_> = example.annotations.iter().map(|item| item.label).collect();
+            assert!(
+                labels.len() >= 2,
+                "{} has boilerplate-only arrows",
+                target.name()
+            );
+        }
+    }
+
+    #[test]
+    fn catchable_throw_numbers_the_throw_before_the_interception() {
+        let example = Trait::from_name("CATCHABLE_THROW")
+            .expect("catchable throw trait")
+            .example();
+        let needles: Vec<_> = example
+            .annotations
+            .iter()
+            .map(|annotation| annotation.needle)
+            .collect();
+        assert_eq!(needles, ["error failure", "catch", "$status $message"]);
     }
 }

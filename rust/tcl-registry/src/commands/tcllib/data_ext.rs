@@ -59,7 +59,7 @@ const COMM_SEND_OPTIONS: &[OptionSpec] = &[
         // `configure -command` incoming-message hook, which appends only 1.)
         // Real callbacks use `proc cb {args} {array set r $args …}`, so the
         // arity check is silent unless a fixed-arity proc is wired up wrong.
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(14)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(14)),
         detail: "Deliver the reply asynchronously to this command prefix (invoked \
 with the 7 -key/value reply pairs appended).",
         ..OptionSpec::DEFAULT

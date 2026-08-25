@@ -48,7 +48,12 @@ use crate::compilation_unit::{CompilationUnit, FunctionUnit};
 use crate::interprocedural::resolve_call_target;
 use crate::naming::normalise_var_name;
 use crate::ssa::{SsaFunction, Symbol, ValueKey};
-use crate::taint::{TaintColour, TaintCtx, TaintGraph, TaintLattice, propagate_taints, word_taint};
+#[cfg(test)]
+use crate::taint::local_instance_classes;
+use crate::taint::{
+    LocalInstanceClasses, TaintColour, TaintCtx, TaintGraph, TaintLattice,
+    instance_classes_for_function, propagate_taints, word_taint,
+};
 use crate::value_shapes::parse_command_substitution;
 
 // Basis lattices
@@ -340,7 +345,9 @@ fn collect_return_taint(
             continue;
         };
         let Some(Terminator::Return {
-            value: Some(value), ..
+            span,
+            value: Some(value),
+            ..
         }) = &block.terminator
         else {
             continue;
@@ -349,7 +356,12 @@ fn collect_return_taint(
             continue;
         };
         let uses = word_uses_from_versions(value, &ssa_block.exit_versions, &fu.ssa);
-        ret = ret.join(word_taint(value, &uses, taints, ctx));
+        ret = ret.join(word_taint(
+            value,
+            &uses,
+            taints,
+            ctx.at(span.map_or(0, tcl_lexer::Span::start)),
+        ));
     }
     ret
 }
@@ -360,9 +372,11 @@ fn collect_return_taint(
 /// `graph` carries the CFG-derived indices, built once by the caller: one
 /// summary inference runs this `1 + params × TaintBasis::ALL` times and the
 /// indices are identical across all of them (issue #1251).
+#[allow(clippy::too_many_arguments)]
 fn run_propagation(
     graph: &TaintGraph<'_>,
     fu: &FunctionUnit,
+    instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
     dialect: Option<&tcl_dialect::DialectProfile>,
@@ -377,6 +391,7 @@ fn run_propagation(
         dialect,
         param_taints,
         Some(summaries),
+        instance_classes,
     )
 }
 
@@ -388,6 +403,7 @@ fn return_ctx<'a>(
     dialect: Option<&'a tcl_dialect::DialectProfile>,
     known: &'a HashSet<String>,
     summaries: &'a HashMap<String, ProcTaintSummary>,
+    instance_classes: &'a LocalInstanceClasses,
 ) -> TaintCtx<'a> {
     TaintCtx {
         registry,
@@ -397,6 +413,8 @@ fn return_ctx<'a>(
         caller_qname: Some(fu.ssa.name.as_str()),
         dialect,
         taint_summaries: Some(summaries),
+        instance_classes: Some(instance_classes),
+        source_position: None,
     }
 }
 
@@ -482,8 +500,26 @@ pub fn infer_proc_summary(
 
     // One index build for the baseline propagation and every scenario below.
     let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
-    let base_taints = run_propagation(&graph, fu, registry, interproc, dialect, None, summaries);
-    let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
+    let instance_classes = instance_classes_for_function(&fu.cfg, registry, interproc, true);
+    let base_taints = run_propagation(
+        &graph,
+        fu,
+        &instance_classes,
+        registry,
+        interproc,
+        dialect,
+        None,
+        summaries,
+    );
+    let ctx = return_ctx(
+        fu,
+        registry,
+        interproc,
+        dialect,
+        known,
+        summaries,
+        &instance_classes,
+    );
     let return_base = collect_return_taint(fu, &base_taints, ctx);
 
     let mut by_param_basis: Vec<(String, Vec<TaintLattice>)> = Vec::with_capacity(params.len());
@@ -506,6 +542,7 @@ pub fn infer_proc_summary(
             let seeded = run_propagation(
                 &graph,
                 fu,
+                &instance_classes,
                 registry,
                 interproc,
                 dialect,
@@ -529,16 +566,26 @@ pub fn infer_proc_summary(
 // Call-flow resolution (entry-taint worklist)
 
 /// Resolve the (callee, arg-taints) flows a function makes to known procs.
+#[allow(clippy::too_many_arguments)]
 fn resolve_call_flows(
     fu: &FunctionUnit,
     taints: &HashMap<ValueKey, TaintLattice>,
+    instance_classes: &LocalInstanceClasses,
     registry: &CommandRegistry,
     interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
     dialect: Option<&tcl_dialect::DialectProfile>,
     known: &HashSet<String>,
     summaries: &HashMap<String, ProcTaintSummary>,
 ) -> Vec<(String, Vec<TaintLattice>)> {
-    let ctx = return_ctx(fu, registry, interproc, dialect, known, summaries);
+    let ctx = return_ctx(
+        fu,
+        registry,
+        interproc,
+        dialect,
+        known,
+        summaries,
+        instance_classes,
+    );
     let caller_qname = fu.ssa.name.as_str();
     let mut flows: Vec<(String, Vec<TaintLattice>)> = Vec::new();
 
@@ -579,9 +626,10 @@ fn resolve_call_flows(
                 continue;
             }
 
+            let statement_ctx = ctx.at(stmt.span().start());
             let arg_taints: Vec<TaintLattice> = cmd_args
                 .iter()
-                .map(|arg| word_taint(arg, &ssa_stmt.uses, taints, ctx))
+                .map(|arg| word_taint(arg, &ssa_stmt.uses, taints, statement_ctx))
                 .collect();
             flows.push((callee, arg_taints));
         }
@@ -971,16 +1019,76 @@ pub fn solve_interprocedural_taints(
     registry: &CommandRegistry,
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> InterprocTaintResult {
-    let interproc = cu.interproc.as_ref();
-    solve_interprocedural_taints_with(
+    solve_interprocedural_taints_with_seed_option(cu, registry, dialect, None)
+}
+
+/// Solve interprocedural taints with explicit external variable sources.
+///
+/// This is the source-independent entry point for analyses that materialise
+/// an external callback value in an otherwise synthetic script.  The seed is
+/// applied to matching version-zero SSA slots before the normal call-flow
+/// worklist runs, so synthetic namespaces and calls into real procedures both
+/// receive the source through their ordinary parameter transfer. Unlike a
+/// textual `[gets stdin]` scaffold it cannot be affected by user command
+/// shadowing or aliases.
+#[must_use]
+// The concrete map type is part of this narrow synthetic-seed boundary and is
+// threaded through the internal solver without abstraction.
+#[allow(clippy::implicit_hasher)]
+pub fn solve_interprocedural_taints_with_external_variable_seeds(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    external_variable_seeds: &HashMap<String, TaintLattice>,
+) -> InterprocTaintResult {
+    solve_interprocedural_taints_with_seed_option(
         cu,
         registry,
         dialect,
-        &mut |qname, params, fu, known, summaries| {
-            infer_proc_summary(
-                qname, params, fu, registry, interproc, dialect, known, summaries,
-            )
-        },
+        Some(external_variable_seeds),
+    )
+}
+
+fn solve_interprocedural_taints_with_seed_option(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) -> InterprocTaintResult {
+    // `find_taint_warnings_for_cu` is also a public entry point on a freshly
+    // built unit, before `CompilationUnit::with_interprocedural` has attached
+    // the full call/effect summary.  Preserve the smaller but security-critical
+    // interpreter-global receiver facts in that mode: a top-level `ttk::entry
+    // .user` remains the same command inside a later callback procedure
+    // without retroactively typing a procedure invoked before construction.
+    let global_instance_classes =
+        crate::interprocedural::global_instance_classes(&cu.ir_module, registry);
+    let fallback_interproc = crate::interprocedural::InterproceduralAnalysis {
+        tainted_global_writes: crate::interprocedural::tainted_global_writes(
+            &cu.ir_module,
+            registry,
+            &global_instance_classes,
+        ),
+        global_instance_classes,
+        ..crate::interprocedural::InterproceduralAnalysis::default()
+    };
+    let interproc = cu.interproc.as_ref().or(Some(&fallback_interproc));
+    let mut infer = |qname: &str,
+                     params: &[String],
+                     fu: &FunctionUnit,
+                     known: &HashSet<String>,
+                     summaries: &HashMap<String, ProcTaintSummary>| {
+        infer_proc_summary(
+            qname, params, fu, registry, interproc, dialect, known, summaries,
+        )
+    };
+    solve_interprocedural_taints_with_context(
+        cu,
+        registry,
+        dialect,
+        interproc,
+        &mut infer,
+        external_variable_seeds,
     )
 }
 
@@ -999,6 +1107,17 @@ pub fn solve_interprocedural_taints_with(
     infer_fn: &mut InferProcSummaryFn<'_>,
 ) -> InterprocTaintResult {
     let interproc = cu.interproc.as_ref();
+    solve_interprocedural_taints_with_context(cu, registry, dialect, interproc, infer_fn, None)
+}
+
+fn solve_interprocedural_taints_with_context(
+    cu: &CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    interproc: Option<&crate::interprocedural::InterproceduralAnalysis>,
+    infer_fn: &mut InferProcSummaryFn<'_>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) -> InterprocTaintResult {
     let summaries = converge_summaries_with(cu, registry, interproc, dialect, infer_fn);
 
     // Procedures in deterministic (sorted) order, and the name set — both consumed
@@ -1008,13 +1127,16 @@ pub fn solve_interprocedural_taints_with(
     let known: HashSet<String> = summaries.keys().cloned().collect();
 
     // Top-level taints under the converged summaries.
+    let top_instance_classes =
+        instance_classes_for_function(&cu.top_level.cfg, registry, interproc, false);
     let top_taints = run_propagation(
         &TaintGraph::new(&cu.top_level.cfg, &cu.top_level.ssa, &cu.top_level.sccp),
         &cu.top_level,
+        &top_instance_classes,
         registry,
         interproc,
         dialect,
-        None,
+        external_variable_seeds,
         &summaries,
     );
 
@@ -1036,6 +1158,7 @@ pub fn solve_interprocedural_taints_with(
     let initial_flows = resolve_call_flows(
         &cu.top_level,
         &top_taints,
+        &top_instance_classes,
         registry,
         interproc,
         dialect,
@@ -1054,19 +1177,32 @@ pub fn solve_interprocedural_taints_with(
     // callers' argument taints move, so its CFG-derived indices are built once
     // per procedure and cached rather than once per dequeue (issue #1251).
     let mut graphs: HashMap<String, TaintGraph<'_>> = HashMap::new();
+    let mut instance_classes_by_proc: HashMap<String, LocalInstanceClasses> = HashMap::new();
 
     while let Some(qname) = queue.pop_front() {
         queued.remove(&qname);
         let Some(fu) = cu.procedures.get(&qname) else {
             continue;
         };
-        let entry = entry_taints.get(&qname).cloned().unwrap_or_default();
+        let mut entry = entry_taints.get(&qname).cloned().unwrap_or_default();
+        if let Some(external_variable_seeds) = external_variable_seeds {
+            for (name, taint) in external_variable_seeds {
+                let slot = entry
+                    .entry(name.clone())
+                    .or_insert_with(TaintLattice::clean);
+                *slot = slot.join(*taint);
+            }
+        }
         let graph = graphs
             .entry(qname.clone())
             .or_insert_with(|| TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp));
+        let instance_classes = instance_classes_by_proc
+            .entry(qname.clone())
+            .or_insert_with(|| instance_classes_for_function(&fu.cfg, registry, interproc, true));
         let taints = run_propagation(
             graph,
             fu,
+            instance_classes,
             registry,
             interproc,
             dialect,
@@ -1075,7 +1211,14 @@ pub fn solve_interprocedural_taints_with(
         );
 
         let flows = resolve_call_flows(
-            fu, &taints, registry, interproc, dialect, &known, &summaries,
+            fu,
+            &taints,
+            instance_classes,
+            registry,
+            interproc,
+            dialect,
+            &known,
+            &summaries,
         );
         proc_taints.insert(qname.clone(), taints);
 
@@ -1241,6 +1384,38 @@ mod tests {
         )
     }
 
+    #[test]
+    fn summary_scenarios_reuse_one_instance_class_solve() {
+        // `id` requires the clean solve plus every taint-basis scenario for
+        // its live parameter. Receiver typing is independent of those seeds,
+        // so it must be solved once for the whole summary, not once per
+        // propagation run (the old cost was 1 + TaintBasis::ALL.len()).
+        let reg = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for("proc id {v} { return $v }\n", &reg, false)
+            .with_interprocedural(&reg, None);
+        let interproc = cu.interproc.as_ref();
+        let fu = &cu.procedures["::id"];
+        let known = HashSet::from(["::id".to_owned()]);
+        crate::taint::reset_instance_class_solve_count();
+
+        let summary = infer_proc_summary(
+            "::id",
+            &["v".to_owned()],
+            fu,
+            &reg,
+            interproc,
+            None,
+            &known,
+            &HashMap::new(),
+        );
+
+        assert_eq!(
+            summary.return_by_param_basis[0].1.len(),
+            TaintBasis::ALL.len()
+        );
+        assert_eq!(crate::taint::instance_class_solve_count(), 1);
+    }
+
     /// The unpruned reference: re-derive one procedure's summary the way
     /// `infer_proc_summary` did before issue #1187, by seeding every
     /// `(parameter, basis)` pair with a full dataflow solve.  A test can then
@@ -1255,8 +1430,26 @@ mod tests {
         let fu = &cu.procedures[target];
 
         let graph = TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp);
-        let base = run_propagation(&graph, fu, &reg, interproc, None, None, &summaries);
-        let ctx = return_ctx(fu, &reg, interproc, None, &known, &summaries);
+        let instance_classes = local_instance_classes(&fu.cfg, &reg);
+        let base = run_propagation(
+            &graph,
+            fu,
+            &instance_classes,
+            &reg,
+            interproc,
+            None,
+            None,
+            &summaries,
+        );
+        let ctx = return_ctx(
+            fu,
+            &reg,
+            interproc,
+            None,
+            &known,
+            &summaries,
+            &instance_classes,
+        );
         let return_base = collect_return_taint(fu, &base, ctx);
         let mut by_param_basis = Vec::new();
         for param in &proc.params {
@@ -1264,8 +1457,16 @@ mod tests {
             for basis in TaintBasis::ALL {
                 let mut seed = HashMap::new();
                 seed.insert(param.clone(), basis.lattice());
-                let seeded =
-                    run_propagation(&graph, fu, &reg, interproc, None, Some(&seed), &summaries);
+                let seeded = run_propagation(
+                    &graph,
+                    fu,
+                    &instance_classes,
+                    &reg,
+                    interproc,
+                    None,
+                    Some(&seed),
+                    &summaries,
+                );
                 values.push(collect_return_taint(fu, &seeded, ctx));
             }
             by_param_basis.push((param.clone(), values));

@@ -332,6 +332,7 @@ static CHART_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: CHART_METHODS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// The `chart3D` class methods (`chart3D.tcl`).  Options for the 3D axes and
@@ -362,6 +363,7 @@ static CHART3D_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: CHART3D_METHODS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// The `timeline` class methods (`timeline.tcl`); render / export are
@@ -379,6 +381,7 @@ static TIMELINE_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: TIMELINE_METHODS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// The `Gridlayout` class methods (`layout.tcl`); most accessors are copied
@@ -400,6 +403,7 @@ static GRIDLAYOUT_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: GRIDLAYOUT_METHODS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// The `new` / `create` constructor subcommands shared by every class factory.

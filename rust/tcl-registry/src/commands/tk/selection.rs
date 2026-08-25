@@ -38,6 +38,13 @@ fn selection_handle_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u
     }
 }
 
+fn selection_handle_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    match u8::try_from(args.len()) {
+        Ok(n) if n >= 2 => vec![(n - 1, ScriptTiming::Deferred)],
+        _ => Vec::new(),
+    }
+}
+
 /// The command's subcommands.
 const SUBCOMMANDS: &[SubCommand] = &[
     SubCommand {
@@ -50,10 +57,14 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "get",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::at_least(0),
         detail: "Retrieve the selection and return it as a string.",
         synopsis: "selection get ?-displayof window? ?-selection selection? ?-type type?",
         options: GET_OPTIONS,
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -62,6 +73,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
         detail: "Register a handler to provide the selection data.",
         synopsis: "selection handle ?-selection sel? ?-type type? ?-format fmt? window command",
         command_prefix_resolver: Some(selection_handle_command_prefixes),
+        script_timing_resolver: Some(selection_handle_script_timing),
         options: HANDLE_OPTIONS,
         ..SubCommand::DEFAULT
     },
@@ -183,7 +195,7 @@ const OWN_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],
@@ -238,7 +250,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Specifies a Tcl script to run when the selection is claimed by another window.",
         dialects: None,
         aliases: &[],

@@ -93,8 +93,8 @@ use tcl_registry::hooks::{
     AnalyserHookId, ArgTypeHint, CodegenHookId, InlineCodegenHookId, LoweringHookId,
 };
 use tcl_registry::hover::{
-    ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity, OptionSpec,
-    OptionValue, OptionValueOutcome,
+    ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
+    OptionArity, OptionSpec, OptionValue, OptionValueOutcome, ScriptTiming, VariableScope,
 };
 use tcl_registry::intrinsic::IntrinsicId;
 use tcl_registry::lifecycle::Lifecycle;
@@ -526,7 +526,7 @@ fn leak_one<T>(value: T) -> &'static T {
 // Hook bodies — carried as text, never run
 // ---------------------------------------------------------------------------
 
-/// Which of the nine hook families a body belongs to.
+/// Which of the ten hook families a body belongs to.
 ///
 /// The family is what decides a body's emitter verbs, what its *silence*
 /// means, and whether it may run at all against a call carrying a dynamic
@@ -622,6 +622,10 @@ fn abstain_arg_roles(_args: &[&str]) -> Vec<(u8, ArgRole)> {
 }
 
 fn abstain_command_prefixes(_args: CommandPrefixArguments<'_>) -> Vec<(u8, AppendedArity)> {
+    Vec::new()
+}
+
+fn abstain_script_timings(_args: &[&str]) -> Vec<(u8, ScriptTiming)> {
     Vec::new()
 }
 
@@ -1526,6 +1530,12 @@ const CONNECTION_SIDES: &[ConnectionSide] = &[
 const FORM_KINDS: &[FormKind] = &[FormKind::Default, FormKind::Getter, FormKind::Setter];
 
 const BODY_KINDS: &[BodyKind] = &[BodyKind::Plain, BodyKind::Structural];
+const SCRIPT_TIMINGS: &[ScriptTiming] = &[
+    ScriptTiming::SameInvocation,
+    ScriptTiming::Deferred,
+    ScriptTiming::ReferenceOnly,
+];
+const VARIABLE_SCOPES: &[VariableScope] = &[VariableScope::CurrentFrame, VariableScope::Global];
 
 const BYTE_ARRAY_EFFECTS: &[ByteArrayEffect] = &[
     ByteArrayEffect::None,
@@ -2249,11 +2259,12 @@ fn parse_handle_binding(text: &str, line: u32, log: &mut Log) -> Option<HandleBi
     })
 }
 
-/// `object_class NAME ?-superclass {…}? ?-allow-unknown? ?{ method … }?`.
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown?`
+/// `?-method-prefix-matching Enabled|Strict? ?{ method … }?`.
 ///
 /// The ratified spelling (`docs/design/spec-dsl-examples/README.md`, "Rulings
-/// on the census drafts"): `ObjectClassSpec` has four fields, three of which
-/// are one word each, so they ride on the statement rather than in the block.
+/// on the census drafts"): the class's scalar fields ride on the statement
+/// rather than in the block.
 /// The `NAME` word is [`ObjectClassSpec::class_name`] and is **not** always the
 /// command name — a factory command may manufacture a differently-named class.
 /// The optional trailing block holds `method NAME { … }` rows, which reuse the
@@ -2264,6 +2275,8 @@ fn object_class_row(
     tables: &PackTables,
     log: &mut Log,
 ) -> Option<tcl_registry::spec::ObjectClassSpec> {
+    const MATCHING: &[PrefixMatching] = &[PrefixMatching::Enabled, PrefixMatching::Strict];
+
     let class_name = stmt.word_text(1).to_owned();
     if class_name.is_empty() {
         log.say(stmt.line, "`object_class` with no class name dropped");
@@ -2271,6 +2284,7 @@ fn object_class_row(
     }
     let mut superclasses: Vec<String> = Vec::new();
     let mut allow_unknown_methods = false;
+    let mut method_prefix_matching = PrefixMatching::Strict;
     let mut body: Option<&Word> = None;
     let words = &stmt.words;
     let mut i = 2;
@@ -2278,6 +2292,19 @@ fn object_class_row(
         match words[i].text.as_str() {
             "-superclass" => superclasses = list_words(&next_text(words, &mut i)),
             "-allow-unknown" => allow_unknown_methods = true,
+            "-method-prefix-matching" => {
+                let value = next_text(words, &mut i);
+                if let Some(mode) = enum_by_name(
+                    MATCHING,
+                    &value,
+                    "object method prefix matching",
+                    stmt.line,
+                    log,
+                ) {
+                    method_prefix_matching = mode;
+                    log.v12(stmt.line, "object_class -method-prefix-matching");
+                }
+            }
             // The one unflagged word left is the member block, and it is
             // always last.
             _ if words[i].braced && i + 1 == words.len() => body = Some(&words[i]),
@@ -2328,6 +2355,7 @@ fn object_class_row(
         instance_methods: leak_slice(methods),
         superclasses: leak_strs(&superclasses),
         allow_unknown_methods,
+        method_prefix_matching,
     })
 }
 
@@ -2515,6 +2543,116 @@ impl ArgRows {
 // Option rows
 // ---------------------------------------------------------------------------
 
+const fn is_variable_role(role: ArgRole) -> bool {
+    matches!(role, ArgRole::VarRead | ArgRole::VarWrite)
+}
+
+/// Parse the finite Tk callback-marker vocabulary. A pack cannot invent a
+/// marker: accepting arbitrary `%x` text here would silently turn framework
+/// metadata into a security source.
+fn parse_callback_taint_inputs(
+    text: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [CallbackTaintInput] {
+    let mut out = Vec::new();
+    for marker in list_words(text) {
+        let input = match marker.as_str() {
+            "%P" => CallbackTaintInput::TK_PROPOSED_VALUE,
+            "%s" => CallbackTaintInput::TK_CURRENT_VALUE,
+            "%S" => CallbackTaintInput::TK_EDIT_TEXT,
+            "%A" => CallbackTaintInput::TK_EVENT_CHAR,
+            "%K" => CallbackTaintInput::TK_EVENT_KEYSYM,
+            _ => {
+                log.say(
+                    line,
+                    format!(
+                        "`{marker}` is not a user-controlled Tk callback substitution; \
+                         framework metadata must not be declared tainted"
+                    ),
+                );
+                continue;
+            }
+        };
+        if !out.contains(&input) {
+            out.push(input);
+        }
+    }
+    leak_slice(out)
+}
+
+/// Parse `callback_taint_inputs {{ARG {%P %S}} …}` for positional callback
+/// bodies. Each row names the 0-based callback argument and its finite set of
+/// externally controlled substitutions.
+fn parse_callback_taint_input_table(
+    text: &str,
+    line: u32,
+    log: &mut Log,
+) -> Vec<(u8, &'static [CallbackTaintInput])> {
+    let mut out = Vec::new();
+    for row in list_words(text) {
+        let fields = list_words(&row);
+        let Some(index) = fields.first() else {
+            continue;
+        };
+        if fields.len() != 2 {
+            log.say(
+                line,
+                "`callback_taint_inputs` rows need `{argument-index {%P ...}}`",
+            );
+            continue;
+        }
+        let Ok(index) = index.parse::<u8>() else {
+            log.say(
+                line,
+                "`callback_taint_inputs` needs an integer argument index",
+            );
+            continue;
+        };
+        let inputs = parse_callback_taint_inputs(&fields[1], line, log);
+        if inputs.is_empty() {
+            continue;
+        }
+        out.push((index, inputs));
+    }
+    out
+}
+
+/// Reject positional taint metadata that can never describe a deferred
+/// executable argument. Dynamic role/timing resolvers count as an exact fact:
+/// the registry rechecks their concrete answer for each invocation before it
+/// exposes the inputs, so a resolver's abstaining shapes remain harmless.
+fn validated_callback_taint_input_table(
+    entries: Vec<(u8, &'static [CallbackTaintInput])>,
+    roles: &[(u8, ArgRole)],
+    has_role_resolver: bool,
+    can_defer: bool,
+    owner: &str,
+    line: u32,
+    log: &mut Log,
+) -> Vec<(u8, &'static [CallbackTaintInput])> {
+    entries
+        .into_iter()
+        .filter(|(index, _)| {
+            let executable = roles
+                .iter()
+                .any(|(candidate, role)| candidate == index && role.has_script_timing())
+                || has_role_resolver;
+            if !executable || !can_defer {
+                log.say(
+                    line,
+                    format!(
+                        "{owner} declares callback taint inputs for argument {index}, which is not a deferred executable position; dropped"
+                    ),
+                );
+                false
+            } else {
+                true
+            }
+        })
+        .collect()
+}
+
 /// Parse one `option NAME …` row, returning the spec and any `-arity-hook`.
 #[allow(clippy::too_many_lines)]
 fn option_row(
@@ -2529,6 +2667,13 @@ fn option_row(
     };
     let mut arg: Option<OptionArg> = None;
     let mut hook: Option<(HookSource, String)> = None;
+    // Defaults are intentionally valid for every value role.  Remember which
+    // semantic flags the author actually wrote so validation can reject only
+    // contradictory declarations, not an untouched default.
+    let mut wrote_script_timing = false;
+    let mut wrote_callback_taint_inputs = false;
+    let mut wrote_variable_scope = false;
+    let mut wrote_taints_var_write = false;
 
     let words = &stmt.words;
     let mut i = 2;
@@ -2635,6 +2780,35 @@ fn option_row(
                     entry.body_kind = kind;
                 }
             }
+            "-script-timing" => {
+                log.v12(stmt.line, "-script-timing");
+                wrote_script_timing = true;
+                let name = next_text(words, &mut i);
+                let entry = arg.get_or_insert(OptionArg::DEFAULT);
+                if let Some(timing) =
+                    enum_by_name(SCRIPT_TIMINGS, &name, "script timing", stmt.line, log)
+                {
+                    entry.script_timing = timing;
+                }
+            }
+            "-callback-taint-inputs" => {
+                log.v12(stmt.line, "-callback-taint-inputs");
+                wrote_callback_taint_inputs = true;
+                let text = next_text(words, &mut i);
+                arg.get_or_insert(OptionArg::DEFAULT).callback_taint_inputs =
+                    parse_callback_taint_inputs(&text, stmt.line, log);
+            }
+            "-variable-scope" => {
+                log.v12(stmt.line, "-variable-scope");
+                wrote_variable_scope = true;
+                let name = next_text(words, &mut i);
+                let entry = arg.get_or_insert(OptionArg::DEFAULT);
+                if let Some(scope) =
+                    enum_by_name(VARIABLE_SCOPES, &name, "variable scope", stmt.line, log)
+                {
+                    entry.variable_scope = scope;
+                }
+            }
             "-values" => {
                 let text = next_text(words, &mut i);
                 let values: Vec<ArgValue> = list_words(&text)
@@ -2659,6 +2833,11 @@ fn option_row(
                 }
             }
             "-closed" => arg.get_or_insert(OptionArg::DEFAULT).closed = true,
+            "-taints-var-write" => {
+                log.v12(stmt.line, "-taints-var-write");
+                wrote_taints_var_write = true;
+                arg.get_or_insert(OptionArg::DEFAULT).taints_var_write = true;
+            }
             "-integer" => {
                 let text = next_text(words, &mut i);
                 arg.get_or_insert(OptionArg::DEFAULT).integer =
@@ -2679,7 +2858,57 @@ fn option_row(
         i += 1;
     }
 
-    if let Some(arg) = arg {
+    if let Some(mut arg) = arg {
+        let roles = [Some(arg.role), arg.also_role];
+        let executable = roles.into_iter().flatten().any(ArgRole::has_script_timing);
+        let variable = roles.into_iter().flatten().any(is_variable_role);
+        let variable_write = roles
+            .into_iter()
+            .flatten()
+            .any(|role| role == ArgRole::VarWrite);
+
+        if wrote_script_timing && !executable {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-script-timing` on a non-executable value; dropped",
+                    option.name
+                ),
+            );
+            arg.script_timing = ScriptTiming::SameInvocation;
+        }
+        if wrote_callback_taint_inputs
+            && (!executable || arg.script_timing != ScriptTiming::Deferred)
+        {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares callback taint inputs for a value that is not a deferred executable; dropped",
+                    option.name
+                ),
+            );
+            arg.callback_taint_inputs = &[];
+        }
+        if wrote_variable_scope && !variable {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-variable-scope` on a non-variable value; dropped",
+                    option.name
+                ),
+            );
+            arg.variable_scope = VariableScope::CurrentFrame;
+        }
+        if wrote_taints_var_write && !variable_write {
+            log.say(
+                stmt.line,
+                format!(
+                    "option `{}` declares `-taints-var-write` without a VarWrite role; dropped",
+                    option.name
+                ),
+            );
+            arg.taints_var_write = false;
+        }
         option.value = OptionValue::Takes(arg);
     }
     option.lifecycle = checked_lifecycle(
@@ -3335,10 +3564,14 @@ struct CommandAcc {
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
+    callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
     hooks: Vec<HookDecl>,
     clause_grammar: Option<ClauseGrammar>,
 }
 
+// Loading is a single tolerant transaction: defaults, hooks, projected rows,
+// lifecycle containment, and degradation notices must seal together.
+#[allow(clippy::too_many_lines)]
 fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
     // A name carrying whitespace is deliberately *not* rejected here. A Tcl
     // command name is an arbitrary string key in the namespace's command table
@@ -3431,12 +3664,22 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         }
 
         let (args, arg_rows) = acc.args.seal();
+        let callback_taint_inputs = validated_callback_taint_input_table(
+            acc.callback_taint_inputs,
+            &args.roles,
+            spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
+            spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
+            &format!("command `{}`", spec.name),
+            stmt.line,
+            log,
+        );
         spec.arg_roles = leak_slice(args.roles);
         spec.arg_types = leak_slice(args.types);
         spec.arg_values = leak_slice(args.values);
         spec.closed_value_args = leak_slice(args.closed);
         spec.arg_presentation = leak_slice(args.presentation);
         spec.command_prefixes = leak_slice(args.prefixes);
+        spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arg_rows = arg_rows;
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", stmt.line, log);
         spec.options = leak_slice(acc.options);
@@ -3694,6 +3937,63 @@ fn apply_command_stmt(
             (arity, Some(lifecycle)) => acc.arity_windows.push(ArityWindow { lifecycle, arity }),
         },
         "required_package" => spec.required_package = Some(leak_str(&value)),
+        "tk_geometry" => {
+            log.v12(stmt.line, "tk_geometry");
+            let policy = match value.as_str() {
+                "Exclusive" => tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive,
+                "Independent" => tcl_registry::tk_geometry::TkGeometryContainerPolicy::Independent,
+                other => {
+                    log.say(
+                        stmt.line,
+                        format!("unknown Tk geometry container policy `{other}`"),
+                    );
+                    return;
+                }
+            };
+            let mut container_option = None;
+            let mut direct_form = false;
+            let mut placement_subcommand = None;
+            let mut release_subcommands: &'static [&'static str] = &[];
+            let mut index = 2;
+            while index < stmt.words.len() {
+                match stmt.word_text(index) {
+                    "-container-option" => {
+                        index += 1;
+                        if index < stmt.words.len() {
+                            container_option = Some(leak_str(stmt.word_text(index)));
+                        } else {
+                            log.say(stmt.line, "`-container-option` needs an option name");
+                        }
+                    }
+                    "-direct-form" => direct_form = true,
+                    "-placement-subcommand" => {
+                        index += 1;
+                        if index < stmt.words.len() {
+                            placement_subcommand = Some(leak_str(stmt.word_text(index)));
+                        } else {
+                            log.say(stmt.line, "`-placement-subcommand` needs a subcommand name");
+                        }
+                    }
+                    "-release-subcommands" => {
+                        index += 1;
+                        if index < stmt.words.len() {
+                            release_subcommands = leak_strs(&list_words(stmt.word_text(index)));
+                        } else {
+                            log.say(stmt.line, "`-release-subcommands` needs a list");
+                        }
+                    }
+                    other => log.unknown_flag("tk_geometry", stmt.line, other),
+                }
+                index += 1;
+            }
+            spec.tk_geometry = Some(tcl_registry::tk_geometry::TkGeometryManagerSpec {
+                container_policy: policy,
+                container_option,
+                direct_form,
+                placement_subcommand,
+                release_subcommands,
+            });
+        }
         "tcllib_package" => spec.tcllib_package = Some(leak_str(&value)),
         "implementation_namespace" => spec.implementation_namespace = Some(leak_str(&value)),
         "introduced_version" => spec.lifecycle.introduced = Some(leak_str(&value)),
@@ -3855,6 +4155,10 @@ fn apply_command_stmt(
         "taint_code_sink_args" => {
             spec.taint_code_sink_args = Some(leak_slice(index_list(&value)));
         }
+        "callback_taint_inputs" => {
+            log.v12(stmt.line, "callback_taint_inputs");
+            acc.callback_taint_inputs = parse_callback_taint_input_table(&value, stmt.line, log);
+        }
         "credential_options" => spec.credential_options = leak_strs(&list_words(&value)),
         "sensitive_headers" => spec.sensitive_headers = leak_strs(&list_words(&value)),
 
@@ -3956,12 +4260,16 @@ fn apply_command_stmt(
         // --- Tcl-body hooks -------------------------------------------------
         "arg_role_resolver"
         | "command_prefix_resolver"
+        | "script_timing_resolver"
         | "const_fold"
         | "const_fold_versioned"
         | "taint_sink_gate"
         | "context_gate"
         | "literal_argument_validator"
         | "clause_shape_check" => {
+            if key == "script_timing_resolver" {
+                log.v12(stmt.line, "script_timing_resolver");
+            }
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
                 return;
@@ -3974,6 +4282,10 @@ fn apply_command_stmt(
                 "command_prefix_resolver" => {
                     spec.command_prefix_resolver = Some(abstain_command_prefixes);
                     ("command_prefix_resolver", HookFamily::CommandPrefixResolver)
+                }
+                "script_timing_resolver" => {
+                    spec.script_timing_resolver = Some(abstain_script_timings);
+                    ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
                     spec.const_fold = Some(abstain_const_fold);
@@ -4366,6 +4678,7 @@ struct SubAcc {
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
     option_constraints: Vec<tcl_registry::spec::OptionConstraint>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
+    callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
 }
 
 /// Read a `subcommand NAME { … }` body, or the `method NAME { … }` row of an
@@ -4391,12 +4704,22 @@ fn load_subcommand(
             apply_subcommand_stmt(&mut sub, &mut acc, &stmt, tables, hooks, &name, log);
         }
         let (args, arg_rows) = acc.args.seal();
+        let callback_taint_inputs = validated_callback_taint_input_table(
+            acc.callback_taint_inputs,
+            &args.roles,
+            sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
+            sub.script_timing_resolver.is_some() || sub.traits.contains(Traits::DEFERS_BODY),
+            &format!("{kind} `{name}`"),
+            stmt.line,
+            log,
+        );
         sub.arg_roles = leak_slice(args.roles);
         sub.arg_types = leak_slice(args.types);
         sub.arg_values = leak_slice(args.values);
         sub.closed_value_args = leak_slice(args.closed);
         sub.arg_presentation = leak_slice(args.presentation);
         sub.command_prefixes = leak_slice(args.prefixes);
+        sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arg_rows = arg_rows;
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, stmt.line, log);
         sub.options = leak_slice(acc.options);
@@ -4568,13 +4891,21 @@ fn apply_subcommand_stmt(
         "semantic_operation" => {
             sub.semantic_operation = parse_semantic_operation(&value, stmt.line, log);
         }
+        "callback_taint_inputs" => {
+            log.v12(stmt.line, "callback_taint_inputs");
+            acc.callback_taint_inputs = parse_callback_taint_input_table(&value, stmt.line, log);
+        }
         "world_effects" => sub.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => sub.state_transitions = state_transitions_value(stmt, tables, log),
         "arg_role_resolver"
         | "command_prefix_resolver"
+        | "script_timing_resolver"
         | "const_fold"
         | "const_fold_versioned"
         | "literal_argument_validator" => {
+            if key == "script_timing_resolver" {
+                log.v12(stmt.line, "script_timing_resolver");
+            }
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
                 return;
@@ -4587,6 +4918,10 @@ fn apply_subcommand_stmt(
                 "command_prefix_resolver" => {
                     sub.command_prefix_resolver = Some(abstain_command_prefixes);
                     ("command_prefix_resolver", HookFamily::CommandPrefixResolver)
+                }
+                "script_timing_resolver" => {
+                    sub.script_timing_resolver = Some(abstain_script_timings);
+                    ("script_timing_resolver", HookFamily::ScriptTimingResolver)
                 }
                 "const_fold" => {
                     sub.const_fold = Some(abstain_const_fold);
@@ -4860,6 +5195,11 @@ mod tests {
             ("Tcl type", names(TCL_TYPES), catalogue::TCL_TYPES),
             ("body kind", names(BODY_KINDS), catalogue::BODY_KINDS),
             (
+                "variable scope",
+                names(VARIABLE_SCOPES),
+                catalogue::VARIABLE_SCOPES,
+            ),
+            (
                 "argument presentation",
                 names(PRESENTATIONS),
                 catalogue::ARG_PRESENTATIONS,
@@ -4951,16 +5291,17 @@ mod tests {
     }
 
     /// The frozen spelling, whole: `object_class NAME ?-superclass {…}?
-    /// ?-allow-unknown? { method … }`, with `method` rows reusing the
+    /// ?-allow-unknown? ?-method-prefix-matching Enabled|Strict?
+    /// { method … }`, with `method` rows reusing the
     /// `subcommand` body grammar.
     #[test]
     fn an_object_class_carries_its_name_flags_and_method_table() {
         let pack = load_pack(
-            "speclib probe 1.0 {\n\
+            "speclib probe 1.2 {\n\
              command factory {\n\
                arity 1..\n\
                object_class ::probe::Widget -superclass {::probe::Base ::probe::Mixin} \
-                 -allow-unknown {\n\
+                 -allow-unknown -method-prefix-matching Enabled {\n\
                  method configure {\n\
                    arity 1..\n\
                    detail   {Reconfigure the widget.}\n\
@@ -4979,6 +5320,7 @@ mod tests {
         assert_eq!(class.class_name, "::probe::Widget");
         assert_eq!(class.superclasses, &["::probe::Base", "::probe::Mixin"]);
         assert!(class.allow_unknown_methods);
+        assert_eq!(class.method_prefix_matching, PrefixMatching::Enabled);
 
         let names: Vec<&str> = class.instance_methods.iter().map(|m| m.name).collect();
         assert_eq!(names, ["configure", "cget"]);
@@ -5015,6 +5357,7 @@ mod tests {
         assert!(class.instance_methods.is_empty());
         assert!(class.superclasses.is_empty());
         assert!(!class.allow_unknown_methods);
+        assert_eq!(class.method_prefix_matching, PrefixMatching::Strict);
     }
 
     /// A nameless class, an unknown flag, and a non-`method` member row are
@@ -5306,6 +5649,199 @@ mod tests {
         }
     }
 
+    #[test]
+    fn option_external_input_link_round_trips_as_taint_metadata() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command widget {\n \
+             arity 1..\n \
+             option -textvariable -takes variable -role VarWrite \
+                 -also-role VarRead -taints-var-write -variable-scope Global\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = &pack.command("widget").expect("widget loads").spec;
+        let option = spec
+            .find_option("-textvariable", None, None)
+            .expect("linked option loads");
+        assert!(option.taints_var_write());
+        assert_eq!(option.value_role(), Some(ArgRole::VarWrite));
+        assert_eq!(option.value_also_role(), Some(ArgRole::VarRead));
+        assert_eq!(option.value_variable_scope(), Some(VariableScope::Global));
+    }
+
+    #[test]
+    fn option_script_timing_is_loaded_independently_of_body_scope() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command widget {\n \
+             option -command -takes script -role Body -body-kind Structural \
+                 -script-timing Deferred\n \
+             option -body -takes script -role Body -body-kind Structural \
+                 -script-timing SameInvocation\n \
+             option -remove -takes command-prefix -role CommandPrefix \
+                 -script-timing ReferenceOnly\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let spec = &pack.command("widget").expect("widget loads").spec;
+        let callback = spec
+            .find_option("-command", None, None)
+            .expect("callback option loads");
+        let immediate = spec
+            .find_option("-body", None, None)
+            .expect("immediate body option loads");
+        let reference = spec
+            .find_option("-remove", None, None)
+            .expect("reference-only option loads");
+        assert_eq!(callback.value_script_timing(), Some(ScriptTiming::Deferred));
+        assert_eq!(
+            immediate.value_script_timing(),
+            Some(ScriptTiming::SameInvocation)
+        );
+        assert_eq!(
+            reference.value_script_timing(),
+            Some(ScriptTiming::ReferenceOnly)
+        );
+        let OptionValue::Takes(callback_arg) = callback.value else {
+            panic!("callback takes a value")
+        };
+        let OptionValue::Takes(immediate_arg) = immediate.value else {
+            panic!("body takes a value")
+        };
+        let OptionValue::Takes(reference_arg) = reference.value else {
+            panic!("removal reference takes a value")
+        };
+        assert_eq!(callback_arg.body_kind, BodyKind::Structural);
+        assert_eq!(immediate_arg.body_kind, BodyKind::Structural);
+        assert_eq!(reference_arg.role, ArgRole::CommandPrefix);
+    }
+
+    #[test]
+    fn callback_taint_inputs_are_authorable_but_reject_bookkeeping_markers() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command widget {\n \
+             traits DEFERS_BODY\n \
+             arity 2\n \
+             arg 1 -role Body\n \
+             callback_taint_inputs {{1 {%A %K %W}}}\n \
+             option -validatecommand -takes script -role Body -body-kind Structural \
+                 -script-timing Deferred -callback-taint-inputs {%P %s %S %V}\n \
+             }\n}",
+        );
+        let spec = &pack.command("widget").expect("widget loads").spec;
+        assert_eq!(spec.callback_taint_inputs[0].0, 1);
+        assert_eq!(
+            spec.callback_taint_inputs[0].1,
+            &[
+                CallbackTaintInput::TK_EVENT_CHAR,
+                CallbackTaintInput::TK_EVENT_KEYSYM,
+            ]
+        );
+        let option = spec
+            .find_option("-validatecommand", None, None)
+            .expect("callback option loads");
+        assert_eq!(
+            option.value_callback_taint_inputs(),
+            &[
+                CallbackTaintInput::TK_PROPOSED_VALUE,
+                CallbackTaintInput::TK_CURRENT_VALUE,
+                CallbackTaintInput::TK_EDIT_TEXT,
+            ]
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|notice| notice.message.contains("%W"))
+                && pack
+                    .notices
+                    .iter()
+                    .any(|notice| notice.message.contains("%V")),
+            "metadata substitutions must be rejected: {:?}",
+            pack.notices
+        );
+    }
+
+    #[test]
+    fn contradictory_option_and_callback_properties_are_not_installed() {
+        let pack = load_pack(
+            r"speclib probe 1.2 {
+ command bad {
+   arg 0 -role Value
+   callback_taint_inputs {{0 {%A}}}
+   option -timing -takes value -role Value -script-timing Deferred
+   option -input -takes script -role Body -script-timing SameInvocation \
+       -callback-taint-inputs {%P}
+   option -scope -takes value -role Value -variable-scope Global
+   option -taint -takes variable -role VarRead -taints-var-write
+   subcommand child {
+     arg 0 -role Body
+     callback_taint_inputs {{0 {%S}}}
+   }
+ }
+}",
+        );
+        let spec = &pack.command("bad").expect("command survives").spec;
+        assert!(spec.callback_taint_inputs.is_empty());
+        let OptionValue::Takes(timing) = spec.options[0].value else {
+            panic!("option takes a value")
+        };
+        assert_eq!(timing.script_timing, ScriptTiming::SameInvocation);
+        let OptionValue::Takes(input) = spec.options[1].value else {
+            panic!("option takes a value")
+        };
+        assert!(input.callback_taint_inputs.is_empty());
+        let OptionValue::Takes(scope) = spec.options[2].value else {
+            panic!("option takes a value")
+        };
+        assert_eq!(scope.variable_scope, VariableScope::CurrentFrame);
+        let OptionValue::Takes(taint) = spec.options[3].value else {
+            panic!("option takes a value")
+        };
+        assert!(!taint.taints_var_write);
+        assert!(spec.subcommands[0].callback_taint_inputs.is_empty());
+
+        for fragment in [
+            "non-executable value",
+            "not a deferred executable",
+            "non-variable value",
+            "without a VarWrite role",
+            "argument 0, which is not a deferred executable position",
+        ] {
+            assert!(
+                pack.notices
+                    .iter()
+                    .any(|notice| notice.message.contains(fragment)),
+                "missing `{fragment}` notice: {:?}",
+                pack.notices
+            );
+        }
+    }
+
+    #[test]
+    fn tk_geometry_form_and_release_metadata_loads() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command layout {\n \
+             tk_geometry Exclusive -container-option -inside -direct-form \
+                 -placement-subcommand arrange \
+                 -release-subcommands {release unmanage}\n \
+             }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let geometry = pack
+            .command("layout")
+            .expect("layout loads")
+            .spec
+            .tk_geometry
+            .expect("geometry loads");
+        assert_eq!(
+            geometry.container_policy,
+            tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive
+        );
+        assert_eq!(geometry.container_option, Some("-inside"));
+        assert!(geometry.direct_form);
+        assert_eq!(geometry.placement_subcommand, Some("arrange"));
+        assert_eq!(geometry.release_subcommands, ["release", "unmanage"]);
+    }
+
     /// The 1.2 words go through the *same* per-site mechanism the 1.1 words
     /// do, which is the point of generalising it: a 1.2 word is a defect
     /// under a 1.1 declaration exactly as a 1.1 word is under 1.0, and the
@@ -5356,6 +5892,68 @@ mod tests {
         assert!(
             declared.notices.is_empty(),
             "declaring 1.2 clears it: {:?}",
+            declared.notices
+        );
+    }
+
+    #[test]
+    fn callback_and_timing_vocabulary_reports_every_pre_12_site() {
+        let body = r"
+ command demo {
+   traits DEFERS_BODY
+   arity 2
+   arg 1 -role Body
+   callback_taint_inputs {{1 {%A %K}}}
+   script_timing_resolver {words ctx} { timing 1 Deferred }
+   option -validatecommand -takes script -role Body -script-timing Deferred \
+       -callback-taint-inputs {%P %s %S}
+   subcommand child {
+     traits DEFERS_BODY
+     arity 2
+     arg 1 -role Body
+     callback_taint_inputs {{1 {%A}}}
+     script_timing_resolver {words ctx} { timing 1 Deferred }
+   }
+ }
+}";
+
+        let older = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        let vocabulary: Vec<&str> = older
+            .notices
+            .iter()
+            .filter(|notice| notice.message.contains("SpecTcl 1.2 vocabulary"))
+            .map(|notice| notice.message.as_str())
+            .collect();
+        for (word, expected) in [
+            ("`callback_taint_inputs`", 2),
+            ("`script_timing_resolver`", 2),
+            ("`-script-timing`", 1),
+            ("`-callback-taint-inputs`", 1),
+        ] {
+            assert_eq!(
+                vocabulary
+                    .iter()
+                    .filter(|message| message.contains(word))
+                    .count(),
+                expected,
+                "missing per-site notice for {word}: {:?}",
+                older.notices
+            );
+        }
+        assert_eq!(
+            vocabulary.len(),
+            6,
+            "only the six 1.2 sites should be reported: {:?}",
+            older.notices
+        );
+
+        let declared = load_pack(&format!("speclib probe 1.2 {{{body}"));
+        assert!(
+            declared
+                .notices
+                .iter()
+                .all(|notice| !notice.message.contains("SpecTcl 1.2 vocabulary")),
+            "declaring 1.2 clears every vocabulary notice: {:?}",
             declared.notices
         );
     }

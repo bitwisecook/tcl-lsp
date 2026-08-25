@@ -6173,6 +6173,28 @@ mod class_factories {
     }
 
     #[test]
+    fn a_deferred_tk_option_body_is_not_a_load_time_blocker() {
+        // A widget constructor stores -command for a later UI event.  The
+        // callback's `error` therefore cannot stop the constructor invocation
+        // or the computed metaclass creation that follows it.  This timing is
+        // attached to the exact option value, not inferred from BodyKind or a
+        // command-wide DEFERS_BODY bit.
+        let src = COMPUTED_METACLASS.replace(
+            "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            concat!(
+                "    button .b -command {error stop}\n",
+                "    ::T::Mother create ${NSPACE}::class { superclass ::T::Mother }\n",
+            ),
+        );
+        let result = analysis(&src, "tcl9.0");
+        assert!(
+            result.all_classes.contains_key("::T::D::class"),
+            "a deferred Tk callback must not abort the load-time walk; got {:?}",
+            result.all_classes.keys().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
     fn an_apply_of_an_unreadable_lambda_still_abstains() {
         // FP guard (#1656) — the same soundness class as the `uplevel` vector
         // above, reached through the *other* role. `apply`'s argument is

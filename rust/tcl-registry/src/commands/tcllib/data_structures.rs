@@ -131,6 +131,7 @@ static STRUCT_GRAPH_CLASS: ObjectClassSpec = ObjectClassSpec {
     // Only `walk` is modelled for its callback; every other method
     // (`node insert`, `arc …`, `get`, …) passes through unflagged.
     allow_unknown_methods: true,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// `struct::tree` instance `walkproc node … cmdprefix` (`tree_tcl.tcl` `_walkproc`,
@@ -164,6 +165,7 @@ static STRUCT_TREE_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: STRUCT_TREE_METHODS,
     superclasses: &[],
     allow_unknown_methods: true,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// The `tar` package.

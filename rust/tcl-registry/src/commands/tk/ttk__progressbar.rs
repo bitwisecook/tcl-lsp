@@ -72,7 +72,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Variable linked to the progress bar value.",
         dialects: None,
         aliases: &[],
@@ -126,6 +126,42 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(
+    SUBCOMMANDS,
+    CLASS,
+    "ttk::progressbar",
+    SubCommand {
+        name: "start",
+        arity: Arity::new(0, 1),
+        detail: "Start periodic automatic progress increments.",
+        synopsis: "pathName start ?interval?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "step",
+        arity: Arity::new(0, 1),
+        detail: "Increment the progress value.",
+        synopsis: "pathName step ?amount?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "stop",
+        arity: Arity::exact(0),
+        detail: "Stop periodic automatic progress increments.",
+        synopsis: "pathName stop",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::progressbar pathName ?options?",
     ..FormSpec::DEFAULT
@@ -150,6 +186,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

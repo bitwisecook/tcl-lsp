@@ -225,6 +225,88 @@ fn every_field_kind_has_a_front_end_editor() {
     );
 }
 
+#[test]
+fn structured_forms_expose_effect_refinements_only_through_the_opaque_rust_surface() {
+    use tcl_spec_studio::render_spectcl::{GapKind, gap};
+    use tcl_spec_studio::schema::FieldKind;
+
+    for (key, fields) in [
+        ("command_forms", schema::COMMAND_FIELDS),
+        ("subcommand_forms", schema::SUBCOMMAND_FIELDS),
+    ] {
+        let field = fields
+            .iter()
+            .find(|field| field.key == key)
+            .unwrap_or_else(|| panic!("{key} remains in the Studio schema"));
+        let FieldKind::RustExpr { hint } = field.kind else {
+            panic!("{key} must remain one opaque Rust expression")
+        };
+        let help = tcl_spec_studio::help::field_help(key).expect("form help");
+        for refinement in [
+            "literal_argument_prefix",
+            "traits",
+            "mutator",
+            "side_effects",
+        ] {
+            assert!(
+                hint.contains(refinement),
+                "{key}'s Rust example must expose {refinement}"
+            );
+            assert!(
+                help.contains(refinement),
+                "{key}'s help must explain {refinement}"
+            );
+        }
+        assert!(help.contains("opaque Rust expression"));
+        assert!(help.contains("SpecTcl cannot"));
+        assert_eq!(
+            gap(key).map(|gap| gap.kind),
+            Some(GapKind::Excluded),
+            "the Studio must not claim a partial SpecTcl round trip for {key}"
+        );
+        let example = tcl_spec_studio::examples::field_example(key, field.label, field.group)
+            .unwrap_or_else(|| panic!("{key} must have an annotated form-selection example"));
+        let code = example["code"].as_str().expect("example code");
+        let annotations = example["annotations"]
+            .as_array()
+            .expect("example annotations");
+        assert!(
+            annotations.len() >= 2,
+            "{key}'s example must contrast query and mutation forms"
+        );
+        match key {
+            "command_forms" => assert!(code.contains("get") && code.contains("set")),
+            "subcommand_forms" => {
+                assert!(code.contains("present") && code.contains("clear"));
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn tk_geometry_is_a_structured_editor_not_an_opaque_rust_expression() {
+    let field = schema::command_field("tk_geometry").expect("Tk geometry field");
+    assert_eq!(field.kind, schema::FieldKind::TkGeometry);
+    assert!(
+        tcl_spec_studio::help::field_help("tk_geometry")
+            .expect("Tk geometry help")
+            .contains("Static preview")
+    );
+    for key in [
+        "container_policy",
+        "container_option",
+        "direct_form",
+        "placement_subcommand",
+        "release_subcommands",
+    ] {
+        assert!(
+            schema::NESTED_FIELDS.iter().any(|field| field.key == key),
+            "Tk geometry editor must document nested field {key}"
+        );
+    }
+}
+
 /// A structural kind rebuilds its subtree on change; a plain input must not,
 /// or the caret jumps to the end of the field mid-word. `objectClass` adds and
 /// removes method rows, so it belongs to the first group.

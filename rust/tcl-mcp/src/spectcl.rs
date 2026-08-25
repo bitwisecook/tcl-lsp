@@ -250,6 +250,7 @@ fn family_key(family: HookFamily) -> &'static str {
     match family {
         HookFamily::ArgRoleResolver => "arg_role_resolver",
         HookFamily::CommandPrefixResolver => "command_prefix_resolver",
+        HookFamily::ScriptTimingResolver => "script_timing_resolver",
         HookFamily::ConstFold => "const_fold",
         HookFamily::ConstFoldVersioned => "const_fold_versioned",
         HookFamily::TaintSinkGate => "taint_sink_gate",
@@ -648,6 +649,29 @@ speclib mylib 1.0 {
         );
     }
 
+    #[test]
+    fn script_timing_resolver_is_reported_by_its_schema_family() {
+        let source = r"
+speclib timed 1.2 {
+    command timed::schedule {
+        arity 1
+        arg 0 -role Body
+        script_timing_resolver {words ctx} { timing 0 Deferred }
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        assert_eq!(result["notices"], json!([]), "{result}");
+        assert_eq!(
+            strings(&result["commands"][0]["hook_families"]),
+            vec!["script_timing_resolver"]
+        );
+        assert_eq!(
+            result["commands"][0]["hooks"][0]["family"],
+            "script_timing_resolver"
+        );
+    }
+
     /// A body that declares nothing may read anything, and is never cached —
     /// the safe default, and the reason a pack pays 28 µs per call site until
     /// it opts in. The keys it reads are still reported.
@@ -797,6 +821,41 @@ speclib mylib 1.0 {
         assert!(set.contains(&"arity"), "{command}");
         assert!(set.contains(&"return_type"), "{command}");
         assert!(set.contains(&"traits"), "{command}");
+    }
+
+    #[test]
+    fn contradictory_option_semantics_surface_as_degradation_notices() {
+        let source = r"
+speclib mylib 1.2 {
+    command mylib::bad {
+        option -timing -takes value -role Value -script-timing Deferred
+        option -input -takes script -role Body -script-timing SameInvocation \
+            -callback-taint-inputs {%P}
+        option -scope -takes value -role Value -variable-scope Global
+        option -taint -takes variable -role VarRead -taints-var-write
+    }
+}
+";
+        let result = check(source, "tcl9.0");
+        let reasons: Vec<&str> = result["notices"]
+            .as_array()
+            .expect("notices")
+            .iter()
+            .filter_map(|notice| notice["reason"].as_str())
+            .collect();
+        for fragment in [
+            "non-executable value",
+            "not a deferred executable",
+            "non-variable value",
+            "without a VarWrite role",
+        ] {
+            assert!(
+                reasons.iter().any(|reason| reason.contains(fragment)),
+                "missing `{fragment}`: {result}"
+            );
+        }
+        assert_eq!(result["summary"]["notices"], 4, "{result}");
+        assert_eq!(result["summary"]["commands"], 1, "{result}");
     }
 
     /// Redeclaring a shipped name without `-override` is the silent-no-op

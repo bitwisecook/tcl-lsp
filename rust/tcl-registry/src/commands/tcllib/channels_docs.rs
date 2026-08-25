@@ -259,21 +259,21 @@ const HALFPIPE_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-write-command",
         // `my Call -write-command $c $bytes` (115) → channel handle + bytes.
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Invoked on a write with the channel handle and the written bytes.",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-empty-command",
         // `my Call -empty-command $channel` (184) → channel handle only.
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(1)),
         detail: "Invoked when the buffer drains, with the channel handle.",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
         name: "-close-command",
         // `my Call -close-command $c` (51) → channel handle only.
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(1)),
         detail: "Invoked when the channel is closed, with the channel handle.",
         ..OptionSpec::DEFAULT
     },

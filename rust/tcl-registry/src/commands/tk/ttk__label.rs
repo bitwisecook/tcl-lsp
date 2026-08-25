@@ -35,8 +35,15 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
+        name: "-textangle",
+        value: OptionValue::value("degrees"),
+        detail: "Anticlockwise rotation of the displayed text in degrees (Tk 9.1+).",
+        lifecycle: Lifecycle::introduced_in("9.1"),
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Variable whose value is used as the label text.",
         dialects: None,
         aliases: &[],
@@ -189,6 +196,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(SUBCOMMANDS, CLASS, "ttk::label",);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::label pathName ?options?",
     ..FormSpec::DEFAULT
@@ -213,6 +222,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

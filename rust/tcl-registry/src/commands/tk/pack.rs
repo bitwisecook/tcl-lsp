@@ -202,6 +202,7 @@ pub fn spec() -> CommandSpec {
             return_value: "",
         }),
         required_package: Some("Tk"),
+        tk_geometry: Some(PACK_GEOMETRY),
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,

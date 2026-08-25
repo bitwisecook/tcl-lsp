@@ -68,6 +68,12 @@ const OPTIONS: &[OptionSpec] = &[
         ..OptionSpec::DEFAULT
     },
     OptionSpec {
+        name: "-script-timing",
+        value: OptionValue::value("SameInvocation|Deferred|ReferenceOnly"),
+        detail: "for an executable value, whether it runs now, is stored for later, or is only identified",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
         name: "-values",
         value: OptionValue::value("values"),
         detail: "inline enumerable value set",
@@ -82,6 +88,11 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-closed",
         detail: "the value set is exhaustive",
+        ..OptionSpec::DEFAULT
+    },
+    OptionSpec {
+        name: "-taints-var-write",
+        detail: "the named variable is writable by external/user input",
         ..OptionSpec::DEFAULT
     },
     OptionSpec {

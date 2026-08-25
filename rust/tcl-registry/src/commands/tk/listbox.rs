@@ -27,11 +27,56 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-listvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable containing the list of values to display.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-background",
+        value: OptionValue::value("color"),
+        detail: "Normal background colour of the listbox.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("screen units"),
+        detail: "Width of the border around the listbox.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Normal foreground colour of the listbox.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-inactiveselectbackground",
+        value: OptionValue::value("color"),
+        detail: "Background colour for selected items when the listbox lacks focus.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::introduced_in("9.1"),
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-inactiveselectforeground",
+        value: OptionValue::value("color"),
+        detail: "Foreground colour for selected items when the listbox lacks focus.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::introduced_in("9.1"),
         min_abbrev: None,
     },
     OptionSpec {
@@ -126,7 +171,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -135,7 +180,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-yscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with vertical scrollbars.",
         dialects: None,
         aliases: &[],
@@ -217,7 +262,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-disabledforeground",
         value: OptionValue::value("color"),
-        detail: "Specifies foreground color to use when drawing a disabled element. If the option is specified as an empty.",
+        detail: "Foreground colour while disabled; empty uses a dimmed normal foreground.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -226,7 +271,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-justify",
         value: OptionValue::value("justify"),
-        detail: "When there are multiple lines of text displayed in a widget, this option determines how the lines line up.",
+        detail: "Text alignment: left, centre, or right.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -235,7 +280,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-state",
         value: OptionValue::value("stateSpec"),
-        detail: "Specifies one of two states for the listbox: normal or disabled. If the listbox is disabled then items may.",
+        detail: "State: normal or disabled; disabled prevents edits and selection changes.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -244,12 +289,44 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 /// The command's subcommands.
-static SUBCOMMANDS: [SubCommand; 16] = [
+const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "includes",
+    arity: Arity::exact(2),
+    literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["includes"])),
+    traits: Some(Traits::PURE),
+    mutator: Some(false),
+    side_effects: Some(super::common::TTK_WIDGET_READS),
+    ..SubCommandForm::DEFAULT
+}];
+
+static SUBCOMMANDS: [SubCommand; 18] = [
     SubCommand {
         name: "activate",
         arity: Arity::exact(1),
         detail: "Set the active element to the one at the given index.",
         synopsis: "pathName activate index",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cget",
+        arity: Arity::exact(1),
+        detail: "Return the current value of a listbox option.",
+        synopsis: "pathName cget option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "configure",
+        arity: Arity::at_least(0),
+        detail: "Query or change listbox options.",
+        synopsis: "pathName configure ?option? ?value option value ...?",
+        return_type: Some(TclType::String),
+        subcommand_forms: super::common::CONFIGURE_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -257,13 +334,20 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(1),
         detail: "Return the bounding box of the text of the element at the given index.",
         synopsis: "pathName bbox index",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "curselection",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::exact(0),
         detail: "Return a list of the indices of all currently selected elements.",
         synopsis: "pathName curselection",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -271,6 +355,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::new(1, 2),
         detail: "Delete one or more elements in the range first through last inclusive.",
         synopsis: "pathName delete first ?last?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -278,6 +365,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::new(1, 2),
         detail: "Return the contents of the elements in the range first through last inclusive.",
         synopsis: "pathName get first ?last?",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -285,6 +375,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(1),
         detail: "Return the integer index value corresponding to the given index.",
         synopsis: "pathName index index",
+        pure: true,
+        return_type: Some(TclType::Int),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -292,6 +385,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::at_least(1),
         detail: "Insert zero or more new elements just before the element at the given index.",
         synopsis: "pathName insert index ?element ...?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -299,6 +395,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(2),
         detail: "Return the current value of the given configuration option for an item.",
         synopsis: "pathName itemcget index option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -306,6 +405,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::at_least(1),
         detail: "Query or modify the configuration options of an individual item.",
         synopsis: "pathName itemconfigure index ?option? ?value option value ...?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -313,6 +415,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(1),
         detail: "Return the index of the visible element nearest to the given y-coordinate.",
         synopsis: "pathName nearest y",
+        pure: true,
+        return_type: Some(TclType::Int),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -320,6 +425,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(3),
         detail: "Implement scanning: record scan mark, or scroll relative to a mark.",
         synopsis: "pathName scan mark|dragto x y",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -327,6 +435,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(1),
         detail: "Adjust the view so that the element at the given index is visible.",
         synopsis: "pathName see index",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -334,6 +445,10 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::at_least(1),
         detail: "Adjust or query the selection: anchor, clear, includes, or set.",
         synopsis: "pathName selection option first ?last?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: SELECTION_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -341,6 +456,9 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::exact(0),
         detail: "Return the number of elements in the listbox.",
         synopsis: "pathName size",
+        pure: true,
+        return_type: Some(TclType::Int),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -348,6 +466,10 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::at_least(0),
         detail: "Query or change the horizontal position of the listbox's view.",
         synopsis: "pathName xview ?args?",
+        mutator: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -355,6 +477,10 @@ static SUBCOMMANDS: [SubCommand; 16] = [
         arity: Arity::at_least(0),
         detail: "Query or change the vertical position of the listbox's view.",
         synopsis: "pathName yview ?args?",
+        mutator: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
 ];
@@ -372,6 +498,7 @@ static LISTBOX_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
 };
 
 pub fn spec() -> CommandSpec {

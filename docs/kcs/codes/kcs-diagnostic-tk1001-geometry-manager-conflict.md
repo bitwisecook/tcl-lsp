@@ -13,23 +13,21 @@ default
 
 ## Question
 
-Why does the analyser flag two geometry managers (`pack`, `grid`, or
-`place`) used on children of the same parent widget?
+Why does the analyser flag `pack` and `grid` using the same effective geometry
+container?
 
 ## Why
 
-A Tk container can only be managed by one geometry manager. When two of
-them claim the same parent, each keeps resizing the parent
-to suit its own children and the other responds in kind. Tk raises
-"cannot use geometry manager grid inside … which already has slaves
-managed by pack" — or, in the versions that do not, the window loops
-forever and never settles.
+With geometry propagation enabled, `pack` and `grid` both claim their effective
+container through Tk's exclusive geometry-container API. Tk raises "cannot use
+geometry manager grid inside … which already has slaves managed by pack" when
+the second claim targets the same container. `place` does not make that claim
+and may coexist with either manager.
 
 ## Symptoms
 
-- A yellow squiggle on **every** geometry call for the offending parent,
-  with the message "Geometry manager conflict: cannot mix 'pack' and
-  'grid' in the same parent '.frame'."
+- A yellow squiggle on the placement that attempts the conflicting claim,
+  naming the active manager and effective container.
 
 ## Example that triggers it
 
@@ -44,8 +42,8 @@ pack .frame.title
 grid .frame.ok -row 1 -column 0
 ```
 
-The analyser reports **`TK1001`** on both geometry calls: `.frame` is the
-parent of both children, and it is claimed by `pack` and by `grid`.
+The analyser reports **`TK1001`** on `grid .frame.ok`: `.frame` still has
+content managed by `pack` when `grid` attempts its claim.
 
 ## Fix
 
@@ -62,8 +60,9 @@ grid .frame.title -row 0 -column 0
 grid .frame.ok    -row 1 -column 0
 ```
 
-Different containers may use different managers — that is the normal way
-to mix them. Only sharing one parent is the problem.
+Different containers may use different managers — that is the normal way to
+mix them. The `-in` option selects the effective container, so it can differ
+from a widget pathname's parent.
 
 ## When it does not fire
 
@@ -72,8 +71,18 @@ to mix them. Only sharing one parent is the problem.
 - **Across interpreters.** A `pack` in the main script and a `grid` in an
   `interp eval` body claim two different windows that merely share a path
   string, so they cannot conflict.
-- **Only one manager.** Any *two* of `pack`, `grid`, and `place` on one
-  parent conflict; a container claimed by just one of them is fine.
+- **`place` with another manager.** `place` positions content without claiming
+  or resizing its container.
+- **Different `-in` containers.** Pathname siblings can be managed in distinct
+  effective containers.
+- **A sole widget switches manager.** `pack .item; grid .item` first releases
+  `.item` from `pack`, so no packed sibling remains to retain the claim.
+- **After release.** `pack forget .item` and `grid forget/remove .item` end
+  that widget's active placement. Query forms such as `pack info` do not place
+  anything.
+
+A later `destroy` does not suppress a conflict that already occurred: Tcl
+would have stopped at the rejected placement before reaching that teardown.
 
 ## How to suppress
 

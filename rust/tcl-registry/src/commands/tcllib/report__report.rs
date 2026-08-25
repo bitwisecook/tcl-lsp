@@ -289,6 +289,7 @@ static REPORT_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: REPORT_METHODS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Strict,
 };
 
 /// Command spec for `report::report`.

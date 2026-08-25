@@ -116,8 +116,8 @@
 
             <action id="TclLsp.TkPreview"
                     class="com.tcllsp.jetbrains.actions.TkPreviewAction"
-                    text="Render Tk Preview"
-                    description="Render the current Tk script and open the HTML preview"/>
+                    text="Show Tk UI Model"
+                    description="Analyse the current Tk script statically and open the structured UI model"/>
             <action id="TclLsp.DiagramData"
                     class="com.tcllsp.jetbrains.actions.DiagramDataAction"
                     text="Generate Mermaid Diagram"

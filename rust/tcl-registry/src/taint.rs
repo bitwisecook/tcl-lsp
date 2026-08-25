@@ -368,6 +368,9 @@ pub fn is_taint_source(
         {
             return true;
         }
+        if spec.traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS) && args.is_empty() {
+            return true;
+        }
         // Tcl ensemble dispatch accepts a unique prefix (`chan g` ⇒ `gets`,
         // `encoding convertf` ⇒ `convertfrom`), so a source subcommand must be
         // resolved prefix-aware or an abbreviation dodges the classification —
@@ -376,7 +379,8 @@ pub fn is_taint_source(
         // safe direction for a security source), matching the prior behaviour.
         if let Some(sub_name) = args.first().copied()
             && let Some(sub) = spec.resolve_subcommand(sub_name)
-            && sub.traits.contains(Traits::TAINT_SOURCE)
+            && (sub.traits.contains(Traits::TAINT_SOURCE)
+                || sub.traits.contains(Traits::TAINT_SOURCE_ZERO_ARGS) && args.len() == 1)
         {
             return true;
         }
@@ -415,6 +419,60 @@ pub fn taint_source_colour(
         TaintColour::TAINTED
     };
     Some(augment_source_colours(base | TaintColour::TAINTED))
+}
+
+/// Whether this invocation writes external input to the named variable.
+///
+/// This is distinct from [`is_taint_source`]: a Tk widget constructor returns
+/// a trusted widget command name, while a registry-declared `VarWrite` option
+/// such as `-textvariable` can subsequently be changed by the user.  The
+/// compiler asks this generic query only for actual SSA defs, so a constructor
+/// without the linked-variable option does not manufacture a tainted value.
+#[must_use]
+pub fn taints_var_write(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    dialect: DialectSet,
+    variable: &str,
+) -> bool {
+    let Some(spec) = registry.get(command) else {
+        return false;
+    };
+    if !spec.traits.contains(Traits::TAINTS_VAR_WRITES) {
+        return false;
+    }
+    let mut index = 0;
+    while index < args.len() {
+        if args[index] == "--" {
+            break;
+        }
+        let Some(option) = crate::spec::resolve_option_prefix(spec.options, args[index]) else {
+            index += 1;
+            continue;
+        };
+        if !option.supports_dialect(Some(dialect), spec.dialects) {
+            index += 1;
+            continue;
+        }
+        let value_indices = option.value_indices(args, index);
+        if option.taints_var_write()
+            && value_indices
+                .iter()
+                .filter_map(|&value_index| args.get(value_index))
+                .any(|candidate| {
+                    *candidate == variable
+                        || (option.value_variable_scope()
+                            == Some(crate::hover::VariableScope::Global)
+                            && !candidate.starts_with("::")
+                            && variable.strip_prefix("::") == Some(*candidate))
+                })
+        {
+            return true;
+        }
+        index += 1 + value_indices.len();
+    }
+    false
 }
 
 /// Add the conservative derived properties a source colour implies.

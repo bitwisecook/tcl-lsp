@@ -103,6 +103,7 @@ pub mod state_transition;
 pub mod stub_overlay;
 pub mod symbol_def;
 pub mod taint;
+pub mod tk_geometry;
 pub mod traits;
 pub mod types;
 pub mod version;
@@ -151,7 +152,7 @@ pub mod prelude {
         SCTP_RELEASE, SIP_PAYLOAD, SSL_COLLECT, SSL_PAYLOAD, SSL_RELEASE, TCP_COLLECT, TCP_PAYLOAD,
         TCP_RELEASE, UDP_PAYLOAD, WS_COLLECT, WS_PAYLOAD, WS_RELEASE, XML_PAYLOAD,
     };
-    pub use crate::forms::{CommandForm, SubCommandForm};
+    pub use crate::forms::{CommandForm, LiteralArgumentPrefix, SubCommandForm};
     pub use crate::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWord};
     pub use crate::handle_binding::{
         BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
@@ -161,8 +162,9 @@ pub mod prelude {
         VersionedConstFoldFn,
     };
     pub use crate::hover::{
-        ArgValue, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg, OptionArity,
-        OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, first_positional_index,
+        ArgValue, CallbackTaintInput, FormKind, FormSpec, HoverSnippet, IntegerDomain, OptionArg,
+        OptionArity, OptionSpec, OptionValue, OptionValueHook, OptionValueOutcome, ScriptTiming,
+        VariableScope, first_positional_index,
     };
     pub use crate::intrinsic::IntrinsicId;
     pub use crate::invocation_words::{CommandPrefixArguments, InvocationArguments};
@@ -184,8 +186,9 @@ pub mod prelude {
     pub use crate::spec::{
         ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
         DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-        OptionScope, SubCommand, SubSubCommand, VersionedArgValue, leading_option_word_count,
-        leading_option_word_count_with, resolve_option_prefix, resolve_option_prefix_with,
+        OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+        leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
+        resolve_option_prefix_with,
     };
     pub use crate::state_transition::{
         CallerFrameSelection, ChildInterpreterSafety, CommandBindingDefinitionKind,
@@ -200,6 +203,10 @@ pub mod prelude {
     };
     pub use crate::symbol_def::{DefinedSymbolKind, SymbolDef};
     pub use crate::taint::{SetterConstraint, TaintColour, TaintColourAtom};
+    pub use crate::tk_geometry::{
+        GRID_GEOMETRY, PACK_GEOMETRY, PLACE_GEOMETRY, TkGeometryContainerPolicy,
+        TkGeometryManagerSpec, is_widget_path, is_widget_path_or_root, widget_path_is_within,
+    };
     pub use crate::traits::Traits;
     pub use crate::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
     pub use crate::world_effect::{
@@ -243,7 +250,7 @@ pub use frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevel, FrameLevelWo
 pub use handle_binding::{
     BoundHandle, HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
 };
-pub use hover::ArgValue;
+pub use hover::{ArgValue, CallbackTaintInput, ScriptTiming, VariableScope};
 pub use intrinsic::IntrinsicId;
 pub use invocation_words::{
     CommandPrefixArguments, InvocationArguments, InvocationWord, InvocationWordKind,
@@ -272,7 +279,7 @@ pub use side_effects::SideSwitchTarget;
 pub use spec::{
     ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
     DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-    OptionScope, SubCommand, SubSubCommand, VersionedArgValue,
+    OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

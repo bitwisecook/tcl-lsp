@@ -469,6 +469,13 @@ fn interp_alias_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8, A
     }
 }
 
+fn interp_alias_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() >= 4)
+        .then_some((3, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 /// `interp bgerror path ?cmdPrefix?` — the optional background-error handler
 /// (index 1, after `bgerror`) is a command prefix invoked with the error
 /// message + return options (variadic ⇒ `Unknown`).
@@ -478,6 +485,13 @@ fn interp_bgerror_command_prefixes(args: CommandPrefixArguments<'_>) -> Vec<(u8,
     } else {
         Vec::new()
     }
+}
+
+fn interp_bgerror_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (args.len() >= 2)
+        .then_some((1, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
 }
 
 /// `limit`'s `limitType` (index 1, after `path`) takes one of these two
@@ -521,6 +535,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp alias path cmd",
         return_type: Some(TclType::List),
         command_prefix_resolver: Some(interp_alias_command_prefixes),
+        script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
         command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
@@ -545,6 +560,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         synopsis: "interp bgerror path ?cmdPrefix?",
         return_type: Some(TclType::String),
         command_prefix_resolver: Some(interp_bgerror_command_prefixes),
+        script_timing_resolver: Some(interp_bgerror_script_timing),
         world_effects: Some(INTERP_BGERROR_EFFECTS),
         state_transitions: Some(INTERP_BGERROR_TRANSITIONS),
         ..SubCommand::DEFAULT
@@ -821,7 +837,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
             &[
                 OptionSpec {
                     name: "-command",
-                    value: OptionValue::script(),
+                    value: OptionValue::deferred_script(),
                     detail: "Script run in the global namespace of the interpreter that set this option, invoked when the limited interpreter's limit is exceeded; may extend the limit to let evaluation continue. Common to both limit types.",
                     dialects: None,
                     aliases: &[],

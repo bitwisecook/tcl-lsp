@@ -412,6 +412,19 @@ impl ArgRole {
             | Self::Keyword => false,
         }
     }
+
+    /// Whether this role identifies executable Tcl whose invocation phase can
+    /// be described by [`crate::hover::ScriptTiming`].
+    ///
+    /// Unlike [`Self::carries_script`], this includes a command prefix: a
+    /// prefix is not itself a complete script to recurse into, but it is an
+    /// executable reference that may run now, later, or only be matched by a
+    /// removal form. `Expr` is excluded because its substitutions execute as
+    /// part of expression evaluation rather than as a callback slot.
+    #[must_use]
+    pub const fn has_script_timing(self) -> bool {
+        matches!(self, Self::Body | Self::LambdaLiteral | Self::CommandPrefix)
+    }
 }
 
 /// A canonical finite set of exact callback argument counts.

@@ -25,7 +25,7 @@ use crate::prelude::*;
 const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Tcl command to invoke when the menu entry is invoked.",
         dialects: None,
         aliases: &[],
@@ -34,7 +34,7 @@ const MENU_ENTRY_OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Global variable tied to a checkbutton or radiobutton entry.",
         dialects: None,
         aliases: &[],
@@ -422,7 +422,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-postcommand",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Tcl command to invoke just before the menu is posted.",
         dialects: None,
         aliases: &[],
@@ -431,7 +431,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-tearoffcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix invoked when the menu is torn off (the parent menu path and the torn-off menu path are appended).",
         dialects: None,
         aliases: &[],
@@ -471,6 +471,7 @@ static MENU_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
 };
 
 pub fn spec() -> CommandSpec {

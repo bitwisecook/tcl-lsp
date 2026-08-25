@@ -1875,6 +1875,42 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
     }
 }
 
+#[test]
+fn object_method_prefix_policy_is_strict_by_default_and_enabled_for_tk() {
+    let (reg, ds) = reg_and_set("tcl8.6");
+
+    let entry = reg.get_for_dialect("entry", ds).unwrap();
+    let entry_class = entry.object_class.unwrap();
+    assert_eq!(
+        entry_class.method_prefix_matching,
+        tcl_registry::abbrev::PrefixMatching::Enabled
+    );
+    assert!(
+        reg.instance_method("entry", "get").is_some(),
+        "exact Tk method"
+    );
+    assert!(
+        reg.instance_method("entry", "conf").is_some(),
+        "unique Tk method prefix"
+    );
+    assert!(
+        reg.instance_method("entry", "c").is_none(),
+        "ambiguous Tk method prefix must abstain"
+    );
+
+    let report = reg.get_for_dialect("report::report", ds).unwrap();
+    let report_class = report.object_class.unwrap();
+    assert_eq!(
+        report_class.method_prefix_matching,
+        tcl_registry::abbrev::PrefixMatching::Strict
+    );
+    assert!(reg.instance_method("report::report", "destroy").is_some());
+    assert!(
+        reg.instance_method("report::report", "des").is_none(),
+        "non-Tk object methods are exact by default"
+    );
+}
+
 /// Every `::report::*` command has a dedicated, hover-bearing spec.
 #[test]
 fn report_namespace_commands_have_specs() {

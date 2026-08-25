@@ -20,6 +20,26 @@
 use crate::prelude::*;
 
 /// The command's subcommands.
+const PROXY_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "coord",
+    arity: Arity::exact(1),
+    literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
+    traits: Some(Traits::PURE),
+    mutator: Some(false),
+    side_effects: Some(super::common::TTK_WIDGET_READS),
+    ..SubCommandForm::DEFAULT
+}];
+
+const SASH_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "coord",
+    arity: Arity::exact(2),
+    literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["coord"])),
+    traits: Some(Traits::PURE),
+    mutator: Some(false),
+    side_effects: Some(super::common::TTK_WIDGET_READS),
+    ..SubCommandForm::DEFAULT
+}];
+
 static SUBCOMMANDS: [SubCommand; 8] = [
     SubCommand {
         name: "add",
@@ -68,6 +88,9 @@ static SUBCOMMANDS: [SubCommand; 8] = [
         arity: Arity::at_least(0),
         detail: "Query or manipulate the sash-drag proxy.",
         synopsis: "pathName proxy ?args?",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: PROXY_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -75,6 +98,9 @@ static SUBCOMMANDS: [SubCommand; 8] = [
         arity: Arity::at_least(1),
         detail: "Query or adjust sash positions.",
         synopsis: "pathName sash option ?arg ...?",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: SASH_FORMS,
         ..SubCommand::DEFAULT
     },
 ];
@@ -281,6 +307,7 @@ static PANEDWINDOW_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
 };
 
 pub fn spec() -> CommandSpec {

@@ -91,17 +91,26 @@ fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
                     .unwrap_or(rest.len());
                 Some(rest[..end].trim_end_matches('.'))
             });
-            assert_eq!(
-                prose_version, sub.lifecycle.introduced,
-                "{} {}: introduction prose and min_version must agree",
-                spec.name, sub.name
-            );
-            if sub.lifecycle.introduced.is_some() {
+            if let Some(version) = prose_version {
+                assert_eq!(
+                    sub.lifecycle.introduced,
+                    Some(version),
+                    "{} {}: introduction prose and min_version must agree",
+                    spec.name,
+                    sub.name
+                );
                 assert!(
                     profile.keyed_pin_for(spec).is_some(),
                     "{} {}: a versioned iRules subcommand needs the keyed BIG-IP axis",
                     spec.name,
                     sub.name
+                );
+            } else if profile.keyed_pin_for(spec).is_some() {
+                assert_eq!(
+                    sub.lifecycle.introduced, None,
+                    "{} {}: an F5-surface min_version needs its introduction stated \
+                     in the hover prose (the data lock is bidirectional)",
+                    spec.name, sub.name
                 );
             }
         }

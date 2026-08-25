@@ -16,13 +16,23 @@ use tcl_compiler::lambda_literal::split_lambda_literal;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;
-use tcl_registry::{ArgRole, CommandRegistry};
+use tcl_registry::{ArgRole, CommandRegistry, ScriptTiming};
 
 use crate::oo_body::{HeadWords, is_member, member_body_indices_in, next_definition_grammar};
 
 /// Defensive recursion limit shared by executable-source walkers.
 const MAX_EXECUTABLE_REGION_DEPTH: tcl_core_types::RecursionLimit =
     tcl_core_types::RecursionLimit(256);
+
+/// Whether a command is in the directly executed region or merely in a body
+/// whose execution depends on control flow, a later callback, or invocation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExecutableContext {
+    /// Top-level source or a live command substitution reached from it.
+    Direct,
+    /// A registry-declared body, case action, definition body, or lambda body.
+    PotentialBody,
+}
 
 /// Visit every statically locatable command that Tcl can execute from
 /// `source`, preserving each command's absolute source spans.
@@ -38,7 +48,7 @@ pub(crate) fn visit_executable_commands(
     registry: &CommandRegistry,
     availability: tcl_dialect::DialectSet,
     identities: &HeadIdentityMap,
-    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>) -> bool,
+    visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) {
     let mut walk = ExecutableWalker {
         source,
@@ -48,7 +58,7 @@ pub(crate) fn visit_executable_commands(
         identities,
         visitor,
     };
-    let _ = walk.region(0, source.len(), 0, None);
+    let _ = walk.region(0, source.len(), 0, None, ExecutableContext::Direct);
 }
 
 struct ExecutableWalker<'a, F> {
@@ -60,13 +70,16 @@ struct ExecutableWalker<'a, F> {
     visitor: &'a mut F,
 }
 
-impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F> {
+impl<F: FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool>
+    ExecutableWalker<'_, F>
+{
     fn region(
         &mut self,
         start: usize,
         end: usize,
         depth: u32,
         grammar: Option<&'static DefinitionBodyGrammar>,
+        context: ExecutableContext,
     ) -> bool {
         if MAX_EXECUTABLE_REGION_DEPTH.exceeded(depth) || start >= end || end > self.source.len() {
             return false;
@@ -83,21 +96,15 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
             let head = self
                 .identities
                 .head_words(command.name(), head_tok.span.start());
-            if (self.visitor)(command, head) {
+            if (self.visitor)(command, head, context) {
                 return true;
             }
 
             // A command substitution is live wherever it appears in a bare
             // or quoted word, including a command's own head.  Braced words
             // are intentionally excluded by `command_substitution_regions`.
-            for token in &command.argv {
-                for (inner_start, inner_end) in
-                    command_substitution_regions(self.source, self.config, *token)
-                {
-                    if self.region(inner_start, inner_end, depth + 1, grammar) {
-                        return true;
-                    }
-                }
+            if self.live_substitutions(command, depth, grammar, context) {
+                return true;
             }
 
             let args: Vec<&str> = command.args().iter().map(String::as_str).collect();
@@ -120,6 +127,7 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
             // Expect's descriptor supplies its clause bodies directly rather
             // than duplicating that grammar as a flat argument role.
             if let Some((spec, case_index)) = case_list
+                && !self.script_is_reference_only(head.resolved, &args, case_index)
                 && let (Some(&token), Some(list)) =
                     (command.arg_tokens().get(case_index), args.get(case_index))
                 && token.kind == TokenType::Str
@@ -129,6 +137,9 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
             }
 
             for index in body_indices {
+                if self.script_is_reference_only(head.resolved, &args, index) {
+                    continue;
+                }
                 let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
                 };
@@ -139,7 +150,13 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                     continue;
                 }
                 if let Some((body_start, body_end)) = braced_body_region(self.source, token)
-                    && self.region(body_start, body_end, depth + 1, next_grammar)
+                    && self.region(
+                        body_start,
+                        body_end,
+                        depth + 1,
+                        next_grammar,
+                        ExecutableContext::PotentialBody,
+                    )
                 {
                     return true;
                 }
@@ -149,6 +166,9 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                 self.registry
                     .arg_indices_for_role(head.resolved, &args, ArgRole::LambdaLiteral)
             {
+                if self.script_is_reference_only(head.resolved, &args, index) {
+                    continue;
+                }
                 let Some(&token) = command.arg_tokens().get(index) else {
                     continue;
                 };
@@ -157,12 +177,38 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
                 else {
                     continue;
                 };
-                if self.region(body.start() as usize, body.end() as usize, depth + 1, None) {
+                if self.region(
+                    body.start() as usize,
+                    body.end() as usize,
+                    depth + 1,
+                    None,
+                    ExecutableContext::PotentialBody,
+                ) {
                     return true;
                 }
             }
         }
         false
+    }
+
+    fn live_substitutions(
+        &mut self,
+        command: &SegmentedCommand,
+        depth: u32,
+        grammar: Option<&'static DefinitionBodyGrammar>,
+        context: ExecutableContext,
+    ) -> bool {
+        command.argv.iter().any(|token| {
+            command_substitution_regions(self.source, self.config, *token)
+                .into_iter()
+                .any(|(start, end)| self.region(start, end, depth + 1, grammar, context))
+        })
+    }
+
+    fn script_is_reference_only(&self, head: &str, args: &[&str], index: usize) -> bool {
+        self.registry
+            .script_timing(head, args, index, self.availability)
+            == Some(ScriptTiming::ReferenceOnly)
     }
 
     fn case_list_regions(
@@ -187,7 +233,13 @@ impl<F: FnMut(&SegmentedCommand, HeadWords<'_>) -> bool> ExecutableWalker<'_, F>
             let Some((start, end)) = case_action_region(self.source, body_token) else {
                 continue;
             };
-            if self.region(start, end, depth + 1, grammar) {
+            if self.region(
+                start,
+                end,
+                depth + 1,
+                grammar,
+                ExecutableContext::PotentialBody,
+            ) {
                 return true;
             }
         }
@@ -312,7 +364,7 @@ mod tests {
             registry,
             profile.availability_mask,
             &identities,
-            &mut |command, identity| {
+            &mut |command, identity, _context| {
                 if command.name() == "format" || command.name() == "fmt" {
                     heads.push((
                         identity.written.to_owned(),
@@ -378,5 +430,46 @@ mod tests {
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }
+    }
+
+    #[test]
+    fn reference_only_bodies_are_not_executable_regions() {
+        fn reference_only_first(_args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+            vec![(0, ScriptTiming::ReferenceOnly)]
+        }
+
+        let source = "remove-script {frame .ghost}\nproc shown {} {frame .shown}";
+        let mut registry = CommandRegistry::build_default();
+        registry.insert(tcl_registry::CommandSpec {
+            name: "remove-script",
+            arity: tcl_registry::Arity::exact(1),
+            arg_roles: &[(0, ArgRole::Body)],
+            script_timing_resolver: Some(reference_only_first),
+            ..tcl_registry::CommandSpec::DEFAULT
+        });
+        let config = LexerConfig::for_file_dialect("tcl8.6");
+        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+            source, config, &registry,
+        );
+        let mut frame_spans = Vec::new();
+        visit_executable_commands(
+            source,
+            config,
+            &registry,
+            tcl_dialect::DialectSet::empty(),
+            &identities,
+            &mut |command, _identity, _context| {
+                if command.name() == "frame" {
+                    frame_spans.push(command.span.start());
+                }
+                false
+            },
+        );
+
+        assert_eq!(
+            frame_spans,
+            vec![u32::try_from(source.rfind("frame").expect("live body")).unwrap()],
+            "a reference-only script is matched metadata, not potential execution"
+        );
     }
 }

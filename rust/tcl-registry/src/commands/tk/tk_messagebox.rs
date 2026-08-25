@@ -91,7 +91,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix("prefix"),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Unknown),
         detail: "Command prefix invoked when the dialog closes; the clicked button name is appended (macOS).",
         dialects: None,
         aliases: &[],

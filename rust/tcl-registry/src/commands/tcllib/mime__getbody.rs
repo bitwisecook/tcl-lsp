@@ -39,7 +39,7 @@ const OPTIONS: &[OptionSpec] = &[
         // 1 → AtLeast(1) (never fires "too few" against a 1-arg callback; the
         // package's own default `getbodyaux {token reason {fragment {}}}` is
         // exactly this shape).
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::AtLeast(1)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::AtLeast(1)),
         detail: "Process the body asynchronously: the prefix is invoked with a \
 reason keyword (data / end / error) and, for data / error, one payload word.",
         ..OptionSpec::DEFAULT

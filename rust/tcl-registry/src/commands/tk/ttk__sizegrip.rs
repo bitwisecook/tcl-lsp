@@ -63,6 +63,8 @@ const OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+super::common::ttk_widget_class!(SUBCOMMANDS, CLASS, "ttk::sizegrip",);
+
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "ttk::sizegrip pathName ?options?",
     ..FormSpec::DEFAULT
@@ -87,6 +89,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

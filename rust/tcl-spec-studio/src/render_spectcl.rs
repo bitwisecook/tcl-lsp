@@ -1393,6 +1393,65 @@ fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
     }
 }
 
+/// Emit the data form of the Tk geometry-manager descriptor.
+fn tk_geometry_row(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "tk_geometry") {
+        return;
+    }
+    let Some(fields) = draft["tk_geometry"].as_object() else {
+        todo(out, "tk_geometry");
+        return;
+    };
+    let Some(policy @ ("Independent" | "Exclusive")) =
+        fields.get("container_policy").and_then(Value::as_str)
+    else {
+        todo(out, "tk_geometry");
+        return;
+    };
+    let container_option = fields
+        .get("container_option")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let direct_form = fields
+        .get("direct_form")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let placement_subcommand = fields
+        .get("placement_subcommand")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let release_subcommands: Vec<String> = fields
+        .get("release_subcommands")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(str::to_owned)
+        .collect();
+    let mut row = vec!["tk_geometry".to_owned(), policy.to_owned()];
+    let mut lost = false;
+    if let Some(container_option) = container_option {
+        row.push("-container-option".to_owned());
+        push_word(&mut row, &mut lost, word(&container_option));
+    }
+    if direct_form {
+        row.push("-direct-form".to_owned());
+    }
+    if let Some(placement_subcommand) = placement_subcommand {
+        row.push("-placement-subcommand".to_owned());
+        push_word(&mut row, &mut lost, word(&placement_subcommand));
+    }
+    if !release_subcommands.is_empty() {
+        push_flag(
+            &mut row,
+            &mut lost,
+            "-release-subcommands",
+            list_word(&release_subcommands),
+        );
+    }
+    emit_row(out, "tk_geometry", &row, lost, "");
+}
+
 /// Whether a flag-set field holds dialect members, which take the shorthands.
 fn is_dialect_set(key: &str) -> bool {
     matches!(key, "dialects" | "safe_on_uninit")
@@ -1660,6 +1719,29 @@ fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
 }
 
+/// The registry-declared user-controlled substitutions for positional deferred
+/// callbacks. This is deliberately separate from `arg` rows: it describes a
+/// runtime injection into the stored callback, not a static syntax role.
+fn callback_taint_input_table(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
+    if !ctx.set(draft, "callback_taint_inputs") {
+        return;
+    }
+    let rows: Vec<String> = as_array(&draft["callback_taint_inputs"])
+        .iter()
+        .filter_map(|entry| {
+            let index = entry["index"].as_u64()?;
+            let inputs = as_array(&entry["inputs"]);
+            (!inputs.is_empty())
+                .then(|| str_list_word(&Value::Array(inputs.to_vec())))
+                .flatten()
+                .map(|inputs| format!("{{{index} {inputs}}}"))
+        })
+        .collect();
+    if !rows.is_empty() {
+        out.line(&format!("callback_taint_inputs {{{}}}", rows.join(" ")));
+    }
+}
+
 /// `{Exactly N}` / `{AtLeast N}` / `Unknown`.
 fn appended_arity_word(value: &Value) -> String {
     let kind = str_of(&value["kind"]);
@@ -1739,7 +1821,8 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
             row.push("-role".to_owned());
             row.push(role.to_owned());
         }
-        if let Some(also) = value["also_role"].as_str() {
+        let also_role = value["also_role"].as_str();
+        if let Some(also) = also_role {
             row.push("-also-role".to_owned());
             row.push(also.to_owned());
         }
@@ -1747,6 +1830,22 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         if body_kind != "Plain" {
             row.push("-body-kind".to_owned());
             row.push(body_kind.to_owned());
+        }
+        let script_timing = str_of(&value["script_timing"]);
+        if !script_timing.is_empty() && script_timing != "SameInvocation" {
+            row.push("-script-timing".to_owned());
+            row.push(script_timing.to_owned());
+        }
+        let callback_inputs = as_array(&value["callback_taint_inputs"]);
+        if !callback_inputs.is_empty()
+            && let Some(inputs) = str_list_word(&Value::Array(callback_inputs.to_vec()))
+        {
+            row.push("-callback-taint-inputs".to_owned());
+            row.push(inputs);
+        }
+        if str_of(&value["variable_scope"]) == "Global" {
+            row.push("-variable-scope".to_owned());
+            row.push("Global".to_owned());
         }
         push_values(
             &mut row,
@@ -1766,6 +1865,11 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         if str_of(&appended["kind"]) != "Unknown" {
             row.push("-appends".to_owned());
             row.push(appended_arity_word(appended));
+        }
+        if value["taints_var_write"].as_bool() == Some(true)
+            && (role == "VarWrite" || also_role == Some("VarWrite"))
+        {
+            row.push("-taints-var-write".to_owned());
         }
     }
     if let Some(aliases) = option["aliases"].as_array()
@@ -1908,6 +2012,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     arity_row(out, ctx, draft);
     arity_window_rows(out, ctx, draft);
     text(out, ctx, draft, "required_package");
+    tk_geometry_row(out, ctx, draft);
     text(out, ctx, draft, "tcllib_package");
     text(out, ctx, draft, "implementation_namespace");
     text(out, ctx, draft, "introduced_version");
@@ -1961,6 +2066,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     );
 
     arg_rows(out, ctx, draft);
+    callback_taint_input_table(out, ctx, draft);
     if ctx.set(draft, "repeated_args")
         && let Some(expr) = draft["repeated_args"].as_str()
     {
@@ -2014,6 +2120,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     out.gap();
     native_hook(out, ctx, draft, "arg_role_resolver");
     native_hook(out, ctx, draft, "command_prefix_resolver");
+    native_hook(out, ctx, draft, "script_timing_resolver");
     native_hook(out, ctx, draft, "clause_shape_check");
     native_hook(out, ctx, draft, "const_fold");
     native_hook(out, ctx, draft, "const_fold_versioned");
@@ -2249,7 +2356,8 @@ fn manufacturer_rows(out: &mut Out, draft: &Draft) {
     }
 }
 
-/// `object_class NAME ?-superclass {…}? ?-allow-unknown? ?{ method … }?`.
+/// `object_class NAME ?-superclass {…}? ?-allow-unknown?`
+/// `?-method-prefix-matching Enabled|Strict? ?{ method … }?`.
 ///
 /// The ratified spelling puts the class's three one-word facts on the
 /// statement and only the method table in the block, so a class with no
@@ -2273,6 +2381,10 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     }
     if class["allow_unknown_methods"].as_bool() == Some(true) {
         row.push("-allow-unknown".to_owned());
+    }
+    if str_of(&class["method_prefix_matching"]) == "Enabled" {
+        row.push("-method-prefix-matching".to_owned());
+        row.push("Enabled".to_owned());
     }
     let methods = as_array(&class["instance_methods"]);
     if lost {
@@ -2407,6 +2519,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     text(out_body, ctx, sub, "cfg_rewrite_name");
 
     arg_rows(out_body, ctx, sub);
+    callback_taint_input_table(out_body, ctx, sub);
     if ctx.set(sub, "repeated_args")
         && let Some(expr) = sub["repeated_args"].as_str()
     {
@@ -2422,6 +2535,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
 
     native_hook(out_body, ctx, sub, "arg_role_resolver");
     native_hook(out_body, ctx, sub, "command_prefix_resolver");
+    native_hook(out_body, ctx, sub, "script_timing_resolver");
     native_hook(out_body, ctx, sub, "const_fold");
     native_hook(out_body, ctx, sub, "const_fold_versioned");
     native_hook(out_body, ctx, sub, "literal_argument_validator");
@@ -2622,6 +2736,28 @@ mod tests {
     }
 
     #[test]
+    fn invalid_taint_link_is_not_rendered_without_var_write_role() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let entry = registry.get("entry").expect("Tk entry spec");
+        let seeded = draft::from_command_spec(entry);
+        let mut option = seeded["options"]
+            .as_array()
+            .expect("entry options")
+            .iter()
+            .find(|option| str_of(&option["name"]) == "-textvariable")
+            .expect("entry -textvariable")
+            .clone();
+        option["value"]["role"] = json!("Value");
+        option["value"]["also_role"] = Value::Null;
+        option["value"]["taints_var_write"] = json!(true);
+        let mut draft = drafted("probe");
+        draft.insert("options".into(), Value::Array(vec![option]));
+
+        let text = render_pack(&[draft], "probe");
+        assert!(!text.contains("-taints-var-write"), "{text}");
+    }
+
+    #[test]
     fn a_default_draft_renders_a_pack_that_says_nothing_else() {
         let text = render_pack(&[drafted("mycommand")], "probe");
         assert!(text.contains(&format!("speclib probe {DSL_VERSION} {{")));
@@ -2689,10 +2825,14 @@ mod tests {
         let mut d = drafted("probe");
         d.insert(
             draft::UNRENDERABLE_KEY.into(),
-            json!(["arg_role_resolver", "const_fold"]),
+            json!(["arg_role_resolver", "script_timing_resolver", "const_fold"]),
         );
         let text = render_pack(&[d], "probe");
         assert!(text.contains("arg_role_resolver -native probe::arg_role_resolver"));
+        assert!(
+            text.contains("script_timing_resolver -native probe::script_timing_resolver"),
+            "{text}"
+        );
         assert!(text.contains("const_fold -native probe::const_fold"));
     }
 
@@ -2813,16 +2953,17 @@ mod tests {
                 "instance_methods": [Value::Object(method)],
                 "superclasses": ["::probe::Base", "::probe::Mixin"],
                 "allow_unknown_methods": true,
+                "method_prefix_matching": "Enabled",
             }),
         );
         let text = render_pack(&[d], "probe");
+        assert!(text.contains("object_class ::probe::Widget"), "{text}");
         assert!(
-            text.contains(
-                "object_class ::probe::Widget -superclass {::probe::Base ::probe::Mixin} \
-                 -allow-unknown {"
-            ),
+            text.contains("-superclass {::probe::Base ::probe::Mixin}"),
             "{text}"
         );
+        assert!(text.contains("-allow-unknown"), "{text}");
+        assert!(text.contains("-method-prefix-matching Enabled"), "{text}");
         assert!(
             text.contains("method configure { arity 1 ; detail {Reconfigure the widget.} }"),
             "{text}"
@@ -2841,6 +2982,7 @@ mod tests {
                 "instance_methods": [],
                 "superclasses": ["::probe::Resistor"],
                 "allow_unknown_methods": false,
+                "method_prefix_matching": "Strict",
             }),
         );
         let text = render_pack(&[d], "probe");
@@ -2868,6 +3010,7 @@ mod tests {
             instance_methods: METHODS,
             superclasses: &["probe::base"],
             allow_unknown_methods: true,
+            method_prefix_matching: tcl_registry::abbrev::PrefixMatching::Enabled,
         };
         let spec = tcl_registry::spec::CommandSpec {
             name: "probe::chart",
@@ -2878,6 +3021,7 @@ mod tests {
 
         let before = draft::from_command_spec(&spec);
         let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("-method-prefix-matching Enabled"), "{text}");
         let pack = crate::spectcl::load_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let reloaded = pack.command("probe::chart").expect("the command reloads");
@@ -2896,5 +3040,156 @@ mod tests {
             gap("object_class").is_none(),
             "`object_class` is no longer a renderer gap"
         );
+    }
+
+    #[test]
+    fn option_script_timings_survive_render_load_draft() {
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[
+            tcl_registry::hover::OptionSpec {
+                name: "-command",
+                value: tcl_registry::hover::OptionValue::deferred_script(),
+                detail: "Run after activation.",
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+            tcl_registry::hover::OptionSpec {
+                name: "-remove",
+                value: tcl_registry::hover::OptionValue::Takes(tcl_registry::hover::OptionArg {
+                    role: tcl_registry::ArgRole::CommandPrefix,
+                    script_timing: tcl_registry::hover::ScriptTiming::ReferenceOnly,
+                    hint: "prefix",
+                    ..tcl_registry::hover::OptionArg::DEFAULT
+                }),
+                detail: "Match a prior registration without invoking it.",
+                ..tcl_registry::hover::OptionSpec::DEFAULT
+            },
+        ];
+        let spec = tcl_registry::spec::CommandSpec {
+            name: "probe::button",
+            options: OPTIONS,
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        };
+
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("-script-timing Deferred"), "{text}");
+        assert!(text.contains("-script-timing ReferenceOnly"), "{text}");
+        let pack = crate::spectcl::load_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::button").expect("the command reloads");
+        let after = draft::from_command_spec(reloaded.spec);
+        assert_eq!(after.get("options"), before.get("options"), "{text}");
+    }
+
+    #[test]
+    fn callback_taint_inputs_survive_option_and_positional_round_trip() {
+        static VALIDATION: &[tcl_registry::CallbackTaintInput] = &[
+            tcl_registry::CallbackTaintInput::TK_PROPOSED_VALUE,
+            tcl_registry::CallbackTaintInput::TK_EDIT_TEXT,
+        ];
+        static EVENT: &[tcl_registry::CallbackTaintInput] = &[
+            tcl_registry::CallbackTaintInput::TK_EVENT_CHAR,
+            tcl_registry::CallbackTaintInput::TK_EVENT_KEYSYM,
+        ];
+        static POSITIONAL: &[(u8, &[tcl_registry::CallbackTaintInput])] = &[(2, EVENT)];
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[tcl_registry::hover::OptionSpec {
+            name: "-validatecommand",
+            value: tcl_registry::hover::OptionValue::deferred_tainted_script(VALIDATION),
+            ..tcl_registry::hover::OptionSpec::DEFAULT
+        }];
+        let spec = tcl_registry::spec::CommandSpec {
+            name: "probe::callback",
+            traits: tcl_registry::Traits::DEFERS_BODY,
+            arity: tcl_registry::Arity::exact(3),
+            arg_roles: &[(2, tcl_registry::ArgRole::Body)],
+            callback_taint_inputs: POSITIONAL,
+            options: OPTIONS,
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        };
+
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("-callback-taint-inputs {%P %S}"), "{text}");
+        assert!(
+            text.contains("callback_taint_inputs {{2 {%A %K}}}"),
+            "{text}"
+        );
+        let pack = crate::spectcl::load_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let after = draft::from_command_spec(
+            pack.command("probe::callback")
+                .expect("the command reloads")
+                .spec,
+        );
+        assert_eq!(
+            after.get("callback_taint_inputs"),
+            before.get("callback_taint_inputs"),
+            "{text}"
+        );
+        assert_eq!(after.get("options"), before.get("options"), "{text}");
+    }
+
+    #[test]
+    fn an_option_variable_scope_survives_render_load_draft() {
+        static OPTIONS: &[tcl_registry::hover::OptionSpec] = &[tcl_registry::hover::OptionSpec {
+            name: "-textvariable",
+            value: tcl_registry::hover::OptionValue::user_input_var(),
+            detail: "Global linked input.",
+            ..tcl_registry::hover::OptionSpec::DEFAULT
+        }];
+        let spec = tcl_registry::spec::CommandSpec {
+            name: "probe::entry",
+            options: OPTIONS,
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        };
+
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("-variable-scope Global"), "{text}");
+        let pack = crate::spectcl::load_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::entry").expect("the command reloads");
+        let after = draft::from_command_spec(reloaded.spec);
+        assert_eq!(after.get("options"), before.get("options"), "{text}");
+    }
+
+    #[test]
+    fn tk_geometry_preserves_a_custom_container_option() {
+        let spec = tcl_registry::spec::CommandSpec {
+            name: "probe::layout",
+            tk_geometry: Some(tcl_registry::tk_geometry::TkGeometryManagerSpec {
+                container_policy: tcl_registry::tk_geometry::TkGeometryContainerPolicy::Exclusive,
+                container_option: Some("-inside"),
+                direct_form: false,
+                placement_subcommand: Some("arrange"),
+                release_subcommands: &["release", "unmanage"],
+            }),
+            ..tcl_registry::spec::CommandSpec::DEFAULT
+        };
+
+        let before = draft::from_command_spec(&spec);
+        let text = render_pack(std::slice::from_ref(&before), "probe");
+        assert!(text.contains("tk_geometry Exclusive"), "{text}");
+        assert!(text.contains("-container-option -inside"), "{text}");
+        assert!(text.contains("-placement-subcommand arrange"), "{text}");
+        assert!(
+            text.contains("-release-subcommands {release unmanage}"),
+            "{text}"
+        );
+        assert!(!text.contains("-container-option -in\n"), "{text}");
+
+        let pack = crate::spectcl::load_pack(&text);
+        assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
+        let reloaded = pack.command("probe::layout").expect("command reloads");
+        assert_eq!(
+            reloaded
+                .spec
+                .tk_geometry
+                .and_then(|geometry| geometry.container_option),
+            Some("-inside")
+        );
+        let geometry = reloaded.spec.tk_geometry.expect("geometry descriptor");
+        assert!(!geometry.direct_form);
+        assert_eq!(geometry.placement_subcommand, Some("arrange"));
+        assert_eq!(geometry.release_subcommands, ["release", "unmanage"]);
     }
 }

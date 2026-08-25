@@ -24,6 +24,19 @@
 use crate::common::{Lsp, unique_uri};
 
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+
+fn sha256_hex(text: &str) -> String {
+    use std::fmt::Write as _;
+
+    let digest = Sha256::digest(text.as_bytes());
+    let mut encoded = String::with_capacity(digest.len() * 2);
+    for byte in digest {
+        write!(&mut encoded, "{byte:02x}")
+            .expect("writing a SHA-256 digest to a String cannot fail");
+    }
+    encoded
+}
 
 /// The `set` of `code` strings in an `applied` array.
 fn applied_codes(result: &Value) -> std::collections::BTreeSet<String> {
@@ -442,6 +455,129 @@ fn effective_config_shape() {
     assert!(data.get("dialect").is_some());
 }
 
+#[test]
+fn tk_preview_analyses_the_open_versioned_document() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        r"package require Tk
+ttk::frame .main \
+    -padding 8
+ttk::button .main.ok -text {Save changes}
+grid .main.ok -row 0 -column 0 -sticky ew
+",
+    );
+
+    let result = lsp.execute_command("tcl-lsp.tkPreview", json!([{ "uri": uri, "version": 1 }]));
+    assert_eq!(result["schema_version"], 1, "{result}");
+    assert_eq!(result["document_uri"], uri, "{result}");
+    assert_eq!(result["document_version"], 1, "{result}");
+    assert_eq!(result["widget_count"], 3, "root plus two widgets: {result}");
+    assert_eq!(result["root"]["path"], ".", "{result}");
+    assert_eq!(result["root"]["children"][0]["path"], ".main", "{result}");
+    assert_eq!(
+        result["root"]["children"][0]["children"][0]["path"], ".main.ok",
+        "{result}"
+    );
+}
+
+#[test]
+fn tk_preview_rejects_an_unversioned_source_copy() {
+    let mut lsp = Lsp::tcl();
+    let result = lsp.execute_command(
+        "tcl-lsp.tkPreview",
+        json!(["package require Tk\nbutton .run -command dangerous"]),
+    );
+    assert!(
+        result.is_null(),
+        "preview accepts only an open-document URI request: {result}"
+    );
+}
+
+#[test]
+fn tk_preview_rejects_a_stale_requested_version() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "package require Tk\nframe .current\n");
+
+    let response = lsp.request_response(
+        "workspace/executeCommand",
+        json!({
+            "command": "tcl-lsp.tkPreview",
+            "arguments": [{ "uri": uri, "version": 0 }],
+        }),
+        std::time::Duration::from_secs(10),
+    );
+    assert_eq!(response["error"]["code"], -32801, "{response}");
+}
+
+#[test]
+fn tk_preview_rejects_a_non_integer_requested_version() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(&uri, "package require Tk\nframe .current\n");
+
+    for version in [json!("1"), json!(1.5), json!(i64::from(i32::MAX) + 1)] {
+        let response = lsp.request_response(
+            "workspace/executeCommand",
+            json!({
+                "command": "tcl-lsp.tkPreview",
+                "arguments": [{ "uri": uri, "version": version }],
+            }),
+            std::time::Duration::from_secs(10),
+        );
+        assert_eq!(response["error"]["code"], -32602, "{response}");
+    }
+}
+
+#[test]
+fn tk_preview_accepts_only_the_requested_document_fingerprint() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "package require Tk\nframe .current\n";
+    let fingerprint = sha256_hex(source);
+    lsp.open_ready(&uri, source);
+
+    let result = lsp.execute_command(
+        "tcl-lsp.tkPreview",
+        json!([{ "uri": uri, "document_sha256": fingerprint }]),
+    );
+    assert_eq!(result["document_sha256"], fingerprint, "{result}");
+
+    let response = lsp.request_response(
+        "workspace/executeCommand",
+        json!({
+            "command": "tcl-lsp.tkPreview",
+            "arguments": [{
+                "uri": uri,
+                "document_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            }],
+        }),
+        std::time::Duration::from_secs(10),
+    );
+    assert_eq!(response["error"]["code"], -32801, "{response}");
+}
+
+#[test]
+fn tk_preview_fingerprints_the_editors_raw_line_endings() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let source = "package require Tk\rframe .current\r";
+    let fingerprint = sha256_hex(source);
+    lsp.open_ready(&uri, source);
+
+    let result = lsp.execute_command(
+        "tcl-lsp.tkPreview",
+        json!([{ "uri": uri, "document_sha256": fingerprint }]),
+    );
+    assert_eq!(result["document_sha256"], fingerprint, "{result}");
+    assert_eq!(
+        result["root"]["children"][0]["path"], ".current",
+        "{result}"
+    );
+}
+
 // -- TestCommandSurface --------------------------------------------------
 
 /// Commands advertised in `executeCommandProvider` that every conforming backend
@@ -456,6 +592,7 @@ const CORE_COMMANDS: &[&str] = &[
     "tcl-lsp.describeIruleCommand",
     "tcl-lsp.listIruleEvents",
     "tcl-lsp.diagramData",
+    "tcl-lsp.tkPreview",
 ];
 
 #[test]

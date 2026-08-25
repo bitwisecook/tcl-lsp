@@ -88,6 +88,112 @@ pub struct OptionValueOutcome {
 /// 0-based index into `args` of the first value word.
 pub type OptionValueHook = fn(args: &[&str], start: usize) -> OptionValueOutcome;
 
+/// When a script-valued argument is evaluated relative to the invocation that
+/// receives it.
+///
+/// This is deliberately separate from [`BodyKind`]: that descriptor answers
+/// *which frame* a body uses, while this one answers *when* it runs.  The
+/// distinction matters for callback options: a Tk widget constructor stores
+/// `-command` for a later event, whereas `tcltest::test -body` evaluates its
+/// script before the `test` invocation returns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScriptTiming {
+    /// The script may run before the receiving invocation returns.
+    SameInvocation,
+    /// The receiving invocation stores the script for a later callback.
+    Deferred,
+    /// The invocation identifies executable text but neither evaluates nor
+    /// stores it.  Removal/query forms use this for a command prefix that is
+    /// matched against an existing registration (`trace remove`), so
+    /// navigation still sees the reference without inventing a callback or a
+    /// current-invocation control-flow edge.
+    ReferenceOnly,
+}
+
+/// A value substituted into a stored callback immediately before Tcl evaluates
+/// it, whose bytes originate outside the program.
+///
+/// Tk's `%` replacement language is deliberately modelled as data rather than
+/// a `Body` role: the receiving command stores a script, then substitutes only
+/// the declared markers when an event or validation actually fires.  The
+/// registry lists *only* externally controlled markers.  Stable metadata such
+/// as `%W` (widget pathname), `%d` (validation action), `%i` (index), and `%V`
+/// (validation reason) is intentionally absent, so a callback cannot become a
+/// taint source merely because it observes framework bookkeeping.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CallbackTaintInput {
+    /// A Tk `%` substitution.  The spelling includes the leading percent,
+    /// for example `"%P"` or `"%A"`.
+    TkPercent(&'static str),
+}
+
+impl CallbackTaintInput {
+    /// The proposed value supplied to an entry/spinbox validation callback.
+    pub const TK_PROPOSED_VALUE: Self = Self::TkPercent("%P");
+    /// The value before a validation edit.
+    pub const TK_CURRENT_VALUE: Self = Self::TkPercent("%s");
+    /// Text being inserted or deleted by a validation edit.
+    pub const TK_EDIT_TEXT: Self = Self::TkPercent("%S");
+    /// The character delivered by a Tk key event.
+    pub const TK_EVENT_CHAR: Self = Self::TkPercent("%A");
+    /// The symbolic keysym delivered by a Tk key event. Shipped Tk specs treat
+    /// this as metadata, but dialect packs may opt in when their threat model
+    /// treats symbolic choices as tainted input.
+    pub const TK_EVENT_KEYSYM: Self = Self::TkPercent("%K");
+    /// The source spelling recognised in a callback script.
+    #[must_use]
+    pub const fn spelling(self) -> &'static str {
+        match self {
+            Self::TkPercent(spelling) => spelling,
+        }
+    }
+
+    /// Whether this input occurs as an actual Tk `%` replacement in `text`.
+    ///
+    /// `%%` is Tk's escaped literal percent, so it never starts a marker.  A
+    /// caller supplies only registry-declared inputs; this helper never treats
+    /// an arbitrary percent sequence as tainted.
+    #[must_use]
+    pub fn occurs_in(self, text: &str) -> bool {
+        let marker = self.spelling().as_bytes();
+        let bytes = text.as_bytes();
+        if marker.len() != 2 || bytes.len() < marker.len() {
+            return false;
+        }
+        let mut index = 0;
+        while index + 1 < bytes.len() {
+            if bytes[index] != b'%' {
+                index += 1;
+                continue;
+            }
+            if bytes[index + 1] == b'%' {
+                index += 2;
+                continue;
+            }
+            if bytes[index..].starts_with(marker) {
+                return true;
+            }
+            index += 1;
+        }
+        false
+    }
+}
+
+/// Variable frame used by a variable-name option value.
+///
+/// Tcl commands normally resolve an unqualified variable name in the current
+/// call frame. Some APIs instead document an interpreter-global link: Tk's
+/// `-textvariable` / `-variable` options are the canonical example. Keeping
+/// this on [`OptionArg`] lets SSA and taint analysis normalise the same name
+/// without knowing which command or option supplied it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VariableScope {
+    /// Resolve an unqualified name in the invocation's current Tcl frame.
+    CurrentFrame,
+    /// Resolve an unqualified name from the global namespace.
+    Global,
+}
+
 /// How many following words a value-taking option consumes.
 ///
 /// No `PartialEq`/`Eq`/`Hash` — `Hook`'s fn-pointer payload has no
@@ -159,10 +265,27 @@ pub struct OptionArg {
     /// (a `-textvariable` name is both written and read by the widget →
     /// `role: VarWrite, also_role: Some(VarRead)`).
     pub also_role: Option<ArgRole>,
+    /// Whether this variable-name value is a user-input link whose future
+    /// writes originate outside the Tcl program (for example an editable Tk
+    /// widget's `-textvariable` or selection `-variable`). Display-only
+    /// variable links deliberately leave this false.
+    pub taints_var_write: bool,
+    /// Frame in which a variable-name value is resolved. Meaningful for
+    /// [`ArgRole::VarRead`] / [`ArgRole::VarWrite`]; other roles retain the
+    /// [`VariableScope::CurrentFrame`] default.
+    pub variable_scope: VariableScope,
     /// When `role` is [`ArgRole::Body`], whether the script runs in the
     /// caller's frame (`Plain`) or a separate definition/dispatch scope
     /// (`Structural` — a Tk `-command` callback).
     pub body_kind: BodyKind,
+    /// When an executable option runs. Meaningful when `role` or `also_role`
+    /// is [`ArgRole::Body`], [`ArgRole::LambdaLiteral`], or
+    /// [`ArgRole::CommandPrefix`]; other roles leave the default.
+    pub script_timing: ScriptTiming,
+    /// Externally controlled substitutions that the callback host injects
+    /// into this stored script immediately before it runs. Empty for normal
+    /// scripts and for callbacks carrying only framework metadata.
+    pub callback_taint_inputs: &'static [CallbackTaintInput],
     /// Enumerable value set for completion / closed-set checking; empty when
     /// the value is open (an arbitrary string / number / name).
     pub values: &'static [ArgValue],
@@ -189,7 +312,11 @@ impl OptionArg {
         arity: OptionArity::One,
         role: ArgRole::Value,
         also_role: None,
+        taints_var_write: false,
+        variable_scope: VariableScope::CurrentFrame,
         body_kind: BodyKind::Plain,
+        script_timing: ScriptTiming::SameInvocation,
+        callback_taint_inputs: &[],
         values: &[],
         closed: false,
         integer: None,
@@ -230,13 +357,39 @@ impl OptionValue {
         })
     }
 
-    /// A single script-body value run in its own (Structural) scope — a Tk
-    /// `-command` / `-validatecommand` callback.
+    /// A single script-body value evaluated during this invocation, in its own
+    /// (Structural) scope (`tcltest::test -body`, for example).
     #[must_use]
     pub const fn script() -> Self {
         Self::Takes(OptionArg {
             role: ArgRole::Body,
             body_kind: BodyKind::Structural,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A single script-body value stored for a later callback, in its own
+    /// (Structural) scope — a Tk `-command` / `-validatecommand` callback.
+    #[must_use]
+    pub const fn deferred_script() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Body,
+            body_kind: BodyKind::Structural,
+            script_timing: ScriptTiming::Deferred,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A stored script callback with registry-declared external Tk `%`
+    /// substitutions.  The list must contain only values whose bytes can be
+    /// supplied by the user/event source; framework metadata stays absent.
+    #[must_use]
+    pub const fn deferred_tainted_script(inputs: &'static [CallbackTaintInput]) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::Body,
+            body_kind: BodyKind::Structural,
+            script_timing: ScriptTiming::Deferred,
+            callback_taint_inputs: inputs,
             ..OptionArg::DEFAULT
         })
     }
@@ -248,6 +401,33 @@ impl OptionValue {
         Self::Takes(OptionArg {
             role: ArgRole::VarWrite,
             also_role: Some(ArgRole::VarRead),
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A two-way variable binding resolved from the global namespace.
+    #[must_use]
+    pub const fn global_var_name() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::VarWrite,
+            also_role: Some(ArgRole::VarRead),
+            variable_scope: VariableScope::Global,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A two-way variable binding whose writes can originate from user input.
+    ///
+    /// This is intentionally distinct from [`Self::var_name`]: a label or
+    /// button `-textvariable` reads application state but is not an input
+    /// source, while an entry `-textvariable` is.
+    #[must_use]
+    pub const fn user_input_var() -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::VarWrite,
+            also_role: Some(ArgRole::VarRead),
+            taints_var_write: true,
+            variable_scope: VariableScope::Global,
             ..OptionArg::DEFAULT
         })
     }
@@ -331,6 +511,18 @@ impl OptionValue {
         })
     }
 
+    /// A command-prefix value stored for later invocation when the appended
+    /// arity is not known.
+    #[must_use]
+    pub const fn deferred_command_prefix(hint: &'static str) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::CommandPrefix,
+            hint,
+            script_timing: ScriptTiming::Deferred,
+            ..OptionArg::DEFAULT
+        })
+    }
+
     /// A command-prefix value whose invoked-arity is known — `lsort -command`
     /// appends 2 (`command_prefix_n("cmdPrefix", AppendedArity::Exactly(2))`),
     /// `-xscrollcommand` appends 2, `socket -server` appends 3.  Drives the
@@ -341,6 +533,20 @@ impl OptionValue {
             role: ArgRole::CommandPrefix,
             hint,
             appended_arity: appended,
+            ..OptionArg::DEFAULT
+        })
+    }
+
+    /// A command-prefix value stored for later invocation, with a known
+    /// appended arity. Tk's `text sync -command` appends no arguments but
+    /// schedules the prefix after line metrics become current.
+    #[must_use]
+    pub const fn deferred_command_prefix_n(hint: &'static str, appended: AppendedArity) -> Self {
+        Self::Takes(OptionArg {
+            role: ArgRole::CommandPrefix,
+            hint,
+            appended_arity: appended,
+            script_timing: ScriptTiming::Deferred,
             ..OptionArg::DEFAULT
         })
     }
@@ -481,6 +687,50 @@ impl OptionSpec {
         match self.value {
             OptionValue::Flag => None,
             OptionValue::Takes(arg) => arg.also_role,
+        }
+    }
+
+    /// Whether the option links a variable to an external user-input source.
+    #[must_use]
+    pub const fn taints_var_write(&self) -> bool {
+        matches!(self.value, OptionValue::Takes(arg) if arg.taints_var_write)
+    }
+
+    /// Variable frame declared by this option value.
+    #[must_use]
+    pub const fn value_variable_scope(&self) -> Option<VariableScope> {
+        match self.value {
+            OptionValue::Takes(arg)
+                if matches!(arg.role, ArgRole::VarRead | ArgRole::VarWrite)
+                    || matches!(arg.also_role, Some(ArgRole::VarRead | ArgRole::VarWrite)) =>
+            {
+                Some(arg.variable_scope)
+            }
+            OptionValue::Flag | OptionValue::Takes(_) => None,
+        }
+    }
+
+    /// Timing declared by a script or command-prefix option, or `None` for a
+    /// flag or a non-executable value.
+    #[must_use]
+    pub const fn value_script_timing(&self) -> Option<ScriptTiming> {
+        match self.value {
+            OptionValue::Takes(arg)
+                if arg.role.has_script_timing()
+                    || matches!(arg.also_role, Some(role) if role.has_script_timing()) =>
+            {
+                Some(arg.script_timing)
+            }
+            OptionValue::Flag | OptionValue::Takes(_) => None,
+        }
+    }
+
+    /// Externally controlled callback substitutions declared for this option.
+    #[must_use]
+    pub const fn value_callback_taint_inputs(&self) -> &'static [CallbackTaintInput] {
+        match self.value {
+            OptionValue::Flag => &[],
+            OptionValue::Takes(arg) => arg.callback_taint_inputs,
         }
     }
 

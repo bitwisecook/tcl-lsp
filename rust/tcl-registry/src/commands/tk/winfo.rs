@@ -65,6 +65,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "containing",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::new(2, 4),
         detail: "Return the path name of the window containing the point.",
         synopsis: "winfo containing ?-displayof window? rootX rootY",
@@ -120,6 +121,15 @@ const SUBCOMMANDS: &[SubCommand] = &[
         ..SubCommand::DEFAULT
     },
     SubCommand {
+        name: "isdark",
+        arity: Arity::exact(1),
+        detail: "Return whether the window uses the platform dark appearance.",
+        synopsis: "winfo isdark window",
+        return_type: Some(TclType::Boolean),
+        lifecycle: Lifecycle::introduced_in("9.1"),
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
         name: "ismapped",
         arity: Arity::exact(1),
         detail: "Return 1 if the window is currently mapped, 0 otherwise.",
@@ -163,6 +173,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "pointerx",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::exact(1),
         detail: "Return the x-coordinate of the mouse pointer on the screen.",
         synopsis: "winfo pointerx window",
@@ -170,6 +181,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "pointerxy",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::exact(1),
         detail: "Return the x and y coordinates of the mouse pointer.",
         synopsis: "winfo pointerxy window",
@@ -177,6 +189,7 @@ const SUBCOMMANDS: &[SubCommand] = &[
     },
     SubCommand {
         name: "pointery",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::exact(1),
         detail: "Return the y-coordinate of the mouse pointer on the screen.",
         synopsis: "winfo pointery window",
@@ -429,5 +442,40 @@ pub fn spec() -> CommandSpec {
         side_effects: SIDE_EFFECTS,
         subcommands: SUBCOMMANDS,
         ..CommandSpec::DEFAULT
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn winfo_isdark_is_available_from_the_tk_91_profile_only() {
+        let spec = spec();
+        for (profile_name, expected) in [
+            ("tcl8.4", false),
+            ("tcl8.5", false),
+            ("tcl8.6", false),
+            ("tcl9.0", false),
+            ("tcl9.1", true),
+        ] {
+            let profile = tcl_dialect::DialectProfile::by_name(profile_name);
+            let floor = profile
+                .library_floor_default("Tk")
+                .unwrap_or_else(|| panic!("{profile_name} must pin Tk"));
+            let names: Vec<_> = spec
+                .subcommand_table(Some(profile.availability_mask), Some(floor), None)
+                .names()
+                .collect();
+            assert_eq!(
+                names.contains(&"isdark"),
+                expected,
+                "winfo isdark under {profile_name}"
+            );
+        }
+
+        let isdark = spec.subcommand("isdark").expect("winfo isdark");
+        assert_eq!(isdark.arity, Arity::exact(1));
+        assert_eq!(isdark.return_type, Some(TclType::Boolean));
     }
 }

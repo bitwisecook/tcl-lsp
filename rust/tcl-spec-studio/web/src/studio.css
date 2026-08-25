@@ -48,7 +48,6 @@ h1 { font-size: 1.5rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
   .logo-when-light { display: none; }
   .logo-when-dark { display: block; }
 }
-
 .card {
   background: var(--card); border: 1px solid var(--border); border-radius: 12px;
   padding: 1.25rem; box-shadow: var(--shadow); margin-bottom: 1.1rem;
@@ -199,6 +198,8 @@ summary .qbtn { margin-left: .45rem; }
 .helptext p { margin: 0 0 .5rem; }
 .helptext p:last-child { margin-bottom: 0; }
 .helptext[hidden] { display: none; }
+.inline-field-help { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .25rem; }
+.inline-field-help > .helptext { flex-basis: 100%; }
 .code-example {
   overflow-x: auto; margin: .55rem 0 0; padding: .55rem .65rem;
   border: 1px solid var(--border); border-radius: 7px;

@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the radiobutton text.",
         dialects: None,
         aliases: &[],
@@ -44,8 +44,35 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
+        name: "-background",
+        value: OptionValue::value("color"),
+        detail: "Normal background colour of the radiobutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("screen units"),
+        detail: "Width of the border around the radiobutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Normal foreground colour of the radiobutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Name of the global variable shared by all radiobuttons in the group.",
         dialects: None,
         aliases: &[],
@@ -63,7 +90,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Tcl command to invoke when the radiobutton is selected.",
         dialects: None,
         aliases: &[],
@@ -340,16 +367,78 @@ const OPTIONS: &[OptionSpec] = &[
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
-    OptionSpec {
-        name: "-offrelief",
-        value: OptionValue::value("relief"),
-        detail: "Specifies the relief for the checkbutton when the indicator is not drawn and the checkbutton is off. The.",
-        dialects: None,
-        aliases: &[],
-        lifecycle: Lifecycle::UNSPECIFIED,
-        min_abbrev: None,
+];
+
+static SUBCOMMANDS: [SubCommand; 6] = [
+    SubCommand {
+        name: "cget",
+        arity: Arity::exact(1),
+        detail: "Return the current value of a radiobutton option.",
+        synopsis: "pathName cget option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "configure",
+        arity: Arity::at_least(0),
+        detail: "Query or change radiobutton options.",
+        synopsis: "pathName configure ?option? ?value option value ...?",
+        return_type: Some(TclType::String),
+        subcommand_forms: super::common::CONFIGURE_FORMS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "deselect",
+        arity: Arity::exact(0),
+        detail: "Deselect the radiobutton and clear its associated variable.",
+        synopsis: "pathName deselect",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "flash",
+        arity: Arity::exact(0),
+        detail: "Flash the radiobutton using its active and normal colours.",
+        synopsis: "pathName flash",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "invoke",
+        arity: Arity::exact(0),
+        detail: "Select the radiobutton and invoke its associated command.",
+        synopsis: "pathName invoke",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "select",
+        arity: Arity::exact(0),
+        detail: "Select the radiobutton and set its associated variable to -value.",
+        synopsis: "pathName select",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
     },
 ];
+
+static RADIOBUTTON_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "radiobutton",
+    instance_methods: &SUBCOMMANDS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "radiobutton pathName ?option value ...?",
@@ -359,6 +448,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "radiobutton",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
@@ -374,6 +464,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: &SUBCOMMANDS,
+        object_class: Some(&RADIOBUTTON_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

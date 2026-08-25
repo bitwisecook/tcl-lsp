@@ -24,14 +24,59 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
+/// Entry validation substitutions whose bytes can come from the user-editable
+/// value. `%d`, `%i`, `%v`, `%V`, and `%W` are action/index/reason/widget
+/// metadata and deliberately remain clean.
+const VALIDATION_USER_INPUTS: &[CallbackTaintInput] = &[
+    CallbackTaintInput::TK_PROPOSED_VALUE,
+    CallbackTaintInput::TK_CURRENT_VALUE,
+    CallbackTaintInput::TK_EDIT_TEXT,
+];
+
 const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Name of a variable linked to the entry's contents.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-background",
+        value: OptionValue::value("color"),
+        detail: "Normal background colour of the entry.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("screen units"),
+        detail: "Width of the border around the entry.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Normal foreground colour of the entry.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-locale",
+        value: OptionValue::value("locale name"),
+        detail: "Locale used to determine word and character boundaries (Tk 9.1+).",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::introduced_in("9.1"),
         min_abbrev: None,
     },
     OptionSpec {
@@ -198,7 +243,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-xscrollcommand",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(2)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(2)),
         detail: "Command prefix for communicating with horizontal scrollbars.",
         dialects: None,
         aliases: &[],
@@ -234,7 +279,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-validatecommand",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate when validation is triggered.",
         dialects: None,
         aliases: &[],
@@ -243,7 +288,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-invalidcommand",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_tainted_script(VALIDATION_USER_INPUTS),
         detail: "Script to evaluate when validation fails.",
         dialects: None,
         aliases: &[],
@@ -298,7 +343,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-disabledbackground",
         value: OptionValue::value("color"),
-        detail: "Specifies the background color to use when the entry is disabled. If this option is the empty string, the.",
+        detail: "Background colour while disabled; empty uses the normal background.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -307,7 +352,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-disabledforeground",
         value: OptionValue::value("color"),
-        detail: "Specifies the foreground color to use when the entry is disabled. If this option is the empty string, the.",
+        detail: "Foreground colour while disabled; empty uses the normal foreground.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -316,12 +361,44 @@ const OPTIONS: &[OptionSpec] = &[
 ];
 
 /// The command's subcommands.
-static SUBCOMMANDS: [SubCommand; 10] = [
+const SELECTION_FORMS: &[SubCommandForm] = &[SubCommandForm {
+    name: "present",
+    arity: Arity::exact(1),
+    literal_argument_prefix: Some(LiteralArgumentPrefix::unique(&["present"])),
+    traits: Some(Traits::PURE),
+    mutator: Some(false),
+    side_effects: Some(super::common::TTK_WIDGET_READS),
+    ..SubCommandForm::DEFAULT
+}];
+
+static SUBCOMMANDS: [SubCommand; 12] = [
     SubCommand {
         name: "bbox",
         arity: Arity::exact(1),
         detail: "Return the bounding box of the character at the given index.",
         synopsis: "pathName bbox index",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "cget",
+        arity: Arity::exact(1),
+        detail: "Return the current value of an entry option.",
+        synopsis: "pathName cget option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "configure",
+        arity: Arity::at_least(0),
+        detail: "Query or change entry options.",
+        synopsis: "pathName configure ?option? ?value option value ...?",
+        return_type: Some(TclType::String),
+        subcommand_forms: super::common::CONFIGURE_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -329,13 +406,23 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::new(1, 2),
         detail: "Delete characters from first through last (or just the character at first).",
         synopsis: "pathName delete first ?last?",
+        // With validation enabled, a textual edit synchronously evaluates the
+        // configured validation (and, on rejection, invalid) callback.
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
         name: "get",
+        traits: Traits::TAINT_SOURCE,
         arity: Arity::exact(0),
         detail: "Return the entry's current string contents.",
         synopsis: "pathName get",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -343,6 +430,9 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::exact(1),
         detail: "Move the insertion cursor to just before the character at the given index.",
         synopsis: "pathName icursor index",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -350,6 +440,9 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::exact(1),
         detail: "Return the numerical index corresponding to the given index.",
         synopsis: "pathName index index",
+        pure: true,
+        return_type: Some(TclType::Int),
+        side_effects: super::common::TTK_WIDGET_READS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -357,6 +450,11 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::exact(2),
         detail: "Insert the string just before the character at the given index.",
         synopsis: "pathName insert index string",
+        // See `delete`: character insertion is validation-capable too.
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -364,6 +462,8 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::exact(2),
         detail: "Implement fast scanning/scrolling; option is mark or dragto.",
         synopsis: "pathName scan option arg",
+        mutator: true,
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -371,6 +471,10 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::at_least(1),
         detail: "Manipulate the selection; option is adjust, clear, from, present, range, or to.",
         synopsis: "pathName selection option ?arg ...?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: SELECTION_FORMS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -378,6 +482,10 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::exact(0),
         detail: "Force revalidation of the entry using its -validatecommand.",
         synopsis: "pathName validate",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::Boolean),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -385,6 +493,10 @@ static SUBCOMMANDS: [SubCommand; 10] = [
         arity: Arity::at_least(0),
         detail: "Query or change the horizontal position of the text visible in the entry.",
         synopsis: "pathName xview ?args?",
+        mutator: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        subcommand_forms: super::common::VIEW_FORMS,
         ..SubCommand::DEFAULT
     },
 ];
@@ -402,11 +514,13 @@ static ENTRY_CLASS: ObjectClassSpec = ObjectClassSpec {
     instance_methods: &SUBCOMMANDS,
     superclasses: &[],
     allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
 };
 
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "entry",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {

@@ -40,6 +40,7 @@ tcl-irules = { path = "../tcl-irules" }
 tcl-bigip = { path = "../tcl-bigip" }
 regex = "1"
 rustc-hash = { workspace = true }
+serde = { workspace = true }
 serde_json = "1"
 
 [dev-dependencies]

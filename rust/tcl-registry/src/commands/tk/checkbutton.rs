@@ -36,7 +36,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-textvariable",
-        value: OptionValue::var_name(),
+        value: OptionValue::global_var_name(),
         detail: "Name of a variable whose value will be used as the checkbutton text.",
         dialects: None,
         aliases: &[],
@@ -44,8 +44,35 @@ const OPTIONS: &[OptionSpec] = &[
         min_abbrev: None,
     },
     OptionSpec {
+        name: "-background",
+        value: OptionValue::value("color"),
+        detail: "Normal background colour of the checkbutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-borderwidth",
+        value: OptionValue::value("screen units"),
+        detail: "Width of the border around the checkbutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
+        name: "-foreground",
+        value: OptionValue::value("color"),
+        detail: "Normal foreground colour of the checkbutton.",
+        dialects: None,
+        aliases: &[],
+        lifecycle: Lifecycle::UNSPECIFIED,
+        min_abbrev: None,
+    },
+    OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Name of the global variable linked to the checkbutton state.",
         dialects: None,
         aliases: &[],
@@ -72,7 +99,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::script(),
+        value: OptionValue::deferred_script(),
         detail: "Tcl command to invoke when the checkbutton is toggled.",
         dialects: None,
         aliases: &[],
@@ -334,7 +361,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-offrelief",
         value: OptionValue::value("relief"),
-        detail: "Specifies the relief for the checkbutton when the indicator is not drawn and the checkbutton is off. The.",
+        detail: "Relief while deselected when -indicatoron is false; defaults to raised.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -343,7 +370,7 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-tristateimage",
         value: OptionValue::value("image"),
-        detail: "Specifies an image to display (in place of the -image option) when the checkbutton is in tri-state mode. This.",
+        detail: "Image shown in tri-state mode when -image is configured.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
@@ -352,13 +379,94 @@ const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         name: "-tristatevalue",
         value: OptionValue::value("value"),
-        detail: "Specifies the value that causes the checkbutton to display the multi-value selection, also known as the.",
+        detail: "Variable value that selects tri-state mode; defaults to the empty string.",
         dialects: None,
         aliases: &[],
         lifecycle: Lifecycle::UNSPECIFIED,
         min_abbrev: None,
     },
 ];
+
+static SUBCOMMANDS: [SubCommand; 7] = [
+    SubCommand {
+        name: "cget",
+        arity: Arity::exact(1),
+        detail: "Return the current value of a checkbutton option.",
+        synopsis: "pathName cget option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "configure",
+        arity: Arity::at_least(0),
+        detail: "Query or change checkbutton options.",
+        synopsis: "pathName configure ?option? ?value option value ...?",
+        return_type: Some(TclType::String),
+        subcommand_forms: super::common::CONFIGURE_FORMS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "deselect",
+        arity: Arity::exact(0),
+        detail: "Deselect the checkbutton and set its associated variable to -offvalue.",
+        synopsis: "pathName deselect",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "flash",
+        arity: Arity::exact(0),
+        detail: "Flash the checkbutton using its active and normal colours.",
+        synopsis: "pathName flash",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "invoke",
+        arity: Arity::exact(0),
+        detail: "Toggle the checkbutton and invoke its associated command.",
+        synopsis: "pathName invoke",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "select",
+        arity: Arity::exact(0),
+        detail: "Select the checkbutton and set its associated variable to -onvalue.",
+        synopsis: "pathName select",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "toggle",
+        arity: Arity::exact(0),
+        detail: "Toggle the checkbutton and update its associated variable.",
+        synopsis: "pathName toggle",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+];
+
+static CHECKBUTTON_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "checkbutton",
+    instance_methods: &SUBCOMMANDS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
 
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "checkbutton pathName ?option value ...?",
@@ -368,6 +476,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "checkbutton",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
@@ -383,6 +492,8 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        subcommands: &SUBCOMMANDS,
+        object_class: Some(&CHECKBUTTON_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }

@@ -58,6 +58,20 @@ pub fn render_fields_doc() -> String {
                 let _ = write!(out, "\n{}\n", paragraphs(text));
             }
         }
+        for field in schema::NESTED_FIELDS
+            .iter()
+            .filter(|field| field.group == *group)
+        {
+            let _ = write!(
+                out,
+                "\n### `{}.{}` — {}\n",
+                field.owner, field.key, field.label
+            );
+            let _ = write!(out, "\n*nested {} field* — {}\n", field.owner, field.doc);
+            if let Some(text) = help::field_help(field.key) {
+                let _ = write!(out, "\n{}\n", paragraphs(text));
+            }
+        }
     }
 
     out.push_str("\n## Vocabularies\n");
@@ -133,6 +147,14 @@ mod tests {
             assert!(
                 doc.contains(&format!("### `{}`", field.key)),
                 "missing field {}",
+                field.key
+            );
+        }
+        for field in schema::NESTED_FIELDS {
+            assert!(
+                doc.contains(&format!("### `{}.{}`", field.owner, field.key)),
+                "missing nested field {}.{}",
+                field.owner,
                 field.key
             );
         }

@@ -1313,7 +1313,16 @@
     },
     {
       "name": "checkbutton",
-      "summary": "Create and manipulate a checkbutton widget."
+      "summary": "Create and manipulate a checkbutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "deselect",
+        "flash",
+        "invoke",
+        "select",
+        "toggle"
+      ]
     },
     {
       "name": "classvariable",
@@ -1969,6 +1978,8 @@
       "summary": "Create and manipulate a single-line text entry widget.",
       "subcommands": [
         "bbox",
+        "cget",
+        "configure",
         "delete",
         "get",
         "icursor",
@@ -3859,6 +3870,8 @@
       "subcommands": [
         "activate",
         "bbox",
+        "cget",
+        "configure",
         "curselection",
         "delete",
         "get",
@@ -7347,7 +7360,15 @@
     },
     {
       "name": "radiobutton",
-      "summary": "Create and manipulate a radiobutton widget."
+      "summary": "Create and manipulate a radiobutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "deselect",
+        "flash",
+        "invoke",
+        "select"
+      ]
     },
     {
       "name": "raise",
@@ -7628,7 +7649,15 @@
     },
     {
       "name": "scale",
-      "summary": "Create and manipulate a scale (slider) widget."
+      "summary": "Create and manipulate a scale (slider) widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "coords",
+        "get",
+        "identify",
+        "set"
+      ]
     },
     {
       "name": "scan",
@@ -7656,6 +7685,10 @@
       "name": "self",
       "summary": "query information about the current method invocation",
       "pure": true
+    },
+    {
+      "name": "send",
+      "summary": "Execute a command in a different Tk application."
     },
     {
       "name": "set",
@@ -7913,6 +7946,8 @@
       "summary": "Create and manipulate a spinbox widget.",
       "subcommands": [
         "bbox",
+        "cget",
+        "configure",
         "delete",
         "get",
         "icursor",
@@ -9736,7 +9771,9 @@
       "summary": "Create and manipulate a multi-line text widget.",
       "subcommands": [
         "bbox",
+        "cget",
         "compare",
+        "configure",
         "count",
         "debug",
         "delete",
@@ -9747,6 +9784,7 @@
         "image",
         "index",
         "insert",
+        "locale",
         "mark",
         "peer",
         "pendingsync",
@@ -10174,15 +10212,236 @@
       "name": "tk",
       "summary": "Manipulate Tk internal state.",
       "subcommands": [
+        "accessible",
         "appname",
+        "attribtable",
         "busy",
         "caret",
+        "fileicon",
         "fontchooser",
         "inactive",
+        "print",
         "scaling",
+        "sysnotify",
+        "systray",
         "useinputmethods",
         "windowingsystem"
       ]
+    },
+    {
+      "name": "tk::button",
+      "summary": "Create and manipulate a button widget."
+    },
+    {
+      "name": "tk::canvas",
+      "summary": "Create and manipulate a canvas widget.",
+      "subcommands": [
+        "addtag",
+        "bbox",
+        "bind",
+        "canvasx",
+        "canvasy",
+        "coords",
+        "create",
+        "dchars",
+        "delete",
+        "dtag",
+        "find",
+        "focus",
+        "gettags",
+        "icursor",
+        "index",
+        "insert",
+        "itemcget",
+        "itemconfigure",
+        "lower",
+        "move",
+        "moveto",
+        "postscript",
+        "raise",
+        "rchars",
+        "scale",
+        "scan",
+        "select",
+        "type",
+        "xview",
+        "yview"
+      ]
+    },
+    {
+      "name": "tk::checkbutton",
+      "summary": "Create and manipulate a checkbutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "deselect",
+        "flash",
+        "invoke",
+        "select",
+        "toggle"
+      ]
+    },
+    {
+      "name": "tk::entry",
+      "summary": "Create and manipulate a single-line text entry widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "configure",
+        "delete",
+        "get",
+        "icursor",
+        "index",
+        "insert",
+        "scan",
+        "selection",
+        "validate",
+        "xview"
+      ]
+    },
+    {
+      "name": "tk::frame",
+      "summary": "Create and manipulate a frame widget."
+    },
+    {
+      "name": "tk::label",
+      "summary": "Create and manipulate a label widget."
+    },
+    {
+      "name": "tk::labelframe",
+      "summary": "Create and manipulate a labelframe widget."
+    },
+    {
+      "name": "tk::listbox",
+      "summary": "Create and manipulate a listbox widget.",
+      "subcommands": [
+        "activate",
+        "bbox",
+        "cget",
+        "configure",
+        "curselection",
+        "delete",
+        "get",
+        "index",
+        "insert",
+        "itemcget",
+        "itemconfigure",
+        "nearest",
+        "scan",
+        "see",
+        "selection",
+        "size",
+        "xview",
+        "yview"
+      ]
+    },
+    {
+      "name": "tk::menubutton",
+      "summary": "Create and manipulate a menubutton widget."
+    },
+    {
+      "name": "tk::message",
+      "summary": "Create and manipulate a message widget."
+    },
+    {
+      "name": "tk::panedwindow",
+      "summary": "Create and manipulate a panedwindow widget.",
+      "subcommands": [
+        "add",
+        "forget",
+        "identify",
+        "panecget",
+        "paneconfigure",
+        "panes",
+        "proxy",
+        "sash"
+      ]
+    },
+    {
+      "name": "tk::radiobutton",
+      "summary": "Create and manipulate a radiobutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "deselect",
+        "flash",
+        "invoke",
+        "select"
+      ]
+    },
+    {
+      "name": "tk::scale",
+      "summary": "Create and manipulate a scale (slider) widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "coords",
+        "get",
+        "identify",
+        "set"
+      ]
+    },
+    {
+      "name": "tk::scrollbar",
+      "summary": "Create and manipulate a scrollbar widget."
+    },
+    {
+      "name": "tk::spinbox",
+      "summary": "Create and manipulate a spinbox widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "configure",
+        "delete",
+        "get",
+        "icursor",
+        "identify",
+        "index",
+        "insert",
+        "invoke",
+        "scan",
+        "selection",
+        "set",
+        "validate",
+        "xview"
+      ]
+    },
+    {
+      "name": "tk::text",
+      "summary": "Create and manipulate a multi-line text widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "compare",
+        "configure",
+        "count",
+        "debug",
+        "delete",
+        "dlineinfo",
+        "dump",
+        "edit",
+        "get",
+        "image",
+        "index",
+        "insert",
+        "locale",
+        "mark",
+        "peer",
+        "pendingsync",
+        "replace",
+        "scan",
+        "search",
+        "see",
+        "sync",
+        "tag",
+        "window",
+        "xview",
+        "yview"
+      ]
+    },
+    {
+      "name": "tk::toplevel",
+      "summary": "Create and manipulate a toplevel widget."
     },
     {
       "name": "tk_bisque",
@@ -10267,37 +10526,128 @@
     },
     {
       "name": "ttk::button",
-      "summary": "Create and manipulate a themed button widget."
+      "summary": "Create and manipulate a themed button widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "invoke",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::checkbutton",
-      "summary": "Create and manipulate a themed checkbutton widget."
+      "summary": "Create and manipulate a themed checkbutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "invoke",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::combobox",
-      "summary": "Create and manipulate a themed combobox widget."
+      "summary": "Create and manipulate a themed combobox widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "configure",
+        "current",
+        "delete",
+        "get",
+        "icursor",
+        "identify",
+        "index",
+        "insert",
+        "instate",
+        "selection",
+        "set",
+        "state",
+        "style",
+        "xview"
+      ]
     },
     {
       "name": "ttk::entry",
-      "summary": "Create and manipulate a themed text entry widget."
+      "summary": "Create and manipulate a themed text entry widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "configure",
+        "delete",
+        "get",
+        "icursor",
+        "identify",
+        "index",
+        "insert",
+        "instate",
+        "selection",
+        "state",
+        "style",
+        "validate",
+        "xview"
+      ]
     },
     {
       "name": "ttk::frame",
-      "summary": "Create and manipulate a themed frame container widget."
+      "summary": "Create and manipulate a themed frame container widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::label",
-      "summary": "Create and manipulate a themed label widget."
+      "summary": "Create and manipulate a themed label widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
+    },
+    {
+      "name": "ttk::labelframe",
+      "summary": "Create and manipulate a themed labelframe container widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::menubutton",
-      "summary": "Create and manipulate a themed menubutton widget."
+      "summary": "Create and manipulate a themed menubutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::notebook",
       "summary": "Create and manipulate a themed tabbed notebook widget.",
       "subcommands": [
         "add",
+        "cget",
+        "configure",
         "forget",
         "hide",
         "identify",
@@ -10306,37 +10656,133 @@
         "instate",
         "select",
         "state",
+        "style",
         "tab",
         "tabs"
       ]
     },
     {
       "name": "ttk::panedwindow",
-      "summary": "Create and manipulate a themed paned-window widget."
+      "summary": "Create and manipulate a themed paned-window widget.",
+      "subcommands": [
+        "add",
+        "cget",
+        "configure",
+        "forget",
+        "identify",
+        "insert",
+        "instate",
+        "pane",
+        "panes",
+        "sashpos",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::progressbar",
-      "summary": "Create and manipulate a themed progress indicator widget."
+      "summary": "Create and manipulate a themed progress indicator widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "start",
+        "state",
+        "step",
+        "stop",
+        "style"
+      ]
     },
     {
       "name": "ttk::radiobutton",
-      "summary": "Create and manipulate a themed radiobutton widget."
+      "summary": "Create and manipulate a themed radiobutton widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "invoke",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::scale",
-      "summary": "Create and manipulate a themed scale (slider) widget."
+      "summary": "Create and manipulate a themed scale (slider) widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "coords",
+        "get",
+        "identify",
+        "instate",
+        "set",
+        "state",
+        "style"
+      ]
+    },
+    {
+      "name": "ttk::scrollbar",
+      "summary": "Create and manipulate a themed scrollbar widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "delta",
+        "fraction",
+        "get",
+        "identify",
+        "instate",
+        "set",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::separator",
-      "summary": "Create and manipulate a themed separator widget."
+      "summary": "Create and manipulate a themed separator widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::sizegrip",
-      "summary": "Create and manipulate a themed size grip widget for resizing."
+      "summary": "Create and manipulate a themed size grip widget for resizing.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "identify",
+        "instate",
+        "state",
+        "style"
+      ]
     },
     {
       "name": "ttk::spinbox",
-      "summary": "Create and manipulate a themed spinbox widget."
+      "summary": "Create and manipulate a themed spinbox widget.",
+      "subcommands": [
+        "bbox",
+        "cget",
+        "configure",
+        "delete",
+        "get",
+        "icursor",
+        "identify",
+        "index",
+        "insert",
+        "instate",
+        "selection",
+        "set",
+        "state",
+        "style",
+        "validate",
+        "xview"
+      ]
     },
     {
       "name": "ttk::style",
@@ -10351,17 +10797,51 @@
       ]
     },
     {
+      "name": "ttk::toggleswitch",
+      "summary": "Create and manipulate a themed toggle switch widget.",
+      "subcommands": [
+        "cget",
+        "configure",
+        "get",
+        "identify",
+        "instate",
+        "set",
+        "state",
+        "style",
+        "switchstate",
+        "toggle",
+        "xcoord"
+      ]
+    },
+    {
       "name": "ttk::treeview",
       "summary": "Create and manipulate a themed hierarchical multicolumn data display widget.",
       "subcommands": [
+        "after",
         "bbox",
+        "before",
+        "cellfocus",
+        "cellselection",
+        "cget",
         "children",
+        "collapse",
         "column",
+        "configure",
+        "current",
         "delete",
+        "depth",
         "detach",
+        "detached",
+        "drag",
+        "drop",
         "exists",
+        "expand",
         "focus",
+        "haschildren",
         "heading",
+        "hide",
+        "id",
+        "identifier",
         "identify",
         "index",
         "insert",
@@ -10371,11 +10851,18 @@
         "next",
         "parent",
         "prev",
+        "range",
+        "search",
         "see",
         "selection",
         "set",
+        "size",
+        "sort",
         "state",
+        "style",
         "tag",
+        "unhide",
+        "visible",
         "xview",
         "yview"
       ]
@@ -10622,6 +11109,7 @@
         "height",
         "id",
         "interps",
+        "isdark",
         "ismapped",
         "manager",
         "name",

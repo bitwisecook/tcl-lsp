@@ -58,6 +58,7 @@ tcl-diagram = { path = "../tcl-diagram" }
 # straight back.
 salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
 serde_json = "1"
+sha2 = "0.11"
 # `FutureExt::shared` (progressive diagnostics, #844): the base per-file analysis
 # is computed once and awaited by both the deep pass's `join!` and the fast-tier
 # publish, so the coarse tier reuses the in-flight read rather than issuing a

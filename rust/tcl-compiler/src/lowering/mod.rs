@@ -2648,6 +2648,9 @@ impl<'r> Lowerer<'r> {
 
     /// Default lowering: generic [`Statement::Call`] with registry-based
     /// arg roles.
+    // The generic path deliberately assembles every registry-owned call fact
+    // in one place so consumers never need per-command recovery logic.
+    #[allow(clippy::too_many_lines)]
     fn lower_default(&self, seg: &SegmentedCommand, namespace: &str) -> Statement {
         let cmd_name = seg.name();
         let args = seg.args();
@@ -2677,9 +2680,18 @@ impl<'r> Lowerer<'r> {
         }
 
         let role_args_ref: Vec<&str> = role_args.iter().map(String::as_str).collect();
-        let body_indices =
+        let mut executable_indices =
             self.registry
                 .arg_indices_for_role(&role_cmd, &role_args_ref, ArgRole::Body);
+        for role in [ArgRole::LambdaLiteral, ArgRole::CommandPrefix] {
+            executable_indices.extend(self.registry.arg_indices_for_role(
+                &role_cmd,
+                &role_args_ref,
+                role,
+            ));
+        }
+        executable_indices.sort_unstable();
+        executable_indices.dedup();
         let var_indices = if self.registry.frame_effect(&role_cmd).is_some_and(|effect| {
             effect.layout == tcl_registry::frame_effect::FrameArgLayout::AliasPairs
         }) {
@@ -2706,7 +2718,22 @@ impl<'r> Lowerer<'r> {
             .get(&role_cmd)
             .is_some_and(|s| s.traits.contains(tcl_registry::Traits::READS_BEFORE_WRITE));
 
-        if !body_indices.is_empty() {
+        // A stored callback is data for this invocation, not executable code
+        // that can complete or mutate the caller before the command returns.
+        // Every live Body, LambdaLiteral, or CommandPrefix whose exact timing
+        // is SameInvocation needs the opaque runtime barrier. This is checked
+        // per index because one invocation may mix immediate and deferred code.
+        let has_same_invocation_executable = executable_indices.iter().any(|&index| {
+            self.registry
+                .script_timing(
+                    &role_cmd,
+                    &role_args_ref,
+                    index,
+                    self.registry.own_availability_mask(),
+                )
+                .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
+        });
+        if has_same_invocation_executable {
             return Statement::Barrier {
                 span: seg.span,
                 reason: "unsupported body command".into(),
@@ -2732,7 +2759,19 @@ impl<'r> Lowerer<'r> {
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
                     args.get(real).map(|a| {
-                        crate::naming::element_var_name_braced(a, braced_at(real)).to_owned()
+                        let name = crate::naming::element_var_name_braced(a, braced_at(real));
+                        if self.registry.option_variable_scope(
+                            &role_cmd,
+                            &role_args_ref,
+                            i,
+                            self.registry.own_availability_mask(),
+                        ) == Some(tcl_registry::VariableScope::Global)
+                            && !name.starts_with("::")
+                        {
+                            format!("::{name}")
+                        } else {
+                            name.to_owned()
+                        }
                     })
                 })
                 .collect();
@@ -2741,7 +2780,19 @@ impl<'r> Lowerer<'r> {
                 .filter_map(|&i| {
                     let real = i.checked_sub(prepend_n)?;
                     args.get(real).map(|a| {
-                        crate::naming::element_var_name_braced(a, braced_at(real)).to_owned()
+                        let name = crate::naming::element_var_name_braced(a, braced_at(real));
+                        if self.registry.option_variable_scope(
+                            &role_cmd,
+                            &role_args_ref,
+                            i,
+                            self.registry.own_availability_mask(),
+                        ) == Some(tcl_registry::VariableScope::Global)
+                            && !name.starts_with("::")
+                        {
+                            format!("::{name}")
+                        } else {
+                            name.to_owned()
+                        }
                     })
                 })
                 .collect();
@@ -6249,6 +6300,70 @@ mod tests {
             ),
             other => panic!("expected Call via lower_default, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn deferred_tk_callback_does_not_hide_constructor_variable_defs() {
+        let m = lower_to_ir(
+            "entry .e -textvariable input -validatecommand {return 1}",
+            &reg(),
+        );
+        let stmt = m.top_level.statements.first().expect("entry call");
+        match stmt {
+            Statement::Call { command, defs, .. } => {
+                assert_eq!(command, "entry");
+                assert_eq!(defs, &["::input"]);
+            }
+            other => panic!("deferred callback must not make the constructor opaque: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn immediate_tcltest_body_remains_a_runtime_barrier() {
+        let m = lower_to_ir(
+            "tcltest::test sample description -body {error failure}",
+            &reg(),
+        );
+        let stmt = m.top_level.statements.first().expect("test call");
+        assert!(
+            matches!(stmt, Statement::Barrier { command, .. } if command == "tcltest::test"),
+            "same-invocation -body must remain opaque: {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn same_invocation_command_prefix_is_a_runtime_barrier() {
+        let m = lower_to_ir("lsort -command compare {b a}", &reg());
+        let stmt = m.top_level.statements.first().expect("lsort call");
+        assert!(
+            matches!(stmt, Statement::Barrier { command, .. } if command == "lsort"),
+            "a live command prefix can throw or mutate before return: {stmt:?}",
+        );
+    }
+
+    #[test]
+    fn deferred_command_prefix_does_not_create_a_runtime_barrier() {
+        for (source, expected_command) in [
+            ("scrollbar .s -command moved", "scrollbar"),
+            ("trace add variable v write changed", "trace"),
+        ] {
+            let m = lower_to_ir(source, &reg());
+            let stmt = m.top_level.statements.first().expect("callback host call");
+            assert!(
+                matches!(stmt, Statement::Call { command, .. } if command == expected_command),
+                "a stored command prefix cannot affect its registration invocation: {stmt:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn reference_only_command_prefix_does_not_create_a_runtime_barrier() {
+        let m = lower_to_ir("trace remove variable v write changed", &reg());
+        let stmt = m.top_level.statements.first().expect("trace remove call");
+        assert!(
+            matches!(stmt, Statement::Call { command, .. } if command == "trace"),
+            "matching a prior registration does not execute the prefix: {stmt:?}",
+        );
     }
 
     // These tests pin the registry-driven hook-ID dispatch of `if`,

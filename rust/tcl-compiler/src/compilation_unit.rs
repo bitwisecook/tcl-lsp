@@ -44,7 +44,7 @@ use crate::rendered_properties::{RenderedValueProps, propagate_rendered_props};
 use crate::sccp::{SccpResult, sccp_with_extra_escaping};
 use crate::semantic_analysis::SemanticAnalysisBundle;
 use crate::ssa::{SsaFunction, ValueKey, build_ssa};
-use crate::taint::{TaintGraph, TaintLattice, propagate_taints};
+use crate::taint::{TaintGraph, TaintLattice, instance_classes_for_function, propagate_taints};
 use crate::type_infer::propagate_types;
 use crate::types::TypeLattice;
 use crate::unit_scope::{
@@ -684,6 +684,7 @@ impl FunctionUnit {
             &ssa,
         );
         let rendered_props = propagate_rendered_props(&cfg, &ssa, &sccp, registry);
+        let instance_classes = instance_classes_for_function(&cfg, registry, None, false);
         let taints = propagate_taints(
             &TaintGraph::new(&cfg, &ssa, &sccp),
             registry,
@@ -692,6 +693,7 @@ impl FunctionUnit {
             None,
             None,
             None,
+            &instance_classes,
         );
         Self {
             name: name.into(),
@@ -863,6 +865,7 @@ impl FunctionUnit {
         ia: &InterproceduralAnalysis,
         dialect: Option<&tcl_dialect::DialectProfile>,
     ) -> HashMap<ValueKey, TaintLattice> {
+        let instance_classes = instance_classes_for_function(&self.cfg, registry, Some(ia), true);
         propagate_taints(
             &TaintGraph::new(&self.cfg, &self.ssa, &self.sccp),
             registry,
@@ -871,6 +874,7 @@ impl FunctionUnit {
             dialect,
             None,
             None,
+            &instance_classes,
         )
     }
 }
@@ -998,7 +1002,7 @@ fn lower_and_build_cfg(
     source: &str,
     options: UnitBuildOptions<'_>,
     body_cache: Option<&BodyLoweringCache<'_>>,
-) -> (IrModule, CfgModule) {
+) -> (IrModule, CfgModule, HashMap<String, HashSet<String>>) {
     let registry = options.registry;
     let mut ir_module = match body_cache {
         Some(bc) => crate::lowering::lower_to_ir_with_body_cache(
@@ -1024,8 +1028,10 @@ fn lower_and_build_cfg(
     // every passthrough callsite is replaced with a Statement::Block
     // that splices the body inline.
     crate::inline_uplevel::inline_uplevel_passthrough(&mut ir_module, registry);
-    let cfg_module = build_cfg(&ir_module, options.defer_top_level);
-    (ir_module, cfg_module)
+    let mut cfg_module = build_cfg(&ir_module, options.defer_top_level);
+    let tainted_global_writes =
+        crate::interprocedural::enrich_instance_taint_cfg(&ir_module, &mut cfg_module, registry);
+    (ir_module, cfg_module, tainted_global_writes)
 }
 
 /// Resolve everything the interprocedural constant seed needs to know about
@@ -1119,6 +1125,9 @@ struct ProcedureBuildContext<'a> {
     known_classes: &'a [String],
     traced_variable_names: &'a [String],
     trace_facts: ModuleTraceFacts<'a>,
+    /// Procedures whose CFG has module-derived instance-option writes. Their
+    /// annotated CFG cannot be reconstructed from the body-only lattice memo.
+    tainted_global_writes: &'a HashMap<String, HashSet<String>>,
 }
 
 /// Build one [`FunctionUnit`] per procedure: seed its SCCP with the
@@ -1177,12 +1186,23 @@ fn build_procedure_units(
         // Route through the memo only when (a) a cache is present, (b) the
         // procedure has a real body, (c) the module context is available,
         // and (d) the seeds encode into the hashable key form.
-        let memoised = match (cache.as_mut(), proc, ctx.cfg_context, encoded_pc) {
+        let has_instance_global_writes = ctx
+            .tainted_global_writes
+            .get(qname)
+            .is_some_and(|writes| !writes.is_empty());
+        let memoised = match (
+            cache.as_mut(),
+            proc,
+            ctx.cfg_context,
+            encoded_pc,
+            has_instance_global_writes,
+        ) {
             (
                 Some(memo),
                 Some(proc),
                 Some((upvar_procs, proc_params, global_write_procs)),
                 Some(encoded_pc),
+                false,
             ) => {
                 // Normalise the body to offset 0 so a shifted-but-unchanged
                 // procedure produces an identical request (memo hit).
@@ -1450,7 +1470,8 @@ impl CompilationUnit {
             external_call_sites,
             ..
         } = options;
-        let (ir_module, cfg_module) = lower_and_build_cfg(source, options, body_cache);
+        let (ir_module, cfg_module, tainted_global_writes) =
+            lower_and_build_cfg(source, options, body_cache);
         // Module-wide upvar/param context — the CFG-determining context a
         // procedure body is rebuilt under.  Computed once and shared by every
         // memoised request, the methods/body-units below, and the call-site
@@ -1503,6 +1524,7 @@ impl CompilationUnit {
                 known_classes: &known_classes,
                 traced_variable_names: &traced_variable_names,
                 trace_facts,
+                tainted_global_writes: &tainted_global_writes,
             },
             cache,
         );
@@ -1523,22 +1545,7 @@ impl CompilationUnit {
             trace_facts,
             semantic_dialect,
         );
-        // Build the cross-event scope from the
-        // ``::when::*`` subset of procedures.  ``None`` when no
-        // ``when`` block is present so non-iRules consumers
-        // skip the (empty) sweep.
-        let connection_scope = {
-            let when_procs: HashMap<String, FunctionUnit> = procedures
-                .iter()
-                .filter(|(qn, _)| qn.starts_with("::when::"))
-                .map(|(qn, fu)| (qn.clone(), fu.clone()))
-                .collect();
-            if when_procs.is_empty() {
-                None
-            } else {
-                Some(crate::connection_scope::build_connection_scope(&when_procs))
-            }
-        };
+        let connection_scope = Self::build_connection_scope(&procedures);
         Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
         Self {
             source: source.to_owned(),
@@ -1647,6 +1654,21 @@ impl CompilationUnit {
                 (mqname.clone(), fu)
             })
             .collect()
+    }
+
+    /// Build the cross-event scope from the `::when::*` procedures.
+    ///
+    /// `None` lets non-iRules consumers skip the empty sweep.
+    fn build_connection_scope(
+        procedures: &HashMap<String, FunctionUnit>,
+    ) -> Option<crate::connection_scope::ConnectionScope> {
+        let when_procs: HashMap<String, FunctionUnit> = procedures
+            .iter()
+            .filter(|(qname, _)| qname.starts_with("::when::"))
+            .map(|(qname, unit)| (qname.clone(), unit.clone()))
+            .collect();
+        (!when_procs.is_empty())
+            .then(|| crate::connection_scope::build_connection_scope(&when_procs))
     }
 
     /// Lower the synthetic *body units* (`apply` lambdas and `namespace eval`
@@ -1787,6 +1809,8 @@ impl CompilationUnit {
         // Re-run taint with the new summary + dialect. We borrow
         // `interproc` immutably while each function unit re-runs
         // `propagate_taints`.
+        let top_instance_classes =
+            instance_classes_for_function(&self.top_level.cfg, registry, Some(&interproc), false);
         self.top_level.taints = Arc::new(propagate_taints(
             &TaintGraph::new(
                 &self.top_level.cfg,
@@ -1799,8 +1823,11 @@ impl CompilationUnit {
             dialect,
             None,
             None,
+            &top_instance_classes,
         ));
         for fu in self.procedures.values_mut() {
+            let instance_classes =
+                instance_classes_for_function(&fu.cfg, registry, Some(&interproc), true);
             fu.taints = Arc::new(propagate_taints(
                 &TaintGraph::new(&fu.cfg, &fu.ssa, &fu.sccp),
                 registry,
@@ -1809,6 +1836,7 @@ impl CompilationUnit {
                 dialect,
                 None,
                 None,
+                &instance_classes,
             ));
         }
 

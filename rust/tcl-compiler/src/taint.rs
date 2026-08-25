@@ -373,13 +373,404 @@ fn source_colour(
     command: &str,
     args: &[&str],
     dialect: Option<&tcl_dialect::DialectProfile>,
+    instance_classes: Option<&LocalInstanceClasses>,
+    source_position: Option<u32>,
 ) -> Option<TaintLattice> {
     let dialect_set = dialect_to_set(dialect);
-    tcl_registry::taint::taint_source_colour(registry, command, args, dialect_set).map(|c| {
-        TaintLattice {
-            colours: reg_colour(c),
-        }
+    let direct = tcl_registry::taint::taint_source_colour(registry, command, args, dialect_set);
+    let colour = direct.or_else(|| {
+        instance_taint_source_colour(
+            registry,
+            command,
+            args,
+            dialect_set,
+            instance_classes,
+            source_position,
+        )
+    })?;
+    Some(TaintLattice {
+        colours: reg_colour(colour),
     })
+}
+
+/// Resolve a registry-declared source on a statically-known object instance.
+///
+/// Tcl widget and package-object APIs are invoked through a command created at
+/// runtime (`.entry get`, `$widget get`) rather than through the constructor's
+/// registered command name.  The object-class and `creates_instance_at`
+/// descriptors already model that dispatch; this is the taint counterpart.
+/// It deliberately knows neither Tk widget names nor method spellings: a
+/// source is recognised only when the registry says the receiver's class has
+/// an instance method carrying [`Traits::TAINT_SOURCE`].
+///
+/// A receiver with multiple possible classes is not classified.  A source is
+/// a security fact, so guessing a method from a widened object flow would turn
+/// an unrelated dynamic object call into a false positive.
+fn instance_taint_source_colour(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    dialect: tcl_dialect::DialectSet,
+    instance_classes: Option<&LocalInstanceClasses>,
+    source_position: Option<u32>,
+) -> Option<tcl_registry::TaintColour> {
+    let class = unique_instance_class(command, instance_classes, source_position)?;
+    registry
+        .resolve_instance_invocation(class, command, args, dialect)
+        .filter(|invocation| {
+            invocation.semantics.traits.contains(Traits::TAINT_SOURCE)
+                || invocation
+                    .semantics
+                    .traits
+                    .contains(Traits::TAINT_SOURCE_ZERO_ARGS)
+                    && args.len() == 1
+        })
+        .map(|_| tcl_registry::TaintColour::TAINTED)
+}
+
+/// The receiver's single registry class at `source_position`.
+///
+/// Shared by source-return and linked-variable instance semantics so both
+/// abstain identically on an untyped or widened receiver.
+pub(crate) fn unique_instance_class<'a>(
+    command: &str,
+    instance_classes: Option<&'a LocalInstanceClasses>,
+    source_position: Option<u32>,
+) -> Option<&'a str> {
+    let key = normalise_var_name(command);
+    let position = source_position?;
+    let classes = instance_classes?.at.get(&position)?.get(key)?;
+    if classes.len() != 1 {
+        return None;
+    }
+    classes.iter().next().map(String::as_str)
+}
+
+/// Whether a registry-typed instance call exposes `variable` to external
+/// input through one of its class/factory options.
+fn instance_taints_var_write(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    instance_classes: Option<&LocalInstanceClasses>,
+    source_position: Option<u32>,
+    variable: &str,
+) -> bool {
+    if args.is_empty() {
+        return false;
+    }
+    let Some(class) = unique_instance_class(command, instance_classes, source_position) else {
+        return false;
+    };
+    let dialect = dialect_to_set(dialect);
+    let Some(invocation) = registry.resolve_instance_invocation(class, command, args, dialect)
+    else {
+        return false;
+    };
+    invocation
+        .semantics
+        .traits
+        .contains(Traits::CONFIGURES_INSTANCE_OPTIONS)
+        && tcl_registry::taint::taints_var_write(registry, class, &args[1..], dialect, variable)
+}
+
+/// Build the local receiver → class facts needed by object-method taint
+/// dispatch.
+///
+/// This is the same generic registry contract as the object-type pass, kept
+/// local to a function so the taint lattice does not inherit the object pass's
+/// intentionally scope-blind widening.  It recognises a literal naming
+/// factory (`ttk::entry .e`) and an assigned factory result (`set w
+/// [ttk::entry .e]`).  Conflicting bindings are retained as a set and the
+/// consumer above abstains unless that set is a singleton.
+pub(crate) type InstanceClassState = HashMap<String, HashSet<String>>;
+
+/// Receiver classes reaching each statement entry, keyed by source offset.
+///
+/// Keeping the state at the program point (rather than an append-only history)
+/// is load-bearing: a later `set w [label .l]` kills an earlier entry binding,
+/// while two different assignments reaching a branch join widen to both
+/// classes and make [`unique_instance_class`] abstain.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LocalInstanceClasses {
+    at: HashMap<u32, InstanceClassState>,
+}
+
+#[cfg(test)]
+pub(crate) fn local_instance_classes(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+) -> LocalInstanceClasses {
+    local_instance_classes_with_initial(cfg, registry, &InstanceClassState::new())
+}
+
+fn factory_class<'a>(
+    registry: &'a CommandRegistry,
+    head: &str,
+    args: &[String],
+) -> Option<&'a str> {
+    if let Some(method) = args.first()
+        && registry
+            .exported_manufacturer_method(head, method)
+            .is_some()
+    {
+        return registry.object_class(head).map(|class| class.class_name);
+    }
+    registry
+        .get(head)
+        .filter(|spec| spec.creates_instance_at.is_some())
+        .and_then(|spec| spec.object_class)
+        .map(|class| class.class_name)
+}
+
+fn literal_receiver(name: &str) -> Option<&str> {
+    (!name.is_empty() && !name.starts_with(['$', '[', '{'])).then_some(name)
+}
+
+fn transfer_instance_statement(
+    state: &mut InstanceClassState,
+    statement: &Statement,
+    registry: &CommandRegistry,
+) {
+    match statement {
+        Statement::Call {
+            command,
+            args,
+            defs,
+            ..
+        } => {
+            transfer_instance_lifecycle(state, command, args, registry);
+            // A registry-known write to a handle variable invalidates the old
+            // type unless this very statement installs a fresh factory fact.
+            for name in defs {
+                state.remove(normalise_var_name(name));
+            }
+            if let Some(spec) = registry.get(command)
+                && let Some(index) = spec.creates_instance_at
+                && let Some(name) = args.get(usize::from(index))
+                && let Some(name) = literal_receiver(name)
+            {
+                // Every naming factory replaces the command at this literal
+                // receiver, even when its registry row does not expose an
+                // object class. In that case the sound reaching fact is
+                // "untyped", not the previous constructor's stale class.
+                state.remove(name);
+                if let Some(class) = spec.object_class {
+                    state.insert(
+                        name.to_owned(),
+                        HashSet::from([class.class_name.to_owned()]),
+                    );
+                }
+            }
+        }
+        Statement::AssignValue { name, value, .. } => {
+            let name = normalise_var_name(name);
+            state.remove(name);
+            if let Some((head, args)) = parse_command_substitution(value.trim())
+                && let Some(class) = factory_class(registry, &head, &args)
+                && let Some(name) = literal_receiver(name)
+            {
+                state.insert(name.to_owned(), HashSet::from([class.to_owned()]));
+            }
+        }
+        Statement::AssignConst { name, .. }
+        | Statement::AssignExpr { name, .. }
+        | Statement::Incr { name, .. } => {
+            state.remove(normalise_var_name(name));
+        }
+        _ => {}
+    }
+}
+
+/// Apply registry-declared command/object lifecycle changes to the local
+/// receiver-class map.  This is deliberately driven by the registry's
+/// command-table and teardown descriptors rather than by command-name
+/// switches: a rename moves the class fact, an alias/dynamic mutation clears
+/// it, and a Tk teardown removes the target window and its descendants.
+pub(crate) fn transfer_instance_lifecycle(
+    state: &mut InstanceClassState,
+    command: &str,
+    args: &[String],
+    registry: &CommandRegistry,
+) {
+    if let Some(effect) = registry.command_table_effect(command, args.first().map(String::as_str)) {
+        match effect {
+            tcl_registry::CommandTableEffect::RenamesCommands => {
+                let (Some(old), Some(new)) = (args.first(), args.get(1)) else {
+                    state.clear();
+                    return;
+                };
+                let Some(old) = literal_receiver(old) else {
+                    state.clear();
+                    return;
+                };
+                if new.starts_with(['$', '[', '{']) {
+                    state.clear();
+                    return;
+                }
+                let class = state.remove(old);
+                if !new.is_empty()
+                    && let Some(class) = class
+                {
+                    state.insert(new.to_owned(), class);
+                }
+            }
+            tcl_registry::CommandTableEffect::CreatesAliases => {
+                // An alias may target or replace any command, including a
+                // registry-modelled instance command.  Without a precise
+                // target proof all receiver identities become unknown.
+                state.clear();
+            }
+            tcl_registry::CommandTableEffect::DefinesProcedure => {}
+        }
+        return;
+    }
+
+    // Tk's `destroy` is a registry-declared fire-and-forget teardown.  Use the
+    // package declaration to distinguish it from unrelated teardown commands
+    // such as `unset` and `after cancel`, while keeping the consumer generic.
+    let Some(spec) = registry.get(command) else {
+        return;
+    };
+    if !spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
+        || spec.required_package != Some("Tk")
+    {
+        return;
+    }
+    for target in args {
+        let Some(target) = literal_receiver(target) else {
+            state.clear();
+            return;
+        };
+        state.retain(|name, _| !tcl_registry::tk_geometry::widget_path_is_within(name, target));
+    }
+}
+
+fn join_instance_predecessors<'a>(
+    states: impl Iterator<Item = &'a InstanceClassState>,
+) -> Option<InstanceClassState> {
+    let mut states = states;
+    let mut joined = states.next()?.clone();
+    for state in states {
+        // A type is known after a join only when every incoming path binds the
+        // receiver.  Classes from those paths are unioned; consumers abstain
+        // unless the resulting set is a singleton.
+        joined.retain(|receiver, classes| {
+            let Some(incoming) = state.get(receiver) else {
+                return false;
+            };
+            classes.extend(incoming.iter().cloned());
+            true
+        });
+    }
+    Some(joined)
+}
+
+pub(crate) fn local_instance_classes_with_initial(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    initial: &InstanceClassState,
+) -> LocalInstanceClasses {
+    let predecessors = cfg.predecessors();
+    let mut outputs: HashMap<crate::cfg::BlockId, InstanceClassState> = HashMap::new();
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (&block_id, block) in &cfg.blocks {
+            let mut state = if block_id == cfg.entry {
+                initial.clone()
+            } else {
+                let Some(joined) = join_instance_predecessors(
+                    predecessors
+                        .get(&block_id)
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|pred| outputs.get(pred)),
+                ) else {
+                    continue;
+                };
+                joined
+            };
+            for statement in &block.statements {
+                transfer_instance_statement(&mut state, statement, registry);
+            }
+            if outputs.get(&block_id) != Some(&state) {
+                outputs.insert(block_id, state);
+                changed = true;
+            }
+        }
+    }
+
+    let mut classes = LocalInstanceClasses::default();
+    for (&block_id, block) in &cfg.blocks {
+        let mut state = if block_id == cfg.entry {
+            initial.clone()
+        } else {
+            join_instance_predecessors(
+                predecessors
+                    .get(&block_id)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|pred| outputs.get(pred)),
+            )
+            .unwrap_or_default()
+        };
+        for statement in &block.statements {
+            classes.at.insert(statement.span().start(), state.clone());
+            transfer_instance_statement(&mut state, statement, registry);
+        }
+        if let Some(span) = block
+            .terminator
+            .as_ref()
+            .and_then(crate::cfg::Terminator::span)
+        {
+            // Return values and branch conditions are evaluated after every
+            // statement in the block. Interprocedural return-summary inference
+            // queries receiver facts at the terminator span, so it must see
+            // the reaching state rather than an absent/exact-offset miss.
+            classes.at.insert(span.start(), state);
+        }
+    }
+    classes
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static INSTANCE_CLASS_SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(crate) fn reset_instance_class_solve_count() {
+    INSTANCE_CLASS_SOLVES.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+pub(crate) fn instance_class_solve_count() -> usize {
+    INSTANCE_CLASS_SOLVES.with(std::cell::Cell::get)
+}
+
+/// Function-local receiver facts plus interpreter-global instance commands
+/// proven to exist at this procedure's earliest execution phase. The top-level
+/// function keeps only its local, source-ordered facts to avoid retroactively
+/// typing an earlier call.
+pub(crate) fn instance_classes_for_function(
+    cfg: &CfgFunction,
+    registry: &CommandRegistry,
+    interproc: Option<&InterproceduralAnalysis>,
+    include_globals: bool,
+) -> LocalInstanceClasses {
+    #[cfg(test)]
+    INSTANCE_CLASS_SOLVES.with(|count| count.set(count.get() + 1));
+    let initial = if include_globals {
+        interproc
+            .and_then(|analysis| analysis.global_instance_classes.get(&cfg.name))
+            .cloned()
+            .unwrap_or_default()
+    } else {
+        InstanceClassState::new()
+    };
+    local_instance_classes_with_initial(cfg, registry, &initial)
 }
 
 /// Bridge a registry colour to the compiler's mirror enum.
@@ -528,6 +919,12 @@ pub(crate) struct TaintCtx<'a> {
     /// instead of the conservative single-passthrough rule.
     pub(crate) taint_summaries:
         Option<&'a HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
+    /// Local, registry-derived object receiver classes used to resolve a
+    /// `TAINT_SOURCE` instance method (`.entry get`, `$widget get`).
+    pub(crate) instance_classes: Option<&'a LocalInstanceClasses>,
+    /// Start offset of the statement currently being evaluated. Registry
+    /// instance bindings created later in the function are not visible.
+    pub(crate) source_position: Option<u32>,
 }
 
 impl TaintCtx<'_> {
@@ -541,6 +938,13 @@ impl TaintCtx<'_> {
     /// under [`tcl_dialect::BracedVarStyle::default`] (issue #1604).
     pub(crate) fn braced_var(self) -> tcl_dialect::BracedVarStyle {
         tcl_dialect::BracedVarStyle::of_profile(self.dialect)
+    }
+
+    pub(crate) const fn at(self, source_position: u32) -> Self {
+        Self {
+            source_position: Some(source_position),
+            ..self
+        }
     }
 }
 
@@ -592,7 +996,14 @@ fn word_taint_at<S: std::hash::BuildHasher>(
         if is_sanitiser(ctx.registry, &cmd, &arg_refs) {
             return TaintLattice::clean();
         }
-        if let Some(t) = source_colour(ctx.registry, &cmd, &arg_refs, ctx.dialect) {
+        if let Some(t) = source_colour(
+            ctx.registry,
+            &cmd,
+            &arg_refs,
+            ctx.dialect,
+            ctx.instance_classes,
+            ctx.source_position,
+        ) {
             return t;
         }
         // Interprocedural: if `cmd` resolves to a known proc with a
@@ -850,6 +1261,18 @@ fn interproc_call_taint<S: std::hash::BuildHasher>(
     Some(word_taint(actual, uses, taints, ctx))
 }
 
+/// Whether this call's callee exposes `defined_name` to external input via a
+/// registry-typed instance configuration, including transitive callees.
+fn interproc_call_taints_global(command: &str, defined_name: &str, ctx: TaintCtx<'_>) -> bool {
+    let (Some(known), Some(interproc)) = (ctx.known_procs, ctx.interproc) else {
+        return false;
+    };
+    let caller = ctx.caller_qname.unwrap_or("::top");
+    crate::interprocedural::resolve_internal_call(command, caller, known)
+        .and_then(|target| interproc.tainted_global_writes.get(&target))
+        .is_some_and(|writes| writes.contains(defined_name))
+}
+
 /// Look up taint for a named variable at its current SSA version. A name not
 /// interned in `ssa` is not a tracked SSA variable, so it is clean.
 fn var_taint<S: std::hash::BuildHasher>(
@@ -952,11 +1375,13 @@ fn expr_command_taint<S: std::hash::BuildHasher>(
 /// Determine the taint produced by a statement's definition(s).
 fn evaluate_taint_def<S: std::hash::BuildHasher>(
     stmt: &Statement,
+    defined_var: Symbol,
     uses: &HashMap<Symbol, u32>,
     taints: &HashMap<ValueKey, TaintLattice, S>,
     ctx: TaintCtx<'_>,
     ssa: &SsaFunction,
 ) -> TaintLattice {
+    let ctx = ctx.at(stmt.span().start());
     match stmt {
         // Expression: join taint from all used variables AND from any command
         // substitution embedded in the expression AST. `join_uses` only sees
@@ -984,10 +1409,38 @@ fn evaluate_taint_def<S: std::hash::BuildHasher>(
             ..
         } if !defs.is_empty() => {
             let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+            let defined_name = ssa.var_name(defined_var);
+            if tcl_registry::taint::taints_var_write(
+                ctx.registry,
+                command,
+                &arg_refs,
+                dialect_to_set(ctx.dialect),
+                defined_name,
+            ) || instance_taints_var_write(
+                ctx.registry,
+                command,
+                &arg_refs,
+                ctx.dialect,
+                ctx.instance_classes,
+                ctx.source_position,
+                defined_name,
+            ) {
+                return TaintLattice::tainted();
+            }
+            if interproc_call_taints_global(command, defined_name, ctx) {
+                return TaintLattice::tainted();
+            }
             if is_sanitiser(ctx.registry, command, &arg_refs) {
                 return TaintLattice::clean();
             }
-            if let Some(t) = source_colour(ctx.registry, command, &arg_refs, ctx.dialect) {
+            if let Some(t) = source_colour(
+                ctx.registry,
+                command,
+                &arg_refs,
+                ctx.dialect,
+                ctx.instance_classes,
+                ctx.source_position,
+            ) {
                 return t;
             }
             if let Some(t) = interproc_call_taint(command, args, uses, taints, ctx) {
@@ -1239,7 +1692,13 @@ impl<'a> TaintGraph<'a> {
 ///   interprocedural solve; when present, internal calls apply the
 ///   full return-summary transfer (`apply_proc_return_summary`)
 ///   instead of the conservative single-passthrough rule.
+/// * `instance_classes` — precomputed function-local receiver facts. The
+///   summary solver reuses this across its clean run and every parameter ×
+///   colour scenario instead of repeating the same receiver CFG fixpoint.
 #[must_use]
+// These inputs are the independently reusable analysis products; wrapping
+// them in an options bag would hide, rather than reduce, the dependency set.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn propagate_taints(
     graph: &TaintGraph<'_>,
     registry: &CommandRegistry,
@@ -1248,6 +1707,7 @@ pub(crate) fn propagate_taints(
     dialect: Option<&tcl_dialect::DialectProfile>,
     param_taints: Option<&HashMap<String, TaintLattice>>,
     taint_summaries: Option<&HashMap<String, crate::taint_interproc::ProcTaintSummary>>,
+    instance_classes: &LocalInstanceClasses,
 ) -> HashMap<ValueKey, TaintLattice> {
     let TaintGraph {
         cfg,
@@ -1274,6 +1734,8 @@ pub(crate) fn propagate_taints(
         caller_qname: Some(ssa.name.as_str()),
         dialect,
         taint_summaries,
+        instance_classes: Some(instance_classes),
+        source_position: None,
     };
 
     let mut taints: HashMap<ValueKey, TaintLattice> = HashMap::new();
@@ -1455,7 +1917,7 @@ fn propagate_statement_taints(
     for ssa_stmt in &ssa_block.statements {
         let stmt = &ssa_stmt.statement;
         for (&var, &ver) in &ssa_stmt.defs {
-            let mut inferred = evaluate_taint_def(stmt, &ssa_stmt.uses, &*taints, ctx, ssa);
+            let mut inferred = evaluate_taint_def(stmt, var, &ssa_stmt.uses, &*taints, ctx, ssa);
             // Enrich the inferred taint with rendered-property
             // colours when available.
             if let Some(rp) = rendered_props
@@ -2227,8 +2689,44 @@ pub fn find_taint_warnings_for_cu(
     registry: &CommandRegistry,
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Vec<TaintWarning> {
+    let mut out = find_taint_warnings_for_cu_base(cu, registry, dialect);
+    let callback_warnings = find_callback_substitution_warnings(cu, registry, dialect, &out);
+    out.extend(callback_warnings);
+    out
+}
+
+/// The ordinary whole-unit taint pass, without a second pass through stored
+/// callback text. Kept separate so callback replay can analyse a synthetic
+/// invocation without recursively replaying every registration in its source
+/// module.
+fn find_taint_warnings_for_cu_base(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+) -> Vec<TaintWarning> {
+    find_taint_warnings_for_cu_base_with_external_variable_seeds(cu, registry, dialect, None)
+}
+
+/// The ordinary warning pass with explicitly seeded top-level external values.
+///
+/// Synthetic callback replays use this rather than spelling a source command
+/// such as `[gets stdin]`: a registration's user input is independent of
+/// source-level command shadowing and aliases.
+fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    external_variable_seeds: Option<&HashMap<String, TaintLattice>>,
+) -> Vec<TaintWarning> {
     let mut out = Vec::new();
-    let solved = crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect);
+    let solved = external_variable_seeds.map_or_else(
+        || crate::taint_interproc::solve_interprocedural_taints(cu, registry, dialect),
+        |seeds| {
+            crate::taint_interproc::solve_interprocedural_taints_with_external_variable_seeds(
+                cu, registry, dialect, seeds,
+            )
+        },
+    );
     let proc_qnames: HashSet<&str> = cu.procedures.keys().map(String::as_str).collect();
     let module_traces = crate::compilation_unit::ModuleTraceFacts {
         traced_variables: &cu.ir_module.traced_variables,
@@ -2264,6 +2762,538 @@ pub fn find_taint_warnings_for_cu(
             &fu.cfg, &fu.ssa, &taints, exec, registry, dialect,
         ));
     }
+    out
+}
+
+/// Maximum statically recoverable stored callbacks replayed from one source unit.
+///
+/// A callback replay performs a normal, interprocedural compiler pass so it
+/// can reuse the established SSA and proc-parameter taint transfer. Cap the
+/// rare pathological generated form rather than making diagnostics quadratic;
+/// ordinary applications have a handful of handlers.
+const MAX_CALLBACK_TAINT_REPLAYS: usize = 32;
+
+#[cfg(test)]
+std::thread_local! {
+    /// Number of synthetic compilation units built by one warning pass.
+    static CALLBACK_REPLAY_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Number of source scans used to reserve synthetic replay identifiers.
+    static CALLBACK_REPLAY_NAME_SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+fn reset_callback_replay_build_count() {
+    CALLBACK_REPLAY_BUILDS.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn callback_replay_build_count() -> usize {
+    CALLBACK_REPLAY_BUILDS.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn reset_callback_replay_name_search_count() {
+    CALLBACK_REPLAY_NAME_SEARCHES.with(|count| count.set(0));
+}
+
+#[cfg(test)]
+fn callback_replay_name_search_count() -> usize {
+    CALLBACK_REPLAY_NAME_SEARCHES.with(std::cell::Cell::get)
+}
+
+/// Synthetic callback parameter used only inside replay procedures. Its
+/// top-level source slot is seeded directly in SSA rather than assigned by a
+/// source command, so user shadows cannot affect the external-input model.
+const CALLBACK_REPLAY_INPUT_VAR_BASE: &str = "__tcl_lsp_callback_input";
+const CALLBACK_REPLAY_PROC_BASE: &str = "__tcl_lsp_callback_replay";
+
+/// Pick synthetic names that cannot collide with source/callback variables.
+///
+/// Every replayed callback came from `source`, so absence from the complete
+/// source text also proves absence from every static callback body we append.
+/// Procedure candidates reserve one unique wrapper per bounded replay.
+/// Deterministic suffixes keep diagnostics/replays reproducible.
+fn fresh_callback_replay_names(source: &str) -> (String, String) {
+    #[cfg(test)]
+    CALLBACK_REPLAY_NAME_SEARCHES.with(|count| count.set(count.get() + 1));
+
+    // Collecting identifier-shaped matches is linear in the source. Unlike a
+    // repeated `contains` loop, it does not turn a deliberately collision-rich
+    // document into dozens of full scans before callback analysis even starts.
+    let mut occupied = HashSet::new();
+    for base in [CALLBACK_REPLAY_INPUT_VAR_BASE, CALLBACK_REPLAY_PROC_BASE] {
+        for (start, _) in source.match_indices(base) {
+            let suffix = &source[start + base.len()..];
+            let identifier_len = suffix
+                .bytes()
+                .take_while(|byte| byte.is_ascii_alphanumeric() || *byte == b'_')
+                .count();
+            occupied.insert(source[start..start + base.len() + identifier_len].to_owned());
+        }
+    }
+
+    // Every rejected suffix consumes a distinct occupied spelling, so the
+    // next `occupied.len() + 1` candidates must contain a collision-free one.
+    for suffix in 0..=occupied.len() {
+        let input = if suffix == 0 {
+            CALLBACK_REPLAY_INPUT_VAR_BASE.to_owned()
+        } else {
+            format!("{CALLBACK_REPLAY_INPUT_VAR_BASE}_{suffix}")
+        };
+        let proc_prefix = if suffix == 0 {
+            CALLBACK_REPLAY_PROC_BASE.to_owned()
+        } else {
+            format!("{CALLBACK_REPLAY_PROC_BASE}_{suffix}")
+        };
+        let proc_collides = (0..MAX_CALLBACK_TAINT_REPLAYS)
+            .any(|index| occupied.contains(&format!("{proc_prefix}_{index}")));
+        if !occupied.contains(&input) && !proc_collides {
+            return (input, format!("::{proc_prefix}"));
+        }
+    }
+    unreachable!("a bounded synthetic-name search must find an unoccupied suffix")
+}
+
+/// Statically recoverable callback registration, collected before allocating
+/// replay identifiers. Keeping the registry query separate from rendering
+/// makes the no-callback path allocation-free apart from ordinary CFG facts.
+struct CallbackReplayCandidate {
+    callback: String,
+    inputs: &'static [tcl_registry::CallbackTaintInput],
+    source_is_command_substitution: bool,
+    callback_span: Span,
+    callback_input_label: String,
+}
+
+/// Query a callback argument through either a direct command or a resolved
+/// instance method. The latter is driven solely by local receiver-class facts
+/// and `CommandRegistry::instance_callback_taint_inputs`; widget names and
+/// method spellings never enter the analyser as special cases.
+fn callback_taint_inputs_at_call(
+    registry: &CommandRegistry,
+    command: &str,
+    args: &[&str],
+    index: usize,
+    dialect: DialectSet,
+    instance_classes: &LocalInstanceClasses,
+    source_position: u32,
+) -> &'static [tcl_registry::CallbackTaintInput] {
+    let direct = registry.callback_taint_inputs(command, args, index, dialect);
+    if !direct.is_empty() {
+        return direct;
+    }
+    let Some(class) = unique_instance_class(command, Some(instance_classes), Some(source_position))
+    else {
+        return &[];
+    };
+    registry.instance_callback_taint_inputs(class, command, args, index, dialect)
+}
+
+/// Replay statically materialised stored callbacks with their registry-declared
+/// external substitutions replaced by a directly seeded synthetic source.
+///
+/// The substitution descriptor is the only Tk knowledge here. The callback
+/// body is then lowered and checked by the same generic CFG/SSA/interproc
+/// taint pipeline as ordinary source, which covers both `set x %P; eval $x`
+/// and a `[list helper %P]` prefix flowing into `proc helper {x} { eval $x }`.
+/// Dynamic callback construction deliberately abstains.
+// Candidate discovery, bounded materialisation, and source-span remapping are
+// one safety transaction; keeping them adjacent makes the replay cap auditable.
+#[allow(clippy::too_many_lines)]
+fn find_callback_substitution_warnings(
+    cu: &crate::compilation_unit::CompilationUnit,
+    registry: &CommandRegistry,
+    dialect: Option<&tcl_dialect::DialectProfile>,
+    baseline: &[TaintWarning],
+) -> Vec<TaintWarning> {
+    let mut candidates = Vec::new();
+
+    'units: for fu in cu.all_body_function_units() {
+        let instance_classes = instance_classes_for_function(
+            &fu.cfg,
+            registry,
+            cu.interproc.as_ref(),
+            fu.name != "::top",
+        );
+        for block in fu.cfg.blocks.values() {
+            for stmt in &block.statements {
+                let (command, args, tokens) = match stmt {
+                    Statement::Call { args, tokens, .. }
+                    | Statement::Barrier { args, tokens, .. } => (
+                        stmt.canonical_command_or_source(),
+                        args.as_slice(),
+                        tokens.as_ref(),
+                    ),
+                    _ => continue,
+                };
+                let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                for (index, callback) in args.iter().enumerate() {
+                    let inputs = callback_taint_inputs_at_call(
+                        registry,
+                        command,
+                        &arg_refs,
+                        index,
+                        dialect_to_set(dialect),
+                        &instance_classes,
+                        stmt.span().start(),
+                    );
+                    if inputs.is_empty() {
+                        continue;
+                    }
+                    let callback_input_label = callback_input_label(callback, inputs);
+                    let Some(callback_input_label) = callback_input_label else {
+                        continue;
+                    };
+                    let source_is_command_substitution = tokens
+                        .and_then(|tokens| tokens.argv_kinds.get(index + 1))
+                        .is_some_and(|kind| *kind == tcl_lexer::TokenType::Cmd);
+                    // Prove the callback can be materialised before choosing
+                    // synthetic names. The probe is never compiled or
+                    // evaluated, so it need not be collision-free; it only
+                    // exercises the parser/list-prefix policy. This prevents
+                    // dynamic registrations from consuming the replay cap or
+                    // making callback-free files scan their full source.
+                    if callback_replay_source(
+                        callback,
+                        inputs,
+                        source_is_command_substitution,
+                        "__tcl_lsp_callback_probe",
+                        "::__tcl_lsp_callback_probe",
+                    )
+                    .is_none()
+                    {
+                        continue;
+                    }
+                    let callback_span = tokens
+                        .and_then(|tokens| tokens.argv.get(index + 1).copied())
+                        .unwrap_or_else(|| stmt.span());
+                    candidates.push(CallbackReplayCandidate {
+                        callback: callback.clone(),
+                        inputs,
+                        source_is_command_substitution,
+                        callback_span,
+                        callback_input_label,
+                    });
+                    if candidates.len() == MAX_CALLBACK_TAINT_REPLAYS {
+                        break 'units;
+                    }
+                }
+            }
+        }
+    }
+
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    let (input_var, proc_prefix) = fresh_callback_replay_names(&cu.source);
+    let mut replays: Vec<(String, Span, String)> = Vec::with_capacity(candidates.len());
+    for candidate in candidates {
+        let proc_name = format!("{proc_prefix}_{}", replays.len());
+        let replay = callback_replay_source(
+            &candidate.callback,
+            candidate.inputs,
+            candidate.source_is_command_substitution,
+            &input_var,
+            &proc_name,
+        )
+        .expect("callback replay preflight proved this script is static");
+        replays.push((
+            replay,
+            candidate.callback_span,
+            candidate.callback_input_label,
+        ));
+    }
+
+    // All recoverable callbacks share one synthetic compilation unit and one
+    // interprocedural solve. The per-replay ranges retain the source mapping
+    // without making a validation-heavy file O(callbacks × module-size).
+    let mut injected = String::with_capacity(
+        cu.source.len()
+            + replays
+                .iter()
+                .map(|(source, _, _)| source.len() + 1)
+                .sum::<usize>(),
+    );
+    injected.push_str(&cu.source);
+    let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
+    for (replay, callback_span, callback_input_label) in replays {
+        injected.push('\n');
+        let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+        injected.push_str(&replay);
+        let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+        replay_spans.push((Span::new(start, end), callback_span, callback_input_label));
+    }
+
+    #[cfg(test)]
+    CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
+    let replay_cu = crate::compilation_unit::CompilationUnit::build_for(&injected, registry, false)
+        .with_interprocedural(registry, dialect);
+    let mut out = Vec::new();
+    // The first name seeds the top-level argument at the synthetic invocation;
+    // the second is the private replay proc parameter. `input_var` was chosen
+    // absent from the complete user source, so seeding both scopes cannot
+    // influence the original program or a real procedure.
+    let replay_seed = HashMap::from([
+        (format!("::{input_var}"), TaintLattice::tainted()),
+        (input_var.clone(), TaintLattice::tainted()),
+    ]);
+    for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+        &replay_cu,
+        registry,
+        dialect,
+        Some(&replay_seed),
+    ) {
+        // A prefix can call a local procedure. Its sink then lies in the
+        // original procedure body even though the synthetic invocation taints
+        // its parameter. Keep that new source span intact. Only a sink in an
+        // appended callback script is retargeted to its registration.
+        if baseline.iter().any(|existing| {
+            existing.span == warning.span
+                && existing.variable == warning.variable
+                && existing.sink_command == warning.sink_command
+                && existing.code == warning.code
+        }) {
+            continue;
+        }
+        if let Some((_, registration, callback_input_label)) =
+            replay_spans.iter().find(|(span, _, _)| {
+                warning.span.start() >= span.start() && warning.span.start() < span.end()
+            })
+        {
+            if warning.variable == input_var {
+                let synthetic_name = format!("Tainted variable ${input_var}");
+                warning.variable.clone_from(callback_input_label);
+                warning.message =
+                    warning
+                        .message
+                        .replacen(&synthetic_name, callback_input_label, 1);
+            }
+            warning.span = *registration;
+            // A future sink-specific fix emitted for replay text must never
+            // point at the appended synthetic source.
+            warning.replacement = None;
+            warning.fixes.clear();
+        }
+        out.push(warning);
+    }
+    out
+}
+
+/// Convert one statically materialised callback script into normal Tcl source
+/// whose registry-declared external `%` fields are explicit taint sources.
+///
+/// A braced/literal script is already executable source. A whole `[list ...]`
+/// callback is the idiomatic prefix form: `list` builds the script at
+/// registration time, so its decoded elements become one invocation here.
+/// Any other command substitution or a malformed list remains dynamic and is
+/// intentionally not guessed.
+fn callback_replay_source(
+    callback: &str,
+    inputs: &[tcl_registry::CallbackTaintInput],
+    source_is_command_substitution: bool,
+    input_var: &str,
+    proc_name: &str,
+) -> Option<String> {
+    let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
+    // Current lowering normally preserves the brackets in `args`; older
+    // compatibility IR can retain only the command content.  The token kind
+    // tells us it was a substitution in both cases, while the spelling avoids
+    // wrapping an already bracketed word a second time.
+    let bracketed = (source_is_command_substitution && !callback.starts_with('['))
+        .then(|| format!("[{callback}]"));
+    let callback_command = bracketed.as_deref().unwrap_or(callback);
+    if let Some((builder, elements)) = parse_command_substitution(callback_command) {
+        if builder != "list" || !callback_list_builder_is_static(callback_command) {
+            return None;
+        }
+        if elements.is_empty() {
+            return None;
+        }
+        let script = elements
+            .iter()
+            .enumerate()
+            .map(|(index, element)| {
+                callback_replay_list_word(element, inputs, index == 0, input_var)
+            })
+            .collect::<Option<Vec<_>>>()?
+            .join(" ");
+        return Some(callback_replay_with_input(&script, proc_name, input_var));
+    }
+    let script = callback_replay_script(callback, inputs, input_var)?;
+    Some(callback_replay_with_input(&script, proc_name, input_var))
+}
+
+/// Build a callback script that is taint-equivalent at Tcl word granularity.
+///
+/// Tk replaces its `%` fields *before* it evaluates the callback, after
+/// quoting each replacement as one Tcl element.  Replacing raw text would get
+/// a braced word wrong: `eval {%P}` would become `eval {$input}`, whose first
+/// evaluation only sees a literal.  The segmenter gives us Tcl's actual word
+/// boundaries, so a marked non-head word instead becomes the symbolic input
+/// value itself (`eval ${input}`).  This also keeps quoted/bare embedded
+/// prefix/suffix as one tainted word.  Dynamic heads are deliberately not
+/// guessed.
+fn callback_replay_script(
+    callback: &str,
+    inputs: &[tcl_registry::CallbackTaintInput],
+    input_var: &str,
+) -> Option<String> {
+    let commands = crate::segmenter::segment_commands(callback);
+    if commands.is_empty() {
+        return None;
+    }
+    let mut replayed = Vec::with_capacity(commands.len());
+    for command in commands {
+        if command.is_partial || command.texts.is_empty() {
+            return None;
+        }
+        let mut words = Vec::with_capacity(command.texts.len());
+        for (index, word) in command.texts.iter().enumerate() {
+            let marked = callback_word_has_input(word, inputs);
+            if index == 0 && marked {
+                return None;
+            }
+            if marked {
+                words.push(callback_replay_tainted_word(word, inputs, input_var));
+            } else if index == 0 {
+                // The command head is static (checked above), and command
+                // names never need Tcl list quoting.
+                words.push(word.clone());
+            } else {
+                words.push(callback_replay_static_word(word));
+            }
+        }
+        replayed.push(words.join(" "));
+    }
+    Some(replayed.join("\n"))
+}
+
+/// Render a list-prefix element back into a source word. The head may not be
+/// a replacement value; accepting one would invent a dynamic command name.
+fn callback_replay_list_word(
+    word: &str,
+    inputs: &[tcl_registry::CallbackTaintInput],
+    is_head: bool,
+    input_var: &str,
+) -> Option<String> {
+    if callback_word_has_input(word, inputs) {
+        if is_head {
+            return None;
+        }
+        return Some(callback_replay_tainted_word(word, inputs, input_var));
+    }
+    if is_head {
+        Some(word.to_owned())
+    } else {
+        Some(callback_replay_static_word(word))
+    }
+}
+
+/// A `[list ...]` callback prefix is statically recoverable only when its
+/// builder is literal.  Variables and nested substitutions make the actual
+/// callback command depend on registration-time execution, so replay abstains.
+fn callback_list_builder_is_static(callback: &str) -> bool {
+    let inner = callback
+        .trim()
+        .strip_prefix('[')
+        .and_then(|text| text.strip_suffix(']'))
+        .unwrap_or(callback);
+    !inner.contains('$') && !inner.contains('[')
+}
+
+/// Replay source contains only callback text; its input variable is seeded
+/// directly in the taint solver, so user definitions of `gets`, `set`, or
+/// aliases cannot influence the callback-source model. Every callback runs in
+/// its own synthetic procedure: event handlers are independent invocations,
+/// not a registration-ordered shared local scope. `catch` contains abnormal
+/// completion at the invocation boundary while calls inside the callback still
+/// resolve against the real global procedure table.
+fn callback_replay_with_input(script: &str, proc_name: &str, input_var: &str) -> String {
+    let invocation = format!("{proc_name} ${{::{input_var}}}");
+    format!(
+        "proc {proc_name} {{{input_var}}} {}\ncatch {}",
+        tcl_syntax::list::list_element(script),
+        tcl_syntax::list::list_element(&invocation),
+    )
+}
+
+/// Whether a logical callback word contains an authorised, unescaped `%`
+/// marker. Metadata replacements remain ordinary literal text.
+fn callback_word_has_input(text: &str, inputs: &[tcl_registry::CallbackTaintInput]) -> bool {
+    inputs.iter().copied().any(|input| input.occurs_in(text))
+}
+
+/// User-facing label for a callback replay source. A callback with exactly
+/// one declared replacement keeps that useful spelling; a mixed callback is
+/// deliberately described generically rather than pretending every value was
+/// the first marker seen.
+fn callback_input_label(text: &str, inputs: &[tcl_registry::CallbackTaintInput]) -> Option<String> {
+    let markers: Vec<&str> = inputs
+        .iter()
+        .copied()
+        .filter(|input| input.occurs_in(text))
+        .map(tcl_registry::CallbackTaintInput::spelling)
+        .collect();
+    match markers.as_slice() {
+        [] => None,
+        [marker] => Some(format!("Tk callback input {marker}")),
+        _ => Some("Tk callback input".to_owned()),
+    }
+}
+
+/// Render a non-source callback word. A pure variable reference must remain a
+/// substitution so `set value %P; eval $value` retains its ordinary SSA flow;
+/// all other static values use Tcl's canonical one-word renderer.
+fn callback_replay_static_word(word: &str) -> String {
+    if is_pure_var_ref(word) {
+        word.to_owned()
+    } else {
+        tcl_syntax::list::list_element(word)
+    }
+}
+
+/// Render one non-head word containing a source marker as an interpolated Tcl
+/// word. Static bytes are quoted so braces and quotes in the original spelling
+/// cannot suppress the symbolic source after Tk's pre-evaluation replacement.
+fn callback_replay_tainted_word(
+    text: &str,
+    inputs: &[tcl_registry::CallbackTaintInput],
+    input_var: &str,
+) -> String {
+    let bytes = text.as_bytes();
+    let mut out = String::with_capacity(text.len() + input_var.len() + 4);
+    out.push('"');
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && bytes.get(index + 1) == Some(&b'%') {
+            out.push_str("%%");
+            index += 2;
+            continue;
+        }
+        if bytes[index] == b'%'
+            && let Some(input) = inputs
+                .iter()
+                .find(|input| bytes[index..].starts_with(input.spelling().as_bytes()))
+        {
+            out.push_str("${");
+            out.push_str(input_var);
+            out.push('}');
+            index += input.spelling().len();
+            continue;
+        }
+        let ch = text[index..]
+            .chars()
+            .next()
+            .expect("index is a UTF-8 boundary while copying callback text");
+        match ch {
+            '\\' | '"' | '$' | '[' => out.push('\\'),
+            _ => {}
+        }
+        out.push(ch);
+        index += ch.len_utf8();
+    }
+    out.push('"');
     out
 }
 
@@ -2503,6 +3533,8 @@ fn emit_statement_warnings<S: std::hash::BuildHasher, H: std::hash::BuildHasher>
         caller_qname: Some(ssa.name.as_str()),
         dialect,
         taint_summaries: None,
+        instance_classes: None,
+        source_position: None,
     };
     emit_double_encode_warnings(
         command,
@@ -3698,6 +4730,7 @@ mod tests {
         sccp: &SccpResult,
         registry: &CommandRegistry,
     ) -> HashMap<ValueKey, TaintLattice> {
+        let instance_classes = local_instance_classes(cfg, registry);
         propagate_taints(
             &TaintGraph::new(cfg, ssa, sccp),
             registry,
@@ -3706,6 +4739,7 @@ mod tests {
             None,
             None,
             None,
+            &instance_classes,
         )
     }
 
@@ -3821,6 +4855,8 @@ mod tests {
             caller_qname: None,
             dialect: None,
             taint_summaries: None,
+            instance_classes: None,
+            source_position: None,
         };
 
         // Tier 1B: nested `[a [a [a … x]]]` command-substitution text.
@@ -5810,6 +6846,103 @@ mod tests {
         assert!(
             warnings[0].span.start() > warnings[1].span.start(),
             "expected name order (aaa before bbb) regardless of source order: {warnings:?}",
+        );
+    }
+
+    #[test]
+    fn callback_replays_batch_into_one_extra_interprocedural_build() {
+        use crate::compilation_unit::CompilationUnit;
+
+        let registry = CommandRegistry::build_default();
+        let source = "entry .one -validatecommand {eval %P}\n\
+                      entry .two -validatecommand {eval %S}\n\
+                      bind .two <Key> {eval %A}";
+        let cu = CompilationUnit::build_for(source, &registry, false)
+            .with_interprocedural(&registry, None);
+        reset_callback_replay_build_count();
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert_eq!(
+            callback_replay_build_count(),
+            1,
+            "every statically recoverable callback must share one replay solve"
+        );
+        assert_eq!(
+            warnings.len(),
+            3,
+            "each registered sink still warns: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn callback_free_units_skip_replay_name_search_and_solve() {
+        use crate::compilation_unit::CompilationUnit;
+
+        let registry = CommandRegistry::build_default();
+        for source in [
+            "set value fixed\nputs $value",
+            // This is a callback registration, but its builder is dynamic and
+            // therefore deliberately has no statically recoverable replay.
+            "entry .entry -validatecommand [format {eval %P}]",
+        ] {
+            let cu = CompilationUnit::build_for(source, &registry, false)
+                .with_interprocedural(&registry, None);
+            reset_callback_replay_build_count();
+            reset_callback_replay_name_search_count();
+            let _warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+            assert_eq!(
+                callback_replay_build_count(),
+                0,
+                "no recoverable callback may compile an empty replay: {source}"
+            );
+            assert_eq!(
+                callback_replay_name_search_count(),
+                0,
+                "no recoverable callback may scan source for replay names: {source}"
+            );
+        }
+    }
+
+    #[test]
+    fn callback_replay_name_search_is_single_pass_under_collision_stress() {
+        use std::fmt::Write as _;
+
+        let mut source = String::new();
+        for suffix in 0..(MAX_CALLBACK_TAINT_REPLAYS + 8) {
+            let input = if suffix == 0 {
+                CALLBACK_REPLAY_INPUT_VAR_BASE.to_owned()
+            } else {
+                format!("{CALLBACK_REPLAY_INPUT_VAR_BASE}_{suffix}")
+            };
+            let proc = if suffix == 0 {
+                CALLBACK_REPLAY_PROC_BASE.to_owned()
+            } else {
+                format!("{CALLBACK_REPLAY_PROC_BASE}_{suffix}")
+            };
+            writeln!(
+                &mut source,
+                "set {input} safe\nproc ::{proc}_0 {{}} {{ return }}"
+            )
+            .expect("write to String");
+        }
+        source.push_str("entry .entry -validatecommand {eval %P}");
+
+        let registry = CommandRegistry::build_default();
+        let cu = crate::compilation_unit::CompilationUnit::build_for(&source, &registry, false)
+            .with_interprocedural(&registry, None);
+        reset_callback_replay_build_count();
+        reset_callback_replay_name_search_count();
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.code == DiagCode::T100),
+            "collision avoidance must preserve the callback warning: {warnings:?}"
+        );
+        assert_eq!(callback_replay_build_count(), 1);
+        assert_eq!(
+            callback_replay_name_search_count(),
+            1,
+            "even a collision-rich source gets one linear synthetic-name scan"
         );
     }
 

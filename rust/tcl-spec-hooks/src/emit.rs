@@ -35,6 +35,7 @@ use std::rc::Rc;
 use tcl_engine_api::{EngineError, HostCommand, Value};
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::clause_shape::ClauseShapeError;
+use tcl_registry::hover::ScriptTiming;
 use tcl_registry::literal_validation::{
     LiteralArgumentIssue, LiteralArgumentIssueReason, LiteralArgumentValidation,
     LiteralValidationDecline,
@@ -50,6 +51,8 @@ pub enum Emission {
     Role(u8, ArgRole),
     /// `prefix IDX {Exactly N}`.
     Prefix(u8, AppendedArity),
+    /// `timing IDX SameInvocation|Deferred`.
+    Timing(u8, ScriptTiming),
     /// `fold VALUE`.
     Fold(String),
     /// `sink-applies`.
@@ -171,6 +174,18 @@ fn role_by_name(verb: &str, name: &str) -> Result<ArgRole, EngineError> {
         .ok_or_else(|| misuse(verb, &format!("unknown argument role \"{name}\"")))
 }
 
+fn timing_by_name(name: &str) -> Result<ScriptTiming, EngineError> {
+    match name {
+        "SameInvocation" => Ok(ScriptTiming::SameInvocation),
+        "Deferred" => Ok(ScriptTiming::Deferred),
+        "ReferenceOnly" => Ok(ScriptTiming::ReferenceOnly),
+        _ => Err(misuse(
+            "timing",
+            &format!("expected SameInvocation, Deferred, or ReferenceOnly, got \"{name}\""),
+        )),
+    }
+}
+
 impl HostCommand for Verb {
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         let emission = match self.verb {
@@ -189,6 +204,14 @@ impl HostCommand for Verb {
                 let index = u8::try_from(index_of(self.verb, index)?)
                     .map_err(|_| misuse(self.verb, "word index out of range"))?;
                 Emission::Prefix(index, appended_arity(self.verb, arity)?)
+            }
+            "timing" => {
+                let [index, timing] = arguments else {
+                    return Err(misuse(self.verb, "expected IDX SameInvocation|Deferred"));
+                };
+                let index = u8::try_from(index_of(self.verb, index)?)
+                    .map_err(|_| misuse(self.verb, "word index out of range"))?;
+                Emission::Timing(index, timing_by_name(&text(timing))?)
             }
             "fold" => {
                 let [value] = arguments else {
@@ -336,6 +359,9 @@ pub fn verbs_for(family: HookFamily, sink: &Rc<Sink>) -> Vec<(&'static str, Rc<d
 /// Fold what a body emitted into the family's answer, applying that family's
 /// silence to an empty sink.
 #[must_use]
+// The exhaustive family match is the drift guard: every new hook family must
+// choose both its accepted emissions and its abstaining answer here.
+#[allow(clippy::too_many_lines)]
 pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
     match family {
         HookFamily::ArgRoleResolver => {
@@ -364,6 +390,20 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
                 HookAnswer::Abstain
             } else {
                 HookAnswer::Prefixes(prefixes)
+            }
+        }
+        HookFamily::ScriptTimingResolver => {
+            let timings: Vec<(u8, ScriptTiming)> = emissions
+                .into_iter()
+                .filter_map(|emission| match emission {
+                    Emission::Timing(index, timing) => Some((index, timing)),
+                    _ => None,
+                })
+                .collect();
+            if timings.is_empty() {
+                HookAnswer::Abstain
+            } else {
+                HookAnswer::Timings(timings)
             }
         }
         HookFamily::ConstFold | HookFamily::ConstFoldVersioned => emissions

@@ -31,6 +31,9 @@ rules for the KCS/documentation split live in
   (`.t`, `$w`) resolves back to the widget class, so `.t instate …` / `$w tag
   configure …` reach subcommand-aware highlighting, hover, completion, and
   diagnostics.
+- [tk-static-ui-model.md](tk-static-ui-model.md) — the conservative,
+  registry-driven widget-tree and geometry model shared by editor and MCP
+  previews, including its abstention, size-bound, and stale-document rules.
 - [dialect-profile-model.md](dialect-profile-model.md) — the compositional
   `DialectProfile` model: one profile per dialect owning both command/feature
   availability and runtime/behaviour semantics (octal, expr/lexer grammar,

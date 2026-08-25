@@ -20,6 +20,15 @@
 
 use crate::prelude::*;
 
+/// `package unknown prefix` stores the fallback for a later unsatisfied
+/// `package require`; the zero-argument form is only a query.
+fn package_unknown_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
+    (!args.is_empty())
+        .then_some((0, ScriptTiming::Deferred))
+        .into_iter()
+        .collect()
+}
+
 // The command's own wrong-#-args usage message — the generic ensemble
 // dispatch shape. NOT actually unchanged across 8.4-9.1: confirmed via
 // the real Tcl core source (generic/tclPkg.c's `Tcl_WrongNumArgs(interp,
@@ -261,6 +270,7 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // passed `-exact` (a literal extra "-exact" word) — which is
         // likewise always >= 2, so AtLeast(2) holds for every version.
         command_prefixes: &[(0, AppendedArity::AtLeast(2))],
+        script_timing_resolver: Some(package_unknown_script_timing),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -64,7 +64,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix("prefix"),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Unknown),
         detail: "Command prefix invoked when the dialog closes; the chosen directory is appended (macOS).",
         dialects: None,
         aliases: &[],
@@ -90,6 +90,7 @@ const FORMS: &[FormSpec] = &[FormSpec {
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "tk_chooseDirectory",
+        traits: Traits::TAINT_SOURCE | Traits::RETURNS_PATH,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(0),
         hover: Some(HoverSnippet {
@@ -105,6 +106,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        return_type: Some(TclType::String),
         ..CommandSpec::DEFAULT
     }
 }

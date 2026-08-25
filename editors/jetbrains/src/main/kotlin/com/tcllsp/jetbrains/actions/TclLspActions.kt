@@ -24,7 +24,10 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.VirtualFileManager
+import java.security.MessageDigest
 
 // ---------------------------------------------------------------------------
 // Document-modifying commands. The LSP server returns a WorkspaceEdit that
@@ -65,18 +68,46 @@ class FixAllSafeIssuesAction : TclLspActionBase() {
 }
 
 // ---------------------------------------------------------------------------
-// Source-as-input commands that return generated content. The result is
-// opened in a scratch editor so the user can save / iterate on it.
+// Analysis commands that return generated content. The result is opened in a
+// scratch editor so the user can save / iterate on it.
 // ---------------------------------------------------------------------------
 
 class TkPreviewAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.tkPreview"
     override fun buildArguments(project: Project, documentUri: String?, documentText: String?, event: AnActionEvent): List<Any>? {
-        val source = documentText ?: return null
-        return listOf(source)
+        val uri = documentUri ?: return null
+        val text = documentText ?: return null
+        // IntelliJ's platform LSP facade does not expose the monotonically
+        // increasing LSP document version. Send an opaque snapshot digest
+        // instead of a second source copy; the server verifies it against its
+        // already-open document and returns it for a final client-side check.
+        return listOf(mapOf("uri" to uri, "document_sha256" to sha256(text)))
     }
-    override fun resultExtension(result: Any?): String = "html"
+    override fun resultExtension(result: Any?): String = "json"
+
+    override fun acceptResult(project: Project, result: Any?, args: List<Any>): Boolean {
+        val request = args.singleOrNull() as? Map<*, *> ?: return false
+        val uri = request["uri"] as? String ?: return false
+        val expectedHash = request["document_sha256"] as? String ?: return false
+        val model = Gson().toJsonTree(result).takeIf { it.isJsonObject }?.asJsonObject
+        val responseUri = model?.get("document_uri")?.takeIf { it.isJsonPrimitive }?.asString
+        val responseHash = model?.get("document_sha256")?.takeIf { it.isJsonPrimitive }?.asString
+        val schemaVersion = model?.get("schema_version")?.takeIf { it.isJsonPrimitive }
+            ?.let { runCatching { it.asInt }.getOrNull() }
+        val file = VirtualFileManager.getInstance().findFileByUrl(uri)
+        val currentText = file?.let { FileDocumentManager.getInstance().getDocument(it)?.text }
+        if (schemaVersion != 1 || responseUri != uri || responseHash != expectedHash
+            || currentText == null || sha256(currentText) != expectedHash) {
+            notify(project, "Tk preview changed before the static model was ready; run it again.", NotificationType.INFORMATION)
+            return false
+        }
+        return true
+    }
 }
+
+private fun sha256(text: String): String = MessageDigest.getInstance("SHA-256")
+    .digest(text.toByteArray(Charsets.UTF_8))
+    .joinToString("") { byte -> "%02x".format(byte.toInt() and 0xff) }
 
 class TranslateXcAction : TclLspActionBase() {
     override val commandId = "tcl-lsp.xcTranslate"

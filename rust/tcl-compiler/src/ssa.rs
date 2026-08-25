@@ -658,8 +658,21 @@ fn registry_barrier_defs(
                 // A brace-quoted name word is a literal name, `$` and all
                 // (issue #1078).
                 let braced = tokens.is_some_and(|t| t.arg_is_braced_literal(idx));
-                args.get(idx)
-                    .map(|s| crate::naming::element_var_name_braced(s, braced).to_owned())
+                args.get(idx).map(|s| {
+                    let name = crate::naming::element_var_name_braced(s, braced);
+                    if reg.option_variable_scope(
+                        command,
+                        &arg_strs,
+                        idx,
+                        reg.own_availability_mask(),
+                    ) == Some(tcl_registry::VariableScope::Global)
+                        && !name.starts_with("::")
+                    {
+                        format!("::{name}")
+                    } else {
+                        name.to_owned()
+                    }
+                })
             })
             .filter(|n| !n.is_empty()),
     );
@@ -2309,6 +2322,145 @@ struct RenameOutputs {
     stmt_infos: HashMap<BlockId, Vec<SsaStatement>>,
 }
 
+/// Add variable definitions introduced through a registry-typed instance's
+/// class option table (for example a widget's linked input variable).
+///
+/// The ordinary registry def scan sees direct command heads. Runtime object
+/// commands (`.entry configure …`, `$widget configure …`) need the same scan
+/// after resolving their receiver class. The method opt-in and the option's
+/// external-input bit are both registry data; this layer names neither a
+/// method nor an option.
+fn enrich_instance_option_defs(
+    func: &cfg::Function,
+    registry: &CommandRegistry,
+) -> Option<cfg::Function> {
+    let mut enriched = func.clone();
+    let defs = enrich_instance_option_defs_with_initial(
+        &mut enriched,
+        registry,
+        &crate::taint::InstanceClassState::new(),
+    );
+    (!defs.is_empty()).then_some(enriched)
+}
+
+/// Mirror a top-level `::name` definition under Tcl's equivalent bare spelling.
+///
+/// A widget's deferred `-textvariable` must name a global so it outlives the
+/// constructor frame.  The registry/lowerer therefore records its static
+/// `VarWrite` as `::name`. At module scope, however, Tcl resolves `$name` to
+/// that same global variable.  SSA otherwise interns those spellings as two
+/// unrelated variables and loses the input source at the overwhelmingly
+/// common top-level `$name` read.  Only the one-segment global spelling has
+/// this equivalence: `::ns::name` is not a bare `name` in `::top`.
+///
+/// This is a scope rule, not a Tk rule. Any registry option declaring a
+/// global `VarWrite` gets the same top-level alias, while procedure bodies
+/// retain Tcl's strict local/global distinction.
+fn mirror_top_level_global_defs(func: &mut cfg::Function) -> bool {
+    let mut changed = false;
+    for block in func.blocks.values_mut() {
+        for statement in &mut block.statements {
+            let Statement::Call { defs, .. } = statement else {
+                continue;
+            };
+            let aliases: Vec<String> = defs
+                .iter()
+                .filter_map(|name| {
+                    let bare = name.strip_prefix("::")?;
+                    (!bare.is_empty() && !bare.contains("::")).then_some(bare.to_owned())
+                })
+                .filter(|alias| !defs.contains(alias))
+                .collect();
+            changed |= !aliases.is_empty();
+            defs.extend(aliases);
+        }
+    }
+    changed
+}
+
+/// In-place form used by module CFG construction when a procedure begins with
+/// proven interpreter-global receiver facts.
+pub(crate) fn enrich_instance_option_defs_with_initial(
+    func: &mut cfg::Function,
+    registry: &CommandRegistry,
+    initial: &crate::taint::InstanceClassState,
+) -> HashSet<String> {
+    let classes = crate::taint::local_instance_classes_with_initial(func, registry, initial);
+    let mut instance_defs = HashSet::new();
+    for block in func.blocks.values_mut() {
+        for statement in &mut block.statements {
+            let Statement::Call {
+                span,
+                command,
+                args,
+                defs,
+                ..
+            } = statement
+            else {
+                continue;
+            };
+            if args.is_empty() {
+                continue;
+            }
+            let Some(class) =
+                crate::taint::unique_instance_class(command, Some(&classes), Some(span.start()))
+            else {
+                continue;
+            };
+            let invocation_args: Vec<&str> = args.iter().map(String::as_str).collect();
+            let Some(invocation) = registry.resolve_instance_invocation(
+                class,
+                command,
+                &invocation_args,
+                registry.own_availability_mask(),
+            ) else {
+                continue;
+            };
+            if !invocation
+                .semantics
+                .traits
+                .contains(tcl_registry::Traits::CONFIGURES_INSTANCE_OPTIONS)
+            {
+                continue;
+            }
+            let option_args: Vec<&str> = args[1..].iter().map(String::as_str).collect();
+            for (option_index, candidate) in args[1..].iter().enumerate() {
+                if candidate.is_empty() || candidate.contains(['$', '[']) {
+                    continue;
+                }
+                if tcl_registry::taint::taints_var_write(
+                    registry,
+                    class,
+                    &option_args,
+                    registry.own_availability_mask(),
+                    candidate,
+                ) {
+                    let name = crate::naming::element_var_name(candidate);
+                    let name = if registry.option_variable_scope(
+                        class,
+                        &option_args,
+                        option_index,
+                        registry.own_availability_mask(),
+                    ) == Some(tcl_registry::VariableScope::Global)
+                        && !name.starts_with("::")
+                    {
+                        format!("::{name}")
+                    } else {
+                        name.to_owned()
+                    };
+                    if !name.is_empty() {
+                        instance_defs.insert(name.clone());
+                        if !defs.contains(&name) {
+                            defs.push(name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    instance_defs
+}
+
 /// Build SSA with dominator-based phi placement and renaming.
 ///
 /// Computes dominators, places phi nodes, then walks the dominator
@@ -2652,6 +2804,13 @@ pub fn build_ssa(func: &cfg::Function, registry: &CommandRegistry) -> SsaFunctio
     if is_complexity_guarded(func) {
         return SsaFunction::trivial(func.name.clone(), func.entry, func.block_names().to_vec());
     }
+
+    let mut enriched = enrich_instance_option_defs(func, registry);
+    if func.name == "::top" {
+        let target = enriched.get_or_insert_with(|| func.clone());
+        let _ = mirror_top_level_global_defs(target);
+    }
+    let func = enriched.as_ref().unwrap_or(func);
 
     // 1. Compute dominance information.  Use the Cooper-Harvey-
     //    Kennedy immediate-dominator algorithm directly — it is

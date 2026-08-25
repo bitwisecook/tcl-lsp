@@ -576,7 +576,7 @@ fn registry_pattern_format_hover(
         registry,
         profile.availability_mask,
         &identities,
-        &mut |command, identity| {
+        &mut |command, identity, _context| {
             answer = pattern_format_hover_for_command(&context, command, identity);
             answer.is_some()
         },

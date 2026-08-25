@@ -31,6 +31,7 @@ use std::rc::Rc;
 
 use tcl_registry::arg_role::{AppendedArity, ArgRole};
 use tcl_registry::clause_shape::ClauseShapeError;
+use tcl_registry::hover::ScriptTiming;
 use tcl_registry::invocation_words::{CommandPrefixArguments, InvocationArguments, InvocationWord};
 use tcl_registry::literal_validation::{LiteralArgumentIssueReason, LiteralArgumentValidation};
 use tcl_registry::pack_hooks::{self, HookFamily, HookInputs};
@@ -97,6 +98,44 @@ fn command_prefix_resolver_emits_positions_and_appended_arity() {
     assert_eq!(
         resolver(CommandPrefixArguments::literals(&words)),
         vec![(2, AppendedArity::Exactly(4))]
+    );
+    pack_hooks::clear_host();
+}
+
+#[test]
+fn script_timing_resolver_preserves_the_exact_enum_spelling() {
+    let slot = one_hook(HookProgram::new(
+        "mylib::send",
+        HookFamily::ScriptTimingResolver,
+        "if {[lindex $words 0] eq \"-async\"} {\n\
+             timing 2 Deferred\n\
+         } else {\n\
+             timing 1 SameInvocation\n\
+         }",
+    ));
+    let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
+    assert_eq!(
+        resolver(&["other", "work"]),
+        vec![(1, ScriptTiming::SameInvocation)]
+    );
+    assert_eq!(
+        resolver(&["-async", "other", "work"]),
+        vec![(2, ScriptTiming::Deferred)]
+    );
+    pack_hooks::clear_host();
+}
+
+#[test]
+fn script_timing_resolver_can_emit_reference_only() {
+    let slot = one_hook(HookProgram::new(
+        "mylib::trace",
+        HookFamily::ScriptTimingResolver,
+        "timing 3 ReferenceOnly",
+    ));
+    let resolver = pack_hooks::script_timing_resolver_fn(slot).expect("a timing thunk");
+    assert_eq!(
+        resolver(&["remove", "variable", "name", "callback"]),
+        vec![(3, ScriptTiming::ReferenceOnly)]
     );
     pack_hooks::clear_host();
 }

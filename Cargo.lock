@@ -4407,6 +4407,7 @@ version = "0.1.0"
 dependencies = [
  "regex",
  "rustc-hash",
+ "serde",
  "serde_json",
  "tcl-bigip",
  "tcl-cmd-core",
@@ -4443,6 +4444,7 @@ dependencies = [
  "js-sys",
  "salsa",
  "serde_json",
+ "sha2 0.11.0",
  "tcl-bigip",
  "tcl-compiler",
  "tcl-core-types",

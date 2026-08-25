@@ -206,6 +206,8 @@ execution trace is absent.
 | `repeated_args` | `&'static [RepeatedArgLayout]` | `&[]` | Roles that recur at a fixed stride over the argument tail (`global a b c`, `foreach v l ... body`) |
 | `command_prefixes` | `&'static [(u8, AppendedArity)]` | `&[]` | Static `ArgRole::CommandPrefix` positions with the arity appended to the callback |
 | `command_prefix_resolver` | `Option<CommandPrefixResolver>` | `None` | Dynamic command-prefix positions (`trace add …`, `interp alias`) |
+| `script_timing_resolver` | `Option<ScriptTimingResolver>` | `None` | Invocation-sensitive `SameInvocation` / `Deferred` / `ReferenceOnly` timing for positions already classified as executable |
+| `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
 | `option_constraints` | `&'static [OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
@@ -388,6 +390,7 @@ table — no separate index (`CommandRegistry::object_class`).
 | `instance_methods` | `&[SubCommand]` | `&[]` | Methods dispatched on a handle (`Xaxis`, `Add`, …), reusing `SubCommand` (so option / enum / arg-value metadata is shared) |
 | `superclasses` | `&[&str]` | `&[]` | Direct superclass names for inherited-method resolution |
 | `allow_unknown_methods` | `bool` | `false` | Accept an unrecognised method without complaint |
+| `method_prefix_matching` | `PrefixMatching` | `Strict` | Whether this class's instance-method table accepts source-proven unique-prefix abbreviations; Tk widget classes opt in |
 
 The class's `new` / `create` constructor returns an object handle of
 `class_name`.  Two consumers act on this:
@@ -433,8 +436,10 @@ written.
 |-------|---------|
 | `name` | The form's identifier |
 | `arity`, `arg_roles` | Per-form argument count and roles |
+| `literal_argument_prefix` | Optional known-literal words at the start of the form's arguments. Exact spelling wins; when enabled, abbreviations must uniquely identify a sibling selector word. Prefix-overlapping selectors are legal and the longest statically matched, arity-admitting form wins. A dynamic/expanded word while a longer selector remains viable abstains so parent semantics remain effective |
 | `options`, `option_constraints` | Per-form switches and their relationships |
 | `semantic_operation`, `lowering_hook`, `codegen_hook` | Per-form dispatch |
+| `traits`, `mutator`, `side_effects` | Replacement-capable behavioural/effect refinements; `None` inherits, `Some` replaces the coarser row |
 | `result_stability`, `world_effects`, `state_transitions`, `dispatch_dependencies`, `representation_effect` | Per-form optimiser facts |
 | `literal_argument_validator`, `completion` | Per-form validation and completion contract |
 | `dialects` | Dialect gate for the form |
@@ -1332,15 +1337,21 @@ mixing them up is a real source of bugs:
   if set, else the subcommand's, else the command's. This covers
   `completion`, `result_stability`, `representation_effect`, and
   `lowering_hook`, among others. Arity likewise takes the form's, else the
-  subcommand's, else the command's.
-- **Union**, for traits: the command's `traits` **or** the subcommand's, so a
-  subcommand can only ever add behaviour, never mask its parent's. A
-  subcommand's `pure: true` folds in as `Traits::PURE` at this step, which is
-  how the two spellings of purity meet.
+  subcommand's, else the command's. A form's optional `traits`, `mutator`, and
+  `side_effects` are replacement refinements too: `Some(&[])` is a deliberate
+  proof of no legacy side effects, not an absent declaration.
+- **Union until a form refines it**, for command/subcommand traits: the
+  command's `traits` **or** the subcommand's, with `pure: true` folded in as
+  `Traits::PURE`. When a matched form supplies `traits: Some(...)`, that value
+  replaces the inherited union. This is what lets a zero-argument widget query
+  remove mutation-only callback traits from its neutral parent method row.
 
-Purity is therefore additive rather than overriding: marking a subcommand
-pure does not make a call to an impure parent pure, and there is no
-form-level purity flag to override either.
+`CommandRegistry::resolve_instance_invocation` uses the same projection for
+`$object method ...`, but does not inherit the class factory command's
+constructor-only traits and effects. It resolves the instance method and its
+`SubCommandForm` from the registry, retaining the receiver and concrete
+argument shape in `ResolvedInvocation`; consumers do not branch on class or
+method names.
 
 ## Known limitations
 

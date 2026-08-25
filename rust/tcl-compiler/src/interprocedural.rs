@@ -237,6 +237,16 @@ pub struct InterproceduralAnalysis {
     pub procedures: HashMap<String, ProcSummary>,
     /// Per-method summaries keyed by qualified name.
     pub methods: HashMap<String, MethodSummary>,
+    /// Registry-modelled object/widget commands proven to exist when each
+    /// procedure can run, keyed first by qualified procedure name. These
+    /// commands are interpreter-global, but eager top-level calls see only
+    /// constructors that precede them; callback-only procedures see completed
+    /// unconditional top-level setup.
+    pub global_instance_classes: HashMap<String, crate::taint::InstanceClassState>,
+    /// Global/namespace variables made externally controlled by a procedure's
+    /// registry-declared instance-option configuration, closed transitively
+    /// over the internal call graph.
+    pub tainted_global_writes: HashMap<String, HashSet<String>>,
 }
 
 /// A command-name → `(params, param_traits)` lookup, keyed by the bare leaf
@@ -628,10 +638,314 @@ pub fn build_interprocedural_analysis(
         },
     );
 
+    let global_instance_classes = global_instance_classes(ir_module, registry);
+    let tainted_global_writes =
+        tainted_global_writes(ir_module, registry, &global_instance_classes);
+
     InterproceduralAnalysis {
         procedures,
         methods,
+        global_instance_classes,
+        tainted_global_writes,
     }
+}
+
+/// Registry-modelled object/widget commands available at each procedure's
+/// earliest known execution phase.
+///
+/// Kept as a small standalone projection because the colour-aware taint solver
+/// can run on a [`CompilationUnit`](crate::compilation_unit::CompilationUnit)
+/// before the full call/effect summary has been attached.  Runtime-created
+/// command names are interpreter-global, so callback procedures still need
+/// these receiver facts in that mode.
+#[must_use]
+// This is one forward phase analysis over the top-level ordering and call
+// graph; the state transitions must stay in one monotone walk.
+#[allow(clippy::too_many_lines)]
+pub(crate) fn global_instance_classes(
+    ir_module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<String, crate::taint::InstanceClassState> {
+    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let mut calls: HashMap<String, HashSet<String>> = HashMap::new();
+    for (caller, procedure) in &ir_module.procedures {
+        let targets = calls.entry(caller.clone()).or_default();
+        crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+            let crate::ir::Statement::Call { command, .. } = statement else {
+                return;
+            };
+            if let Some(target) = resolve_internal_call(command, caller, &known) {
+                targets.insert(target);
+            }
+        });
+    }
+
+    // A procedure reached while the top-level script is still running may be
+    // called before a later constructor. Propagate that earliest possible
+    // invocation through the internal call graph; callback-only procedures
+    // have no eager call and therefore start after direct top-level setup.
+    let mut earliest: HashMap<String, u32> = HashMap::new();
+    crate::ir::for_each_statement(&ir_module.top_level, &mut |statement| {
+        let crate::ir::Statement::Call { span, command, .. } = statement else {
+            return;
+        };
+        if let Some(target) = resolve_internal_call(command, "::top", &known) {
+            earliest
+                .entry(target)
+                .and_modify(|old| *old = (*old).min(span.start()))
+                .or_insert(span.start());
+        }
+    });
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (caller, callees) in &calls {
+            let Some(position) = earliest.get(caller).copied() else {
+                continue;
+            };
+            for callee in callees {
+                match earliest.get_mut(callee) {
+                    Some(old) if position < *old => {
+                        *old = position;
+                        changed = true;
+                    }
+                    None => {
+                        earliest.insert(callee.clone(), position);
+                        changed = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    // Direct top-level constructors and lifecycle operations are unconditional;
+    // nested ones are may-execute invalidations. Processing both in source
+    // order means a later direct recreate restores a known receiver, while a
+    // conditional destroy/rename withdraws the proof instead of leaving a
+    // stale earlier class behind.
+    let constructor = |statement: &crate::ir::Statement| {
+        let crate::ir::Statement::Call { command, args, .. } = statement else {
+            return None;
+        };
+        let spec = registry.get(command)?;
+        let index = spec.creates_instance_at?;
+        let name = args.get(usize::from(index))?;
+        if name.is_empty() || name.starts_with(['$', '[', '{']) {
+            return None;
+        }
+        Some((
+            statement.span().start(),
+            name.clone(),
+            spec.object_class.map(|class| class.class_name.to_owned()),
+        ))
+    };
+    ir_module
+        .procedures
+        .keys()
+        .map(|qname| {
+            let eager = earliest.get(qname).copied();
+            let mut classes = crate::taint::InstanceClassState::new();
+            let direct_positions: HashSet<u32> = ir_module
+                .top_level
+                .statements
+                .iter()
+                .map(|statement| statement.span().start())
+                .collect();
+
+            // The top level executes in source order before a callback-only
+            // procedure and up to the first eager call for an eagerly-called
+            // procedure.  Apply both factories and registry lifecycle moves
+            // here, rather than retaining a constructor-only side table.
+            for statement in &ir_module.top_level.statements {
+                let position = statement.span().start();
+                if eager.is_some_and(|call| position >= call) {
+                    continue;
+                }
+                let crate::ir::Statement::Call { command, args, .. } = statement else {
+                    continue;
+                };
+                crate::taint::transfer_instance_lifecycle(&mut classes, command, args, registry);
+                if let Some((_, receiver, class)) = constructor(statement) {
+                    classes.remove(&receiver);
+                    if let Some(class) = class {
+                        classes.insert(receiver, HashSet::from([class]));
+                    }
+                }
+            }
+
+            // A nested factory/lifecycle operation may or may not run before
+            // the procedure.  A conditional factory only kills the old name;
+            // a conditional rename, alias, or Tk teardown can touch any
+            // tracked receiver, so clear the complete map conservatively.
+            crate::ir::for_each_statement(&ir_module.top_level, &mut |statement| {
+                let position = statement.span().start();
+                if direct_positions.contains(&position)
+                    || eager.is_some_and(|call| position >= call)
+                {
+                    return;
+                }
+                let crate::ir::Statement::Call { command, args, .. } = statement else {
+                    return;
+                };
+                if constructor(statement).is_some() {
+                    if let Some((_, receiver, _)) = constructor(statement) {
+                        classes.remove(&receiver);
+                    }
+                } else if registry
+                    .command_table_effect(command, args.first().map(String::as_str))
+                    .is_some()
+                    || registry.get(command).is_some_and(|spec| {
+                        spec.traits
+                            .contains(tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN)
+                            && spec.required_package == Some("Tk")
+                    })
+                {
+                    classes.clear();
+                }
+            });
+            (qname.clone(), classes)
+        })
+        .collect()
+}
+
+/// Global variables tainted by registry-declared instance configuration in a
+/// procedure, closed transitively over calls to other procedures.
+#[must_use]
+pub(crate) fn tainted_global_writes(
+    ir_module: &crate::ir::Module,
+    registry: &tcl_registry::CommandRegistry,
+    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
+) -> HashMap<String, HashSet<String>> {
+    let mut cfg_module = crate::cfg_builder::build_cfg(ir_module, false);
+    let writes = direct_instance_option_writes(&mut cfg_module, registry, global_classes);
+    close_tainted_global_writes(ir_module, writes)
+}
+
+fn direct_instance_option_writes(
+    cfg_module: &mut crate::cfg::CfgModule,
+    registry: &tcl_registry::CommandRegistry,
+    global_classes: &HashMap<String, crate::taint::InstanceClassState>,
+) -> HashMap<String, HashSet<String>> {
+    cfg_module
+        .procedures
+        .iter_mut()
+        .map(|(qname, cfg)| {
+            let initial = global_classes.get(qname).cloned().unwrap_or_default();
+            let mut defs =
+                crate::ssa::enrich_instance_option_defs_with_initial(cfg, registry, &initial);
+            defs.retain(|name| name.starts_with("::"));
+            for block in cfg.blocks.values() {
+                for statement in &block.statements {
+                    let crate::ir::Statement::Call {
+                        command,
+                        canonical_command,
+                        args,
+                        defs: call_defs,
+                        ..
+                    } = statement
+                    else {
+                        continue;
+                    };
+                    let lookup = canonical_command.as_deref().unwrap_or(command);
+                    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+                    for variable in call_defs.iter().filter(|name| name.starts_with("::")) {
+                        if tcl_registry::taint::taints_var_write(
+                            registry,
+                            lookup,
+                            &arg_refs,
+                            registry.own_availability_mask(),
+                            variable,
+                        ) {
+                            defs.insert(variable.clone());
+                        }
+                    }
+                }
+            }
+            (qname.clone(), defs)
+        })
+        .collect()
+}
+
+fn close_tainted_global_writes(
+    ir_module: &crate::ir::Module,
+    mut writes: HashMap<String, HashSet<String>>,
+) -> HashMap<String, HashSet<String>> {
+    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let mut calls: HashMap<String, HashSet<String>> = HashMap::new();
+    for (qname, procedure) in &ir_module.procedures {
+        let proc_calls = calls.entry(qname.clone()).or_default();
+        crate::ir::for_each_statement(&procedure.body, &mut |statement| {
+            let crate::ir::Statement::Call { command, .. } = statement else {
+                return;
+            };
+            if let Some(target) = resolve_internal_call(command, qname, &known) {
+                proc_calls.insert(target);
+            }
+        });
+    }
+
+    let mut changed = true;
+    while changed {
+        changed = false;
+        for (caller, callees) in &calls {
+            let inherited: HashSet<String> = callees
+                .iter()
+                .filter_map(|callee| writes.get(callee))
+                .flatten()
+                .cloned()
+                .collect();
+            let caller_writes = writes.entry(caller.clone()).or_default();
+            let old_len = caller_writes.len();
+            caller_writes.extend(inherited);
+            changed |= caller_writes.len() != old_len;
+        }
+    }
+    writes
+}
+
+/// Apply the instance facts needed before SSA construction.
+///
+/// Direct configuration calls gain the registry-declared variable defs, and
+/// internal procedure calls gain the transitive defs of their callees. This is
+/// deliberately CFG annotation, not command-name logic: both the receiver
+/// class and the option write come from registry descriptors.
+pub(crate) fn enrich_instance_taint_cfg(
+    ir_module: &crate::ir::Module,
+    cfg_module: &mut crate::cfg::CfgModule,
+    registry: &tcl_registry::CommandRegistry,
+) -> HashMap<String, HashSet<String>> {
+    let global_classes = global_instance_classes(ir_module, registry);
+    let direct_writes = direct_instance_option_writes(cfg_module, registry, &global_classes);
+    let writes = close_tainted_global_writes(ir_module, direct_writes);
+
+    let known: HashSet<String> = ir_module.procedures.keys().cloned().collect();
+    let annotate_calls = |cfg: &mut crate::cfg::Function| {
+        let caller = cfg.name.clone();
+        for block in cfg.blocks.values_mut() {
+            for statement in &mut block.statements {
+                let crate::ir::Statement::Call { command, defs, .. } = statement else {
+                    continue;
+                };
+                let Some(target) = resolve_internal_call(command, &caller, &known) else {
+                    continue;
+                };
+                let Some(target_writes) = writes.get(&target) else {
+                    continue;
+                };
+                for variable in target_writes {
+                    if !defs.contains(variable) {
+                        defs.push(variable.clone());
+                    }
+                }
+            }
+        }
+    };
+    annotate_calls(&mut cfg_module.top_level);
+    for cfg in cfg_module.procedures.values_mut() {
+        annotate_calls(cfg);
+    }
+    writes
 }
 
 /// The three per-procedure fixpoint results a method summary joins against —
@@ -1626,7 +1940,13 @@ fn scan_statement(
     use crate::ir::Statement;
     let ScanCtx { params, .. } = ctx;
     match stmt {
-        Statement::Barrier { .. } => {
+        Statement::Barrier { command, args, .. } => {
+            // A barrier makes effects opaque; it does not erase the call's
+            // registry-declared identities.  In particular, same-invocation
+            // command prefixes such as `lsort -command cb` still make `cb`
+            // reachable, while deferred registrations that conservatively
+            // lower to a barrier retain their callback edge too.
+            scan_call_facts(command, args, ctx, facts);
             facts.has_barrier = true;
             facts.local_pure = false;
             facts.effect_reads |= EffectRegion::UNKNOWN_STATE;

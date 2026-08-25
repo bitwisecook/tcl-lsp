@@ -349,7 +349,7 @@ impl SideEffectTarget {
                 effect!("table set session:key old\ntable set session:key new\nlog local0. [table lookup session:key]"; (0, "table set", "creates session state"), (1, "table set", "writes it"), (2, "table lookup", "reads new"))
             }
             Self::PersistenceTable => {
-                effect!("persist add uie $key 600\nset record [persist lookup uie $key]\nlog local0. $record"; (0, "persist add", "writes persistence state"), (1, "persist lookup", "reads it"), (2, "$record", "carries the result"))
+                effect!("set key user-session\npersist add uie $key 600\nset record [persist lookup uie $key]\nlog local0. $record"; (0, "key user-session", "selects the persistence key"), (1, "persist add", "writes persistence state"), (2, "persist lookup", "reads it"), (3, "$record", "carries the result"))
             }
             Self::DataGroup => {
                 effect!("set key [HTTP::host]\nset route [class lookup $key routes]\npool $route"; (0, "HTTP::host", "supplies a lookup key"), (1, "class lookup", "reads the data group"), (2, "$route", "selects the pool"))
@@ -379,7 +379,7 @@ impl SideEffectTarget {
                 effect!("set user [HTTP::uri]\nHTTP::respond 200 content $user\nHTTP::header value Host"; (0, "HTTP::uri", "supplies request data"), (1, "HTTP::respond", "commits it to the response"), (2, "HTTP::header", "is invalid after commit"))
             }
             Self::ConnectionControl => {
-                effect!("set blocked 1\nif {$blocked} { reject }\nlog local0. continued"; (0, "blocked 1", "supplies the action decision"), (1, "$blocked", "selects the action"), (1, "reject", "terminates connection flow"), (2, "continued", "is unreachable on that path"))
+                effect!("set blocked 1\nif {$blocked} { reject }\nlog local0. continued-after-reject"; (0, "blocked 1", "supplies the action decision"), (1, "$blocked", "selects the action"), (1, "reject", "marks the connection for rejection"), (2, "continued-after-reject", "still runs because reject does not return"))
             }
             Self::TcpState => {
                 effect!("TCP::collect 1024\nset bytes [TCP::payload]\nTCP::release"; (0, "TCP::collect", "writes TCP collection state"), (1, "TCP::payload", "reads it"), (2, "TCP::release", "changes it again"))
@@ -463,7 +463,7 @@ impl SideEffectTarget {
                 effect!("set channel [open data.txt r]\nset data [chan read $channel]\nputs $data"; (0, "open data.txt r", "creates a channel"), (1, "chan read $channel", "reads channel state"), (2, "$data", "carries the external bytes"))
             }
             Self::EventControl => {
-                effect!("when HTTP_REQUEST {\n    event disable all\n    log local0. unreachable\n}"; (0, "HTTP_REQUEST", "starts event execution"), (1, "event disable all", "changes event-control state"), (2, "unreachable", "is skipped for disabled flow"))
+                effect!("when HTTP_REQUEST {\n    event disable all\n    log local0. current-event-continues\n}"; (0, "HTTP_REQUEST", "starts event execution"), (1, "event disable all", "disables future event processing"), (2, "current-event-continues", "still runs in this event invocation"))
             }
             Self::Unknown => {
                 effect!("set before [opaque state]\nunknown_effect $before\nputs [opaque state]"; (0, "opaque state", "reads unclassified state"), (1, "unknown_effect", "may read or write any external domain"), (2, "opaque state", "must be treated as changed"))

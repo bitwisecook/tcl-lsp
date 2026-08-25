@@ -45,7 +45,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-variable",
-        value: OptionValue::var_name(),
+        value: OptionValue::user_input_var(),
         detail: "Name of a variable linked to the scale's current value.",
         dialects: None,
         aliases: &[],
@@ -153,7 +153,7 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::Exactly(1)),
+        value: OptionValue::deferred_command_prefix_n("prefix", AppendedArity::Exactly(1)),
         detail: "Tcl command prefix invoked when the scale value changes (the new value is appended).",
         dialects: None,
         aliases: &[],
@@ -302,9 +302,82 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+static SUBCOMMANDS: &[SubCommand] = &[
+    SubCommand {
+        name: "cget",
+        arity: Arity::exact(1),
+        detail: "Return the current value of a scale option.",
+        synopsis: "pathName cget option",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "configure",
+        arity: Arity::at_least(0),
+        detail: "Query or change scale options.",
+        synopsis: "pathName configure ?option? ?value option value ...?",
+        return_type: Some(TclType::String),
+        subcommand_forms: super::common::CONFIGURE_FORMS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "coords",
+        arity: Arity::new(0, 1),
+        detail: "Return the coordinates corresponding to a scale value.",
+        synopsis: "pathName coords ?value?",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::new(0, 2),
+        detail: "Return the user-controlled scale value, optionally at coordinates x y.",
+        synopsis: "pathName get ?x y?",
+        traits: Traits::TAINT_SOURCE_ZERO_ARGS,
+        pure: true,
+        return_type: Some(TclType::Double),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "identify",
+        arity: Arity::exact(2),
+        detail: "Identify the scale element at coordinates x y.",
+        synopsis: "pathName identify x y",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::exact(1),
+        detail: "Set the scale value.",
+        synopsis: "pathName set value",
+        traits: Traits::EVALUATES_CODE,
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_CALLBACK_EFFECTS,
+        ..SubCommand::DEFAULT
+    },
+];
+
+static CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "scale",
+    instance_methods: SUBCOMMANDS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scale",
+        traits: Traits::TAINTS_VAR_WRITES,
         dialects: Some(DialectSet::TK_AND_TCL),
         arity: Arity::at_least(1),
         hover: Some(HoverSnippet {
@@ -319,6 +392,8 @@ pub fn spec() -> CommandSpec {
         warn_missing_import: false,
         forms: FORMS,
         options: OPTIONS,
+        subcommands: SUBCOMMANDS,
+        object_class: Some(&CLASS),
         side_effects: SIDE_EFFECTS,
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT

@@ -91,6 +91,17 @@ export interface FieldSchema {
   kind: FieldKind;
 }
 
+/** One documented property edited inside a composite field row. */
+export interface NestedFieldSchema {
+  key: string;
+  label: string;
+  doc: string;
+  owner: string;
+  group: string;
+  help: string;
+  example: CodeExample;
+}
+
 /** A catalogue's title and introduction, from `help::CATALOGUE_HELP`. */
 export interface CatalogueHelp {
   title: string;
@@ -108,6 +119,8 @@ export interface Schema {
   catalogues: Catalogues;
   /** Title and introduction per catalogue id, from `help::CATALOGUE_HELP`. */
   catalogueHelp: Record<string, CatalogueHelp>;
+  /** Documented properties inside composite editors such as option rows. */
+  nestedFields: NestedFieldSchema[];
   command: FieldSchema[];
   subcommand: FieldSchema[];
 }

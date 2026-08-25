@@ -9,6 +9,7 @@ test_root="$(mktemp -d "${TMPDIR:-/tmp}/tcl-lsp-installer-test.XXXXXX")"
 trap 'rm -rf -- "$test_root"' EXIT
 
 export HOME="$test_root/home"
+export XDG_CONFIG_HOME="$HOME/.config"
 mkdir -p "$HOME" "$test_root/work" "$test_root/path-old" "$test_root/path-new"
 export PATH="$test_root/path-new:$test_root/path-old:/usr/bin:/bin"
 export TCL_LSP_PREFIX="$test_root/path-new"

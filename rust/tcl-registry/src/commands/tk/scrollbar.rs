@@ -36,7 +36,10 @@ const OPTIONS: &[OptionSpec] = &[
     },
     OptionSpec {
         name: "-command",
-        value: OptionValue::command_prefix_n("prefix", AppendedArity::AtLeast(2)),
+        value: OptionValue::deferred_command_prefix_n(
+            "prefix",
+            AppendedArity::OneOf(AppendedAritySet::from_sorted_unique(&[2, 3])),
+        ),
         detail: "Command prefix to invoke when the scrollbar is moved (`moveto frac` appends 2, `scroll n units|pages` appends 3).",
         dialects: None,
         aliases: &[],
@@ -203,6 +206,79 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
+static SCROLLBAR_METHODS: &[SubCommand] = &[
+    SubCommand {
+        name: "activate",
+        arity: Arity::new(0, 1),
+        detail: "Return the active element, or mark the named element active.",
+        synopsis: "pathName activate ?element?",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+    super::common::CLASSIC_WIDGET_CGET,
+    super::common::CLASSIC_WIDGET_CONFIGURE,
+    SubCommand {
+        name: "delta",
+        arity: Arity::exact(2),
+        detail: "Return the fraction corresponding to a pixel displacement.",
+        synopsis: "pathName delta deltaX deltaY",
+        pure: true,
+        return_type: Some(TclType::Double),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "fraction",
+        arity: Arity::exact(2),
+        detail: "Return the fraction corresponding to a point in the trough.",
+        synopsis: "pathName fraction x y",
+        pure: true,
+        return_type: Some(TclType::Double),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "get",
+        arity: Arity::exact(0),
+        detail: "Return the scrollbar's current view fractions.",
+        synopsis: "pathName get",
+        pure: true,
+        return_type: Some(TclType::List),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "identify",
+        arity: Arity::exact(2),
+        detail: "Return the scrollbar element at the given coordinates.",
+        synopsis: "pathName identify x y",
+        pure: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS,
+        ..SubCommand::DEFAULT
+    },
+    SubCommand {
+        name: "set",
+        arity: Arity::exact(2),
+        detail: "Set the scrollbar's first and last view fractions.",
+        synopsis: "pathName set first last",
+        mutator: true,
+        return_type: Some(TclType::String),
+        side_effects: super::common::TTK_WIDGET_READS_WRITES,
+        ..SubCommand::DEFAULT
+    },
+];
+
+static SCROLLBAR_CLASS: ObjectClassSpec = ObjectClassSpec {
+    class_name: "scrollbar",
+    instance_methods: SCROLLBAR_METHODS,
+    superclasses: &[],
+    allow_unknown_methods: false,
+    method_prefix_matching: PrefixMatching::Enabled,
+};
+
 pub fn spec() -> CommandSpec {
     CommandSpec {
         name: "scrollbar",
@@ -221,6 +297,7 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         options: OPTIONS,
         side_effects: SIDE_EFFECTS,
+        object_class: Some(&SCROLLBAR_CLASS),
         creates_instance_at: Some(0),
         ..CommandSpec::DEFAULT
     }
