@@ -987,6 +987,47 @@ fn method_incoming_calls(
         .collect()
 }
 
+/// Incoming instance-method calls found in one known receiver class.
+///
+/// Hosts use this for a sibling document whose class inherits the target's
+/// provider from the workspace MRO: the document has the caller bodies, while
+/// the provider lives elsewhere. `external_callback_allowed` comes from the
+/// workspace visibility chain; internal `my` callbacks remain eligible.
+#[must_use]
+pub fn incoming_instance_method_calls_in_class(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    receiver_class: &str,
+    method: &str,
+    external_callback_allowed: bool,
+) -> Vec<IncomingCall> {
+    let Some(class_def) = analysis.all_classes.get(receiver_class) else {
+        return Vec::new();
+    };
+    let line_index = LineIndex::new(source);
+    class_methods_iter(class_def)
+        .filter(|caller| caller.kind != "classmethod")
+        .filter_map(|caller| {
+            let spans = crate::references::scan_method_sites(
+                source,
+                dialect,
+                &[caller.body_span],
+                method,
+                None,
+                external_callback_allowed,
+            );
+            (!spans.is_empty()).then(|| IncomingCall {
+                from: item_for_method(source, class_def, caller, &line_index),
+                from_ranges: spans
+                    .into_iter()
+                    .map(|span| span_to_range(source, &line_index, span))
+                    .collect(),
+            })
+        })
+        .collect()
+}
+
 /// Add the bare `ClassName <classmethod>` dispatch sites of `target_method`
 /// to `by_caller`, each attributed to the innermost body it sits in (issue
 /// #995).  A no-op unless `target_method` really is a `classmethod`.

@@ -492,6 +492,49 @@ fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
     );
 }
 
+/// #1705: the receiver class is local but its inherited private provider is
+/// in a sibling file.  The typed `my` callback must seed the workspace MRO,
+/// so definition, references, lens, rename and hierarchy agree on Base::read.
+#[test]
+fn tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere() {
+    let mut lsp = Lsp::tcl();
+    let base = unique_uri("tcl");
+    let child = unique_uri("tcl");
+    lsp.open_ready(
+        &base,
+        "oo::class create Base {\n    method read {} { return {} }\n    unexport read\n}\n",
+    );
+    lsp.open_ready(
+        &child,
+        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n",
+    );
+
+    assert_eq!(
+        location_lines(&lsp.definition(&child, 3, 60), &base),
+        std::collections::BTreeSet::from([1])
+    );
+    let refs = lsp.references(&base, 1, 11, true);
+    assert!(
+        location_lines(&refs, &child).contains(&3),
+        "cross-file callback missing from references: {refs:?}"
+    );
+    let lens = resolve_lens_on_line(&mut lsp, &base, 1);
+    assert!(
+        location_lines(&lens_locations(&lens), &child).contains(&3),
+        "cross-file callback missing from lens: {lens:?}"
+    );
+    let edits = rename_edits(&lsp.rename(&child, 3, 60, "consume"));
+    assert!(edit_lines(&edits, &base).contains(&1), "{edits:?}");
+    assert!(edit_lines(&edits, &child).contains(&3), "{edits:?}");
+
+    let item = lsp.prepare_call_hierarchy(&base, 1, 11)[0].clone();
+    let incoming = lsp.incoming_calls(item);
+    assert!(
+        incoming.to_string().contains("wire"),
+        "cross-file callback missing from hierarchy: {incoming:?}"
+    );
+}
+
 /// TP: the lens above `Animal`'s `speak` must count — and, on click, open —
 /// the sibling document's override declaration and its `$d speak` dispatch,
 /// exactly as Find All References on the same declaration does.

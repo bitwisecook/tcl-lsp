@@ -1075,6 +1075,34 @@ pub fn method_target_with_access_in_workspace(
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
+    if let Some((receiver, is_classmethod, external)) =
+        crate::references::callback_prefix_method_receiver_at_cursor(
+            source,
+            crate::profile_for_dialect(&analysis.dialect),
+            analysis,
+            &word,
+            cursor,
+        )
+        && let Some((workspace, _uri)) = index
+    {
+        let access = if external {
+            MethodAccess::External
+        } else {
+            MethodAccess::Internal
+        };
+        let chain = if is_classmethod {
+            workspace.class_method_dispatch_chain(&receiver, &word, access)
+        } else {
+            workspace.method_dispatch_chain(&receiver, &word, access)
+        };
+        let provider = chain.first()?;
+        return Some((
+            provider.qualified_name.clone(),
+            word,
+            is_classmethod,
+            access,
+        ));
+    }
     if let Some((provider, is_classmethod)) =
         crate::references::list_built_self_method_target_at_cursor(
             source,
@@ -2713,6 +2741,89 @@ mod tests {
             .find(|e| e.uri == "file:///ren.tcl")
             .expect("rename OLD edit");
         assert_eq!(ren_edit.new_text, "::mymod::helper2");
+    }
+
+    #[test]
+    fn workspace_resolves_inherited_namespace_wrapped_callback_with_internal_access() {
+        use crate::workspace_index::{MethodAccess, WorkspaceIndex};
+
+        let base_src = "oo::class create Base {\n    method read {} {}\n    unexport read\n}\n";
+        let child_src = "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
+        let base = analyse(base_src);
+        let child = analyse(child_src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///child.tcl", &child),
+        ]);
+        assert_eq!(
+            method_target_with_access_in_workspace(
+                child_src,
+                3,
+                60,
+                &child,
+                Some((&index, "file:///child.tcl")),
+            ),
+            Some((
+                "::Base".to_owned(),
+                "read".to_owned(),
+                false,
+                MethodAccess::Internal,
+            )),
+        );
+    }
+
+    #[test]
+    fn workspace_rejects_inherited_namespace_wrapped_external_private_callback() {
+        use crate::workspace_index::WorkspaceIndex;
+
+        let base_src = "oo::class create Base {\n    method read {} {}\n    unexport read\n}\n";
+        let child_src = "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list [self] read]]\n    }\n}\n";
+        let base = analyse(base_src);
+        let child = analyse(child_src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///child.tcl", &child),
+        ]);
+        assert!(
+            method_target_with_access_in_workspace(
+                child_src,
+                3,
+                64,
+                &child,
+                Some((&index, "file:///child.tcl")),
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn workspace_callback_dispatch_obeys_mixin_mro_over_child_override() {
+        use crate::workspace_index::{MethodAccess, WorkspaceIndex};
+
+        let base = analyse("oo::class create Base { method read {} {} }\n");
+        let mixin = analyse("oo::class create Mixin { method read {} {} }\n");
+        let child_src = "oo::class create Child {\n    superclass Base\n    mixin Mixin\n    method read {} {}\n    method wire {chan} { fileevent $chan readable [namespace code [list my read]] }\n}\n";
+        let child = analyse(child_src);
+        let index = WorkspaceIndex::from_documents([
+            ("file:///base.tcl", &base),
+            ("file:///mixin.tcl", &mixin),
+            ("file:///child.tcl", &child),
+        ]);
+        assert_eq!(
+            method_target_with_access_in_workspace(
+                child_src,
+                4,
+                75,
+                &child,
+                Some((&index, "file:///child.tcl")),
+            ),
+            Some((
+                "::Mixin".to_owned(),
+                "read".to_owned(),
+                false,
+                MethodAccess::Internal,
+            )),
+        );
     }
 
     #[test]

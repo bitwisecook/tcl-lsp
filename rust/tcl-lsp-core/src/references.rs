@@ -1621,17 +1621,43 @@ pub(crate) fn list_built_self_method_target_at_cursor(
     word: &str,
     cursor_offset: u32,
 ) -> Option<(String, bool)> {
+    let (receiver_q, is_classmethod, external) =
+        callback_prefix_method_receiver_at_cursor(source, dialect, analysis, word, cursor_offset)?;
+    let bucket = if is_classmethod {
+        crate::definition::MethodBucket::Class
+    } else {
+        crate::definition::MethodBucket::Instance
+    };
+    let (provider, _) = crate::oo_dispatch::method_dispatch_provider(
+        analysis,
+        &receiver_q,
+        word,
+        external,
+        bucket,
+    )?;
+    if provider != receiver_q {
+        return None;
+    }
+    Some((provider.to_owned(), is_classmethod))
+}
+
+/// Classify a static TclOO callback prefix at the cursor without requiring its
+/// method provider to be declared in the current document.  Hosts combine this
+/// receiver/access fact with the workspace dispatch chain for cross-file MRO.
+#[must_use]
+pub fn callback_prefix_method_receiver_at_cursor(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor_offset: u32,
+) -> Option<(String, bool, bool)> {
     let receiver_q = crate::definition::enclosing_class_at(analysis, cursor_offset)?;
     let receiver = analysis.all_classes.get(receiver_q)?;
     let is_classmethod = receiver
         .class_methods
         .values()
         .any(|method| span_contains_offset(method.body_span, cursor_offset));
-    let bucket = if is_classmethod {
-        crate::definition::MethodBucket::Class
-    } else {
-        crate::definition::MethodBucket::Instance
-    };
     let body = if is_classmethod {
         receiver
             .class_methods
@@ -1656,19 +1682,7 @@ pub(crate) fn list_built_self_method_target_at_cursor(
     if source_span_text(source, span) != word {
         return None;
     }
-    // `[self] method` dispatches externally and must be public.  `my method`
-    // preserves the current object's private dispatch semantics.
-    let (provider, _) =
-        crate::oo_dispatch::method_dispatch_provider(analysis, receiver_q, word, external, bucket)?;
-    // `method_references_for_class` deliberately excludes callback captures
-    // from inheriting receivers until #1705 models their effective export
-    // state.  Cursor-origin resolution must make the same abstention or rename
-    // would accept this site but omit it from the edit set.
-    if provider != receiver_q {
-        return None;
-    }
-    let provider = provider.to_owned();
-    Some((provider, is_classmethod))
+    Some((receiver_q.to_owned(), is_classmethod, external))
 }
 
 fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
