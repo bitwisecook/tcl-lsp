@@ -1,3 +1,87 @@
+# v2.2.0
+
+**The 2.x line is out of preview.** After twenty-five `2.1.x` pre-releases, the
+Rust rewrite becomes the default release and the default Marketplace install.
+VS Code and JetBrains users on the stable channel move to 2.x without opting
+in to anything; the pre-release and `eap` channels remain for the next
+development line, and the 1.x line stays available on its existing tags.
+
+Python is retired. The whole toolchain is native: the language server
+(`tcl-lsp-server`), the `tcl` and `f5-query` CLIs, and the `tcl-mcp` MCP
+server all ship as single-file binaries for every supported platform, and
+installing or running them needs no Python runtime and no interpreter
+bundle.
+
+## Tk widgets, callbacks, and static preview
+
+- The language server now builds a conservative static model of a Tk widget
+  tree, driven entirely by the command registry. It models only what is
+  recoverable from source without running Tcl: a variable or command
+  substitution in a widget path is recorded as an uncertainty rather than
+  guessed at, so the preview never invents a widget that the script would not
+  create.
+- Geometry-manager semantics are registry facts rather than hard-coded rules.
+  `pack` and `grid` both claim a geometry container and cannot both propagate
+  through one, while `place` manages content without claiming or resizing the
+  container — modelled precisely instead of collapsed into a single
+  mixed-manager heuristic.
+- Widget coverage is substantially wider: `ttk::labelframe`, `ttk::scrollbar`
+  and `ttk::toggleswitch` are newly modelled, and `ttk::treeview`,
+  `ttk::notebook`, `ttk::combobox`, `text`, `spinbox`, `listbox`, `menu`,
+  `send` and the core `tk` command all gained substantially deeper specs.
+- The VS Code Tk preview panel renders the richer model — notebook tabs,
+  treeview headings, listbox contents, menu items and toplevel titles — and
+  shows an explicit badge where layout could not be determined statically,
+  so an abstention is visible rather than silently drawn as an empty frame.
+
+## TclOO callback navigation
+
+- References, rename and code lenses now agree with each other on callback
+  sites. A method used as a callback is found by all three providers, and the
+  count on a lens matches what "find all references" returns.
+- Callback prefixes are resolved through the shapes real code uses: prefixes
+  built as lists around `self`, prefixes stored in a variable and used one hop
+  later, `my`-based callbacks wrapped in a namespace, and inherited wrapped
+  callbacks resolved across files.
+- Where the receiver genuinely cannot be determined — an inherited callback
+  cursor with no unique target — every provider abstains consistently instead
+  of one of them guessing a method and the others disagreeing.
+
+## Registry and Spec Studio
+
+- A new `cargo xtask callback-inventory` gate generates and verifies a
+  registry-backed inventory of every executable and callback-valued surface.
+  Surfaces behind a resolver are retained as explicitly `dynamic` rows rather
+  than having a position guessed from a function pointer.
+- Command-prefix construction is a typed registry vocabulary
+  (`BUILDS_COMMAND_PREFIX` / `WRAPS_COMMAND_PREFIX`), so consumers prove what
+  a prefix expression evaluates to by following registry traits instead of
+  matching on command names.
+- `CommandSpec` carries structured side-effect metadata, feeding effect
+  analysis from registry data rather than per-command branches in the
+  analyser.
+- Closed compiler vocabularies — traits, taint colours, side-effect targets —
+  now own their worked examples as registry data. Adding a vocabulary item
+  fails to compile until it has one, and Spec Studio, the Compiler Explorer
+  and the editor's help panels all render the same example.
+- Spec Studio gained inline help on catalogue items, registry-owned flow
+  examples, and a clearer split between traits that mark a carrier and traits
+  that describe flow.
+
+## Improvements and fixes
+
+- Taint analysis was substantially extended across the interprocedural and
+  SSA paths, with the propagation rules and their tests grown to match.
+- SpecTcl pack loading was hardened, and spec projections no longer disagree
+  with the registry they were generated from.
+- The workspace builds clean under Rust 1.98's tightened lint and
+  documentation gates, and the dev tooling now audits the toolchain against
+  the workspace requirement.
+- Tk method lifecycle checks respect the documented version floors rather
+  than reporting against the newest release.
+- The Spec Studio browser tests drive Monaco's hover directly and tolerate its
+  portalled widget, removing a class of flaky page tests.
+
 # v2.1.24
 
 **2.x alpha — pre-release channel.**
@@ -192,38 +276,37 @@ default.
   cross-release differences or incomplete record pairs from being reported as
   findings.
 
-## Performance across the 2.1 pre-releases
+## Performance across the 2.x releases
 
-These graphs cover every measured `2.1.x` pre-release from `v2.1.0` through
-`v2.1.24`, run by `scripts/perf/` against a pinned 113-file corpus (scope
+These graphs cover every measured `2.x` release from `v2.1.0` through
+`v2.2.0`, run by `scripts/perf/` against a pinned 113-file corpus (scope
 `small`, revision `1`). The corpus, scope, and revision are fixed across the
 whole series, so the lines are comparable with each other.
 
-There is no `v2.1.2` point: that version was never released.
-
-**`2.1.24` is this release**: it is the bright-blue line in the memory and CPU
+**`2.2.0` is this release**: it is the bright-blue line in the memory and CPU
 graphs and the rightmost bar in each wall-time group. Earlier releases are
 drawn in grey and fade with age.
 
 The series spans more than one measurement host — Apple M1 Max (darwin-arm64);
 AMD EPYC 9V74 80-Core Processor (linux-x86_64); AMD EPYC 7763 64-Core
-Processor (linux-x86_64); Apple M5 Max (darwin-arm64). Wall time and CPU are
-properties of the machine as much as of the build, so compare within a host
-era rather than reading the boundary as a product change. Resident memory is
-far less host-sensitive.
+Processor (linux-x86_64); Apple M5 Max (darwin-arm64); Intel(R) Xeon(R)
+Processor @ 2.10GHz (linux-x86_64). Wall time and CPU are properties of the
+machine as much as of the build, so compare within a host era rather than
+reading the boundary as a product change. Resident memory is far less
+host-sensitive.
 
 ### Resident memory
 
-![Resident memory across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-memory.svg)
+![Resident memory across the 2.x releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.2.0/perf-memory.svg)
 
 ### CPU utilisation
 
-![CPU utilisation across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-cpu.svg)
+![CPU utilisation across the 2.x releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.2.0/perf-cpu.svg)
 
 ### Per-check wall time
 
-![Per-check wall time across the 2.1 pre-releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-walltime.svg)
+![Per-check wall time across the 2.x releases](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.2.0/perf-walltime.svg)
 
 [Benchmark table and method
-notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.1.24/perf-summary.md)
-— the raw result JSON is attached to this release as `perf-2.1.24.json`.
+notes](https://github.com/bitwisecook/tcl-lsp/releases/download/v2.2.0/perf-summary.md)
+— the raw result JSON is attached to this release as `perf-2.2.0.json`.
