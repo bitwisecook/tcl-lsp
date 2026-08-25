@@ -2071,22 +2071,58 @@ fn stored_callback_targets(
     body_span: tcl_lexer::Span,
 ) -> Vec<StoredCallbackTarget> {
     use std::collections::HashMap;
+
+    let (start, end) = strip_outer_braces(ctx.source, body_span);
+    if start >= end || end > ctx.source.len() {
+        return Vec::new();
+    }
+    let mut writes: HashMap<String, (u32, Option<PrefixTargetAtSpan>)> = HashMap::new();
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    let has_scope_alias =
+        collect_stored_callback_writes(ctx, start, end, 0, &mut writes, &mut counts);
+    if has_scope_alias {
+        return Vec::new();
+    }
+    writes
+        .into_iter()
+        .filter_map(|(name, (assignment_end, target))| {
+            if counts.get(&name) != Some(&1) {
+                return None;
+            }
+            target.map(|target| StoredCallbackTarget {
+                variable: name,
+                assignment_end,
+                target,
+            })
+        })
+        .collect()
+}
+
+/// Collect callback assignments from every registry-declared same-frame
+/// region. The callback consumer already descends through these regions; the
+/// write inventory must cover the identical control-flow surface or a nested
+/// reassignment could leave a stale outer callback looking unique.
+fn collect_stored_callback_writes(
+    ctx: MyMethodScan<'_>,
+    start: usize,
+    end: usize,
+    depth: u32,
+    writes: &mut std::collections::HashMap<String, (u32, Option<PrefixTargetAtSpan>)>,
+    counts: &mut std::collections::HashMap<String, usize>,
+) -> bool {
     use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
     use tcl_lexer::TokenType;
     use tcl_registry::ArgRole;
     use tcl_registry::hooks::LoweringHookId;
 
-    let (start, end) = strip_outer_braces(ctx.source, body_span);
-    if start >= end || end > ctx.source.len() {
-        return Vec::new();
+    if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || start >= end || end > ctx.source.len() {
+        return false;
     }
     let commands = segment_commands_with_offset_and_config(
         &ctx.source[start..end],
         u32::try_from(start).unwrap_or(0),
         tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
     );
-    let mut writes: HashMap<String, (u32, Option<PrefixTargetAtSpan>)> = HashMap::new();
-    let mut counts: HashMap<String, usize> = HashMap::new();
     let mut has_scope_alias = false;
     for cmd in commands {
         let (Some(head), Some(written)) = (cmd.argv.first(), cmd.texts.first()) else {
@@ -2142,23 +2178,24 @@ fn stored_callback_targets(
                 .flatten();
             writes.insert(var.clone(), (cmd.span.end(), value_target));
         }
+        for (nested_start, nested_end) in nested_dispatch_regions_with_identities(
+            ctx.source,
+            ctx.dialect,
+            ctx.registry,
+            ctx.identities,
+            &cmd,
+        ) {
+            has_scope_alias |= collect_stored_callback_writes(
+                ctx,
+                nested_start,
+                nested_end,
+                depth + 1,
+                writes,
+                counts,
+            );
+        }
     }
-    if has_scope_alias {
-        return Vec::new();
-    }
-    writes
-        .into_iter()
-        .filter_map(|(name, (assignment_end, target))| {
-            if counts.get(&name) != Some(&1) {
-                return None;
-            }
-            target.map(|target| StoredCallbackTarget {
-                variable: name,
-                assignment_end,
-                target,
-            })
-        })
-        .collect()
+    has_scope_alias
 }
 
 /// Scan a brace-delimited body span for `my method` call sites (stripping the
@@ -2416,11 +2453,16 @@ fn command_prefix_targets_from_word(
         .identities
         .head_words(builder_written, builder_head.span.start())
         .resolved;
-    let Some(spec) = ctx.registry.get(builder_resolved) else {
+    let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
+    let Some(invocation) =
+        ctx.registry
+            .resolve_invocation(builder_resolved, &args, ctx.dialect.availability_mask)
+    else {
         return Vec::new();
     };
+    let traits = invocation.semantics.traits;
 
-    if spec.traits.contains(Traits::BUILDS_COMMAND_PREFIX) {
+    if traits.contains(Traits::BUILDS_COMMAND_PREFIX) {
         if let (Some(receiver), Some(&method_tok)) = (builder.texts.get(1), builder.argv.get(2))
             && method_tok.kind == TokenType::Esc
             && !method_tok.in_quote
@@ -2456,10 +2498,9 @@ fn command_prefix_targets_from_word(
             .collect();
     }
 
-    if !spec.traits.contains(Traits::WRAPS_COMMAND_PREFIX) {
+    if !traits.contains(Traits::WRAPS_COMMAND_PREFIX) {
         return Vec::new();
     }
-    let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
     ctx.registry
         .arg_indices_for_role(builder_resolved, &args, ArgRole::Body)
         .into_iter()
@@ -5972,6 +6013,26 @@ mod tests {
             lines,
             vec![1],
             "ambiguous stored callback must abstain: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn stored_callback_prefixes_count_nested_same_frame_reassignment() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method other {} {}\n    method setup {} {\n        set cb [list my tick]\n        if 1 {\n            set cb [list my other]\n            after 0 $cb\n        }\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "a nested reassignment makes the stored callback ambiguous: {refs:?}"
         );
     }
 

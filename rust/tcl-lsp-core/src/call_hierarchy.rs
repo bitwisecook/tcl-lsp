@@ -1006,8 +1006,7 @@ pub fn incoming_instance_method_calls_in_class(
         return Vec::new();
     };
     let line_index = LineIndex::new(source);
-    class_methods_iter(class_def)
-        .filter(|caller| caller.kind != "classmethod")
+    instance_method_frames_iter(class_def)
         .filter_map(|caller| {
             let spans = crate::references::scan_method_sites(
                 source,
@@ -1307,6 +1306,18 @@ fn class_methods_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> 
         .methods
         .values()
         .chain(class_def.class_methods.values())
+}
+
+/// Every instance-side execution frame that can contain `my` dispatches.
+/// Constructors and the destructor share the same object dispatch context as
+/// ordinary methods and therefore participate in cross-document incoming
+/// hierarchy edges too.
+fn instance_method_frames_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> {
+    class_def
+        .methods
+        .values()
+        .chain(class_def.constructors.iter())
+        .chain(class_def.destructor.iter())
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -1616,6 +1627,30 @@ mod tests {
         assert_eq!(outgoing.len(), 1, "{outgoing:?}");
         assert_eq!(outgoing[0].to.name, "::C::tick", "{outgoing:?}");
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    #[test]
+    fn cross_document_instance_hierarchy_includes_constructor_and_destructor_frames() {
+        let src = "oo::class create Child {\n    constructor {} { my read }\n    destructor { my read }\n}\n";
+        let analysis = analyse(src);
+        let mut incoming = incoming_instance_method_calls_in_class(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            "::Child",
+            "read",
+            true,
+        );
+        incoming.sort_by(|a, b| a.from.name.cmp(&b.from.name));
+        let callers: Vec<_> = incoming
+            .iter()
+            .map(|call| (call.from.name.as_str(), call.from_ranges.len()))
+            .collect();
+        assert_eq!(
+            callers,
+            vec![("::Child::<constructor>", 1), ("::Child::<destructor>", 1)],
+            "cross-document callers must cover every instance execution frame"
+        );
     }
 
     /// FP guard: a bare `greet` call inside a sibling method is *not* a
