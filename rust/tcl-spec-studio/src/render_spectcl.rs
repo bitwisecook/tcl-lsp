@@ -2669,7 +2669,7 @@ pub fn render_pack(drafts: &[Draft], pack_name: &str) -> String {
     render_pack_with_version(drafts, pack_name, DSL_VERSION)
 }
 
-/// Render a pack of drafts with its declared SpecTcl vocabulary version.
+/// Render a pack of drafts with its declared `SpecTcl` vocabulary version.
 ///
 /// A newly-created or exported pack uses [`DSL_VERSION`], while a document
 /// loaded into the studio must retain the version its own `speclib` header
