@@ -1047,6 +1047,43 @@ pub fn method_target_with_access(
     method_target_with_access_in_workspace(source, line, character, analysis, None)
 }
 
+fn callback_prefix_target_in_workspace(
+    source: &str,
+    analysis: &AnalysisResult,
+    word: &str,
+    cursor: u32,
+    index: Option<(&crate::workspace_index::WorkspaceIndex, &str)>,
+) -> Option<(String, String, bool, crate::workspace_index::MethodAccess)> {
+    use crate::workspace_index::MethodAccess;
+
+    let (receiver, is_classmethod, external) =
+        crate::references::callback_prefix_method_receiver_at_cursor(
+            source,
+            crate::profile_for_dialect(&analysis.dialect),
+            analysis,
+            word,
+            cursor,
+        )?;
+    let (workspace, _uri) = index?;
+    let access = if external {
+        MethodAccess::External
+    } else {
+        MethodAccess::Internal
+    };
+    let chain = if is_classmethod {
+        workspace.class_method_dispatch_chain(&receiver, word, access)
+    } else {
+        workspace.method_dispatch_chain(&receiver, word, access)
+    };
+    let provider = chain.first()?;
+    Some((
+        provider.qualified_name.clone(),
+        word.to_owned(),
+        is_classmethod,
+        access,
+    ))
+}
+
 /// [`method_target_with_access`] with the **workspace tier** available for
 /// receiver classification.
 ///
@@ -1075,33 +1112,10 @@ pub fn method_target_with_access_in_workspace(
     let line_index = LineIndex::new(source);
     let (word, _s, _e) = find_word_span_at_position(source, line, character)?;
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
-    if let Some((receiver, is_classmethod, external)) =
-        crate::references::callback_prefix_method_receiver_at_cursor(
-            source,
-            crate::profile_for_dialect(&analysis.dialect),
-            analysis,
-            &word,
-            cursor,
-        )
-        && let Some((workspace, _uri)) = index
+    if let Some(target) =
+        callback_prefix_target_in_workspace(source, analysis, &word, cursor, index)
     {
-        let access = if external {
-            MethodAccess::External
-        } else {
-            MethodAccess::Internal
-        };
-        let chain = if is_classmethod {
-            workspace.class_method_dispatch_chain(&receiver, &word, access)
-        } else {
-            workspace.method_dispatch_chain(&receiver, &word, access)
-        };
-        let provider = chain.first()?;
-        return Some((
-            provider.qualified_name.clone(),
-            word,
-            is_classmethod,
-            access,
-        ));
+        return Some(target);
     }
     if let Some((provider, is_classmethod)) =
         crate::references::list_built_self_method_target_at_cursor(

@@ -1641,7 +1641,7 @@ pub(crate) fn list_built_self_method_target_at_cursor(
     Some((provider.to_owned(), is_classmethod))
 }
 
-/// Classify a static TclOO callback prefix at the cursor without requiring its
+/// Classify a static `TclOO` callback prefix at the cursor without requiring its
 /// method provider to be declared in the current document.  Hosts combine this
 /// receiver/access fact with the workspace dispatch chain for cross-file MRO.
 #[must_use]
@@ -2467,9 +2467,11 @@ fn command_prefix_targets_from_word(
             let Some(&body) = builder.argv.get(idx + 1) else {
                 return Vec::new();
             };
-            (builder.single_token_word.get(idx + 1) == Some(&true))
-                .then(|| command_prefix_targets_from_word(ctx, &body, depth + 1))
-                .unwrap_or_default()
+            if builder.single_token_word.get(idx + 1) == Some(&true) {
+                command_prefix_targets_from_word(ctx, &body, depth + 1)
+            } else {
+                Vec::new()
+            }
         })
         .collect()
 }
@@ -6017,7 +6019,7 @@ mod tests {
     fn stored_callback_prefix_cursor_resolves_to_method_declaration() {
         let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
         let analysis = analyse(src);
-        let col = src.lines().nth(3).unwrap().find("tick").unwrap() as u32;
+        let col = u32::try_from(src.lines().nth(3).unwrap().find("tick").unwrap()).unwrap();
         let locations = crate::definition::definition(src, 3, col, &analysis);
         assert_eq!(
             locations.len(),

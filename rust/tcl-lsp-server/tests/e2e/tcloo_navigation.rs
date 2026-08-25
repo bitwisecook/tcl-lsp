@@ -376,7 +376,7 @@ fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
                  after 0 $cb\n\
              }\n\
          }\n";
-    let callback_char = src.lines().nth(3).unwrap().find("tick").unwrap() as u32;
+    let callback_char = u32::try_from(src.lines().nth(3).unwrap().find("tick").unwrap()).unwrap();
     lsp.open_ready(&uri, src);
 
     let refs = lsp.references(&uri, 1, 11, false);
@@ -494,7 +494,7 @@ fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
 
 /// #1705: the receiver class is local but its inherited private provider is
 /// in a sibling file.  The typed `my` callback must seed the workspace MRO,
-/// so definition, references, lens, rename and hierarchy agree on Base::read.
+/// so definition, references, lens, rename and hierarchy agree on `Base::read`.
 #[test]
 fn tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere() {
     let mut lsp = Lsp::tcl();
