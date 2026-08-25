@@ -48,9 +48,11 @@ rules for the KCS/documentation split live in
 - [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
   — **proposal** (issue #1631): the dialect/package/environment split —
   dialects as grammar cores (family × release), packages as versioned SpecTcl
-  surfaces, environments as the named, aliasable selections users work in;
-  the provider-window availability algebra replacing `DialectSet`, SpecTcl
-  2.0 vocabulary, and the phased migration plan with the open questions.
+  surfaces, environments as the dynamic, named, aliasable selections users
+  work in; the provider-window availability algebra replacing `DialectSet`,
+  version-range targeting (declare tcl 8.5–9.0 or a library range and get
+  cross-version compatibility warnings), SpecTcl 2.0 vocabulary, and the
+  phased migration plan with the open questions.
 
 ## Name resolution
 

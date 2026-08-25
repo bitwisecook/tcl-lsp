@@ -31,13 +31,15 @@ split exposes as missing:
    SpecTcl packs — bundled, user, or workspace — and own availability via
    lifecycle windows on their own version trains.
 3. An **environment** is a named, selectable combination the user actually
-   works in: a dialect plus ambient packages at platform-implied versions,
-   plus identity (display name, language id, file extensions, detection
-   signatures) and policy (closed-world, fixed ensembles, version ceiling).
-   `tcl8.6`, `f5-irules`, `f5-iapps`, `xilinx-eda-tcl`, and `tk` are all
-   environment names. Environments are data — compiled-in for the core set,
-   **declarable by packs** for everything else — and carry the alias table
-   that keeps retired quasi-dialect names resolving.
+   works in: a dialect plus a **release target set** (a single release or a
+   range such as tcl 8.5–9.0), ambient packages at platform-implied
+   versions, identity (display name, language id, file extensions,
+   detection signatures), and policy (closed-world, fixed ensembles,
+   version ceiling). `tcl8.6`, `f5-irules`, `f5-iapps`, `xilinx-eda-tcl`,
+   and `tk` are all environment names. Environments are **dynamic data** —
+   compiled-in for the core set, declarable by packs, and definable and
+   overridable per workspace/user configuration — and carry the alias
+   table that keeps retired quasi-dialect names resolving.
 
 The only backwards compatibility maintained is (a) data-level: every name a
 user can write today (configs, language ids, directives, CLI flags, pack
@@ -226,22 +228,46 @@ The redesign adds (§6):
   `lsubst` (jim ≥0.84) to `struct::graph::op` (package ≥0.11). Whether
   core surfaces are *authored* as SpecTcl or as native Rust is **Q1**;
   their availability model is unified regardless.
+- **Packages take range targets exactly like cores.** A project can
+  declare it supports `struct 1.5–2.2` or `Tk 8.5–9.0` and get the same
+  across-the-range compatibility checking §5.4 defines for core
+  releases — one mechanism, because packages and cores share the window
+  algebra.
 
 ### 3.3 `Environment` — the selectable, aliasable identity
 
 ```rust
 pub struct Environment {
-    pub name: &'static str,            // "tcl8.6", "f5-irules", "f5-iapps", "xilinx-eda-tcl", "tk"
-    pub aliases: &'static [&'static str], // "irules", "tcl-irule", retired names, …
-    pub display_name: &'static str,
-    pub editor_language_id: Option<&'static str>, // "tcl86", "tcl-irule", "tcl-iapp", …
-    pub dialect: Dialect,              // family + release (release overridable per doc/config)
-    pub ambient: &'static [PackagePlacement], // package, version (Pinned | TracksBase | Keyed), ambient/hosted
+    pub name: Arc<str>,                // "tcl8.6", "f5-irules", "f5-iapps", "xilinx-eda-tcl", "tk"
+    pub aliases: Vec<Arc<str>>,        // "irules", "tcl-irule", retired names, …
+    pub display_name: Arc<str>,
+    pub editor_language_id: Option<Arc<str>>, // "tcl86", "tcl-irule", "tcl-iapp", …
+    pub family: Family,
+    pub targets: TargetSpec,           // Single(release) | Range(min, max) | Set(…) — §5.4
+    pub ambient: Vec<PackagePlacement>, // package, version (Pinned | TracksBase | Keyed), ambient/hosted
     pub policy: EnvironmentPolicy,     // closed_world, fixed_ensembles, version_ceiling, strict_ascii, …
     pub detection: DetectionFacts,     // file_extensions, filenames, content signatures, shebang words
-    pub help_terms: &'static [&'static str],
+    pub help_terms: Vec<Arc<str>>,
 }
 ```
+
+**Environments are dynamic.** They come from four sources, nearest wins by
+the same tier discipline the pack discovery already uses: (1) the compiled
+core set (family ladders, `f5-irules`, `f5-iapps`, `f5-tmsh`, `expect`,
+`tk`, …); (2) pack-declared environment blocks (§6.2); (3) workspace and
+user configuration — a project can define `myproject-tool` = tcl@8.6 +
+packs X, Y ambient + its own extensions, or override a named environment's
+targets and ambient set per folder; (4) implicit derivation from a
+`tclpkg.tcl` manifest (`tcl >=8.5 <9.1` + its `require` rows). Because
+environments change at runtime (config edits, pack reloads), they are
+**not** interned `&'static` statics with pointer-identity equality the way
+`DialectProfile` is today: the environment registry holds
+`Arc<Environment>` values, equality is by name plus a content generation,
+and the salsa layer keys on `(name, generation)` — the same invalidation
+discipline the pack overlay key already implements
+(`specPacksReloaded` → registry rebuild). Compiled and pack-declared
+entries are constructed once per (re)load; config-declared entries rebuild
+on `didChangeConfiguration`.
 
 - **Environments are the only user-facing names.** All six ingress kinds —
   `# tcl-dialect:` directives, `tclLsp.dialect` settings and
@@ -263,10 +289,10 @@ pub struct Environment {
   `environment` block (§6.2). The six EDA catalogue shells move into
   `specs/eda_*.tclspec`; the compiled-in environment set shrinks to the
   core families' ladders plus `f5-irules`, `f5-iapps`, `f5-tmsh`,
-  `expect`, `tk`, `spectcl`, `bpf` (per **Q2/Q3** rulings). Pack-declared
-  environments are leaked-static on load, the same lifetime discipline the
-  loaded `CommandSpec`s already use, so pointer-identity equality
-  survives.
+  `expect`, `tk`, `spectcl`, `bpf` (per **Q2/Q3** rulings). Environment
+  values are `Arc`-held dynamic data with generation-keyed identity — see
+  the dynamism note above — unlike the loaded `CommandSpec`s, which stay
+  leaked-static.
 - **Policy absorbs the last profile stragglers**: `has_fixed_ensembles`,
   the iApps W108 strict-ASCII rule (today keyed on `vendor_bit ==
   IAPPS`), the version ceiling, and closed-world resolution (§5.3). The
@@ -303,6 +329,12 @@ pub availability: &'static [Provided],   // empty ⇒ inherit from parent level
   floors come from the environment (dialect release for `Core`, ambient
   placements for packages) composed with `package require` facts under the
   already-landed max-then-closest `FloorSource` precedence.
+- **Two query modes**: the context carries an *interval* per provider,
+  not just a floor (§5.4). Assistance queries answer at the primary
+  release (floor ∈ window); compatibility queries answer across the
+  declared range (window ⊇ interval), which is what makes PyCharm-style
+  multi-target warnings a mode of the same data rather than a second
+  registry.
 - **Core deltas become windows, not bits**: `lmap` is
   `[{Core(tcl), 8.6..}]`; `case` is `[{Core(tcl), 8.4..8.6retired}]`; a
   command shared with Jim adds `{Core(jim), 0.76..}` to the same spec.
@@ -398,6 +430,86 @@ the policy becomes an environment field:
   exclusion, expressed positively). **Q7** confirms the default per
   environment.
 
+### 5.4 Version-range targeting (multi-target projects)
+
+The PyCharm-style feature: a project declares that it supports a *range*
+of targets — `tcl 8.5–9.0`, and equally a *library* range such as
+`struct 1.5–2.2` or `Tk 8.5–9.0` — and the analyser warns about anything
+that is not valid, or does not mean the same thing, across the whole
+declared range. This is a first-class mode of the §4 algebra, applied
+uniformly to every provider: a target is an **interval (or set) per
+provider**, core families and packages alike.
+
+**Where targets come from** (intersected, most specific wins per
+provider):
+
+1. The environment's `targets` field (default: a single release — today's
+   behaviour, and the feature is off for single targets).
+2. Workspace/folder/user configuration (`tclLsp.targets`, e.g.
+   `{ "tcl": "8.5-9.0", "Tk": "8.5-9.0", "struct": "1.5-2.2" }`).
+3. `tclpkg.tcl` manifests — `tcl >=8.5 <9.1` and `require json 1.0.0`
+   rows are already interval declarations.
+4. The document's own `package require` facts: a requirement is already
+   an interval under the `vsatisfies` algebra (`package require foo 1.2`
+   means 1.2 ≤ v < 2; `8.5 9` is a union). Today floor resolution keeps
+   only the lower bound (`requirement_lower_bound`); range targeting
+   keeps the whole satisfiable set.
+
+**Two query modes on the same availability data.** Resolution and
+assistance (completion, hover, signature help) answer under a designated
+*primary* release per provider — recommended: the range maximum, because
+the newest grammar and surface accept a superset on almost every axis
+(**Q15**). Compatibility checking answers under the whole interval:
+
+- **Availability across the range**: a command, subcommand, option,
+  option value, or arity window whose `Provided` window does not cover
+  the target interval gets a range diagnostic naming both ends —
+  "`lmap` requires tcl 8.6; declared targets include 8.5",
+  "`case` was removed in tcl 9.0; declared targets include 9.0",
+  "`struct::graph` 2.x form used; declared targets include struct 1.2"
+  (the W149 deferred-verdict and W139 straddle-hedge diagnostics are the
+  single-floor seeds of this family). The check is literally window ⊇
+  interval instead of floor ∈ window — the windows are already ranges.
+- **Grammar divergence across the range** (core providers): for each
+  grammar axis whose value differs between the interval's endpoints, a
+  detector flags constructs whose *meaning or validity* diverges:
+  - numerals — the motivating example: `expr {010}` is 8 under tcl 8.x
+    and not octal under 9.x; under targets 8.5–9.0 the leading-zero
+    literal gets a warning with a fix-it to `0o10` (valid from 8.5) or a
+    decimal rewrite when 8.4 is in range; `0d…` and `_` separators are
+    9.x-only; `0b…`/`0o…` are 8.5+.
+  - escapes — `\x` with more than two hex digits (meaning changes at
+    8.6), `\U` (8.6+), astral `\U` (9.0+), the octal third-digit rule.
+  - `${a{b}c}` — `FirstClose` vs `Tcl9Nesting` parse the same bytes to
+    different variable names.
+  - expr — `#` comments (9.x-only), `lt`/`le`/`gt`/`ge` (9.x operators,
+    8.x bareword errors), `in`/`ni` (8.5+), `**` (8.5+).
+  - words — `{*}` (8.5+), the leading-BOM rule.
+  Implementation shape: the axes are a small closed set, so this is a
+  targeted post-lex pass over tokens whose axis differs across the
+  interval — not a full second lex. The tclsh corpus (`tmp/tcl8.4.20` …
+  `tmp/tcl9.1b0`) and the differential fuzzer are the oracles that
+  validate each detector.
+- **Semantic divergence across the range**: differential constant folding
+  at the interval endpoints (`const_fold_versioned` already exists per
+  release; disagreement ⇒ warning), and the small table of runtime
+  semantic switches (TIP 278 namespace fallback, string character model,
+  byte-string encoding) flag constructs that touch a diverging semantic.
+- **Package interplay**: every `package require` must be satisfiable at
+  every core target (`package require Tcl 8.5` fails ≥9 targets —
+  suggest `8.5-` or `8.5 9`; tcllib 2.0's own `vsatisfies 8.5 9` gate is
+  checked against the core interval), and ambient placements must
+  resolve at every target.
+
+**Precedent and unification.** Today's unversioned fallback is the
+degenerate form of this feature: `PLAIN_TCL`'s `ALL_TCL` mask with
+`leading_zero_is_octal: Ternary::Inert` silently *abstains* where the
+releases disagree, and `satisfies_any_ternary` already implements the
+three-valued line-vs-requirement test (subset ⇒ Yes, disjoint ⇒ No,
+overlap ⇒ Inert). Range targeting subsumes the fallback as "targets =
+the family's full ladder, lenient mode", and upgrades abstention to an
+actionable warning when the user has *declared* the range.
+
 ## 6. SpecTcl 2.0 (`speclib … 2.0`)
 
 ### 6.1 Compatibility contract (unchanged in kind, restated)
@@ -483,8 +595,9 @@ sweeps):
   fixed-ensemble gates read environment policy; `profile_for_dialect` and
   `registry_for_dialect_profile` (ruling B's documented hop) are deleted —
   the environment registry is the single ingress #1621 was approximating;
-  `LanguageDialect::{Profile,Set}` collapses to `&Environment`; the salsa
-  string-keyed dialect inputs re-key on environment name + release.
+  `LanguageDialect::{Profile,Set}` collapses to an environment handle;
+  the salsa string-keyed dialect inputs re-key on environment
+  `(name, generation)` plus the resolved target spec (§3.3, §5.4).
 - **Editors and codegen**: all ten generators iterate the environment
   registry; language ids and their `tcl-iapp`/`tcl-apl`-style spellings
   persist as environment fields, so *generated output changes minimally*
@@ -521,6 +634,12 @@ suites in CI; no phase leaves a consumer on a compatibility wrapper.
   `Environment::resolve`. Editor catalogues regenerate (names unchanged ⇒
   small diffs). The tk triangle, `TK_PROFILE`, and `LanguageDialect::Set`
   die here.
+- **P1b — range targeting.** `TargetSpec` on contexts, the
+  covering-interval query mode, the range-availability diagnostic family
+  (core and package providers uniformly), and the first grammar-divergence
+  detectors (numerals — the octal case — then escapes, `${…}`, expr
+  axes), each validated against the tclsh corpus. Ships behind the
+  targets setting; single-target projects are unaffected.
 - **P2 — SpecTcl 2.0.** New words + legacy translation + loader-direction
   gate + `spec upgrade`; spec-studio parity; `spec-author` skill refresh
   (its vocabulary section is already stale at 1.1).
@@ -656,3 +775,29 @@ Recommendations marked ▸. Answers gate P0.
     `Keyed` axes) stay CLI/config-level knobs that set environment
     placement floors (▸), or become general per-package version overrides
     (`--package-version NAME=V`) now that packages are first-class?
+15. **Primary release for a range.** When targets are `tcl 8.5–9.0`,
+    which release do parsing and assistance answer under? ▸ The range
+    maximum (newest grammar accepts the superset on almost every axis;
+    divergence detectors cover the rest) — but say the word if you want
+    the minimum ("oldest-first" authoring) or an explicit
+    `primary` field on the target spec.
+16. **Range diagnostics shape.** New diagnostic family for range
+    compatibility (▸ — a dedicated W15x-style block covering
+    "introduced after range min", "removed before range max", and each
+    grammar/semantic divergence detector, so users can tune them
+    independently), or fold into the existing W135/W139/W149 version
+    family?
+17. **Range strictness and defaults.** When a range is declared, are
+    range-compatibility findings warnings by default (▸), and should
+    assistance *filtering* also go strict (completion only offers
+    range-safe commands) or stay permissive with annotations (▸
+    permissive: offer everything at the primary release, annotate
+    "8.6+" the way version floors already annotate)?
+18. **Dynamic environment scope.** Confirm the definition sources and
+    their precedence — compiled < pack-declared < user config <
+    workspace/folder config (nearest wins, matching pack-tier
+    discipline) — and whether a workspace may *redefine* a compiled name
+    (▸ no: workspace definitions may extend or override targets/ambient
+    of a named environment and define new names, but core family names
+    stay canonical so diagnostics keep meaning the same thing
+    everywhere).
