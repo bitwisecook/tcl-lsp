@@ -1244,45 +1244,52 @@ mod object_instance_taint_sources {
 
     #[test]
     fn overloaded_treeview_and_notebook_getters_only_taint_zero_arg_queries() {
-        for (query, setter) in [
+        for (dialect, query, setter) in [
             (
+                D,
                 "ttk::combobox .combo\nset user [.combo current]\neval $user",
                 "ttk::combobox .combo\nset value [.combo current 0]\neval $value",
             ),
             (
+                D,
                 "ttk::treeview .tree\nset user [.tree selection]\neval $user",
                 "ttk::treeview .tree\nset value [.tree selection set item]\neval $value",
             ),
             (
+                "tcl9.0",
                 "ttk::treeview .tree\nset user [.tree cellselection]\neval $user",
                 "ttk::treeview .tree\nset value [.tree cellselection set item]\neval $value",
             ),
             (
+                "tcl9.1",
                 "ttk::treeview .tree\nset user [.tree current]\neval $user",
                 "ttk::treeview .tree\nset value [.tree current ignored]\neval $value",
             ),
             (
+                D,
                 "ttk::treeview .tree\nset user [.tree focus]\neval $user",
                 "ttk::treeview .tree\nset value [.tree focus item]\neval $value",
             ),
             (
+                "tcl9.1",
                 "ttk::treeview .tree\nset user [.tree cellfocus]\neval $user",
                 "ttk::treeview .tree\nset value [.tree cellfocus 0,0]\neval $value",
             ),
             (
+                D,
                 "ttk::notebook .book\nset user [.book select]\neval $user",
                 "ttk::notebook .book\nset value [.book select .tab]\neval $value",
             ),
         ] {
             assert!(
-                of_code(query, D, "T100")
+                of_code(query, dialect, "T100")
                     .iter()
                     .any(|warning| warning.variable == "user"),
-                "zero-argument Tk UI query must be a source: {query}"
+                "zero-argument Tk UI query must be a source under {dialect}: {query}"
             );
             assert!(
-                of_code(setter, D, "T100").is_empty(),
-                "setter/argument overload must not be classified as a source: {setter}"
+                of_code(setter, dialect, "T100").is_empty(),
+                "setter/argument overload must not be a source under {dialect}: {setter}"
             );
         }
     }
