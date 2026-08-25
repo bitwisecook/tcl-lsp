@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import subprocess
 import sys
 import textwrap
 from pathlib import Path
@@ -76,6 +77,37 @@ def semver_key(version: str) -> tuple[int, ...]:
 
 def measured_versions() -> list[str]:
     return sorted((p.stem for p in RESULTS.glob("*.json")), key=semver_key)
+
+
+def _series(version: str, versions: Sequence[str]) -> tuple[str, str]:
+    """`(label, glob)` naming the measured range.
+
+    A range inside one minor line reads as `2.1` / `2.1.x`. The moment it spans
+    minors — which it does as soon as the line promotes to a stable even minor
+    and the graphs still carry the odd-minor history — naming either minor
+    would be false, so it widens to `2.x`.
+    """
+    minors = {semver_key(v)[:2] for v in versions}
+    if len(minors) == 1:
+        ((major, minor),) = minors
+        return f"{major}.{minor}", f"{major}.{minor}.x"
+    return f"{semver_key(version)[0]}.x", f"{semver_key(version)[0]}.x"
+
+
+def _noun(version: str) -> str:
+    """"pre-release" or "release" for this version.
+
+    Delegated to `prerelease.sh` rather than re-deriving the minor parity here:
+    that script is the single source of truth every other pre-release switch
+    reads, and a second copy of the rule is a second thing to get out of step.
+    """
+    out = subprocess.run(
+        ["bash", str(Path(__file__).with_name("prerelease.sh")), version],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return "pre-release" if out.stdout.strip() == "true" else "release"
 
 
 def _load(version: str) -> dict:
@@ -150,11 +182,12 @@ def build_section(version: str, versions: Sequence[str]) -> str:
     corpus = f"a pinned {files}-file corpus (scope `{scope}`"
     corpus += f", revision `{revision}`)" if revision else ")"
 
-    line = ".".join(str(p) for p in semver_key(version)[:2])
+    line, glob = _series(version, versions)
+    noun = _noun(version)
 
-    lines = [f"{HEADING} across the {line} pre-releases", ""]
+    lines = [f"{HEADING} across the {line} {noun}s", ""]
     lines += _para(
-        f"These graphs cover every measured `{line}.x` pre-release from `v{oldest}` "
+        f"These graphs cover every measured `{glob}` {noun} from `v{oldest}` "
         f"through `v{newest}`, run by `scripts/perf/` against {corpus}. The corpus, "
         "scope, and revision are fixed across the whole series, so the lines are "
         "comparable with each other."
@@ -205,7 +238,7 @@ def build_section(version: str, versions: Sequence[str]) -> str:
         lines += [
             f"### {title}",
             "",
-            f"![{title} across the {line} pre-releases]"
+            f"![{title} across the {line} {noun}s]"
             f"({ASSET_BASE}/v{version}/perf-{slug}.svg)",
             "",
         ]
