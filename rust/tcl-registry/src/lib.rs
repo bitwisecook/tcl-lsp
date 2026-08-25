@@ -57,6 +57,7 @@ pub mod bpf_op;
 pub mod byte_array_effect;
 pub mod cache;
 pub mod clause_shape;
+pub mod command_prefix_target;
 pub mod command_snapshot;
 pub mod command_table;
 pub mod commands;
@@ -228,6 +229,7 @@ pub use cache::{
     registry_handle_for_dialect, registry_handle_for_profile,
 };
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
+pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
 pub use completion::{
     CompletionCode, CompletionCodeDomain, CompletionDescriptor, CompletionPayloadObligation,

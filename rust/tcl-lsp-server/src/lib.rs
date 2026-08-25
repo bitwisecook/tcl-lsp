@@ -12537,11 +12537,61 @@ impl Backend {
             }
         }
         let mut out = Vec::new();
+        let method_target = qualified
+            .rsplit_once("::")
+            .filter(|(class_q, method)| !class_q.is_empty() && !method.is_empty())
+            .map(|(class_q, method)| (class_q.to_owned(), method.to_owned()));
         for (doc_uri, source, dialect) in docs {
             let analysis = self
                 .cached_analysis(&doc_uri)
                 .await
                 .unwrap_or_else(|| Arc::new(Analyser::new().analyse(&source, &dialect)));
+            if let Some((target_class, method)) = &method_target {
+                let receivers: Vec<(String, bool)> = {
+                    let index = self.workspace_index.read().await;
+                    analysis
+                        .all_classes
+                        .keys()
+                        .filter_map(|receiver| {
+                            let internal = index
+                                .method_dispatch_chain(
+                                    receiver,
+                                    method,
+                                    core_workspace_index::MethodAccess::Internal,
+                                )
+                                .first()
+                                .is_some_and(|provider| provider.qualified_name == *target_class);
+                            internal.then(|| {
+                                let external = index
+                                    .method_dispatch_chain(
+                                        receiver,
+                                        method,
+                                        core_workspace_index::MethodAccess::External,
+                                    )
+                                    .first()
+                                    .is_some_and(|provider| {
+                                        provider.qualified_name == *target_class
+                                    });
+                                (receiver.clone(), external)
+                            })
+                        })
+                        .collect()
+                };
+                for (receiver, external) in receivers {
+                    out.extend(
+                        core_call_hierarchy::incoming_instance_method_calls_in_class(
+                            &source,
+                            tcl_lsp_core::profile_for_dialect(&dialect),
+                            &analysis,
+                            &receiver,
+                            method,
+                            external,
+                        )
+                        .into_iter()
+                        .map(|call| (doc_uri.clone(), call)),
+                    );
+                }
+            }
             let calls = core_call_hierarchy::incoming_calls_for_target(
                 &source, &analysis, simple, qualified, None,
             );

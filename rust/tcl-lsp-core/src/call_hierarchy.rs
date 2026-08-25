@@ -947,12 +947,13 @@ fn method_incoming_calls(
         if !dispatch_reaches(&caller.kind, &target_method.kind) {
             continue;
         }
-        let spans = crate::references::scan_my_method_sites(
+        let spans = crate::references::scan_method_sites(
             source,
             dialect,
             &[caller.body_span],
             &target_method.name,
             Some(target_method.name_span),
+            target_method.visibility == "public",
         );
         if spans.is_empty() {
             continue;
@@ -983,6 +984,46 @@ fn method_incoming_calls(
     by_caller
         .into_values()
         .map(|(from, from_ranges)| IncomingCall { from, from_ranges })
+        .collect()
+}
+
+/// Incoming instance-method calls found in one known receiver class.
+///
+/// Hosts use this for a sibling document whose class inherits the target's
+/// provider from the workspace MRO: the document has the caller bodies, while
+/// the provider lives elsewhere. `external_callback_allowed` comes from the
+/// workspace visibility chain; internal `my` callbacks remain eligible.
+#[must_use]
+pub fn incoming_instance_method_calls_in_class(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    analysis: &AnalysisResult,
+    receiver_class: &str,
+    method: &str,
+    external_callback_allowed: bool,
+) -> Vec<IncomingCall> {
+    let Some(class_def) = analysis.all_classes.get(receiver_class) else {
+        return Vec::new();
+    };
+    let line_index = LineIndex::new(source);
+    instance_method_frames_iter(class_def)
+        .filter_map(|caller| {
+            let spans = crate::references::scan_method_sites(
+                source,
+                dialect,
+                &[caller.body_span],
+                method,
+                None,
+                external_callback_allowed,
+            );
+            (!spans.is_empty()).then(|| IncomingCall {
+                from: item_for_method(source, class_def, caller, &line_index),
+                from_ranges: spans
+                    .into_iter()
+                    .map(|span| span_to_range(source, &line_index, span))
+                    .collect(),
+            })
+        })
         .collect()
 }
 
@@ -1137,12 +1178,13 @@ fn method_outgoing_calls(
         if !dispatch_reaches(&source_method.kind, &callee.kind) {
             continue;
         }
-        let spans = crate::references::scan_my_method_sites(
+        let spans = crate::references::scan_method_sites(
             source,
             dialect,
             &[source_method.body_span],
             &callee.name,
             None,
+            callee.visibility == "public",
         );
         if spans.is_empty() {
             continue;
@@ -1264,6 +1306,18 @@ fn class_methods_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> 
         .methods
         .values()
         .chain(class_def.class_methods.values())
+}
+
+/// Every instance-side execution frame that can contain `my` dispatches.
+/// Constructors and the destructor share the same object dispatch context as
+/// ordinary methods and therefore participate in cross-document incoming
+/// hierarchy edges too.
+fn instance_method_frames_iter(class_def: &ClassDef) -> impl Iterator<Item = &MethodDef> {
+    class_def
+        .methods
+        .values()
+        .chain(class_def.constructors.iter())
+        .chain(class_def.destructor.iter())
 }
 
 fn span_to_range(source: &str, line_index: &LineIndex, span: tcl_lexer::Span) -> LspRange {
@@ -1537,6 +1591,66 @@ mod tests {
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::twice");
         assert_eq!(incoming[0].from_ranges.len(), 2, "{incoming:?}");
+    }
+
+    #[test]
+    fn hierarchy_follows_registry_wrapped_my_callback() {
+        let src = "oo::class create C {\n    method read {} {}\n    unexport read\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let incoming = incoming_calls(src, dialect, &items[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::wire", "{incoming:?}");
+        assert_eq!(incoming[0].from_ranges.len(), 1, "{incoming:?}");
+
+        let wire = prepare(src, 3, 11, &analysis);
+        let outgoing = outgoing_calls(src, dialect, &wire[0], &analysis);
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(outgoing[0].to.name, "::C::read", "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    #[test]
+    fn hierarchy_follows_one_hop_stored_my_callback() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method wire {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let tick = prepare(src, 1, 11, &analysis);
+        let incoming = incoming_calls(src, dialect, &tick[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::wire", "{incoming:?}");
+        assert_eq!(incoming[0].from_ranges.len(), 1, "{incoming:?}");
+
+        let wire = prepare(src, 2, 11, &analysis);
+        let outgoing = outgoing_calls(src, dialect, &wire[0], &analysis);
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(outgoing[0].to.name, "::C::tick", "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
+    #[test]
+    fn cross_document_instance_hierarchy_includes_constructor_and_destructor_frames() {
+        let src = "oo::class create Child {\n    constructor {} { my read }\n    destructor { my read }\n}\n";
+        let analysis = analyse(src);
+        let mut incoming = incoming_instance_method_calls_in_class(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            &analysis,
+            "::Child",
+            "read",
+            true,
+        );
+        incoming.sort_by(|a, b| a.from.name.cmp(&b.from.name));
+        let callers: Vec<_> = incoming
+            .iter()
+            .map(|call| (call.from.name.as_str(), call.from_ranges.len()))
+            .collect();
+        assert_eq!(
+            callers,
+            vec![("::Child::<constructor>", 1), ("::Child::<destructor>", 1)],
+            "cross-document callers must cover every instance execution frame"
+        );
     }
 
     /// FP guard: a bare `greet` call inside a sibling method is *not* a

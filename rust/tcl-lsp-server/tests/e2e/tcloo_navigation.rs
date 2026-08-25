@@ -362,6 +362,48 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
     );
 }
 
+/// #1704: a one-hop local constant carries a registry-declared callback
+/// prefix.  Every navigation provider must use the builder method span, not
+/// the later `$cb` registration as a guessed command reference.
+#[test]
+fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Test {\n\
+             method tick {} { return {} }\n\
+             method wire {} {\n\
+                 set cb [list my tick]\n\
+                 after 0 $cb\n\
+             }\n\
+         }\n";
+    let callback_char = u32::try_from(src.lines().nth(3).unwrap().find("tick").unwrap()).unwrap();
+    lsp.open_ready(&uri, src);
+
+    let refs = lsp.references(&uri, 1, 11, false);
+    assert_eq!(
+        location_lines(&refs, &uri),
+        std::collections::BTreeSet::from([3]),
+        "stored callback must be a method reference: {refs:?}"
+    );
+    let command = resolve_lens_on_line(&mut lsp, &uri, 1);
+    assert_eq!(command["title"], expected_title(1), "{command:?}");
+    assert_eq!(
+        location_lines(&lens_locations(&command), &uri),
+        std::collections::BTreeSet::from([3]),
+        "the lens must use the stored callback site: {command:?}"
+    );
+
+    let definition = lsp.definition(&uri, 3, callback_char);
+    assert_eq!(
+        location_lines(&definition, &uri),
+        std::collections::BTreeSet::from([1])
+    );
+    let prepare = lsp.prepare_rename(&uri, 3, callback_char);
+    assert_eq!(prepare["placeholder"], "tick", "{prepare:?}");
+    let edits = rename_edits(&lsp.rename(&uri, 1, 11, "tock"));
+    assert_eq!(edit_lines(&edits, &uri), vec![1, 3], "{edits:?}");
+}
+
 /// Inherited callback capture is deliberately conservative until #1705 can
 /// prove effective receiver visibility.  A cursor on such a callback must not
 /// offer a partial rename that edits the ancestor declaration but leaves this
@@ -405,6 +447,91 @@ fn tp_inherited_list_built_self_callback_cursor_abstains_everywhere() {
     assert!(
         lsp.rename(&uri, 6, 36, "tock").is_null(),
         "rename must not offer a partial ancestor-only edit"
+    );
+}
+
+/// #1703: a tcllib-shaped namespace capture may wrap a command-prefix builder.
+/// `my` retains current-object/private dispatch, so all navigation providers
+/// must agree even when the target was explicitly unexported.
+#[test]
+fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\n\
+         oo::class create C {\n\
+             method read {} { return {} }\n\
+             unexport read\n\
+             method wire {chan} {\n\
+                 fileevent $chan readable [namespace code [list my read]]\n\
+             }\n\
+         }\n",
+    );
+
+    let refs = lsp.references(&uri, 2, 11, false);
+    assert_eq!(
+        location_lines(&refs, &uri),
+        std::collections::BTreeSet::from([3, 5])
+    );
+    let command = resolve_lens_on_line(&mut lsp, &uri, 2);
+    assert_eq!(command["title"], expected_title(2), "{command:?}");
+    assert_eq!(
+        location_lines(&lens_locations(&command), &uri),
+        std::collections::BTreeSet::from([3, 5]),
+        "{command:?}"
+    );
+    assert_eq!(
+        location_lines(&lsp.definition(&uri, 5, 51), &uri),
+        std::collections::BTreeSet::from([2])
+    );
+    assert_eq!(lsp.prepare_rename(&uri, 5, 51)["placeholder"], "read");
+    assert_eq!(
+        edit_lines(&rename_edits(&lsp.rename(&uri, 5, 51, "consume")), &uri),
+        vec![2, 5, 3]
+    );
+}
+
+/// #1705: the receiver class is local but its inherited private provider is
+/// in a sibling file.  The typed `my` callback must seed the workspace MRO,
+/// so definition, references, lens, rename and hierarchy agree on `Base::read`.
+#[test]
+fn tp_cross_file_inherited_wrapped_my_callback_agrees_everywhere() {
+    let mut lsp = Lsp::tcl();
+    let base = unique_uri("tcl");
+    let child = unique_uri("tcl");
+    lsp.open_ready(
+        &base,
+        "oo::class create Base {\n    method read {} { return {} }\n    unexport read\n}\n",
+    );
+    lsp.open_ready(
+        &child,
+        "oo::class create Child {\n    superclass Base\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n",
+    );
+
+    assert_eq!(
+        location_lines(&lsp.definition(&child, 3, 60), &base),
+        std::collections::BTreeSet::from([1])
+    );
+    let refs = lsp.references(&base, 1, 11, true);
+    assert!(
+        location_lines(&refs, &child).contains(&3),
+        "cross-file callback missing from references: {refs:?}"
+    );
+    let lens = resolve_lens_on_line(&mut lsp, &base, 1);
+    assert!(
+        location_lines(&lens_locations(&lens), &child).contains(&3),
+        "cross-file callback missing from lens: {lens:?}"
+    );
+    let edits = rename_edits(&lsp.rename(&child, 3, 60, "consume"));
+    assert!(edit_lines(&edits, &base).contains(&1), "{edits:?}");
+    assert!(edit_lines(&edits, &child).contains(&3), "{edits:?}");
+
+    let item = lsp.prepare_call_hierarchy(&base, 1, 11)[0].clone();
+    let incoming = lsp.incoming_calls(item);
+    assert!(
+        incoming.to_string().contains("wire"),
+        "cross-file callback missing from hierarchy: {incoming:?}"
     );
 }
 

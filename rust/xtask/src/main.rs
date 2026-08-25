@@ -38,6 +38,8 @@
 //!   tclsh 8.4/8.5/8.6/9.0 (`--check` instead cross-checks the audit's probe
 //!   table against the registry's declared options — the audit↔registry drift
 //!   gate, issue #1396).
+//! - `callback-inventory` — generate or verify the registry-backed executable
+//!   and callback surface inventory (issue #1706).
 //! - `diag-tables` — generate the `docs/generated/` code tables from the
 //!   `DiagCode` catalogue (`--check` to verify instead of write).
 //! - `f5-query-builtins-doc` — verify `docs/references/f5_query/builtins.md`
@@ -61,6 +63,7 @@ use clap::{Parser, Subcommand};
 
 mod audit_option_dialects;
 mod bigip_data_schema;
+mod callback_inventory;
 mod command_backing;
 mod diag_emission;
 mod diag_tables;
@@ -125,6 +128,13 @@ enum Command {
         /// Run the audit↔registry drift guard instead of probing tclsh: every
         /// audited option must be declared by the registry's `OptionSpec`
         /// tables. Exits non-zero on a disagreement (issue #1396).
+        #[arg(long)]
+        check: bool,
+    },
+
+    /// Generate the registry-backed executable/callback surface inventory.
+    CallbackInventory {
+        /// Verify the committed JSON and Markdown reports instead of writing.
         #[arg(long)]
         check: bool,
     },
@@ -362,6 +372,7 @@ fn main() -> anyhow::Result<ExitCode> {
             trim_to,
         } => tzdata_bundle::run(&zoneinfo, &output, trim_from, trim_to),
         Command::AuditOptionDialects { check } => audit_option_dialects::run(check),
+        Command::CallbackInventory { check } => callback_inventory::run(check),
         Command::WasmBacking { check } => command_backing::run(check),
         Command::F5QueryBuiltinsDoc { check } => f5query_builtins_doc::run(check),
         Command::BigipDataSchema { check } => bigip_data_schema::run(check),
