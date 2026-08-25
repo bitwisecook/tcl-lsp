@@ -28,7 +28,8 @@
 #     compile checks (``editors/vscode/node_modules/.bin/tsc``).
 #   * ``kotlinc`` — the JetBrains plugin's DiagnosticCatalog.kt compile
 #     check.
-#   * ``rustup`` + Rust stable + the ``wasm32-wasip2`` target — the Zed
+#   * ``rustup`` + Rust stable at least as new as the workspace's authoritative
+#     ``rust-version`` + the ``wasm32-wasip2`` target — the Zed
 #     extension's clippy check in ``make check-rust`` cross-compiles to
 #     WASI Preview 2 and fails without that target installed.  Installs
 #     the latest stable toolchain (rather than a pinned version) so it
@@ -58,7 +59,8 @@
 # clear "install <tool> manually" message and exits non-zero.
 #
 # Idempotent: each tool is checked first and the installer is only invoked
-# when the binary is missing.  Builds Tcl 9 from the source tree the
+# when the binary is missing or, for Rust/Node, older than the workspace
+# requirement. Builds Tcl 9 from the source tree the
 # SessionStart hook has already laid down at ``tmp/tcl9.0.4/`` to avoid
 # pulling distro packages that may lag the upstream release.
 #
@@ -208,6 +210,58 @@ note_missing() { missing+=("$1"); }
 
 info()  { printf '==> %s\n' "$*"; }
 warn()  { printf 'WARN: %s\n' "$*" >&2; }
+
+# The workspace manifest, not this script, owns the MSRV. Keep the parser
+# deliberately small and dependency-free: this audit must still explain how
+# to recover when Cargo itself cannot run with the installed compiler.
+workspace_rust_version() {
+    awk '
+        /^\[workspace\.package\][[:space:]]*$/ { in_workspace_package = 1; next }
+        in_workspace_package && /^\[[^]]+\][[:space:]]*$/ { exit }
+        in_workspace_package {
+            line = $0
+            sub(/[[:space:]]*#.*/, "", line)
+            if (line ~ /^[[:space:]]*rust-version[[:space:]]*=/) {
+                sub(/^[^=]*=[[:space:]]*/, "", line)
+                if (match(line, /^"[^"]*"/)) {
+                    print substr(line, RSTART + 1, RLENGTH - 2)
+                    exit
+                }
+            }
+        }
+    ' "$REPO_ROOT/Cargo.toml"
+}
+
+# Return success when $1 is a Rust release at least as new as $2. Rust's
+# `rust-version` accepts a short `major.minor` spelling while `rustc --version`
+# normally includes a patch number, so compare each numeric component rather
+# than comparing the strings lexically. A prerelease/build suffix does not
+# change the numeric comparison.
+version_at_least() {
+    local actual="${1%%[-+]*}" required="${2%%[-+]*}"
+    local -a actual_parts required_parts
+    local index actual_part required_part
+
+    if ! [[ "$actual" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]] \
+        || ! [[ "$required" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+        return 2
+    fi
+    IFS='.' read -r -a actual_parts <<< "$actual"
+    IFS='.' read -r -a required_parts <<< "$required"
+    for index in 0 1 2; do
+        actual_part="${actual_parts[$index]:-0}"
+        required_part="${required_parts[$index]:-0}"
+        if (( 10#$actual_part > 10#$required_part )); then return 0; fi
+        if (( 10#$actual_part < 10#$required_part )); then return 1; fi
+    done
+    return 0
+}
+
+WORKSPACE_RUST_VERSION="$(workspace_rust_version)"
+if [ -z "$WORKSPACE_RUST_VERSION" ]; then
+    echo "ensure-test-deps: could not read workspace.package.rust-version from Cargo.toml" >&2
+    exit 2
+fi
 
 run_install() {
     local what="$1"; shift
@@ -595,9 +649,16 @@ ensure_rust() {
         . "$HOME/.cargo/env"
     fi
 
-    local need_rust=0 need_wasm=0
-    if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
+    local need_rust=0 need_rust_update=0 need_wasm=0 rust_version=""
+    if ! command -v cargo >/dev/null 2>&1 \
+        || ! command -v rustc >/dev/null 2>&1 \
+        || ! command -v rustup >/dev/null 2>&1; then
         need_rust=1
+    else
+        rust_version="$(rustc --version 2>/dev/null | awk '{ print $2; exit }' || true)"
+        if ! version_at_least "$rust_version" "$WORKSPACE_RUST_VERSION"; then
+            need_rust_update=1
+        fi
     fi
     local installed_targets
     installed_targets="$(rustup target list --installed 2>/dev/null || true)"
@@ -605,14 +666,16 @@ ensure_rust() {
         || ! printf '%s\n' "$installed_targets" | grep -q '^wasm32-unknown-unknown$'; then
         need_wasm=1
     fi
-    if [ "$need_rust" -eq 0 ] && [ "$need_wasm" -eq 0 ]; then
-        info "rustup + cargo + wasm32-wasip2/unknown targets already present"
+    if [ "$need_rust" -eq 0 ] && [ "$need_rust_update" -eq 0 ] && [ "$need_wasm" -eq 0 ]; then
+        info "rustup + Rust ${rust_version} (>= ${WORKSPACE_RUST_VERSION}) + wasm32-wasip2/unknown targets already present"
         return 0
     fi
 
     if [ "$CHECK_ONLY" -eq 1 ]; then
         if [ "$need_rust" -eq 1 ]; then
             note_missing "rustup + rust stable (would install via https://sh.rustup.rs)"
+        elif [ "$need_rust_update" -eq 1 ]; then
+            note_missing "Rust >= ${WORKSPACE_RUST_VERSION} (found ${rust_version:-an unreadable rustc version}; would run 'rustup update stable')"
         fi
         if [ "$need_wasm" -eq 1 ]; then
             note_missing "wasm32-wasip2 + wasm32-unknown-unknown targets (would add via 'rustup target add')"
@@ -651,6 +714,9 @@ ensure_rust() {
         # Make cargo/rustup visible to the rest of this script + downstream
         # make targets in the same shell.
         export PATH="${HOME}/.cargo/bin:${PATH}"
+    elif [ "$need_rust_update" -eq 1 ]; then
+        info "Rust ${rust_version:-unknown} is below workspace rust-version ${WORKSPACE_RUST_VERSION} — updating stable"
+        rustup update stable
     fi
 
     if [ -x "$HOME/.cargo/bin/rustup" ]; then
@@ -658,6 +724,11 @@ ensure_rust() {
     fi
     if ! command -v rustup >/dev/null 2>&1; then
         warn "rustup still not on PATH after install — add ~/.cargo/bin to PATH"
+        return 1
+    fi
+    rust_version="$(rustc --version 2>/dev/null | awk '{ print $2; exit }' || true)"
+    if ! version_at_least "$rust_version" "$WORKSPACE_RUST_VERSION"; then
+        warn "rustc ${rust_version:-unknown} is still below workspace rust-version ${WORKSPACE_RUST_VERSION} after updating stable"
         return 1
     fi
 
