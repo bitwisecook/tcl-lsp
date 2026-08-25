@@ -73,6 +73,18 @@ genuine per-variant delta is already centralised in
 | Escape grammar (TIP 388, `TCL_UTF_MAX`) | `Tcl84` (=8.5) / `Tcl86` / `Tcl90` |
 | expr word-operator lexemes | `eq`/`ne` ≥8.4, `in`/`ni` ≥8.5, `lt`/`le`/`gt`/`ge` ≥9.0, plus the nine iRules word operators (`contains`, `starts_with`, …) |
 
+That inventory is a snapshot, not a ceiling. The jim branch has since
+landed five further **lexical** axes, each measured against built
+reference interpreters: `WordSeparators` (`\r` separates words under Jim,
+`\v` does not), `BraceContinuation` (backslash-newline folding inside
+braces — `proc p {a b\⏎c}` binds three parameters under Tcl and two under
+Jim, measured by *calling* the proc because Jim's `info args` reports raw
+specifiers), `QuoteTermination` (`"abc"def` is legal in Jim), `VarSyntax`
+(`$(expr)` sugar as its own token kind, and `$name(idx)` paren nesting),
+and `ListParse`. The design therefore treats `LexerGrammar` as an
+**extensible per-(family, release) record**, not the frozen seven fields
+— a new axis is a field plus its family values, never a new profile.
+
 Real Tcl 9 changes that are *not* grammar — tilde-expansion removal,
 `fconfigure -profile` (TIP 656), the TIP 745 mathfuncs — already live
 entirely in registry command data, calibrating the rule from the other
@@ -150,7 +162,7 @@ profiles and the jim branch:
 |---|---|---|
 | `tcl8.4` … `tcl9.1` | dialect (family `tcl`, releases 8.4–9.1) | 9.1 has no grammar delta vs 9.0 but is a core release; releases are the family's version ladder, not separate catalogue entries |
 | `f5-irules` | dialect (family `f5-irules`, 8.4-based) | `}{` separator, nine expr word operators, declaration-only top level, static head identity |
-| `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set) |
+| `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
 | `f5-iapps` | environment `f5-iapps` = tcl@8.5 + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | grammar is `GRAMMAR_TCL85` verbatim; APL container routing is a language-id fact, not a dialect fact |
 | `f5-tmsh` | environment `f5-tmsh` = tcl@8.5 + tmsh pack (ambient, BIG-IP-keyed) | no tmsh lexing mode exists (the `AGENTS.md` owner-map claim is stale); the `IAPPS\|TMSH` spec files split into two packs sharing sources |
 | `tk` (off-catalogue) | package `Tk` + environment `tk` (alias: "wish") = tcl@base + Tk ambient | erases the tk triangle |
@@ -179,9 +191,61 @@ pub struct Dialect {
 impl Family {
     pub const fn releases(self) -> &'static [Release];
     pub const fn grammar(self, r: Release) -> LexerGrammar;      // total function
-    pub const fn expr_surface(self, r: Release) -> ExprGrammar;  // word operators, comments, numbers
+    pub const fn expr_surface(self, r: Release) -> ExprGrammar;  // total function — full contract below
 }
 ```
+
+**The `ExprGrammar` contract.** The word-operators/comments/numbers
+triple is not enough for a non-Tcl family; Jim is the case that proves
+the field list short. The full surface a family × release must own:
+
+```rust
+pub struct ExprGrammar {
+    pub numbers: NumberSyntax,          // numeral grammar, incl. the special-float set
+    pub comments: ExprCommentStyle,
+    pub word_operators: &'static [OperatorLexeme],     // in/ni, lt/le/gt/ge, contains, …
+    pub symbolic_operators: &'static [OperatorLexeme], // family extensions beyond the shared
+                                                       // C-Tcl set: Jim's <<< and >>> (all
+                                                       // releases), =* and =~ (≥0.84)
+    pub precedence: PrecedenceTable,    // binding power per operator, per family
+    pub mathfuncs: MathFuncSurface,     // the known-function set + call-target model
+    pub command_arity: ExprCommandArity, // Tcl: N args concatenated with spaces;
+                                         // Jim ≥0.81: exactly one argument
+}
+```
+
+- **Precedence is a per-family fact, not a per-token fact.** Jim splits
+  what C Tcl merges into two levels into four distinct ones (`in`/`ni`
+  at 55; `eq`/`ne`/`=*`/`=~` at 60; `==`/`!=` at 70;
+  `lt`/`gt`/`le`/`ge` at 75). Today's `binary_bp` in
+  `rust/tcl-syntax/src/expr/parser.rs` is a free function keyed on
+  operator text alone with no dialect parameter — it gains the
+  `ExprGrammar` (or its `PrecedenceTable`) as an argument, and the
+  shared C-Tcl table becomes the `Family::Tcl` value rather than the
+  hardcoded truth.
+- **Symbolic operators need lexer recognition, not just parsing.**
+  `EXPR_WORD_OPERATORS` models word-shaped lexemes only; `<<<` must
+  tokenise as one operator and `=~`/`=*` must not lex as `=` + junk, so
+  the expr lexer's operator scanner reads the grammar's symbolic table
+  the same way `word_operator_lexeme_at` reads the word table.
+- **Mathfunc surfaces are family-keyed.** Today
+  `tcl-syntax/src/expr/mathfunc.rs` keys on `TclVersion`
+  (`spec_tcl90`/`spec_tcl91`); the surface becomes
+  `MathFuncSurface::for(family, release)` — Jim lacks `entier`, `bool`,
+  `min`, `max`, and `isqrt`, and the call-target model
+  (`FixedBuiltin` vs `CommandTable`) already varies by release within
+  the tcl family.
+- **`expr`'s own arity is dual-homed.** The diagnostic ("`expr` takes
+  exactly one argument from Jim 0.81") rides the ordinary registry
+  `arity_windows` on the `expr` `CommandSpec` under provider
+  `Core(jim)`; the *parse* behaviour — whether a multi-word `expr`
+  concatenates its words with spaces before parsing — is the
+  `command_arity` field here, because the analyser needs it before any
+  spec is resolved.
+
+`RuntimeExprSurface` (today: release floor ∧ dialect-set intersection)
+re-derives from `ExprGrammar` plus provider availability; nothing keeps
+a second operator table.
 
 What changes versus `DialectProfile`:
 
@@ -695,9 +759,15 @@ suites in CI; no phase leaves a consumer on a compatibility wrapper.
 7. **Stale doc counts**: `dialect-detection.md`'s 16-name list vs 18;
    `dialect-profile-model.md` §8 "16 catalog entries"; the `spec-author`
    skill's vocabulary list stopping at 1.1.
-8. **Lexical version comparison** in the jim branch's lifecycle gating
-   (`"0.76"`-style string `>=`) — folded into the unified `Release`
-   comparator (§3.1).
+8. **Withdrawn** (originally: lexical version comparison in the jim
+   branch's lifecycle gating). Incorrect — the branch's gating resolves
+   through `Lifecycle::introduced_in` → `version::compare`, which walks
+   numeric segments: `compare("0.100", "0.76")` is `Greater` and
+   `meets_min("0.100", "0.76")` is true. Lexical and numeric orders
+   merely coincide across 0.76–0.84, and the branch now pins the
+   property at the two inputs where the orders diverge. The unified
+   `Release` comparator (§3.1) remains a *unification* win — one
+   ordering type instead of two parallel enums — not a bug fix.
 
 ## 10. Open questions for the owner
 
