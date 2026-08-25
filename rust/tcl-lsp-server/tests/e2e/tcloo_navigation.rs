@@ -362,6 +362,48 @@ fn tp_list_built_self_bind_callback_is_a_method_reference_everywhere() {
     );
 }
 
+/// #1704: a one-hop local constant carries a registry-declared callback
+/// prefix.  Every navigation provider must use the builder method span, not
+/// the later `$cb` registration as a guessed command reference.
+#[test]
+fn tp_stored_callback_prefix_agrees_across_navigation_providers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    let src = "oo::class create Test {\n\
+             method tick {} { return {} }\n\
+             method wire {} {\n\
+                 set cb [list my tick]\n\
+                 after 0 $cb\n\
+             }\n\
+         }\n";
+    let callback_char = src.lines().nth(3).unwrap().find("tick").unwrap() as u32;
+    lsp.open_ready(&uri, src);
+
+    let refs = lsp.references(&uri, 1, 11, false);
+    assert_eq!(
+        location_lines(&refs, &uri),
+        std::collections::BTreeSet::from([3]),
+        "stored callback must be a method reference: {refs:?}"
+    );
+    let command = resolve_lens_on_line(&mut lsp, &uri, 1);
+    assert_eq!(command["title"], expected_title(1), "{command:?}");
+    assert_eq!(
+        location_lines(&lens_locations(&command), &uri),
+        std::collections::BTreeSet::from([3]),
+        "the lens must use the stored callback site: {command:?}"
+    );
+
+    let definition = lsp.definition(&uri, 3, callback_char);
+    assert_eq!(
+        location_lines(&definition, &uri),
+        std::collections::BTreeSet::from([1])
+    );
+    let prepare = lsp.prepare_rename(&uri, 3, callback_char);
+    assert_eq!(prepare["placeholder"], "tick", "{prepare:?}");
+    let edits = rename_edits(&lsp.rename(&uri, 1, 11, "tock"));
+    assert_eq!(edit_lines(&edits, &uri), vec![1, 3], "{edits:?}");
+}
+
 /// Inherited callback capture is deliberately conservative until #1705 can
 /// prove effective receiver visibility.  A cursor on such a callback must not
 /// offer a partial rename that edits the ancestor declaration but leaves this

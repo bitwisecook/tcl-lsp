@@ -1993,15 +1993,21 @@ fn scan_method_sites_by_kind(
         skip,
         external_callback_allowed,
         callbacks_only,
+        stored_callbacks: &[],
     };
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
     let mut seen: FxHashSet<(u32, u32)> = FxHashSet::default();
     for &body_span in bodies {
+        let stored_callbacks = stored_callback_targets(ctx, body_span);
+        let body_ctx = MyMethodScan {
+            stored_callbacks: &stored_callbacks,
+            ..ctx
+        };
         let mut sink = SpanSink {
             out: &mut out,
             seen: &mut seen,
         };
-        scan_my_method_body(ctx, body_span, &mut sink);
+        scan_my_method_body(body_ctx, body_span, &mut sink);
     }
     out
 }
@@ -2026,6 +2032,119 @@ struct MyMethodScan<'a> {
     /// Suppress direct dispatches while proving a cursor sits on a deferred
     /// callback target rather than an ordinary method reference.
     callbacks_only: bool,
+    /// At most one same-scope static callback assignment per variable.  This
+    /// is deliberately source-local and conservative; ambiguous writes are
+    /// omitted before the callback walker sees them.
+    stored_callbacks: &'a [StoredCallbackTarget],
+}
+
+#[derive(Clone)]
+struct StoredCallbackTarget {
+    variable: String,
+    assignment_end: u32,
+    target: PrefixTargetAtSpan,
+}
+
+/// Recover only the one-hop, same-frame constant form of a stored callback.
+///
+/// This deliberately treats every write to a variable as a candidate write:
+/// if there is more than one write, or the sole write is dynamic, the variable
+/// is omitted.  That makes reassignment, branch joins, parameters, and other
+/// incomplete SSA cases abstain without teaching this LSP scanner a command
+/// name or inventing a target.
+fn stored_callback_targets(
+    ctx: MyMethodScan<'_>,
+    body_span: tcl_lexer::Span,
+) -> Vec<StoredCallbackTarget> {
+    use std::collections::HashMap;
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_lexer::TokenType;
+    use tcl_registry::ArgRole;
+    use tcl_registry::hooks::LoweringHookId;
+
+    let (start, end) = strip_outer_braces(ctx.source, body_span);
+    if start >= end || end > ctx.source.len() {
+        return Vec::new();
+    }
+    let commands = segment_commands_with_offset_and_config(
+        &ctx.source[start..end],
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+    );
+    let mut writes: HashMap<String, (u32, Option<PrefixTargetAtSpan>)> = HashMap::new();
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    let mut has_scope_alias = false;
+    for cmd in commands {
+        let (Some(head), Some(written)) = (cmd.argv.first(), cmd.texts.first()) else {
+            continue;
+        };
+        let resolved = ctx
+            .identities
+            .head_words(written, head.span.start())
+            .resolved;
+        let args: Vec<&str> = cmd.texts.iter().skip(1).map(String::as_str).collect();
+        // Only the registry's typed `Set` lowering relation says that the
+        // value immediately follows the VarWrite name.  Other VarWrite
+        // commands (lassign, scan, array set, …) deliberately do not enter
+        // this callback-value path.
+        let resolved_call =
+            ctx.registry
+                .resolve_call(resolved, &args, ctx.dialect.availability_mask);
+        has_scope_alias |= resolved_call.is_some_and(|call| {
+            matches!(
+                call.lowering_hook,
+                Some(LoweringHookId::Global | LoweringHookId::Variable | LoweringHookId::Upvar)
+            ) || call.analyser_hook == Some(tcl_registry::hooks::AnalyserHookId::NamespaceUpvar)
+        });
+        let is_scalar_assignment =
+            resolved_call.is_some_and(|call| call.lowering_hook == Some(LoweringHookId::Set));
+        for var_idx in ctx
+            .registry
+            .arg_indices_for_role(resolved, &args, ArgRole::VarWrite)
+        {
+            let (Some(var), Some(&var_tok)) =
+                (cmd.texts.get(var_idx + 1), cmd.argv.get(var_idx + 1))
+            else {
+                continue;
+            };
+            if var_tok.kind != TokenType::Esc
+                || cmd.single_token_word.get(var_idx + 1) != Some(&true)
+                || var.contains("::")
+                || var.contains('(')
+            {
+                continue;
+            }
+            let count = counts.entry(var.clone()).or_default();
+            *count += 1;
+            let value_target = is_scalar_assignment
+                .then(|| {
+                    cmd.argv.get(var_idx + 2).and_then(|&value_tok| {
+                        (value_tok.kind == TokenType::Cmd
+                            && cmd.single_token_word.get(var_idx + 2) == Some(&true))
+                        .then(|| command_prefix_targets_from_word(ctx, &value_tok, 0))
+                        .and_then(|targets| (targets.len() == 1).then(|| targets[0]))
+                    })
+                })
+                .flatten();
+            writes.insert(var.clone(), (cmd.span.end(), value_target));
+        }
+    }
+    if has_scope_alias {
+        return Vec::new();
+    }
+    writes
+        .into_iter()
+        .filter_map(|(name, (assignment_end, target))| {
+            if counts.get(&name) != Some(&1) {
+                return None;
+            }
+            target.map(|target| StoredCallbackTarget {
+                variable: name,
+                assignment_end,
+                target,
+            })
+        })
+        .collect()
 }
 
 /// Scan a brace-delimited body span for `my method` call sites (stripping the
@@ -2206,6 +2325,30 @@ fn callback_targets_from_command(
         let Some(&body_tok) = cmd.argv.get(idx + 1) else {
             continue;
         };
+        if body_tok.kind == TokenType::Var && cmd.single_token_word.get(idx + 1) == Some(&true) {
+            // A stored callback is accepted only when exactly one static
+            // assignment to this local spelling precedes the use.  The
+            // assignment table was built from registry VarWrite facts, so
+            // this remains independent of command names and rejects every
+            // ambiguous/reassigned form conservatively.
+            let variable = source_span_text(ctx.source, body_tok.span);
+            let variable = variable.strip_prefix('$').unwrap_or(variable);
+            let variable = variable
+                .strip_prefix('{')
+                .and_then(|name| name.strip_suffix('}'))
+                .unwrap_or(variable);
+            let matches: Vec<_> = ctx
+                .stored_callbacks
+                .iter()
+                .filter(|stored| {
+                    stored.variable == variable && stored.assignment_end < cmd.span.start()
+                })
+                .collect();
+            if matches.len() == 1 {
+                out.push(matches[0].target);
+            }
+            continue;
+        }
         // A compound outer word changes the command prefix after the list
         // substitution has run: `[list [self] tick]Suffix` invokes
         // `tickSuffix`, not `tick`.  Only a sole substitution is an exact,
@@ -2336,7 +2479,7 @@ fn command_prefix_target_at_cursor(
     let registry = crate::registry_for_dialect_profile(dialect);
     let identities =
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
-    let ctx = MyMethodScan {
+    let base_ctx = MyMethodScan {
         source,
         dialect,
         registry,
@@ -2345,9 +2488,55 @@ fn command_prefix_target_at_cursor(
         skip: None,
         external_callback_allowed: true,
         callbacks_only: true,
+        stored_callbacks: &[],
     };
     let (start, end) = strip_outer_braces(source, body);
+    let stored = stored_callback_targets(base_ctx, body);
+    let ctx = MyMethodScan {
+        stored_callbacks: &stored,
+        ..base_ctx
+    };
+    if let Some(target) = stored.iter().find(|stored| {
+        span_contains_offset(stored.target.span, cursor_offset)
+            && stored_callback_is_consumed(ctx, start, end, stored.target, 0)
+    }) {
+        return Some(target.target);
+    }
     command_prefix_target_in_region(ctx, start, end, 0, cursor_offset)
+}
+
+fn stored_callback_is_consumed(
+    ctx: MyMethodScan<'_>,
+    start: usize,
+    end: usize,
+    target: PrefixTargetAtSpan,
+    depth: u32,
+) -> bool {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    if start >= end || end > ctx.source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+        return false;
+    }
+    let commands = segment_commands_with_offset_and_config(
+        &ctx.source[start..end],
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+    );
+    commands.iter().any(|cmd| {
+        callback_targets_from_command(ctx, cmd)
+            .into_iter()
+            .any(|candidate| candidate == target)
+            || nested_dispatch_regions_with_identities(
+                ctx.source,
+                ctx.dialect,
+                ctx.registry,
+                ctx.identities,
+                cmd,
+            )
+            .into_iter()
+            .any(|(nested_start, nested_end)| {
+                stored_callback_is_consumed(ctx, nested_start, nested_end, target, depth + 1)
+            })
+    })
 }
 
 fn command_prefix_target_in_region(
@@ -5724,6 +5913,107 @@ mod tests {
             true,
         );
         assert!(refs.len() >= 3, "expected ≥3 refs; got {refs:?}");
+    }
+
+    #[test]
+    fn references_for_method_includes_one_hop_stored_callback_prefixes() {
+        let src = "package require Tk\noo::class create C {\n    method tick {} {}\n    method setup {} {\n        set external [list [self] tick]\n        bind .w <Button-1> $external\n        set internal [namespace code [list my tick]]\n        after 0 $internal\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            2,
+            11,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert!(lines.contains(&2), "declaration missing: {refs:?}");
+        assert!(
+            lines.contains(&4),
+            "stored [self] callback missing: {refs:?}"
+        );
+        assert!(
+            lines.contains(&6),
+            "stored namespace-code callback missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn stored_callback_prefixes_abstain_on_reassignment_and_dynamic_methods() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method setup {method} {\n        set cb [list my tick]\n        lappend cb suffix\n        set cb [list my $method]\n        bind .w <Button-1> $cb\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "ambiguous stored callback must abstain: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn stored_callback_prefixes_abstain_on_non_set_varwrite_reassignment() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set cb [list my tick]\n        lappend cb suffix\n        after 0 $cb\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "non-Set VarWrite reassignment must abstain: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn stored_callback_prefixes_abstain_on_qualified_and_aliased_variables() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set ::cb [list my tick]\n        bind .w <Button-1> $::cb\n        global local\n        set local [list my tick]\n        after 0 $local\n    }\n}\n";
+        let analysis = analyse(src);
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl"),
+            1,
+            11,
+            &analysis,
+            true,
+        );
+        let lines: Vec<u32> = refs.iter().map(|r| r.start_line).collect();
+        assert_eq!(
+            lines,
+            vec![1],
+            "qualified/aliased storage must abstain: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn stored_callback_prefix_cursor_resolves_to_method_declaration() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method setup {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
+        let analysis = analyse(src);
+        let col = src.lines().nth(3).unwrap().find("tick").unwrap() as u32;
+        let locations = crate::definition::definition(src, 3, col, &analysis);
+        assert_eq!(
+            locations.len(),
+            1,
+            "stored callback cursor must resolve: {locations:?}"
+        );
+        assert_eq!(
+            locations[0].start_line, 1,
+            "wrong stored callback target: {locations:?}"
+        );
     }
 
     #[test]

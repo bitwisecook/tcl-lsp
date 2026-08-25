@@ -1559,6 +1559,24 @@ mod tests {
         assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
     }
 
+    #[test]
+    fn hierarchy_follows_one_hop_stored_my_callback() {
+        let src = "oo::class create C {\n    method tick {} {}\n    method wire {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
+        let analysis = analyse(src);
+        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let tick = prepare(src, 1, 11, &analysis);
+        let incoming = incoming_calls(src, dialect, &tick[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::wire", "{incoming:?}");
+        assert_eq!(incoming[0].from_ranges.len(), 1, "{incoming:?}");
+
+        let wire = prepare(src, 2, 11, &analysis);
+        let outgoing = outgoing_calls(src, dialect, &wire[0], &analysis);
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(outgoing[0].to.name, "::C::tick", "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
+    }
+
     /// FP guard: a bare `greet` call inside a sibling method is *not* a
     /// `TclOO` dispatch (unlike a plain proc, a method is never a
     /// bare-callable command), so it must not be counted as an incoming
