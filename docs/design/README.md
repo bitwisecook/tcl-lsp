@@ -45,6 +45,12 @@ rules for the KCS/documentation split live in
   libraries (a shared `sdc` pack + per-tool vendor packages). Carries the
   21-package taxonomy, the `is_available` package-loaded gate, detection
   hardening, and base-version reconciliation.
+- [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
+  — **proposal** (issue #1631): the dialect/package/environment split —
+  dialects as grammar cores (family × release), packages as versioned SpecTcl
+  surfaces, environments as the named, aliasable selections users work in;
+  the provider-window availability algebra replacing `DialectSet`, SpecTcl
+  2.0 vocabulary, and the phased migration plan with the open questions.
 
 ## Name resolution
 
