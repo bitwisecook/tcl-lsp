@@ -95,7 +95,7 @@ def _series(version: str, versions: Sequence[str]) -> tuple[str, str]:
 
 
 def _noun(version: str) -> str:
-    """"pre-release" or "release" for this version.
+    """The channel noun for this version: "pre-release" or "release".
 
     Delegated to `prerelease.sh` rather than re-deriving the minor parity here:
     that script is the single source of truth every other pre-release switch
