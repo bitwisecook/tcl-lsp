@@ -308,6 +308,9 @@ are its rules, and what are the failure modes". One contract per file.
   studio's schema / draft / renderer layering, the invariants that keep it
   in step with `CommandSpec`, the rules its rendered `.rs` must satisfy,
   and the multi-snapshot version-range importer behind `tcl spec import`.
+- [callback-surface-inventory.md](contracts/callback-surface-inventory.md) —
+  registry-derived executable/callback coverage, the audited external/dynamic
+  catalogue, and the generated JSON/Markdown drift gate.
 - [spec-packs.md](spec-packs.md) — SpecTcl, the Tcl-DSL command database
   for private libraries: the runtime loader, discovery, and hook
   execution that have landed; the version-ranges lifecycle model at every
