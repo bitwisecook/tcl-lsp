@@ -947,12 +947,13 @@ fn method_incoming_calls(
         if !dispatch_reaches(&caller.kind, &target_method.kind) {
             continue;
         }
-        let spans = crate::references::scan_my_method_sites(
+        let spans = crate::references::scan_method_sites(
             source,
             dialect,
             &[caller.body_span],
             &target_method.name,
             Some(target_method.name_span),
+            target_method.visibility == "public",
         );
         if spans.is_empty() {
             continue;
@@ -1137,12 +1138,13 @@ fn method_outgoing_calls(
         if !dispatch_reaches(&source_method.kind, &callee.kind) {
             continue;
         }
-        let spans = crate::references::scan_my_method_sites(
+        let spans = crate::references::scan_method_sites(
             source,
             dialect,
             &[source_method.body_span],
             &callee.name,
             None,
+            callee.visibility == "public",
         );
         if spans.is_empty() {
             continue;
@@ -1537,6 +1539,24 @@ mod tests {
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::twice");
         assert_eq!(incoming[0].from_ranges.len(), 2, "{incoming:?}");
+    }
+
+    #[test]
+    fn hierarchy_follows_registry_wrapped_my_callback() {
+        let src = "oo::class create C {\n    method read {} {}\n    unexport read\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
+        let analysis = analyse(src);
+        let items = prepare(src, 1, 11, &analysis);
+        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let incoming = incoming_calls(src, dialect, &items[0], &analysis);
+        assert_eq!(incoming.len(), 1, "{incoming:?}");
+        assert_eq!(incoming[0].from.name, "::C::wire", "{incoming:?}");
+        assert_eq!(incoming[0].from_ranges.len(), 1, "{incoming:?}");
+
+        let wire = prepare(src, 3, 11, &analysis);
+        let outgoing = outgoing_calls(src, dialect, &wire[0], &analysis);
+        assert_eq!(outgoing.len(), 1, "{outgoing:?}");
+        assert_eq!(outgoing[0].to.name, "::C::read", "{outgoing:?}");
+        assert_eq!(outgoing[0].from_ranges.len(), 1, "{outgoing:?}");
     }
 
     /// FP guard: a bare `greet` call inside a sibling method is *not* a

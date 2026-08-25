@@ -1575,12 +1575,13 @@ pub(crate) fn method_references_for_class(
                 // Preserve internal `my` references and abstain from inherited
                 // callbacks until #1705 models effective receiver visibility.
                 let inherited_bodies = collect_member_bodies_scoped(other_cd, false);
-                call_spans.extend(scan_my_method_sites(
+                call_spans.extend(scan_method_sites(
                     source,
                     dialect,
                     &inherited_bodies,
                     method,
                     Some(decl_span),
+                    false,
                 ));
             }
         }
@@ -1646,10 +1647,19 @@ pub(crate) fn list_built_self_method_target_at_cursor(
             .find(|method| span_contains_offset(method.body_span, cursor_offset))?
             .body_span
     };
-    // The captured object command dispatches externally when the callback
-    // runs, so an unexported target is not a candidate here.
+    let target = command_prefix_target_at_cursor(source, dialect, body, cursor_offset)?;
+    let external = target.kind == tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod;
+    if target.kind == tcl_registry::CommandPrefixTarget::DirectCommandHead {
+        return None;
+    }
+    let span = target.span;
+    if source_span_text(source, span) != word {
+        return None;
+    }
+    // `[self] method` dispatches externally and must be public.  `my method`
+    // preserves the current object's private dispatch semantics.
     let (provider, _) =
-        crate::oo_dispatch::method_dispatch_provider(analysis, receiver_q, word, true, bucket)?;
+        crate::oo_dispatch::method_dispatch_provider(analysis, receiver_q, word, external, bucket)?;
     // `method_references_for_class` deliberately excludes callback captures
     // from inheriting receivers until #1705 models their effective export
     // state.  Cursor-origin resolution must make the same abstention or rename
@@ -1658,26 +1668,11 @@ pub(crate) fn list_built_self_method_target_at_cursor(
         return None;
     }
     let provider = provider.to_owned();
-    // Compare against callback-only spans from this one containing body. An
-    // ordinary `my method`, direct `[self] method`, external call, or member
-    // reference must stay on its established resolution path and access mode.
-    list_built_self_callback_sites(source, dialect, &[body], word)
-        .iter()
-        .any(|span| span_contains_offset(*span, cursor_offset))
-        .then_some((provider, is_classmethod))
+    Some((provider, is_classmethod))
 }
 
 fn span_contains_offset(span: tcl_lexer::Span, offset: u32) -> bool {
     span.start() <= offset && offset < span.end()
-}
-
-fn list_built_self_callback_sites(
-    source: &str,
-    dialect: &'static tcl_dialect::DialectProfile,
-    bodies: &[tcl_lexer::Span],
-    method: &str,
-) -> Vec<tcl_lexer::Span> {
-    scan_method_sites_by_kind(source, dialect, bodies, method, None, true, true)
 }
 
 /// Resolve a property's declaration span plus every `my <property>` call
@@ -1953,17 +1948,18 @@ pub(crate) fn scan_my_method_sites(
     scan_method_sites(source, dialect, bodies, method, skip, false)
 }
 
-/// [`scan_my_method_sites`] with optional recognition of a list-built,
-/// externally-dispatched `[self]` callback.  The method resolver enables the
-/// latter only for public methods; keeping both shapes in this one traversal
-/// avoids a second full body scan for every code lens.
-fn scan_method_sites(
+/// [`scan_my_method_sites`] with registry-declared deferred callback
+/// recognition.  `external_callback_allowed` is the target method's
+/// visibility gate: `[self] method` captures the externally-dispatched object
+/// command and therefore requires `public`, whereas `[list my method]` stays
+/// in the current object's private dispatch path.
+pub(crate) fn scan_method_sites(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
-    capture_list_built_self_callbacks: bool,
+    external_callback_allowed: bool,
 ) -> Vec<tcl_lexer::Span> {
     scan_method_sites_by_kind(
         source,
@@ -1971,7 +1967,7 @@ fn scan_method_sites(
         bodies,
         method,
         skip,
-        capture_list_built_self_callbacks,
+        external_callback_allowed,
         false,
     )
 }
@@ -1982,7 +1978,7 @@ fn scan_method_sites_by_kind(
     bodies: &[tcl_lexer::Span],
     method: &str,
     skip: Option<tcl_lexer::Span>,
-    capture_list_built_self_callbacks: bool,
+    external_callback_allowed: bool,
     callbacks_only: bool,
 ) -> Vec<tcl_lexer::Span> {
     let registry = crate::registry_for_dialect_profile(dialect);
@@ -1995,7 +1991,7 @@ fn scan_method_sites_by_kind(
         identities: &identities,
         method,
         skip,
-        capture_list_built_self_callbacks,
+        external_callback_allowed,
         callbacks_only,
     };
     let mut out: Vec<tcl_lexer::Span> = Vec::new();
@@ -2024,7 +2020,9 @@ struct MyMethodScan<'a> {
     skip: Option<tcl_lexer::Span>,
     /// `[list [self] METHOD ...]` later dispatches through the external
     /// object command and therefore counts only for an exported method.
-    capture_list_built_self_callbacks: bool,
+    /// `[list my METHOD ...]` is always eligible because it retains the
+    /// current method frame's private dispatch semantics.
+    external_callback_allowed: bool,
     /// Suppress direct dispatches while proving a cursor sits on a deferred
     /// callback target rather than an ordinary method reference.
     callbacks_only: bool,
@@ -2118,12 +2116,10 @@ fn scan_my_method_region(
                 }
             }
         }
-        if ctx.capture_list_built_self_callbacks {
-            for span in list_built_self_reference_spans(ctx, cmd) {
-                let key = (span.start(), span.end());
-                if sink.seen.insert(key) {
-                    sink.out.push(span);
-                }
+        for span in list_built_self_reference_spans(ctx, cmd) {
+            let key = (span.start(), span.end());
+            if sink.seen.insert(key) {
+                sink.out.push(span);
             }
         }
         for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
@@ -2138,8 +2134,13 @@ fn scan_my_method_region(
     }
 }
 
-/// Matching method words captured into this command's executable callback as
-/// `[list [self] METHOD ...]` or `[list [self object] METHOD ...]`.
+/// Matching method words captured into this command's executable callback.
+///
+/// A command-prefix builder can be wrapped by another registry-declared
+/// prefix wrapper, so this recognises both direct `[list [self] METHOD]` /
+/// `[list my METHOD]` forms and values such as `[namespace code [list my
+/// METHOD]]`.  The traversal is trait-driven: it follows only
+/// `BUILDS_COMMAND_PREFIX` and `WRAPS_COMMAND_PREFIX`, never a command name.
 ///
 /// The enclosing resolved registry spec must mark the argument as either a
 /// complete executable [`tcl_registry::ArgRole::Body`] or a first-class
@@ -2151,9 +2152,36 @@ fn list_built_self_reference_spans(
     ctx: MyMethodScan<'_>,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<tcl_lexer::Span> {
-    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    callback_targets_from_command(ctx, cmd)
+        .into_iter()
+        .filter_map(|target| match target {
+            PrefixTargetAtSpan {
+                kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+                span,
+            } if source_span_text(ctx.source, span) == ctx.method => Some(span),
+            PrefixTargetAtSpan {
+                kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
+                span,
+            } if ctx.external_callback_allowed
+                && source_span_text(ctx.source, span) == ctx.method =>
+            {
+                Some(span)
+            }
+            PrefixTargetAtSpan { .. } => None,
+        })
+        .collect()
+}
+
+/// Resolve registry-declared callback argument positions and extract their
+/// typed static prefix target.  This is intentionally independent of a
+/// particular method name so cursor navigation and call hierarchy can use the
+/// exact same source classification as references/rename/code-lens.
+fn callback_targets_from_command(
+    ctx: MyMethodScan<'_>,
+    cmd: &tcl_compiler::segmenter::SegmentedCommand,
+) -> Vec<PrefixTargetAtSpan> {
     use tcl_lexer::TokenType;
-    use tcl_registry::{ArgRole, Traits};
+    use tcl_registry::ArgRole;
 
     let (Some(head), Some(written_name)) = (cmd.argv.first(), cmd.texts.first()) else {
         return Vec::new();
@@ -2185,55 +2213,186 @@ fn list_built_self_reference_spans(
         if body_tok.kind != TokenType::Cmd || cmd.single_token_word.get(idx + 1) != Some(&true) {
             continue;
         }
-        let regions = cmd_substitution_regions(ctx.source, ctx.dialect, body_tok);
-        let [(inner_start, inner_end)] = regions.as_slice() else {
-            continue;
-        };
-        let built = segment_commands_with_offset_and_config(
-            &ctx.source[*inner_start..*inner_end],
-            u32::try_from(*inner_start).unwrap_or(0),
-            tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
-        );
-        let [builder] = built.as_slice() else {
-            continue;
-        };
-        let (Some(builder_head), Some(builder_written)) =
-            (builder.argv.first(), builder.texts.first())
-        else {
-            continue;
-        };
-        let builder_resolved = ctx
-            .identities
-            .head_words(builder_written, builder_head.span.start())
-            .resolved;
-        if !ctx
-            .registry
-            .get(builder_resolved)
-            .is_some_and(|spec| spec.traits.contains(Traits::BUILDS_COMMAND_PREFIX))
-        {
-            continue;
-        }
-        let (Some(receiver), Some(method_text), Some(&method_tok)) = (
-            builder.texts.get(1),
-            builder.texts.get(2),
-            builder.argv.get(2),
-        ) else {
-            continue;
-        };
-        // The exact source range is safely writable only for a plain literal
-        // method word.  Quoted/braced/compound spellings remain a deliberate
-        // abstention rather than producing a rename edit over delimiters.
-        if builder.single_token_word.get(1) == Some(&true)
-            && exact_self_receiver_call(ctx, receiver)
-            && method_text == ctx.method
-            && method_tok.kind == TokenType::Esc
-            && !method_tok.in_quote
-            && builder.single_token_word.get(2) == Some(&true)
-        {
-            out.push(method_tok.span);
-        }
+        out.extend(command_prefix_targets_from_word(ctx, &body_tok, 0));
     }
     out
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PrefixTargetAtSpan {
+    kind: tcl_registry::CommandPrefixTarget,
+    span: tcl_lexer::Span,
+}
+
+/// Extract static method words from one sole command substitution used as a
+/// callback value.  The recursion deliberately requires each hop to be a
+/// single substitution, so concatenated and dynamically-built values abstain.
+fn command_prefix_targets_from_word(
+    ctx: MyMethodScan<'_>,
+    word_tok: &tcl_lexer::Token,
+    depth: u32,
+) -> Vec<PrefixTargetAtSpan> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+    use tcl_lexer::TokenType;
+    use tcl_registry::{ArgRole, Traits};
+
+    if MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) || word_tok.kind != TokenType::Cmd {
+        return Vec::new();
+    }
+    let regions = cmd_substitution_regions(ctx.source, ctx.dialect, *word_tok);
+    let [(inner_start, inner_end)] = regions.as_slice() else {
+        return Vec::new();
+    };
+    let built = segment_commands_with_offset_and_config(
+        &ctx.source[*inner_start..*inner_end],
+        u32::try_from(*inner_start).unwrap_or(0),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+    );
+    let [builder] = built.as_slice() else {
+        return Vec::new();
+    };
+    let (Some(builder_head), Some(builder_written)) = (builder.argv.first(), builder.texts.first())
+    else {
+        return Vec::new();
+    };
+    let builder_resolved = ctx
+        .identities
+        .head_words(builder_written, builder_head.span.start())
+        .resolved;
+    let Some(spec) = ctx.registry.get(builder_resolved) else {
+        return Vec::new();
+    };
+
+    if spec.traits.contains(Traits::BUILDS_COMMAND_PREFIX) {
+        if let (Some(receiver), Some(&method_tok)) = (builder.texts.get(1), builder.argv.get(2))
+            && method_tok.kind == TokenType::Esc
+            && !method_tok.in_quote
+            && builder.single_token_word.get(1) == Some(&true)
+            && builder.single_token_word.get(2) == Some(&true)
+        {
+            if exact_self_receiver_call(ctx, receiver) {
+                return vec![PrefixTargetAtSpan {
+                    kind: tcl_registry::CommandPrefixTarget::CurrentObjectExternalMethod,
+                    span: method_tok.span,
+                }];
+            }
+            if crate::definition::method_dispatch_keyword_in(ctx.dialect, receiver)
+                == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
+            {
+                return vec![PrefixTargetAtSpan {
+                    kind: tcl_registry::CommandPrefixTarget::CurrentObjectInternalMethod,
+                    span: method_tok.span,
+                }];
+            }
+        }
+        let Some(&head_tok) = builder.argv.get(1) else {
+            return Vec::new();
+        };
+        return (builder.single_token_word.get(1) == Some(&true)
+            && head_tok.kind == TokenType::Esc
+            && !head_tok.in_quote)
+            .then_some(PrefixTargetAtSpan {
+                kind: tcl_registry::CommandPrefixTarget::DirectCommandHead,
+                span: head_tok.span,
+            })
+            .into_iter()
+            .collect();
+    }
+
+    if !spec.traits.contains(Traits::WRAPS_COMMAND_PREFIX) {
+        return Vec::new();
+    }
+    let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
+    ctx.registry
+        .arg_indices_for_role(builder_resolved, &args, ArgRole::Body)
+        .into_iter()
+        .flat_map(|idx| {
+            let Some(&body) = builder.argv.get(idx + 1) else {
+                return Vec::new();
+            };
+            (builder.single_token_word.get(idx + 1) == Some(&true))
+                .then(|| command_prefix_targets_from_word(ctx, &body, depth + 1))
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+fn source_span_text(source: &str, span: tcl_lexer::Span) -> &str {
+    let start = span.start() as usize;
+    let end = span.end() as usize;
+    source.get(start..end).unwrap_or_default()
+}
+
+/// Classify the deferred callback target exactly under `cursor_offset` in one
+/// method body.  This reuses the same registry-role and prefix-result walker
+/// as the reference scan, then descends only through registry-declared nested
+/// executable regions.
+fn command_prefix_target_at_cursor(
+    source: &str,
+    dialect: &'static tcl_dialect::DialectProfile,
+    body: tcl_lexer::Span,
+    cursor_offset: u32,
+) -> Option<PrefixTargetAtSpan> {
+    let registry = crate::registry_for_dialect_profile(dialect);
+    let identities =
+        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let ctx = MyMethodScan {
+        source,
+        dialect,
+        registry,
+        identities: &identities,
+        method: "",
+        skip: None,
+        external_callback_allowed: true,
+        callbacks_only: true,
+    };
+    let (start, end) = strip_outer_braces(source, body);
+    command_prefix_target_in_region(ctx, start, end, 0, cursor_offset)
+}
+
+fn command_prefix_target_in_region(
+    ctx: MyMethodScan<'_>,
+    start: usize,
+    end: usize,
+    depth: u32,
+    cursor_offset: u32,
+) -> Option<PrefixTargetAtSpan> {
+    use tcl_compiler::segmenter::segment_commands_with_offset_and_config;
+
+    if start >= end || end > ctx.source.len() || MAX_DISPATCH_SCAN_DEPTH.exceeded(depth) {
+        return None;
+    }
+    let commands = segment_commands_with_offset_and_config(
+        &ctx.source[start..end],
+        u32::try_from(start).unwrap_or(0),
+        tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
+    );
+    for cmd in &commands {
+        for target in callback_targets_from_command(ctx, cmd) {
+            let span = target.span;
+            if span_contains_offset(span, cursor_offset) {
+                return Some(target);
+            }
+        }
+        for (inner_start, inner_end) in nested_dispatch_regions_with_identities(
+            ctx.source,
+            ctx.dialect,
+            ctx.registry,
+            ctx.identities,
+            cmd,
+        ) {
+            if let Some(target) = command_prefix_target_in_region(
+                ctx,
+                inner_start,
+                inner_end,
+                depth + 1,
+                cursor_offset,
+            ) {
+                return Some(target);
+            }
+        }
+    }
+    None
 }
 
 /// Whether a command-substitution word is exactly the registry-declared
@@ -5796,6 +5955,44 @@ mod tests {
     }
 
     #[test]
+    fn references_reach_namespace_wrapped_my_callback_even_when_private() {
+        // #1703 / tcllib's virtchannel_base shape: the registry declares
+        // `namespace code` as a WRAPS_COMMAND_PREFIX and `list` as a
+        // BUILDS_COMMAND_PREFIX.  `my` keeps private current-object dispatch,
+        // unlike a captured `[self]` object command.
+        let src = "oo::class create C {\n    method read {} { return 1 }\n    unexport read\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            1,
+            11,
+            &analyse(src),
+            true,
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == 4),
+            "the wrapped private `my read` callback is missing: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn references_reach_namespace_wrapped_self_callback_only_when_public() {
+        let src = "oo::class create C {\n    method changed {} { return 1 }\n    method wire {} {\n        trace add variable v write [namespace code [list [self] changed]]\n    }\n}\n";
+        let refs = references(
+            src,
+            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            1,
+            11,
+            &analyse(src),
+            true,
+        );
+        assert!(
+            refs.iter().any(|r| r.start_line == 3),
+            "the wrapped public `[self] changed` callback is missing: {refs:?}"
+        );
+    }
+
+    #[test]
     fn inert_list_built_self_value_is_not_a_method_reference() {
         let src = "oo::class create C {\n    method tick {} { return 1 }\n    method build {} {\n        set inert [list [self] tick]\n    }\n}\n";
         let refs = references(
@@ -5885,6 +6082,23 @@ mod tests {
         assert!(
             !refs.iter().any(|r| r.start_line == 5),
             "an unexported method is not callable through the captured object: {refs:?}"
+        );
+    }
+
+    #[test]
+    fn wrapped_my_callback_cursor_resolves_private_dispatch() {
+        let src = "oo::class create C {\n    method tick {} { return 1 }\n    unexport tick\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my tick]]\n    }\n}\n";
+        let analysis = analyse(src);
+        let cursor = u32::try_from(src.rfind("tick]").unwrap()).unwrap();
+        assert_eq!(
+            list_built_self_method_target_at_cursor(
+                src,
+                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                &analysis,
+                "tick",
+                cursor,
+            ),
+            Some(("::C".to_owned(), false)),
         );
     }
 

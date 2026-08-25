@@ -408,6 +408,48 @@ fn tp_inherited_list_built_self_callback_cursor_abstains_everywhere() {
     );
 }
 
+/// #1703: a tcllib-shaped namespace capture may wrap a command-prefix builder.
+/// `my` retains current-object/private dispatch, so all navigation providers
+/// must agree even when the target was explicitly unexported.
+#[test]
+fn tp_namespace_wrapped_my_callback_agrees_across_navigation_providers() {
+    let mut lsp = Lsp::tcl();
+    let uri = unique_uri("tcl");
+    lsp.open_ready(
+        &uri,
+        "# tcl-dialect: tcl8.6\n\
+         oo::class create C {\n\
+             method read {} { return {} }\n\
+             unexport read\n\
+             method wire {chan} {\n\
+                 fileevent $chan readable [namespace code [list my read]]\n\
+             }\n\
+         }\n",
+    );
+
+    let refs = lsp.references(&uri, 2, 11, false);
+    assert_eq!(
+        location_lines(&refs, &uri),
+        std::collections::BTreeSet::from([3, 5])
+    );
+    let command = resolve_lens_on_line(&mut lsp, &uri, 2);
+    assert_eq!(command["title"], expected_title(2), "{command:?}");
+    assert_eq!(
+        location_lines(&lens_locations(&command), &uri),
+        std::collections::BTreeSet::from([3, 5]),
+        "{command:?}"
+    );
+    assert_eq!(
+        location_lines(&lsp.definition(&uri, 5, 51), &uri),
+        std::collections::BTreeSet::from([2])
+    );
+    assert_eq!(lsp.prepare_rename(&uri, 5, 51)["placeholder"], "read");
+    assert_eq!(
+        edit_lines(&rename_edits(&lsp.rename(&uri, 5, 51, "consume")), &uri),
+        vec![2, 5, 3]
+    );
+}
+
 /// TP: the lens above `Animal`'s `speak` must count — and, on click, open —
 /// the sibling document's override declaration and its `$d speak` dispatch,
 /// exactly as Find All References on the same declaration does.
