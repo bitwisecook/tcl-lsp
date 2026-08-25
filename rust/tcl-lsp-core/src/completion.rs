@@ -446,9 +446,15 @@ fn context_aware_completions(
         // an unexport masks, a later export revives.
         let object_state =
             crate::definition::object_member_state_at(analysis, source, &recv, line, character);
-        if let Some(items) =
-            method_completions(analysis, registry, class_q, bucket, partial, object_state)
-        {
+        if let Some(items) = method_completions(
+            analysis,
+            registry,
+            class_q,
+            bucket,
+            partial,
+            object_state,
+            profile,
+        ) {
             return Some(items);
         }
     }
@@ -1345,8 +1351,16 @@ fn method_completions(
     bucket: crate::definition::MethodBucket,
     partial: &str,
     object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
-    let all = method_items(analysis, Some(registry), class_q, bucket, object_state)?;
+    let all = method_items(
+        analysis,
+        Some(registry),
+        class_q,
+        bucket,
+        object_state,
+        profile,
+    )?;
     let FilteredCandidates {
         candidates: items,
         fuzzy,
@@ -1380,10 +1394,11 @@ fn method_items(
     class_q: &str,
     bucket: crate::definition::MethodBucket,
     object_state: Option<&tcl_compiler::analyser::ObjectMemberState>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Vec<CompletionItem>> {
     use crate::definition::MethodBucket;
     if !analysis.all_classes.contains_key(class_q) {
-        return registry_method_items(registry?, class_q);
+        return registry_method_items(analysis, registry?, class_q, profile);
     }
     let hierarchy = analysis.class_hierarchy();
     let mro = hierarchy
@@ -1534,17 +1549,23 @@ fn layer_per_object_members(
 /// dispatch table).  Tries the dedicated object class first since that is
 /// the precise, intended shape; the self-referential widget case falls
 /// back to the class's own `CommandSpec` when it has no separate
-/// `ObjectClassSpec` (matching `CommandRegistry::instance_method`'s own
-/// `object_class` lookup, `registry.rs:413-415`).  No MRO walk — neither
-/// shape currently declares `superclasses` (issue #927).  Unfiltered:
-/// fragment matching happens in [`method_completions`].
-fn registry_method_items(registry: &CommandRegistry, class_q: &str) -> Option<Vec<CompletionItem>> {
-    let methods: &[tcl_registry::SubCommand] = registry
-        .object_class(class_q)
-        .map(|oc| oc.instance_methods)
-        .or_else(|| registry.get(class_q).map(|spec| spec.subcommands))?;
+/// `ObjectClassSpec` (matching [`CommandRegistry::instance_methods`]). The
+/// registry also applies the owning package's lifecycle floor before returning
+/// a row, so Tk 9.1-only methods cannot leak into an older resolved profile.
+/// Fragment matching happens in [`method_completions`].
+fn registry_method_items(
+    analysis: &AnalysisResult,
+    registry: &CommandRegistry,
+    class_q: &str,
+    profile: &'static tcl_dialect::DialectProfile,
+) -> Option<Vec<CompletionItem>> {
+    let package_version = registry.get(class_q).and_then(|spec| {
+        crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
+    });
+    let methods =
+        registry.instance_methods_at(class_q, package_version, Some(profile.availability_mask));
     let mut items: Vec<CompletionItem> = methods
-        .iter()
+        .into_iter()
         .map(|m| CompletionItem {
             label: m.name.to_owned(),
             insert_text: m.name.to_owned(),
@@ -2307,7 +2328,9 @@ fn fuzzy_command_fallback(
         let bucket = crate::definition::receiver_method_bucket(analysis, &recv, is_dollar);
         let object_state =
             crate::definition::object_member_state_at(analysis, source, &recv, line, character);
-        if let Some(methods) = method_items(analysis, registry, class_q, bucket, object_state) {
+        if let Some(methods) =
+            method_items(analysis, registry, class_q, bucket, object_state, dialect)
+        {
             universe.extend(methods);
         }
     }
@@ -2867,6 +2890,46 @@ mod tests {
         assert!(
             !labels.contains(&"curselection"),
             "must not offer an unrelated widget's subcommand: {labels:?}"
+        );
+    }
+
+    #[test]
+    fn widget_method_completion_follows_the_document_tk_floor() {
+        fn labels(source: &str, dialect: &'static str, line: u32) -> Vec<String> {
+            let analysis = analyse(source);
+            let registry = tcl_registry::registry_for_dialect(dialect);
+            completions(
+                source,
+                line,
+                5,
+                &analysis,
+                Some(registry),
+                None,
+                tcl_dialect::DialectProfile::by_name(dialect),
+            )
+            .into_iter()
+            .map(|item| item.label)
+            .collect()
+        }
+
+        let plain = "ttk::treeview .t\n.t c\n";
+        assert!(
+            !labels(plain, "tcl9.0", 1)
+                .iter()
+                .any(|name| name == "current")
+        );
+        assert!(
+            labels(plain, "tcl9.1", 1)
+                .iter()
+                .any(|name| name == "current")
+        );
+
+        let raised = "package require Tk 9.1\nttk::treeview .t\n.t c\n";
+        assert!(
+            labels(raised, "tcl9.0", 2)
+                .iter()
+                .any(|name| name == "current"),
+            "an unconditional package require must raise the completion floor"
         );
     }
 

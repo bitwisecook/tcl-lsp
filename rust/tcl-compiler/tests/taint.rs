@@ -759,6 +759,22 @@ mod object_instance_taint_sources {
     }
 
     #[test]
+    fn instance_taint_sources_follow_the_resolved_widget_lifecycle() {
+        // ttk::treeview `current` is a zero-argument taint source added in
+        // Tk 9.1. The generic instance-invocation resolver must not replay
+        // that source fact for a tcl9.0 profile merely because the class is
+        // otherwise known there.
+        let source = "ttk::treeview .tree\nset value [.tree current]\neval $value";
+        for (dialect, expects_taint) in [("tcl9.0", false), ("tcl9.1", true)] {
+            assert_eq!(
+                !of_code(source, dialect, "T100").is_empty(),
+                expects_taint,
+                "ttk::treeview current taint source under {dialect}"
+            );
+        }
+    }
+
+    #[test]
     fn widget_handle_variable_get_taints() {
         let source = "set widget [ttk::entry .user]\nset value [$widget get]\neval $value";
         let warnings = of_code(source, D, "T100");

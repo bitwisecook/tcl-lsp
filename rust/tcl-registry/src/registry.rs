@@ -1594,15 +1594,86 @@ impl CommandRegistry {
         self.get(class_name).and_then(|s| s.object_class)
     }
 
-    /// Resolve an instance method `method` on class `class_name`, walking
-    /// declared superclasses breadth-first.  Returns the owning class's
-    /// [`SubCommand`] method spec, or `None` when unresolved.
+    /// The version floor this registry itself guarantees for `spec`'s owning
+    /// package. A profile supplies its pinned runtime library version; a
+    /// `SpecTcl` ambient-package declaration supplies the pack equivalent.
+    /// When both make a claim, their strongest floor wins.
+    ///
+    /// Request-time consumers that have `package require` facts can raise this
+    /// floor through `DocumentFloor`; registry-only lookup deliberately keeps
+    /// the static, resolved-profile answer. `None` remains permissive for an
+    /// unpinned package or a hand-assembled registry with no ambient claim.
+    fn package_floor_for_spec(&self, spec: &CommandSpec) -> Option<&'static str> {
+        let package = spec.owning_package()?;
+        let profile_floor = self
+            .profile
+            .and_then(|profile| profile.library_floor_default(package));
+        let ambient_floor = self.ambient_package_floor(package);
+        match (profile_floor, ambient_floor) {
+            (Some(profile), Some(ambient)) => (crate::version::compare(profile, ambient).is_lt())
+                .then_some(ambient)
+                .or(Some(profile)),
+            (profile, ambient) => profile.or(ambient),
+        }
+    }
+
+    /// The stronger of the registry's own package floor and a caller's
+    /// document-resolved floor. `package_version` is intentionally supplied
+    /// by the caller rather than inferred from a command spelling: an explicit
+    /// `package require` is document data, while the profile/ambient floor is
+    /// registry data.
+    fn package_floor_for_spec_at<'a>(
+        &self,
+        spec: &CommandSpec,
+        package_version: Option<&'a str>,
+    ) -> Option<&'a str> {
+        match (self.package_floor_for_spec(spec), package_version) {
+            (Some(registry), Some(document)) => {
+                if crate::version::compare(registry, document).is_lt() {
+                    Some(document)
+                } else {
+                    Some(registry)
+                }
+            }
+            (Some(registry), None) => Some(registry),
+            (None, document) => document,
+        }
+    }
+
+    /// Assemble the visible instance-method table for `class_name`, walking
+    /// declared superclasses breadth-first.
+    ///
+    /// The owning *class command* supplies the lifecycle axis for each row,
+    /// rather than assuming every inherited method belongs to the receiver's
+    /// package. This is the object-method counterpart of normal subcommand
+    /// filtering: a Tk 9.1-only widget operation must not become a hover,
+    /// semantic-token, taint, or completion fact in a profile that resolves
+    /// Tk 9.0. The filter is entirely descriptor-driven, so the registry knows
+    /// no widget or method spellings.
     #[must_use]
-    pub fn instance_method(
+    pub fn instance_methods(&self, class_name: &str) -> Vec<&'static SubCommand> {
+        self.instance_methods_at(
+            class_name,
+            None,
+            self.profile.map(|profile| profile.availability_mask),
+        )
+    }
+
+    /// [`Self::instance_methods`] with a document-resolved floor for the
+    /// owning package and an explicit availability mask.
+    ///
+    /// A request-time caller obtains `package_version` from its document's
+    /// package-require facts for the class command, which can only raise the
+    /// profile/ambient floor. Passing `None` retains the registry's static
+    /// profile answer. `dialect` similarly lets an unprofiled, hand-assembled
+    /// registry honour a caller's resolved command surface.
+    #[must_use]
+    pub fn instance_methods_at(
         &self,
         class_name: &str,
-        method: &str,
-    ) -> Option<&crate::spec::SubCommand> {
+        package_version: Option<&str>,
+        dialect: Option<DialectSet>,
+    ) -> Vec<&'static SubCommand> {
         // FIFO so the walk is genuinely breadth-first and visits siblings in
         // declaration order — `Vec::pop` would make this a reversed-sibling
         // depth-first search, contradicting the documented contract.
@@ -1614,10 +1685,26 @@ impl CommandRegistry {
             if !seen.insert(cls.clone()) {
                 continue;
             }
-            let Some(class_spec) = self.object_class(&cls) else {
+            // Resolve the owning command through this registry's profile,
+            // then gate each of its method descriptors on that command's
+            // package axis. A class absent from this profile cannot donate
+            // inherited methods either.
+            let Some(class_spec) = self.spec_for_this_registry(&cls) else {
                 continue;
             };
-            for candidate in class_spec.instance_methods {
+            let Some(class) = class_spec.object_class else {
+                continue;
+            };
+            let package_floor = self.package_floor_for_spec_at(class_spec, package_version);
+            for candidate in class.instance_methods {
+                let method_dialects = candidate.dialects.or(class_spec.dialects);
+                if !candidate.available_for_version(package_floor)
+                    || !method_dialects.is_none_or(|gate| {
+                        dialect.is_none_or(|requested| gate.intersects(requested))
+                    })
+                {
+                    continue;
+                }
                 // Breadth-first order implements ordinary override lookup:
                 // the first declaration of a canonical name is the visible
                 // one. Prefix ambiguity is resolved only after the complete
@@ -1626,12 +1713,47 @@ impl CommandRegistry {
                     visible_methods.push(candidate);
                 }
             }
-            for sup in class_spec.superclasses {
+            for sup in class.superclasses {
                 queue.push_back((*sup).to_string());
             }
         }
+        visible_methods
+    }
+
+    /// Resolve an instance method `method` on class `class_name`, walking
+    /// declared superclasses breadth-first. Lifecycle-gated methods are
+    /// filtered against their owning class command's resolved package floor.
+    /// Returns the owning class's [`SubCommand`] method spec, or `None` when
+    /// unresolved.
+    #[must_use]
+    pub fn instance_method(
+        &self,
+        class_name: &str,
+        method: &str,
+    ) -> Option<&crate::spec::SubCommand> {
+        self.instance_method_at(
+            class_name,
+            method,
+            None,
+            self.profile.map(|profile| profile.availability_mask),
+        )
+    }
+
+    /// [`Self::instance_method`] with a document-resolved owning-package
+    /// floor and explicit availability mask. See [`Self::instance_methods_at`]
+    /// for the two axes' composition.
+    #[must_use]
+    pub fn instance_method_at(
+        &self,
+        class_name: &str,
+        method: &str,
+        package_version: Option<&str>,
+        dialect: Option<DialectSet>,
+    ) -> Option<&crate::spec::SubCommand> {
+        let visible_methods = self.instance_methods_at(class_name, package_version, dialect);
         let method_prefix_matching = self
-            .object_class(class_name)
+            .spec_for_this_registry(class_name)
+            .and_then(|spec| spec.object_class)
             .map_or(crate::abbrev::PrefixMatching::Strict, |class| {
                 class.method_prefix_matching
             });
@@ -5032,6 +5154,64 @@ mod tests {
         assert_eq!(
             resolved.detail, "left",
             "breadth-first, declaration-ordered walk visits Left before Right"
+        );
+    }
+
+    #[test]
+    fn instance_method_at_honours_explicit_package_and_dialect_gates() {
+        use crate::spec::ObjectClassSpec;
+
+        static METHODS: [SubCommand; 1] = [SubCommand {
+            name: "later",
+            dialects: Some(DialectSet::TCL91),
+            lifecycle: Lifecycle::introduced_in("9.1"),
+            ..SubCommand::DEFAULT
+        }];
+        static CLASS: ObjectClassSpec = ObjectClassSpec {
+            class_name: "VersionedClass",
+            instance_methods: &METHODS,
+            superclasses: &[],
+            allow_unknown_methods: false,
+            method_prefix_matching: PrefixMatching::Strict,
+        };
+
+        let mut reg = CommandRegistry::build_default();
+        reg.insert(CommandSpec {
+            name: CLASS.class_name,
+            required_package: Some("Demo"),
+            object_class: Some(&CLASS),
+            ..CommandSpec::DEFAULT
+        });
+
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.0"),
+                Some(DialectSet::TCL91)
+            )
+            .is_none(),
+            "the explicit owning-package floor rejects a future method"
+        );
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.1"),
+                Some(DialectSet::TCL90)
+            )
+            .is_none(),
+            "the method's own dialect gate remains independent of lifecycle"
+        );
+        assert!(
+            reg.instance_method_at(
+                "VersionedClass",
+                "later",
+                Some("9.1"),
+                Some(DialectSet::TCL91)
+            )
+            .is_some(),
+            "both registry-declared availability axes admit the method"
         );
     }
 

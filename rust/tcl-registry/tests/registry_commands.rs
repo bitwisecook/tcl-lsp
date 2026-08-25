@@ -1917,6 +1917,33 @@ fn tk_widgets_with_subcommands_self_reference_their_object_class() {
 }
 
 #[test]
+fn instance_methods_follow_the_owning_package_lifecycle() {
+    // `current` is a Tk 9.1 addition to ttk::treeview. The class itself is
+    // older, so this exercises method-row lifecycle filtering rather than
+    // command-level availability. The registry must make the same answer
+    // available to every downstream object-method consumer.
+    for (dialect, current_is_available) in [("tcl9.0", false), ("tcl9.1", true)] {
+        let reg = registry_for_dialect(dialect);
+        assert_eq!(
+            reg.instance_method("ttk::treeview", "current").is_some(),
+            current_is_available,
+            "ttk::treeview current under {dialect}"
+        );
+        assert_eq!(
+            reg.instance_methods("ttk::treeview")
+                .iter()
+                .any(|method| method.name == "current"),
+            current_is_available,
+            "instance-method enumeration under {dialect}"
+        );
+        assert!(
+            reg.instance_method("ttk::treeview", "instate").is_some(),
+            "an older ttk::treeview method remains available under {dialect}"
+        );
+    }
+}
+
+#[test]
 fn object_method_prefix_policy_is_strict_by_default_and_enabled_for_tk() {
     let (reg, ds) = reg_and_set("tcl8.6");
 

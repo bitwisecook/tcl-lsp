@@ -2783,12 +2783,12 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
     out
 }
 
-/// Maximum statically recoverable stored callbacks replayed from one source unit.
+/// Maximum statically recoverable stored callbacks replayed in one batch.
 ///
 /// A callback replay performs a normal, interprocedural compiler pass so it
 /// can reuse the established SSA and proc-parameter taint transfer. Cap the
-/// rare pathological generated form rather than making diagnostics quadratic;
-/// ordinary applications have a handful of handlers.
+/// per-batch work rather than making one synthetic unit quadratic; ordinary
+/// applications have a handful of handlers.
 const MAX_CALLBACK_TAINT_REPLAYS: usize = 32;
 
 #[cfg(test)]
@@ -2933,7 +2933,7 @@ fn find_callback_substitution_warnings(
         tcl_lexer::LexerConfig::from_grammar(profile.grammar)
     });
 
-    'units: for fu in cu.all_body_function_units() {
+    for fu in cu.all_body_function_units() {
         let instance_classes = instance_classes_for_function(
             &fu.cfg,
             registry,
@@ -3029,9 +3029,6 @@ fn find_callback_substitution_warnings(
                         callback_span,
                         callback_input_label,
                     });
-                    if candidates.len() == MAX_CALLBACK_TAINT_REPLAYS {
-                        break 'units;
-                    }
                 }
             }
         }
@@ -3042,99 +3039,101 @@ fn find_callback_substitution_warnings(
     }
 
     let (input_var, proc_prefix) = fresh_callback_replay_names(&cu.source);
-    let mut replays: Vec<(String, Span, String)> = Vec::with_capacity(candidates.len());
-    for candidate in candidates {
-        let proc_name = format!("{proc_prefix}_{}", replays.len());
-        let replay = callback_replay_source(
-            &candidate.callback,
-            candidate.inputs,
-            candidate.source_is_command_substitution,
-            &input_var,
-            &proc_name,
-            dialect,
-            callback_head_identities
-                .get()
-                .map(|identities| (identities, candidate.callback_span.start())),
-        )
-        .expect("callback replay preflight proved this script is static");
-        replays.push((
-            replay,
-            candidate.callback_span,
-            candidate.callback_input_label,
-        ));
-    }
-
-    // All recoverable callbacks share one synthetic compilation unit and one
-    // interprocedural solve. The per-replay ranges retain the source mapping
-    // without making a validation-heavy file O(callbacks × module-size).
-    let mut injected = String::with_capacity(
-        cu.source.len()
-            + replays
-                .iter()
-                .map(|(source, _, _)| source.len() + 1)
-                .sum::<usize>(),
-    );
-    injected.push_str(&cu.source);
-    let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
-    for (replay, callback_span, callback_input_label) in replays {
-        injected.push('\n');
-        let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-        injected.push_str(&replay);
-        let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
-        replay_spans.push((Span::new(start, end), callback_span, callback_input_label));
-    }
-
-    #[cfg(test)]
-    CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
-    let replay_cu = crate::compilation_unit::CompilationUnit::build_for(&injected, registry, false)
-        .with_interprocedural(registry, dialect);
     let mut out = Vec::new();
-    // The first name seeds the top-level argument at the synthetic invocation;
-    // the second is the private replay proc parameter. `input_var` was chosen
-    // absent from the complete user source, so seeding both scopes cannot
-    // influence the original program or a real procedure.
-    let replay_seed = HashMap::from([
-        (format!("::{input_var}"), TaintLattice::tainted()),
-        (input_var.clone(), TaintLattice::tainted()),
-    ]);
-    for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
-        &replay_cu,
-        registry,
-        dialect,
-        Some(&replay_seed),
-    ) {
-        // A prefix can call a local procedure. Its sink then lies in the
-        // original procedure body even though the synthetic invocation taints
-        // its parameter. Keep that new source span intact. Only a sink in an
-        // appended callback script is retargeted to its registration.
-        if baseline.iter().any(|existing| {
-            existing.span == warning.span
-                && existing.variable == warning.variable
-                && existing.sink_command == warning.sink_command
-                && existing.code == warning.code
-        }) {
-            continue;
+    // All recoverable callbacks are replayed in bounded batches. The per-batch
+    // ranges retain source mapping while bounding the amount of synthetic
+    // callback code in each interprocedural solve. Every statically recoverable
+    // callback is processed; batching is a work-unit bound, not a soundness cap.
+    for candidates in candidates.chunks(MAX_CALLBACK_TAINT_REPLAYS) {
+        let mut replays: Vec<(String, Span, String)> = Vec::with_capacity(candidates.len());
+        for (index, candidate) in candidates.iter().enumerate() {
+            let proc_name = format!("{proc_prefix}_{index}");
+            let replay = callback_replay_source(
+                &candidate.callback,
+                candidate.inputs,
+                candidate.source_is_command_substitution,
+                &input_var,
+                &proc_name,
+                dialect,
+                callback_head_identities
+                    .get()
+                    .map(|identities| (identities, candidate.callback_span.start())),
+            )
+            .expect("callback replay preflight proved this script is static");
+            replays.push((
+                replay,
+                candidate.callback_span,
+                candidate.callback_input_label.clone(),
+            ));
         }
-        if let Some((_, registration, callback_input_label)) =
-            replay_spans.iter().find(|(span, _, _)| {
-                warning.span.start() >= span.start() && warning.span.start() < span.end()
-            })
-        {
-            if warning.variable == input_var {
-                let synthetic_name = format!("Tainted variable ${input_var}");
-                warning.variable.clone_from(callback_input_label);
-                warning.message =
-                    warning
-                        .message
-                        .replacen(&synthetic_name, callback_input_label, 1);
+
+        let mut injected = String::with_capacity(
+            cu.source.len()
+                + replays
+                    .iter()
+                    .map(|(source, _, _)| source.len() + 1)
+                    .sum::<usize>(),
+        );
+        injected.push_str(&cu.source);
+        let mut replay_spans: Vec<(Span, Span, String)> = Vec::with_capacity(replays.len());
+        for (replay, callback_span, callback_input_label) in replays {
+            injected.push('\n');
+            let start = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+            injected.push_str(&replay);
+            let end = u32::try_from(injected.len()).unwrap_or(u32::MAX);
+            replay_spans.push((Span::new(start, end), callback_span, callback_input_label));
+        }
+
+        #[cfg(test)]
+        CALLBACK_REPLAY_BUILDS.with(|count| count.set(count.get() + 1));
+        let replay_cu =
+            crate::compilation_unit::CompilationUnit::build_for(&injected, registry, false)
+                .with_interprocedural(registry, dialect);
+        // `input_var` was chosen absent from the complete user source, so
+        // seeding both scopes cannot influence the original program.
+        let replay_seed = HashMap::from([
+            (format!("::{input_var}"), TaintLattice::tainted()),
+            (input_var.clone(), TaintLattice::tainted()),
+        ]);
+        for mut warning in find_taint_warnings_for_cu_base_with_external_variable_seeds(
+            &replay_cu,
+            registry,
+            dialect,
+            Some(&replay_seed),
+        ) {
+            // A prefix can call a local procedure. Its sink then lies in the
+            // original procedure body even though the synthetic invocation
+            // taints its parameter. Keep that new source span intact. Only a
+            // sink in an appended callback script is retargeted.
+            if baseline.iter().any(|existing| {
+                existing.span == warning.span
+                    && existing.variable == warning.variable
+                    && existing.sink_command == warning.sink_command
+                    && existing.code == warning.code
+            }) {
+                continue;
             }
-            warning.span = *registration;
-            // A future sink-specific fix emitted for replay text must never
-            // point at the appended synthetic source.
-            warning.replacement = None;
-            warning.fixes.clear();
+            if let Some((_, registration, callback_input_label)) =
+                replay_spans.iter().find(|(span, _, _)| {
+                    warning.span.start() >= span.start() && warning.span.start() < span.end()
+                })
+            {
+                if warning.variable == input_var {
+                    let synthetic_name = format!("Tainted variable ${input_var}");
+                    warning.variable.clone_from(callback_input_label);
+                    warning.message =
+                        warning
+                            .message
+                            .replacen(&synthetic_name, callback_input_label, 1);
+                }
+                warning.span = *registration;
+                // A future sink-specific fix emitted for replay text must
+                // never point at the appended synthetic source.
+                warning.replacement = None;
+                warning.fixes.clear();
+            }
+            out.push(warning);
         }
-        out.push(warning);
     }
     out
 }
@@ -8021,6 +8020,46 @@ mod tests {
             warnings.len(),
             3,
             "each registered sink still warns: {warnings:?}"
+        );
+    }
+
+    #[test]
+    fn callback_replay_batches_past_the_first_batch_without_truncating_later_sinks() {
+        use crate::compilation_unit::CompilationUnit;
+        use std::fmt::Write as _;
+
+        let mut source = String::new();
+        for index in 0..=MAX_CALLBACK_TAINT_REPLAYS {
+            writeln!(
+                &mut source,
+                "entry .benign{index} -validatecommand {{set value %P}}"
+            )
+            .expect("write to String");
+        }
+        source.push_str("entry .malicious -validatecommand {eval %P}");
+        let malicious_start = u32::try_from(
+            source
+                .rfind("{eval %P}")
+                .expect("malicious callback is present"),
+        )
+        .expect("test source fits in u32");
+
+        let registry = CommandRegistry::build_default();
+        let cu = CompilationUnit::build_for(&source, &registry, false)
+            .with_interprocedural(&registry, None);
+        reset_callback_replay_build_count();
+        let warnings = find_taint_warnings_for_cu(&cu, &registry, None);
+
+        assert_eq!(
+            callback_replay_build_count(),
+            2,
+            "callbacks beyond one replay batch must receive a second bounded solve"
+        );
+        assert!(
+            warnings.iter().any(|warning| {
+                warning.code == DiagCode::T100 && warning.span.start() == malicious_start
+            }),
+            "the callback after 32 benign registrations must still warn: {warnings:?}"
         );
     }
 

@@ -829,9 +829,7 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
             tcl_dialect::DialectProfile::irules(),
             registry,
             None,
-            None,
-            None,
-            None,
+            WorkspaceTokenFacts::default(),
         ) {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
@@ -917,9 +915,7 @@ fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
             tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
             registry,
             None,
-            None,
-            None,
-            None,
+            WorkspaceTokenFacts::default(),
         ) {
             let (line, col) = if line == 0 {
                 (origin.line, origin.character.get() + col)
@@ -1011,6 +1007,7 @@ pub fn full_with_cu_and_analysis(
             classes: analysis.map(AnalysisResult::class_hierarchy),
             proc_roles: proc_roles.as_ref(),
             named_instances: named_instances.as_ref(),
+            analysis,
         },
     )
 }
@@ -1054,6 +1051,7 @@ pub fn full_with_cu_and_classes_and_roles(
             classes,
             proc_roles,
             named_instances: None,
+            analysis: None,
         },
     )
 }
@@ -1073,15 +1071,7 @@ pub fn full_with_cu_and_facts(
     cu: Option<&CompilationUnit>,
     facts: WorkspaceTokenFacts<'_>,
 ) -> SemanticTokens {
-    let entries = collect_entries(
-        source,
-        dialect,
-        registry,
-        cu,
-        facts.classes,
-        facts.proc_roles,
-        facts.named_instances,
-    );
+    let entries = collect_entries(source, dialect, registry, cu, facts);
     encode_entries(&entries)
 }
 
@@ -1136,6 +1126,7 @@ pub fn range_with_cu_and_analysis(
             classes: analysis.map(AnalysisResult::class_hierarchy),
             proc_roles: proc_roles.as_ref(),
             named_instances: named_instances.as_ref(),
+            analysis,
         },
     )
 }
@@ -1176,6 +1167,7 @@ pub fn range_with_cu_and_classes_and_roles(
             classes,
             proc_roles,
             named_instances: None,
+            analysis: None,
         },
     )
 }
@@ -1191,15 +1183,7 @@ pub fn range_with_cu_and_facts(
     cu: Option<&CompilationUnit>,
     facts: WorkspaceTokenFacts<'_>,
 ) -> SemanticTokens {
-    let mut entries = collect_entries(
-        source,
-        dialect,
-        registry,
-        cu,
-        facts.classes,
-        facts.proc_roles,
-        facts.named_instances,
-    );
+    let mut entries = collect_entries(source, dialect, registry, cu, facts);
     entries.retain(|(line, col, _, _, _)| {
         // Half-open interval per LSP `Range` semantics: start is
         // inclusive, end is exclusive.
@@ -1572,6 +1556,7 @@ fn special_arg_kinds(
     object_classes: &ObjectClassMap,
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
+    document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
     dialect: DialectSet,
     extra_var_write: &FxHashMap<String, Vec<u32>>,
     extra_var_read: &FxHashMap<String, Vec<u32>>,
@@ -1664,6 +1649,8 @@ fn special_arg_kinds(
         object_classes,
         object_collections,
         classes,
+        document_floor,
+        dialect,
         &mut overrides,
     );
     insert_generic_option_overrides(seg, registry, head, &mut overrides);
@@ -2550,6 +2537,9 @@ pub struct WorkspaceTokenFacts<'a> {
     /// The workspace-merged (or local) `CLASS create NAME` bareword
     /// instance-command index (issue #1312).
     pub named_instances: Option<&'a NamedInstanceMap>,
+    /// Local analysis, when available. Package-require floors are document
+    /// facts used to resolve lifecycle-gated registry methods.
+    pub analysis: Option<&'a AnalysisResult>,
 }
 
 /// Build a [`NamedInstanceMap`] from `analysis` — `None` when `analysis`
@@ -2580,12 +2570,15 @@ fn named_instances_from_analysis(analysis: &AnalysisResult) -> NamedInstanceMap 
 /// in the spec, an un-provenanced receiver) is picked up by the generic
 /// shape-based fallback.  A `$var` / `[cmd]` option value keeps its own
 /// highlight; only literal (`Esc`/`Str`) values are recoloured.
+#[allow(clippy::too_many_arguments)] // one object-dispatch classifier threading resolved context
 fn insert_object_method_overrides(
     seg: &tcl_compiler::segmenter::SegmentedCommand,
     registry: &CommandRegistry,
     object_classes: &ObjectClassMap,
     object_collections: &ObjectClassMap,
     classes: Option<&ClassHierarchy>,
+    document_floor: Option<crate::document_floor::DocumentFloor<'_>>,
+    dialect: DialectSet,
     overrides: &mut FxHashMap<u32, ArgOverride>,
 ) {
     let (Some(head_tok), Some(head_text), Some(method)) =
@@ -2639,10 +2632,12 @@ fn insert_object_method_overrides(
     candidates.sort_unstable();
     candidates.dedup();
     // 1. Registry-modelled class — precise, declared method options.
-    if let Some(method_sub) = candidates
-        .iter()
-        .find_map(|cls| registry.instance_method(cls, method))
-    {
+    if let Some(method_sub) = candidates.iter().find_map(|cls| {
+        let package_version = registry
+            .get(cls)
+            .and_then(|spec| document_floor.and_then(|floor| floor.for_spec(spec)));
+        registry.instance_method_at(cls, method, package_version, Some(dialect))
+    }) {
         mark_method_word(seg, overrides);
         insert_registry_method_options(seg, method_sub, overrides);
         return;
@@ -4336,6 +4331,9 @@ struct ScriptCtx<'a> {
     /// defined in another file resolves too (issue #797 follow-up).  `None` for
     /// the pure-segmentation path.
     classes: Option<&'a ClassHierarchy>,
+    /// The local analysis when this request has one, used only for document
+    /// package floors on lifecycle-gated registry methods.
+    analysis: Option<&'a AnalysisResult>,
     /// The class whose definition body we are currently inside (as written at
     /// the `oo::class create NAME` / `oo::define NAME` head), sliced from the
     /// source so it lives as long as the walk.  Lets a `my method …` self-call
@@ -5000,6 +4998,8 @@ fn collect_script(
             ctx.object_classes,
             ctx.object_collections,
             ctx.classes,
+            ctx.analysis
+                .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
             ctx.dialect.availability_mask,
             ctx.extra_var_write,
             ctx.extra_var_read,
@@ -5152,6 +5152,8 @@ fn merge_list_quoted_command_overrides(
         ctx.object_classes,
         ctx.object_collections,
         ctx.classes,
+        ctx.analysis
+            .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
         ctx.dialect.availability_mask,
         ctx.extra_var_write,
         ctx.extra_var_read,
@@ -5960,10 +5962,14 @@ fn collect_entries(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
     cu: Option<&CompilationUnit>,
-    classes: Option<&ClassHierarchy>,
-    proc_roles: Option<&VarNameArgRoles>,
-    named_instances: Option<&NamedInstanceMap>,
+    facts: WorkspaceTokenFacts<'_>,
 ) -> Vec<Entry> {
+    let WorkspaceTokenFacts {
+        classes,
+        proc_roles,
+        named_instances,
+        analysis,
+    } = facts;
     let mut entries: Vec<Entry> = Vec::new();
     let line_index = LineIndex::new(source);
     let profile = dialect;
@@ -6083,6 +6089,7 @@ fn collect_entries(
         object_classes: &object_classes,
         object_collections: &object_collections,
         classes,
+        analysis,
         enclosing_class: None,
         extra_var_write: &extra_var_write,
         extra_var_read: &extra_var_read,
@@ -8222,6 +8229,37 @@ mod tests {
                 .any(|&(l, _, _, k, m)| l == 2 && k == TokenKind::Method as u32 && m == 0),
             "expected `my helper` to resolve; got {toks:?}"
         );
+    }
+
+    #[test]
+    fn widget_method_tokens_follow_the_resolved_tk_lifecycle() {
+        // `current` belongs to ttk::treeview only from Tk 9.1. The semantic
+        // provider must consume the registry's filtered object-method table,
+        // not the raw class descriptor that contains future methods.
+        use tcl_compiler::analyser::Analyser;
+        use tcl_compiler::compilation_unit::CompilationUnit;
+
+        let src = "ttk::treeview .tree\n.tree current\n";
+        for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
+            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let registry = tcl_registry::registry_for_dialect(dialect);
+            let cu = CompilationUnit::build_for(src, registry, false);
+            let analysis = Analyser::new().analyse(src, dialect);
+            let tokens = decode_semantic(&full_with_cu_and_analysis(
+                src,
+                profile,
+                registry,
+                Some(&cu),
+                Some(&analysis),
+            ));
+            assert_eq!(
+                tokens.iter().any(|&(line, _, _, kind, _)| {
+                    line == 1 && kind == TokenKind::Method as u32
+                }),
+                expected,
+                "ttk::treeview current semantic token under {dialect}: {tokens:?}"
+            );
+        }
     }
 
     /// A bare (namespace-less) `apply {{} {...}}` runs its body in a *fresh*

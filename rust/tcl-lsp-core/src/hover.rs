@@ -856,9 +856,15 @@ fn hover_impl(
     // `$obj m` / `my m` method-dispatch hover, including the per-object
     // visibility mask (issue #1170) — `Break(None)` is a definitive
     // no-hover.
-    if let std::ops::ControlFlow::Break(answer) =
-        method_dispatch_hover(source, line, character, cursor_offset, analysis, registry)
-    {
+    if let std::ops::ControlFlow::Break(answer) = method_dispatch_hover(
+        source,
+        line,
+        character,
+        cursor_offset,
+        analysis,
+        registry,
+        profile,
+    ) {
         return answer;
     }
 
@@ -3670,6 +3676,7 @@ fn method_dispatch_hover(
     cursor_offset: u32,
     analysis: &AnalysisResult,
     registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> std::ops::ControlFlow<Option<Hover>> {
     use std::ops::ControlFlow;
     if crate::definition::object_masks_external_dispatch(analysis, source, line, character) {
@@ -3685,7 +3692,8 @@ fn method_dispatch_hover(
         crate::definition::instance_method_at_cursor(source, line, character)
         && let Some(class_q) =
             crate::definition::receiver_instance_class(analysis, &inst, is_dollar)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, true, registry)
+        && let Some(text) =
+            obj_method_hover_text(analysis, class_q, &method, true, registry, profile)
     {
         return ControlFlow::Break(Some(Hover::markdown(text)));
     }
@@ -3707,7 +3715,8 @@ fn method_dispatch_hover(
         crate::definition::instance_method_at_cursor(source, line, character)
         && crate::definition::is_self_dispatch_keyword(&inst)
         && let Some(class_q) = crate::definition::enclosing_class_at(analysis, cursor_offset)
-        && let Some(text) = obj_method_hover_text(analysis, class_q, &method, false, registry)
+        && let Some(text) =
+            obj_method_hover_text(analysis, class_q, &method, false, registry, profile)
     {
         return ControlFlow::Break(Some(Hover::markdown(text)));
     }
@@ -3763,6 +3772,7 @@ fn obj_method_hover_text(
     method: &str,
     external: bool,
     registry: Option<&CommandRegistry>,
+    profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     if analysis.all_classes.contains_key(class_q) {
         for (bucket, label) in [
@@ -3784,7 +3794,16 @@ fn obj_method_hover_text(
         }
         return None;
     }
-    let sub = registry?.instance_method(class_q, method)?;
+    let registry = registry?;
+    let package_version = registry.get(class_q).and_then(|spec| {
+        crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
+    });
+    let sub = registry.instance_method_at(
+        class_q,
+        method,
+        package_version,
+        Some(profile.availability_mask),
+    )?;
     Some(format!(
         "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",
         detail = sub.detail,
@@ -5959,6 +5978,45 @@ mod tests {
         // Line 1 `.t instate …` — cursor on `instate` (col 3).
         let h = hover(src, 1, 3, &analysis, Some(&reg)).expect("hover");
         assert!(h.value.contains("ttk::treeview instate"), "{}", h.value);
+    }
+
+    #[test]
+    fn widget_method_hover_follows_the_resolved_tk_lifecycle() {
+        // ttk::treeview's `current` instance method is introduced by Tk 9.1.
+        // The registry lookup is the only method-specific input here, so this
+        // proves an older profile cannot render an impossible method hover.
+        let src = "ttk::treeview .tree\n.tree current\n";
+        let analysis = analyse(src);
+        for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
+            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let registry = tcl_registry::registry_for_dialect(dialect);
+            let hover = hover_with_profile(src, 1, 6, &analysis, Some(registry), profile);
+            assert_eq!(
+                hover.is_some(),
+                expected,
+                "ttk::treeview current hover under {dialect}: {hover:?}"
+            );
+        }
+
+        // A document's unconditional package require can raise the profile
+        // floor. The request-time hover path passes that explicit package
+        // floor to the same registry lookup instead of baking Tk knowledge
+        // into the provider.
+        let raised = "package require Tk 9.1\nttk::treeview .tree\n.tree current\n";
+        let raised_analysis = analyse(raised);
+        let tcl90 = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let raised_hover = hover_with_profile(
+            raised,
+            2,
+            6,
+            &raised_analysis,
+            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            tcl90,
+        );
+        assert!(
+            raised_hover.is_some(),
+            "an explicit Tk 9.1 floor must expose current: {raised_hover:?}"
+        );
     }
 
     /// Without a registry passed, the same widget dispatch has nowhere to
