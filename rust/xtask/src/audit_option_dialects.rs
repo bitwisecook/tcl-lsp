@@ -30,10 +30,15 @@
 //! The JSON artifact at `tmp/option_dialect_audit.json` is deterministic:
 //! the probe table, version order, and 2-space indent layout are all fixed.
 //! The console progress log prints a line per probe, including
-//! `repr()`-formatted failure diagnostics and a list-repr summary. An
-//! unbuilt tclsh yields `"tclsh not found"` for every probe (a missing-tree
-//! short-circuit), so the audit is meaningful on whatever subset of the
-//! four trees is built.
+//! `repr()`-formatted failure diagnostics and a list-repr summary.
+//!
+//! The audit run (not `--check`) refuses to start when any of the four
+//! trees has no built `<tree>/unix/tclsh` — `require_all_tclsh_built` fails
+//! loudly naming the missing binaries and `make ensure-test-deps`, rather
+//! than silently degrading that tree's column to `"tclsh not found"` on
+//! every probe. Set `AUDIT_ALLOW_MISSING_TCLSH=1` to opt into that
+//! degenerate-column behaviour deliberately (e.g. a quick partial run on a
+//! machine that only has some trees built).
 //!
 //! # The audit↔registry drift guard (`--check`, issue #1396)
 //!
@@ -63,7 +68,7 @@ use std::sync::LazyLock;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use tcl_registry::CommandSpec;
 use tcl_registry::hover::OptionSpec;
 
@@ -871,6 +876,9 @@ pub fn run(check: bool) -> Result<ExitCode> {
         return Ok(run_check());
     }
     let root = repo_root();
+    if std::env::var("AUDIT_ALLOW_MISSING_TCLSH").as_deref() != Ok("1") {
+        require_all_tclsh_built(&root)?;
+    }
     let mut entries: Vec<Entry> = Vec::with_capacity(PROBES.len());
 
     for &(cmd, sub, opt, script) in PROBES {
@@ -914,6 +922,30 @@ pub fn run(check: bool) -> Result<ExitCode> {
     }
 
     Ok(ExitCode::SUCCESS)
+}
+
+/// Refuse to run the audit against an unbuilt tree instead of silently
+/// degrading every probe for it to `"tclsh not found"` (a degenerate,
+/// misleading column — the design doc's "close the binary gap first"
+/// directive, §7.1). Lists every missing `<tree>/unix/tclsh` and names the
+/// fix. `AUDIT_ALLOW_MISSING_TCLSH=1` is the documented escape hatch for a
+/// deliberately partial run.
+fn require_all_tclsh_built(root: &Path) -> Result<()> {
+    let missing: Vec<&str> = TCL_VERSIONS
+        .iter()
+        .filter(|&&(_, rel_dir)| !root.join(rel_dir).join("tclsh").is_file())
+        .map(|&(ver, _)| ver)
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    bail!(
+        "audit-option-dialects: missing reference tclsh for {} — run `make \
+         ensure-test-deps` to build the full reference-interpreter matrix, or \
+         set AUDIT_ALLOW_MISSING_TCLSH=1 to run the audit anyway with a \
+         degenerate column for the missing tree(s).",
+        missing.join(", ")
+    );
 }
 
 /// `"cmd [sub ]opt"` — the human-readable option label.

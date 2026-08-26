@@ -460,6 +460,48 @@ never run. Deliverables:
 - Single-binary probes (`find_tclsh`'s first-hit) upgrade to the
   five-version matrix wherever a behaviour is release-differentiating.
 
+**Status: implemented (P0-B).** The first three bullets above have landed:
+
+- **Binaries.** `ensure-test-deps.sh`'s `ensure_tclsh` now builds all five
+  reference interpreters, each left at `<tree>/unix/tclsh` (the path
+  `audit_option_dialects` reads) and additionally exposed on `PATH` as
+  `/usr/local/bin/tclsh{8.4,8.5,8.6,9.0,9.1}`. 8.4/8.5 build with
+  `CFLAGS="-O2 -fcommon -Wno-implicit-int -Wno-implicit-function-declaration"`
+  against modern gcc (no other overrides were needed) and, unlike 9.0/9.1's
+  zipfs-embedded library, only find `init.tcl` via a path relative to their
+  own real on-disk location — a bare copy or symlink into `/usr/local/bin`
+  breaks that lookup, so those two are exposed via a thin wrapper script
+  that `exec`s the tree binary by its real path (`unset TCL_LIBRARY` first,
+  so a stale global export can't shadow the wrong version in) instead of a
+  symlink. 9.1 tolerates a plain symlink. The build is idempotent, keyed on
+  `<tree>/unix/tclsh` reporting the exact expected `info patchlevel`.
+- **`tcltest_sweep` path.** The hardcoded `tmp/tcl9-install/bin/tclsh9.0`
+  constant is gone; `resolve_tclsh90` in `rust/xtask/src/tcltest_sweep.rs`
+  now tries, in order, the `TCL_LSP_TCLSH90` env var, `/usr/local/bin/tclsh9.0`,
+  `tclsh9.0` on `PATH`, then the in-tree `tmp/tcl9.0.4/unix/tclsh`, and fails
+  with a message naming `make ensure-test-deps` when none exist.
+- **`audit_option_dialects` fail-loud.** The audit run (not `--check`, which
+  still runs no tclsh) now calls `require_all_tclsh_built` before probing:
+  if any of the four trees it audits has no `<tree>/unix/tclsh`, it fails
+  immediately listing the missing binaries and naming `make
+  ensure-test-deps`, rather than degrading that tree's column to
+  `"tclsh not found"` on every probe. `AUDIT_ALLOW_MISSING_TCLSH=1` is the
+  documented escape hatch for a deliberately partial run.
+- **Tk trees.** `fetch_tcl_source.sh` gained `tk84`/`tk8.4`, …, `tk91`/`tk9.1`,
+  and `tkall` selectors against the `tcltk/tk` repo, which shares Tcl's
+  `core-M-N-P` tag scheme for every release fetched here (verified via
+  `git ls-remote --tags`). `session-start.sh` runs `fetch_tcl_source.sh
+  tkall` as a new step right after the Tcl fetch. All five landed at
+  `tmp/tk8.4.20/`, `tmp/tk8.5.19/`, `tmp/tk8.6.16/`, `tmp/tk9.0.4/`,
+  `tmp/tk9.1b0/` (89/104/109/115/119 `.test` files respectively), matching
+  the Tcl versions already pinned. The codeload tarball CDN 403'd through
+  this environment's proxy for all five, so every tree landed via the
+  existing shallow-clone fallback — both paths are exercised, not just the
+  happy one.
+- The fourth bullet (upgrading single-binary probes to the five-version
+  matrix) is **not yet done** — tracked as follow-up, not part of this
+  landing.
+
 ### 7.2 Vector files — one format, five domains, per-release expectations
 
 The command-resolution vector system is the proven shape: one declarative
@@ -499,6 +541,56 @@ the existing hermetic `package_version_oracle`; and the per-release
 error-message strings (`namespace "X" not found in "Y"` vs 8.4's
 `unknown namespace "X" in …`; `parent namespace doesn't exist`;
 `variable is a constant`) become diagnostic-text conformance data.
+
+**Status: implemented (P0-C)** — the format generalisation and the first two
+sibling domain files have landed on this branch. What exists now:
+
+| File | Rows | Release-tagged rows | Renderer | Consumers wired |
+|---|---|---|---|---|
+| `rust/tcl-syntax/tests/data/command_resolution_vectors.txt` | 46 | 16 | `tcl_syntax::naming::conformance` (unchanged API besides `want()`/`want_for()`) | pure resolver (newest column), analyser settlement, bytecode VM dispatch, WASM runtime dispatch, real tclsh **matrix** |
+| `rust/tcl-syntax/tests/data/variable_resolution_vectors.txt` | 50 | 16 | `tcl_syntax::var_conformance` (`vector_setup` / `vector_call` / `vector_script`) | real tclsh matrix only — the analyser and VM legs are P1 work |
+| `rust/tcl-syntax/tests/data/namespace_op_vectors.txt` | 73 | 15 | `tcl_syntax::ns_op_conformance` (same triple) | real tclsh matrix only, as above |
+
+Mechanism:
+
+- `tcl_syntax::release_expectations::PerRelease` parses an expectation
+  field that is either one value every release shares or a
+  `RANGE=VALUE;RANGE=VALUE` list over the ladder 8.4, 8.5, 8.6, 9.0, 9.1
+  (`8.4-8.6=…`, `9.0+=…`). The entries must cover the ladder exactly once,
+  and a `;` only separates entries when a range token follows it, so
+  expectation values may contain semicolons. Single-value rows parse
+  exactly as before.
+- `tcl_syntax::vector_ops` holds the row syntax the two new files share:
+  pipe-split rows and the `kind(argument)` setup mini-ops, split on
+  parenthesis depth so an argument may contain commas and nested
+  parentheses.
+- `rust/tcl-syntax/tests/support/mod.rs` is the five-binary matrix,
+  keyed `TCL_LSP_TCLSH84` … `TCL_LSP_TCLSH91` with PATH fallbacks, which
+  verifies the interpreter's reported version matches the name it was
+  found under, and skips a missing release loudly. All three suites
+  (`command_resolution_conformance`, `variable_resolution_conformance`,
+  `namespace_op_conformance`) run every row against every available
+  release and assert that release's own column.
+- The two new domains' observable is the two-element list
+  `<catch code> <result-or-message>`, with the whole row inside the
+  `catch`, so a row that uses a subcommand a release does not have states
+  that release's real error text (8.4's `bad option "path": …`) rather
+  than being excluded. The command domain keeps its `-` sentinel for
+  `invalid command name` and gains `!ERROR` for a scenario a release
+  cannot set up at all.
+- Each file carries a `documented-non-conformance` block naming the
+  `knownBug` rows deliberately excluded (`namespace-56.4`, `info-15.8`,
+  `interp-27.5–27.8`, `var-3.3`/`var-3.4`'s `testupvar` constraint, and
+  `namespace-51.13`'s mid-teardown observation).
+
+All 169 rows were pinned live against 8.4.20, 8.5.19, 8.6.14, 9.0.4, and
+9.1b0 — §7.1's five-binary matrix, which landed alongside this work. Three
+release deltas the C suites do not state directly fell out of that run and
+are now recorded: the creation path's direction inversion at 9.0 (an 8.x
+`set v` inside a namespace writes *through* to an existing global, a 9.x
+one does not), 8.4's acceptance of `upvar #0 a foo(bar)` that 8.5 turned
+into `bad variable name`, and 8.4/8.5's refusal to create a procedure whose
+name starts with `:` in a non-global namespace.
 
 ### 7.3 The stdlib as executable specification
 
