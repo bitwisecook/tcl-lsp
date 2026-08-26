@@ -65,6 +65,18 @@ dependency graph (a crate can only use what it declares in
    `tcl-lsp-server`.**  Feature providers are pure and reusable; the
    server crate owns the tower-lsp wiring and the `ServerCapabilities`
    advertised during `initialize`.
+
+   One crate reaches *up* into `tcl-lsp-core` deliberately: `tcl-spectcl`,
+   for `tcl_lsp_core::vfs::SourceStore` alone.  That trait is the single
+   seam every closed file the server reads comes through, and `.tclspec`
+   discovery is one of those readers, so a browser host that supplies bytes
+   instead of a filesystem loads packs from them.  `tcl-lsp-core` is the
+   lowest crate that can hold the trait *and* both implementations
+   undivided — `tcl-core-types` is `#![no_std]`, and `tcl-platform` bans
+   syscalls by charter and already owns the host-filesystem trait.  See
+   [lsp-source-store.md](lsp-source-store.md), "Where the trait lives, and
+   why".  The edge introduces no cycle, and it is the only reason
+   `tcl-spectcl` may name anything in the LSP layer.
 5. **Developer tools sit above the compiler, beside the server.**
    `tcl-cli`, `f5-cli`, `tcl-explorer`, `tcl-pkg`, `tcl-debugger`,
    `tcl-fuzz`, and the F5 query/XC crates consume the compiler /

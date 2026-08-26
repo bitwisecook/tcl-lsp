@@ -56,11 +56,14 @@
 //!   output routed back through a oneshot channel so the handle still awaits
 //!   to `Result<T, JoinError>`. A task dropped before it completes surfaces as
 //!   a cancelled [`JoinError`], matching Tokio.
-//! * [`JoinSet`] becomes an ordered-arrival `FuturesUnordered`. Tokio's
-//!   `JoinSet` makes progress in the background; ours only advances while
-//!   `join_next` is awaited. Every call site in this crate is
-//!   spawn-all-then-drain, so the observable result is the same set of
-//!   outputs.
+//! * [`JoinSet`] detaches each task with [`spawn`] and drains their results
+//!   through a `FuturesUnordered`, so — as with Tokio's — a task makes
+//!   progress from the moment it is added, not only while `join_next` is
+//!   awaited. It has to. The workspace scan bounds its concurrency by taking a
+//!   semaphore permit *before* spawning and releasing it *inside* the task, so
+//!   a set whose tasks were inert until drained deadlocked the moment a
+//!   workspace held more files than permits: the loop waited for a permit only
+//!   a task could release, and nothing was polling the tasks.
 //! * [`Instant`] reads the host clock. `std::time::Instant` compiles on
 //!   wasm32-unknown-unknown but panics when called, which is why the two
 //!   `std::time::Instant::now()` timing sites route through here.
@@ -219,6 +222,25 @@ mod browser {
                 aborted: Arc::clone(&self.aborted),
             }
         }
+
+        /// This handle as a boxed future, for [`JoinSet`]'s collector.
+        ///
+        /// Boxing here rather than at the `JoinSet` call site is what keeps
+        /// `T: Unpin` (which `JoinHandle`'s own `Future` impl needs) off
+        /// `JoinSet`'s bounds, so its shape still matches Tokio's.
+        fn into_result_future(self) -> BoxFuture<'static, Result<T, JoinError>>
+        where
+            T: Send + 'static,
+        {
+            match self.state {
+                HandleState::Ready(value) => {
+                    async move { value.ok_or_else(JoinError::cancelled) }.boxed()
+                }
+                HandleState::Pending(rx) => {
+                    async move { rx.await.map_err(|_| JoinError::cancelled()) }.boxed()
+                }
+            }
+        }
     }
 
     impl<T: Unpin> Future for JoinHandle<T> {
@@ -313,11 +335,13 @@ mod browser {
 
     /// A set of tasks drained by [`JoinSet::join_next`].
     ///
-    /// Unlike Tokio's, these futures advance only while `join_next` is being
-    /// awaited. Every call site in this crate spawns the whole batch and then
-    /// drains it, so the outputs are the same.
+    /// Each task is detached onto the worker's microtask queue as it is added
+    /// and its result is collected here, so — as with Tokio's — a task runs
+    /// whether or not `join_next` is currently being awaited. See this
+    /// module's browser contract for the deadlock that made that mandatory.
     pub struct JoinSet<T> {
-        tasks: FuturesUnordered<BoxFuture<'static, T>>,
+        tasks: FuturesUnordered<BoxFuture<'static, Result<T, JoinError>>>,
+        aborts: Vec<AbortHandle>,
     }
 
     impl<T: Send + 'static> Default for JoinSet<T> {
@@ -332,19 +356,22 @@ mod browser {
         pub fn new() -> Self {
             Self {
                 tasks: FuturesUnordered::new(),
+                aborts: Vec::new(),
             }
         }
 
-        /// Add a future to the set.
+        /// Add a future to the set, detaching it immediately.
         ///
-        /// Tokio's returns an `AbortHandle`; nothing in this crate uses it,
-        /// and a handle that could not really cancel an un-detached future
-        /// would only mislead, so this returns nothing.
+        /// Tokio's returns an `AbortHandle`; nothing in this crate uses it, so
+        /// this returns nothing and the set keeps the handles itself for
+        /// [`Self::abort_all`].
         pub fn spawn<F>(&mut self, future: F)
         where
             F: Future<Output = T> + Send + 'static,
         {
-            self.tasks.push(future.boxed());
+            let handle = super::browser::spawn(future);
+            self.aborts.push(handle.abort_handle());
+            self.tasks.push(handle.into_result_future());
         }
 
         /// How many tasks have not yet been drained.
@@ -361,11 +388,18 @@ mod browser {
 
         /// Await the next task to finish, or `None` once the set is drained.
         pub async fn join_next(&mut self) -> Option<Result<T, JoinError>> {
-            self.tasks.next().await.map(Ok)
+            self.tasks.next().await
         }
 
-        /// Drop every task that has not yet been drained.
+        /// Stop every task that has not yet been drained.
+        ///
+        /// The tasks are detached, so dropping the collectors is not enough —
+        /// each one's abort flag is raised, which stops it at its next await
+        /// point exactly as [`JoinHandle::abort`] does.
         pub fn abort_all(&mut self) {
+            for abort in self.aborts.drain(..) {
+                abort.abort();
+            }
             self.tasks = FuturesUnordered::new();
         }
     }

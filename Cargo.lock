@@ -4593,6 +4593,7 @@ dependencies = [
  "tcl-engine-api",
  "tcl-engine-tclvm",
  "tcl-lexer",
+ "tcl-lsp-core",
  "tcl-registry",
  "tcl-spec-hooks",
  "tcl-syntax",

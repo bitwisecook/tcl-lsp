@@ -39,6 +39,60 @@ const dist = join(here, "..", "dist");
 const SPEC_URI = "file:///w/demo.tclspec";
 const TCL_URI = "file:///w/demo.tcl";
 
+// The second session's workspace, served entirely from the store. Nothing here
+// exists on any disk — the point is that a host that hands the worker bytes
+// gets a real multi-file session: the folder scan indexes the siblings, the
+// package database is built from the upserted index files, and `.tclspec`
+// packs the host registers load as the bundled tier.
+const WS_ROOT = "file:///ws";
+const WS_MAIN_URI = "file:///ws/main.tcl";
+const WS_HELPERS_URI = "file:///ws/lib/helpers.tcl";
+
+const WS_HELPERS_SOURCE = `proc greet_helper {who} {
+    return "hi $who"
+}
+`;
+
+// Deliberately under `tmp/`, which the workspace *file* scan skips
+// (`is_skipped_scan_dir`) and the *package database* tree walk does not. A
+// command defined here can therefore only be resolved through the package
+// database built from `tclIndex`, so finding it proves that path ran over the
+// store rather than the file scan having swept the proc up by accident.
+const WS_AUTOLOAD_INDEX_URI = "file:///ws/tmp/mypkg/tclIndex";
+const WS_AUTOLOAD_IMPL_URI = "file:///ws/tmp/mypkg/impl.tcl";
+const WS_AUTOLOAD_INDEX = `# Tcl autoload index file, version 2.0
+set auto_index(mypkg_autoloaded) [list source [file join $dir impl.tcl]]
+`;
+const WS_AUTOLOAD_IMPL = `proc mypkg_autoloaded {} {
+    return 42
+}
+`;
+
+const WS_MAIN_SOURCE = `source lib/helpers.tcl
+
+proc run {} {
+    puts [greet_helper world]
+    puts [mypkg_autoloaded]
+}
+`;
+
+// A host-supplied pack, registered under the virtual mount rather than by URI.
+const HOST_PACK_NAME = "vendor.tclspec";
+const HOST_PACK_SOURCE = `speclib hostvendor 1.0 {
+
+command hostvendor_place {
+    dialects tcl8.6
+
+    form Default {hostvendor_place ?-cell name?}
+
+    hover {
+        synopsis {hostvendor_place ?-cell name?}
+    }
+}
+
+}
+`;
+
 // A small, valid SpecTcl pack. `hover`'s `synopsis` is the property word the
 // hover assertion aims at, and the pack shape is the one `specs/*.tclspec`
 // uses, so the dialect route under test is the production one.
@@ -178,6 +232,35 @@ async function until(probe, { tries = 120, every = 50 } = {}) {
     return null;
 }
 
+/** The client capabilities both sessions declare. */
+function clientCapabilities() {
+    return {
+        general: { positionEncodings: ["utf-16"] },
+        workspace: { configuration: true, symbol: {} },
+        textDocument: {
+            synchronization: { dynamicRegistration: false },
+            hover: { contentFormat: ["markdown", "plaintext"] },
+            completion: { completionItem: { snippetSupport: false } },
+            definition: { linkSupport: false },
+            semanticTokens: {
+                requests: { full: true },
+                tokenTypes: [],
+                tokenModifiers: [],
+                formats: ["relative"],
+            },
+            formatting: { dynamicRegistration: false },
+            publishDiagnostics: {},
+        },
+    };
+}
+
+/** Every URI a `textDocument/definition` answer names, whatever shape it took. */
+function definitionUris(result) {
+    if (!result) return [];
+    const list = Array.isArray(result) ? result : [result];
+    return list.map((entry) => entry.uri ?? entry.targetUri).filter(Boolean);
+}
+
 function describeHover(hover) {
     const contents = hover?.contents;
     if (contents === undefined || contents === null) return "";
@@ -189,6 +272,109 @@ function describeHover(hover) {
     return JSON.stringify(contents);
 }
 
+/*
+ * A whole workspace served from the store.
+ *
+ * Everything the server would normally read off disk — the sibling a `source`
+ * edge points at, the files the folder scan indexes, the `tclIndex` the package
+ * database is built from, the `.tclspec` the bundled tier loads — is upserted
+ * before `initialize`, because `initialized` is what loads the packs and runs
+ * the scan. A pass here means the whole-workspace paths read the store, not
+ * just the single-document ones.
+ */
+async function workspaceSession(wasmBindgen) {
+    const session = new Session(wasmBindgen.LspWorker);
+
+    session.worker.vfs_upsert(WS_HELPERS_URI, WS_HELPERS_SOURCE);
+    session.worker.vfs_upsert(WS_MAIN_URI, WS_MAIN_SOURCE);
+    session.worker.vfs_upsert(WS_AUTOLOAD_INDEX_URI, WS_AUTOLOAD_INDEX);
+    session.worker.vfs_upsert(WS_AUTOLOAD_IMPL_URI, WS_AUTOLOAD_IMPL);
+    session.worker.vfs_upsert_spec_pack(HOST_PACK_NAME, HOST_PACK_SOURCE);
+    check("the store holds the workspace before initialize", session.worker.vfs_len() === 5);
+
+    await session.request("initialize", {
+        processId: null,
+        rootUri: WS_ROOT,
+        workspaceFolders: [{ uri: WS_ROOT, name: "ws" }],
+        capabilities: clientCapabilities(),
+    });
+    session.notify("initialized", {});
+
+    // The scan's own completion line reports how many files it analysed, so it
+    // is both the readiness signal and the assertion.
+    const scanLine = await until(() =>
+        session.logs.find((line) => line.includes("workspace_folders_scan")),
+    );
+    const scanned = Number(/files=(\d+)/.exec(scanLine ?? "")?.[1] ?? -1);
+    check(
+        "the workspace scan indexed the store's files",
+        scanned >= 2,
+        scanLine ?? "no scan log line",
+    );
+
+    // The host's pack loads on top of the shipped loadables rather than
+    // replacing them — the mount is additive, a real `specs/` directory is not.
+    const packLine = session.logs.find((line) => line.startsWith("SpecTcl:"));
+    const packCount = Number(/(\d+) pack/.exec(packLine ?? "")?.[1] ?? -1);
+    check(
+        "the host's .tclspec pack loaded as the bundled tier",
+        packCount >= 9,
+        packLine ?? "no SpecTcl log line",
+    );
+
+    session.notify("textDocument/didOpen", {
+        textDocument: {
+            uri: WS_MAIN_URI,
+            languageId: "tcl",
+            version: 1,
+            text: WS_MAIN_SOURCE,
+        },
+    });
+    await settle(300);
+
+    // A `source`d sibling that only the store has.
+    const helperLine = WS_MAIN_SOURCE.split("\n").findIndex((l) => l.includes("greet_helper"));
+    const helperDef = await session.request("textDocument/definition", {
+        textDocument: { uri: WS_MAIN_URI },
+        position: { line: helperLine, character: 14 },
+    });
+    const helperUris = definitionUris(helperDef.result);
+    check(
+        "go-to-definition reaches a `source`d sibling from the store",
+        helperUris.some((u) => u.endsWith("/lib/helpers.tcl")),
+        JSON.stringify(helperUris),
+    );
+
+    // The same proc, found through the scan's index rather than the source edge.
+    const symbols = await session.request("workspace/symbol", { query: "greet_helper" });
+    const symbolList = Array.isArray(symbols.result) ? symbols.result : [];
+    check(
+        "workspace/symbol finds a scanned closed file's proc",
+        symbolList.some((s) => s.name.includes("greet_helper")),
+        `${symbolList.length} symbols`,
+    );
+
+    // Only the package database can answer this one: its file lives under
+    // `tmp/`, which the file scan skips.
+    const autoLine = WS_MAIN_SOURCE.split("\n").findIndex((l) =>
+        l.includes("mypkg_autoloaded"),
+    );
+    const autoDef = await session.request("textDocument/definition", {
+        textDocument: { uri: WS_MAIN_URI },
+        position: { line: autoLine, character: 14 },
+    });
+    const autoUris = definitionUris(autoDef.result);
+    check(
+        "go-to-definition resolves a tclIndex auto-loaded command",
+        autoUris.some((u) => u.endsWith("/tmp/mypkg/impl.tcl")),
+        JSON.stringify(autoUris),
+    );
+
+    const shutdown = await session.request("shutdown", null);
+    check("the workspace session shuts down", shutdown.error === undefined);
+    return session.logs;
+}
+
 async function main() {
     const wasmBindgen = await loadModule();
     const session = new Session(wasmBindgen.LspWorker);
@@ -196,23 +382,7 @@ async function main() {
     const initialize = await session.request("initialize", {
         processId: null,
         rootUri: null,
-        capabilities: {
-            general: { positionEncodings: ["utf-16"] },
-            workspace: { configuration: true },
-            textDocument: {
-                synchronization: { dynamicRegistration: false },
-                hover: { contentFormat: ["markdown", "plaintext"] },
-                completion: { completionItem: { snippetSupport: false } },
-                semanticTokens: {
-                    requests: { full: true },
-                    tokenTypes: [],
-                    tokenModifiers: [],
-                    formats: ["relative"],
-                },
-                formatting: { dynamicRegistration: false },
-                publishDiagnostics: {},
-            },
-        },
+        capabilities: clientCapabilities(),
     });
 
     const caps = initialize.result?.capabilities;
@@ -370,11 +540,19 @@ async function main() {
     const shutdown = await session.request("shutdown", null);
     check("shutdown answers", shutdown.error === undefined);
 
+    const workspaceLogs = await workspaceSession(wasmBindgen);
+
     console.log("");
     console.log(`${results.length - failures}/${results.length} checks passed`);
     if (session.logs.length > 0) {
         console.log(`server log lines: ${session.logs.length}`);
         for (const line of session.logs.slice(0, 5)) console.log(`   | ${line}`);
+    }
+    // The workspace session's log is where the scan and pack-load evidence
+    // lives, so print it in full when something failed.
+    if (failures > 0) {
+        console.log(`workspace session log lines: ${workspaceLogs.length}`);
+        for (const line of workspaceLogs) console.log(`   > ${line}`);
     }
     process.exit(failures === 0 ? 0 : 1);
 }

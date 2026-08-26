@@ -25,14 +25,28 @@
  * `new Worker('worker.js')`, then `BrowserMessageReader/Writer`. No
  * Content-Length framing: postMessage already delimits messages.
  *
- * Two message shapes are NOT protocol traffic and are handled here instead,
+ * Three message shapes are NOT protocol traffic and are handled here instead,
  * because they are objects rather than strings:
  *
- *   { tclLsp: "upsert", uri, text }  register a closed file's contents
- *   { tclLsp: "delete", uri }        forget one
+ *   { tclLsp: "upsert", uri, text }          register a closed file's contents
+ *   { tclLsp: "delete", uri }                forget one
+ *   { tclLsp: "upsertSpecPack", name, text } register a .tclspec pack
  *
  * They fill the server's in-memory file store, which is where every file the
- * editor has not opened comes from — there is no filesystem to read.
+ * editor has not opened comes from — there is no filesystem to read. That
+ * store backs the whole-workspace paths too, so upserted siblings are indexed
+ * by the workspace scan and upserted pkgIndex.tcl files build the package
+ * database, not only the single file the editor has open.
+ *
+ * `upsertSpecPack` is separate from `upsert` because it does not key on a
+ * `file:` URI: packs go under a virtual mount that deliberately cannot name a
+ * real path (`LspWorker.spec_pack_mount()` reports it), which is where pack
+ * discovery looks when there is no executable to sit beside.
+ *
+ * Send all three BEFORE `initialize`: `initialized` is what loads the pack set
+ * and runs the workspace scan. A file that appears later needs no special
+ * message — upsert it and post an ordinary `workspace/didChangeWatchedFiles`,
+ * the same notification an editor sends for a file changed outside it.
  *
  * Built by `make lsp-server-wasm` (build-wasm.sh), which emits
  * `tcl_lsp_server_wasm.js` (defining the global `wasm_bindgen`) and
@@ -79,6 +93,10 @@ function dispatch(data) {
   }
   if (data && data.tclLsp === "delete") {
     server.vfs_delete(data.uri);
+    return;
+  }
+  if (data && data.tclLsp === "upsertSpecPack") {
+    server.vfs_upsert_spec_pack(data.name, data.text);
     return;
   }
   // A client that posts the message object rather than its JSON text.

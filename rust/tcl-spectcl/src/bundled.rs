@@ -166,15 +166,39 @@ fn embedded_sources() -> Vec<(PackFile, String)> {
 /// through [`packs`] — the compiled-in EDA modules that used to cover the
 /// difference are gone.
 ///
-/// Falling back on "discovery produced no bundled-tier file" rather than on
-/// `bundled_dir().is_none()` keeps the two in agreement when a directory
-/// exists but is empty, and leaves a real on-disk `specs/` — a dev checkout,
-/// a VSIX bundle, `TCL_LSP_SPEC_PACK_DIR` — authoritative when it has
-/// anything in it.
+/// Falling back on "discovery produced no bundled-tier file from a shipped
+/// directory" rather than on `bundled_dir().is_none()` keeps the two in
+/// agreement when a directory exists but is empty, and leaves a real on-disk
+/// `specs/` — a dev checkout, a VSIX bundle, `TCL_LSP_SPEC_PACK_DIR` —
+/// authoritative when it has anything in it. A file from the host's
+/// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT) is not such a
+/// directory: see [`load_discovered_in`].
 #[must_use]
 pub fn load_discovered(files: &[PackFile]) -> PackSet {
-    let (mut sources, notices) = crate::pack::read_sources(files);
-    if !sources.iter().any(|(file, _)| file.tier == Tier::Bundled) {
+    load_discovered_in(&tcl_lsp_core::vfs::NativeStore, files)
+}
+
+/// [`load_discovered`] reading each file's bytes from `store` rather than
+/// `std::fs` — the browser worker's path, where `files` came from
+/// [`discover_in`](crate::discovery::discover_in) over the same store. The
+/// embedded fallback is unchanged: a host that supplies nothing under
+/// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT) still gets the
+/// shipped EDA loadables, because they are compiled in rather than read.
+#[must_use]
+pub fn load_discovered_in(
+    store: &dyn tcl_lsp_core::vfs::SourceStore,
+    files: &[PackFile],
+) -> PackSet {
+    let (mut sources, notices) = crate::pack::read_sources(store, files);
+    // The host mount is deliberately *not* counted as a real bundled
+    // directory. A `specs/` on disk holds the eight shipped loadables, so
+    // finding one means the shipped set is already accounted for; a host that
+    // upserts one vendor pack has said nothing about the EDA libraries and
+    // must not silently lose them.
+    let has_shipped_dir = sources
+        .iter()
+        .any(|(file, _)| file.tier == Tier::Bundled && file.origin != Origin::HostMount);
+    if !has_shipped_dir {
         sources.extend(embedded_sources());
     }
     crate::pack::load_sources(sources, notices)

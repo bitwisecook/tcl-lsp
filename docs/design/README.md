@@ -278,6 +278,11 @@ are its rules, and what are the failure modes". One contract per file.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace
   cache, index, and scanner contracts.
+- [lsp-source-store.md](contracts/lsp-source-store.md) — the one seam every
+  closed file reaches the server through: the `SourceStore` trait, why
+  `NativeStore` must stay a literal `std::fs` delegation, which crate the trait
+  lives in and why, the virtual `.tclspec` mount a browser host upserts packs
+  under, and the host message contract.
 - [package-loading.md](contracts/package-loading.md) — stdlib, tcllib,
   Tk, and iRules cross-file package loading.
 - [parsing.md](contracts/parsing.md) — segmentation and recovery

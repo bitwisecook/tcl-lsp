@@ -260,6 +260,38 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
     out.parse::<Uri>().ok().map(|_| out)
 }
 
+/// The `file:` URI for an absolute path, for the one target
+/// `ls_types::Uri::from_file_path` cannot serve.
+///
+/// That function gates on `Path::is_absolute`, and `std` answers `false` for
+/// **every** path on `wasm32-unknown-unknown`: the target is neither `unix` nor
+/// `windows`, and outside those `is_absolute` additionally demands a path
+/// *prefix*, which only Windows paths have. `from_file_path` therefore takes
+/// its relative-path branch and tries to canonicalise against a filesystem a
+/// browser worker does not have, so it returns `None` for `/ws/main.tcl` — and
+/// with it every URI the server derives from a path it found itself. The
+/// workspace scan indexed nothing at all as a result: each scanned file was
+/// dropped before it could be read, on a target where the store had the bytes
+/// all along.
+///
+/// The output is the same spelling `from_file_path`'s non-Windows branch
+/// produces — `file://` plus the percent-encoded path — with
+/// [`repair_uri_string`]'s encoding rule doing the escaping, so a scanned path
+/// meets the canonical form the rest of the server (and the client) uses.
+/// Returns `None` for a path with no root, or one that is not valid UTF-8:
+/// neither can be spelled as a `file:` URI here.
+#[must_use]
+pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
+    if !path.has_root() {
+        return None;
+    }
+    let raw = format!("file://{}", path.to_str()?);
+    match raw.parse::<Uri>() {
+        Ok(uri) => Some(uri),
+        Err(_) => repair_uri_string(&raw)?.parse().ok(),
+    }
+}
+
 /// JSON object keys whose string value is a document / folder URI.
 ///
 /// Every URI-shaped field in the LSP request surface the server handles, so a
@@ -329,7 +361,7 @@ pub fn normalise_uris_in_params(value: &mut serde_json::Value) {
 mod tests {
     use super::{
         canonical_uri_string, normalise_uris_in_params, repair_file_uri_from_path,
-        repair_uri_string,
+        repair_uri_string, rooted_file_uri,
     };
     use serde_json::json;
 
@@ -476,6 +508,36 @@ mod tests {
             canonical_uri_string("file:///C%3A/Users/Me/LIB.TCL"),
             "file:///c%3A/Users/Me/LIB.TCL",
         );
+    }
+
+    #[test]
+    fn a_rooted_path_gets_the_same_uri_from_file_path_would_give() {
+        // The `wasm32-unknown-unknown` fallback must not invent a second
+        // spelling: on a host where `from_file_path` works, the two agree.
+        let path = std::path::Path::new("/ws/lib/helpers.tcl");
+        assert_eq!(
+            rooted_file_uri(path).map(|u| u.as_str().to_owned()),
+            Some("file:///ws/lib/helpers.tcl".to_owned()),
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            rooted_file_uri(path),
+            tower_lsp_server::ls_types::Uri::from_file_path(path),
+        );
+    }
+
+    #[test]
+    fn a_rooted_path_with_a_space_is_percent_encoded() {
+        assert_eq!(
+            rooted_file_uri(std::path::Path::new("/ws/my dir/a.tcl"))
+                .map(|u| u.as_str().to_owned()),
+            Some("file:///ws/my%20dir/a.tcl".to_owned()),
+        );
+    }
+
+    #[test]
+    fn a_relative_path_has_no_rooted_file_uri() {
+        assert!(rooted_file_uri(std::path::Path::new("lib/a.tcl")).is_none());
     }
 
     #[test]

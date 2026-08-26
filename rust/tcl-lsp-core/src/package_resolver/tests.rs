@@ -287,13 +287,9 @@ fn parse_pkg_index_differential_against_pkg_mkindex() {
     let index_path = pkg_dir.join("pkgIndex.tcl");
     let content = std::fs::read_to_string(&index_path).expect("read generated pkgIndex.tcl");
 
-    let infos = parse_pkg_index(
-        &content,
-        &pkg_dir,
-        &index_path,
-        &|p| p.is_file(),
-        &super::list_tcl_files,
-    );
+    let infos = parse_pkg_index(&content, &pkg_dir, &index_path, &|p| p.is_file(), &|d| {
+        super::list_tcl_files(&crate::vfs::NativeStore, d)
+    });
     assert_eq!(infos.len(), 1, "parsed {content:?}");
     assert_eq!(infos[0].name, "foo");
     assert_eq!(infos[0].version, "2.3");

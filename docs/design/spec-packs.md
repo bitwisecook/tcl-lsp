@@ -686,6 +686,13 @@ count fitting no window at all stays an ordinary E002/E003.
   loaded for every workspace; **bundled** — the shipped EDA loadables.
   Name collisions with shipped specs are reported, shipped wins unless
   the pack says `-override`.
+  The bundled tier reads the `specs/` directory beside the running
+  executable. A browser worker has neither, so when that yields nothing
+  discovery walks the server's closed-file store at
+  `discovery::VIRTUAL_PACK_MOUNT`, where the host upserts its own packs —
+  additively, so the shipped loadables survive. See
+  [contracts/lsp-source-store.md](contracts/lsp-source-store.md),
+  "The virtual spec-pack mount".
 - **Compiled-pack cache in the OS cache directory**
   (`$XDG_CACHE_HOME/tcl-lsp/spectcl/` and platform equivalents): on
   first load a pack's compiled form — resolved drafts plus hook
