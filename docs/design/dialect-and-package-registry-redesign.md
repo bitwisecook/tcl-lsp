@@ -11,6 +11,13 @@
 > this document and [dialect-profile-model.md](dialect-profile-model.md)
 > disagree, this document describes the *intended* model and that one
 > describes the *shipping* model.
+>
+> **Implementation status (2026-08-26): BUILDING.** The owner directed
+> full implementation on this branch; the marked ▸ recommendations on
+> Q1–Q25 are adopted as working rulings for the build (each remains
+> owner-overridable — a re-ruling re-cuts the affected work). Progress
+> lands phase by phase per §8 and the companion's ledger, every push
+> green.
 
 Companions:
 [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
