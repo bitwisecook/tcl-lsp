@@ -275,20 +275,43 @@ pub fn repair_uri_string(raw: &str) -> Option<String> {
 /// all along.
 ///
 /// The output is the same spelling `from_file_path`'s non-Windows branch
-/// produces — `file://` plus the percent-encoded path — with
-/// [`repair_uri_string`]'s encoding rule doing the escaping, so a scanned path
-/// meets the canonical form the rest of the server (and the client) uses.
-/// Returns `None` for a path with no root, or one that is not valid UTF-8:
-/// neither can be spelled as a `file:` URI here.
+/// produces — `file://` plus the path percent-encoded by
+/// [`encode_path_segment_bytes`] — so a scanned path meets the canonical form
+/// the rest of the server (and the client) uses. Returns `None` for a path with
+/// no root, or one that is not valid UTF-8: neither can be spelled as a `file:`
+/// URI here.
+///
+/// The encoding is **unconditional**, not a fallback for a path that fails to
+/// parse. `#`, `?`, and a literal `%XX` all parse perfectly well in a URI — as
+/// a fragment, a query, and a decoded escape — so `/ws/a#1.tcl` would have
+/// become `file:///ws/a` with a fragment, aliasing a different file, and
+/// [`repair_uri_string`] could never have caught it: [`is_uri_legal`] admits
+/// `?` and the gen-delims by design, because its job is repairing a URI a
+/// client sent, not spelling one from a path.
 #[must_use]
 pub fn rooted_file_uri(path: &std::path::Path) -> Option<Uri> {
     if !path.has_root() {
         return None;
     }
-    let raw = format!("file://{}", path.to_str()?);
-    match raw.parse::<Uri>() {
-        Ok(uri) => Some(uri),
-        Err(_) => repair_uri_string(&raw)?.parse().ok(),
+    let mut raw = String::from("file://");
+    encode_path_segment_bytes(path.to_str()?, &mut raw);
+    raw.parse().ok()
+}
+
+/// Percent-encode `path` into `out` with `ls_types`' own file-path rule: keep
+/// `unreserved` (alphanumeric plus `-._~`) and the `/` separator, escape every
+/// other byte — which is what makes `#`, `?`, `%`, `:` and non-ASCII safe.
+///
+/// Hand-rolled rather than pulling in `percent-encoding` for one `AsciiSet`
+/// that crate does not export anyway (`ls-types-0.0.6/src/uri.rs`'s private
+/// `ASCII_SET`). The equivalence test is what pins the two together.
+fn encode_path_segment_bytes(path: &str, out: &mut String) {
+    for &byte in path.as_bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'/') {
+            out.push(char::from(byte));
+        } else {
+            let _ = write!(out, "%{byte:02X}");
+        }
     }
 }
 
@@ -514,15 +537,50 @@ mod tests {
     fn a_rooted_path_gets_the_same_uri_from_file_path_would_give() {
         // The `wasm32-unknown-unknown` fallback must not invent a second
         // spelling: on a host where `from_file_path` works, the two agree.
-        let path = std::path::Path::new("/ws/lib/helpers.tcl");
+        //
+        // The hostile names are the point of the equivalence, not decoration.
+        // `#`, `?` and a literal `%XX` are all *valid* URI syntax — a fragment,
+        // a query, and an escape — so a path carrying one parses happily into a
+        // URI naming a different file unless the path is encoded before it is
+        // parsed. `:` matters for the same reason on a URI's first segment.
+        let paths = [
+            "/ws/lib/helpers.tcl",
+            "/ws/a#1.tcl",
+            "/ws/a?b.tcl",
+            "/ws/a%20b.tcl",
+            "/ws/a:b.tcl",
+            "/ws/my dir/a.tcl",
+            "/ws/caf\u{e9}.tcl",
+            "/ws/a&b=c;d.tcl",
+        ];
+        for raw in paths {
+            let path = std::path::Path::new(raw);
+            let ours = rooted_file_uri(path).unwrap_or_else(|| panic!("no uri for {raw}"));
+            assert!(
+                ours.as_str().starts_with("file:///ws/"),
+                "{raw} produced {ours:?}",
+            );
+            // The round trip is what "names the same file" means.
+            assert_eq!(
+                ours.to_file_path().as_deref(),
+                Some(path),
+                "{raw} did not round-trip",
+            );
+            #[cfg(unix)]
+            assert_eq!(
+                Some(&ours),
+                tower_lsp_server::ls_types::Uri::from_file_path(path).as_ref(),
+                "{raw} disagreed with from_file_path",
+            );
+        }
         assert_eq!(
-            rooted_file_uri(path).map(|u| u.as_str().to_owned()),
+            rooted_file_uri(std::path::Path::new("/ws/lib/helpers.tcl"))
+                .map(|u| u.as_str().to_owned()),
             Some("file:///ws/lib/helpers.tcl".to_owned()),
         );
-        #[cfg(unix)]
         assert_eq!(
-            rooted_file_uri(path),
-            tower_lsp_server::ls_types::Uri::from_file_path(path),
+            rooted_file_uri(std::path::Path::new("/ws/a#1.tcl")).map(|u| u.as_str().to_owned()),
+            Some("file:///ws/a%231.tcl".to_owned()),
         );
     }
 

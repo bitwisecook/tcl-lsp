@@ -289,7 +289,21 @@ async function workspaceSession(wasmBindgen) {
     session.worker.vfs_upsert(WS_MAIN_URI, WS_MAIN_SOURCE);
     session.worker.vfs_upsert(WS_AUTOLOAD_INDEX_URI, WS_AUTOLOAD_INDEX);
     session.worker.vfs_upsert(WS_AUTOLOAD_IMPL_URI, WS_AUTOLOAD_IMPL);
-    session.worker.vfs_upsert_spec_pack(HOST_PACK_NAME, HOST_PACK_SOURCE);
+    check(
+        "vfs_upsert_spec_pack accepts a name inside the mount",
+        session.worker.vfs_upsert_spec_pack(HOST_PACK_NAME, HOST_PACK_SOURCE) === true,
+    );
+    // A pack name that leaves the mount must not be able to shadow a store
+    // path — here, the very file the scan is about to index.
+    const escapes = [
+        "/ws/main.tcl",
+        "../../../ws/main.tcl",
+        "nested/../../escape.tclspec",
+    ];
+    check(
+        "vfs_upsert_spec_pack refuses a name that escapes the mount",
+        escapes.every((name) => session.worker.vfs_upsert_spec_pack(name, "speclib bad 1 {}\n") === false),
+    );
     check("the store holds the workspace before initialize", session.worker.vfs_len() === 5);
 
     await session.request("initialize", {

@@ -341,6 +341,11 @@ mod browser {
     /// module's browser contract for the deadlock that made that mandatory.
     pub struct JoinSet<T> {
         tasks: FuturesUnordered<BoxFuture<'static, Result<T, JoinError>>>,
+        /// One handle per task ever added, so [`JoinSet::abort_all`] and `Drop`
+        /// can reach a detached task. Not pruned as tasks drain — a completed
+        /// task's flag is read by nothing — and every call site is
+        /// spawn-then-drain over one batch, so the vec is that batch's length
+        /// and dies with the set.
         aborts: Vec<AbortHandle>,
     }
 
@@ -401,6 +406,22 @@ mod browser {
                 abort.abort();
             }
             self.tasks = FuturesUnordered::new();
+        }
+    }
+
+    /// Dropping the set stops its tasks, as Tokio's does.
+    ///
+    /// Necessary only because the tasks are *detached*: before that they lived
+    /// in the set's own `FuturesUnordered` and died with it, so `Drop` had
+    /// nothing to do. Now a set dropped mid-drain — a cancelled scan, an early
+    /// `return` out of a drain loop, a panic unwinding past one — would
+    /// otherwise leave every undrained task running on the microtask queue with
+    /// nothing left to collect it.
+    impl<T> Drop for JoinSet<T> {
+        fn drop(&mut self) {
+            for abort in self.aborts.drain(..) {
+                abort.abort();
+            }
         }
     }
 

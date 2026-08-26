@@ -41,7 +41,10 @@
  * `upsertSpecPack` is separate from `upsert` because it does not key on a
  * `file:` URI: packs go under a virtual mount that deliberately cannot name a
  * real path (`LspWorker.spec_pack_mount()` reports it), which is where pack
- * discovery looks when there is no executable to sit beside.
+ * discovery looks when there is no executable to sit beside. Its `name` is
+ * relative to that mount and must stay inside it — a rooted name or one with a
+ * `..` component is refused and logged, so a pack upsert cannot shadow an
+ * unrelated store path.
  *
  * Send all three BEFORE `initialize`: `initialized` is what loads the pack set
  * and runs the workspace scan. A file that appears later needs no special

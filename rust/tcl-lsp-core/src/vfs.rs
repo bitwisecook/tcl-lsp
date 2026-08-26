@@ -102,11 +102,17 @@ use std::sync::Mutex;
 /// for anything more.
 ///
 /// `is_dir` and `is_file` are the two questions `std::fs::FileType` answers,
-/// and they are **both false** for a symlink — the walks that consult them
-/// (the workspace scan, the package-index scan, `.tclspec` discovery) all
-/// asked `file_type().is_dir()` / `.is_file()` before this trait existed, so a
-/// symlink was neither descended into nor indexed. Collapsing them to one flag
-/// would silently start indexing symlinked sources.
+/// and they are **both false** for a symlink — the walks that consult them (the
+/// workspace scan and `.tclspec` discovery) asked `file_type().is_dir()` /
+/// `.is_file()` before this trait existed, so a symlink was neither descended
+/// into nor indexed. Collapsing them to one flag would silently start indexing
+/// symlinked sources.
+///
+/// The package-index scan is the counter-example, and it is why these are not
+/// the only kind test in the trait: it asked `path.is_dir()` on the entry, a
+/// `stat` that *does* follow a symlink, because C Tcl's `auto_path` walk
+/// descends a symlinked package directory. That caller uses
+/// [`SourceStore::is_dir`] instead.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirEntry {
     /// The entry's full path.

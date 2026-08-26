@@ -167,6 +167,13 @@ the mount deliberately is not a path a `file:` URI can spell.
 `LspWorker.spec_pack_mount()` reports the prefix for a host that would rather
 build the paths itself.
 
+Its `name` is relative to the mount and must stay inside it: a rooted name (which
+`Path::join` would let replace the mount outright) or one carrying a `..`
+component is refused and logged, returning `false`, so a pack upsert can never
+shadow an unrelated store path. The guard tests `has_root`, not `is_absolute` —
+see the first wasm fault below for why the latter would admit exactly what it
+exists to refuse.
+
 **Ordering is the host's job, and the protocol already says it:** send all three
 before `initialize`, because `initialized` is what loads the pack set and runs
 the workspace scan. A file that appears later needs no new message — upsert it
@@ -192,12 +199,26 @@ routed.
   `uri_norm::rooted_file_uri` is the fallback, gated by `cfg!` (not `#[cfg]`) so
   it stays type-checked and unit-tested on every host, and it produces the same
   spelling `from_file_path`'s non-Windows branch does.
+
+  It percent-encodes the path **unconditionally**, with `ls_types`' own rule
+  (keep alphanumeric plus `-._~` and the `/` separator, escape everything else).
+  Encoding only when the naive `file://<path>` fails to parse is not enough and
+  cannot be made enough: `#`, `?`, and a literal `%XX` are *valid* URI syntax, so
+  `/ws/a#1.tcl` parses happily as `file:///ws/a` with a fragment and aliases a
+  different file. `repair_uri_string` could never catch it either — `is_uri_legal`
+  admits `?` and the gen-delims by design, because its job is repairing a URI a
+  client sent, not spelling one from a path. The equivalence test drives `#`, `?`,
+  `%20`, `:`, a space, non-ASCII, and `&=;` names and asserts both a round trip
+  through `to_file_path` and byte equality with `from_file_path`.
 - **`crate::rt`'s browser `JoinSet` used to be inert until drained.** The
   workspace scan bounds its concurrency by taking a semaphore permit *before*
   spawning and releasing it *inside* the task, so a set whose tasks only
   advanced during `join_next` deadlocked the moment a workspace held more files
   than permits. The browser arm now detaches each task as it is added, matching
-  Tokio's own contract, which is what every call site assumes.
+  Tokio's own contract, which is what every call site assumes — and, because the
+  tasks are detached, it carries an `abort_all`-equivalent `Drop` so a set
+  dropped mid-drain stops them, which is what Tokio's `JoinSet` does and what
+  the set's own `FuturesUnordered` used to do for free.
 
 ## Tests
 

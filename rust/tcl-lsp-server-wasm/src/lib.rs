@@ -199,9 +199,35 @@ impl LspWorker {
     /// a pack registered afterwards reaches the session only on the next
     /// reload (a `didChangeConfiguration`, or a
     /// `workspace/didChangeWatchedFiles` naming a `.tclspec`).
-    pub fn vfs_upsert_spec_pack(&self, name: &str, text: &str) {
+    ///
+    /// `name` must stay **inside** the mount, so a rooted one and any `..`
+    /// component are refused: `Path::join` lets a rooted name replace the mount
+    /// outright and `..` walks out of it, either of which would let a pack
+    /// upsert shadow an arbitrary store path — a document the editor is about
+    /// to open, a `pkgIndex.tcl`. The host is trusted; the contract is still
+    /// worth stating in code rather than in prose. Returns whether the pack was
+    /// stored, matching [`Self::vfs_delete`]'s plain-bool style.
+    ///
+    /// The test is `has_root`, not `is_absolute`: `std` answers `false` to
+    /// `is_absolute` for *every* path on this target (see
+    /// `tcl_lsp_server::uri_norm::rooted_file_uri`), so a guard written that
+    /// way would admit exactly the names it exists to refuse.
+    pub fn vfs_upsert_spec_pack(&self, name: &str, text: &str) -> bool {
+        let name = std::path::Path::new(name);
+        let escapes = name.has_root()
+            || name
+                .components()
+                .any(|part| matches!(part, std::path::Component::ParentDir));
+        if escapes {
+            web_log(&format!(
+                "tcl-lsp: refused a spec-pack name that leaves the mount: {}",
+                name.display()
+            ));
+            return false;
+        }
         let path = std::path::Path::new(vfs::VIRTUAL_PACK_MOUNT).join(name);
         self.store.upsert(path, text.as_bytes().to_vec());
+        true
     }
 
     /// The store path prefix [`Self::vfs_upsert_spec_pack`] writes under, for a
