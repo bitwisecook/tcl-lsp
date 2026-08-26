@@ -8,12 +8,17 @@
 > analyser, backends, runtimes and VMs, and all tooling — against that
 > model: the two centralised systems every consumer moves onto, the
 > complete retirement ledger for the mechanisms they replace, the gap
-> rulings the audit forced, and the `tcl spec upgrade` specification that
-> discharges the one sanctioned backwards-compatibility obligation.
+> rulings the audit forced, the `tcl spec upgrade` specification that
+> discharges the one sanctioned backwards-compatibility obligation, and
+> — §7 — the name-resolution oracle programme that grounds namespaces,
+> variables, procs/commands, and packages in the C Tcl test suites, the
+> stdlib's executable specifications, tcllib, Tk, and the corpus.
 > Sources: the four-lane audit sweep of 2026-08-26 over
 > `claude/tcl-dialect-registry-design-lrzbsn` (compiler/analyser,
-> runtime/VM/codegen, tooling/AI/CLI, LSP front end). File:line references
-> are from that snapshot.
+> runtime/VM/codegen, tooling/AI/CLI, LSP front end) plus the two-lane
+> oracle survey of the same date (C tests per domain across all five
+> release trees; existing conformance/capture infrastructure). File:line
+> references are from that snapshot.
 
 The owner's constraint, restated: **the new centralised system is the only
 system.** Old mechanisms are retired entirely — no shims, no wrappers, no
@@ -177,7 +182,7 @@ retirement rows.
 - `tcl spec` has exactly two verbs (`import`, `upgrade`); `spec check`
   exists only as the MCP tool, and `spec build --emit rust` — now ruled
   in by Q1 — does not exist anywhere (the only Rust renderer is
-  WASM-only and per-command). Both verbs are P2 deliverables (§5).
+  WASM-only and per-command). Both verbs are P2 deliverables (§4 R7).
 - Spec Studio's web client treats **the dialect as the LSP language id**
   (document close/reopen on change) — structurally incompatible with the
   fixed contributed-identity ruling (B7); it must switch to a generic
@@ -421,7 +426,206 @@ Capabilities (U-numbers are the implementation checklist):
 Sequencing: U0–U2, U7–U9 need only the 2.0 word set; U3–U5 additionally
 need the P1 environment registry (and R4's ruling); U6 is independent.
 
-## 7. Phase riders
+## 7. The name-resolution oracle programme
+
+The owner directive: use the C Tcl 9 codebase and tests, the stdlib, tcllib,
+Tk, and the corpus to make name registration/resolution — namespaces,
+variables, procs/commands, packages — rock solid, centralised, and
+consumed by every consumer. The 2026-08-26 oracle survey (C test suites
+across all five trees in `tmp/`, the library scripts as executable
+specifications, and the repo's existing conformance infrastructure)
+grounds the following programme. Everything below extends mechanisms that
+already exist; nothing invents a parallel harness.
+
+### 7.1 Reference interpreters — close the binary gap first
+
+The trees for 8.4.20/8.5.19/8.6.16/9.0.4/9.1b0 are fetched, but only
+tclsh 8.6 and 9.0 exist as binaries; **nothing builds 8.4/8.5/9.1**, so
+`audit_option_dialects` silently degrades their columns to "unsupported
+everywhere" and six VM cross-version suites' `TCL_LSP_TCLSH84/85/91` legs
+never run. Deliverables:
+
+- `ensure-test-deps.sh` builds in-tree `tclsh` for 8.4, 8.5, and 9.1 the
+  same way it builds 9.0 (the recipe exists; the trees are present) —
+  the full five-binary matrix becomes the standard oracle environment,
+  keyed the way `cross_version_info_surface_e2e.rs` already keys it
+  (`TCL_LSP_TCLSH{84,85,86,90,91}`).
+- Fix the `tcltest_sweep` reference-path mismatch (it hardcodes
+  `tmp/tcl9-install/bin/tclsh9.0`, which `ensure-test-deps` never
+  creates) and make `audit_option_dialects` **fail loudly** on an
+  unbuilt tree instead of emitting a degenerate column.
+- Extend `fetch-tcl-source` (and the session hook) to fetch **Tk** trees
+  per release; the adversarial review already pins Tk permalinks with no
+  tree to verify against.
+- Single-binary probes (`find_tclsh`'s first-hit) upgrade to the
+  five-version matrix wherever a behaviour is release-differentiating.
+
+### 7.2 Vector files — one format, five domains, per-release expectations
+
+The command-resolution vector system is the proven shape: one declarative
+pipe-separated file compiled into `tcl-syntax`, a renderer that turns
+every row into executable Tcl, and five consumers (pure resolver,
+analyser settlement, VM dispatch, WASM runtime, real tclsh) executing the
+same bytes. Two generalisations:
+
+- **Per-release expectation columns.** Today's 46 rows were chosen to
+  agree on 8.6/9.0. The format gains release-tagged winners
+  (`expected@8.4-8.6 | expected@9.0+` or equivalent) so
+  version-*differentiating* rows — the whole point of a multi-release
+  oracle — are expressible, and the tclsh pin runs the matrix, asserting
+  each release's column against its own binary.
+- **Sibling domain files** under the same `include_str!` + renderer
+  discipline, each with its `vector_setup`/`vector_call`/`vector_script`
+  triple (keeping the setup/call split the runtime needs):
+
+| File | Domain | Seed content (anchors from the survey) |
+|---|---|---|
+| `variable_resolution_vectors.txt` | variable lookup/creation | promote the VM-local `cross_version_vars_e2e` const to shared data; the nine self-labelled TIP 278 sites (`namespace-14.3/14.12/17.7/17.10/34.7`, `namespace-old-5.4/6.12/6.14/6.15`) as 8.x/9.x pairs — commands keep the `::` fallback, variables lose it; `TclLookupVar` clusters (`var-1.x`: `global`/`variable` flags, creation-through-missing-ns errors, `:`-in-name literals); `upvar`/`namespace upvar` links (`var-3.x`, `upvar-NS-*`, dangling-into-deleted-ns); `const` and namespace constants (`var-25.x–28.x`, 9.0+); the creation-vs-lookup asymmetry rows (`var-1.9–1.13`) whose *direction inverts* at 9.0 |
+| `namespace_op_vectors.txt` | namespace operations | the colon-normalisation matrix (`namespace-6.2–6.4`, `14.7–14.12`, `32.7/32.8`, `33.7/33.8`, `info-8.4`'s `{x {} x x x}`, `var-1.14`, `proc-1.6`, `init-1.7/1.8`) — the one area where namespaces, variables, and commands each treat the same bytes differently; import/`-force`/re-import idempotency and origin chains (`namespace-9.x`, `11.x`, `30.x`); export accumulation and `-clear` (`26.x`); `namespace which` (`34.x`); `namespace path` semantics incl. non-transitivity and deleted-entry non-restoration (`51.x`, with the 9.0 `51.13` delta); `namespace unknown` (`52.x` — only genuinely-unresolvable names reach the handler); ensembles (`42.x–50.x`, `-parameters` 8.6+); deletion cascades (`7.x/8.x`, imported commands dying with their origin ns) |
+| `command_binding_vectors.txt` | registration/rename/shadowing | proc-into-namespace rules (`proc-1.1/1.2`: qualified proc names create in the named ns, which must exist); definition-ns execution (`proc-3.4`); `rename` across namespaces incl. epoch bumps and shadow checks (`rename-*`, `basic-18.x`, `basic-24.x`, `namespace-old-6.6–6.9`, `trace-19.6–19.11`'s qualified old/new names); hidden/expose invariants (`basic-12.1/13.1`: hidden names take no qualifiers, expose only into `::`); `interp alias` targets with `::` (`interp-27.x`); `info cmdtype`'s result vocabulary (9.0+, `info-40.x`) as the registry-model oracle; `resolver.test`'s six cache-invalidation paths as the epoch conformance set — these are the ground truth for `BindingKnowledge` transitions, so the realm layer (P1a) is a first-class consumer |
+| `package_lookup_vectors.txt` | package resolution | provider selection over `ifneeded` sets (`package-3.1–3.5`); not-found error forms; `package unknown` handler argument shapes (`-exact t 1.5` ⇒ `t 1.5-1.5`; the 8.4 `name version ?-exact?` form as the 8.4 column); ifneeded-that-does-not-provide errors; `prefer` latching (`15.4`); the four release-discriminating `bad option` subcommand lists; tm path ancestry/descendant rejection and LIFO ordering (`tm-3.x`) |
+| `autoload_vectors.txt` | the autoload tier | `init-1.1–1.8` (`auto_qualify`'s eight pairs) plus `init-2.x`'s two-stage chains with tripled colons — `auto_qualify` is byte-identical across all five releases and becomes the ported reference implementation for `PackageResolver::auto_qualify` |
+
+Rows sourced from `knownBug`-constrained tests (`namespace-56.4`'s
+namespace named `:`, `info-15.8`, `interp-27.5–27.8`) are recorded in a
+**documented-non-conformance ledger** in the vector files' comments — so
+nobody "fixes" our model to a behaviour real Tcl does not exhibit.
+
+Two ready-made extractions ride alongside: the `package.test` vsatisfies/
+vcompare tables (41 + ~140 rows, byte-identical 8.5→9.1, with an 8.4
+column derived from `pkg.test`'s `!tip268` variants — mind the
+8.4/8.5 `pkg.test` → 8.6+ `package.test` rename when anchoring) extend
+the existing hermetic `package_version_oracle`; and the per-release
+error-message strings (`namespace "X" not found in "Y"` vs 8.4's
+`unknown namespace "X" in …`; `parent namespace doesn't exist`;
+`variable is a constant`) become diagnostic-text conformance data.
+
+### 7.3 The stdlib as executable specification
+
+The pure-Tcl library scripts *are* the reference implementation of the
+tiers our resolver mirrors, and they differ per release:
+
+- **`init.tcl`** — `unknown`'s step order (auto_load with the *caller's
+  namespace* passed explicitly; interactive-only exec/history/
+  abbreviation tiers; the final `TCL LOOKUP COMMAND` errorcode);
+  `auto_load`'s candidate list (with the 8.4/8.5 duplicate-try vs 8.6+
+  `ni` guard, and `namespace eval ::` vs `namespace inscope ::` — which
+  changes behaviour for index entries containing spaces/braces);
+  `auto_load_index`'s **back-to-front `auto_path` walk** (earlier
+  entries win by overwrite) and its `auto_oldpath` memoisation.
+- **`package.tcl`** — `tclPkgUnknown`'s scan order (back-to-front,
+  subdirectory `pkgIndex.tcl` files before the directory's own, seen-dir
+  memoisation, and the **mid-scan `auto_path` growth re-scan**), plus the
+  9.0 `VERSIONCONFLICT` trap and `source -nopkg` deltas.
+- **`tm.tcl`** — the module filename pattern, `::`→`/` mapping, root
+  construction (`site-tcl` first via prepend-LIFO), env-var paths
+  (9.0's `file tildeexpand`), the lowercase-`tcl` probe in 9.x, and the
+  precedence rule: **tm paths beat `tclPkgUnknown`** via load-time
+  handler chaining.
+- **`safe.tcl`** — `RejectExcessColons` as a name-normalisation oracle;
+  tokenised `auto_path` in safe children.
+
+Each becomes a pinned behavioural contract on `PackageResolver` and the
+autoload tier, per release, tested two ways: hermetically against
+committed vectors, and (env-gated) by executing the real library scripts
+under the matrix binaries and comparing our resolver's answers.
+
+### 7.4 Real-corpus oracles — stop testing against synthetic indexes only
+
+Today **no test reads a real `pkgIndex.tcl`**: every `PackageResolver`
+test writes synthetic indexes, while eight real index files sit unread in
+`tmp/tcl9.0.4/library` and all 135 tcllib modules beside them. New
+skip-if-absent suites (CI-cheap, corpus-gated like
+`differential_segment`):
+
+- **Index-ingest parity**: run `PackageResolver` over
+  `tmp/tcl{8.4.20,8.5.19,8.6.16,9.0.4,9.1b0}/library/**` and
+  `tmp/tcllib-2.0/modules/**` (and Tk's `library/` once fetched), and
+  cross-check the resulting package database against a live tclsh's
+  `package names` + `ifneeded` registrations after forcing the same scan
+  — per release. The Tcl 9 zipfs `apply`-shape index (today inlined as a
+  three-package string literal) is covered by the real file.
+- **Autoload parity**: `auto_qualify`/`auto_index` resolution over the
+  real `tclIndex` files versus the ported reference implementation.
+- **Resolution sweeps**: extend the existing self-consistency corpus
+  differentials with *outcome* assertions — the analyser's settled
+  resolutions over the tcl/tcllib library trees must be stable across
+  the migration (a before/after snapshot gate during P1/P1a, retired
+  after).
+- **tcltest replay**: extend `tcltest_sweep`'s tier ladder with a
+  name-resolution stem set (`namespace`, `namespace-old`, `resolver`,
+  `var`, `upvar`, `uplevel`, `trace`, `rename`, `info`, `interp`,
+  `package`, `init`, `tm`, `autoMkindex`, `pkgMkIndex`, `unknown`,
+  `basic`, `safe`) as a tracked scoreboard column for **both** engines
+  (the sweep currently runs VM-only against C), across releases in the
+  manual tier. Re-capture `tests/test_reference/` (deleted in the Python
+  purge; capture scripts and skill survived intact) for 8.6/9.0 now and
+  8.4/8.5 once §7.1 lands — its per-test PASS/FAIL matrix is the
+  coverage map that tells us which vectors we have not yet derived.
+- **Tk's additive naming domain**: widget commands are a second dynamic
+  command space — pathname-named (`.f.b`), implicitly created/destroyed,
+  with a parent-must-exist rule enforced by the name and interaction
+  with Tcl namespaces (`::ns::.f`). Once trees are fetched:
+  `winfo.test`/`window.test` seed a widget-path registration vector set
+  (feeding the tk-widget-instance-typing model), `option.test` documents
+  the option-database's distinct resolution algorithm, and Tk's real
+  `pkgIndex.tcl` + the `tk`/`Tk` co-provide chain is the B11 acceptance
+  oracle. Scoped as an additive tier under the Tk epic (#1710); the Tcl
+  model is unchanged by it.
+
+### 7.5 The consumer conformance lattice
+
+Every consumer of the §1.2 resolution stack is wired to the shared
+vector data — none may pass on a private subset:
+
+| Consumer | command | variable | namespace-op | binding | package | autoload |
+|---|---|---|---|---|---|---|
+| pure resolver (`tcl-syntax::naming`) | ✅ today | ● | ● | — | — | ● (auto_qualify) |
+| analyser settlement (post-walk) | ✅ today | ● | ● | ● | ● (floors) | ● |
+| realm layer / `BindingKnowledge` (P1a) | ● | ● | ● | ● **primary** | ● (package states) | ● |
+| bytecode VM dispatch | ✅ today | ● (promote the local const) | ● | ● | ● | ● |
+| WASM runtime dispatch | ✅ today | ● | ● | ● | ● (real package loop) | ● |
+| codegen dispatch proofs (`ProofStatus`) | — | — | — | ● (epoch/rename rows) | — | — |
+| `PackageResolver` + floor engine | — | — | — | — | ● **primary** | ● **primary** |
+| LSP cross-file leg (`settle_call_against_workspace`) | ● (e2e) | ● | ● | ● | ● (W120/W123) | ● |
+| engines behind `tcl-engine-api` | ● | — | — | ● | ● | — |
+| real tclsh (the oracle itself) | ✅ today | ● | ● | ● | ● | ● |
+
+(✅ = wired today; ● = wired by this programme; the realm layer and
+`PackageResolver` are the *primary* implementations their columns prove.)
+The one-oracle gate (§4 R10) enforces the lattice structurally: a
+consumer that cannot pass a domain's vectors has no business holding a
+private implementation of that domain.
+
+### 7.6 Policy: hermetic vs live vs manual
+
+- **Hermetic (CI, always)**: committed vector files and generated
+  corpora (the `package_version_oracle` pattern — generator script,
+  hand-maintained `#` header naming exact patchlevels, check =
+  output-equals-file), including the extracted vsatisfies tables and
+  error-message data.
+- **Live matrix (env-gated, skip-loudly)**: `TCL_LSP_TCLSH{84..91}`
+  suites re-pinning vectors against real binaries; the stdlib-execution
+  parity tests; `dialect_oracle`-style existence probes.
+- **Manual tier (`make test-exhaustive`)**: full tcltest replay
+  scoreboards, whole-corpus index/resolution sweeps, multi-release
+  sweeps. Never wired into CI, per the standing testing-tier policy.
+
+### 7.7 Phase placement
+
+§7.1 (interpreter builds, path fixes, Tk fetch) is **P0 work** — it is
+the oracle ledger the redesign's P0 already names, made concrete. The
+vector-format generalisation and the variable/namespace-op files land
+with **P1** (they pin today's behaviour before the model moves); the
+binding vectors land with **P1a** as the realm layer's acceptance suite;
+package/autoload vectors and the real-corpus index parity land with
+**P1a/P1b** (they are the floor engine's and `PackageResolver`'s
+acceptance suites); the tcltest scoreboard extension and test-reference
+re-capture proceed in parallel from P0. The lattice (§7.5) is complete
+when every ● is a passing gate — that table is the "every single
+consumer leverages them properly" checklist.
+
+## 8. Phase riders
 
 Additions the audit forces onto the redesign's §8 phases (the phase
 structure itself is unchanged):

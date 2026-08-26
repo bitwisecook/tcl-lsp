@@ -61,8 +61,12 @@ rules for the KCS/documentation split live in
   backends, runtimes/VMs, tooling) against the revision-2 model — the single
   registration pipeline and five-question resolution stack, the complete
   retirement ledger (no shims; old systems deleted), the gap rulings, the
-  proving gates, and the `tcl spec upgrade` 1.x→2.0 specification that
-  discharges the sole backwards-compatibility exception.
+  proving gates, the `tcl spec upgrade` 1.x→2.0 specification that
+  discharges the sole backwards-compatibility exception, and the
+  name-resolution oracle programme grounding namespaces, variables,
+  procs/commands, and packages in the C Tcl test suites, the stdlib's
+  executable specifications, tcllib, Tk, and the corpus — with the
+  consumer conformance lattice as the completion checklist.
 - [dialect-and-package-registry-redesign-adversarial-review.md](dialect-and-package-registry-redesign-adversarial-review.md)
   — **request-changes review** of the #1631 proposal, grounded in immutable Tcl,
   Tk, JimTcl, picol, tcllib, ticklecharts, pave, and SpiceGenTcl sources plus

@@ -1119,7 +1119,11 @@ gates on (adopted verbatim from the review):
   tested against `package vsatisfies`, the trust policy, the
   binding-proof rule, the editor-identity boundary, the name/alias
   collision contract, and the immutable upstream oracle ledger (pinned
-  revisions + build matrix, per review Appendix B / H3). `AGENTS.md`
+  revisions + build matrix, per review Appendix B / H3) — made concrete
+  by the companion's §7 name-resolution oracle programme: reference
+  interpreters built for all five releases, the Tk trees fetched, and
+  the per-domain conformance-vector plan seeded from the C test suites
+  and the stdlib's executable specifications. `AGENTS.md`
   owner-map corrections (§9); glossary entries.
 - **P1 — core/environment model only.** `Family`/`Release`/`CoreProfile`
   (with build profiles), `EnvironmentDefinition`/`EnvironmentOverlay`,
