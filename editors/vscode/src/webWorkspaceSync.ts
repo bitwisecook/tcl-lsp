@@ -38,6 +38,16 @@
  *   github.dev; what is not acceptable is the server quietly analysing a subset
  *   and reporting confident, wrong cross-file answers. Everything skipped is
  *   counted and named in the output channel, and the budget is a setting.
+ * - **Event order within a file.** A `FileSystemWatcher` does not wait for one
+ *   handler before delivering the next event, so two events for the same file
+ *   overlap: a change's read can still be in flight when the delete that
+ *   followed it has already been applied. Every event takes a per-URI sequence
+ *   number synchronously, and a push whose number has moved on by the time its
+ *   read returns applies nothing — otherwise the older read resurrects a file
+ *   the store had just withdrawn, or pins a revision the next write already
+ *   replaced, and the server answers out of it until some later event happens
+ *   to correct it. The startup sweep needs none of this: it completes before
+ *   `watch()` registers a single watcher.
  */
 
 import * as vscode from "vscode";
@@ -94,11 +104,27 @@ export interface SyncManifest {
 }
 
 /**
- * The config files `is_config_file` recognises, and the sidecar bundle the
- * server watches alongside Tcl source. Neither is a Tcl source extension, so
- * neither is covered by the manifest's source glob.
+ * What the sweep must carry that no derived glob names: the config files
+ * `is_config_file` recognises, the sidecar stub bundle, and the classic
+ * autoloader's `tclIndex`. None of them carries a Tcl source extension, and
+ * `tclIndex` is not a `contributes.languages[].filenames` registration either
+ * (that list is the `bigip.conf` variants and `presentation`), so nothing in
+ * the derivation above reaches it.
+ *
+ * `tclIndex` is what `PackageResolver::scan_single_dir` reads to populate
+ * `auto_index`. Without it in the store, every command an autoloader workspace
+ * provides by bare name is unknown to the browser server: a false W123 on each
+ * call and no navigation to its definition. Case-folded per character for the
+ * same reason the generated source glob is — a case-insensitive filesystem
+ * spells it `tclindex` just as readily, and the server matches it with
+ * `eq_ignore_ascii_case`.
  */
-const NON_SOURCE_GLOBS = ["**/.tcl-lsp.ini", "**/tcl-lsp/config.ini", "**/*.tcl.stubs"];
+const NON_SOURCE_GLOBS = [
+  "**/.tcl-lsp.ini",
+  "**/tcl-lsp/config.ini",
+  "**/*.tcl.stubs",
+  "**/[tT][cC][lL][iI][nN][dD][eE][xX]",
+];
 
 /**
  * The globs to sweep, derived from the extension's own manifest.
@@ -204,6 +230,16 @@ export class WorkspaceStoreSync {
   /** Live-path budget refusals already logged, so a generated tree cannot spam. */
   private liveSkipsLogged = 0;
 
+  /**
+   * Per-URI event sequence numbers, held only while a push for that URI is in
+   * flight — which is the only time anything has to be compared against them,
+   * so the map cannot grow with the workspace.
+   *
+   * See the module comment's *Event order within a file*: this is what stops a
+   * slower read from applying after the event that overtook it.
+   */
+  private readonly livePushes = new Map<string, { generation: number; inFlight: number }>();
+
   constructor(
     private readonly host: SourceStoreHost,
     private readonly globs: string[],
@@ -242,6 +278,46 @@ export class WorkspaceStoreSync {
       return false;
     }
     return this.storedBytes - (held ?? 0) + byteLength <= budget.maxTotalBytes;
+  }
+
+  /** Open a push for `key`, returning the sequence number it must still hold. */
+  private beginLivePush(key: string): number {
+    const entry = this.livePushes.get(key) ?? { generation: 0, inFlight: 0 };
+    entry.generation += 1;
+    entry.inFlight += 1;
+    this.livePushes.set(key, entry);
+    return entry.generation;
+  }
+
+  /** Close a push, dropping the entry once nothing is left to compare against. */
+  private endLivePush(key: string): void {
+    const entry = this.livePushes.get(key);
+    if (entry === undefined) {
+      return;
+    }
+    entry.inFlight -= 1;
+    if (entry.inFlight <= 0) {
+      this.livePushes.delete(key);
+    }
+  }
+
+  /** Whether a later event has overtaken the push holding `generation`. */
+  private livePushSuperseded(key: string, generation: number): boolean {
+    return this.livePushes.get(key)?.generation !== generation;
+  }
+
+  /**
+   * Record an event that supersedes any push still in flight for `key` — a
+   * delete, or a folder leaving the workspace.
+   *
+   * Nothing to record when no push is in flight: the number exists only to be
+   * compared against one.
+   */
+  private supersedeLivePush(key: string): void {
+    const entry = this.livePushes.get(key);
+    if (entry !== undefined) {
+      entry.generation += 1;
+    }
   }
 
   /** Log a live-path budget refusal, capped so a burst cannot flood the channel. */
@@ -466,12 +542,27 @@ export class WorkspaceStoreSync {
         watcher,
         watcher.onDidCreate((uri) => void this.pushFile(uri, FileChange.Created, budget, notify)),
         watcher.onDidChange((uri) => void this.pushFile(uri, FileChange.Changed, budget, notify)),
-        watcher.onDidDelete((uri) => {
-          this.deleteTracked(uri);
-          notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
-        }),
+        watcher.onDidDelete((uri) => this.handleDelete(uri, notify)),
       );
     }
+  }
+
+  /**
+   * Withdraw a file the watcher says is gone.
+   *
+   * Symmetric with `pushFile`, and the reason both exist as methods: the two
+   * arms of the watcher must take their sequence numbers in the order the
+   * events arrived, which only holds if the bump happens where the event is
+   * handled. The notification goes out whether or not the store held the file
+   * — the server is entitled to hear that a file it may have indexed is gone.
+   */
+  private handleDelete(
+    uri: vscode.Uri,
+    notify: (changes: Array<{ uri: string; type: number }>) => void,
+  ): void {
+    this.supersedeLivePush(uri.toString());
+    this.deleteTracked(uri);
+    notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
   }
 
   /**
@@ -490,6 +581,14 @@ export class WorkspaceStoreSync {
       vscode.workspace.onDidChangeWorkspaceFolders((event) => {
         for (const folder of event.removed) {
           const prefix = folder.uri.toString().replace(/\/?$/, "/");
+          // Every push still reading a file of this folder, whether or not it
+          // has reached the store yet: a sweep of a folder that has since left
+          // the workspace must not land its files behind it.
+          for (const key of this.livePushes.keys()) {
+            if (key.startsWith(prefix)) {
+              this.supersedeLivePush(key);
+            }
+          }
           const withdrawn: Array<{ uri: string; type: number }> = [];
           for (const key of [...this.stored.keys()]) {
             if (key.startsWith(prefix)) {
@@ -549,12 +648,17 @@ export class WorkspaceStoreSync {
    *
    * Returns whether the store now holds the file's current contents.
    *
-   * The two refusals below both *withdraw* a file the store already had rather
-   * than leaving the previous copy in place. A file that grew past the cap is
-   * the case that matters: leaving the old contents there means the server
-   * keeps answering — confidently — out of a copy that no longer exists on
-   * disk. An absent file gives a visibly incomplete answer; a stale one gives
-   * a wrong answer that looks complete.
+   * The three refusals below all *withdraw* a file the store already had
+   * rather than leaving the previous copy in place. A file that grew past the
+   * cap, or that has stopped being readable at all, is the case that matters:
+   * leaving the old contents there means the server keeps answering —
+   * confidently — out of a copy that no longer exists on disk. An absent file
+   * gives a visibly incomplete answer; a stale one gives a wrong answer that
+   * looks complete.
+   *
+   * The sequence number taken before the read is the ordering half: nothing
+   * below it — refusal or upsert — is applied once a later event for the same
+   * file has been handled.
    */
   private async pushFile(
     uri: vscode.Uri,
@@ -562,40 +666,62 @@ export class WorkspaceStoreSync {
     budget: WorkspaceSyncBudget,
     notify: (changes: Array<{ uri: string; type: number }>) => void,
   ): Promise<boolean> {
-    let bytes: Uint8Array;
+    const key = uri.toString();
+    const generation = this.beginLivePush(key);
     try {
-      bytes = await vscode.workspace.fs.readFile(uri);
-    } catch (err) {
-      this.log(`[web] could not read changed file ${uri.toString()}: ${String(err)}`);
-      return false;
-    }
+      const withdraw = (why: string): boolean => {
+        const held = this.deleteTracked(uri);
+        this.logLiveSkip(`[web] ${key} ${why} — ${held ? "withdrawn from the store" : "not sent"}`);
+        if (held) {
+          notify([{ uri: key, type: FileChange.Deleted }]);
+        }
+        return false;
+      };
 
-    const withdraw = (why: string): boolean => {
-      const held = this.deleteTracked(uri);
-      this.logLiveSkip(
-        `[web] ${uri.toString()} ${why} — ${held ? "withdrawn from the store" : "not sent"}`,
-      );
-      if (held) {
-        notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
+      let bytes: Uint8Array | undefined;
+      let failure: unknown;
+      try {
+        bytes = await vscode.workspace.fs.readFile(uri);
+      } catch (err) {
+        failure = err;
       }
-      return false;
-    };
 
-    if (bytes.byteLength > budget.maxFileBytes) {
-      return withdraw(`is over tclLsp.web.workspaceSync.maxFileBytes (${bytes.byteLength} bytes)`);
-    }
-    if (!this.fits(uri, bytes.byteLength, budget)) {
-      return withdraw("does not fit the workspace budget");
-    }
+      // Before anything is applied, and before the read failure is acted on: a
+      // newer push may already have landed this file's current contents, and
+      // withdrawing them because an older read failed would delete what is
+      // right. Whichever event came last is the one that decides.
+      if (this.livePushSuperseded(key, generation)) {
+        return false;
+      }
+      if (bytes === undefined) {
+        return withdraw(`could not be read (${String(failure)})`);
+      }
 
-    this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
-    notify([{ uri: uri.toString(), type: changeType }]);
-    return true;
+      if (bytes.byteLength > budget.maxFileBytes) {
+        return withdraw(
+          `is over tclLsp.web.workspaceSync.maxFileBytes (${bytes.byteLength} bytes)`,
+        );
+      }
+      if (!this.fits(uri, bytes.byteLength, budget)) {
+        return withdraw("does not fit the workspace budget");
+      }
+
+      this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
+      notify([{ uri: key, type: changeType }]);
+      return true;
+    } finally {
+      this.endLivePush(key);
+    }
   }
 
   dispose(): void {
     for (const watcher of this.watchers.splice(0)) {
       watcher.dispose();
+    }
+    // A read still in flight belongs to the session that just ended: superseded
+    // here so it cannot upsert into a store that is about to be forgotten.
+    for (const entry of this.livePushes.values()) {
+      entry.generation += 1;
     }
     // The session this tracked is over and the store it described goes with
     // its worker; nothing should be able to read the accounting back.

@@ -110,6 +110,26 @@ suite("Server resolution ladder", () => {
   });
 });
 
+/**
+ * How the server spells a `file:` URI for a guest path it found itself:
+ * `ls_types`' `from_file_path` rule, which `uri_norm.rs`'s
+ * `encode_path_segment_bytes` mirrors — keep `A-Za-z0-9-._~` and `/`, escape
+ * every other UTF-8 byte. Restated here deliberately: it is the contract the
+ * guest prefix has to meet, so deriving it from the code under test would
+ * prove nothing.
+ */
+function serverFileUri(guestPath: string): string {
+  const encoded = [...new TextEncoder().encode(guestPath)]
+    .map((byte) => {
+      const char = String.fromCharCode(byte);
+      return /[A-Za-z0-9\-._~/]/.test(char)
+        ? char
+        : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+    })
+    .join("");
+  return `file://${encoded}`;
+}
+
 suite("WASI guest URI mapping", () => {
   const proj = { uri: "file:///home/me/proj", name: "proj" };
   const other = { uri: "file:///home/me/other", name: "other" };
@@ -206,6 +226,84 @@ suite("WASI guest URI mapping", () => {
   test("the mount points match what the host documents", () => {
     assert.strictEqual(guestMountPoint(proj, false), "/workspace");
     assert.strictEqual(guestMountPoint(proj, true), "/workspaces/proj");
+  });
+
+  // A folder name is user data: a space, `#`, `?`, `%`, and non-ASCII all
+  // reach the mount point as themselves. The mount stays raw — it is a
+  // filesystem path — while the URI naming it must be percent-encoded, or it
+  // either fails to parse (space) or parses as something else entirely (`#`
+  // becomes a fragment, `?` a query, `%20` a decoded escape). This is the
+  // aliasing class fixed in `rooted_file_uri` (c0aa8a25), one layer up.
+  const hostileNames: Array<[string, string]> = [
+    ["My Project", "file:///workspaces/My%20Project"],
+    ["foo#bar", "file:///workspaces/foo%23bar"],
+    ["foo?bar", "file:///workspaces/foo%3Fbar"],
+    ["a%20b", "file:///workspaces/a%2520b"],
+    ["café", "file:///workspaces/caf%C3%A9"],
+    ["a&b=c;d", "file:///workspaces/a%26b%3Dc%3Bd"],
+  ];
+
+  test("a folder name with URI-significant characters is encoded in the guest URI", () => {
+    for (const [name, guestRoot] of hostileNames) {
+      const folder = { uri: `file:///home/me/${encodeURIComponent(name)}`, name };
+      const map = wasiUriMapping([folder, other]);
+      assert.ok(map);
+      assert.strictEqual(
+        map.toGuest(`${folder.uri}/src/a.tcl`),
+        `${guestRoot}/src/a.tcl`,
+        `guest URI for ${name}`,
+      );
+    }
+  });
+
+  test("a hostile folder name round-trips, including the server's own spelling", () => {
+    for (const [name] of hostileNames) {
+      const folder = { uri: `file:///home/me/${encodeURIComponent(name)}`, name };
+      const map = wasiUriMapping([folder, other]);
+      assert.ok(map);
+      for (const uri of [folder.uri, `${folder.uri}/deep/nested/file.tcl`]) {
+        assert.strictEqual(map.toEditor(map.toGuest(uri)), uri, `round-trip ${uri}`);
+      }
+      // Our own round trip is symmetric string surgery, so it holds even when
+      // the guest spelling is wrong. The half that does not is the reply: the
+      // server names a file it scanned under the mount with its own encoding
+      // of the guest path, and `toEditor` has to recognise that string.
+      const reply = serverFileUri(`${guestMountPoint(folder, true)}/deep/nested/file.tcl`);
+      assert.strictEqual(
+        map.toEditor(reply),
+        `${folder.uri}/deep/nested/file.tcl`,
+        `server reply ${reply}`,
+      );
+    }
+  });
+
+  test("the guest URI parses, and its path is the raw mount point", () => {
+    for (const [name] of hostileNames) {
+      const folder = { uri: `file:///home/me/${encodeURIComponent(name)}`, name };
+      const map = wasiUriMapping([folder, other]);
+      assert.ok(map);
+      const guest = map.toGuest(folder.uri);
+      // A URL the platform parser accepts, with nothing spilled into a query
+      // or a fragment — and whose decoded path is exactly the filesystem path
+      // the host mounted, which is what makes the server open the right file.
+      const parsed = new URL(guest);
+      assert.strictEqual(parsed.protocol, "file:");
+      assert.strictEqual(parsed.search, "", `${name} leaked a query`);
+      assert.strictEqual(parsed.hash, "", `${name} leaked a fragment`);
+      assert.strictEqual(
+        decodeURIComponent(parsed.pathname),
+        guestMountPoint(folder, true),
+        `decoded guest path for ${name}`,
+      );
+    }
+  });
+
+  test("an ordinary folder name is left exactly as it was", () => {
+    // The encoding must be a byte-for-byte no-op on a name that needs none,
+    // or every existing mapping would move.
+    const map = wasiUriMapping([proj, other]);
+    assert.ok(map);
+    assert.strictEqual(map.toGuest("file:///home/me/proj/a.tcl"), "file:///workspaces/proj/a.tcl");
   });
 });
 

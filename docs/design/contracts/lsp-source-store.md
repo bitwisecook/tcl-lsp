@@ -257,6 +257,14 @@ indexes and watches, already case-folded per character — plus
 (`bigip.conf`, …) and `**/.tcl-lsp.ini`, `**/tcl-lsp/config.ini`,
 `**/*.tcl.stubs`, which are not Tcl source extensions.
 
+One more file is neither an extension nor a registered basename and still has
+to be swept: the classic autoloader's `tclIndex`, which
+`PackageResolver::scan_single_dir` reads to populate `auto_index`. Without it
+in the store, every command an autoloader workspace provides by bare name is
+unknown to the browser server — a false W123 on each call, and no navigation to
+its definition. Its glob is case-folded per character, matching the way the
+server itself matches the name.
+
 The sweep is bounded by `tclLsp.web.workspaceSync.maxFiles` (2000),
 `.maxTotalBytes` (32 MiB), and `.maxFileBytes` (2 MiB), and candidates are
 sorted so an over-budget workspace truncates identically every session.
@@ -267,15 +275,26 @@ ones, which is the failure mode the budget must never cause without saying so.
 
 The budget is a property of the **session**, not of the startup sweep, so the
 host tracks what the store holds (URI → byte length) and applies the same caps
-to the watcher. Two consequences are load-bearing rather than incidental:
+to the watcher. Three properties of that live path are load-bearing rather
+than incidental:
 
 - A tree that generates files while the editor is open cannot grow the store
   past the caps one create at a time.
-- A file that grows past `maxFileBytes` — or no longer fits the total — is
-  **withdrawn** (`delete` plus a `didChangeWatchedFiles` deletion), not left
-  behind. Keeping the previous copy would leave the server answering out of
-  contents that no longer exist: an absent file gives a visibly incomplete
-  answer, a stale one gives a wrong answer that looks complete.
+- A file that grows past `maxFileBytes`, no longer fits the total, or stops
+  being readable at all is **withdrawn** (`delete` plus a
+  `didChangeWatchedFiles` deletion), not left behind. Keeping the previous copy
+  would leave the server answering out of contents that no longer exist: an
+  absent file gives a visibly incomplete answer, a stale one gives a wrong
+  answer that looks complete.
+- Events for one file are applied in the order they arrived, not the order
+  their reads finished. A watcher does not wait for a handler before delivering
+  the next event, so a change's read can still be in flight when the delete
+  after it has been applied; each event takes a per-URI sequence number
+  synchronously and a read whose number has moved on applies nothing. Without
+  that, the older read re-upserts a file the store had just withdrawn — or pins
+  a revision the next write already replaced — and the server answers out of it
+  until some later event happens to correct it. The startup sweep is exempt: it
+  completes before the first watcher is registered.
 
 ### Restarting means rebuilding the worker
 

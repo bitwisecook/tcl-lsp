@@ -212,9 +212,48 @@ export interface WasiUriMapping {
  * every URI in a multi-root window would be translated to a path the guest has
  * nothing mounted at. Verified against those two exact versions; re-check this
  * comment when either is bumped.
+ *
+ * The result is the guest's **filesystem** path, so the folder name goes in
+ * raw: it is the string the host created the mount with, and the string a
+ * guest `open` has to name. The URI that spells the same mount is a different
+ * string — see `encodeGuestPath` below.
  */
 export function guestMountPoint(folder: WasiWorkspaceFolder, multiRoot: boolean): string {
   return multiRoot ? `/workspaces/${folder.name}` : "/workspace";
+}
+
+/** The bytes `encodeGuestPath` leaves alone: `unreserved` plus the separator. */
+const UNRESERVED_GUEST_PATH_BYTE = /[A-Za-z0-9\-._~/]/;
+
+/**
+ * Percent-encode a guest mount path for the `file:` URI that names it.
+ *
+ * The server's own rule, byte for byte — `uri_norm.rs`'s
+ * `encode_path_segment_bytes`, which is `ls_types`' `from_file_path` set: keep
+ * `A-Za-z0-9-._~` and the `/` separator, escape every other UTF-8 byte with
+ * upper-case hex. Neither `encodeURI` nor `encodeURIComponent` is that rule
+ * (both keep `!*'()`, and `encodeURI` keeps the gen-delims too), and the
+ * spelling has to agree to the byte: the URI the server constructs for a file
+ * it scanned under the mount comes back through `toEditor`, where it is
+ * matched against this prefix. `/` is kept for the same reason — it is a
+ * separator in the guest path on both sides of that comparison.
+ *
+ * Unconditional, not a fallback for a name that fails to parse, exactly as in
+ * `rooted_file_uri`. A folder named `foo#bar` yields a URI that parses
+ * perfectly well — the path `/workspaces/foo` plus a fragment — and so names a
+ * different guest path entirely; `My Project` yields no valid URI at all, and
+ * the server's repair pass percent-encodes it to a spelling an unencoded
+ * prefix would then fail to match.
+ */
+function encodeGuestPath(mountPoint: string): string {
+  let encoded = "";
+  for (const byte of new TextEncoder().encode(mountPoint)) {
+    const char = String.fromCharCode(byte);
+    encoded += UNRESERVED_GUEST_PATH_BYTE.test(char)
+      ? char
+      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return encoded;
 }
 
 /**
@@ -236,9 +275,12 @@ export function wasiUriMapping(
   const pairs = folders
     .map((folder) => ({
       editor: trimTrailingSlash(folder.uri),
-      // The folder name goes in verbatim: the mount point the host created
-      // used the same string, and re-encoding it here would simply miss.
-      guest: `file://${guestMountPoint(folder, multiRoot)}`,
+      // The mount point and the URI naming it are two spellings of the same
+      // place, and only one of them is percent-encoded: `My Project` mounts at
+      // `/workspaces/My Project` and is spelled
+      // `file:///workspaces/My%20Project`, which is the spelling the server
+      // produces for that path and so the one a reply must be matched against.
+      guest: `file://${encodeGuestPath(guestMountPoint(folder, multiRoot))}`,
     }))
     .sort((a, b) => b.editor.length - a.editor.length);
 
