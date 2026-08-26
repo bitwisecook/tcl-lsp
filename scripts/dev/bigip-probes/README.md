@@ -21,6 +21,9 @@ is a build input; nothing runs in CI.
 | `lib/wsrun.sh` | Same for word-formation suites, additionally scraping the logged word list. |
 | `lib/materialise.sh` | Expands a `.probes` suite into `.conf` iRules locally, using the same rules as `runner.sh`. |
 | `lib/gen-runtime-semantics.sh` | Emits the `RULE_INIT` rules that verify N-rule semantics by execution rather than compile acceptance. |
+| `suites/10-context-parity.cases` | The single 34-case list behind the four-context parity probe. One source, four wrappers, so any transcript difference is a real context difference. |
+| `lib/gen-context-parity.py` | Compiles that case list into an iRule, a `cli script`, an iApp template+service, and a `tclsh` script. |
+| `lib/e4-context-probe.sh` | Runs all four contexts on the appliance under the §E4 contract: absence check before every create, `EXIT` trap, absence proof after every delete, virtual-server attachment check, APL recorded as `Unknown`, never `save sys config`. |
 | `lib/tclcheck.tcl` | Stock-Tcl acceptance checker. Stubs only iRule-specific commands. |
 | `controls/*.tcl` | Stock-Tcl controls, run with `tclsh8.4` and `tclsh8.5` **on the appliance itself**. |
 | `results/*` | Raw transcripts from the 2026-08-26 run. |
@@ -71,6 +74,25 @@ vlan. Four alternatives do **not** work:
 `source-address-translation { type automap }` is required or the return path is
 asymmetric. Start the backend with `setsid nohup … < /dev/null &`; a plain
 `nohup … &` dies when the ssh session exits.
+
+## Four-context parity
+
+```sh
+python3 lib/gen-context-parity.py suites/10-context-parity.cases irules/context-parity
+scp irules/context-parity/* lib/e4-context-probe.sh bigip1:/var/tmp/
+ssh bigip1 'bash /var/tmp/e4-context-probe.sh' > results/10-context-parity.txt
+```
+
+Captured as a single clean run across all four contexts (see
+`results/10-context-parity.txt`). Two traps this probe walked into on the way,
+both preserved as cases:
+
+- `tcl_patchLevel` does not exist in a `cli script`, so an unguarded read aborts
+  that context only.
+- iRules resolve command names **at rule load, even inside `catch`**, so a
+  literal reference to a command TMM lacks rejects the whole rule. Build such
+  references dynamically (`set c ns::cmd; eval $c`). The standalone case is
+  `irules/context-parity/ctx_unknown_cmd.conf`.
 
 ## Cleanup
 

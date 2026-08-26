@@ -1,0 +1,38 @@
+# Single-sourced case list for the four-context parity probe.
+# Format: id<TAB>category<TAB>tcl-source-as-an-escaped-string
+# Each case is eval'd under catch, so a parse error is observed, not fatal.
+# Braces are backslash-escaped so the tmsh config parser cannot miscount them.
+g_if_control	grammar	if \{1\} \{set ::m 42\}; set ::m
+g_if_chain	grammar	if \{1\}\{set ::m 43\}; set ::m
+g_list_chain	grammar	list \{a\}\{b\}
+g_set_chain	grammar	set zq \{a\}\{b\}
+g_cmd_glued	grammar	if\{1\}\{set ::m 44\}
+g_expansion	grammar	list \{*\}\{a b\}
+g_quote_chain	grammar	list \"a\"b
+g_dollarbrace	grammar	set zz XX; list ${zz}b
+n_if_nextline	newline	if \{1\}\n\{set ::m 45\}\nset ::m
+n_while_nextline	newline	set n 1\nwhile \{$n < 30\}\n\{\nset n 31\n\}\nset n
+n_else_nextline	newline	set o no\nif \{0\} \{set o then\}\nelse \{set o else\}\nset o
+n_list_absorb	newline	list a b\n\{c\}
+n_blank_breaks	newline	if \{1\}\n\n\{set ::m 46\}
+n_comment_breaks	newline	if \{1\}\n# c\n\{set ::m 47\}
+e_starts_with	expr	expr \{\"abc\" starts_with \"a\"\}
+e_contains	expr	expr \{\"abc\" contains \"b\"\}
+e_matches	expr	expr \{\"abc\" matches \"abc\"\}
+e_and_word	expr	expr \{1 and 1\}
+e_adjacent_eq	expr	expr \{\"a\"eq\"a\"\}
+num_octal	numeral	expr \{010\}
+num_hex	numeral	expr \{0x10\}
+num_binary	numeral	expr \{0b101\}
+num_exp	numeral	expr \{1e3\}
+s_dict	surface	dict set d a 1
+s_lassign	surface	lassign \{1 2\} p q
+s_lmap	surface	lmap i \{1 2\} \{set i\}
+s_try	surface	try \{set x 1\}
+s_throw	surface	throw \{A B\} msg
+s_apply	surface	apply \{\{\} \{return 1\}\}
+s_package	surface	package names
+s_interp	surface	interp aliases
+s_namespace	surface	namespace current
+s_exec	surface	exec /bin/true
+s_after	surface	after 1

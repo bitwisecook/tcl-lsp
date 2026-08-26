@@ -321,6 +321,101 @@ rather than real expansion.
 
 ---
 
+## 4a. Do the tmsh and iApp parsers match the iRule parser?
+
+**Yes — exactly, on every grammar and newline case.** The three F5 execution
+contexts are one parser; they differ only in command surface and environment.
+
+A single 34-case list
+([`suites/10-context-parity.cases`](../../scripts/dev/bigip-probes/suites/10-context-parity.cases))
+is compiled into four wrappers by
+[`gen-context-parity.py`](../../scripts/dev/bigip-probes/lib/gen-context-parity.py)
+— an iRule, a `cli script`, an iApp template+service, and a plain `tclsh`
+script — so any difference in the transcripts is a real context difference and
+not a difference in what was asked. Raw output:
+[`results/10-context-parity.txt`](../../scripts/dev/bigip-probes/results/10-context-parity.txt).
+
+### Parser behaviour — identical across all three F5 contexts
+
+| Case | TmmIRule | TmshCliScript | IAppImplementation | host 8.4 | host 8.5 |
+| --- | --- | --- | --- | --- | --- |
+| `if {1} {…}` (control) | `42` | `42` | `42` | `42` | `42` |
+| `if {1}{…}` | **`43`** | **`43`** | **`43`** | parse error | parse error |
+| `list {a}{b}` | **`a b`** | **`a b`** | **`a b`** | parse error | parse error |
+| `set zq {a}{b}` | **wrong # args** | **wrong # args** | **wrong # args** | parse error | parse error |
+| `if{1}{…}` | invalid command | invalid command | invalid command | invalid command | invalid command |
+| `list {*}{a b}` | **`* {a b}`** | **`* {a b}`** | **`* {a b}`** | parse error | `a b` |
+| `list "a"b` | **`a b`** | **`a b`** | **`a b`** | parse error | parse error |
+| `list ${zz}b` | `XXb` | `XXb` | `XXb` | `XXb` | `XXb` |
+| `if {1}` ⏎ `{…}` | **`45`** | **`45`** | **`45`** | wrong # args | wrong # args |
+| `while {$n<30}` ⏎ `{…}` | **`31`** | **`31`** | **`31`** | wrong # args | wrong # args |
+| `if {0} {…}` ⏎ `else {…}` | **`else`** | **`else`** | **`else`** | invalid command `else` | invalid command `else` |
+| `list a b` ⏎ `{c}` | **`a b c`** | **`a b c`** | **`a b c`** | invalid command `c` | invalid command `c` |
+| `if {1}` ⏎ *(blank)* ⏎ `{…}` | error | error | error | error | error |
+| `if {1}` ⏎ `# c` ⏎ `{…}` | error | error | error | error | error |
+| `expr {"abc" starts_with "a"}` | **`1`** | **`1`** | **`1`** | syntax error | invalid bareword |
+| `expr {1 and 1}` | **`1`** | **`1`** | **`1`** | syntax error | invalid bareword |
+| `expr {010}` / `{0x10}` / `{1e3}` | `8` / `16` / `1000.0` | same | same | same | same |
+| `expr {0b101}` | error | error | error | error | **`5`** |
+
+Every R-rule and N-rule row is identical across `TmmIRule`, `TmshCliScript` and
+`IAppImplementation`, and every one of them differs from both host builds. The
+word-form `expr` operators are **not** an iRules-only extension — they are
+present in the tmsh and iApp interpreters too. Numeral handling is 8.4
+throughout (`0b101` fails everywhere except host 8.5).
+
+### Where the contexts genuinely differ
+
+Not in the parser — in identity, environment, and command surface:
+
+| | TmmIRule | TmshCliScript | IAppImplementation | host 8.4 |
+| --- | --- | --- | --- | --- |
+| `info patchlevel` | 8.4.6 | 8.4.6 | 8.4.6 | **8.4.13** |
+| `tcl_patchLevel` | 8.4.6 | **UNSET** | 8.4.6 | 8.4.13 |
+| `tmsh::version` | n/a | **21.1.0.1** | **21.1.0.1** | n/a |
+| `llength [info commands]` | **152** | 95 | 95 | 85 |
+| `tcl_platform` keys | 7, fabricated | **0 (empty)** | 7, real Linux | 8, real |
+| `tcl_platform(wordSize)` | 8 | — | **4** | 8 |
+| `tcl_platform(machine)` | *hostname* | — | x86_64 | x86_64 |
+| `exec` | **absent** | **works** | **works** | works |
+| `package names` | `Tcl` | `Tcl` | **tclparser, xml::tcl, http, uri, uuencode, xslt::libxslt, sha256, …** | `Tcl` |
+
+Three consequences:
+
+1. **`exec` is available in `TmshCliScript` and `IAppImplementation` but not in
+   `TmmIRule`.** A command-availability fact measured in one context must never
+   be promoted to another. This is the concrete case behind F1 and F4.
+2. **The host `tclsh` is a different Tcl build entirely** — 8.4.13, not the
+   8.4.6 embedded in all three F5 contexts. Reading a version off the host
+   `tclsh` would have produced a wrong answer for every F5 row.
+3. **`tcl_patchLevel` does not exist in `TmshCliScript`**, whose `tcl_platform`
+   is also empty. Any probe that reads either without guarding aborts there —
+   this one did, on its first run.
+
+### Command resolution happens at rule load — even inside `catch`
+
+Found by breaking the probe: a literal reference to a command TMM does not have
+is rejected when the **rule is loaded**, regardless of `catch`.
+
+```
+ltm rule … { when RULE_INIT { if {[catch {tmsh::version} e]} { … } } }
+  -> 01070151:3: error: [undefined procedure: tmsh::version]
+```
+
+The other three contexts resolve at runtime and accept the same body. For an
+editor this is the difference between a warning and a hard error: in iRules an
+unknown command is a load-time failure that `catch` cannot soften, so
+"unknown command" is safe to surface as an error rather than a hint. The
+standalone case is
+[`ctx_unknown_cmd.conf`](../../scripts/dev/bigip-probes/irules/context-parity/ctx_unknown_cmd.conf).
+
+This is also why the `s_exec` row above reads `invalid command name "exec"` for
+`TmmIRule` rather than `command is disabled: "exec"`: reached through `eval` at
+runtime the command is simply absent, whereas a literal `exec` in rule source is
+rejected at load with the "disabled" wording (§5).
+
+---
+
 ## 5. Command availability
 
 All 85 stock Tcl 8.4 builtins were probed individually against the iRule
@@ -617,10 +712,10 @@ claims because they differ only through this asymmetry.
 
 | Review finding | What was measured | Effect |
 | --- | --- | --- |
-| **F1** — the proposal conflates six language contexts | Four of the six measured directly: `TmmIRule`, `TmshCliScript`, `IAppImplementation`, `HostShellTcl` (§4). They are *not* interchangeable — `tcl_platform` differs in all three F5 contexts, and the host `tclsh` is a different Tcl release entirely. | Supports F1. Two contexts remain **unmeasured**: `IAppPresentationApl` and `IAppPresentationTclCallback`. Record those as `Unknown`; do not copy the `IAppImplementation` row into them. |
-| **F2** — Tcl release defaults have no provenance | All three F5 contexts report `8.4.6`, and 16 features that cleanly separate 8.4 from 8.5 behave as 8.4 in every one (§4). Controls are `tclsh8.4`/`tclsh8.5` **on the same appliance**. | Gives 21.1.0.1 a measured row rather than a guessed one. Still one build; see F8. |
+| **F1** — the proposal conflates six language contexts | Four of the six measured with **one shared 34-case list** (§4a): `TmmIRule`, `TmshCliScript`, `IAppImplementation`, `HostShellTcl`. | **Refines F1.** The three F5 contexts are *one parser* — every grammar and newline case is identical — but they are **not** one environment: `exec` is absent in `TmmIRule` and works in the other two, `info commands` counts 152/95/95, and `tcl_platform` is fabricated / **empty** / real-Linux respectively. So split the key on *command surface and environment*, not on grammar. Two contexts remain **unmeasured**: `IAppPresentationApl` and `IAppPresentationTclCallback`, recorded as `Unknown` by the driver itself. |
+| **F2** — Tcl release defaults have no provenance | All three F5 contexts report `8.4.6`; 16 features that cleanly separate 8.4 from 8.5 behave as 8.4 in every one (§4); numeral handling is 8.4 throughout (§4a). Controls are `tclsh8.4`/`tclsh8.5` **on the same appliance**. | Gives 21.1.0.1 a measured row rather than a guessed one, and **directly vindicates the review's "one observed `tclsh`" objection**: `/usr/bin/tclsh8.4` is **8.4.13**, not the 8.4.6 embedded in all three F5 contexts. Reading the version off the host would have been wrong for every F5 row. Still one build; see F8. |
 | **F3** — `}{` overfits one command, overclaims all | The full six-row matrix, run on TMM (§3). | **Retain the dialect-level separator.** Gate it on the word having started with `{` or `"`. Do not implement `{*}` in the iRules dialect. |
-| **F4** — tmsh policy is not core Tcl availability | All 85 stock 8.4 builtins probed individually against the iRule compiler: 31 disabled, 2 absent, 52 present (§5). | Supplies the iRule-context command surface as data. This is the **`TmmIRule` rule-load** surface, measured as `admin`; it is not a tmsh policy statement and should not be generalised to the other contexts. |
+| **F4** — tmsh policy is not core Tcl availability | All 85 stock 8.4 builtins probed individually against the iRule compiler: 31 disabled, 2 absent, 52 present (§5). Cross-context: `exec` absent in `TmmIRule`, working in `TmshCliScript` and `IAppImplementation` (§4a). | Supplies the `TmmIRule` **rule-load** surface as data and proves it does **not** generalise. Also separates two mechanisms that look alike: a literal disabled command is refused at load with `command is disabled`, while the same command reached through `eval` at runtime is simply `invalid command name`. |
 | **F5** — `tcl_platform` has iRules-specific semantics | Measured in all three F5 contexts (§4): TMM fabricates it (`machine` = hostname, `os BIG-IP`, `tmmVersion 26`, `wordSize 8`), iApp reports a real-ish Linux with `wordSize 4`, and a tmsh cli script's array is **empty**. | Confirms F5, and shows the divergence is three-way, not two-way. |
 | **F8** — one build must become a fixture | [`scripts/dev/bigip-probes/`](../../scripts/dev/bigip-probes/) — 378 iRules, drivers, controls, raw transcripts. | Partially discharges F8: it is a re-runnable fixture, but see the delta below before treating it as the E4 artefact. |
 
@@ -630,9 +725,16 @@ them.
 
 ### What this run did *not* do
 
-The §E4 contract was written for a probe run that had not happened yet; this run
-answered the same questions but under a looser procedure. The differences, in
-full:
+Two runs are described here and they differ in rigour. The **§3 F3 matrix** and
+the **§4a four-context parity probe** were run under the E4 contract —
+`__tcl_lsp_probe_*` names, an exact-name absence check before every create, an
+`EXIT` trap deleting only those names, an absence proof after every delete, an
+explicit "attached to a virtual server?" check, and the APL contexts recorded as
+`Unknown` rather than inferred. The driver is
+[`lib/e4-context-probe.sh`](../../scripts/dev/bigip-probes/lib/e4-context-probe.sh).
+
+The **earlier bulk run** (§5–§9) answered the same questions under a looser
+procedure. Its differences, in full:
 
 - Probe objects used `probe_*`, `lab_*` and `probe_ws_*` prefixes, **not**
   `__tcl_lsp_probe_*`. Only `irules/f3-matrix/` uses the reserved prefix.
@@ -654,8 +756,11 @@ command rests on a single `info commands` result — §5 probes each builtin as 
 separate rule load and distinguishes `command is disabled` from
 `undefined procedure`.
 
-**Recommendation.** Treat §3 as E4-grade evidence and everything else as a
-strong but non-conforming transcript. Re-running the suites under the full E4
+**Recommendation.** Treat §3 and §4a as E4-grade evidence and everything else as
+a strong but non-conforming transcript. §4a is a single clean run
+covering all four contexts, with zero residual objects and a cleanup proof per
+object; the standalone command-resolution probe (E4.4b) ran in the same pass and
+confirmed `undefined procedure: __no_such_command__` at rule load. Re-running the suites under the full E4
 contract is mechanical — `lib/runner.sh` needs only a prefix change and a
 pre-create absence check — and would upgrade the whole document.
 
