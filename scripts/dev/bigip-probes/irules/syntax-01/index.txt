@@ -1,0 +1,54 @@
+if_nospace~~WRAP~~if with no space between expr and body brace
+if_nospace_else~~WRAP~~if/else with no spaces anywhere
+if_nospace_elseif~~WRAP~~elseif chain with no spaces
+while_nospace~~WRAP~~while with no space before body
+foreach_nospace~~WRAP~~foreach with no space before body
+for_nospace~~WRAP~~for with no spaces between any of its four args
+switch_nospace~~WRAP~~switch with no space before pattern block
+catch_nospace~~WRAP~~catch with no space before varname
+proc_nospace~~RAW~~proc with no space between arglist and body
+set_nospace_braces~~WRAP~~two adjacent braced words as one set argument
+cmdsub_nospace~~WRAP~~command substitution immediately followed by brace body
+quoted_nospace~~WRAP~~quoted expr word followed immediately by brace
+else_newline~~WRAP~~else on its own line (unbraced continuation)
+elseif_newline~~WRAP~~elseif on its own line
+else_if_twowords~~WRAP~~else if written as two separate words
+expr_starts_with~~WRAP~~starts_with operator inside if expression
+expr_ends_with~~WRAP~~ends_with operator
+expr_contains~~WRAP~~contains operator
+expr_equals~~WRAP~~equals operator
+expr_and_or_not~~WRAP~~word-form boolean operators
+expr_matches_glob~~WRAP~~matches_glob operator
+expr_matches_regex~~WRAP~~matches_regex operator
+expr_cmd_starts_with~~WRAP~~starts_with used via the bare expr command
+expr_unbraced_startswith~~WRAP~~unbraced expr with extension operator
+comment_unbalanced_open~~WRAP~~comment containing an unmatched open brace
+comment_unbalanced_close~~WRAP~~comment containing an unmatched close brace
+comment_after_close_brace~~WRAP~~comment on the same line after a closing brace
+comment_as_arg~~WRAP~~hash in argument position is not a comment
+comment_after_cmd_nosemi~~WRAP~~comment following a command on the same line without semicolon
+semicolon_then_comment~~WRAP~~semicolon then comment on same line
+backslash_continuation~~WRAP~~backslash newline continuation inside a command
+unbraced_if_var~~WRAP~~if with an unbraced variable as the expression
+dollar_brace_var~~WRAP~~dollar brace variable name syntax
+namespace_var~~WRAP~~namespace qualified variable
+array_and_upvar~~WRAP~~array set plus upvar
+cmd_after~~WRAP~~after command availability
+cmd_exec~~WRAP~~exec command availability
+cmd_open~~WRAP~~open command availability
+cmd_socket~~WRAP~~socket command availability
+cmd_source~~WRAP~~source command availability
+cmd_puts~~WRAP~~puts command availability
+cmd_vwait~~WRAP~~vwait command availability
+cmd_eval~~WRAP~~eval command availability
+cmd_subst~~WRAP~~subst command availability
+cmd_info_level~~WRAP~~info level introspection
+cmd_trace~~WRAP~~trace command availability
+cmd_clock~~WRAP~~clock command availability
+cmd_regexp_regsub~~WRAP~~regexp and regsub availability
+when_priority~~RAW~~when block with a priority modifier
+when_duplicate_event~~RAW~~two when blocks for the same event
+when_nested~~RAW~~when block nested inside another when block
+when_unknown_event~~RAW~~when block naming an event that does not exist
+toplevel_command~~RAW~~bare command at rule top level outside any when block
+trailing_junk_after_when~~RAW~~stray text after the closing brace of a when block

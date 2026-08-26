@@ -1,0 +1,151 @@
+@@ if_nospace | WRAP | if with no space between expr and body brace
+if {1}{log local0. yes}
+@@ if_nospace_else | WRAP | if/else with no spaces anywhere
+if {0}{log local0. a}else{log local0. b}
+@@ if_nospace_elseif | WRAP | elseif chain with no spaces
+if {0}{log local0. a}elseif{1}{log local0. b}else{log local0. c}
+@@ while_nospace | WRAP | while with no space before body
+while {0}{log local0. x}
+@@ foreach_nospace | WRAP | foreach with no space before body
+foreach x {a b}{log local0. $x}
+@@ for_nospace | WRAP | for with no spaces between any of its four args
+for {set i 0}{$i < 2}{incr i}{log local0. $i}
+@@ switch_nospace | WRAP | switch with no space before pattern block
+switch "a" {a{log local0. hit} default{log local0. miss}}
+@@ catch_nospace | WRAP | catch with no space before varname
+catch {set x 1}errvar
+@@ proc_nospace | RAW | proc with no space between arglist and body
+proc probe_p {a}{return $a}
+when HTTP_REQUEST {
+  log local0. [call probe_p 1]
+}
+@@ set_nospace_braces | WRAP | two adjacent braced words as one set argument
+set x {a}{b}
+@@ cmdsub_nospace | WRAP | command substitution immediately followed by brace body
+if {[string length "x"]}{log local0. y}
+@@ quoted_nospace | WRAP | quoted expr word followed immediately by brace
+if "1"{log local0. y}
+@@ else_newline | WRAP | else on its own line (unbraced continuation)
+if {1} {
+  log local0. a
+}
+else {
+  log local0. b
+}
+@@ elseif_newline | WRAP | elseif on its own line
+if {0} {
+  log local0. a
+}
+elseif {1} {
+  log local0. b
+}
+@@ else_if_twowords | WRAP | else if written as two separate words
+if {0} {log local0. a} else if {1} {log local0. b}
+@@ expr_starts_with | WRAP | starts_with operator inside if expression
+if {"abcdef" starts_with "abc"} {log local0. y}
+@@ expr_ends_with | WRAP | ends_with operator
+if {"abcdef" ends_with "def"} {log local0. y}
+@@ expr_contains | WRAP | contains operator
+if {"abcdef" contains "cd"} {log local0. y}
+@@ expr_equals | WRAP | equals operator
+if {"abc" equals "abc"} {log local0. y}
+@@ expr_and_or_not | WRAP | word-form boolean operators
+if {1 and 1} {log local0. a}
+if {1 or 0} {log local0. b}
+if {not 0} {log local0. c}
+@@ expr_matches_glob | WRAP | matches_glob operator
+if {"abcdef" matches_glob "abc*"} {log local0. y}
+@@ expr_matches_regex | WRAP | matches_regex operator
+if {"abcdef" matches_regex "^abc"} {log local0. y}
+@@ expr_cmd_starts_with | WRAP | starts_with used via the bare expr command
+set r [expr {"abcdef" starts_with "abc"}]
+@@ expr_unbraced_startswith | WRAP | unbraced expr with extension operator
+if {[expr "abcdef" starts_with "abc"]} {log local0. y}
+@@ comment_unbalanced_open | WRAP | comment containing an unmatched open brace
+# this comment has an unmatched { brace
+log local0. after
+@@ comment_unbalanced_close | WRAP | comment containing an unmatched close brace
+# this comment has an unmatched } brace
+log local0. after
+@@ comment_after_close_brace | WRAP | comment on the same line after a closing brace
+if {1} {
+  log local0. a
+} # trailing comment
+@@ comment_as_arg | WRAP | hash in argument position is not a comment
+log local0. # not-a-comment
+@@ comment_after_cmd_nosemi | WRAP | comment following a command on the same line without semicolon
+log local0. a # comment
+@@ semicolon_then_comment | WRAP | semicolon then comment on same line
+log local0. a ; # comment
+@@ backslash_continuation | WRAP | backslash newline continuation inside a command
+log local0. \
+  "continued"
+@@ unbraced_if_var | WRAP | if with an unbraced variable as the expression
+set v 1
+if $v {log local0. y}
+@@ dollar_brace_var | WRAP | dollar brace variable name syntax
+set {odd name} 1
+log local0. ${odd name}
+@@ namespace_var | WRAP | namespace qualified variable
+set ::probe_ns::v 1
+log local0. $::probe_ns::v
+@@ array_and_upvar | WRAP | array set plus upvar
+array set a {k v}
+log local0. $a(k)
+@@ cmd_after | WRAP | after command availability
+after 1
+@@ cmd_exec | WRAP | exec command availability
+exec /bin/true
+@@ cmd_open | WRAP | open command availability
+set f [open /tmp/x r]
+@@ cmd_socket | WRAP | socket command availability
+set s [socket 127.0.0.1 80]
+@@ cmd_source | WRAP | source command availability
+source /tmp/x.tcl
+@@ cmd_puts | WRAP | puts command availability
+puts "hello"
+@@ cmd_vwait | WRAP | vwait command availability
+vwait ::forever
+@@ cmd_eval | WRAP | eval command availability
+eval {set x 1}
+@@ cmd_subst | WRAP | subst command availability
+set x [subst {abc}]
+@@ cmd_info_level | WRAP | info level introspection
+log local0. [info level]
+@@ cmd_trace | WRAP | trace command availability
+trace add variable x write {}
+@@ cmd_clock | WRAP | clock command availability
+log local0. [clock seconds]
+@@ cmd_regexp_regsub | WRAP | regexp and regsub availability
+regexp {^a} "abc" m
+regsub {a} "abc" X out
+@@ when_priority | RAW | when block with a priority modifier
+when HTTP_REQUEST priority 100 {
+  log local0. a
+}
+@@ when_duplicate_event | RAW | two when blocks for the same event
+when HTTP_REQUEST {
+  log local0. a
+}
+when HTTP_REQUEST {
+  log local0. b
+}
+@@ when_nested | RAW | when block nested inside another when block
+when HTTP_REQUEST {
+  when HTTP_RESPONSE {
+    log local0. a
+  }
+}
+@@ when_unknown_event | RAW | when block naming an event that does not exist
+when NOT_A_REAL_EVENT {
+  log local0. a
+}
+@@ toplevel_command | RAW | bare command at rule top level outside any when block
+set x 1
+when HTTP_REQUEST {
+  log local0. $x
+}
+@@ trailing_junk_after_when | RAW | stray text after the closing brace of a when block
+when HTTP_REQUEST {
+  log local0. a
+} junk

@@ -1,0 +1,85 @@
+after|PRESENT|"invalid argument ; expected syntax spec: (MILLI_SECONDS|cancel|info) "
+append|PRESENT|wrong # args
+array|PRESENT|wrong # args
+auto_execok|DISABLED|command is disabled: "auto_execok"
+auto_import|DISABLED|command is disabled: "auto_import"
+auto_load|DISABLED|command is disabled: "auto_load"
+auto_load_index|ABSENT|undefined procedure: auto_load_index
+auto_qualify|DISABLED|command is disabled: "auto_qualify"
+binary|PRESENT|wrong # args
+break|PRESENT|
+case|PRESENT|wrong # args
+catch|PRESENT|wrong # args
+cd|DISABLED|command is disabled: "cd"
+clock|PRESENT|wrong # args
+close|PRESENT|"unexpected end of arguments;expected argument spec:CONNECTION"
+concat|PRESENT|
+continue|PRESENT|
+encoding|PRESENT|wrong # args
+eof|DISABLED|command is disabled: "eof"
+error|PRESENT|wrong # args
+eval|PRESENT|wrong # args
+exec|DISABLED|command is disabled: "exec"
+exit|DISABLED|command is disabled: "exit"
+expr|PRESENT|wrong # args
+fblocked|DISABLED|command is disabled: "fblocked"
+fconfigure|DISABLED|command is disabled: "fconfigure"
+fcopy|DISABLED|command is disabled: "fcopy"
+file|DISABLED|command is disabled: "file"
+fileevent|PRESENT|wrong # args
+flush|DISABLED|command is disabled: "flush"
+for|PRESENT|wrong # args
+foreach|PRESENT|wrong # args
+format|PRESENT|wrong # args
+gets|DISABLED|command is disabled: "gets"
+glob|DISABLED|command is disabled: "glob"
+global|PRESENT|wrong # args
+if|PRESENT|missing an expression
+incr|PRESENT|wrong # args
+info|PRESENT|wrong # args
+interp|DISABLED|command is disabled: "interp"
+join|PRESENT|wrong # args
+lappend|PRESENT|wrong # args
+lindex|PRESENT|wrong # args
+linsert|PRESENT|wrong # args
+list|PRESENT|
+llength|PRESENT|wrong # args
+load|DISABLED|command is disabled: "load"
+lrange|PRESENT|wrong # args
+lreplace|PRESENT|wrong # args
+lsearch|PRESENT|wrong # args
+lset|PRESENT|wrong # args
+lsort|PRESENT|wrong # args
+namespace|DISABLED|command is disabled: "namespace"
+open|DISABLED|command is disabled: "open"
+package|DISABLED|command is disabled: "package"
+pid|DISABLED|command is disabled: "pid"
+proc|PRESENT|command is not valid in the current scope
+puts|PRESENT|wrong # args
+pwd|DISABLED|command is disabled: "pwd"
+read|PRESENT|wrong # args
+regexp|PRESENT|wrong # args
+regsub|PRESENT|wrong # args
+rename|DISABLED|command is disabled: "rename"
+return|PRESENT|
+scan|PRESENT|wrong # args
+seek|DISABLED|command is disabled: "seek"
+set|PRESENT|wrong # args
+socket|DISABLED|command is disabled: "socket"
+source|DISABLED|command is disabled: "source"
+split|PRESENT|wrong # args
+string|PRESENT|wrong # args
+subst|PRESENT|wrong # args
+switch|PRESENT|wrong # args
+tclLog|ABSENT|undefined procedure: tclLog
+tell|DISABLED|command is disabled: "tell"
+time|DISABLED|command is disabled: "time"
+trace|PRESENT|wrong # args
+unknown|DISABLED|command is disabled: "unknown"
+unset|PRESENT|wrong # args
+update|DISABLED|command is disabled: "update"
+uplevel|PRESENT|wrong # args
+upvar|PRESENT|
+variable|PRESENT|
+vwait|DISABLED|command is disabled: "vwait"
+while|PRESENT|wrong # args

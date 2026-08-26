@@ -1,0 +1,10 @@
+proc e {id s} { if {[catch {uplevel #0 $s} r]} { puts "$id :: ERR :: $r" } else { puts "$id :: OK :: n=[llength $r] v=<$r>" } }
+e brace_stray_close "list \{a\}\}"
+e quote_stray_close "list \"a\"\}"
+e brace_brack       "list \{a\}\]"
+e brace_openbrace   "list \{a\}\{"
+e brace_hash        "list \{a\}#b"
+e brace_escspace    "list \{a\}\\ b"
+e brace_quote_bare  "list \{a\}\"b\"c"
+e brace_tab         "list \{a\}\t\{b\}"
+e cmdpos            "\{set\}zz 7"

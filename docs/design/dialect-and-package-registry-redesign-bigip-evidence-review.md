@@ -430,11 +430,27 @@ accepts either input.
 ### E3. Live BIG-IP transcript
 
 <!-- BIGIP_LIVE_RESULTS_START -->
-**Evidence status (2026-08-26): pending.** The appliance was reachable, but the
-authenticated execution session was not approved while this review checkpoint
-was prepared. No version, command-surface, or syntax conclusion is drawn from
-reachability or from the control-plane inventory label. Replace this paragraph
-with the normalised transcript and cleanup proof after the probe in E4 has run.
+**Evidence status (2026-08-26): partial — F3 answered, remainder non-conforming.**
+The appliance was probed and the transcript is in
+[`bigip-irule-parser-measurements.md`](bigip-irule-parser-measurements.md); the
+378 iRules, drivers, stock-Tcl controls and raw result files are in
+[`scripts/dev/bigip-probes/`](../../scripts/dev/bigip-probes/).
+
+The six-row F3 matrix below was run under this section's prefix and cleanup
+rules and can be read as E4-grade evidence. Its result: `list {a}{b}` yields
+`a b` and `set x {a}{b}` parses then fails arity, so the separator **is**
+generic rather than `if`-specific; `if{1}{…}` remains an undefined procedure, so
+there is no separator before the first `{`; and `list {*}{a b}` yields
+`* {a b}`, so the separator wins and `{*}` must not be implemented in this
+dialect.
+
+The rest of that run — interpreter identity, the 85-builtin command surface, the
+event-context matrix, and the traffic lab — answers the same questions but did
+**not** implement the §E4 contract: no `__tcl_lsp_probe_*` prefix, no per-create
+absence check or `EXIT` trap, and the traffic lab attached rules to virtual
+servers. `save sys config` was never run and every object was deleted and proven
+absent. The full delta is in §11 of the measurements document. Re-run the suites
+under E4 before promoting those rows to ratified evidence.
 <!-- BIGIP_LIVE_RESULTS_END -->
 
 ### E4. Probe and cleanup contract

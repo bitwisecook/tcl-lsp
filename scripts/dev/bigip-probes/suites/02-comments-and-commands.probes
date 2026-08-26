@@ -1,0 +1,51 @@
+@@ comment_unbal_quote | WRAP | comment containing a single unbalanced double quote
+# log local0. "Pre: [HTTP header User-Agent]
+log local0. after
+@@ comment_apostrophe | WRAP | comment containing an apostrophe
+# don't do this
+log local0. after
+@@ comment_balanced_block | WRAP | commented-out if block whose braces balance across lines
+#if { $x == "" } {
+#  log local0. a
+#}
+#else {
+#  log local0. b
+#}
+log local0. after
+@@ comment_brace_pair | WRAP | comment with a balanced brace pair on one line
+# HTTP::respond 200 content { }
+log local0. after
+@@ comment_open_only | WRAP | comment opening a brace closed by a later comment
+# HTTP::respond 200 content {
+# }
+log local0. after
+@@ expr_matches | WRAP | matches operator in an if expression
+if {"abcdef" matches "abcdef"} {log local0. y}
+@@ switch_dashdash | WRAP | switch with -- terminator
+switch -- "a" {a {log local0. hit} default {log local0. miss}}
+@@ switch_glob_fallthrough | WRAP | switch -glob with a dash fallthrough body
+switch -glob "abc" {
+  "ab*" -
+  "cd*" {log local0. hit}
+  default {log local0. miss}
+}
+@@ proc_and_call | RAW | top level proc invoked with call
+proc myproc {a} {
+  return $a
+}
+when HTTP_REQUEST {
+  log local0. [call myproc 1]
+}
+@@ proc_direct_invoke | RAW | top level proc invoked directly without call
+proc myproc2 {a} {
+  return $a
+}
+when HTTP_REQUEST {
+  log local0. [myproc2 1]
+}
+@@ when_priority_bad | RAW | when with an out of range priority
+when HTTP_REQUEST priority 9999 {
+  log local0. a
+}
+@@ static_var | WRAP | static:: namespace variable read
+log local0. $static::somevar

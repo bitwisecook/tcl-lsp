@@ -1,0 +1,54 @@
+if_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~if with no space between expr and body brace
+if_nospace_else~~WRAP~~REJECT~~FAIL~~FAIL~~extra characters after close-brace~~if/else with no spaces anywhere
+if_nospace_elseif~~WRAP~~REJECT~~FAIL~~FAIL~~extra characters after close-brace~~elseif chain with no spaces
+while_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~while with no space before body
+foreach_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~foreach with no space before body
+for_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~for with no spaces between any of its four args
+switch_nospace~~WRAP~~REJECT~~OK~~OK~~~~switch with no space before pattern block
+catch_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~catch with no space before varname
+proc_nospace~~RAW~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~proc with no space between arglist and body
+set_nospace_braces~~WRAP~~REJECT~~FAIL~~FAIL~~extra characters after close-brace~~two adjacent braced words as one set argument
+cmdsub_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-brace~~command substitution immediately followed by brace body
+quoted_nospace~~WRAP~~ACCEPT~~FAIL~~FAIL~~extra characters after close-quote~~quoted expr word followed immediately by brace
+else_newline~~WRAP~~ACCEPT~~OK~~OK~~~~else on its own line (unbraced continuation)
+elseif_newline~~WRAP~~ACCEPT~~OK~~OK~~~~elseif on its own line
+else_if_twowords~~WRAP~~REJECT~~FAIL~~FAIL~~wrong # args: extra words after "else" clause in "if" command~~else if written as two separate words
+expr_starts_with~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" starts_with "abc"": extra tokens at end of expression~~starts_with operator inside if expression
+expr_ends_with~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" ends_with "def"": extra tokens at end of expression~~ends_with operator
+expr_contains~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" contains "cd"": extra tokens at end of expression~~contains operator
+expr_equals~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abc" equals "abc"": variable references require preceding $~~equals operator
+expr_and_or_not~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression "1 and 1": extra tokens at end of expression~~word-form boolean operators
+expr_matches_glob~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" matches_glob "abc*"": extra tokens at end of expression~~matches_glob operator
+expr_matches_regex~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" matches_regex "^abc"": extra tokens at end of expression~~matches_regex operator
+expr_cmd_starts_with~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression ""abcdef" starts_with "abc"": extra tokens at end of expression~~starts_with used via the bare expr command
+expr_unbraced_startswith~~WRAP~~ACCEPT~~FAIL~~FAIL~~syntax error in expression "abcdef starts_with abc": variable references require preceding $~~unbraced expr with extension operator
+comment_unbalanced_open~~WRAP~~REJECT~~OK~~OK~~~~comment containing an unmatched open brace
+comment_unbalanced_close~~WRAP~~REJECT~~OK~~OK~~~~comment containing an unmatched close brace
+comment_after_close_brace~~WRAP~~REJECT~~FAIL~~FAIL~~wrong # args: extra words after "else" clause in "if" command~~comment on the same line after a closing brace
+comment_as_arg~~WRAP~~REJECT~~OK~~OK~~~~hash in argument position is not a comment
+comment_after_cmd_nosemi~~WRAP~~REJECT~~OK~~OK~~~~comment following a command on the same line without semicolon
+semicolon_then_comment~~WRAP~~ACCEPT~~OK~~OK~~~~semicolon then comment on same line
+backslash_continuation~~WRAP~~ACCEPT~~OK~~OK~~~~backslash newline continuation inside a command
+unbraced_if_var~~WRAP~~WARN~~OK~~OK~~~~if with an unbraced variable as the expression
+dollar_brace_var~~WRAP~~ACCEPT~~OK~~OK~~~~dollar brace variable name syntax
+namespace_var~~WRAP~~ACCEPT~~FAIL~~FAIL~~can't set "::probe_ns::v": parent namespace doesn't exist~~namespace qualified variable
+array_and_upvar~~WRAP~~ACCEPT~~OK~~OK~~~~array set plus upvar
+cmd_after~~WRAP~~ACCEPT~~OK~~OK~~~~after command availability
+cmd_exec~~WRAP~~REJECT~~OK~~OK~~~~exec command availability
+cmd_open~~WRAP~~REJECT~~FAIL~~FAIL~~couldn't open "/tmp/x": no such file or directory~~open command availability
+cmd_socket~~WRAP~~REJECT~~OK~~OK~~~~socket command availability
+cmd_source~~WRAP~~REJECT~~FAIL~~FAIL~~couldn't read file "/tmp/x.tcl": no such file or directory~~source command availability
+cmd_puts~~WRAP~~ACCEPT~~hello~~hello~~hello~~puts command availability
+cmd_vwait~~WRAP~~REJECT~~~~~~~~vwait command availability
+cmd_eval~~WRAP~~ACCEPT~~OK~~OK~~~~eval command availability
+cmd_subst~~WRAP~~ACCEPT~~OK~~OK~~~~subst command availability
+cmd_info_level~~WRAP~~ACCEPT~~OK~~OK~~~~info level introspection
+cmd_trace~~WRAP~~REJECT~~OK~~OK~~~~trace command availability
+cmd_clock~~WRAP~~ACCEPT~~OK~~OK~~~~clock command availability
+cmd_regexp_regsub~~WRAP~~ACCEPT~~OK~~OK~~~~regexp and regsub availability
+when_priority~~RAW~~ACCEPT~~OK~~OK~~~~when block with a priority modifier
+when_duplicate_event~~RAW~~REJECT~~OK~~OK~~~~two when blocks for the same event
+when_nested~~RAW~~REJECT~~OK~~OK~~~~when block nested inside another when block
+when_unknown_event~~RAW~~REJECT~~OK~~OK~~~~when block naming an event that does not exist
+toplevel_command~~RAW~~REJECT~~OK~~OK~~~~bare command at rule top level outside any when block
+trailing_junk_after_when~~RAW~~REJECT~~OK~~OK~~~~stray text after the closing brace of a when block

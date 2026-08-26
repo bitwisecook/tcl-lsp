@@ -1,0 +1,15 @@
+HTTP::uri|set _ [HTTP::uri]
+HTTP::status|set _ [HTTP::status]
+HTTP::respond|HTTP::respond 200
+HTTP::collect|HTTP::collect
+IP::client_addr|set _ [IP::client_addr]
+IP::server_addr|set _ [IP::server_addr]
+TCP::client_port|set _ [TCP::client_port]
+TCP::collect|TCP::collect
+TCP::payload|set _ [TCP::payload]
+LB::server|set _ [LB::server addr]
+SSL::cipher|set _ [SSL::cipher name]
+pool|pool lab_pool
+node|node 192.168.9.80 8000
+table|table set probek probev
+static|set _ $static::probesv
