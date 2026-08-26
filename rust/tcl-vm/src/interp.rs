@@ -1078,6 +1078,14 @@ impl Vm {
         // mid-execution.
         tcl_syntax::number::set_runtime_syntax(self.runtime_version.number_syntax());
         self.write_release_globals();
+        // `package provide Tcl` is a release fact, not an engine constant, and
+        // the pre-provided entries were written against the *previous* pin —
+        // re-derive them (ledger row B4). Guarded because the very first
+        // profile pin happens inside `register_builtins`, before the `package`
+        // command itself is registered; that call site provides them directly.
+        if self.commands.contains_key("package") {
+            crate::cmd_package::provide_core_packages(self);
+        }
     }
 
     /// Override only the builtin command-availability surface.
@@ -3093,29 +3101,19 @@ impl Vm {
     /// Hidden commands move to `hidden_commands`, invocable via
     /// `interp invokehidden` and restorable with `interp expose`.
     fn make_safe(&mut self) {
-        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
-        // `after` / `vwait` are deliberately NOT on this list — confirmed
-        // present and callable inside a real safe child (`s eval {info
-        // commands after}` returns `after`). An earlier version of this list
-        // incorrectly hid them, which would have broken legitimate
-        // safe-interp code using `after idle`/`after cancel`.
-        const UNSAFE: &[&str] = &[
-            "exec",
-            "exit",
-            "cd",
-            "pwd",
-            "glob",
-            "open",
-            "socket",
-            "source",
-            "load",
-            "file",
-            "fconfigure",
-            "encoding",
-        ];
         // The host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe` unsets
-        // os/osVersion/machine/user) plus our backend-introspection keys, so a
-        // safe interp exposes only the portable subset.
+        // os/osVersion/machine/user — measured: a safe child on tclsh 8.6.14
+        // and 9.0.4 keeps only byteOrder/engine/pathSeparator/platform/
+        // pointerSize/wordSize, plus 8.6's `threaded`) and our own
+        // backend-introspection keys, so a safe interp exposes only the
+        // portable subset.
+        //
+        // TODO(ledger B2-platform): this stays a name list because
+        // `tcl_registry::special_vars` models `tcl_platform`'s keys with a
+        // dialect set and a summary but no "scrubbed when the interpreter is
+        // made safe" flag — driving it from there needs a new
+        // `SpecialVarKey` field, which is a table change, not a query. The
+        // command half of row B2 is discharged below.
         const UNSAFE_PLATFORM: &[&str] = &[
             "os",
             "osVersion",
@@ -3130,7 +3128,32 @@ impl Vm {
             "ebpf",
         ];
         self.bump_cmd_epoch();
-        for &c in UNSAFE {
+        // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
+        // not a name list this engine keeps (ledger row B2): C's own set is
+        // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
+        // of `unsafeEnsembleCommands`, and that is what the trait records.
+        //
+        // Narrowed per release by what this interpreter actually carries: a
+        // command that is not in the table, or that the pinned surface hides,
+        // is not there to be hidden — which is how `unload` (8.5+) and `zipfs`
+        // (9.0+) stay out of an older pin's hidden set without a second
+        // availability rule. Gating on visibility matters as well as on
+        // presence: parking an unavailable builtin in `hidden_commands` would
+        // let `interp invokehidden` reach it past the surface check.
+        //
+        // `after` / `vwait` are correctly absent from the trait — confirmed
+        // present and callable inside a real safe child on tclsh 8.6.14
+        // (`s eval {info commands after}` returns `after`); an earlier
+        // hand-typed list here once hid them, breaking legitimate safe-interp
+        // code using `after idle` / `after cancel`.
+        for &c in tcl_registry::safe_interp_hidden_commands() {
+            if !self
+                .commands
+                .get(c)
+                .is_some_and(|command| self.builtin_command_visible_for_surface(c, command))
+            {
+                continue;
+            }
             let import_origin = self.imported_commands.get(c).cloned();
             let builtin_identity = self.builtin_identity_for_key(c);
             if let Some(cmd) = self.commands.remove(c) {
@@ -4346,6 +4369,12 @@ impl Vm {
     /// Record a provided package version.
     pub(crate) fn provide_package(&mut self, name: &str, version: &str) {
         self.packages.insert(name.to_string(), version.to_string());
+    }
+
+    /// Withdraw a package's provided version (`package forget`, and the
+    /// release re-pin that replaces the core's own pre-provided entries).
+    pub(crate) fn forget_package(&mut self, name: &str) {
+        self.packages.remove(name);
     }
 
     /// The provided version of a package, if any.

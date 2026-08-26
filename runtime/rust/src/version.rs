@@ -18,6 +18,22 @@
 
 //! Runtime Tcl version facts shared by interpreter startup, `package`, and
 //! `tcl::build-info`.
+//!
+//! Nothing here is a constant any more (ledger row B4). This interpreter's
+//! emulated release is settable — `set_dialect_profile` / `--tcl-version` —
+//! and a build identity or a `package provide Tcl` frozen at `9.0.4` was
+//! simply wrong under every other pin, as well as being a second table that
+//! could disagree with `tcl-vm`'s. Both engines now read `tcl_dialect`'s
+//! release vocabulary.
 
-pub(crate) const TCL_PATCH_LEVEL: &[u8] = b"9.0.4";
-pub(crate) const BUILD_INFO: &[u8] = b"9.0.4+0000000000000000000000000000000000000000.rust";
+use tcl_dialect::TclVersion;
+
+/// The engine word this runtime contributes to its `::tcl::build-info`
+/// string, where C names its compiler and build options.
+pub(crate) const BUILD_INFO_ENGINE: &str = "rust";
+
+/// This interpreter's `::tcl::build-info` string for the release it is
+/// pinned to.
+pub(crate) fn build_info(version: TclVersion) -> String {
+    tcl_dialect::build_info::build_info(version, BUILD_INFO_ENGINE)
+}

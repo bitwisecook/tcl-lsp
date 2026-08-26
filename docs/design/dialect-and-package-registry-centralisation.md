@@ -68,6 +68,27 @@ Rules:
   The audit found three hand-maintained or orphaned projections that this
   rule retires (ledger rows T13, B10, F12).
 
+**Status: implemented (P1-E).** The registry on the new model landed in
+`rust/tcl-registry/src/model/` alongside the old code:
+`surface.rs` (`SurfaceDeclaration` + the mechanical
+`declarations_for_spec` translation of every compiled spec's
+`dialects`/`required_package`/`tcllib_package`/`lifecycle`),
+`context.rs` (`ResolvedContext` + `FloorMap` + `KeyedVersions` and the
+`ContextQueries` assistance view with `is_available` /
+`available_at_targets`), `assembly.rs` (`ContextRegistry` — Arc-owned
+per-context registry generations, provider-filtered from the same spec
+sources `build_default`/`load_dialect` use, cached by
+`(environment identity, keyed-versions hash)`; dynamic pack ingestion is
+a documented P2 seam), and `binding.rs` (`BindingKnowledge`,
+`PackageStateMap`, and the `PackageTransition` family as a parallel type
+pending P1a realm integration). The equivalence sweeps pass with **zero
+divergences** (the deliberate-divergence allowlist is empty): per-spec
+visibility agrees with `ProfileQueries::is_available` for 3,647 compiled
+specs × 18 catalogue profiles (65,646 checks), and per-environment
+visible command-name sets and per-name resolution answers reproduce
+`registry_for_profile` + `best_visible` exactly (38,713 resolved names
+across the 18 environments).
+
 ### 1.2 One resolution stack
 
 Five resolution questions, each with exactly one owner:
@@ -246,9 +267,9 @@ its replacement.
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
 | B1 | Duplicated `builtin_command_visible_for_surface`/`profile_admits_registry_builtin` in both engines | one shared availability query over declarations | P1 |
-| B2 | Both engines' hardcoded 12-name `UNSAFE` (+ platform) safe-interp lists | `Traits::SAFE_INTERP_HIDDEN` (already 14 specs) queried generically | P1 |
-| B3 | VM's hand-typed 37-name mathfunc registration and 27-op `mathops!` macro | derived tables (as the runtime already does) | P1 |
-| B4 | `TCL_PATCH_LEVEL`/`"9.0.4"` literals behind `package provide Tcl` and `tcl::build-info` | the pinned core release as provider (§3.2) | P1 |
+| B2 | Both engines' hardcoded 12-name `UNSAFE` (+ platform) safe-interp lists | `Traits::SAFE_INTERP_HIDDEN` (already 14 specs) queried generically | **done** (command half) — `tcl_registry::safe_interp_hidden_commands()` is the one generic query; both `make_safe`s call it and narrow by what the interpreter carries. The `UNSAFE_PLATFORM` scrub stays a name list under `TODO(ledger B2-platform)`: `special_vars` models `tcl_platform`'s keys but has no "scrubbed when made safe" flag, so driving it needs a `SpecialVarKey` field, not a query. See the measured-evidence subsection below. |
+| B3 | VM's hand-typed 37-name mathfunc registration and 27-op `mathops!` macro | derived tables (as the runtime already does) | **done** — the VM registers `tcl_syntax::expr::mathfunc::all()` and every `mathop_shape` spelling from `expr::operators`, each behind one fn pointer that reads the op off the invoked word. This added the 21-name TIP 745 batch to the VM (listed below); the bodies already existed in `dispatch_with_backend`, only the command bindings were missing. |
+| B4 | `TCL_PATCH_LEVEL`/`"9.0.4"` literals behind `package provide Tcl` and `tcl::build-info` | the pinned core release as provider (§3.2) | **done** — `TclVersion::core_provided_packages()` and `tcl_dialect::build_info` are the single tables; both engines re-derive their pre-provided core packages on every profile pin and compose `::tcl::build-info` from `TclVersion::patchlevel()`. `patchlevel()`'s 9.1 entry is now the measured `9.1b0`. |
 | B5 | VM `package ifneeded\|forget\|unknown\|prefer` silent no-ops | real handling or honest `Unknown`-widening errors; fuzz-paired with the runtime | P1a |
 | B6 | Runtime expr parsing under `dialect = None`; both engines' `for_tcl_version` expr surfaces | core-profile `ExprGrammar` threading | P1 |
 | B7 | `tcl-engine-api`'s bare `restrict_commands(&[&str])` with no profile pinning; `SANDBOX_COMMANDS`'s out-of-registry closed world | an environment/policy handle on the engine contract; the sandbox surface as a closed-world environment | P1a |
@@ -257,6 +278,81 @@ its replacement.
 | B10 | `_registry_data.tcl` (orphaned, 2,086 lines, frozen `DialectSet` subtraction) and the misc unsupported-stub name list | `gen-irule-test-data` output; registry capability predicates | P1 |
 | B11 | Debugger's `by_name("tcl9.0")` literal; vm-cli's release-only ingress | `Environment::resolve`, environments incl. non-plain-Tcl | P1 |
 | B12 | Fuzzer's three-value `Engine` enum + generator name lists + persisted `TclVersion` findings field | environment-driven engine pairing against the oracle ledger; a findings-registry migration for the persisted release field | P1b/P2 |
+
+#### Measured evidence for rows B2–B4
+
+Every figure below was read off the reference interpreters on `PATH`
+(`tclsh8.4` 8.4.20, `tclsh8.5` 8.5.19, `tclsh8.6` **8.6.14**, `tclsh9.0`
+9.0.4, `tclsh9.1` 9.1b0) on 2026-08-26. Note the 8.6 build measured is
+8.6.14 while the engines pin 8.6.16 (the tarball under `tmp/`); only the
+patch digit differs, and `TclVersion::patchlevel()` remains the one place it
+is written down.
+
+**B2 — safe-interp hidden sets** (`interp create -safe s; lsort [interp
+hidden s]`, top-level command names only; the `tcl:file:*` / `tcl:zipfs:*` /
+`tcl:clock:*` entries 8.6+ also lists are C's internal rewrite names for an
+ensemble's unsafe *subcommands*, which neither engine models):
+
+| release | hidden set |
+|---|---|
+| 8.4.20 | `cd encoding exec exit fconfigure file glob load open pwd socket source` (12) |
+| 8.5.19 | + `unload` (13) |
+| 8.6.14 | + `unload` (13) |
+| 9.0.4 | + `unload zipfs` (14) |
+| 9.1b0 | + `unload zipfs clock` (15) |
+
+The registry trait's 14 specs are exactly the 9.0 set. The per-release
+differences need no second availability rule: `unload` and `zipfs` are
+release-gated commands, so "hide what the trait names, if this interpreter
+carries it" reproduces every row. Two rulings came out of the measurement:
+
+- **`clock` is deliberately not given the trait.** 9.1 hides the C `clock`
+  and immediately re-provides a safe one, so `s eval {clock format 0 -gmt 1}`
+  succeeds inside a 9.1 safe child exactly as inside an 8.6 one (measured).
+  The trait means *not callable in a safe interpreter*; marking `clock` would
+  make the analyser's safe-context walk report a false positive on working
+  code. Its appearance in `interp hidden` is a hide-then-alias artefact.
+- **Neither engine implements `load`, `unload`, `socket`, or `zipfs`** as
+  commands at all, so their hidden sets are the 8.4 row on every pin. That is
+  an engine gap, not a `make_safe` bug; both engines' tests assert the
+  residue is genuinely absent from `info commands`, so implementing any of
+  them forces the expectation to be revisited.
+
+**B3 — the mathfunc delta the VM was missing** (21 names, TIP 745's C99
+batch plus the `ldexp`/`logb`/`signbit`/`trunc` group that arrived with it):
+`acosh asinh atanh cbrt copysign dim erf erfc exp2 expm1 fma gamma ldexp
+lgamma log1p log2 logb nextafter remainder signbit trunc`. No function
+bodies were needed — `tcl_syntax::expr::mathfunc::dispatch_with_backend`
+already implemented all 21 and `runtime/rust` (which derives its list)
+already registered them; the VM simply never bound the command names, so
+`expr {cbrt(27)}` was `invalid command name "tcl::mathfunc::cbrt"` under
+every pin including 9.1.
+
+**B4 — the core provide matrix** (`package provide <name>` in a fresh
+`tclsh`):
+
+| release | `Tcl` | `tcl` | `TclOO` | `tcl::oo` |
+|---|---|---|---|---|
+| 8.4.20 | `8.4` | — | — | — |
+| 8.5.19 | `8.5.19` | — | — | — |
+| 8.6.14 | `8.6.14` | — | `1.1.0` | — |
+| 9.0.4 | `9.0.4` | `9.0.4` | `1.3.1` | `1.3.1` |
+| 9.1b0 | `9.1b0` | `9.1b0` | `1.3.1` | `1.3.1` |
+
+Three release facts, all previously frozen at the 9.0 answer in both
+engines: the lowercase spellings are Tcl 9 only (TIP 590), 8.4 provides
+`TCL_VERSION` rather than `TCL_PATCH_LEVEL`, and `TclOO` is absent before
+8.6 and one minor version behind there. `tcl::tommath` / `zlib` /
+`tcl::zlib`, which the reference interpreters also pre-provide, are
+deliberately *not* claimed: neither engine implements those surfaces, and
+providing them would turn a `package require` failure into a later
+`invalid command name`.
+
+The user-visible consequence: `package require Tcl 8.5` (which means
+`[8.5, 9)`) now fails under a 9.x pin, matching `tclsh9.0`'s
+`version conflict for package "Tcl": have 9.0.4, need 8.5`. Both engines
+wrongly succeeded before.
+
 
 ### Tooling / AI / editors
 
@@ -338,6 +434,21 @@ mirrored as Q22–Q25 in the main document):
   lookup layer are the two typed views, enforced by visibility
   (`pub(crate)`) plus a call-site sweep, with the escape hatch requiring
   a ledger entry here.
+- **R11 — F5 rows are evidence-generated** (the
+  [BIG-IP evidence review](dialect-and-package-registry-redesign-bigip-evidence-review.md),
+  accepted in full — redesign §0.2). Every F5 grammar/command/variable/
+  package/policy record is keyed by `BigIpExecutionContext` and backed
+  by `EmbeddedRuntimeEvidence` from a checked-in conformance corpus
+  (per-build, per-context manifests with explicit `unknown` cells and a
+  transcript validator that never runs in CI); a drift gate fails when
+  prose, registry rows, or tests disagree with the corpus. Unmeasured
+  contexts resolve `Unknown` for semantic passes and at most a labelled
+  nearest-known assistance profile. The `}{` separator's scope, the
+  tmsh syntax axis and its `tmsh::modify cli version active` transition,
+  role/policy visibility overlays, `tcl_platform`'s CMP effect overlay,
+  and iApp action metadata overlays all land here — before P4's F5
+  migration, which holds until the review's acceptance matrix is
+  covered.
 
 ## 5. Gates that prove the centralisation
 

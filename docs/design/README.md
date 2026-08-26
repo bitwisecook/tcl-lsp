@@ -74,6 +74,13 @@ rules for the KCS/documentation split live in
   separation between provider catalogues and per-interpreter live bindings,
   then specifies corrected version-set, build-profile, trust, lifetime,
   editor-identity, and behavioural-parity contracts.
+- [spectcl-syntax-alternatives.md](spectcl-syntax-alternatives.md) —
+  **exploration**: six authoring-surface designs answering the "SpecTcl is
+  not very Tcl-like" complaint — synopsis-first, proc-mirror,
+  namespace-native, pure-dict, executable registration, and annotated
+  stubs — each on one identical worked example over the same internal
+  model, with a rubric, comparison matrix, and hybrid recommendation for
+  the owner to weigh.
 - [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
   — **F5 evidence review** of the fixed iRules, tmsh, and iApps Tcl-version
   assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI

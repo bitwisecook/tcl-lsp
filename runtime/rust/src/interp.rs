@@ -1078,7 +1078,9 @@ impl Interp {
             current_ns: Cell::new(GLOBAL),
             recursion_depth: Cell::new(0),
             recursion_limit: Cell::new(RECURSION_LIMIT),
-            packages: RefCell::new(crate::cmd_package::PackageState::with_core()),
+            packages: RefCell::new(crate::cmd_package::PackageState::with_core(
+                DEFAULT_RUNTIME_VERSION,
+            )),
             script_stack: RefCell::new(Vec::new()),
             channels: RefCell::new(crate::cmd_chan::ChannelTable::default()),
             return_code: Cell::new(Code::Ok),
@@ -1210,6 +1212,10 @@ impl Interp {
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
         self.write_release_globals();
+        // `package provide Tcl` is a release fact, not a runtime constant, and
+        // the pre-provided entries were written against the *previous* pin —
+        // re-derive them (ledger row B4).
+        self.packages.borrow_mut().provide_core(version);
     }
 
     /// The Tcl release this interpreter emulates (see
@@ -5944,33 +5950,36 @@ impl Interp {
         // Variable unsets below can fire callbacks. Stale existing tokens before
         // the first visibility/policy write, not after re-entrant code can run.
         self.invalidate_interpreter_policy();
-        // Pinned against real tclsh 8.6.14 (`interp create -safe s; s hidden`):
-        // `after` / `vwait` are deliberately NOT on this list — confirmed
-        // present and callable inside a real safe child (`s eval {info
-        // commands after}` returns `after`). An earlier version of this list
-        // incorrectly hid them, which would have broken legitimate
-        // safe-interp code using `after idle`/`after cancel`.
-        const UNSAFE: &[&[u8]] = &[
-            b"exec",
-            b"exit",
-            b"cd",
-            b"pwd",
-            b"glob",
-            b"open",
-            b"socket",
-            b"source",
-            b"load",
-            b"file",
-            b"fconfigure",
-            b"encoding",
-        ];
-        for &c in UNSAFE {
-            self.hide_command(c);
+        // The hide list is the registry's `Traits::SAFE_INTERP_HIDDEN` query,
+        // not a name list this engine keeps (ledger row B2): C's own set is
+        // the `CmdInfo` rows lacking `CMD_IS_SAFE` plus the whole-command rows
+        // of `unsafeEnsembleCommands`, and that is what the trait records.
+        // `hide_command` returns `false` for a name this interpreter does not
+        // carry, which is the per-release narrowing: `unload` (8.5+) and
+        // `zipfs` (9.0+) are release-gated and simply are not there under an
+        // older pin, so no second availability rule is needed.
+        //
+        // `after` / `vwait` are correctly absent from the trait — confirmed
+        // present and callable inside a real safe child on tclsh 8.6.14
+        // (`s eval {info commands after}` returns `after`); an earlier
+        // hand-typed list here once hid them, breaking legitimate safe-interp
+        // code using `after idle` / `after cancel`.
+        for name in tcl_registry::safe_interp_hidden_commands() {
+            self.hide_command(name.as_bytes());
         }
         // Remove the host-revealing `tcl_platform` elements (C's `Tcl_MakeSafe`
-        // unsets os/osVersion/machine/user) plus our backend-introspection keys,
-        // so a safe interp exposes only the portable subset (byteOrder, engine,
-        // pathSeparator, platform, pointerSize, wordSize).
+        // unsets os/osVersion/machine/user — measured: a safe child on tclsh
+        // 8.6.14 and 9.0.4 keeps only byteOrder/engine/pathSeparator/platform/
+        // pointerSize/wordSize, plus 8.6's `threaded`) plus our
+        // backend-introspection keys, so a safe interp exposes only the
+        // portable subset.
+        //
+        // TODO(ledger B2-platform): this stays a name list because
+        // `tcl_registry::special_vars` models `tcl_platform`'s keys with a
+        // dialect set and a summary but no "scrubbed when the interpreter is
+        // made safe" flag — driving it from there needs a new
+        // `SpecialVarKey` field, which is a table change, not a query. The
+        // command half of row B2 is discharged above.
         const UNSAFE_PLATFORM: &[&[u8]] = &[
             b"os",
             b"osVersion",
@@ -8620,6 +8629,248 @@ mod tests {
                     Code::Error,
                     "{version:?}"
                 );
+            });
+        }
+    }
+
+    /// Every command `interp create -safe` hides, per release, measured on
+    /// the reference interpreters with
+    /// `interp create -safe s; lsort [interp hidden s]` — top-level command
+    /// names only. The `tcl:file:*` / `tcl:zipfs:*` / `tcl:clock:*` entries a
+    /// real 8.6+ interpreter also lists are C's internal rewrite names for
+    /// the *unsafe subcommands* of an ensemble, not commands a script can
+    /// name; this runtime does not model ensembles that way.
+    ///
+    /// Patch levels measured: 8.4.20, 8.5.19, 8.6.14, 9.0.4, 9.1b0.
+    #[cfg(test)]
+    const MEASURED_SAFE_HIDDEN: &[(tcl_dialect::TclVersion, &[&str])] = &[
+        (
+            tcl_dialect::TclVersion::V8_4,
+            &[
+                "cd",
+                "encoding",
+                "exec",
+                "exit",
+                "fconfigure",
+                "file",
+                "glob",
+                "load",
+                "open",
+                "pwd",
+                "socket",
+                "source",
+            ],
+        ),
+        // 8.5 adds `unload` (TIP 100); 8.6 is the same set.
+        (
+            tcl_dialect::TclVersion::V8_5,
+            &[
+                "cd",
+                "encoding",
+                "exec",
+                "exit",
+                "fconfigure",
+                "file",
+                "glob",
+                "load",
+                "open",
+                "pwd",
+                "socket",
+                "source",
+                "unload",
+            ],
+        ),
+        (
+            tcl_dialect::TclVersion::V8_6,
+            &[
+                "cd",
+                "encoding",
+                "exec",
+                "exit",
+                "fconfigure",
+                "file",
+                "glob",
+                "load",
+                "open",
+                "pwd",
+                "socket",
+                "source",
+                "unload",
+            ],
+        ),
+        // 9.0 adds `zipfs`.
+        (
+            tcl_dialect::TclVersion::V9_0,
+            &[
+                "cd",
+                "encoding",
+                "exec",
+                "exit",
+                "fconfigure",
+                "file",
+                "glob",
+                "load",
+                "open",
+                "pwd",
+                "socket",
+                "source",
+                "unload",
+                "zipfs",
+            ],
+        ),
+        // 9.1 additionally lists `clock` — an artefact of the safe base
+        // hiding the C `clock` and immediately re-providing a safe one, not
+        // an unsafety fact, so it is deliberately absent from the registry
+        // trait (`clock format 0 -gmt 1` works inside a 9.1 safe child).
+        (
+            tcl_dialect::TclVersion::V9_1,
+            &[
+                "cd",
+                "clock",
+                "encoding",
+                "exec",
+                "exit",
+                "fconfigure",
+                "file",
+                "glob",
+                "load",
+                "open",
+                "pwd",
+                "socket",
+                "source",
+                "unload",
+                "zipfs",
+            ],
+        ),
+    ];
+
+    /// The hidden set under each pinned release is exactly the measured
+    /// tclsh set, narrowed to the commands this runtime carries — `make_safe`
+    /// holds no name list any more, only the registry's
+    /// `Traits::SAFE_INTERP_HIDDEN` query (ledger row B2).
+    ///
+    /// The narrowing *is* the per-release mechanism, not a fudge: `unload`
+    /// (8.5+) and `zipfs` (9.0+) are release-gated commands, so "hide what
+    /// the trait names, if this interpreter carries it" reproduces the
+    /// differences between the rows with no second availability rule. Any
+    /// residue is asserted to be genuinely absent from `info commands`, so
+    /// implementing one of them forces this test to be revisited.
+    #[cfg(have_tommath)]
+    #[test]
+    fn safe_interp_hidden_set_matches_the_measured_tclsh_sets() {
+        for &(version, measured) in MEASURED_SAFE_HIDDEN {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                // `clock` is implemented and stays *visible*, which is what a
+                // real 9.1 safe child does behaviourally; only its appearance
+                // in `interp hidden` differs.
+                let carried: Vec<&str> = measured
+                    .iter()
+                    .copied()
+                    .filter(|name| {
+                        *name != "clock" && {
+                            let script = format!("llength [info commands {name}]");
+                            ok(i, script.as_bytes()) == b"1"
+                        }
+                    })
+                    .collect();
+                assert_eq!(i.eval_str(b"set s [interp create -safe]"), Code::Ok);
+                let hidden = ok(i, b"lsort [$s hidden]");
+                let hidden = String::from_utf8_lossy(&hidden);
+                let actual: Vec<&str> = hidden.split_whitespace().collect();
+                assert_eq!(actual, carried, "{version:?} hidden set");
+                i.eval_str(b"interp delete $s");
+            });
+        }
+    }
+
+    /// TP: `clock` stays callable inside a safe child on every release —
+    /// measured on tclsh 8.6.14, 9.0.4 and 9.1b0, where
+    /// `s eval {clock format 0 -gmt 1}` succeeds even though 9.1 lists
+    /// `clock` in `interp hidden`.
+    #[cfg(have_tommath)]
+    #[test]
+    fn clock_remains_callable_in_a_safe_child() {
+        for &(version, _) in MEASURED_SAFE_HIDDEN {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(i.eval_str(b"set s [interp create -safe]"), Code::Ok);
+                assert_eq!(
+                    ok(i, b"$s eval {clock format 0 -gmt 1 -format %Y}"),
+                    b"1970",
+                    "{version:?}"
+                );
+                i.eval_str(b"interp delete $s");
+            });
+        }
+    }
+
+    /// The core packages a bare interpreter pre-provides follow the pinned
+    /// release, so `package require Tcl 8.5` fails under a 9.x pin exactly as
+    /// `tclsh9.0` fails it — it used to succeed here, because both engines
+    /// hardcoded `9.0.4`/`Tcl`+`tcl` regardless of the pin (ledger row B4).
+    ///
+    /// Measured (`package provide <name>` in a fresh `tclsh`):
+    /// 8.4.20 → `Tcl` = `8.4`, no `tcl`; 8.5.19 → `Tcl` = `8.5.19`;
+    /// 8.6.14 → `Tcl` = `8.6.14`, `TclOO` = `1.1.0`; 9.0.4 and 9.1b0 → all
+    /// four names, at the patch level / `1.3.1`.
+    #[cfg(have_tommath)]
+    #[test]
+    fn core_package_provides_follow_the_pinned_release() {
+        use tcl_dialect::TclVersion;
+
+        for version in TclVersion::ALL {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                for core in version.core_provided_packages() {
+                    let script = format!("package provide {}", core.name);
+                    assert_eq!(
+                        ok(i, script.as_bytes()),
+                        core.version.as_bytes(),
+                        "{version:?} provides {}",
+                        core.name
+                    );
+                }
+                // FN guard: a name this release does not pre-provide answers
+                // with the empty string, not a stale earlier pin's version.
+                if version < TclVersion::V9_0 {
+                    assert_eq!(ok(i, b"package provide tcl"), b"", "{version:?}");
+                }
+                if version < TclVersion::V8_6 {
+                    assert_eq!(ok(i, b"package provide TclOO"), b"", "{version:?}");
+                }
+                // `package require Tcl 8.5` means [8.5, 9) — satisfied on
+                // 8.5/8.6, a version conflict on 8.4 and on every 9.x.
+                let wanted = matches!(version, TclVersion::V8_5 | TclVersion::V8_6);
+                assert_eq!(
+                    i.eval_str(b"package require Tcl 8.5") == Code::Ok,
+                    wanted,
+                    "{version:?}: package require Tcl 8.5"
+                );
+            });
+        }
+    }
+
+    /// `::tcl::build-info` reports the pinned release's build identity, and
+    /// splits its fields the way C does — `patchlevel` up to the `+`,
+    /// `version` up to the second `.`. Measured: `tclsh9.0` answers
+    /// `9.0.4` / `9.0`, and `tclsh9.1` answers `9.1b0` / `9.1b0` (its patch
+    /// level has no second `.`, so `version` runs to the `+`).
+    #[cfg(have_tommath)]
+    #[test]
+    fn build_info_follows_the_pinned_release() {
+        use tcl_dialect::TclVersion;
+
+        for (version, patchlevel, short) in [
+            (TclVersion::V9_0, &b"9.0.4"[..], &b"9.0"[..]),
+            (TclVersion::V9_1, &b"9.1b0"[..], &b"9.1b0"[..]),
+        ] {
+            leak_free(|i| {
+                i.set_runtime_version(version);
+                assert_eq!(ok(i, b"::tcl::build-info patchlevel"), patchlevel);
+                assert_eq!(ok(i, b"::tcl::build-info version"), short);
+                // An unset build flag reports 0 rather than erroring.
+                assert_eq!(ok(i, b"::tcl::build-info memdebug"), b"0");
             });
         }
     }

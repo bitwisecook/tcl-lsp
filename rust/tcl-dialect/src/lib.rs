@@ -42,6 +42,7 @@
 
 #![deny(missing_docs)]
 
+pub mod build_info;
 mod dialect_set;
 mod expr_number;
 mod grammar;
@@ -63,8 +64,9 @@ pub use grammar::{
 pub use library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 pub use profile::{DialectFileExtension, DialectProfile};
 pub use version::{
-    ByteStringEncoding, PackagePrefer, StringCharacterModel, TclVersion, Ternary, compare_versions,
-    exact_requirement, select_package_version, version_is_stable, version_satisfies,
+    ByteStringEncoding, CorePackage, PackagePrefer, StringCharacterModel, TclVersion, Ternary,
+    compare_versions, exact_requirement, select_package_version, version_is_stable,
+    version_satisfies,
 };
 
 /// Crate version string.

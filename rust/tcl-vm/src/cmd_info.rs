@@ -283,7 +283,9 @@ mod tests {
             (TclVersion::V8_5, "8.5", "8.5.19"),
             (TclVersion::V8_6, "8.6", "8.6.16"),
             (TclVersion::V9_0, "9.0", "9.0.4"),
-            (TclVersion::V9_1, "9.1", "9.1.0"),
+            // `tclsh9.1` (the 9.1b0 reference build): `info tclversion` →
+            // `9.1`, `info patchlevel` → `9.1b0`.
+            (TclVersion::V9_1, "9.1", "9.1b0"),
         ] {
             let mut vm = Vm::new();
             vm.set_runtime_version(version);

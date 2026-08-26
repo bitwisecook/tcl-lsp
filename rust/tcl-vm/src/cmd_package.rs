@@ -31,13 +31,34 @@ use crate::interp::{Vm, err, ok};
 use crate::value::Value;
 
 pub(crate) fn register(vm: &mut Vm) {
-    // We emulate Tcl 9.0.4; the core pre-provides both `Tcl` and the lowercase
-    // `tcl` alias at the full patchlevel (matching `tclsh9.0`), so
-    // `package require Tcl` resolves and library code that reads
-    // `[package provide tcl]` (e.g. `tm.tcl`'s version split) sees a version.
-    vm.provide_package("Tcl", "9.0.4");
-    vm.provide_package("tcl", "9.0.4");
+    provide_core_packages(vm);
     vm.register("package", cmd_package);
+}
+
+/// Pre-provide the core's own package entries for the release this VM is
+/// pinned to, replacing whatever a previous pin left behind.
+///
+/// Which names exist and what version each carries is release data
+/// ([`tcl_dialect::TclVersion::core_provided_packages`]), not an engine
+/// constant: 8.x provides `Tcl` alone while 9.x co-provides the lowercase
+/// `tcl` that `tm.tcl`'s version split reads, 8.4 provides the
+/// two-component `8.4` rather than a patch level, and `TclOO` arrives at
+/// 8.6 one minor version behind 9.x's.
+///
+/// Called again on every profile pin, so flipping 9.0 → 8.6 withdraws the
+/// 9-only names instead of leaving them provided under an 8.x surface.
+pub(crate) fn provide_core_packages(vm: &mut Vm) {
+    // Withdraw every name *any* release pre-provides before installing this
+    // one's. Derived from the same table rather than hand-listed, so a name
+    // added to one release's row cannot be left behind by a re-pin.
+    for version in tcl_dialect::TclVersion::ALL {
+        for core in version.core_provided_packages() {
+            vm.forget_package(core.name);
+        }
+    }
+    for core in vm.runtime_version().core_provided_packages() {
+        vm.provide_package(core.name, core.version);
+    }
 }
 
 fn cmd_package(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
@@ -134,7 +155,67 @@ fn pkg_require(vm: &mut Vm, rest: &[Value]) -> Completion<Value> {
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::TclVersion;
+
     use super::vsatisfies;
+    use crate::interp::Vm;
+
+    /// The pre-provided core packages follow the pinned release, so
+    /// `package require Tcl 8.5` fails under a 9.x pin exactly as `tclsh9.0`
+    /// fails it (`version conflict for package "Tcl": have 9.0.4, need 8.5`).
+    /// Both engines used to hardcode `9.0.4` and provide `Tcl`+`tcl`
+    /// regardless of the pin, so that require wrongly *succeeded* (ledger
+    /// row B4).
+    ///
+    /// Measured (`package provide <name>` in a fresh `tclsh`): 8.4.20 →
+    /// `Tcl` = `8.4` and no `tcl`; 8.5.19 → `Tcl` = `8.5.19`; 8.6.14 →
+    /// `Tcl` = `8.6.14` with `TclOO` = `1.1.0`; 9.0.4 and 9.1b0 → all four
+    /// names, at the patch level and `1.3.1`.
+    #[test]
+    fn core_provides_follow_the_pinned_release() {
+        for version in TclVersion::ALL {
+            let mut vm = Vm::new();
+            vm.set_runtime_version(version);
+            for core in version.core_provided_packages() {
+                assert_eq!(
+                    vm.package_version(core.name),
+                    Some(core.version),
+                    "{version:?} provides {}",
+                    core.name
+                );
+            }
+            // FN guard: a name this release does not pre-provide is absent,
+            // not left over from the construction-time default pin (9.0).
+            if version < TclVersion::V9_0 {
+                assert_eq!(vm.package_version("tcl"), None, "{version:?}");
+                assert_eq!(vm.package_version("tcl::oo"), None, "{version:?}");
+            }
+            if version < TclVersion::V8_6 {
+                assert_eq!(vm.package_version("TclOO"), None, "{version:?}");
+            }
+        }
+    }
+
+    /// `package require Tcl 8.5` means `[8.5, 9)`: satisfied on 8.5 and 8.6,
+    /// a version conflict on 8.4 and on every 9.x — the tclsh answers
+    /// measured on all five reference interpreters.
+    #[test]
+    fn package_require_tcl_85_matches_tclsh_per_release() {
+        for version in TclVersion::ALL {
+            let mut vm = Vm::new();
+            vm.set_runtime_version(version);
+            let provided = vm
+                .package_version("Tcl")
+                .expect("Tcl is provided")
+                .to_owned();
+            let satisfied = vsatisfies(&provided, "8.5");
+            assert_eq!(
+                satisfied,
+                matches!(version, TclVersion::V8_5 | TclVersion::V8_6),
+                "{version:?}: `package require Tcl 8.5` against provided {provided}"
+            );
+        }
+    }
 
     #[test]
     fn version_ranges() {

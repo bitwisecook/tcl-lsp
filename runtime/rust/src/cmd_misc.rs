@@ -25,7 +25,6 @@
 
 use crate::interp::{obj_bytes, Code, Interp};
 use crate::obj::TclObj;
-use crate::version::BUILD_INFO;
 
 /// Register the misc bootstrap commands.
 pub fn install(interp: &mut Interp) {
@@ -83,67 +82,31 @@ fn unsupported_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
 }
 
 /// `tcl::build-info ?option?` — mirrors C's `BuildInfoObjCmd` (`tclBasic.c`):
-/// no arg → the full string; `patchlevel` → up to `+`; `version` → `major.minor`;
-/// `commit` → the `+`..`.` segment; any other identifier → its `name-value`
-/// suffix value, or boolean 1/0 for its presence.
+/// no arg → the full string; `patchlevel` → up to `+`; `version` → up to the
+/// second `.`; `commit` → the `+`..`.` segment; any other identifier → its
+/// `name-value` suffix value, or boolean 1/0 for its presence.
+///
+/// The string is composed from the *pinned* release rather than a constant,
+/// and both the composition and the field split live in `tcl_dialect`, so
+/// this cannot answer differently from `tcl-vm` for the same pin (ledger
+/// row B4).
 fn build_info_cmd(interp: &mut Interp, argv: &[*mut TclObj]) -> Code {
     if argv.len() > 2 {
         return interp.wrong_args(b"tcl::build-info ?option?");
     }
-    let data = BUILD_INFO;
+    let data = crate::version::build_info(interp.runtime_version());
     if argv.len() < 2 {
-        interp.set_result_bytes(data);
+        interp.set_result_bytes(data.as_bytes());
         return Code::Ok;
     }
-    let plus = data.iter().position(|&b| b == b'+');
-    let result: Vec<u8> = match obj_bytes(argv[1]).as_slice() {
-        b"patchlevel" => data[..plus.unwrap_or(data.len())].to_vec(),
-        b"version" => {
-            // Up to the second `.` or the `+`, whichever comes first.
-            let v_end = data
-                .iter()
-                .enumerate()
-                .filter(|&(_, &b)| b == b'.')
-                .nth(1)
-                .map(|(i, _)| i)
-                .or(plus)
-                .unwrap_or(data.len());
-            data[..v_end].to_vec()
-        }
-        b"commit" => match plus {
-            Some(p) => {
-                let rest = &data[p + 1..];
-                let end = rest.iter().position(|&b| b == b'.').unwrap_or(rest.len());
-                rest[..end].to_vec()
-            }
-            None => Vec::new(),
-        },
-        // Boolean test for a feature identifier among the dot-separated suffix
-        // words: `name` → 1 if present, `name-value` → its value, else 0.
-        arg => {
-            let mut found: Option<Vec<u8>> = None;
-            let mut rest = data;
-            while let Some(dot) = rest.iter().position(|&b| b == b'.') {
-                let word = &rest[dot + 1..];
-                if word.starts_with(arg)
-                    && matches!(word.get(arg.len()), None | Some(b'.') | Some(b'-'))
-                {
-                    found = Some(match word.get(arg.len()) {
-                        Some(b'-') => {
-                            let v = &word[arg.len() + 1..];
-                            let end = v.iter().position(|&b| b == b'.').unwrap_or(v.len());
-                            v[..end].to_vec()
-                        }
-                        _ => b"1".to_vec(),
-                    });
-                    break;
-                }
-                rest = &rest[dot + 1..];
-            }
-            found.unwrap_or_else(|| b"0".to_vec())
-        }
+    // A non-UTF-8 option word cannot name a build field; the ordinary
+    // "no such suffix word" answer covers it, exactly as a mistyped one.
+    let option = obj_bytes(argv[1]);
+    let result = match core::str::from_utf8(&option) {
+        Ok(option) => tcl_dialect::build_info::query(&data, option),
+        Err(_) => "0",
     };
-    interp.set_result_bytes(&result);
+    interp.set_result_bytes(result.as_bytes());
     Code::Ok
 }
 

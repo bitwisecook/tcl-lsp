@@ -165,41 +165,42 @@ fn shared_math(name: &str, args: &[Value]) -> Completion<Value> {
     }
 }
 
-macro_rules! shared_wrapper {
-    ($fn_name:ident, $math_name:literal) => {
-        fn $fn_name(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-            shared_math($math_name, args)
-        }
-    };
+/// The one builtin behind every `tcl::mathfunc::NAME`.
+///
+/// The invoked word's tail selects the function, exactly as
+/// `runtime/rust`'s `cmd_mathfunc::mathfunc` reads it off `argv[0]` — so a
+/// single fn pointer serves all of them and the registration loop below can
+/// be driven straight off the shared name table. Both the ordinary command
+/// path and the 8.4 fixed-table path
+/// ([`Vm::invoke_fixed_math_builtin`](crate::interp::Vm)) set the invoked
+/// name before calling, and the fixed-table path sets the *canonical*
+/// registry key, so the tail is the function's own spelling either way.
+///
+/// Most functions fall through to [`shared_math`], which drives
+/// `tcl_syntax::expr::mathfunc::dispatch_with_backend` — the same shared
+/// implementation `expr` itself uses. The arms named here are the ones whose
+/// VM bodies are deliberately *not* the shared ones: the integer conversions
+/// retain the VM's exact finite-double-to-bignum path (the shared value seam
+/// has no float-to-arbitrary-integer operation, so routing them through it
+/// would turn `int(1e300)` and `round(1e300)` into spurious domain errors),
+/// and `rand`/`srand` carry interpreter state.
+fn m_mathfunc(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+    let invoked = vm.invoked_name().unwrap_or_default();
+    let name = invoked.rsplit("::").next().unwrap_or(invoked).to_owned();
+    match name.as_str() {
+        "abs" => m_abs(args),
+        "int" => int_window(args, "int"),
+        "wide" => m_wide(args),
+        "entier" => m_entier(args),
+        "double" => m_double(args),
+        "round" => m_round(args),
+        "isqrt" => m_isqrt(args),
+        "bool" => m_bool(args),
+        "srand" => m_srand(vm, args),
+        "rand" => m_rand(vm, args),
+        name => shared_math(name, args),
+    }
 }
-
-shared_wrapper!(shared_sqrt, "sqrt");
-shared_wrapper!(shared_max, "max");
-shared_wrapper!(shared_min, "min");
-shared_wrapper!(shared_floor, "floor");
-shared_wrapper!(shared_ceil, "ceil");
-shared_wrapper!(shared_pow, "pow");
-shared_wrapper!(shared_sin, "sin");
-shared_wrapper!(shared_cos, "cos");
-shared_wrapper!(shared_tan, "tan");
-shared_wrapper!(shared_asin, "asin");
-shared_wrapper!(shared_acos, "acos");
-shared_wrapper!(shared_atan, "atan");
-shared_wrapper!(shared_sinh, "sinh");
-shared_wrapper!(shared_cosh, "cosh");
-shared_wrapper!(shared_tanh, "tanh");
-shared_wrapper!(shared_exp, "exp");
-shared_wrapper!(shared_log, "log");
-shared_wrapper!(shared_log10, "log10");
-shared_wrapper!(shared_atan2, "atan2");
-shared_wrapper!(shared_hypot, "hypot");
-shared_wrapper!(shared_fmod, "fmod");
-shared_wrapper!(shared_isfinite, "isfinite");
-shared_wrapper!(shared_isinf, "isinf");
-shared_wrapper!(shared_isnan, "isnan");
-shared_wrapper!(shared_isnormal, "isnormal");
-shared_wrapper!(shared_issubnormal, "issubnormal");
-shared_wrapper!(shared_isunordered, "isunordered");
 
 pub(crate) fn register(vm: &mut Vm) {
     // `::tcl::mathfunc` is a real namespace in C Tcl, so a user
@@ -207,51 +208,20 @@ pub(crate) fn register(vm: &mut Vm) {
     // mechanism) must find it existing — declare it alongside the builtin
     // registrations (which only create flat command-table keys).
     vm.declare_namespace("tcl::mathfunc");
-    vm.register("tcl::mathfunc::abs", m_abs);
-    // These conversions retain the VM's exact finite-double-to-bignum path;
-    // the shared value seam deliberately has no float-to-arbitrary-integer
-    // operation, so routing them through it would turn `int(1e300)` and
-    // `round(1e300)` into a spurious domain error.
-    vm.register("tcl::mathfunc::int", m_int);
-    vm.register("tcl::mathfunc::wide", m_wide);
-    vm.register("tcl::mathfunc::entier", m_entier);
-    vm.register("tcl::mathfunc::double", m_double);
-    vm.register("tcl::mathfunc::round", m_round);
-    vm.register("tcl::mathfunc::sqrt", shared_sqrt);
-    vm.register("tcl::mathfunc::isqrt", m_isqrt);
-    vm.register("tcl::mathfunc::floor", shared_floor);
-    vm.register("tcl::mathfunc::ceil", shared_ceil);
-    vm.register("tcl::mathfunc::pow", shared_pow);
-    vm.register("tcl::mathfunc::bool", m_bool);
-    vm.register("tcl::mathfunc::max", shared_max);
-    vm.register("tcl::mathfunc::min", shared_min);
-    vm.register("tcl::mathfunc::srand", m_srand);
-    vm.register("tcl::mathfunc::rand", m_rand);
-    // Trigonometric / transcendental — single `double` argument.
-    vm.register("tcl::mathfunc::sin", shared_sin);
-    vm.register("tcl::mathfunc::cos", shared_cos);
-    vm.register("tcl::mathfunc::tan", shared_tan);
-    vm.register("tcl::mathfunc::asin", shared_asin);
-    vm.register("tcl::mathfunc::acos", shared_acos);
-    vm.register("tcl::mathfunc::atan", shared_atan);
-    vm.register("tcl::mathfunc::sinh", shared_sinh);
-    vm.register("tcl::mathfunc::cosh", shared_cosh);
-    vm.register("tcl::mathfunc::tanh", shared_tanh);
-    vm.register("tcl::mathfunc::exp", shared_exp);
-    vm.register("tcl::mathfunc::log", shared_log);
-    vm.register("tcl::mathfunc::log10", shared_log10);
-    // Two `double` arguments.
-    vm.register("tcl::mathfunc::atan2", shared_atan2);
-    vm.register("tcl::mathfunc::hypot", shared_hypot);
-    vm.register("tcl::mathfunc::fmod", shared_fmod);
-    // Classification predicates — one `double`, returns a boolean (never a
-    // domain error, since inspecting a NaN/Inf is their purpose).
-    vm.register("tcl::mathfunc::isfinite", shared_isfinite);
-    vm.register("tcl::mathfunc::isinf", shared_isinf);
-    vm.register("tcl::mathfunc::isnan", shared_isnan);
-    vm.register("tcl::mathfunc::isnormal", shared_isnormal);
-    vm.register("tcl::mathfunc::issubnormal", shared_issubnormal);
-    vm.register("tcl::mathfunc::isunordered", shared_isunordered);
+    // Derived from `tcl_syntax::expr::mathfunc::all()` rather than a
+    // hand-typed list, exactly as `runtime/rust/src/cmd_mathfunc.rs` does
+    // (ledger row B3). The hand-typed list this replaces had gone stale by
+    // the whole TIP 745 (Tcl 9.1) C99 batch — 21 functions the shared
+    // dispatch table already implemented but that were never registered as
+    // commands, so `expr {cbrt(27)}` was an error under a 9.1 pin.
+    //
+    // Every name is registered at every pin; per-release availability is the
+    // command surface's job, and `RuntimeExprSurface`'s math-function gate
+    // already runs inside `builtin_command_visible_for_surface`, so a
+    // 9.1-only function is simply invisible under an 8.6 pin.
+    for spec in tcl_syntax::expr::mathfunc::all() {
+        vm.register(&format!("tcl::mathfunc::{}", spec.name), m_mathfunc);
+    }
     // `fpclassify` is a top-level command, not a math function.
     vm.register("fpclassify", cmd_fpclassify);
 }
@@ -270,7 +240,7 @@ fn one<'a>(args: &'a [Value], name: &str) -> Result<&'a Value, Completion<Value>
     }
 }
 
-fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_abs(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "abs") {
         Ok(v) => v,
         Err(c) => return c,
@@ -293,11 +263,7 @@ fn m_abs(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_int(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
-    int_window(args, "int")
-}
-
-fn m_wide(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_wide(args: &[Value]) -> Completion<Value> {
     int_window(args, "wide")
 }
 
@@ -323,7 +289,7 @@ fn int_window(args: &[Value], name: &str) -> Completion<Value> {
     }
 }
 
-fn m_double(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_double(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "double") {
         Ok(v) => v,
         Err(c) => return c,
@@ -346,7 +312,7 @@ fn m_double(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_round(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "round") {
         Ok(v) => v,
         Err(c) => return c,
@@ -372,7 +338,7 @@ fn m_round(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
 /// VM-facing `isqrt` keeps Tcl's specialised negative-argument diagnostic;
 /// the exact positive bignum root is the same shared tower operation used by
 /// the other backends.
-fn m_isqrt(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_isqrt(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "isqrt") {
         Ok(v) => v,
         Err(c) => return c,
@@ -418,7 +384,7 @@ fn isqrt_i64(n: i64) -> i64 {
 /// **unbounded** (TIP 237): an integer of any magnitude passes through; a
 /// double becomes the full exact integer (`entier(1e300)` is all 309 digits),
 /// with no 64-bit window — that wrap is `int`/`wide`'s ([`int_window`]).
-fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_entier(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "entier") {
         Ok(v) => v,
         Err(c) => return c,
@@ -435,7 +401,7 @@ fn m_entier(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     }
 }
 
-fn m_bool(_vm: &mut Vm, args: &[Value]) -> Completion<Value> {
+fn m_bool(args: &[Value]) -> Completion<Value> {
     let x = match one(args, "bool") {
         Ok(v) => v,
         Err(c) => return c,
