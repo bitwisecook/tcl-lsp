@@ -455,7 +455,14 @@ N-rules, inert `{*}`) belongs to a shared family `f5-tcl`, while
 fork — keeping its own parse-level fingerprint (the
 `when`/`proc`/`priority`/`timing`-only top level and the rule
 compiler's load-time strictness; the expr word operators proved to be
-trunk grammar, measured byte-identical in tmsh and iApp). For this document's examples
+trunk grammar, measured byte-identical in tmsh and iApp). The
+dynamic-code measurements (§4c) pin how the offshoot's load-time rules
+must be modelled: they are lexical scans of braced script literals
+(recursing through `eval {…}`/`uplevel #0 {…}`, escaped by
+variable-held text), runtime-defined procs are persistent per-TMM
+globals, `when` does not exist at runtime, and unbraced `if $var` —
+the sole user-space JIT primitive — is pinned as warning-severity with
+the `static::`-cached-expression idiom recognised. For this document's examples
 the change is nomenclature, not structure: the `dialect` blocks split
 into a trunk pack and an offshoot pack that inherits along the fork
 edge, the §3 `family-surface f5-irules` block attaches its command
