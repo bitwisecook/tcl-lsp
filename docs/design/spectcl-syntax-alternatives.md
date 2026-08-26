@@ -378,3 +378,461 @@ semantic vocabulary now landing is unaffected (it attaches at the
 annotation layer of every design), 1.x packs load forever, and
 `tcl spec upgrade` grows a `--restyle` step translating 1.x rows into
 the chosen surface.
+
+---
+
+# Hooks and the five-domain examples
+
+Hooks are where "Tcl-like" is hardest, because a hook is *behaviour*:
+either a **native reference** (a stable id naming a compiled resolver —
+the hot-path form, `28 µs` Tcl-body vs `410 ns` native) or a **Tcl
+body** with declared inputs so the result is shape-cacheable. Every
+design must say where both forms live. The canonical semantic content,
+rendered once per design below:
+
+| # | Domain | Facts to express |
+|---|---|---|
+| T | Tcl `set` (+ `string repeat`) | synopsis `set varName ?value?`; a **role resolver** — one arg ⇒ `varName` is a variable *read*, two ⇒ a *write* (native id `set-roles`, also shown as a Tcl body); `string repeat` carries `const_fold -native string-repeat` |
+| K | Tk `button` | `button pathName ?options?`; **creates the instance command** at `pathName` (widget class `Button` with methods `invoke`/`cget`/`configure` — the invocation-refinement case); `-text` takes text; `-command` takes a script, **timing deferred**, callback-taint inputs from the widget environment; provider `package Tk` on Tk's own axis |
+| L | tcllib `struct::tree` | `struct::tree ?treeName?` creates an object command whose method set is **runtime-extensible** (`dynamic_surface`); method `walk`: `tree walk node ?-order order? -command cmd`, `cmd` deferred with `%n`/`%t` substitutions and **completion code 5 scoped to that callback** (census G13); `package struct::tree 2.1-` |
+| S | SpiceGenTcl | `Resistor create name value ?-model model? ?-tc1 tc1?` with the **directional constraint `-tc1 requires -model`** (census G2); class `Simulator` method `runAndRead` carrying a **method-scoped process/file taint sink** (G7/G15 — the shared-`InvocationSpec` case); `available {tcl 9.0-} {package SpiceGenTcl 0.70-}` |
+| R | iRules `when` / `HTTP::header` | `when EVENT { body }` top-level declaration; `HTTP::header value name` **taints its result** from the client request; `event_requires HTTP`; family `f5-irules` (closed world comes from the environment, not the spec) |
+
+## A — synopsis-first
+
+Hooks live in the name-keyed annotation block; a resolver's Tcl body
+receives arguments **by parameter name**, not index — the synopsis names
+become the hook's vocabulary.
+
+```tcl
+command {set varName ?value?} {
+    hover {Reads or writes a variable.}
+    roles -native set-roles
+    ;# the same resolver as an inline body, for a private pack:
+    ;# roles {call} { if {[llength $call] == 2} {role varName var-read} \
+    ;#                else {role varName var-write; role value value} }
+}
+command {string repeat string count} { fold -native string-repeat; pure }
+
+command {button pathName ?options?} {
+    available {package Tk}
+    creates-command pathName -class Button
+    option {-text text}
+    option {-command script} {timing deferred; callback-taint widget-environment}
+    class Button {
+        method {invoke}                  {effect {invokes -command}}
+        method {cget option}             {pure}
+        method {configure ?option value ...?}
+    }
+}
+
+command {struct::tree ?treeName?} {
+    available {package struct::tree 2.1-}
+    creates-command treeName -class struct.tree -dynamic-surface
+    class struct.tree {
+        method {walk node ?-order order? -command cmd} {
+            option {-order order} {values {pre post in both}}
+            role cmd command-prefix {timing deferred
+                substitutions {%n node %t tree}
+                completion-codes {5 {continue walking}}}
+        }
+    }
+}
+
+command {Resistor create name value ?-model model? ?-tc1 tc1?} {
+    available {tcl 9.0-} {package SpiceGenTcl 0.70-}
+    option {-model model}
+    option {-tc1 tc1} {requires -model}          ;# directional (G2)
+}
+command {Simulator} { class Simulator {
+    method {runAndRead ?-nodelete?} {
+        sink process {runs the simulator binary}   ;# method-scoped (G7)
+        sink file-read {reads the raw output}
+    }
+}}
+
+command {when EVENT body} {
+    available {f5-irules}
+    top-level-only
+    role EVENT event-name
+    role body event-body
+}
+command {HTTP::header value name} {
+    available {f5-irules}
+    event-requires HTTP
+    taint result client-request
+}
+```
+
+## B — proc-mirror
+
+Hooks are declared like the thing they are — small named definitions —
+either referencing a native id or carrying a body; attachment is a
+trailing attribute.
+
+```tcl
+spec proc set {varName ?value?} -roles @set-roles {
+    doc {Reads or writes a variable.}
+}
+spec resolver @set-roles -native set-roles
+;# Tcl-body form a private pack would write:
+spec resolver @my-roles {call} {
+    if {[llength $call] == 2} { role varName var-read } \
+    else { role varName var-write; role value value }
+}
+spec proc {string repeat} {string count} -pure -fold [native string-repeat]
+
+spec proc button {pathName ?options?} -available {package Tk} \
+        -creates {pathName class Button} {
+    flag -text text
+    flag -command script -timing deferred -callback-taint widget-environment
+}
+spec class Button {
+    spec method invoke {} -effect {invokes -command}
+    spec method cget {option} -pure
+    spec method configure {?option value ...?}
+}
+
+spec proc struct::tree {?treeName?} -available {package struct::tree 2.1-} \
+        -creates {treeName class struct.tree dynamic}
+spec class struct.tree {
+    spec method walk {node ?-order order? -command cmd} {
+        flag -order order -values {pre post in both}
+        param cmd -role command-prefix -timing deferred \
+            -substitutions {%n node %t tree} -completion-codes {5 continue}
+    }
+}
+
+spec proc {Resistor create} {name value ?-model model? ?-tc1 tc1?} \
+        -available {{tcl 9.0-} {package SpiceGenTcl 0.70-}} {
+    flag -model model
+    flag -tc1 tc1 -requires -model
+}
+spec class Simulator {
+    spec method runAndRead {?-nodelete?} \
+        -sink {process {runs the simulator binary}} \
+        -sink {file-read {reads the raw output}}
+}
+
+spec proc when {EVENT body} -available f5-irules -top-level-only {
+    param EVENT -role event-name
+    param body  -role event-body
+}
+spec proc {HTTP::header value} {name} -available f5-irules \
+    -event-requires HTTP -taints-result client-request
+```
+
+## C — namespace-native
+
+Hooks are first-class members of a scope; sharing is lexical (a hook
+defined at an outer `in` is visible below) — the most natural *reuse*
+story of the declarative designs.
+
+```tcl
+in :: {
+    hook set-roles -native set-roles
+    command set {
+        args {varName ?value?}
+        roles set-roles
+    }
+    command string { ensemble
+        command repeat { args {string count}; pure; fold -native string-repeat }
+    }
+}
+
+in ::tk -available {package Tk} {
+    command button {
+        args {pathName ?options?}
+        creates-command pathName -class ::tk::Button
+        option -text {takes text}
+        option -command {takes script; timing deferred; callback-taint widget-environment}
+    }
+    class Button {
+        method invoke  {effect {invokes -command}}
+        method cget    {args {option}; pure}
+        method configure {args {?option value ...?}}
+    }
+}
+
+in ::struct -available {package struct::tree 2.1-} {
+    command tree {
+        args {?treeName?}
+        creates-command treeName -class tree -dynamic-surface
+    }
+    class tree {
+        method walk {
+            args {node ?-order order? -command cmd}
+            option -order {takes order; values {pre post in both}}
+            role cmd command-prefix {timing deferred
+                substitutions {%n node %t tree}
+                completion-codes {5 {continue walking}}}
+        }
+    }
+}
+
+in ::SpiceGenTcl -available {{tcl 9.0-} {package SpiceGenTcl 0.70-}} {
+    class Resistor {
+        method create {
+            args {name value ?-model model? ?-tc1 tc1?}
+            option -tc1 {takes tc1; requires -model}
+        }
+    }
+    class Simulator {
+        method runAndRead {
+            args {?-nodelete?}
+            sink process {runs the simulator binary}
+            sink file-read {reads the raw output}
+        }
+    }
+}
+
+in :: -available f5-irules {
+    command when { args {EVENT body}; top-level-only
+                   role EVENT event-name; role body event-body }
+    command HTTP::header { ensemble
+        command value { args {name}; event-requires HTTP; taint result client-request }
+    }
+}
+```
+
+## D — pure dict
+
+Hooks are entries whose value is either `{native ID}` or
+`{params … body …}` — a body is data (a string), which is exactly how
+the loader stores it today.
+
+```tcl
+command set {
+    args  {varName {} value {optional 1}}
+    hooks {roles {native set-roles}}
+}
+command {string repeat} { args {string {} count {}} pure 1 hooks {fold {native string-repeat}} }
+
+command button {
+    available {{package Tk}}
+    args {pathName {creates-command {class Button}} options {optional 1 options 1}}
+    options {
+        -text    {takes text}
+        -command {takes script timing deferred callback-taint widget-environment}
+    }
+    class {Button {
+        invoke    {effects {{invokes -command}}}
+        cget      {args {option {}} pure 1}
+        configure {args {option {optional 1 repeat 1} value {optional 1 repeat 1}}}
+    }}
+}
+
+command struct::tree {
+    available {{package struct::tree 2.1-}}
+    args {treeName {optional 1 creates-command {class tree dynamic 1}}}
+    class {tree {
+        walk {
+            args {node {} order {option -order values {pre post in both}}
+                  cmd {option -command role command-prefix timing deferred
+                       substitutions {%n node %t tree} completion-codes {5 continue}}}
+        }
+    }}
+}
+
+command {Resistor create} {
+    available {{tcl 9.0-} {package SpiceGenTcl 0.70-}}
+    args {name {} value {} model {option -model} tc1 {option -tc1 requires -model}}
+}
+command Simulator { class {Simulator {
+    runAndRead {args {nodelete {option -nodelete}}
+                sinks {{process {runs the simulator binary}}
+                       {file-read {reads the raw output}}}}
+}}}
+
+command when {
+    available {f5-irules} top-level-only 1
+    args {EVENT {role event-name} body {role event-body}}
+}
+command {HTTP::header value} {
+    available {f5-irules} event-requires HTTP
+    args {name {}} taint {result client-request}
+}
+```
+
+## E — executable registration
+
+Hooks are **real procs** — defined, named, shared, generated. This is
+the design where hook authoring is genuinely native; the same
+sandboxing/budgeting that runs 1.x hook bodies runs the whole file.
+
+```tcl
+proc roles::set {call} {
+    if {[llength $call] == 2} { role varName var-read } \
+    else { role varName var-write; role value value }
+}
+command set {varName ?value?} -roles roles::set          ;# or -roles [native set-roles]
+command {string repeat} {string count} -pure -fold [native string-repeat]
+
+package-surface Tk {
+    command button {pathName ?options?} -creates {pathName class Button} {
+        option -text text
+        option -command script -timing deferred -callback-taint widget-environment
+    }
+    class Button {
+        method invoke {} -effect {invokes -command}
+        method cget {option} -pure
+        method configure {?option value ...?}
+    }
+    ;# templating: every themed widget shares the callback shape
+    foreach w {checkbutton radiobutton menubutton} {
+        command $w {pathName ?options?} -creates [list pathName class [string totitle $w]] {
+            option -command script -timing deferred -callback-taint widget-environment
+        }
+    }
+}
+
+package-surface struct::tree -min 2.1 {
+    command struct::tree {?treeName?} -creates {treeName class tree dynamic}
+    class tree { method walk {node ?-order order? -command cmd} {
+        option -order order -values {pre post in both}
+        param cmd -role command-prefix -timing deferred \
+            -substitutions {%n node %t tree} -completion-codes {5 continue}
+    }}
+}
+
+package-surface SpiceGenTcl -min 0.70 -core {tcl 9.0-} {
+    class Resistor { method create {name value ?-model model? ?-tc1 tc1?} {
+        option -tc1 tc1 -requires -model
+    }}
+    class Simulator { method runAndRead {?-nodelete?} \
+        -sink {process {runs the simulator binary}} \
+        -sink {file-read {reads the raw output}} }
+}
+
+family-surface f5-irules {
+    command when {EVENT body} -top-level-only \
+        -role {EVENT event-name} -role {body event-body}
+    command {HTTP::header value} {name} -event-requires HTTP \
+        -taints-result client-request
+}
+```
+
+## F — annotated stubs
+
+Hook bodies get F's one redemption: since the file is real Tcl, hooks
+are **real procs in the stub file**, referenced by annotations — no
+semantics squeezed into comments. Structure (classes, scoped completion
+codes) is where F strains hardest.
+
+```tcl
+# speclib examples 2.0
+proc @roles::set {call} {
+    if {[llength $call] == 2} { role varName var-read } \
+    else { role varName var-write; role value value }
+}
+#@ roles @roles::set
+proc set {varName {value {}}} {}
+#@ pure; fold -native string-repeat
+proc ::string::repeat {string count} {}      ;# ensemble arm as namespaced stub
+
+#@ available {package Tk}
+#@ creates-command pathName -class Button
+#@ option -command script -timing deferred -callback-taint widget-environment
+#@ option -text text
+proc button {pathName args} {}
+#@ class Button method
+proc @Button::invoke {} {}                    ;# @-procs carry class members
+#@ class Button method -pure
+proc @Button::cget {option} {}
+
+#@ available {package struct::tree 2.1-}
+#@ creates-command treeName -class tree -dynamic-surface
+proc struct::tree {{treeName {}}} {}
+#@ class tree method
+#@ option -order order -values {pre post in both}
+#@ param cmd -role command-prefix -timing deferred \
+#@     -substitutions {%n node %t tree} -completion-codes {5 continue}
+proc @tree::walk {node args} {}
+
+#@ available {tcl 9.0-} {package SpiceGenTcl 0.70-}
+#@ option -tc1 tc1 -requires -model
+proc @Resistor::create {name value args} {}
+#@ class Simulator method
+#@ sink process {runs the simulator binary}
+#@ sink file-read {reads the raw output}
+proc @Simulator::runAndRead {args} {}
+
+#@ available f5-irules
+#@ top-level-only
+#@ role EVENT event-name ; #@ role body event-body
+proc when {EVENT body} {}
+#@ available f5-irules -event-requires HTTP -taints-result client-request
+proc @HTTP::header::value {name} {}
+```
+
+## The compilation target (owner goals, restated as constraints)
+
+The goal set: the pack must **compile into a performant form the LSP
+consumes**, with **hooks executing on the tclvm** where deeper analysis
+needs them (option shapes, dynamic roles), **versions expressed well**,
+and first-class understanding of **TclOO, iRules, Tk, and the EDA
+libraries**. Consequences for this comparison:
+
+- **Performance is surface-neutral.** Every design parses to the same
+  draft and compiles to the same loaded form: specs interned once per
+  generation; **Tcl-body hooks compile once to tclvm bytecode at pack
+  load** (replacing today's 28 µs re-interpretation), execute under the
+  sandboxed budgeted VM, and shape-cache their results exactly as
+  `-inputs` declarations allow today (24.5 ns cached). Native-ID hooks
+  stay function pointers. So no surface buys speed — the AOT pipeline
+  (`tcl spec build`) equalises them, and the choice is purely
+  ergonomics, safety, and tooling.
+- **Hooks-on-tclvm favours designs where a hook is a real proc** (E, F)
+  or a named block (A/B/C) — all five compile identically; D's
+  body-as-dict-value compiles the same but authors worst. The
+  hook-compilation step also gives every design load-time hook
+  *validation* for free (a hook that doesn't compile is a load error,
+  not a runtime abstention).
+- **Versions**: the `available {tcl 8.6-} {package X 2.1-}` VersionSet
+  rows attach uniformly; A and B additionally version the *signature
+  itself* (one synopsis per window), which is the most honest rendering
+  of versioned arity — D's `forms` list is its generated twin.
+- **TclOO / Tk / EDA**: the class/method examples above are the test —
+  and they show the requirement lands on the **model** (shared
+  `InvocationSpec`: methods carry sinks, timing, effects, forms), not
+  the surface. C renders it most naturally, F worst.
+- **iRules**: family availability + event rows suffice at the surface;
+  grammar and closed-world policy stay in the dialect/environment
+  layers where the redesign put them.
+
+Net effect on the recommendation: unchanged in direction, stronger in
+reasoning — since compilation equalises performance, E's only unique
+advantage (authoring-time templating) must be weighed against its unique
+cost (a surface whose content depends on evaluation, which is exactly
+what the compiled form must be able to cache deterministically), and the
+A+C authoring / D generated hybrid keeps every goal: fast compiled
+packs, tclvm hooks as named compiled bodies, per-window synopses for
+versions, and class members as first-class invocation specs.
+
+## What the domain sweep shows
+
+- **Hooks separate the designs sharply.** E and F make Tcl-body hooks
+  *real procs* (natural, testable in isolation); A/B/C give them named
+  declarative slots with the body as one block; D stores the body as a
+  dict value — honest about what it is, worst to author. Native-ID
+  references are equally clean everywhere.
+- **A's name-keyed resolvers** are a quiet correctness win: the `set`
+  resolver speaks `varName`/`value`, and renaming a parameter in the
+  synopsis breaks the hook *visibly* at load rather than silently
+  shifting indices.
+- **Tk and SpiceGenTcl stress the same joint** — class members carrying
+  command-grade semantics (effects, sinks, timing). C handles it most
+  gracefully (classes are just scopes); F strains visibly (`@Class::`
+  naming conventions); all six confirm the shared-`InvocationSpec`
+  ruling: the *model* must let methods carry what commands carry, or
+  every surface fakes it.
+- **tcllib's `walk`** (scoped completion code + substitutions on a
+  deferred callback) fits every design once the model carries it — the
+  surface differences are cosmetic here.
+- **iRules needs almost nothing special** at the surface: family
+  availability + event requirements + taint rows; the closed world stays
+  environment policy, exactly as ruled (B12).
+- **E's templating** is the only design that *shrinks* the Tk example
+  (the themed-widget loop) — and the only one whose surface can hide a
+  registration bug behind control flow.
+
