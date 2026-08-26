@@ -444,8 +444,24 @@ compiler is silent; the 31-command disabled list becomes measured
 environment-policy data (including `trace` being 8.3-form-only, an
 `arity_windows`-grade fact); and the two lexical divergences (the
 implicit word break and the newly discovered brace-line continuation)
-are `dialect`-block axis values for the f5-irules family pack, not
+are `dialect`-block axis values for the F5 family packs, not
 anything a `family-surface` command row ever expresses.
+
+The measurements also restructured the F5 family tree itself (owner
+rulings, 2026-08-26): the tmsh and iApp interpreters are the **same**
+8.4.6-offshoot parser as iRules, so the trunk grammar (R-rules,
+N-rules, inert `{*}`) belongs to a shared family `f5-tcl`, while
+`f5-irules` remains a **dialect offshoot of that trunk** — a fork of a
+fork — keeping its own parse-level fingerprint (the expr word
+operators, the `when`/`proc`/`priority`/`timing`-only top level, the
+rule compiler's load-time strictness). For this document's examples
+the change is nomenclature, not structure: the `dialect` blocks split
+into a trunk pack and an offshoot pack that inherits along the fork
+edge, the §3 `family-surface f5-irules` block attaches its command
+surface to the offshoot's environment, and §4's iApps/tmsh surfaces
+ride the trunk directly (scriptd additionally as a 32-bit build
+profile — the CoreProfile build axis earning its keep a second time
+after Jim's `--minimal`).
 
 ## 4. iApps and tmsh — the surface E is cheapest for
 

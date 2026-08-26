@@ -134,7 +134,7 @@ the F5 half of the migration:
 | Finding | Disposition |
 |---|---|
 | F1 six language contexts | accepted — `BigIpExecutionContext` { TmmIRule, TmshCliScript, IAppImplementation, IAppPresentationApl, IAppPresentationTclCallback, HostShellTcl } keys every F5 grammar/command/variable/package/policy/evidence record; APL's `tcl` clauses get a typed embedded-range descriptor, never a whole-document language id; `f5-bigip` stops being a catch-all Tcl identity |
-| F2 unprovenanced releases | accepted, with one owner-attested fact upgrading the iRules baseline: **iRules branched off Tcl 8.4.6 and evolved independently from that point** (owner ruling, 2026-08-26). `Family::F5Irules` is therefore modelled as a *fork* — fork point Tcl 8.4.6, its own evolution ladder keyed by TMOS release — not "8.4-based forever"; post-fork deltas (grammar, surface, semantics per TMOS release) come from the evidence corpus. The iApps/tmsh "8.5"/"8.5.13" claims remain **baseline hypotheses** pending the probe; `EmbeddedRuntimeEvidence` records are the truth; unmeasured BIG-IP releases resolve to `Unknown` or an explicitly labelled nearest-known **assistance** profile |
+| F2 unprovenanced releases | accepted, since resolved by measurement plus two owner rulings: **iRules branched off Tcl 8.4.6 and evolved independently** (owner, 2026-08-26), and — after the [live measurements](bigip-irule-parser-measurements.md) showed every F5 context reporting 8.4.6, 16/16 discriminating features behaving as 8.4, and the R/N divergences reproducing in tmsh and scriptd — **the tmsh and iApp interpreters are the same forked Tcl as iRules** (owner, 2026-08-26). The F5 tree is therefore: `tcl@8.4.6` → family `f5-tcl` (the shared trunk, ladder keyed by TMOS release) → family `f5-irules` (a dialect offshoot of the trunk, carrying its own parse-level fingerprint), with `f5-iapps` and `f5-tmsh` as environments riding the trunk directly and `f5-irules` the environment riding the offshoot (§2). The old iApps/tmsh "8.5"/"8.5.13" baseline hypotheses are **refuted** — the 8.5.13 on-box binary is the unrelated host `/usr/bin/tclsh`. `EmbeddedRuntimeEvidence` records remain the truth; unmeasured BIG-IP releases resolve to `Unknown` or an explicitly labelled nearest-known **assistance** profile; the two APL contexts stay `Unknown` |
 | F3 `}{` overclaim | **answered by live measurement** ([measurements](bigip-irule-parser-measurements.md) §3): the six-row matrix ran on TMM 21.1.0.1 with same-host stock controls. The separator is generic (`list {a}{b}` and `set x {a}{b}` both split), lexical (stays lexer data, no per-command grammar, no BIG-IP lifecycle), and gated on the word having *started* with `{` or `"` (`if{1}{…}` stays one bare word). `{*}` must not be implemented in the iRules dialect — the separator wins and expansion does not exist. The same run discovered the independent brace-line continuation divergence (N-rules) the matrix did not cover. The probe corpus is checked in at `scripts/dev/bigip-probes/`; §3 of the measurements is E4-grade, the rest is a strong non-conforming transcript pending a mechanical E4 re-run |
 | F4 tmsh role policy | accepted — a command-visibility overlay distinct from the Tcl baseline and the ambient `tmsh::*` surface; completion may show policy-disabled commands with the reason, semantic hooks must not treat them as callable |
 | F5 `tcl_platform` effects | accepted — context overlays may refine a core variable binding's effects: the iRules overlay distinguishes the CMP-demoting global from the `static::` alias, carries the F5 source, and is lifecycle-keyed |
@@ -190,10 +190,15 @@ side. iRules additionally owns a parse-level *structural* grammar (the
 declaration-only top level: `IrulesExecutionContext`, IRULE5006/5007,
 `Traits::IRULES_TOP_LEVEL_ONLY`), and its K36322151 bans make command-head
 identity statically decidable (`rust/tcl-irules/src/when_block.rs:85-95`)
-— both parse-level facts, both dialect-qualifying. `f5-iapps`, `f5-tmsh`,
-`expect`, `spectcl`, `bpf`, `tk`, and all six EDA entries use a core
-release's grammar **verbatim**; `f5-bigip` is not Tcl at all (its own
-tokeniser and tree-sitter grammar; the profile's grammar field is inert).
+— parse-level facts that keep `f5-irules` a **dialect offshoot** even now
+that the underlying parser is the shared `f5-tcl` trunk (§2, owner ruling
+2026-08-26: the bans themselves stay environment policy per B12, the
+top-level form and word operators stay dialect). `f5-iapps` and `f5-tmsh`
+use the `f5-tcl` trunk grammar **verbatim** (the measurements refuted
+their old tcl@8.5 classification); `expect`, `spectcl`, `bpf`, `tk`, and
+all six EDA entries use a plain-Tcl core release's grammar verbatim;
+`f5-bigip` is not Tcl at all (its own tokeniser and tree-sitter grammar;
+the profile's grammar field is inert).
 
 **The wiring tax is real and the version ladder is on the wrong axis.**
 Adding JimTcl on its branch cost 171 files, of which 36 are pure wiring;
@@ -285,10 +290,11 @@ profiles and the jim branch:
 | Today | Classification | Notes |
 |---|---|---|
 | `tcl8.4` … `tcl9.1` | dialect (family `tcl`, releases 8.4–9.1) | 9.1 has no grammar delta vs 9.0 but is a core release; releases are the family's version ladder, not separate catalogue entries |
-| `f5-irules` | dialect (family `f5-irules`, 8.4-based) | qualifies on lexical/expr fingerprint alone, now **measured** ([measurements](bigip-irule-parser-measurements.md)): the implicit word break (R-rules), the brace-line continuation (N-rules), the inert `{*}`, and the expr word operators — pervasive in the corpus (332 hits) and confirmed live, with `expr` math functions additionally validated at rule load (and the declaration-only top-level file form; top-level `proc` reachable only via `call`). All sixteen discriminating 8.4-vs-8.5 features behave as 8.4 in every F5 context, consistent with the owner-attested 8.4.6 fork. The 31-command disabled list (`namespace`, `time`, `rename`, `interp`, `package` among them, plus 8.3-era-only `trace`), closed-world resolution, and the static-head-identity consequence are environment/realm **policy** riding on top (review B12), now backed by per-command load probes |
+| `f5-tcl` (family; **owner ruling 2026-08-26, restructuring the F5 tree**) | dialect (family `f5-tcl`, fork of Tcl 8.4.6, ladder keyed by TMOS release) | **The shared trunk.** The [measurements](bigip-irule-parser-measurements.md) showed TMM and scriptd behaviourally identical on every probed case and a tmsh cli script reproducing both divergences, and the owner rules the tmsh/iApp interpreters are the *same* 8.4.6-offshoot Tcl — so the trunk grammar is shared: the implicit word break (R-rules), the brace-line continuation (N-rules), the inert `{*}`, and all sixteen discriminating 8.4-vs-8.5 features behaving as 8.4, in every F5 context. tmsh and iApps ride this trunk **directly** as environments (below); iRules rides it as a further dialect offshoot |
+| `f5-irules` | dialect (family `f5-irules`, **fork of `f5-tcl`** — a fork of a fork, owner ruling 2026-08-26) + environment `f5-irules` | The offshoot keeps its own parse-level fingerprint on top of the trunk grammar: the expr word operators (`starts_with`, `contains`, … — 332 corpus hits, measured live in the iRule context; a probe TODO stands for whether trunk tmsh/iApp expr accepts them), the declaration-only top level — only `when`, `proc`, `priority`, `timing` at the root of a rule (measured: bare `set` at top level is `"set" unknown property` from the config layer; `IrulesExecutionContext`, IRULE5006/5007, top-level `proc` reachable only via `call`) — and the rule compiler's load-time strictness (expr math functions validated at load; event-context validity compile-enforced). Riding on that dialect, the `f5-irules` **environment** carries what was always policy (review B12): the 31-command disabled list (`namespace`, `time`, `rename`, `interp`, `package` among them, plus 8.3-era-only `trace`), measured per-command at rule load; closed-world resolution and static-head-identity; fabricated `tcl_platform` (`os BIG-IP`, `wordSize 8`) |
+| `f5-iapps` | environment `f5-iapps` = f5-tcl@TMOS **with a distinct build profile** + iapp/tmsh packs (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | the old "tcl@8.5, `GRAMMAR_TCL85` verbatim" classification is **refuted by measurement**: scriptd behaves as the same 8.4.6 fork (16/16 features as 8.4, R2/N1 reproduce). It differs by build — `wordSize 4`, a 32-bit build of the family (the CoreProfile build-profile axis earning its place again) — a real-ish Linux `tcl_platform`, a plain-script top level, and its own ambient surface. APL container routing stays a language-id fact; the two APL contexts remain **Unknown**, not folded into f5-tcl |
+| `f5-tmsh` | environment `f5-tmsh` = f5-tcl@TMOS + tmsh pack (ambient, BIG-IP-keyed) + tmsh syntax-version axis | same measured parser (R2 and N1 reproduce in a tmsh cli script); plain-script top level; an **empty** `tcl_platform` and a non-standard `info vartype` subcommand as environment surface facts; no tmsh lexing mode exists (the `AGENTS.md` owner-map claim is stale); the `IAPPS\|TMSH` spec files split into two packs sharing sources |
 | `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
-| `f5-iapps` | environment `f5-iapps` = tcl@8.5 + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | grammar is `GRAMMAR_TCL85` verbatim; APL container routing is a language-id fact, not a dialect fact |
-| `f5-tmsh` | environment `f5-tmsh` = tcl@8.5 + tmsh pack (ambient, BIG-IP-keyed) | no tmsh lexing mode exists (the `AGENTS.md` owner-map claim is stale); the `IAPPS\|TMSH` spec files split into two packs sharing sources |
 | `tk` (off-catalogue) | package `Tk` + environment `tk` (alias: "wish") = tcl@base + Tk ambient | erases the tk triangle |
 | `expect` | environment `expect` = tcl@8.6 + expect pack (ambient) | `expect`'s clause grammar is registry `CaseListSpec` descriptor data shared with `switch` |
 | 6 × EDA (`synopsys-eda-tcl`, …) | pack-declared environments | already packages; their catalogue shells (identity, extensions, keyed tool pins) move into their packs |
@@ -452,15 +458,20 @@ What changes versus `DialectProfile`:
 - **The dialect carries no command surface.** Core command surfaces attach
   to providers (§4); the dialect only decides grammar and which core
   provider ladder the environment's floor points into.
-- iRules keeps its lexical/expr grammar here: the implicit word break
-  (R-rules), the brace-line continuation (N-rules), the inert `{*}`, and
-  the word operators are `Family::F5Irules` facts — all live-measured
-  ([measurements](bigip-irule-parser-measurements.md)); the command bans
-  and closed-world guarantee are environment/realm policy (§2). The
-  measured context split (TMM and scriptd behaviourally identical, a
-  tmsh cli script reproducing both divergences, three-way `tcl_platform`
-  fabrication, the two APL contexts still `Unknown`) keys the F1
-  execution contexts rather than adding families.
+- The F5 grammar lives here as a two-level tree (owner rulings
+  2026-08-26): the implicit word break (R-rules), the brace-line
+  continuation (N-rules), and the inert `{*}` are `Family::F5Tcl`
+  trunk facts — live-measured in all three F5 contexts
+  ([measurements](bigip-irule-parser-measurements.md)); the word
+  operators and the declaration-only top-level form are
+  `Family::F5Irules` offshoot facts (fork of `f5-tcl`); the command
+  bans and closed-world guarantee are environment/realm policy (§2).
+  Grammar resolution walks the fork edge: an axis the offshoot does
+  not override answers from the trunk, and the trunk from `tcl@8.4.6`.
+  The measured context split (three-way `tcl_platform` fabrication,
+  scriptd's 32-bit build profile, the two APL contexts still
+  `Unknown`) keys the F1 execution contexts and environments, not new
+  families.
 
 ### 3.2 `Package` — providers of surface declarations
 
