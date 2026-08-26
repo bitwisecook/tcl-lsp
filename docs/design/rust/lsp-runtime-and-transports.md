@@ -270,8 +270,9 @@ requests and timers wait for the next client byte, so a debounce or a deadline
 that comes due while stdin is quiet does not fire until then. The slice bounds
 only how long the first pass takes to notice bytes that were already waiting.
 This path is a floor that keeps an unpollable host usable at all, not a second
-correct mode; wasmtime is not such a host, and neither is any host tcl-lsp
-currently ships against.
+correct mode; wasmtime is not such a host. The module now ships to two of them
+(Part 6) — the wasmtime CLI, which is what the e2e harness drives, and VS
+Code's WASM WASI Core extension, which no automated suite can reach.
 
 ### Reading and writing
 
@@ -313,7 +314,12 @@ other preview1 host) owes it four things.
    ends it with 0, matching what the native transport does when its stream ends.
 
 Diagnostics go to stderr — stdout carries the protocol, and there is no console
-to reach for.
+to reach for. A host that never drains stderr can wedge the guest for the same
+reason contract point 2 gives, so a host with no terminal attached should read
+it (VS Code's does — see Part 6).
+
+Part 6 names the two hosts this project ships against and says which line of
+which file satisfies each of the four points for the VS Code one.
 
 ---
 
@@ -347,3 +353,60 @@ CI runs it in the `lsp-server-wasi` job, gated by the same path filter as
 `lsp-server-wasm` because the two transports share their entire dependency
 closure. It is the only place in CI where the wasip1 arm of `rt.rs` is
 *executed* rather than type-checked.
+
+---
+
+## Part 6 — how the module ships
+
+The module is a shipped artefact, not just a CI subject. Two hosts run it.
+
+**The wasmtime CLI**, for any editor with a generic LSP client and no native
+binary for its architecture. The bare module is attached to every GitHub
+Release as `tcl-lsp-server-wasi.wasm` — signed, SBOM'd, and covered by the
+release `SHA256SUMS` like every other asset — and
+[`INSTALL-editors.md`](../../../INSTALL-editors.md) carries the Helix and
+Neovim configurations. `wasmtime run --dir . tcl-lsp-server-wasi.wasm` is the
+whole invocation: `--dir` is contract point 1, and the CLI supplies the rest.
+
+**VS Code's WASM WASI Core extension** (`ms-vscode.wasm-wasi-core`), as the
+last rung of the VS Code extension's server ladder. `editors/vscode`'s node
+entry prefers a native `tcl-lsp-server` and reaches the module only when no
+binary exists for the platform at all; `src/wasiServer.ts` is where the four
+contract points are met:
+
+| Contract point | How `wasiServer.ts` meets it |
+|---|---|
+| 1. Preopen the workspace | `mountPoints: [{ kind: 'workspaceFolder' }]`, paired with `@vscode/wasm-wasi-lsp`'s `createUriConverters()` so URIs cross the sandbox boundary correctly |
+| 2. Drain stdout | `createStdioOptions()` + `startServer()` pump stdout; stderr is drained into the output channel here |
+| 3. Monotonic clock | supplied by the host extension |
+| 4. Exit codes | `startServer()` maps a non-zero exit onto a reader error |
+
+The spec packs are the one thing the contract does not cover, because natively
+they are found beside the executable and a guest has no executable path. The
+staged `specs/` directory is mounted at `/tcl-lsp/specs` and named through
+`TCL_LSP_SPEC_PACK_DIR`, which `tcl_spectcl::discovery::bundled_dir` honours
+ahead of its beside-the-executable probe.
+
+Packaging is **transitional**: the untargeted *universal* VSIX carries the
+seven native binaries **and** the module under `server/wasm/`; the six
+platform-targeted VSIXes carry only their own binary. `make verify-vsix`
+asserts both halves, so neither can drift. The end state — dropping the natives
+from the universal package — is deliberately not taken here.
+
+`ms-vscode.wasm-wasi-core` is a **soft** dependency and can never become
+`extensionDependencies`: one `package.json` produces all seven VSIX flavours,
+so a hard declaration would force a WASI runtime on every user whose platform
+has a native binary. The extension checks for it at the moment the rung is
+taken and offers a one-time install prompt instead.
+
+On a `v*` tag the `lsp-server-wasi` job builds the module unconditionally — the
+path filter and the already-green skip govern the *test*, not the artefact —
+and uploads it as the `wasi-module` workflow artifact. `build-vsix` downloads
+it, stages it, and attaches the bare module to the Release, exactly as that job
+takes the native binaries from `build-server-matrix` rather than
+cross-compiling them itself. The split matters: `gh release upload` has to run
+after `create-release`, and `lsp-server-wasi` cannot depend on that tag-only job
+without losing its own PR coverage, so the producing job uploads an artifact
+and the attaching job — which does depend on `create-release` — signs it. The
+release path needs only the wasip1 target and binaryen; the pinned wasmtime
+download stays gated on the test path, so it cannot fail a tag build.

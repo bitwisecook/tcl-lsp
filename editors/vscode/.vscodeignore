@@ -38,6 +38,8 @@ out/iruleSkeleton.js
 out/runtimeValidation.js
 out/scaffold.js
 out/selectionTransforms.js
+out/serverResolution.js
+out/wasiServer.js
 out/templateSnippets.js
 out/templateSnippetsCatalog.js
 out/webLspTransport.js

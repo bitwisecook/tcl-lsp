@@ -10,6 +10,10 @@ the Sublime Text `.sublime-package` each bundle one binary per platform
 matching your machine. The Zed extension downloads the matching binary on
 first use.
 
+On an architecture none of those seven covers, the same server is also
+published as a WebAssembly module — see
+[No prebuilt binary for your platform?](#no-prebuilt-binary-for-your-platform)
+
 The standalone editors (Neovim, Emacs, Helix, and any other LSP-capable
 editor) need the `tcl-lsp-server-<target-triple>` binary from
 [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest) — see
@@ -72,6 +76,67 @@ Verify it against the release `SHA256SUMS` (see
 `~/bin/tcl-lsp-server` as the command in the snippets below. The examples
 use that path throughout; substitute your own.
 
+## No prebuilt binary for your platform?
+
+The release also carries `tcl-lsp-server-wasi.wasm` — the same language
+server, compiled to WebAssembly (WASI). It speaks ordinary stdio LSP, so any
+editor that can run a command works with it; you supply the WebAssembly
+runtime. [wasmtime](https://wasmtime.dev/) is the one this project tests
+against.
+
+```sh
+base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
+curl -fLO "$base/tcl-lsp-server-wasi.wasm"
+install -m 0644 tcl-lsp-server-wasi.wasm ~/bin/tcl-lsp-server-wasi.wasm
+```
+
+Run it from the directory you want the server to see:
+
+```sh
+wasmtime run --dir . tcl-lsp-server-wasi.wasm
+```
+
+`--dir` is not optional. A WASI program sees only the directories the host
+grants it, so without one the server finds no files at all — no folder scan,
+no `source` resolution, no cross-file navigation. Grant the project root.
+
+**Helix** (`~/.config/helix/languages.toml`):
+
+```toml
+[language-server.tcl-lsp]
+command = "wasmtime"
+args = ["run", "--dir", ".", "/home/you/bin/tcl-lsp-server-wasi.wasm"]
+
+[[language]]
+name = "tcl"
+scope = "source.tcl"
+file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "iappimpl", "impl"]
+language-servers = ["tcl-lsp"]
+```
+
+**Neovim** (`~/.config/nvim/server/tcl_lsp.lua`):
+
+```lua
+return {
+  cmd = {
+    'wasmtime', 'run', '--dir', '.',
+    vim.fn.expand('~/bin/tcl-lsp-server-wasi.wasm'),
+  },
+  filetypes = { 'tcl' },
+  root_markers = { 'tclpkg.tcl', '.git' },
+  settings = { tclLsp = { dialect = 'tcl8.6' } },
+}
+```
+
+Both examples pass `--dir .`, so the granted directory is whatever the editor's
+working directory is when it launches the server — normally the project root.
+Name an absolute path (`--dir /path/to/project`) if your editor starts the
+server somewhere else.
+
+**VS Code** needs none of this. The `-universal` `.vsix` already carries the
+module and falls back to it automatically when it has no native binary for your
+platform — see [VS Code](#vs-code).
+
 ## VS Code
 
 Install from the VS Code Marketplace
@@ -89,6 +154,14 @@ is needed — the extension ships a native `tcl-lsp-server` binary for
 your platform and launches it automatically. There is no Python backend:
 to run against a local build, point `tclLsp.rustServerPath` at a
 `tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
+
+The `-universal` package works on **any** architecture, including ones with no
+prebuilt binary: it also carries the WebAssembly server, and falls back to it
+when no native binary matches. That fallback needs a WebAssembly runtime, so
+the first time it is used the extension offers to install Microsoft's
+[WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core)
+extension. It is a one-time prompt and only ever appears on a platform with no
+native binary; nothing is installed on the platforms that have one.
 
 ### VS Code for the Web
 

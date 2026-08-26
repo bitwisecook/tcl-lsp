@@ -235,7 +235,7 @@ The project uses GNU Make. Key targets:
 | `make rust-mcp`    | Build the `tcl-mcp` MCP server (`cargo build -p tcl-mcp`) |
 | `make rust-clis`   | Build the `tcl` + `f5-query` CLIs (`rust-tcl rust-f5`) |
 | `make compile`     | Compile the TypeScript extension         |
-| `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries) |
+| `make build-editor-vsix`        | Build the .vsix VS Code extension (bundles the native `tcl-lsp-server` binaries; the untargeted *universal* package also carries the WASI module under `server/wasm/`, the fallback rung for an architecture none of the seven triples covers — see [`docs/design/rust/lsp-runtime-and-transports.md`](docs/design/rust/lsp-runtime-and-transports.md) Part 6) |
 | `make codegen`     | Regenerate all generated files (editor catalogs + settings + AI prompts) via `cargo xtask` |
 | make update-source-data | Explicitly refresh the embedded SslicTcl trust-store/TLS source bundle (network-capable; run only when intentionally updating provenance) |
 | make check-source-data | Offline verification of the embedded SslicTcl source bundle, provenance, hashes, licences, and deterministic generated output |

@@ -233,10 +233,16 @@ the secret is reachable by no other job.
   `make build-editor-zed` / `make package-vsix package-vsix-targets` and
   the Claude-skills zip. The VS Code artefact is seven VSIX packages: one
   untargeted universal package bundling every native `tcl-lsp-server`
-  binary (the Marketplace's fallback for riscv64 Linux, and the artefact
-  for a manual side-load), plus six platform-targeted packages built with
-  `vsce package --target <platform>`, each bundling only its own binary —
-  no `.pyz`. The JetBrains artefact is one universal plugin bundling every
+  binary **plus the WASI module** under `server/wasm/` (the Marketplace's
+  fallback for riscv64 Linux and for any architecture with no prebuilt
+  binary at all, and the artefact for a manual side-load), plus six
+  platform-targeted packages built with `vsce package --target <platform>`,
+  each bundling only its own binary and deliberately NOT the module —
+  no `.pyz`. `make verify-vsix` asserts both halves of that split.
+  The bare `tcl-lsp-server-wasi.wasm` is also attached to the Release as a
+  signed asset, so a non-VS-Code editor can run it under `wasmtime`; see
+  [`../rust/lsp-runtime-and-transports.md`](../rust/lsp-runtime-and-transports.md)
+  Part 6. The JetBrains artefact is one universal plugin bundling every
   native `tcl-lsp-server` binary except riscv64 Linux (no official
   JetBrains IDE build targets it), since JetBrains Marketplace has no
   per-platform equivalent of vsce's `--target` yet.

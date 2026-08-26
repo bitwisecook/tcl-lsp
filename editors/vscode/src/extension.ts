@@ -54,6 +54,7 @@ import {
   resolveAllFeatureToggles,
   workspaceEditFromLsp,
 } from "./clientCore";
+import { bundlePlatformDir, resolveRustServer } from "./serverResolution";
 import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
@@ -190,84 +191,10 @@ function getOutputChannel(): vscode.OutputChannel {
   return outputChannel;
 }
 
-// Rust workspace detection — the directory holding `target/` after a
-// `cargo build`, used to locate a dev-checkout build of `tcl-lsp-server`.
-
-function hasRustWorkspace(dir: string): boolean {
-  return existsSync(path.join(dir, "Cargo.toml"));
-}
-
-// The native server filename for the current OS.
-const RUST_SERVER_EXE = process.platform === "win32" ? "tcl-lsp-server.exe" : "tcl-lsp-server";
-
-// VSIX bundle directory for the current platform, e.g. `darwin-arm64`,
-// `linux-x64`, `linux-riscv64`, `win32-arm64`.  Node's `process.platform` /
-// `process.arch` map 1:1 onto the directory names every VSIX (the
-// universal package and each of the six platform-targeted packages) ships
-// under `server/<platform>-<arch>/` (and onto VS Code's own target slugs).
-function bundlePlatformDir(): string {
-  return `${process.platform}-${process.arch}`;
-}
-
-// Locate the native Rust `tcl-lsp-server` binary.
-// Honours an explicit path first (config `tclLsp.rustServerPath` or the
-// `TCL_LSP_SERVER_BIN` env var), then the platform binary bundled inside the
-// VSIX (`server/<platform>-<arch>/`), then probes `target/{release,debug}/`
-// under the workspace root (resolved by walking up to the `Cargo.toml`) so a
-// plain `cargo build -p tcl-lsp-server` in a checkout is picked up automatically.
-function resolveRustServer(
-  configuredBin: string,
-  configuredServerPath: string,
-  extensionPath: string,
-): string | undefined {
-  const explicit = configuredBin.trim();
-  if (explicit) {
-    return existsSync(explicit) ? explicit : undefined;
-  }
-  // A configured `serverPath` means "run from this checkout" and must take
-  // precedence over the binary bundled in the VSIX — otherwise an installed
-  // user who points at a local checkout to test server changes would silently
-  // keep getting the packaged binary.  Only consult the bundled binary when no
-  // serverPath is set.
-  if (!configuredServerPath.trim()) {
-    // Packaged install: whichever VSIX this is (the universal package, or
-    // one of the six platform-targeted packages), it ships this platform's
-    // binary at the same server/<platform>-<arch>/ path.
-    const bundled = path.join(extensionPath, "server", bundlePlatformDir(), RUST_SERVER_EXE);
-    if (existsSync(bundled)) {
-      return bundled;
-    }
-  }
-  // Dev checkout: pick up a locally built binary.
-  const root = resolveServerDir(configuredServerPath, extensionPath);
-  for (const profile of ["release", "debug"]) {
-    const candidate = path.join(root, "target", profile, RUST_SERVER_EXE);
-    if (existsSync(candidate)) {
-      return candidate;
-    }
-  }
-  return undefined;
-}
-
-function resolveServerDir(configuredPath: string, extensionPath: string): string {
-  const configured = configuredPath.trim();
-  if (configured) {
-    return configured;
-  }
-  // Walk up from the extension directory to find the workspace root.
-  // Handles both repo-root layouts (extension at /) and nested layouts
-  // (extension at editors/vscode/).
-  let dir = extensionPath;
-  for (let i = 0; i < 3; i++) {
-    if (hasRustWorkspace(dir)) {
-      return dir;
-    }
-    const parent = path.resolve(dir, "..");
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return extensionPath;
-}
+// The server ladder — explicit path, bundled native binary, dev checkout, and
+// finally the universal VSIX's bundled WASI module — lives in
+// `./serverResolution`, which is free of the `vscode` API so the whole of it is
+// unit-testable outside an extension host.
 
 export async function activate(context: ExtensionContext) {
   setDiagramPanelExtensionUri(context.extensionUri);
@@ -277,34 +204,29 @@ export async function activate(context: ExtensionContext) {
   const config = workspace.getConfiguration("tclLsp");
   const configuredServerPath = config.get<string>("serverPath", "");
 
-  // The extension runs the native Rust `tcl-lsp-server` exclusively.  The
-  // universal VSIX bundles one binary per platform under
-  // `server/<platform>-<arch>/`; a dev checkout builds it with
-  // `cargo build -p tcl-lsp-server` and it is picked up from
-  // `target/{release,debug}/`.  An explicit binary can be supplied via
-  // `tclLsp.rustServerPath` or the `TCL_LSP_SERVER_BIN` env var (the latter
-  // lets test harnesses point at a freshly built binary without writing
-  // workspace settings).
-  const rustBin = resolveRustServer(
+  // The extension prefers the native Rust `tcl-lsp-server`.  The universal
+  // VSIX bundles one binary per platform under `server/<platform>-<arch>/`; a
+  // dev checkout builds it with `cargo build -p tcl-lsp-server` and it is
+  // picked up from `target/{release,debug}/`.  An explicit binary can be
+  // supplied via `tclLsp.rustServerPath` or the `TCL_LSP_SERVER_BIN` env var
+  // (the latter lets test harnesses point at a freshly built binary without
+  // writing workspace settings).  Failing all of those, the universal VSIX also
+  // carries the same server as a WASI module — see ./wasiServer.
+  const resolved = resolveRustServer(
     process.env.TCL_LSP_SERVER_BIN || config.get<string>("rustServerPath", ""),
     configuredServerPath,
     context.extensionPath,
   );
-  if (!rustBin) {
+  if (!resolved) {
     window.showErrorMessage(
-      `Tcl LSP: no native tcl-lsp-server binary found for ${bundlePlatformDir()}. ` +
+      `Tcl LSP: no tcl-lsp-server found for ${bundlePlatformDir()}. ` +
         "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
         "or set 'tclLsp.rustServerPath' to a native binary. A packaged install reaching this " +
-        "point does not ship a binary for your OS/architecture.",
+        "point ships neither a binary for your OS/architecture nor the WebAssembly (WASI) " +
+        "fallback module — install the universal .vsix, which carries it.",
     );
     return;
   }
-  ch.appendLine(`Using native tcl-lsp-server: ${rustBin}`);
-  const serverOptions: ServerOptions = {
-    command: rustBin,
-    args: [],
-    options: { cwd: path.dirname(rustBin) },
-  };
 
   // Optional suppression of diagnostics for files viewed only in a diff editor
   // (Git changes, "Compare With…"); gated by
@@ -314,7 +236,35 @@ export async function activate(context: ExtensionContext) {
   context.subscriptions.push(diffSuppressor);
 
   // Client options are shared with the browser entry — see ./clientCore.
-  const clientOptions = buildClientOptions(diffSuppressor);
+  let clientOptions = buildClientOptions(diffSuppressor);
+
+  let serverOptions: ServerOptions;
+  if (resolved.kind === "native") {
+    ch.appendLine(`Using native tcl-lsp-server: ${resolved.path}`);
+    serverOptions = {
+      command: resolved.path,
+      args: [],
+      options: { cwd: path.dirname(resolved.path) },
+    };
+  } else {
+    // No native binary for this architecture: run the bundled WASI module under
+    // VS Code's WASM host.  Imported here rather than at the top of the file so
+    // every platform that DID resolve a binary never evaluates the module or
+    // the two `@vscode/wasm-wasi*` packages it pulls in.
+    ch.appendLine(
+      `No native tcl-lsp-server for ${bundlePlatformDir()} — using the bundled WASI module: ` +
+        resolved.modulePath,
+    );
+    const { startWasiServer } = await import("./wasiServer.js");
+    const wasi = await startWasiServer(context, resolved.modulePath, ch);
+    if (!wasi) {
+      // The host runtime is missing and the user declined to install it;
+      // `startWasiServer` has already said so.
+      return;
+    }
+    serverOptions = wasi.serverOptions;
+    clientOptions = { ...clientOptions, uriConverters: wasi.uriConverters };
+  }
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
 

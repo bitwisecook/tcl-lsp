@@ -40,6 +40,15 @@ Either way, the extension launches whichever `server/<platform>-<arch>/`
 binary matches the user's machine; it needs no code to know which kind of
 package it shipped in.
 
+The universal package carries one thing the six targeted packages do not:
+the language server as a WebAssembly module, at
+`server/wasm/tcl-lsp-server-wasi.wasm` with its spec packs beside it. That
+is the extension's last rung, taken only when no native binary matches at
+all, so a targeted package — which by definition ships the binary its
+client needs — would carry about 19 MiB nobody could ever run.
+`make verify-vsix` asserts the split in both directions: the universal
+package must contain it, a targeted package must not.
+
 The Rust-target-to-bundle-directory map is the single source of truth in
 `SERVER_TARGET_MAP` in the [`Makefile`](../../Makefile). The bundle
 directory name equals Node's `process.platform-process.arch` — for
@@ -56,9 +65,11 @@ also in the `Makefile`).
    directly, foreign Linux arches run under QEMU, and anything this host
    cannot run is skipped loudly).
 3. Package and verify the universal package: `make package-vsix`. This
-   stages every built binary into `server/<dir>/` and runs `make
-   verify-vsix`, which fails if the package contains a `.pyz` or is
-   missing a requested binary.
+   stages every built binary into `server/<dir>/`, stages the WebAssembly
+   module into `server/wasm/` (building it with `make lsp-server-wasi`
+   only if `rust/tcl-lsp-server-wasi/dist/` has none), and runs `make
+   verify-vsix`, which fails if the package contains a `.pyz`, is missing
+   a requested binary, or is missing the module.
 4. Package and verify the six platform-targeted packages: `make
    package-vsix-targets`. Each needs the corresponding native binary
    already built (step 1); `SERVER_TARGET_MAP` resolves each platform
@@ -103,14 +114,18 @@ it was installed from.
 ## How to tell it worked
 
 `make package-vsix` and each iteration of `make package-vsix-targets` end
-with `==> VSIX bundles N/N native server binaries`, and `unzip -Z1
+with `==> VSIX bundles N/N native server binaries`, followed by either
+`==> VSIX carries the WASI language server (server/wasm)` for the
+universal package or `==> VSIX is platform-targeted (<platform>) and
+correctly omits server/wasm/` for a targeted one. `unzip -Z1
 build/tcl-lsp-vscode-*-universal.vsix | grep -E 'server/|\.pyz'` lists
-the `server/<dir>/tcl-lsp-server` entries with no `.pyz` (swap in a
-`*-<platform>.vsix` filename to check a targeted package — it should list
-exactly one `server/<dir>/` entry). After installing any of the seven
-`.vsix` files, the **Tcl Language Server** output channel shows `Rust
-mode: using native server .../server/<platform>-<arch>/tcl-lsp-server`,
-and diagnostics and hovers work with no Python on the `PATH`.
+the `server/<dir>/tcl-lsp-server` entries plus `server/wasm/`, with no
+`.pyz` (swap in a `*-<platform>.vsix` filename to check a targeted
+package — it should list exactly one `server/<dir>/` entry and no
+`server/wasm/`). After installing any of the seven `.vsix` files, the
+**Tcl Language Server** output channel shows `Using native
+tcl-lsp-server: .../server/<platform>-<arch>/tcl-lsp-server`, and
+diagnostics and hovers work with no Python on the `PATH`.
 
 ## Related
 

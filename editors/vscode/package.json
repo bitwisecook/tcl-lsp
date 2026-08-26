@@ -8870,6 +8870,8 @@
     "vscode-textmate": "^9.3.2"
   },
   "dependencies": {
+    "@vscode/wasm-wasi": "^1.0.2",
+    "@vscode/wasm-wasi-lsp": "0.1.0-pre.9",
     "vscode-languageclient": "^10.1.0"
   },
   "overrides": {
@@ -8884,6 +8886,9 @@
       "@azure/msal-node": "^5.1.5"
     },
     "lodash": "^4.18.1",
-    "undici": "^7.28.0"
+    "undici": "^7.28.0",
+    "@vscode/wasm-wasi-lsp": {
+      "vscode-languageclient": "$vscode-languageclient"
+    }
   }
 }

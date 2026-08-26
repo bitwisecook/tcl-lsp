@@ -223,9 +223,10 @@ against, and how it stays fast under an editor's keystroke load.
 - [rust/lsp-runtime-and-transports.md](rust/lsp-runtime-and-transports.md) —
   the one protocol core and its three drivers: the `rt.rs` runtime seam's
   native / browser / wasi arms and what each host owes them, the transport
-  comparison, and the WASI stdin driver — why a blocking read starves a
-  single-threaded runtime, the `poll_oneoff` + yield loop that does not, and
-  the host contract (preopens, stdout drain, exit codes).
+  comparison, the WASI stdin driver — why a blocking read starves a
+  single-threaded runtime, the `poll_oneoff` + yield loop that does not — the
+  host contract (preopens, stdout drain, exit codes), and how the WASI module
+  ships (the universal VSIX's fallback rung and the signed release asset).
 - [notes/tokio-task-resumption-wedge-repro.md](notes/tokio-task-resumption-wedge-repro.md)
   — the #1657 whole-server wedge: the instrumented evidence chain (a task
   woken twice and never polled again), what is excluded and by what, measured

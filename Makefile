@@ -131,6 +131,17 @@ SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$
 SPEC_PACK_SRC   := $(ROOT)specs
 SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
 
+# The WASI language server — the same `LspService<Backend>` as the native
+# binary, linked for wasm32-wasip1 and driven over Content-Length-framed stdio
+# (`docs/design/rust/lsp-runtime-and-transports.md`).  Declared up here rather
+# than beside its build target further down because $(VSIX_FILE) names the
+# module as a *prerequisite*, and prerequisites expand when the rule is read.
+LSP_SERVER_WASI_DIR    := $(ROOT)rust/tcl-lsp-server-wasi
+LSP_SERVER_WASI_MODULE := $(LSP_SERVER_WASI_DIR)/dist/tcl-lsp-server-wasi.wasm
+# Where the universal VSIX stages it, relative to the extension root.  Mirrored
+# by `WASI_MODULE_RELATIVE_PATH` in editors/vscode/src/serverResolution.ts.
+VSIX_WASI_DIR := server/wasm
+
 # vsce's supported --target platform strings (see "Platform-specific
 # extensions" at code.visualstudio.com/api/working-with-extensions/publishing-extension).
 # Six of the seven SERVER_TARGET_MAP bundle dirs are also valid vsce
@@ -276,7 +287,7 @@ publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / op
 	fi
 	cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath $(VSIX_FILE)
 
-$(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
+$(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -337,6 +348,28 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 			echo "Build them first: make server-cross-build  (host targets)"; \
 			echo "             or:  make server-cross-build-all  (all 7 — needs cross deps)"; \
 			exit 1; \
+		fi
+	@# The WASI language server — the universal package's last rung, for an
+	@# architecture none of the seven cross-compiled triples covers.  TRANSITIONAL:
+	@# the universal VSIX carries the natives AND this module; the six targeted
+	@# packages carry only their own native binary and must NOT inherit it, which
+	@# is why this whole block is conditional on an empty VSCE_TARGET (and why
+	@# `verify-vsix` asserts both halves).
+	@#
+	@# The spec packs ride along in `specs/` beside the module, mirroring the
+	@# native staging above.  A WASI guest has no executable for
+	@# `tcl_spectcl::discovery::bundled_dir` to sit beside, so editors/vscode's
+	@# wasiServer.ts mounts this directory into the guest and names it with
+	@# TCL_LSP_SPEC_PACK_DIR instead.
+	@set -eu; \
+		if [ -n "$(VSCE_TARGET)" ]; then \
+			echo "==> Skipping the WASI module (platform-targeted VSIX: $(VSCE_TARGET))"; \
+		else \
+			echo "==> Staging the WASI language server ($(VSIX_WASI_DIR)/)"; \
+			mkdir -p "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs"; \
+			cp "$(LSP_SERVER_WASI_MODULE)" "$(STAGE_DIR)/$(VSIX_WASI_DIR)/"; \
+			cp $(SPEC_PACK_FILES) "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs/"; \
+			echo "    $(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE)) (+ specs/)"; \
 		fi
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
 	node $(ROOT)scripts/install/filter-readme.mjs $(README_SRC) --editor "VS Code" -o $(STAGE_DIR)/README.md
@@ -414,6 +447,36 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			exit 1; \
 		fi; \
 		echo "==> VSIX carries the browser language server (dist/web) and its spec packs"
+	@# The WASI rung.  TRANSITIONAL split: the untargeted universal package
+	@# carries the module (it is the fallback for architectures with no native
+	@# binary), the six platform-targeted packages must NOT — each already ships
+	@# its own binary, and 6 x ~19 MiB of module nobody would ever run is pure
+	@# download weight.  Asserted in both directions so neither half can drift.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		wasi="extension/$(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE))"; \
+		if [ -n "$(VSCE_TARGET)" ]; then \
+			carried="$$(echo "$$entries" | grep -E "^extension/$(VSIX_WASI_DIR)/" || true)"; \
+			if [ -n "$$carried" ]; then \
+				echo "Platform-targeted VSIX ($(VSCE_TARGET)) must not carry the WASI module:"; \
+				echo "$$carried"; \
+				exit 1; \
+			fi; \
+			echo "==> VSIX is platform-targeted ($(VSCE_TARGET)) and correctly omits $(VSIX_WASI_DIR)/"; \
+		else \
+			missing=""; \
+			echo "$$entries" | grep -qx "$$wasi" || missing="$$missing $(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE))"; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -qx "extension/$(VSIX_WASI_DIR)/specs/$$pack" \
+					|| missing="$$missing $(VSIX_WASI_DIR)/specs/$$pack"; \
+			done; \
+			if [ -n "$$missing" ]; then \
+				echo "Universal VSIX missing the WASI language server payload:$$missing"; \
+				echo "Build it first: make lsp-server-wasi"; \
+				exit 1; \
+			fi; \
+			echo "==> VSIX carries the WASI language server ($(VSIX_WASI_DIR)) and its spec packs"; \
+		fi
 
 # ---------------------------------------------------------------------------
 # Platform-targeted VSIX packaging — six small, single-binary VSIXes
@@ -1618,8 +1681,6 @@ lsp-server-wasm-test: lsp-server-wasm ## Drive the wasm LSP server through a scr
 		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
 	node $(LSP_SERVER_WASM_DIR)/test/e2e.mjs
 
-LSP_SERVER_WASI_DIR := $(ROOT)rust/tcl-lsp-server-wasi
-
 .PHONY: lsp-server-wasi lsp-server-wasi-test
 # The WASI sibling of `lsp-server-wasm`: the same `LspService<Backend>`, driven
 # over Content-Length-framed stdio inside a wasm32-wasip1 sandbox instead of
@@ -1630,6 +1691,15 @@ lsp-server-wasi: ## Build the LSP server as a WASI stdio program (Rust → wasm3
 	@rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1 \
 		|| rustup target add wasm32-wasip1
 	bash $(LSP_SERVER_WASI_DIR)/build-wasi.sh
+
+# The universal VSIX's prerequisite on the module, as a FILE rule rather than a
+# dependency on the phony target above.  CI's `build-vsix` downloads the module
+# the `lsp-server-wasi` job already built, optimised, and signed; a phony
+# prerequisite would rebuild it there (a wasip1 toolchain plus a release LTO
+# link) on top of the download.  Present ⇒ used as-is; absent ⇒ built.  Delete
+# `dist/` (or run `make lsp-server-wasi`) to force a rebuild.
+$(LSP_SERVER_WASI_MODULE):
+	$(MAKE) --no-print-directory lsp-server-wasi
 
 # The fixture directory is preopened by the harness itself (`wasmtime --dir`),
 # so the multi-file scenario reads a sourced sibling that only ever exists on
