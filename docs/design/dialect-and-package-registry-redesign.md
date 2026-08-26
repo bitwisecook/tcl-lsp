@@ -929,6 +929,21 @@ actionable warning when the user has *declared* the range.
 
 ## 6. SpecTcl 2.0 (`speclib … 2.0`)
 
+> **Authoring-surface decision (owner, 2026-08-26): design E,
+> executable registration** — a pack file is a Tcl program evaluated
+> in the sandboxed tclvm whose registration calls produce a frozen
+> registry snapshot — per
+> [the six-design comparison](spectcl-syntax-alternatives.md) and
+> [the design-E deep dive](spectcl-design-e-deep-dive.md), whose §1
+> execution model (frozen snapshots keyed by content hash ×
+> vocabulary, the determinism contract, `-available` rows over
+> control flow, trust enforced at the registration call) is adopted
+> with it, rulings E-R1–E-R9 ratified. The declarative vocabulary in
+> this section is unchanged by the decision: those words become the
+> registration commands of the evaluator, and existing 1.x/2.0 packs
+> — straight-line registration calls — evaluate to byte-identical
+> snapshots (the old-vs-new loader equivalence gate).
+
 ### 6.1 Compatibility contract (corrected by review B13)
 
 **Reading older packs stays maximal; degrading newer packs fails closed.**

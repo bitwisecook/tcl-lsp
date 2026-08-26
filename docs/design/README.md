@@ -82,8 +82,10 @@ rules for the KCS/documentation split live in
   model, with a rubric, comparison matrix, and hybrid recommendation for
   the owner to weigh.
 - [spectcl-design-e-deep-dive.md](spectcl-design-e-deep-dive.md) —
-  **exploration**: stress-tests design E (executable registration), the
-  owner's provisional lean, against the widest real surfaces — the
+  **adopted** (owner, 2026-08-26): design E — executable registration —
+  is the SpecTcl 2.0 authoring surface, together with this document's
+  §1 execution model and rulings E-R1–E-R9. Stress-tests E
+  against the widest real surfaces — the
   pinned execution model (frozen snapshots, determinism,
   target-independence, provenance), literal-driven typing via
   `format`/`scan`/`binary`, iRules against the profile and event graph,

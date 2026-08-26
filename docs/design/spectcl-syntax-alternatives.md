@@ -1,6 +1,19 @@
 # SpecTcl authoring-surface alternatives: six designs
 
-> **Status: EXPLORATION for an owner decision.** A user's complaint —
+> **DECIDED (owner, 2026-08-26): design E — executable registration —
+> is the SpecTcl 2.0 authoring surface**, adopted together with the
+> execution model pinned in
+> [the design-E deep dive](spectcl-design-e-deep-dive.md) §1 (frozen
+> snapshots, the determinism contract, data-not-control-flow
+> conditionality, registration-time trust) and its ratified rulings
+> E-R1–E-R9. The recommendation section below is retained as the
+> comparison record it was; the deep dive supersedes it as the basis
+> of the decision. Migration guarantees stand: 1.x packs load forever,
+> the 2.0 declarative rows already landed remain valid input verbatim
+> (E's registration commands accept them as data), and
+> `tcl spec upgrade` grows the `--restyle` step.
+>
+> Original status: **EXPLORATION for an owner decision.** A user's complaint —
 > SpecTcl is valid Tcl but does not *read* like Tcl — is solid: the
 > current surface is flag-soup rows (`arg 0 -role VarWrite -closed`),
 > index-addressed arguments, and pseudo-keyword tables that could as

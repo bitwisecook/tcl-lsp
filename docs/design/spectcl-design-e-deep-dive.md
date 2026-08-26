@@ -1,7 +1,12 @@
 # Design E deep dive — executable registration against the whole surface
 
-Status: exploration, feeding the SpecTcl 2.0 surface decision and the
-Rust model redesign. Companion to
+Status: **ADOPTED** (owner, 2026-08-26) — design E is the SpecTcl 2.0
+authoring surface, together with §1's execution model as a package.
+Rulings E-R1–E-R9 in §14 are thereby ratified; E-R10 records the
+standing known limits; the questions this document flags for the owner
+(option *requires* relations, the M9 dead axes) remain open. Originally
+written as exploration feeding the surface decision and the Rust model
+redesign. Companion to
 [the six-design comparison](spectcl-syntax-alternatives.md) (which
 defines design E and the shared model), the
 [redesign proposal](dialect-and-package-registry-redesign.md) (§6
