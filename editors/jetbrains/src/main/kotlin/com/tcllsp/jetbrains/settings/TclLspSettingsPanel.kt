@@ -223,6 +223,7 @@ class TclLspSettingsPanel {
     private val diagIRULE2001 = JBCheckBox("IRULE2001: Deprecated matchclass")
     private val diagIRULE2002 = JBCheckBox("IRULE2002: Deprecated iRules command")
     private val diagIRULE2003 = JBCheckBox("IRULE2003: Unsafe iRules command")
+    private val diagIRULE2004 = JBCheckBox("IRULE2004: Command refused by the iRules rule compiler at load")
     private val diagIRULE2101 = JBCheckBox("IRULE2101: Heavy regexp in a high-frequency event")
     private val diagIRULE5001 = JBCheckBox("IRULE5001: Ungated log in a high-frequency event")
     private val diagIRULE5002 = JBCheckBox("IRULE5002: drop/reject/discard without event disable all or return")
@@ -456,10 +457,10 @@ class TclLspSettingsPanel {
         listOf(
             diagIRULE1001, diagIRULE1002, diagIRULE1003, diagIRULE1004, diagIRULE1005, diagIRULE1006,
             diagIRULE1007, diagIRULE1008, diagIRULE1201, diagIRULE1202, diagIRULE2001, diagIRULE2002,
-            diagIRULE2003, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004, diagIRULE5005,
-            diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003, diagIRULE3004,
-            diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003, diagIRULE4004,
-            diagIRULE4005,
+            diagIRULE2003, diagIRULE2004, diagIRULE2101, diagIRULE5001, diagIRULE5002, diagIRULE5004,
+            diagIRULE5005, diagIRULE5006, diagIRULE5007, diagIRULE3001, diagIRULE3002, diagIRULE3003,
+            diagIRULE3004, diagIRULE3101, diagIRULE3102, diagIRULE4001, diagIRULE4002, diagIRULE4003,
+            diagIRULE4004, diagIRULE4005,
         ).forEach { diagIRulePanel.add(it) }
         builder.addComponent(diagIRulePanel)
 
@@ -702,6 +703,7 @@ class TclLspSettingsPanel {
             diagIRULE2001.isSelected != s.diagnosticIRULE2001 ||
             diagIRULE2002.isSelected != s.diagnosticIRULE2002 ||
             diagIRULE2003.isSelected != s.diagnosticIRULE2003 ||
+            diagIRULE2004.isSelected != s.diagnosticIRULE2004 ||
             diagIRULE2101.isSelected != s.diagnosticIRULE2101 ||
             diagIRULE5001.isSelected != s.diagnosticIRULE5001 ||
             diagIRULE5002.isSelected != s.diagnosticIRULE5002 ||
@@ -969,6 +971,7 @@ class TclLspSettingsPanel {
         s.diagnosticIRULE2001 = diagIRULE2001.isSelected
         s.diagnosticIRULE2002 = diagIRULE2002.isSelected
         s.diagnosticIRULE2003 = diagIRULE2003.isSelected
+        s.diagnosticIRULE2004 = diagIRULE2004.isSelected
         s.diagnosticIRULE2101 = diagIRULE2101.isSelected
         s.diagnosticIRULE5001 = diagIRULE5001.isSelected
         s.diagnosticIRULE5002 = diagIRULE5002.isSelected
@@ -1253,6 +1256,7 @@ class TclLspSettingsPanel {
         diagIRULE2001.isSelected = s.diagnosticIRULE2001
         diagIRULE2002.isSelected = s.diagnosticIRULE2002
         diagIRULE2003.isSelected = s.diagnosticIRULE2003
+        diagIRULE2004.isSelected = s.diagnosticIRULE2004
         diagIRULE2101.isSelected = s.diagnosticIRULE2101
         diagIRULE5001.isSelected = s.diagnosticIRULE5001
         diagIRULE5002.isSelected = s.diagnosticIRULE5002

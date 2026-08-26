@@ -137,10 +137,18 @@ impl RuntimeExprSurface {
     /// Whether the closed `expr` grammar admits `op`.
     ///
     /// An operator with no version floor is part of the base Tcl grammar. A
-    /// dialect-only operator is instead gated by the descriptor's dialect set.
-    /// This contains no spelling-specific logic: every fact comes from the
-    /// syntax descriptor, while the profile contributes the grammar base and
-    /// availability mask.
+    /// dialect-only operator is instead gated by the descriptor's dialect
+    /// set — **or** by the profile's F5-family core [`ExprGrammar`] word
+    /// table: the word-form operators are an `f5-tcl` *trunk* fact,
+    /// measured valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// F5Tcl-cored profile accepts them by reading the family table
+    /// directly rather than duplicating rows (ledger C12/B6). This
+    /// contains no spelling-specific logic: every fact comes from the
+    /// syntax descriptor or the family grammar, while the profile
+    /// contributes the grammar base and availability mask.
+    ///
+    /// [`ExprGrammar`]: tcl_dialect::model::ExprGrammar
     #[must_use]
     pub fn supports_operator(self, op: BinOp) -> bool {
         let spec = op.spec();
@@ -151,7 +159,11 @@ impl RuntimeExprSurface {
         });
         let dialect_visible = spec
             .dialects
-            .is_none_or(|dialects| dialects.intersects(self.profile.availability_mask));
+            .is_none_or(|dialects| dialects.intersects(self.profile.availability_mask))
+            || self
+                .profile
+                .f5_core_expr_grammar()
+                .is_some_and(|grammar| grammar.has_word_operator(spec.spelling));
         release_visible && dialect_visible
     }
 
@@ -290,6 +302,49 @@ mod tests {
         assert_eq!(
             error.message("{a} lt {b}"),
             "invalid bareword \"lt\"\nin expression \"{a} lt {b}\";\nshould be \"$lt\" or \"{lt}\" or \"lt(...)\" or ..."
+        );
+    }
+
+    /// The word-form operators are an `f5-tcl` **trunk** fact — measured
+    /// valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a). The surface
+    /// reads the acceptance off the family's `ExprGrammar` word table, so
+    /// every F5Tcl-cored profile admits them while plain Tcl stays
+    /// byte-identical.
+    #[test]
+    fn f5_word_operators_follow_the_family_expr_grammar() {
+        let word_ops = [
+            BinOp::WordAnd,
+            BinOp::WordOr,
+            BinOp::Contains,
+            BinOp::StartsWith,
+            BinOp::EndsWith,
+            BinOp::StrEquals,
+            BinOp::MatchesGlob,
+            BinOp::MatchesRegex,
+        ];
+        for name in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            let surface =
+                RuntimeExprSurface::for_profile(tcl_dialect::DialectProfile::by_name(name));
+            for op in word_ops {
+                assert!(surface.supports_operator(op), "{name}: {op:?}");
+            }
+            // The shared 8.4-core word operators remain valid too.
+            assert!(surface.supports_operator(BinOp::StrEq), "{name}: eq");
+        }
+        // Plain-Tcl parity: no release ever admits the F5 word forms.
+        for version in [TclVersion::V8_4, TclVersion::V8_6, TclVersion::V9_1] {
+            let surface = RuntimeExprSurface::for_tcl_version(version);
+            for op in word_ops {
+                assert!(!surface.supports_operator(op), "{version:?}: {op:?}");
+            }
+        }
+        // The config-schema `f5-bigip` identity has no Tcl expr surface of
+        // its own and is deliberately excluded from the family derivation.
+        assert!(
+            tcl_dialect::DialectProfile::by_name("f5-bigip")
+                .f5_core_expr_grammar()
+                .is_none()
         );
     }
 

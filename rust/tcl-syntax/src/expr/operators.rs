@@ -899,7 +899,9 @@ mod tests {
     }
 
     /// Drift guard for `tcl-lexer`'s hand-typed operator-spelling tables
-    /// (`MULTI_OPS`/`is_single_op`/`irules_ops` in `expr_lexer.rs`).
+    /// (`MULTI_OPS`/`is_single_op` in `expr_lexer.rs`; the F5 word
+    /// operators are derived there from `tcl_dialect`'s family
+    /// `ExprGrammar` word table rather than a lexer-local list).
     /// `tcl-lexer` sits *below* `tcl-syntax` in the dependency graph (see
     /// this crate's own architecture doc comment), so those tables can't
     /// derive from `ALL_BIN_OPS`/`ALL_UNARY_OPS` directly — this proves,

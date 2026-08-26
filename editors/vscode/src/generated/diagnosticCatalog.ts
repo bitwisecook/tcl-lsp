@@ -746,6 +746,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "IRULE2004",
+    section: "irules",
+    description:
+      "Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.",
+    defaultEnabled: true,
+  },
+  {
     code: "IRULE2101",
     section: "irules",
     description:

@@ -330,6 +330,48 @@ impl Analyser {
             .collect()
     }
 
+    /// measurements §4b: under `f5-irules` the 15 **compiler-refused**
+    /// builtins are present in TMM's interpreter — reachable via `eval` at
+    /// runtime — so the analyser must not claim they do not exist (no
+    /// "Unknown command" W123). Their literal-source load refusal is
+    /// IRULE2004's job (a policy warning, emitted by the disabled-command
+    /// pass). The 16 interpreter-absent commands stay unknown here: their
+    /// absence is a language fact. No-op outside the iRules profile.
+    fn extend_with_irules_interpreter_present_names(&self, names: &mut HashSet<String>) {
+        if self.profile.is_irules() {
+            names.extend(
+                tcl_registry::irules_policy::IRULES_COMPILER_REFUSED
+                    .iter()
+                    .map(|name| (*name).to_string()),
+            );
+        }
+    }
+
+    /// The registry names "known" for W123. A registry command is known
+    /// whenever the active dialect enables it — including package-gated
+    /// commands such as ``argparse`` or the Tk widgets, which resolve under
+    /// a Tcl version and are ambient in a `wish` interpreter.  The
+    /// *missing `package require`* case is reported separately by W120
+    /// (see ``emit_missing_package_require_diagnostics``), which carries an
+    /// add-the-require code fix; firing W123 here as well would
+    /// double-report and would false-positive on ambient Tk widgets.
+    /// Under `f5-irules` the set additionally carries the §4b
+    /// interpreter-present (compiler-refused) builtins — see
+    /// [`Self::extend_with_irules_interpreter_present_names`].
+    fn w123_registry_known_names(
+        &self,
+        registry: &tcl_registry::CommandRegistry,
+    ) -> HashSet<String> {
+        let generation = self.analysis_context();
+        let mut registry_names: HashSet<String> = registry
+            .command_names()
+            .filter(|name| generation.context().resolve_spec(registry, name).is_some())
+            .map(str::to_string)
+            .collect();
+        self.extend_with_irules_interpreter_present_names(&mut registry_names);
+        registry_names
+    }
+
     /// Build the [`W123KnownNames`] sets consulted by the unresolved-command
     /// pass: registry names enabled in the active dialect, user proc / class /
     /// alias / ensemble simple-name tails, inline-stub names, and the
@@ -347,19 +389,7 @@ impl Analyser {
         // should also fire — and a vendor profile's embedded Tcl core (8.5
         // `dict` under f5-iapps, 8.6 `coroutine` under expect) would be
         // wrongly unknown, the confirmed bare-bit defect the profile fixes.
-        let generation = self.analysis_context();
-        // A registry command is "known" for W123 whenever the active dialect
-        // enables it — including package-gated commands such as ``argparse`` or
-        // the Tk widgets, which resolve under a Tcl version and are ambient in a
-        // `wish` interpreter.  The *missing `package require`* case is reported
-        // separately by W120 (see ``emit_missing_package_require_diagnostics``),
-        // which carries an add-the-require code fix; firing W123 here as well
-        // would double-report and would false-positive on ambient Tk widgets.
-        let registry_names: HashSet<String> = registry
-            .command_names()
-            .filter(|name| generation.context().resolve_spec(registry, name).is_some())
-            .map(str::to_string)
-            .collect();
+        let registry_names = self.w123_registry_known_names(registry);
         let stub_names = self.stub_command_names();
         // These two tail sets feed only the "did you mean…?" candidate
         // list below — resolution itself uses `proc_defs_by_tail` /

@@ -12795,6 +12795,65 @@ fn w123_vendor_profiles_still_flag_genuinely_unknown_commands() {
     }
 }
 
+/// measurements §4b: the 31 iRules-"disabled" stock builtins are **two
+/// mechanisms, not one**. The 16 interpreter-absent commands (`invalid
+/// command name` even via `eval` at runtime) are a *language fact* and keep
+/// the existing unavailable-command diagnostic (W002, with W123); the 15
+/// compiler-refused commands are present in TMM's interpreter — reachable
+/// via `eval`, `rename` demonstrably works — so a literal use draws the
+/// distinct IRULE2004 *policy* warning instead, and the analyser never
+/// claims the command does not exist.
+#[test]
+fn irules_4b_disabled_split_pins_two_diagnostic_severities() {
+    for absent in tcl_registry::irules_policy::IRULES_INTERPRETER_ABSENT {
+        let src = format!("when RULE_INIT {{ {absent} }}");
+        let codes = codes_for_dialect(&src, "f5-irules");
+        assert!(
+            codes.iter().any(|c| c == "W002"),
+            "{absent}: interpreter-absent keeps the language-fact W002, got {codes:?}"
+        );
+        assert!(
+            !codes.iter().any(|c| c == "IRULE2004"),
+            "{absent}: interpreter-absent is not a policy refusal, got {codes:?}"
+        );
+    }
+    for refused in tcl_registry::irules_policy::IRULES_COMPILER_REFUSED {
+        let src = format!("when RULE_INIT {{ {refused} }}");
+        let codes = codes_for_dialect(&src, "f5-irules");
+        assert!(
+            codes.iter().any(|c| c == "IRULE2004"),
+            "{refused}: compiler-refused draws the distinct policy warning, got {codes:?}"
+        );
+        assert!(
+            !codes.iter().any(|c| c == "W002" || c == "W123"),
+            "{refused}: present in TMM's interpreter — no W002 and no \
+             'Unknown command' claim, got {codes:?}"
+        );
+    }
+}
+
+/// The §4b policy warning follows the §4c lexical scan: a compiler-refused
+/// command written literally inside a braced `eval` body is still literal
+/// rule source (the rule compiler scans braced script literals), while a
+/// name reached only through dynamic `eval` (variable-held) is not flagged
+/// — it works at runtime.
+#[test]
+fn irules_4b_policy_warning_follows_the_4c_lexical_scan() {
+    let braced = "when RULE_INIT { eval {rename a b} }";
+    let codes = codes_for_dialect(braced, "f5-irules");
+    assert!(
+        codes.iter().any(|c| c == "IRULE2004"),
+        "a braced eval literal is scanned rule source, got {codes:?}"
+    );
+    let hidden = "when RULE_INIT { set c \"rename\"\n  uplevel #0 $c a b }";
+    let codes = codes_for_dialect(hidden, "f5-irules");
+    assert!(
+        !codes.iter().any(|c| c == "IRULE2004" || c == "W002"),
+        "a variable-held name is dynamic eval — reachable at runtime, \
+         not flagged, got {codes:?}"
+    );
+}
+
 #[test]
 fn irules_stays_subtractive_under_the_profile() {
     // The subtractive-iRules trap (§9): the profile keeps the bare IRULES

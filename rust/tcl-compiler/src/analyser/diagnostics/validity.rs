@@ -949,6 +949,37 @@ impl Analyser {
         {
             return;
         }
+        // measurements §4b: the 31 iRules-"disabled" stock builtins are two
+        // mechanisms, not one. A command **present in TMM's interpreter but
+        // refused by the rule compiler** at load (reachable via `eval` at
+        // runtime — `rename` demonstrably works) is a *policy* statement
+        // about rule source, not a statement about the language, so it draws
+        // the distinct IRULE2004 policy warning instead of the
+        // undifferentiated W002. An interpreter-absent command falls through
+        // to W002 below — its unavailability is a language fact. A
+        // compiler-refused name reached only through dynamic `eval`
+        // (variable-held) is never a literal head here, so it is not
+        // flagged at all — it works at runtime (§4c).
+        if self.profile.is_irules()
+            && tcl_registry::irules_policy::irules_disabled_class(bare)
+                .is_some_and(|class| !class.is_language_fact())
+        {
+            let diag = crate::analyser::types::Diagnostic::new(
+                DiagCode::Irule2004,
+                cmd_tok.span,
+                format!(
+                    "'{cmd_name}' is refused by the iRules rule compiler when written \
+                     literally in rule source; the command exists in TMM's interpreter \
+                     and is reachable through eval at runtime."
+                ),
+                Severity::Warning,
+            );
+            let ns = self.command_resolution_namespace(scope_path);
+            let enforce_order = !self.scope_path_in_proc_body(scope_path);
+            self.pending_disabled_commands
+                .push((cmd_name.to_string(), ns, enforce_order, diag));
+            return;
+        }
         // Best-effort "available in: …" hint read straight from the
         // registry spec's own dialect gate. Only resolves when the spec is
         // among the packs this registry instance loaded regardless of
@@ -4119,7 +4150,7 @@ in the active dialect ({}).",
         if !contains_gated_word(expr_text) {
             return;
         }
-        let Some((base, is_irules)) = self.w003_gates() else {
+        let Some((base, f5_words)) = self.w003_gates() else {
             return;
         };
 
@@ -4136,7 +4167,7 @@ in the active dialect ({}).",
         // iRules words), so forcing it here never misparses an expression
         // that would otherwise parse; the real pass/fail gate decision
         // below still keys on the active dialect's actual `(base,
-        // is_irules)` facts, not this parsing dialect.
+        // f5_words)` facts, not this parsing dialect.
         let trimmed = expr_text.trim();
         let parsed = crate::parse_expr(trimmed, Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
@@ -4158,7 +4189,7 @@ in the active dialect ({}).",
         let gated: Vec<(&tcl_lexer::ExprToken, &'static str)> = tokens
             .iter()
             .filter(|t| t.kind == tcl_lexer::ExprTokenType::Operator)
-            .filter_map(|t| gated_operator_name(&t.text, base, is_irules).map(|name| (t, name)))
+            .filter_map(|t| gated_operator_name(&t.text, base, f5_words).map(|name| (t, name)))
             .collect();
         if gated.is_empty() {
             return;
@@ -4275,7 +4306,7 @@ in the active dialect ({}).",
         if !contains_gated_word(joined_text) {
             return;
         }
-        let Some((base, is_irules)) = self.w003_gates() else {
+        let Some((base, f5_words)) = self.w003_gates() else {
             return;
         };
         // Forced to `f5-irules` for the same reason as the braced-argument
@@ -4284,13 +4315,13 @@ in the active dialect ({}).",
         // than operators, so the parse below would never see a valid
         // infix application and would fall back to `ExprNode::Raw`,
         // silently skipping this whole check. The real gate decision below
-        // still uses the active dialect's actual `(base, is_irules)`.
+        // still uses the active dialect's actual `(base, f5_words)`.
         let parsed = crate::parse_expr(joined_text.trim(), Some("f5-irules"));
         if matches!(parsed, ExprNode::Raw { .. }) {
             return;
         }
         for (word, tok) in args.iter().zip(arg_tokens.iter()) {
-            let Some(op_name) = gated_operator_name(word, base, is_irules) else {
+            let Some(op_name) = gated_operator_name(word, base, f5_words) else {
                 continue;
             };
             self.result.diagnostics.push(crate::analyser::types::Diagnostic::new(
@@ -4310,15 +4341,22 @@ Vec::new()));
         }
     }
 
-    /// The active dialect's `expr`-grammar base version and iRules
-    /// identity, or `None` when the dialect string has no documented base
-    /// version (nothing for W003 to check — see [`gated_operator_name`],
-    /// which does the real per-operator gate comparison against this).
+    /// The active dialect's `expr`-grammar base version and F5-family
+    /// word-operator acceptance, or `None` when the dialect string has no
+    /// documented base version (nothing for W003 to check — see
+    /// [`gated_operator_name`], which does the real per-operator gate
+    /// comparison against this).
+    ///
+    /// The second half follows the **family fact**, not the iRules name:
+    /// the word-form operators are an `f5-tcl` trunk fact, measured valid
+    /// in tmsh and iApp `expr` too
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a), so any
+    /// F5Tcl-cored profile passes the word-operator gate.
     fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
         let profile = self.profile;
         profile
             .expr_grammar_base
-            .map(|base| (base, profile.is_irules()))
+            .map(|base| (base, profile.f5_core_expr_grammar().is_some()))
     }
 }
 
@@ -4619,14 +4657,15 @@ pub(super) fn contains_gated_word(text: &str) -> bool {
 }
 
 /// The gated operator name for `word` under a dialect whose `expr`-grammar
-/// base version is `base` and whose iRules-identity is `is_irules` — `None`
-/// when `word` isn't one of the dialect-gated keywords, or the active
-/// dialect already satisfies its gate (version threshold met, or the
-/// dialect *is* iRules for an iRules-only word).
+/// base version is `base` and whose F5-family word-operator acceptance is
+/// `f5_words` — `None` when `word` isn't one of the dialect-gated keywords,
+/// or the active dialect already satisfies its gate (version threshold met,
+/// or the dialect is F5Tcl-cored for a word-form operator — a trunk fact,
+/// measured valid in tmsh/iApp expr too, measurements §4a).
 fn gated_operator_name(
     word: &str,
     base: tcl_dialect::TclVersion,
-    is_irules: bool,
+    f5_words: bool,
 ) -> Option<&'static str> {
     gated_expr_ops()
         .iter()
@@ -4634,7 +4673,7 @@ fn gated_operator_name(
             g.op == word
                 && match g.gate {
                     ExprOpGate::MinVersion(min) => base < min,
-                    ExprOpGate::IrulesOnly => !is_irules,
+                    ExprOpGate::IrulesOnly => !f5_words,
                 }
         })
         .map(|g| g.op)

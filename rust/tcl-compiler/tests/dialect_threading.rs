@@ -271,3 +271,84 @@ fn i230_still_fires_on_a_plain_tcl_constant_condition() {
     let src = "set x 1\nif {$x == 1} { puts hit }\n";
     assert!(fires(src, TCL, "I230"), "codes: {:?}", codes(src, TCL));
 }
+
+// N5 — the F5 `if` else/elseif single-newline lookahead
+// (`docs/design/bigip-irule-parser-measurements.md` §2 N5, measured on TMM
+// in a cli script reproducing the parser).
+
+/// Under the F5 grammar, `else {…}` on the immediately following line is
+/// the `if`'s own else branch: the lowered IR carries it as `else_body`, so
+/// the CFG is correct and no `else` command exists.
+#[test]
+fn n5_else_line_lowers_into_the_if_under_the_f5_grammar() {
+    let registry = registry_for_dialect(IRULES);
+    let module = lower_to_ir_with_config(
+        "if {0} {set a 1}\nelse {set a 2}\n",
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(IRULES),
+    );
+    let statements = &module.top_level.statements;
+    assert_eq!(statements.len(), 1, "one merged if, got {statements:?}");
+    let Statement::If {
+        clauses, else_body, ..
+    } = &statements[0]
+    else {
+        panic!("expected an If statement, got {statements:?}");
+    };
+    assert_eq!(clauses.len(), 1);
+    assert!(
+        else_body.is_some(),
+        "the else line must lower as the if's else branch (N5)"
+    );
+}
+
+/// N5's other half: across a **blank** line the lookahead fails on TMM
+/// (`undefined procedure: else`), so lowering stays exactly as stock — an
+/// `if` with no else branch, followed by a standalone `else` command.
+#[test]
+fn n5_else_across_a_blank_line_stays_standalone_under_the_f5_grammar() {
+    let registry = registry_for_dialect(IRULES);
+    let module = lower_to_ir_with_config(
+        "if {0} {set a 1}\n\nelse {set a 2}\n",
+        registry,
+        tcl_lexer::LexerConfig::for_dialect(IRULES),
+    );
+    let statements = &module.top_level.statements;
+    let Some(Statement::If { else_body, .. }) = statements.first() else {
+        panic!("expected an If statement first, got {statements:?}");
+    };
+    assert!(else_body.is_none(), "a blank line breaks the lookahead");
+    assert!(
+        statements.len() > 1,
+        "the else line stays its own (invalid) command: {statements:?}"
+    );
+}
+
+/// The analyser mirror: no unknown-command / orphaned-keyword diagnostic for
+/// the single-newline case under `f5-irules`; the blank-line case keeps the
+/// stock diagnosis.
+#[test]
+fn n5_analyser_accepts_single_newline_else_and_rejects_blank_line_else() {
+    let single = "when RULE_INIT { if {0} {set static::a 1}\nelse {set static::a 2} }";
+    let found = codes(single, IRULES);
+    assert!(
+        !found.iter().any(|c| c == "W123" || c == "W125"),
+        "N5: a single-newline else belongs to the if: {found:?}"
+    );
+    let blank = "when RULE_INIT { if {0} {set static::a 1}\n\nelse {set static::a 2} }";
+    let found = codes(blank, IRULES);
+    assert!(
+        found.iter().any(|c| c == "W123"),
+        "blank line: `undefined procedure: else` stays diagnosed: {found:?}"
+    );
+    assert!(
+        found.iter().any(|c| c == "W125"),
+        "blank line: the orphaned-keyword warning stays: {found:?}"
+    );
+    // Plain Tcl keeps the stock diagnosis for the single-newline spelling.
+    let found = codes("if {0} {set a 1}\nelse {set a 2}", TCL);
+    assert!(
+        found.iter().any(|c| c == "W125"),
+        "plain Tcl: else after a newline stays orphaned: {found:?}"
+    );
+}

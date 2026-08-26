@@ -134,6 +134,7 @@
 | IRULE2001 | irules | Deprecated `matchclass` — use `class match` instead. | ✓ |
 | IRULE2002 | irules | Deprecated iRules command. | ✓ |
 | IRULE2003 | irules | Unsafe iRules command. | ✓ |
+| IRULE2004 | irules | Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime. | ✓ |
 | IRULE2101 | irules | Heavy `regexp` in a high-frequency event — consider `string match` or data-group. | ✓ |
 | IRULE5001 | irules | Ungated `log` in a high-frequency event. | ✓ |
 | IRULE5002 | irules | `drop`/`reject`/`discard` without `event disable all` or `return`. | ✓ |

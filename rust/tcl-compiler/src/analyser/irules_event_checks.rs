@@ -425,6 +425,18 @@ impl Analyser {
 
     /// **IRULE5006.** A top-level-only command (`when` / `proc` /
     /// `priority` / `timing`) used inside a nested body.
+    ///
+    /// **Measurements §4c** — the rule compiler's ban is *lexical* and its
+    /// scan recurses into **braced script literals**: `eval {proc …}` and
+    /// `uplevel #0 {proc …}` (any level spelling, any nesting) inside a
+    /// `when` body are rejected identically to bare `proc`. The analyser
+    /// mirrors that through the generic `ArgRole::Body` recursion in
+    /// [`super::commands`]: a braced `eval`/`uplevel` body is walked as a
+    /// script with the enclosing event context intact, so this check fires
+    /// on the nested `proc` with the same diagnostic as the bare form.
+    /// Script text held in a variable escapes the scan — the non-literal
+    /// body is not walked (this check abstains) and the realm state widens
+    /// instead (see `widen_irules_dynamic_eval_bindings`).
     fn emit_irule5006_top_level_only(
         &mut self,
         cmd_name: &str,
@@ -1426,6 +1438,78 @@ mod tests {
         assert!(!has("when RULE_INIT { array names foo }", "IRULE6001"));
         // A `static::` target is already per-TMM.
         assert!(!has("when RULE_INIT { set static::c 1 }", "IRULE6001"));
+    }
+
+    /// The seven-row dynamic-code table of measurements §4c: the rule
+    /// compiler's load-time bans scan **braced script literals** — wrapping
+    /// `proc` in `eval {…}` / `uplevel #0 {…}` changes nothing, and nesting
+    /// is not an escape hatch — while `eval`/`uplevel` themselves are fine,
+    /// a literal call head still fails load-time resolution (§4a), and
+    /// script text held in a variable escapes the scan entirely, widening
+    /// the realm state instead (a runtime-defined proc is a persistent
+    /// per-TMM global surviving across events and connections).
+    #[test]
+    fn the_measurements_4c_seven_row_dynamic_code_table() {
+        // Row 1: bare `proc` in a `when` body — REJECT.
+        assert!(has(
+            "when RULE_INIT { proc p {} { return 1 } }",
+            "IRULE5006"
+        ));
+        // Rows 2-3: braced `eval` / `uplevel` wrappers — REJECT with the
+        // same diagnostic as the bare form (the scan is lexical). Any
+        // level spelling; nesting is not an escape hatch.
+        for src in [
+            "when RULE_INIT { eval {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel #0 {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel {proc p {} { return 1 }} }",
+            "when RULE_INIT { uplevel 1 {proc p {} { return 1 }} }",
+            "when RULE_INIT { eval {eval {proc p {} { return 1 }}} }",
+        ] {
+            assert!(has(src, "IRULE5006"), "{src}: §4c braced-literal scan");
+        }
+        // Rows 4-5: `eval` / `uplevel` of a harmless braced literal —
+        // ACCEPT (`eval` itself is fine; the ban is on `proc`).
+        assert!(!has(
+            "when RULE_INIT { eval {set static::x 1} }",
+            "IRULE5006"
+        ));
+        assert!(!has(
+            "when RULE_INIT { uplevel #0 {set static::x 1} }",
+            "IRULE5006"
+        ));
+        // Row 6: top-level `proc` + literal call head — REJECT (§4a
+        // load-time resolution: a rule proc is reachable only via `call`).
+        assert!(has(
+            "proc p {} { return 1 }\nwhen RULE_INIT { p }",
+            "IRULE5005"
+        ));
+        assert!(!has(
+            "proc p {} { return 1 }\nwhen RULE_INIT { call p }",
+            "IRULE5005"
+        ));
+        // Row 7: variable-held define + call — ACCEPT, with the May
+        // widening: the hidden script may define procs (persistent
+        // per-TMM globals, §4c), so the realm state records a dynamic
+        // provider and literal-surface checks abstain.
+        let hidden = "when RULE_INIT { set s \"proc dpp {} { return persisted }\"\n  \
+                      uplevel #0 $s\n  set c \"dpp\"\n  uplevel #0 $c }";
+        let mut analyser = Analyser::new();
+        let res = analyser.analyse(hidden, "f5-irules");
+        assert!(
+            res.has_dynamic_providers,
+            "a dynamic uplevel at event scope must widen the realm state"
+        );
+        assert!(
+            !res.diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "IRULE5005" | "IRULE5006" | "W123")),
+            "the hidden define+call form is accepted: {:?}",
+            res.diagnostics
+        );
+        // Control: a braced-literal eval body does NOT widen the realm.
+        let mut analyser = Analyser::new();
+        let res = analyser.analyse("when RULE_INIT { eval {set static::x 1} }", "f5-irules");
+        assert!(!res.has_dynamic_providers);
     }
 
     #[test]

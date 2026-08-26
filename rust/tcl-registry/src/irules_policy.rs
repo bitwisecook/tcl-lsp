@@ -42,10 +42,15 @@
 //! dynamic evaluation is real, so an analyser that follows §4c's dynamic
 //! code must not claim the command does not exist.
 //!
-//! // measurements §4b: wiring these severity classes into the analyser's
-//! // diagnostics (and the §4c lexical-scan mirroring through braced
-//! // `eval`/`uplevel` literals) is deliberately NOT done here — this
-//! // module is the data layer; the consumer wiring is tracked follow-up.
+//! // measurements §4b: this module is the data layer only. The consumer
+//! // wiring lives in the analyser: an interpreter-absent literal head
+//! // keeps the language-fact unavailable-command diagnostic (W002), a
+//! // compiler-refused literal head draws the distinct IRULE2004 policy
+//! // warning instead (and is excluded from "Unknown command" claims),
+//! // and the §4c lexical-scan mirroring recurses the load-time checks
+//! // through braced `eval`/`uplevel` literals while a variable-held
+//! // script widens the realm state (`tcl-compiler`'s
+//! // `analyser::diagnostics::validity` / `analyser::commands`).
 
 /// Which of the two measured mechanisms keeps one stock builtin out of
 /// iRules source (§4b).

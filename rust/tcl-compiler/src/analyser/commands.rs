@@ -1920,9 +1920,12 @@ impl Analyser {
         } else {
             self.command_resolution_namespace(scope_path)
         };
-        let Some(registry) = self.registry.as_deref() else {
+        // Cloned `Arc` (not `as_deref`) so the §4c dynamic-eval widening —
+        // a `&mut self` call below — can run while the registry is in hand.
+        let Some(registry) = self.registry.clone() else {
             return;
         };
+        let registry = &*registry;
         let body_args: Vec<&str> = args.iter().map(String::as_str).collect();
         // Body-role resolution stays dialect-scoped *deliberately*: a command
         // that owns a body only in another dialect (e.g. the iRules-only
@@ -1950,6 +1953,13 @@ impl Analyser {
         if body_indices.is_empty() {
             return;
         }
+        self.widen_irules_dynamic_eval_bindings(
+            cmd_name,
+            args,
+            arg_tokens,
+            &body_indices,
+            scope_path,
+        );
         // The `Tcl_ConcatObj` eval family: when the spec carries
         // `SCRIPT_CONCATENATES_ARGS` and words follow the first body index,
         // the script is the *concatenation* of every trailing word, not the
@@ -1975,29 +1985,8 @@ impl Analyser {
         // `Copy`, so extracting them here ends the `registry` borrow before the
         // `&mut self` body recursion below.
         let body_cmd: &str = body_cmd_owned.as_deref().unwrap_or(cmd_name);
-        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
-            registry.get(body_cmd).and_then(|s| s.body_scope);
-        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
-            registry
-                .arg_indices_for_role(body_cmd, &body_args, tcl_registry::arg_role::ArgRole::Name)
-                .first()
-                .copied()
-        } else {
-            None
-        };
-        // A definer that makes its own instances callable inside sibling bodies
-        // (a later `report::defstyle` may invoke an earlier style by name):
-        // record the defined name so the W123 pass treats it as known there.
-        if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
-            && let Some(name) = args.get(ni)
-            && !name.is_empty()
-        {
-            self.result
-                .scoped_sibling_defs
-                .entry(env.name)
-                .or_default()
-                .insert(name.clone());
-        }
+        let body_scope =
+            self.record_scoped_sibling_definition(registry, body_cmd, &body_args, args);
         // The event handler carries `IS_EVENT_HANDLER` — `when` today, but
         // a dialect that adds another gets the same treatment without an edit
         // here; its synopsis (`when EVENT { body }`) puts the event name in
@@ -2050,6 +2039,112 @@ impl Analyser {
         }
         if entered_event {
             self.current_event = prev_event;
+        }
+    }
+
+    /// The scoped command environment `body_cmd`'s spec declares for its
+    /// body arguments, if any — plus the sibling-definition recording that
+    /// rides it: a definer that makes its own instances callable inside
+    /// sibling bodies (a later `report::defstyle` may invoke an earlier
+    /// style by name) records the defined name so the W123 pass treats it
+    /// as known there. Extracted from [`Self::dispatch_body_arguments`]
+    /// verbatim.
+    fn record_scoped_sibling_definition(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+        body_cmd: &str,
+        body_args: &[&str],
+        args: &[String],
+    ) -> Option<&'static tcl_registry::scoped::ScopedCommandEnv> {
+        let body_scope: Option<&'static tcl_registry::scoped::ScopedCommandEnv> =
+            registry.get(body_cmd).and_then(|s| s.body_scope);
+        let sibling_name_idx = if body_scope.is_some_and(|e| e.include_sibling_definitions) {
+            registry
+                .arg_indices_for_role(body_cmd, body_args, tcl_registry::arg_role::ArgRole::Name)
+                .first()
+                .copied()
+        } else {
+            None
+        };
+        if let (Some(env), Some(ni)) = (body_scope, sibling_name_idx)
+            && let Some(name) = args.get(ni)
+            && !name.is_empty()
+        {
+            self.result
+                .scoped_sibling_defs
+                .entry(env.name)
+                .or_default()
+                .insert(name.clone());
+        }
+        body_scope
+    }
+
+    /// **Measurements §4c** — the iRules dynamic-code widening. The rule
+    /// compiler's load-time bans are *lexical*: they scan braced script
+    /// literals (so `eval {proc …}` is rejected like bare `proc` — the
+    /// recursion above handles that), but script text held in a variable
+    /// escapes the scan entirely. A dynamic `eval`/`uplevel` (any level
+    /// spelling) whose script head the analyser cannot read therefore
+    /// makes every literal-surface check abstain AND widens the realm
+    /// state: the hidden script may define procs, and a runtime-defined
+    /// proc is a **persistent per-TMM global** — created once (typically
+    /// in `RULE_INIT`), surviving across events, connections, and separate
+    /// requests on the same TMM (§4c: `persist=YES`, identical on a
+    /// second request). That is exactly the "runtime set of commands is
+    /// unknowable" fact the existing dynamic-provider machinery models
+    /// ([`super::types::AnalysisResult::has_dynamic_providers`] — the
+    /// analyser-side `BindingKnowledge::May` widening), so it is wired
+    /// through that flag rather than new state: W123/W120-class
+    /// unresolved-name conclusions abstain for the rest of the document.
+    ///
+    /// Scope: iRules only, and only at top-level-or-event scope — the
+    /// scopes §4c measured; the load-time *lexical* rejections themselves
+    /// (a literal `proc` in a `when` body, a literal call head) are NOT
+    /// softened, because the rule compiler cannot see runtime definitions
+    /// either. Commands in the §4b disabled split never widen: an
+    /// interpreter-absent head does not run, and a compiler-refused head
+    /// never loads.
+    fn widen_irules_dynamic_eval_bindings(
+        &mut self,
+        cmd_name: &str,
+        args: &[String],
+        arg_tokens: &[Token],
+        body_indices: &[usize],
+        scope_path: &[usize],
+    ) {
+        if self.result.has_dynamic_providers || !self.profile.is_irules() {
+            return;
+        }
+        let dynamic_eval = self.registry.as_deref().is_some_and(|registry| {
+            registry.get(cmd_name).is_some_and(|spec| {
+                spec.traits
+                    .contains(tcl_registry::Traits::DYNAMIC_EVAL_BODY)
+            })
+        }) && tcl_registry::irules_policy::irules_disabled_class(cmd_name)
+            .is_none();
+        if !dynamic_eval {
+            return;
+        }
+        // The script *head* is hidden exactly when the first script word is
+        // a substitution (`$s`, `[build]`) or interpolates one; a bare
+        // literal head (`uplevel 1 helper`) is still resolved at load time.
+        let hidden_head = body_indices.first().is_some_and(|&first| {
+            arg_tokens.get(first).is_some_and(|tok| {
+                matches!(tok.kind, TokenType::Var | TokenType::Cmd)
+                    || args.get(first).is_some_and(|text| {
+                        super::diagnostics::helpers::has_substitution(text.trim(), tok)
+                    })
+            })
+        });
+        if !hidden_head {
+            return;
+        }
+        if matches!(
+            self.irules_execution_context(scope_path),
+            tcl_registry::events::IrulesExecutionContext::TopLevel
+                | tcl_registry::events::IrulesExecutionContext::EventBody
+        ) {
+            self.result.has_dynamic_providers = true;
         }
     }
 

@@ -1384,6 +1384,41 @@ impl DialectProfile {
         std::ptr::eq(self, Self::irules())
     }
 
+    /// The F5-family core `expr` grammar behind this catalogue profile, or
+    /// `None` for a profile whose runtime core is not on the F5 tree.
+    ///
+    /// The nine word-form `expr` operators (`and`/`or`/`not`/`contains`/
+    /// `starts_with`/`ends_with`/`equals`/`matches_glob`/`matches_regex`)
+    /// are an **`f5-tcl` trunk fact**, measured byte-identical in tmsh and
+    /// iApp contexts too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so every
+    /// F5Tcl-cored catalogue profile answers with the family's own
+    /// [`ExprGrammar`](crate::model::expr_grammar::ExprGrammar) here and
+    /// consumers read the word-operator surface off that table instead of
+    /// duplicating rows (ledger C12/B6). The old-catalogue `f5-tmsh` /
+    /// `f5-iapps` grammar rows themselves are deliberately retained
+    /// (P1-G): only the expr word-operator acceptance follows the family
+    /// fact.
+    ///
+    /// `f5-bigip` is excluded by design: it is a config-schema identity
+    /// with no Tcl runtime or expr grammar of its own (its embedded iRules
+    /// route through `f5-irules`).
+    #[must_use]
+    pub fn f5_core_expr_grammar(&self) -> Option<&'static crate::model::ExprGrammar> {
+        use crate::model::family::{Family, Release};
+        match self.vendor_bit {
+            // The iRules offshoot overrides no expr axis — it answers with
+            // the trunk grammar along the fork edge (measurements §4a).
+            Some(bit) if bit == DialectSet::IRULES => {
+                Some(crate::model::expr(Family::F5Irules, Release::F5_IRULES_TMM))
+            }
+            Some(bit) if bit == DialectSet::TMSH || bit == DialectSet::IAPPS => {
+                Some(crate::model::expr(Family::F5Tcl, Release::F5_TCL_TMOS))
+            }
+            _ => None,
+        }
+    }
+
     /// The version-aware *compile-time fold* projection — the drop-in
     /// replacement for `TclVersion::from_dialect` and deliberately
     /// **bit-identical** to it: `Some` only for the plain versioned-Tcl

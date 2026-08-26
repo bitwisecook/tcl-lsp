@@ -423,6 +423,7 @@ diagnostic_codes! {
     Irule2001 => "IRULE2001", diag(Irules, true, "Deprecated `matchclass` — use `class match` instead.", tag: Deprecated);
     Irule2002 => "IRULE2002", diag(Irules, true, "Deprecated iRules command.", tag: Deprecated);
     Irule2003 => "IRULE2003", diag(Irules, true, "Unsafe iRules command.");
+    Irule2004 => "IRULE2004", diag(Irules, true, "Command refused by the iRules rule compiler at load — present in TMM's interpreter and reachable via `eval` at runtime.");
     Irule2101 => "IRULE2101", diag(Irules, true, "Heavy `regexp` in a high-frequency event — consider `string match` or data-group.");
     Irule3001 => "IRULE3001", diag(IrulesSecurity, true, "Tainted data in HTTP response body.");
     Irule3002 => "IRULE3002", diag(IrulesSecurity, true, "Tainted data in HTTP header or cookie value.");

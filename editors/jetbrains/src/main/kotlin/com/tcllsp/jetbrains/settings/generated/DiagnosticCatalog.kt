@@ -147,6 +147,7 @@ object DiagnosticCatalog {
         DiagnosticDef("IRULE2001", "irules", "IRULE2001: Deprecated matchclass", true),
         DiagnosticDef("IRULE2002", "irules", "IRULE2002: Deprecated iRules command", true),
         DiagnosticDef("IRULE2003", "irules", "IRULE2003: Unsafe iRules command", true),
+        DiagnosticDef("IRULE2004", "irules", "IRULE2004: Command refused by the iRules rule compiler at load", true),
         DiagnosticDef("IRULE2101", "irules", "IRULE2101: Heavy regexp in a high-frequency event", true),
         DiagnosticDef("IRULE5001", "irules", "IRULE5001: Ungated log in a high-frequency event", true),
         DiagnosticDef("IRULE5002", "irules", "IRULE5002: drop/reject/discard without event disable all or return", true),

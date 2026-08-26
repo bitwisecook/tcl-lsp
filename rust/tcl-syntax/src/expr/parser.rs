@@ -1150,6 +1150,46 @@ mod tests {
         ));
     }
 
+    /// The word-form operators are an `f5-tcl` **trunk** fact — measured
+    /// valid in tmsh and iApp `expr` too, not iRules-only
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a) — so any
+    /// F5Tcl-cored profile parses them, while plain Tcl stays byte-identical
+    /// (the same source degrades to `Raw`, exactly as before).
+    #[test]
+    fn f5_word_operators_parse_under_every_f5_cored_profile() {
+        for dialect in ["f5-irules", "f5-tmsh", "f5-iapps"] {
+            let node = parse_expr("$uri starts_with \"/api\"", Some(dialect));
+            assert!(
+                matches!(
+                    node,
+                    ExprNode::Binary {
+                        op: BinOp::StartsWith,
+                        ..
+                    }
+                ),
+                "{dialect}: expected StartsWith, got {node:?}"
+            );
+            let node = parse_expr("not $x", Some(dialect));
+            assert!(
+                matches!(
+                    node,
+                    ExprNode::Unary {
+                        op: UnaryOp::WordNot,
+                        ..
+                    }
+                ),
+                "{dialect}: expected WordNot, got {node:?}"
+            );
+        }
+        for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
+            let node = parse_expr("$uri starts_with \"/api\"", Some(dialect));
+            assert!(
+                matches!(node, ExprNode::Raw { .. }),
+                "{dialect}: plain Tcl must stay byte-identical (Raw), got {node:?}"
+            );
+        }
+    }
+
     // Fallback
 
     #[test]
