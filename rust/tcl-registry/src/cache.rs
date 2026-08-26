@@ -288,6 +288,61 @@ pub fn registry_handle_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
     registry_handle_for_profile(DialectProfile::by_name(dialect))
 }
 
+/// Every command a safe interpreter hides, sorted.
+///
+/// The generic query behind both engines' `interp create -safe` (ledger row
+/// B2, issue #945 fault 7): the set is `Traits::SAFE_INTERP_HIDDEN`, and no
+/// consumer spells a command name. C's own set is `CmdInfo` rows lacking
+/// `CMD_IS_SAFE` plus the whole-command rows of `unsafeEnsembleCommands`
+/// (`tclBasic.c`), which is exactly what the trait records.
+///
+/// Deliberately **release-agnostic**: it is the union over every modelled
+/// release, and a caller narrows it by asking whether the command is
+/// actually present in the interpreter being made safe. That is not a
+/// shortcut — a release-gated command such as `unload` (8.5+) or `zipfs`
+/// (9.0+) is not registered under an older pin, so filtering by registration
+/// reproduces the measured per-release sets without a second availability
+/// rule. Measured on the reference interpreters
+/// (`interp create -safe s; lsort [interp hidden s]`, top-level command
+/// names only):
+///
+/// | release | hidden |
+/// |---|---|
+/// | 8.4.20 | the twelve below, minus `unload` and `zipfs` |
+/// | 8.5.19, 8.6.14 | + `unload` |
+/// | 9.0.4 | + `zipfs` |
+/// | 9.1b0 | + `clock` |
+///
+/// 9.1's `clock` is **not** in this set and must not be: 9.1 hides the C
+/// `clock` and immediately re-provides a safe one, so `clock format 0 -gmt 1`
+/// works inside a 9.1 safe child exactly as it does inside an 8.6 one
+/// (measured). The trait means "not callable in a safe interpreter", and
+/// `clock` is callable; putting it here would make the analyser's
+/// safe-context walk report a false positive on working code. Its presence
+/// in `interp hidden` is an artefact of the safe base's hide-then-alias, not
+/// of unsafety.
+#[must_use]
+pub fn safe_interp_hidden_commands() -> &'static [&'static str] {
+    static HIDDEN: OnceLock<Vec<&'static str>> = OnceLock::new();
+    HIDDEN.get_or_init(|| {
+        // The default build carries every plain-Tcl release's commands; the
+        // trait itself is release-invariant, so no profile is needed.
+        let registry = crate::CommandRegistry::build_default();
+        let mut names: Vec<&'static str> = registry
+            .commands_with_trait(crate::Traits::SAFE_INTERP_HIDDEN)
+            .into_iter()
+            // The registry's own names are `'static` string literals from the
+            // compiled specs; `commands_with_trait` merely reborrows them
+            // through `&self`, so look each one back up to recover the
+            // lifetime rather than leaking a copy.
+            .filter_map(|name| registry.get(name).map(|spec| spec.name))
+            .collect();
+        names.sort_unstable();
+        names.dedup();
+        names
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

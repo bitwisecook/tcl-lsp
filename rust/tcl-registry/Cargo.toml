@@ -36,6 +36,7 @@ tcl-cmd-core = { path = "../tcl-cmd-core" }
 tcl-regex = { path = "../tcl-regex", features = ["cmd-core"] }
 bitflags = "2"
 sha2 = "0.11"
+smallvec = "1"
 rustc-hash = { workspace = true }
 
 [dev-dependencies]

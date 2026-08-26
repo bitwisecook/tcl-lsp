@@ -4531,6 +4531,7 @@ dependencies = [
  "bitflags 2.13.1",
  "rustc-hash",
  "sha2 0.11.0",
+ "smallvec",
  "tcl-cmd-core",
  "tcl-core-types",
  "tcl-dialect",

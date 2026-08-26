@@ -1025,116 +1025,114 @@ struct Eda {
     help: &'static [&'static str],
 }
 
-fn eda_shells() -> [Eda; 6] {
-    [
-        Eda {
-            id: "cadence-eda-tcl",
-            display: "Cadence EDA Tcl",
-            editor: "tcl-cadence",
-            release: Release::TCL_8_4,
-            extensions: &[("globals", "Innovus/Genus Globals")],
-            tools: &[
-                "cadence-genus",
-                "cadence-common",
-                "cadence-innovus",
-                "cadence-xcelium",
-            ],
-            help: &[
-                "cadence",
-                "genus",
-                "innovus",
-                "tempus",
-                "xcelium",
-                "encounter",
-            ],
-        },
-        Eda {
-            id: "intel-quartus-eda-tcl",
-            display: "Intel Quartus EDA Tcl",
-            editor: "tcl-quartus",
-            release: Release::TCL_8_5,
-            extensions: &[
-                ("qsf", "Quartus Settings File"),
-                ("qpf", "Quartus Project File"),
-                ("qip", "Quartus IP File"),
-            ],
-            tools: &[
-                "quartus-project",
-                "quartus-flow",
-                "quartus-sta",
-                "quartus-sdc-ext",
-                "quartus-report",
-                "quartus-device",
-                "quartus-misc",
-            ],
-            help: &["quartus", "intel", "altera", "fpga", "quartus_sh"],
-        },
-        Eda {
-            id: "mentor-eda-tcl",
-            display: "Mentor EDA Tcl",
-            editor: "tcl-mentor",
-            release: Release::TCL_8_6,
-            extensions: &[("do", "ModelSim/Questa Do Script")],
-            tools: &["questa", "questa-formal", "calibre"],
-            help: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
-        },
-        Eda {
-            id: "microchip-libero-eda-tcl",
-            display: "Microchip Libero EDA Tcl",
-            editor: "tcl-microchip",
-            release: Release::TCL_8_5,
-            extensions: &[],
-            tools: &["libero"],
-            help: &[
-                "microchip",
-                "microsemi",
-                "actel",
-                "libero",
-                "smartfusion",
-                "igloo",
-                "proasic",
-            ],
-        },
-        Eda {
-            id: "synopsys-eda-tcl",
-            display: "Synopsys EDA Tcl",
-            editor: "tcl-synopsys",
-            release: Release::TCL_8_6,
-            extensions: &[
-                ("sdc", "Synopsys Design Constraints"),
-                ("upf", "Unified Power Format"),
-            ],
-            tools: &[
-                "synopsys-dc",
-                "synopsys-pt",
-                "synopsys-icc2",
-                "synopsys-fm",
-                "synopsys",
-            ],
-            help: &[
-                "synopsys",
-                "dc_shell",
-                "design_compiler",
-                "primetime",
-                "icc2",
-                "formality",
-            ],
-        },
-        Eda {
-            id: "xilinx-eda-tcl",
-            display: "Xilinx EDA Tcl",
-            editor: "tcl-xilinx",
-            release: Release::TCL_8_5,
-            extensions: &[("xdc", "Xilinx Design Constraints")],
-            tools: &["vivado"],
-            help: &["xilinx", "vivado", "vitis", "amd", "fpga", "ise"],
-        },
-    ]
-}
+static EDA_SHELLS: [Eda; 6] = [
+    Eda {
+        id: "cadence-eda-tcl",
+        display: "Cadence EDA Tcl",
+        editor: "tcl-cadence",
+        release: Release::TCL_8_4,
+        extensions: &[("globals", "Innovus/Genus Globals")],
+        tools: &[
+            "cadence-genus",
+            "cadence-common",
+            "cadence-innovus",
+            "cadence-xcelium",
+        ],
+        help: &[
+            "cadence",
+            "genus",
+            "innovus",
+            "tempus",
+            "xcelium",
+            "encounter",
+        ],
+    },
+    Eda {
+        id: "intel-quartus-eda-tcl",
+        display: "Intel Quartus EDA Tcl",
+        editor: "tcl-quartus",
+        release: Release::TCL_8_5,
+        extensions: &[
+            ("qsf", "Quartus Settings File"),
+            ("qpf", "Quartus Project File"),
+            ("qip", "Quartus IP File"),
+        ],
+        tools: &[
+            "quartus-project",
+            "quartus-flow",
+            "quartus-sta",
+            "quartus-sdc-ext",
+            "quartus-report",
+            "quartus-device",
+            "quartus-misc",
+        ],
+        help: &["quartus", "intel", "altera", "fpga", "quartus_sh"],
+    },
+    Eda {
+        id: "mentor-eda-tcl",
+        display: "Mentor EDA Tcl",
+        editor: "tcl-mentor",
+        release: Release::TCL_8_6,
+        extensions: &[("do", "ModelSim/Questa Do Script")],
+        tools: &["questa", "questa-formal", "calibre"],
+        help: &["mentor", "siemens", "modelsim", "questa", "calibre", "vsim"],
+    },
+    Eda {
+        id: "microchip-libero-eda-tcl",
+        display: "Microchip Libero EDA Tcl",
+        editor: "tcl-microchip",
+        release: Release::TCL_8_5,
+        extensions: &[],
+        tools: &["libero"],
+        help: &[
+            "microchip",
+            "microsemi",
+            "actel",
+            "libero",
+            "smartfusion",
+            "igloo",
+            "proasic",
+        ],
+    },
+    Eda {
+        id: "synopsys-eda-tcl",
+        display: "Synopsys EDA Tcl",
+        editor: "tcl-synopsys",
+        release: Release::TCL_8_6,
+        extensions: &[
+            ("sdc", "Synopsys Design Constraints"),
+            ("upf", "Unified Power Format"),
+        ],
+        tools: &[
+            "synopsys-dc",
+            "synopsys-pt",
+            "synopsys-icc2",
+            "synopsys-fm",
+            "synopsys",
+        ],
+        help: &[
+            "synopsys",
+            "dc_shell",
+            "design_compiler",
+            "primetime",
+            "icc2",
+            "formality",
+        ],
+    },
+    Eda {
+        id: "xilinx-eda-tcl",
+        display: "Xilinx EDA Tcl",
+        editor: "tcl-xilinx",
+        release: Release::TCL_8_5,
+        extensions: &[("xdc", "Xilinx Design Constraints")],
+        tools: &["vivado"],
+        help: &["xilinx", "vivado", "vitis", "amd", "fpga", "ise"],
+    },
+];
 
 fn eda_environments() -> Vec<EnvironmentDefinition> {
-    eda_shells()
-        .into_iter()
+    EDA_SHELLS
+        .iter()
         .map(|shell| {
             let mut placements = vec![
                 keyed("sdc", KeyedAxis::SdcVersion),

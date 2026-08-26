@@ -82,6 +82,7 @@ pub mod invocation_words;
 pub mod lifecycle;
 pub mod literal_validation;
 pub mod mathfunc;
+pub mod model;
 pub mod pack_hooks;
 pub mod patterns;
 pub mod presentation;
@@ -226,7 +227,7 @@ pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
 pub use cache::{
     registry_for_dialect, registry_for_profile, registry_for_profile_with_overlay,
-    registry_handle_for_dialect, registry_handle_for_profile,
+    registry_handle_for_dialect, registry_handle_for_profile, safe_interp_hidden_commands,
 };
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;

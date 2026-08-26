@@ -1,0 +1,430 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! Per-environment registry assembly on the new model (centralisation
+//! §1.1's per-context registries).
+//!
+//! A [`ContextRegistry`] is one **registry generation**: the spec multimap
+//! assembled for one resolved context by **provider filtering** — every
+//! spec whose [`SurfaceDeclaration`]s admit the environment under its
+//! world policy is included — rather than by the old per-profile bit
+//! loading. Release-window filtering (the axis primary against each
+//! row's applicability) stays a query-time concern, exactly as the old
+//! mask query was.
+//!
+//! Generations are `Arc`-owned and cached by
+//! `(environment id, registry generation, overlay hash, keyed-versions
+//! hash)` — the same identity the environment layer resolves. The spec
+//! *sources* are the very `&'static` groups `build_default`/`load_dialect`
+//! draw from (statics stay `&'static`, shared with the old registries, no
+//! second leak). **P2 seam, documented**: dynamic pack ingestion joins by
+//! adding pack-owned declaration sources to [`universe`]'s inputs and
+//! bumping the environment generation in the cache key; nothing dynamic
+//! may ever be handed out as `&'static` (review B8).
+//!
+//! The two equivalence sweeps in this module's tests are the acceptance
+//! gate of P1-E: for every compiled spec and every old catalogue profile,
+//! old-model visibility equals new-model visibility, and each profile's
+//! visible command-name set and per-name resolution answers are
+//! reproduced exactly (deliberate-divergence allowlist: **empty**).
+
+use std::cmp::Reverse;
+use std::sync::{Arc, Mutex, OnceLock};
+
+use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
+use tcl_dialect::DialectSet;
+use tcl_dialect::model::{EnvironmentDefinition, EnvironmentIdentity};
+
+use crate::model::context::{ContextQueries, KeyedVersions, ResolvedContext, specificity_breadth};
+use crate::model::surface::{SurfaceDeclaration, declarations_for_spec};
+use crate::registry::CommandRegistry;
+use crate::spec::CommandSpec;
+
+/// The compiled spec universe: every group `build_default` and
+/// `load_dialect` can reach, loaded once behind the same shared `&'static`
+/// spec slices the old per-profile registries use.
+///
+/// The `TMSH` layer is deliberately not loaded: `tmsh_command_specs` is a
+/// re-collection of specs `iapps_command_specs` already registers (the
+/// `IAPPS|TMSH`-tagged shared surface), so loading both would double-enter
+/// content-identical specs.
+pub(crate) fn universe() -> &'static CommandRegistry {
+    static CELL: OnceLock<CommandRegistry> = OnceLock::new();
+    CELL.get_or_init(|| {
+        let mut registry = CommandRegistry::build_default();
+        for pack in [
+            DialectSet::BPF,
+            DialectSet::IRULES,
+            DialectSet::IAPPS,
+            DialectSet::EXPECT,
+            DialectSet::SPECTCL,
+        ] {
+            registry.load_dialect(pack);
+        }
+        registry
+    })
+}
+
+/// One admitted spec with its translated declarations and precomputed
+/// specificity breadth. Position in the per-name list is the registration
+/// index — the last-registered-wins tiebreak, as in the old multimap.
+struct SpecEntry {
+    spec: &'static CommandSpec,
+    declarations: SmallVec<[SurfaceDeclaration; 2]>,
+    breadth: u32,
+}
+
+/// One assembled, `Arc`-owned registry generation for a resolved context
+/// (see the module docs): the per-name spec multimap admitted by provider
+/// filtering, plus the context its queries answer under.
+pub struct ContextRegistry {
+    context: ResolvedContext,
+    entries: FxHashMap<&'static str, Vec<SpecEntry>>,
+}
+
+impl ContextRegistry {
+    /// Assemble a generation for `context`: admit every universe spec with
+    /// some declaration whose provider is active (and whose predicate
+    /// holds) under the context's world policy.
+    fn assemble(context: ResolvedContext) -> Self {
+        let mut entries: FxHashMap<&'static str, Vec<SpecEntry>> = FxHashMap::default();
+        let universe = universe();
+        for name in universe.command_names() {
+            let mut admitted: Vec<SpecEntry> = Vec::new();
+            for spec in universe.specs(name) {
+                let declarations = declarations_for_spec(spec);
+                let in_world = declarations.iter().any(|declaration| {
+                    context.provider_active(&declaration.provider)
+                        && context.predicate_passes(&declaration.predicate)
+                });
+                if in_world {
+                    let breadth = specificity_breadth(&declarations);
+                    admitted.push(SpecEntry {
+                        spec,
+                        declarations,
+                        breadth,
+                    });
+                }
+            }
+            if !admitted.is_empty() {
+                // `command_names` yields each registered key once (the
+                // universe is `'static`, so the keys are too); the
+                // per-name specs keep their registration order.
+                entries.insert(name, admitted);
+            }
+        }
+        Self { context, entries }
+    }
+
+    /// The context this generation answers under.
+    #[must_use]
+    pub fn context(&self) -> &ResolvedContext {
+        &self.context
+    }
+
+    /// Every assembled command name (admitted at assembly; a name may
+    /// still resolve to nothing at query time when the release window
+    /// excludes it).
+    pub fn command_names(&self) -> impl Iterator<Item = &'static str> + '_ {
+        self.entries.keys().copied()
+    }
+
+    /// Resolve `name` under this context — the assistance-view command
+    /// resolution (centralisation R-c's assistance column), layered over
+    /// the multimap with the generalised most-specific-wins rule.
+    ///
+    /// **Selection, then the package conjunct** — mirroring the old
+    /// `get_for_dialect → is_available` layering: among the specs with a
+    /// declaration admitted for selection, the winner has the **narrowest
+    /// total applicability breadth** ([`specificity_breadth`]; the
+    /// documented tiebreaks are: a scoped spec beats the universal
+    /// `dialects: None` translation because the universal breadth of 22
+    /// exceeds every explicit gate's maximum of 13, and among equal
+    /// breadths the **last-registered** spec wins so curated overrides
+    /// keep beating the data they shadow). The winner then still has to
+    /// pass the full [`ContextQueries::is_available`], which adds the
+    /// closed-world required-package conjunct — a winner failing it
+    /// resolves to nothing rather than falling back to a wider loser,
+    /// exactly as the old layering behaved.
+    ///
+    /// A leading `::` falls back to the bare name, as the old `get` family
+    /// did.
+    #[must_use]
+    pub fn resolve_command(&self, name: &str) -> Option<&'static CommandSpec> {
+        let candidates = self.entries.get(name).or_else(|| {
+            name.strip_prefix("::")
+                .and_then(|bare| self.entries.get(bare))
+        })?;
+        let winner = candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                entry
+                    .declarations
+                    .iter()
+                    .any(|declaration| self.context.admits_for_selection(declaration))
+            })
+            .max_by_key(|&(index, entry)| (Reverse(entry.breadth), index))
+            .map(|(_, entry)| entry)?;
+        self.context
+            .is_available(&winner.declarations)
+            .then_some(winner.spec)
+    }
+
+    /// The visible command-name set: every assembled name that resolves
+    /// under this context, sorted.
+    #[must_use]
+    pub fn visible_command_names(&self) -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = self
+            .entries
+            .keys()
+            .filter(|name| self.resolve_command(name).is_some())
+            .copied()
+            .collect();
+        names.sort_unstable();
+        names
+    }
+}
+
+impl std::fmt::Debug for ContextRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ContextRegistry")
+            .field("environment", &self.context.environment.id)
+            .field("names", &self.entries.len())
+            .finish_non_exhaustive()
+    }
+}
+
+/// The generation cache key: the environment's resolved identity
+/// (id, registry generation, overlay hash) plus the keyed-versions hash.
+type GenerationKey = (EnvironmentIdentity, u64);
+
+/// The per-context registry for `environment`, assembled on first use and
+/// cached by `(identity, keyed-versions hash)`.
+///
+/// `identity` is the `(id, generation, overlay)` identity the environment
+/// registry resolved `environment` under — pass the value from
+/// [`tcl_dialect::model::EnvironmentRegistry::identity_of`] or
+/// `apply_overlay`, so an overlaid environment can never alias its base's
+/// generation. Cache entries are `Arc`-owned and bounded by the resolved
+/// identities a process actually uses (a closed set today: compiled
+/// environments × keyed pins); the P2 pack-ingestion seam adds generation
+/// bumps and pruning alongside dynamic sources.
+#[must_use]
+pub fn registry_for_environment(
+    environment: &Arc<EnvironmentDefinition>,
+    identity: &EnvironmentIdentity,
+    keyed: &KeyedVersions,
+) -> Arc<ContextRegistry> {
+    static CACHE: OnceLock<Mutex<FxHashMap<GenerationKey, Arc<ContextRegistry>>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(FxHashMap::default()));
+    let key: GenerationKey = (identity.clone(), keyed.content_hash());
+    if let Some(generation) = cache
+        .lock()
+        .expect("context registry cache mutex")
+        .get(&key)
+    {
+        return Arc::clone(generation);
+    }
+    // Assembled outside the lock; a racing thread's duplicate build is
+    // dropped in favour of the first published entry.
+    let assembled = Arc::new(ContextRegistry::assemble(ResolvedContext::resolve(
+        Arc::clone(environment),
+        keyed,
+    )));
+    let mut guard = cache.lock().expect("context registry cache mutex");
+    Arc::clone(guard.entry(key).or_insert(assembled))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cache::registry_for_profile;
+    use crate::profile_queries::ProfileQueries;
+    use std::collections::BTreeSet;
+    use tcl_dialect::DialectProfile;
+    use tcl_dialect::model::EnvironmentRegistry;
+
+    fn new_registry_for(profile_name: &str) -> Arc<ContextRegistry> {
+        let environments = EnvironmentRegistry::compiled();
+        let definition = environments.resolve(profile_name).expect(profile_name);
+        let identity = environments.identity_of(&definition);
+        registry_for_environment(&definition, &identity, &KeyedVersions::default())
+    }
+
+    /// The identity facts two same-shaped spec copies share (the tmsh
+    /// pack re-collects specs the iapps group also registers, so pointer
+    /// identity alone cannot compare across the two models there).
+    fn identity_of(
+        spec: &'static CommandSpec,
+    ) -> (
+        &'static str,
+        Option<DialectSet>,
+        Option<&'static str>,
+        Option<&'static str>,
+    ) {
+        (
+            spec.name,
+            spec.dialects,
+            spec.required_package,
+            spec.tcllib_package,
+        )
+    }
+
+    /// **Acceptance gate 1 (P1-E)**: for EVERY spec in the compiled
+    /// universe and EVERY old catalogue profile, old-model visibility
+    /// (`ProfileQueries::is_available` — mask ∧ operator exclusion ∧
+    /// package gate) equals new-model availability over the translated
+    /// declarations. Divergence allowlist: none.
+    #[test]
+    fn per_spec_visibility_matches_the_old_model_for_every_profile() {
+        let universe = universe();
+        let environments = EnvironmentRegistry::compiled();
+        let keyed = KeyedVersions::default();
+        let translated: Vec<(&'static str, &'static CommandSpec, Vec<SurfaceDeclaration>)> =
+            universe
+                .command_names()
+                .flat_map(|name| {
+                    universe
+                        .specs(name)
+                        .iter()
+                        .map(move |spec| (name, *spec, declarations_for_spec(spec).into_vec()))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+        let mut checks = 0usize;
+        for profile in DialectProfile::all() {
+            let definition = environments.resolve(profile.name).expect(profile.name);
+            let context = ResolvedContext::resolve(definition, &keyed);
+            for (name, spec, declarations) in &translated {
+                let old = profile.is_available(spec);
+                let new = context.is_available(declarations);
+                assert_eq!(
+                    old, new,
+                    "`{name}` (gate {:?}, requires {:?}) under `{}`: old {old} vs new {new}",
+                    spec.dialects, spec.required_package, profile.name
+                );
+                checks += 1;
+            }
+        }
+        println!(
+            "per-spec equivalence sweep: {} specs x {} profiles = {checks} checks, 0 divergences",
+            translated.len(),
+            DialectProfile::all().len(),
+        );
+    }
+
+    /// **Acceptance gate 2 (P1-E)**: for each old profile, the
+    /// corresponding environment's assembled registry has exactly the old
+    /// `registry_for_profile` visible command-name set, and resolves every
+    /// visible name to the same spec `best_visible` picked. Divergence
+    /// allowlist: none.
+    #[test]
+    fn per_environment_visibility_reproduces_the_old_registries() {
+        let mut names_checked = 0usize;
+        for profile in DialectProfile::all() {
+            let old_registry = registry_for_profile(profile);
+            let old_visible: BTreeSet<&str> = old_registry
+                .command_names()
+                .filter(|name| profile.resolve_command(old_registry, name).is_some())
+                .collect();
+            let new_registry = new_registry_for(profile.name);
+            let new_visible: BTreeSet<&str> =
+                new_registry.visible_command_names().into_iter().collect();
+            let only_old: Vec<&&str> = old_visible.difference(&new_visible).collect();
+            let only_new: Vec<&&str> = new_visible.difference(&old_visible).collect();
+            assert!(
+                only_old.is_empty() && only_new.is_empty(),
+                "`{}`: only-old {only_old:?}; only-new {only_new:?}",
+                profile.name
+            );
+            for name in &old_visible {
+                let old = profile
+                    .resolve_command(old_registry, name)
+                    .expect("visible name resolves");
+                let new = new_registry
+                    .resolve_command(name)
+                    .expect("visible name resolves in the new model");
+                assert!(
+                    std::ptr::eq(old, new) || identity_of(old) == identity_of(new),
+                    "`{name}` under `{}` resolves differently: old {:?} vs new {:?}",
+                    profile.name,
+                    identity_of(old),
+                    identity_of(new),
+                );
+                names_checked += 1;
+            }
+            println!(
+                "`{}`: {} visible names match the old registry",
+                profile.name,
+                old_visible.len()
+            );
+        }
+        println!(
+            "per-environment sweep: {} profiles, {names_checked} resolved names, 0 divergences",
+            DialectProfile::all().len()
+        );
+    }
+
+    #[test]
+    fn generations_cache_by_identity_and_keyed_hash() {
+        let environments = EnvironmentRegistry::compiled();
+        let definition = environments.resolve("f5-irules").expect("irules");
+        let identity = environments.identity_of(&definition);
+        let default_keyed = KeyedVersions::default();
+        let first = registry_for_environment(&definition, &identity, &default_keyed);
+        let second = registry_for_environment(&definition, &identity, &default_keyed);
+        assert!(Arc::ptr_eq(&first, &second), "same key, same generation");
+        let pinned = KeyedVersions {
+            bigip: Some(tcl_dialect::model::Version::parse("17.1.0").expect("version")),
+            ..KeyedVersions::default()
+        };
+        let third = registry_for_environment(&definition, &identity, &pinned);
+        assert!(
+            !Arc::ptr_eq(&first, &third),
+            "a different keyed pin is a different generation"
+        );
+    }
+
+    #[test]
+    fn resolution_applies_the_rooted_name_fallback() {
+        let registry = new_registry_for("tcl9.0");
+        let bare = registry.resolve_command("foreach").expect("foreach");
+        let rooted = registry.resolve_command("::foreach").expect("::foreach");
+        assert!(std::ptr::eq(bare, rooted));
+        assert!(registry.resolve_command("no-such-command").is_none());
+    }
+
+    /// The new-model-only environments behave sensibly even though no old
+    /// profile pins them: the lenient `tk` environment resolves the Tk
+    /// surface (through its Tcl core rows, with the hosted placement
+    /// supplying the Tk-axis floor — review B11), and the closed
+    /// `f5-irules` world never does.
+    #[test]
+    fn the_tk_environment_hosts_tk_without_a_vendor_bit() {
+        let tk = new_registry_for("tk");
+        assert!(tk.resolve_command("button").is_some());
+        assert!(tk.resolve_command("lmap").is_some(), "core rides along");
+        let irules = new_registry_for("f5-irules");
+        assert!(
+            irules.resolve_command("button").is_none(),
+            "a closed world without a Tk placement never resolves Tk"
+        );
+    }
+}
