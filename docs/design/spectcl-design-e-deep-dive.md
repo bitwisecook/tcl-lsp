@@ -18,7 +18,10 @@ the acceptance checklist; this document is where design E answers it
 item by item with worked spellings.
 
 Nothing here is a decision. Where a walk forces a ruling candidate it
-is numbered `E-R#` and collected in §12 for the owner.
+is numbered `E-R#` and collected in the final section for the owner;
+where it forces a change to the Rust model it is numbered `M#` and
+collected in §13. Every file:line cited below was verified against the
+working tree during the survey behind this document.
 
 ## 1. The execution model, pinned before any example
 
@@ -198,5 +201,690 @@ The points the walk establishes:
   those iRules must type its written variables when the template
   literal is present.
 
-<!-- §3-§10 are completed from the domain harvests; §11-§12 collect
-     the Rust-model feedback and ruling candidates. -->
+## 3. iRules against the profile and event graph
+
+The iRules surface is the strongest evidence that the dialect layer is
+*data all the way down* — and the strongest indictment of keeping that
+data in Rust. Today the event graph lives in `events.rs` as a table
+split across **21 hand-chunked functions** purely to dodge function-size
+lints (`events.rs:1364-3213`); the module doc claims 247 events while
+the table holds 176, and `profiles.rs` claims 57 profile types / 87
+namespaces while holding 66 / 113. Nothing checks the prose against the
+data because the prose *is* the only other copy. A dialect pack erases
+the artefact and the drift at once: the counts become whatever the data
+says, and doc-comments about the data are generated from it (M13).
+
+### 3.1 The event graph as pack data
+
+Everything `EventProps` carries is declarative already — the E surface
+just spells it:
+
+```tcl
+family-surface f5-irules {
+    event HTTP_REQUEST -side client -transport tcp \
+        -profiles {HTTP FASTHTTP} -flow -hot -common \
+        -multiplicity per-request
+    event SERVER_DATA -side both -command-side server \
+        -transport {tcp udp} -setup-event SERVER_CONNECTED \
+        -collect-protocols {TCP UDP} -collect-side server
+    event PERSIST_DOWN -available {bigip 11.5.0-15.0.0}
+
+    firing-order {
+        RULE_INIT
+        FLOW_INIT
+        CLIENT_ACCEPTED -gated-by {FASTL4 TCP}
+        ...
+    }
+
+    data-protocol TCP -payload explicit-collect -release explicit \
+        -bootstrap {CLIENT_ CLIENT_ACCEPTED SERVER_ SERVER_CONNECTED}
+    data-protocol UDP -payload not-required -release not-applicable
+
+    event-priority-policy -keyword priority -default 500
+}
+```
+
+The walk surfaces four facts a naive port would have lost, all now
+explicit in the vocabulary: `command_side` is a **third** side axis
+(`SERVER_DATA` fires on both sides but side-sensitive commands take the
+server side, `events.rs:2865`); an event can have properties but no
+firing-order slot (176 props vs 74 order entries — the two are separate
+declarations, not one row); multiplicity is currently three closed
+*sets* rather than a field (`events.rs:938,3539,3559`) and becomes a
+per-event field with `unknown` as the default; and the flow-chain
+tables' `condition_note` is free prose that states collect-gating in
+English ("Requires TCP::collect in CLIENT_ACCEPTED") — the pack form
+types it as a reference to the `data-protocol` row instead, so the
+quick-fix that inserts the collect call reads data, not a sentence.
+
+Two axes come out of the walk **dead**: `ProfileSpec::capabilities` and
+`::conflicts` are empty for every current profile and no command sets
+`EventRequires::capability`; `EventRequires::init_only` is set by no
+spec (the four commands that need exclusion use `excluded_events`).
+Dead axes do not get vocabulary — each is a delete-or-populate question
+for the owner (M9), because carrying a word no data uses invites packs
+to guess at semantics the engine never implements.
+
+What stays Rust: the stack algebra (`expand_profile_stack`'s transitive
+`requires` closure and `stack_satisfies`' OR-over-candidates /
+AND-within-expansion rule, `profiles.rs:200,219`), the execution-context
+machine (`IrulesExecutionContext` and friends), and the lexer fact that
+a `when` body must be one closed braced source word. Packs declare
+values on axes; algorithms over those values are engine semantics —
+the same closed-vocabulary boundary as the dialect axes (§6 of the
+redesign).
+
+### 3.2 Command-level facts — mostly data already, and the residue is E's home turf
+
+Only **3 of the 984 shipped iRules specs carry any Rust hook** (`when`,
+`call`, `after` — each an `arg_role_resolver`). The other 981 are pure
+data, which is why the iRules walk is less about expressibility and
+more about the odd corners:
+
+- **Argument-prefix event contracts.** `MQTT::payload` carries five
+  per-literal-prefix event requirement forms where the *empty prefix
+  means the exact no-argument form*, not a wildcard
+  (`mqtt__payload.rs:100-147`, matcher `events.rs:814`), plus a
+  *separate* prefix-keyed payload-availability table where longest
+  prefix wins and dynamic arguments abstain (`events.rs:148,560-583`).
+  Both are rows in E; the abstention rule is the matcher's, not the
+  pack's.
+- **Suppression as data.** `FIX::tag map` declares `requires: None`
+  *specifically to suppress* the namespace→profile fallback
+  (`fix__tag.rs:58-64`). The E spelling makes the suppression visible:
+  `event-requires -none` is a distinct word from omitting the clause.
+- **Taint duals and abbreviation.** `HTTP::header` is source and sink
+  at once, sink-gated to `{insert, replace}` — and membership is tested
+  *after* ensemble-abbreviation canonicalisation (`HTTP::cookie ins` →
+  `insert`, `taint.rs:594-606`). The canonicalisation is engine
+  semantics; the pack writes only subcommand names.
+- **Bulk trait application belongs in the pack.** Today
+  `Traits::REQUIRES_HTTP_CONTEXT` reaches 32 commands through a wrapper
+  function at the registration site (`commands/irules/mod.rs:1055,
+  1478-1509`) — invisible from any single spec file. Under E the same
+  thing is a visible `foreach` in the pack over a named command list
+  (E-R5): templating makes the bulk edit *reviewable* instead of
+  hidden, which is precisely the legitimate use of evaluation §1.3
+  carves out.
+- **The `when` tail grammar comes out of Rust.** The
+  `priority N` / `timing enable|disable` keyword tail and its 0..=1000
+  range are today a hardcoded match in `registry.rs:3163`; the bare
+  `priority`/`timing` file-level statements parse at `registry.rs:3112`.
+  Both become clause forms on `when` and value rows on the two
+  statements, with only the *retroactive* semantics (a bare `priority`
+  changes handlers that follow it) staying an engine rule keyed by the
+  declared `irules_top_level_effect`.
+
+The **fourth BIG-IP version axis** the walk found —
+`profile_defaults/generated.rs`, 2,213 lines of per-TMOS-release profile
+field defaults — slots into the keyed-axis mechanism the EDA
+environments already use (§10), not into `Lifecycle`; conflating them
+would give a *default value change* the semantics of an availability
+change. And the closed-world rule stays exactly where B12 put it: the
+pack declares what exists; whether an environment treats the
+virtual-server's profile set as exhaustive is overlay policy.
+
+## 4. iApps and tmsh — the surface E is cheapest for
+
+The iApps walk is short because the modelling is: 41 specs, almost all
+`Arity::at_least(0)` with a synopsis string — existence, not
+description. The structure worth keeping is the dialect union
+(`tmsh::*` loads under both the iApps environment and the standalone
+tmsh shell), which in 2.0 is simply a `package-surface tmsh` block that
+both environments list as ambient — no bit-set union spelled anywhere.
+
+What the walk adds to the requirements list: `script::init` /
+`script::run` / `script::help` / `script::tabc` are *template lifecycle
+entry points*, not events — a distinct declaration («this proc name is
+called by the host at phase X») that today has no field at all; and
+`tmsh::begin_transaction` / `commit` / `cancel` bracket state the model
+cannot see. Neither warrants new machinery yet: the entry points are
+`defines-symbol`-grade facts plus a context gate, and transaction
+bracketing joins the world-state axis question (§10, M2). The tmsh
+syntax-version axis and its temporal transition are already ruled in
+the redesign; iApps' `.apl` embedded-Tcl callbacks stay behind the P4
+hold with the rest of the F5 evidence layer.
+
+## 5. tcl-bpf — the stress limit for "dialect"
+
+tcl-bpf is the most instructive extreme: a surface that *parses* as Tcl
+but whose semantics are eBPF. Twenty-six commands in four layers, every
+one carrying a typed `BpfOpSpec` descriptor the front-end dispatches on
+— never the name (`spec.rs:1477`). Seven of its words (`when`, `drop`,
+`use`, `next`, `map`, `pass`, `loop`, `profile`) collide with
+iRules/Tcl/Tk/tcllib commands, and the *only* disambiguator is the
+dialect bit — which is exactly what the environment layer replaces: a
+`bpf` environment whose contributed language identity resolves the
+name to the BPF declaration, with no bit arithmetic anywhere (R-a).
+
+What the walk establishes for the spec surface:
+
+- **`bpf_op` stays a closed Rust vocabulary, referenced by name.** The
+  descriptors carry codegen semantics (verdict kinds, effects masks,
+  context struct offsets); a pack row says `-bpf-op setu32` the way a
+  hook row says `-native Foreach`. A pack cannot invent an op, only
+  bind a word to one — same soundness boundary as the lexer axes.
+- **Two capability lattices, kept apart on purpose.** Per-command
+  `BpfEffects` (drives the `allow`/`deny` lists) and per-event
+  `BpfEventCaps` are overlapping-but-unequal bitsets (`bpf_op.rs:38,
+  363`). The E surface declares both as named flag sets on their
+  respective rows and does *not* try to unify them — the walk's lesson
+  is that a spec format must be able to carry two different capability
+  vocabularies on two different declaration kinds without inventing a
+  common super-lattice.
+- **Verdict legality is a program-type set, not an event reference**
+  (`accept` = socket-filter only, `tx` = XDP only, `pass` = XDP|TC|
+  cgroup, `drop` = all) — and `next` is a *non-terminal verdict* whose
+  meaning ("run the next handler in priority order") is composition
+  semantics, excluded from every event's verdict list yet always
+  permitted. Both are data rows plus one engine rule.
+- **The event schema is richer than iRules'** — ELF section names,
+  typed context structs with real byte offsets and endianness, kernel
+  version minima with BTF/bpf-link flags, attach parameters. All of it
+  is declarative, and the kernel minimum is another **keyed version
+  axis** (`KeyedAxis`-shaped, like SDC/UPF/tool versions), not a
+  `Lifecycle`.
+- **The gap is authoring economics, not expressibility.** No BPF spec
+  today carries `hover`, `forms`, `arg_roles`, or `body_kind` — even
+  the four brace-bodied commands — and the argument mini-grammars
+  (`be|le|native`, `hash|array`, `shared|percpu`, `key=value`) live in
+  doc comments. That is what a cheap, Tcl-native authoring surface
+  fixes: the BPF pack is small enough that a complete E rewrite is an
+  afternoon, and it doubles as the acceptance test that a
+  *non-Tcl-semantics* dialect pack round-trips through
+  `spec build --emit rust`.
+
+## 6. TclOO, itcl, snit — one class model, currently split in half
+
+The definer model is the registry's best machinery — 14-field grammars,
+three member kinds, slot fold-operations pinned to C Tcl behaviour,
+manufacturer tables, retraction shapes, per-member 9.0 gates — and the
+walk's headline is structural: **Tk and the class systems use disjoint
+halves of one object model and nothing bridges them.** Class systems
+use `definition_body` + `manufacturers` + `defines_command_at` and
+never `object_class`; Tk widgets use `object_class` +
+`creates_instance_at` and never a member grammar. The consequence is
+symmetric poverty: an `oo::class`-defined class never gets an
+instance-method table, and itcl/snit declare grammars whose
+construction machinery is absent (`itcl_class.rs:38-58` sets no
+`creates_instance_at`, no `object_class`). M5 rules the fix: **one
+`ClassSurface`** that any command may carry, holding definer grammar,
+instance methods, manufacturers, superclasses, and unknown-dispatch
+policy together — Tk widgets and TclOO classes instantiate the same
+shape, and every command-grade fact becomes legal on a method (which
+retires gap G7/G15's "command-only fields with method-shaped examples"
+wholesale rather than field by field).
+
+In E the class surface is where executable registration reads most
+naturally, because a class body *is* a scope:
+
+```tcl
+class tree -prefix-matching strict -allow-unknown-methods {
+    method walkproc {node ?-order order? ?-type type? cmdprefix} {
+        option -order order -values {pre post in both}
+        param cmdprefix -role command-prefix -timing deferred \
+            -appended {action tree node}
+    }
+    method walk {node ?-order order? ?-type type? loopvar script} {
+        param loopvar -role loop-var-list
+        param script  -role body -completion-codes {5 prune}
+        traits HAS_LOOP_BODY
+    }
+}
+
+definer snit::type -family snit {
+    member method      {name:name params:paramlist body:script}
+    member typemethod  {name:name params:paramlist body:script}
+    member delegate    -keyword-only -dynamic-dispatch
+    member-body-command install     -binds-handle {name 0 class 2 -keyword using@1}
+    member-body-command installhull -binds-handle {name -implicit hull class 1 -keyword using@0}
+    bare-word-construction -values {%AUTO%} -prefixes {.}
+}
+```
+
+The walk confirms the de-hooking trend the DSL ports already started:
+`oo_class_arg_roles` is derivable from the manufacturer table (spelled
+`arg_role_resolver from-manufacturers` in the port), and snit's
+bare-word predicate reduces to `-values`/`-prefixes` data. Three things
+remain genuinely native and stay `-native` references: the four class
+factory state-transition resolvers (typed `CommandBinding` /
+`ObjectDispatch` facts the DSL has no vocabulary for — deliberately),
+and the analyser's `OoDefine`/`OoObjdefine` hooks for the **inline**
+definition form. That inline form is the known generic-coverage gap the
+rubric names, and M5 closes it structurally: the inline
+`oo::define C method m {} {}` spelling is *derived from the same member
+table* as the body form — one grammar, two projections, the same
+never-author-twice rule as `tcl::mathop` (the member table is the
+entity; body-form and inline-form are its projections).
+
+Smaller corners the E surface must keep, each already proven as data:
+flag-keyed members with optional named bodies (`property NAME ?-get
+BODY? ?-set BODY?` — gap G12's `{name, params, body}` misfit becomes a
+member layout kind, not a special case); declaration-time vs
+after-the-fact visibility as distinct vocabularies; slots as fold
+operations with C-pinned defaults, all six ops accepted under every
+dialect by explicit modelling choice; `oo_context_facts` keyed on the
+*word* (`self class` folds, the other eight words provably don't —
+oracle inline at `oo_self.rs:139-150`); and `self` deliberately
+avoiding a `subcommands` table because a consumer's type-inference
+special-cases non-empty tables (`oo_self.rs:148-150`) — which is not a
+fact about `self` at all but a consumer contract leaking into a spec,
+and goes on the M14 list.
+
+## 7. Tk — options as they are really used
+
+Tk is death by a thousand well-modelled cuts, and the walk mostly found
+the *asymmetries*:
+
+- **`-bg` is a separate `OptionSpec` at 33 sites** while the `aliases`
+  field whose doc-comment names exactly this case is used once
+  (`hover.rs:611-617`). The E pack spells `option -background color
+  -alias -bg` and the upgrade tool folds the 33 duplicates
+  mechanically — a pure win with no model change.
+- **Instance `configure`/`cget` carry no option table**, and subcommand
+  option lookup never falls back to the class's own table
+  (`registry.rs:3647-3675`), so `.b configure -bogus 1` passes
+  unvalidated today despite `button`'s complete OPTIONS list. Under M5
+  the class surface owns one option table and `configure`/`cget`/
+  creation all project it — the trailing-option forms
+  (`CONFIGURE_FORMS`) stay, the duplication goes.
+- **Widget inheritance is macro-expanded, not modelled** —
+  `ttk_widget_class!` textually re-emits six methods into every ttk
+  class while `superclasses` sits empty everywhere. E's templating
+  could replicate the macro, but the right move is the opposite: real
+  `-superclass` data and the registry's existing inherited walk. Not
+  everything regular should be a template (E-R5's boundary: template
+  what is *bulk*, declare what is *structural*).
+- **The `%`-substitution story is half a model.** What exists is taint
+  data — which `%` letters inject externally-controlled text
+  (`CallbackTaintInput::TkPercent`, deliberately only `%P %s %S %A
+  %K`). What doesn't exist is the per-slot substitution *vocabulary*
+  (which letters are legal in a `bind` script vs an entry
+  `-validatecommand`), even though the DSL drafts already spell
+  `-substitutions {%n node %t tree}` for `struct::tree walk`. M15
+  makes the substitution table first-class per callback slot, with the
+  taint subset a marked projection of it — one table, two consumers,
+  and the three copy-pasted `bind`-shaped resolver pairs
+  (`bind.rs:40-54`, `canvas.rs:31-45`, `wm.rs:32-36`) collapse into
+  one declarative `event-bound-script` slot shape.
+- **The literal mini-language problem again.** Canvas item types and
+  their per-type option tables, text indices (`line.char`, `end`,
+  modifier chains), `wm geometry`'s `WxH+X+Y` — all opaque strings
+  today. These are the same shape as `format` (§2): a pack-local
+  helper plus `types`/`roles`/`values` hooks guarded on literal
+  inputs, with the static synopsis as the abstention floor. Text
+  indices get an `index(text)` static type the helper narrows.
+- **Commands that create commands, again.** `image create photo im1`
+  and `font create` leave their created name unknown because the
+  optional leading name defeats a fixed `defines_command_at` — the
+  unified `introduces` vocabulary (M6) takes a *resolved position or
+  pattern*, not a fixed index, and covers `zlib stream`,
+  `namespace ensemble create -command`, and interp paths in the same
+  stroke.
+
+The geometry-manager descriptor (`TkGeometryManagerSpec` — container
+policy, direct forms, release subcommands) is already exactly the kind
+of typed, engine-consumed data block E just carries verbatim; the
+pathname algebra stays Rust. The Tk-package-axis lifecycle on options
+(`-locale` introduced Tk 9.1, orthogonal to the Tcl core axis) is §5.4
+range targeting working as designed — worth a conformance vector, not
+new design.
+
+## 8. tcllib — callbacks, factories, and the scoped completion code
+
+tcllib is where deferred callbacks live, and the walk sorts its twenty
+cases into three bins:
+
+**Already data, keep.** `struct::list`'s three callback arities with
+expr-vs-body twins; `struct::graph walk`'s option-borne
+`Exactly(3)` prefix; `report::report`'s non-OO namespace factory with
+sub-subcommand line codes; `lambda`/`defer` bodies proven against both
+oracles; `uri::register`'s registration-time body.
+
+**Hooked today, data or E-proc tomorrow.** The arity-conditional
+prefix/timing pairs (`hook bind`'s 4-arg registration vs query forms;
+`control::do`'s trailing pair) become conditional rows guarded on call
+shape. `bibtex::parse` — where six SAX callback options flip between
+same-invocation and deferred depending on whether `-channel` appears
+*elsewhere in the call* — is the cross-option dependency case, and in E
+it is a five-line pack-local `timing` hook, unit-testable, replacing a
+Rust fn nobody can see from the spec. The `PREFIX_OVERRIDES` post-hoc
+patch loop (`clients.rs:583-603`) — a Rust mutation pass over
+already-built rows because the flat `Row` table couldn't say
+"command-prefix" — simply ceases to exist: E registration calls
+compose, so the row says what it means at the call site.
+
+**Not modelled at all, and cheap now.** `math::calculus`'s 20+
+function-name callbacks — the largest unmodelled callback surface in
+tcllib — is a `foreach` over a name list in E. `struct::tree walk`
+(the loop-body twin, absent from Rust, present only in the draft) and
+`struct::graph`'s third dispatch level (~15 `arc`/`node` ops with real
+arities that `SubSubCommand` cannot hold — gap G16) both land once
+M11 gives sub-subcommands full fidelity. `http::geturl`'s entire
+option table — including the two command-prefix callbacks that are
+invisible today — ports from the existing `geturl.tclspec` draft.
+
+The one genuinely hard case stays hard, and gets a ruling candidate
+instead of a shrug: `struct::tree::prune` is `return -code 5`,
+meaningful only inside `walk`'s body — a *library-defined completion
+code scoped to one command's body*. The rubric rightly refuses to open
+the `completion` CFG field to packs. E-R6 proposes the narrow door:
+`-completion-codes {5 prune}` on the body slot (as the class example
+above spells) declares that *within this body*, code 5 is a named,
+loop-adjacent completion — consumed by the existing
+`BREAKS_LOOP`-family traits machinery scoped to that body, never by the
+open-coded CFG vocabulary. Scoped, named, and only attachable where a
+body role already is.
+
+## 9. expect and argparse — grammars inside arguments
+
+`expect`'s clause grammar is the model at its best — `CaseListSpec` is
+a 22-field descriptor covering per-clause flags, outer-shape selector
+flags (`-brace`/`-nobrace` with the first-arg-only remainder rule), the
+poisoned `-timeout`/`-i` interaction recorded as *deliberate
+abstention*, non-final keyword patterns, and the omitted-final-body
+allowance. All data; E carries it as a named `case-grammar` descriptor
+and the `interact` gap (a **second**, different pair grammar, currently
+`case_list: None`) becomes a second instance rather than new machinery.
+Two real holes: spawn ids flow through the surface untyped (`spawn`
+declares no out-binding; `expect -i` takes a plain value) — E-R7's
+pack-declared handle classes give `spawnid` the same treatment
+`binds_handle` gives snit's `install`; and `trap`'s first argument is a
+body *or* the literal `SIG_IGN`/`SIG_DFL` — a value-or-body union the
+conditional-row form covers.
+
+`argparse` is the deepest case in the whole survey. The command's
+*argument is a grammar*: a definition list whose 27 element switches,
+suffix shorthands (`= ? ! * ^`), combinatorial legality table, and
+`-forbid`/`-require`/`-imply` graphs define the *caller's* argument
+surface — and today the model's whole answer is a blindness
+declaration (`FrameArgLayout::OpaqueCallerVars`: widen, never
+enumerate) plus a dead exported data table nothing consumes. Gap G4's
+verdict was "[SOFT] — no mechanism to point the DSL at the embedded
+literal". E provides exactly that mechanism, and it is the same seam as
+§2 (E-R3's fact-emitting hooks, one level up):
+
+```tcl
+command argparse {?switch ...? definition:list ?arguments:list?} {
+    grammar -inputs {literal definition} {call} {
+        foreach element [argparse::parse-definition [literal definition]] {
+            declare-local [argparse::element-key $element] \
+                -type [argparse::element-type $element]
+        }
+    }
+}
+```
+
+A `grammar` hook emits *derived declarations* — locals the call
+introduces in its caller, per-call option tables, per-call arity — from
+a statically-known literal, abstaining otherwise (the
+`OpaqueCallerVars` widening stays as the abstention floor, unchanged).
+The same hook family covers SpiceGenTcl's 164 argparse constructors
+(when the definition is literal at the class site), cffi's
+`{type value}` signatures with `chars[n]` cross-parameter references,
+and `tls::socket -server`'s callback rewriting — each a pack helper
+plus one hook, none a Rust change beyond the hook seam itself (M3).
+What stays honestly unknowable stays `Unknown`: mustache's
+position-dependent lambda arity and runtime-computed definitions
+abstain by construction.
+
+## 10. The EDA shells — scale, collections, and world state
+
+EDA already lives the 2.0 life: the six vendor environments are Rust
+data with **three keyed non-Tcl version axes each** (SDC, UPF, tool),
+and the command surfaces are eight bundled `.tclspec` packs totalling
+35,001 lines — `eda_xilinx.tclspec` alone is 20,887 lines — with the
+Rust spec directories already deleted behind a field-for-field
+round-trip gate. The walk's findings are therefore about what the packs
+*couldn't say*:
+
+- **Boilerplate at scale.** `option -quiet` / `option -verbose` repeat
+  roughly a thousand times. In E:
+  `proc vivado-command {name synopsis body} { command $name $synopsis [concat {option -quiet; option -verbose; option -return_string} $body] }`
+  — a pack-local template proc, the single strongest concrete argument
+  for E at this corpus scale, and per §1.3 its output is a fixed data
+  set.
+- **Collections are an untyped hole.** Object-query results
+  (`get_cells`, `get_clocks`) are a distinct value kind consumed by
+  `filter`/`foreach_in_collection` — today acknowledged only by one
+  analyser hook on `foreach_in_collection`, with collection-returning
+  commands saying so in hover prose. E-R7 again: the pack declares
+  `type collection` as a handle class, query commands declare
+  `returns collection(cell)`, and `foreach_in_collection` narrows its
+  loop variable — all through the §2 typing vocabulary, no new Rust.
+- **World state gates legality.** `create_clock` is meaningless with no
+  open project; a run must be active for `wait_on_run`. The only
+  context gate the model has is hardwired to `in_event_body`
+  (`spec.rs:91-96`). M2 generalises the gate input to a typed context
+  bag (event body, proc body, class body, transaction open, project
+  state axis) that engines populate and packs *reference* — tmsh's
+  transactions (§4) and iRules' execution contexts join the same
+  vocabulary.
+- **Timing-constraint value syntax** (`-waveform {2 4}`, edge lists,
+  `{}`-quoted timing exceptions) is the literal mini-language pattern a
+  third time — helper procs plus `types`/`values` hooks, with the SDC
+  version axis gating vocabulary the same way `%b` gates on 8.6.
+- The corpus census note that EDA scripts build command tables by
+  `interp alias` (20 anchored hits, vs zero `bind`/`coroutine`) means
+  the alias transition machinery (R-c) matters *more* here than event
+  callbacks — a conformance-lattice entry, not a design change.
+
+## 11. Corpus oddities — the census gaps, revisited under E
+
+The external census (G1-G16) was run against the declarative 1.x-shaped
+DSL; re-reading it under E, the entries sort cleanly:
+
+**Dissolved by E mechanics.** G4 (argparse embedded grammar — §9's
+`grammar` hook). G5 (shared closed-value tables on options — `values`
+registered once, referenced by any row; in E a table is just a value a
+proc can splice). G10 (one method body shared across unrelated classes
+— a pack-local proc invoked from N registration sites, no duplication).
+G13 (scoped completion codes — E-R6). Per-flag-combination return
+typing (tarray `column search`, a known-limits row) — a `types` hook
+whose `-inputs` include option presence; the limit row retires.
+
+**Landed by model changes already ruled.** G1 (`object_class` syntax —
+ratified, and M5 widens it). G3 (`-introduced` on a third-party axis —
+ratified; VersionSet made it general). G7/G15 (command-only fields on
+methods — M5). G16 (sub-subcommand fidelity — M11). G12 (property
+clause — member layout kind, §6).
+
+**Still open, now with a shape.** G2's directional half: `-forbid`
+mapped; option *requires* relations stay a known limit until a real
+consumer proves the semantics (the census found 189 `-require` uses in
+SpiceGenTcl alone, so this is the most valuable single model addition
+left — flagged for the owner rather than ruled here). G6 (foreign
+code as a value — ticklecharts' `jsfunc` JS): E-R8 proposes
+pack-namespaced embedded-language names (`-language ticklecharts::js`)
+carrying *identity and taint colour only* — rendering and analysis
+semantics only via hooks, so the closed `pattern_type` /
+`format_string_type` catalogues retire into one open-named,
+closed-semantics axis. G8/G9 (apave's nested tuple bodies and
+closed-yet-extensible widget codes) stay the census's most speculative
+rows; nothing in E makes them cheaper to get wrong, so they wait for a
+second corpus witness.
+
+Two corpus workloads become acceptance tests rather than design
+inputs: the KaiWilke RADIUS stacks (heavy `binary scan` on collected
+payloads — §2's typing walk must light them up end to end), and
+TesTcl, which *mocks* iRules commands as plain Tcl procs — the
+resolution story (user `proc HTTP::header …` produces a `Must` binding
+that shadows the pack declaration, softening diagnostics) exercises
+R-c's realm transitions with no new mechanism, and makes a good
+conformance vector for binding-vs-declaration precedence. `tclinterp`
+remains the clean counter-example: a 33-line pack, fully expressible,
+zero gaps — the floor E must not raise.
+
+## 12. SpecTcl itself — self-hosting closes under E
+
+Today the DSL's own editing experience is the strangest pack in the
+tree: a compiled-in command set *plus* twelve definer grammars, with
+exactly one `body_scope` (the `hover` block) — so the inner words of
+eleven other block grammars sit on the same W123 footing `hover`'s keys
+did before the parity test forced an environment. Two hand-kept
+vocabularies (the `CommandSpec` list and the `MemberSpec` tables) have
+already drifted: `available`, `environment`, `dialect`,
+`file_extension` and friends exist as statements with no member rows,
+and `environment`/`dialect` — 2.0's two most semantic blocks — are
+modelled as flat two-argument statements whose braced bodies are
+opaque strings. The `descriptor KEY NAME {…}` block's inner vocabulary
+depends on a word on its own line, "which no single grammar can
+express"; hook-body verbs (`fold`, `role`, `reject`, `consume`) appear
+in the editor as nothing.
+
+Under E, all four strains dissolve into the same fact: **a pack file is
+a Tcl program, so the DSL surface is an ordinary command surface.**
+
+- The vocabulary words are commands in the evaluation interp (§1.5), so
+  there is exactly *one* source of truth — the evaluator's command
+  table — and the editing-surface pack is **emitted from it**
+  (`tcl spec build --emit self` alongside `--emit rust`), retiring the
+  parity-test-per-block treadmill (E-R9). The field renames that today
+  live in prose (`snippet`→`description`, `returns`→`return_value`)
+  become the emitted table's data.
+- Block vocabularies are evaluation scopes: `descriptor world_effects
+  NAME {…}` dispatches on its key at evaluation time, so the inner
+  vocabulary is exact per instance — the "no single grammar" limit was
+  an artefact of describing evaluation statically.
+- The old strain "`set x 1` at pack level resolves as a known command
+  while the loader silently drops it" **inverts into a feature**: under
+  E that line is real and meaningful. What replaces the silent drop is
+  a `spec check` lint classifying top-level statements by
+  registration effect, so dead code in a pack is a notice, not a
+  mystery.
+- The hook sandbox's 26-command whitelist and the emitter verbs get
+  specs the same way — they are the `body_scope` of hook bodies,
+  spelled once in the self-pack.
+
+What survives unchanged from today's loader: vocabulary versioning and
+the fail-closed classes (§1.5 — the class of an unknown *registration
+command* is judged by the same Presentation/Assistance/Semantic rules,
+with everything inside `dialect`/`environment` blocks Semantic by
+scope), tier-based provenance (`Tier` is the §6.4 trust class, now
+enforced at the registration call per E-R2), and the editor identity
+(`tclspec` language id, content signature for packs saved as `.tcl`,
+packs as analysis inputs never indexed documents). The self-hosting
+acceptance gate: the SpecTcl 2.0 self-pack loads under its own loader,
+its emitted editing surface analyses the eight EDA packs and the
+`tcllib`/`tk` packs with zero unknown-word diagnostics, and
+`spec build --emit rust` on the self-pack reproduces the compiled
+vocabulary byte-for-byte.
+
+## 13. What feeds back into the Rust model
+
+The walks converge on fifteen model changes. Each cites its forcing
+evidence; none is a compatibility shim — old fields are translated by
+the upgrade path and deleted (P1-G extends to cover them).
+
+- **M1 — the version axis becomes a facet, not a field.** `Lifecycle`
+  is replicated onto ten structs, each with its own plumbing; `Arity`
+  has no version axis at all, so specs widen to `Arity::any()`
+  (`vwait`, `global`), duplicate into `subcommand_forms`
+  (`package vsatisfies`), or reach for `arity_windows` — three
+  mechanisms for one problem. Every declaration node (command, form,
+  option, value, member, event, arity row) carries one optional
+  `available: VersionSet` requirement; assembly resolves it uniformly.
+- **M2 — hook and gate inputs get typed context.** `ArgRoleResolver`
+  has no version parameter, so `uplevel`'s resolver abstains on the
+  8.6/9.0 divergence it exists to model (`uplevel_.rs:70-76`);
+  `ContextGate` is hardwired to `in_event_body`. One typed
+  `InvocationContext` (resolved release, execution context, class
+  scope, transaction/world-state axes) feeds every hook family —
+  `const_fold_versioned` already proved the pattern.
+- **M3 — one literal-driven derivation seam.** `types`, `roles`,
+  `values`, `grammar`, `timing`, `forms` hooks guarded on
+  `-inputs {literal N}`/`{options}` replace the nine fn-pointer
+  escape hatches and the bespoke fields (`format_string_type`,
+  `pattern_type`, `var_write_typing`, `taint_sink_gate`,
+  `OptionArity::Hook`, `clause_shape_check` where shape is
+  literal-driven). Recurring patterns A ("role depends on another
+  argument's parsed content") and B ("position is variadic-relative")
+  from the stdlib walk both land here; abstention floors are the
+  static declarations.
+- **M4 — unknowability becomes typed.** The bare `SideEffect::DEFAULT`
+  sentinel (`unknown`, `eval`, `coroutine`) becomes `Effect::Opaque`;
+  `AppendedArity::Unknown` splits from "not stated"; abstention is
+  distinguishable from omission everywhere (the `event-requires -none`
+  vs absent-clause distinction of §3 is the same rule).
+- **M5 — one class surface.** Merge the disjoint halves
+  (`object_class`+`creates_instance_at` vs
+  `definition_body`+`manufacturers`+`defines_command_at`) into one
+  `ClassSurface`; methods carry every command-grade fact (taint,
+  sinks, forms, deprecation — G7/G15 by construction); the inline
+  `oo::define` form derives from the member table (the known gap);
+  itcl/snit gain the construction machinery their grammars already
+  imply.
+- **M6 — one `introduces` vocabulary** for commands that create
+  commands: subsumes `defines_command_at`, `creates_instance_at`,
+  `binds_handle`, `command_table_effect`, covers the currently
+  uncovered (`zlib stream`, `namespace ensemble create -map`'s table,
+  `image`/`font create`'s optional names), with position-or-pattern
+  targets and typed handle classes (E-R7).
+- **M7 — traits singular.** Retire the seven duplicate `SubCommand`
+  booleans and the snapshot's `TRAIT_FLAGS` back-mapping; widen
+  `Traits` to `[u64; N]` before the 128 ceiling (96 used) forces it
+  mid-flight.
+- **M8 — diagnostic identity is typed everywhere.** `taint_output_sink:
+  Option<&str>` holding `"IRULE3001"` vs `SetterConstraint::code:
+  DiagCode` is two conventions in one struct; every sink/code slot
+  takes `DiagCode`.
+- **M9 — dead surface is deleted or populated, never carried.**
+  `Traits::PASSWORD_OPTION`, `IRULES_DATA_GETTER`, `xc_operation`, the
+  unused `arg_rows` machinery, `EventRequires::init_only`,
+  `ProfileSpec::capabilities`/`conflicts` — each gets an owner ruling:
+  delete now, or a named consumer lands within the programme.
+- **M10 — data tables leave Rust.** The iRules event graph (§3), the
+  BPF event schema (§5), mathop/mathfunc projections (alternatives
+  doc), and the remaining generated command files follow the EDA packs
+  out: dialect packs compiled back via `spec build --emit rust`, with
+  the 21-chunked-functions shape as the standing reminder of why.
+- **M11 — uniform ensemble depth.** `SubSubCommand` gains the full
+  fact set (arity first — G16's ~15 `struct::graph arc` ops have
+  nowhere to put theirs); the three-valued options inheritance is kept
+  but documented as the one merge rule.
+- **M12 — scoped facts.** Body-scoped completion codes (E-R6),
+  member-body commands, and per-body command environments unify:
+  `body_scope` becomes the general "inside this body, these words/
+  facts apply" mechanism every block-shaped surface uses (eleven
+  SpecTcl blocks, `report::defstyle`, hook bodies).
+- **M13 — no hand counts, no prose copies.** Doc-comments that restate
+  data (247-vs-176) are generated from the data or deleted.
+- **M14 — consumer special-cases become spec-driven.** The nine
+  hardcoded command-name sites the inventory found (`sccp.rs`,
+  `slot_resolution.rs`, `statements.rs`, `class_lattice.rs`,
+  `uri_split.rs`, `irules_checks.rs`, `lowering/mod.rs`,
+  `expr_surface.rs`) each move behind `semantic_operation`, a trait,
+  or a hook id — the `spec.rs:1243` claim becomes a zero-reference
+  gate (P1-G rider), including the `self`/type-inference contract leak
+  (§6).
+- **M15 — callback substitution vocabularies are first-class.** A
+  per-slot substitution table (letters/tokens, each with type and
+  taint marking) serves Tk `%`-substitutions, `struct::tree walk`'s
+  `%n`/`%t`, and iRules' session tables alike; the current taint-only
+  subset becomes a projection of it.
+
+## 14. Collected ruling candidates
+
+| # | ruling candidate | forced by |
+|---|---|---|
+| E-R1 | Conditionality is data (`-available` rows); control-flow `available?` downgrades cacheability and is flagged by `spec check` | §1.3; review B5 |
+| E-R2 | The sandbox always runs; provenance (§6.4 tiers) gates what a registration call may touch, enforced at the call | §1.4; loader tier model |
+| E-R3 | Hooks emit facts referencing gated vocabulary; assembly alone evaluates gates — hooks stay target-independent | §2; range targeting |
+| E-R4 | Derived surfaces are never authored: mathop/mathfunc projections, the inline `oo::define` form, instance `configure` tables all derive from their entity | §6, §7, alternatives doc |
+| E-R5 | Templating is for *bulk* (32× `REQUIRES_HTTP_CONTEXT`, 1000× `-quiet`); structural regularity (widget inheritance) is declared, not templated | §3.2, §7, §10 |
+| E-R6 | Body-scoped named completion codes (`-completion-codes {5 prune}`) — attachable only where a body role is, consumed by the traits machinery, never the CFG field | §8 |
+| E-R7 | Pack-declared handle/type classes (`spawnid`, `collection(cell)`) through the existing `binds_handle`/typing vocabulary | §9, §10 |
+| E-R8 | Embedded-language identity is open and pack-namespaced (`ticklecharts::js`); embedded-language *semantics* come only from hooks | §11 (G6) |
+| E-R9 | The DSL vocabulary is single-sourced from the evaluator's command table; the editing-surface pack is emitted, never hand-kept | §12 |
+| E-R10 | Known limits that stand: option *requires* relations (pending owner ruling — best-value candidate), apave's nested tuples (G8/G9), position-dependent callback arity (`Unknown` is honest) | §11 |
+
+The overall verdict the deep dive supports: design E survives every
+wall the survey could find, *provided* §1's execution model is adopted
+as a package — the frozen snapshot, the determinism contract, and
+data-not-control-flow conditionality are not optional refinements but
+the load-bearing answers to E's known costs. Where E is weakest
+(static opacity to third-party tools; trust review of workspace packs)
+the snapshot and the registration-time trust gate carry the weight;
+where it is strongest (the EDA corpus, argparse-class embedded
+grammars, self-hosting, and every place today's model hides a Rust fn)
+no other surveyed design comes close.
