@@ -1,0 +1,69 @@
+
+set ::probe_cases [list \
+    {p_define_call} {proc} {proc __p1 {a} {return [expr {$a*2}]}
+__p1 21} \
+    {p_no_args} {proc} {proc __p2 {} {return plain}
+__p2} \
+    {p_default_arg} {proc} {proc __p3 {{a 7}} {return $a}
+__p3} \
+    {p_varargs} {proc} {proc __p4 {args} {return [llength $args]}
+__p4 a b c} \
+    {p_recursion} {proc} {proc __p5 {n} {if {$n <= 1} {return 1}
+return [expr {$n * [__p5 [expr {$n - 1}]]}]}
+__p5 5} \
+    {p_upvar} {proc} {proc __p6 {vn} {upvar 1 $vn v
+set v 9}
+set zz 0
+__p6 zz
+set zz} \
+    {p_global} {proc} {set ::gv 11
+proc __p7 {} {global gv
+return $gv}
+__p7} \
+    {p_nested_define} {proc} {proc __p8 {} {proc __p8inner {} {return in}
+return [__p8inner]}
+__p8} \
+    {p_redefine} {proc} {proc __p9 {} {return one}
+proc __p9 {} {return two}
+__p9} \
+    {p_info_procs} {proc} {proc __p10 {} {return x}
+info procs __p10} \
+    {p_call_cmd} {proc} {proc __p11 {a} {return $a}
+call __p11 5} \
+    {p_proc_in_proc_scope} {proc} {proc __p12 {} {set loc 3
+return $loc}
+__p12} \
+    {p_return_code} {proc} {proc __p13 {} {return -code error boom}
+catch {__p13} e
+set e} \
+    {p_rename} {proc} {proc __p14 {} {return orig}
+rename __p14 __p14b
+__p14b} \
+    {p_uplevel} {proc} {proc __p15 {} {uplevel 1 {set ul 4}}
+__p15
+set ul} \
+]
+set ::acc {}
+foreach {cid cat src} $::probe_cases {
+    set ::m unset
+    set rc [catch {uplevel #0 $src} v]
+    regsub -all {[\n\r|]} $v " " v
+    if {[string length $v] > 60} { set v "[string range $v 0 59]..." }
+    lappend ::acc "$cid rc=$rc v=($v)"
+}
+set tpl UNSET
+if {[info exists tcl_patchLevel]} { set tpl $tcl_patchLevel }
+# Built dynamically: the iRule compiler rejects a literal reference to an
+# undefined command at rule load, even inside catch (see ctx_unknown_cmd.conf).
+set tvcmd tmsh::version
+if {[catch {eval $tvcmd} tv]} { set tv n/a }
+lappend ::acc "REPORTED patchlevel=[info patchlevel] tclversion=[info tclversion] tcl_patchLevel=$tpl tmshversion=$tv"
+lappend ::acc "REPORTED ncommands=[llength [info commands]]"
+set plat {}
+foreach k [lsort [array names tcl_platform]] { lappend plat "$k=$tcl_platform($k)" }
+lappend ::acc "REPORTED tcl_platform([llength [array names tcl_platform]]) [join $plat ,]"
+set i 0
+foreach chunkstart [list 0 8 16 24 32 40] {
+    set part [lrange $::acc $chunkstart [expr {$chunkstart + 7}]]
+    if {[llength $part]} { puts "TCLLSPPROBE|HostShellTcl|$i| [join $part " ;; "]" ; incr i }
+}
