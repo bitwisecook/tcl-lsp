@@ -94,6 +94,19 @@ both preserved as cases:
   references dynamically (`set c ns::cmd; eval $c`). The standalone case is
   `irules/context-parity/ctx_unknown_cmd.conf`.
 
+## Dynamic code
+
+`irules/dynamic-code/` establishes what can be built at runtime. The short
+version: `proc` is banned inside a `when` body and the ban is **lexical** — the
+compiler scans braced script literals, so `eval {proc …}` and
+`uplevel #0 {proc …}` are rejected identically. Hold the script text in a
+**variable** and it works, and the resulting proc persists from `RULE_INIT` into
+later events and across requests. `when` is not a runtime command in any scope,
+so runtime event creation is impossible.
+
+`dynlab.conf` needs a virtual server and a client; see the traffic-lab notes
+above.
+
 ## Cleanup
 
 The 2026-08-26 run used `probe_*` / `lab_*` prefixes and was verified clean

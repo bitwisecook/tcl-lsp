@@ -1,0 +1,55 @@
+Dynamic code in iRules — what is and is not possible at runtime
+Captured 2026-08-26, BIG-IP 21.1.0.1 build 0.0.26 (host bigip1)
+Probe rules: irules/dynamic-code/   Traffic client: dev (192.168.9.80)
+
+================================================================================
+STAGE 1 — is `proc` allowed inside a when body?
+================================================================================
+a_literal_proc_only          REJECT   error: [command is not valid in the current scope]
+b_literal_proc_and_call      REJECT   error: [command is not valid in the current scope]
+c_eval_define_literal_call   REJECT   error: [command is not valid in the current scope]
+d_eval_define_eval_call      REJECT   error: [command is not valid in the current scope]
+e_toplevel_proc_direct       REJECT   error: [undefined procedure: dp5]
+f_toplevel_proc_call         LOADED   DYN f_toplevel_proc_call r=x
+
+================================================================================
+STAGE 2 — is the rejection about eval/uplevel, or about proc?
+================================================================================
+g_eval_in_ruleinit                 LOADED  DYN g_eval_in_ruleinit ok
+h_uplevel_in_ruleinit              LOADED  DYN h_uplevel_in_ruleinit ok
+i_eval_in_httpreq                  LOADED
+j_proc_via_eval_httpreq            REJECT  error: [command is not valid in the current scope]
+k_proc_via_uplevel_ruleinit        REJECT  error: [command is not valid in the current scope]
+l_uplevel_proc_then_literal_call   REJECT  error: [command is not valid in the current scope]
+
+=> eval and uplevel are both fine. It is `proc` that is banned, and the ban is
+   LEXICAL: the compiler scans braced script literals, so `eval {proc ...}` and
+   `uplevel #0 {proc ...}` are rejected exactly like a bare `proc`.
+
+================================================================================
+STAGE 3 — source held in a variable, which the compiler cannot see
+================================================================================
+m_when_via_var           LOADED  DYN m_when_via_var register=FAIL err=invalid command name "when"
+n_proc_via_var           REJECT  error: [undefined procedure: dpn]
+o_when_in_httpreq_var    LOADED  (no output without traffic)
+
+=> n_proc_via_var was rejected for the CALL, not the definition: it used the
+   literal head `uplevel #0 dpn`. Both the definition and the call must be
+   hidden from the compiler. Corrected in stage 4.
+
+================================================================================
+STAGE 4 — traffic lab (irules/dynamic-code/dynlab.conf)
+================================================================================
+RULE_INIT : DYNLAB init define_rc=0 call_rc=0 v=persisted
+
+GET /dyn   : persist=YES(persisted) when_at_runtime=NO(invalid command name "when") defineinreq=YES(madeinrequest)
+GET /dyn2  : persist=YES(persisted) when_at_runtime=NO(invalid command name "when") defineinreq=YES(madeinrequest)
+
+=> dynamic proc definition works when the source is compiler-invisible;
+   the proc PERSISTS from RULE_INIT into event handlers and across requests;
+   procs can also be defined mid-request;
+   `when` does not exist as a runtime command in ANY event scope, so runtime
+   event creation is impossible and the event table is fixed at rule load.
+
+CLEANUP: all probe rules and the virtual server deleted and proven absent;
+         save sys config NOT RUN.

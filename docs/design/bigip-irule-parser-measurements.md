@@ -20,7 +20,7 @@ Measured against a live appliance, not inferred from documentation.
 | **Host** | `bigip1` |
 | **Version** | BIG-IP 21.1.0.1, build 0.0.26 (2026-07-14) |
 | **Probed** | 2026-08-26 |
-| **Probes** | 97 syntax · 41 word-formation · 25 feature-availability · 85 command-availability · 120 event-context · 30 runtime-semantic |
+| **Probes** | 97 syntax · 41 word-formation · 25 feature-availability · 85 command-availability · 120 event-context · 30 runtime-semantic · 15 proc-semantics · 14 dynamic-code |
 | **Controls** | `tclsh8.4` (8.4.6) and `tclsh8.5` (8.5.13), both on the same host |
 | **Corpora** | 170 public files; ~559 iRule-bearing files in `~/src/tcl-lsp-testsrc`; vendor manpages in `~/src/bigip-extract` |
 | **Traffic lab** | `dev` (192.168.9.80) as client and backend, through virtual servers on `bigip1`; torn down afterwards |
@@ -440,10 +440,12 @@ Fourteen of fifteen are **identical in all three F5 contexts**:
 
 So the answer to "can tmsh and iApps have regular procs with regular proc
 calls?" is **yes, unreservedly** — and so can iRules, *at runtime*. What iRules
-add is not a restriction on `proc` itself but a **load-time** rule: a proc
-written at rule top level is reachable only through `call`, because a literal
-command head must resolve when the rule is loaded (§4a). Define a proc at
-runtime and call it directly and TMM is perfectly happy.
+add is not a restriction on `proc` semantics but a pair of **load-time** rules:
+a proc written at rule top level is reachable only through `call` (a literal
+command head must resolve when the rule loads, §4a), and `proc` is banned
+outright inside a `when` body. Both are lexical, and both are escapable by
+holding the script text in a variable — see §4c, which is where the fifteen
+cases in this table actually ran.
 
 `call` itself is an `f5-irules` command: it exists only in TMM, and even there it
 resolves *rule* procs, not runtime-defined ones — hence
@@ -506,6 +508,97 @@ grammar delta between them at all.
 
 This keys the F1 execution contexts without inventing a family per context, and
 it puts each measured fact at the level where it was actually observed.
+
+---
+
+## 4c. Dynamic code: what iRules will and will not let you build at runtime
+
+§4b established that ordinary procs work in all three contexts. This section
+draws the line iRules actually enforce, because it is not where it first
+appears. Probes: [`irules/dynamic-code/`](../../scripts/dev/bigip-probes/irules/dynamic-code/),
+transcript [`results/12-dynamic-code.txt`](../../scripts/dev/bigip-probes/results/12-dynamic-code.txt).
+
+### `proc` is banned inside a `when` body — and the ban is *lexical*
+
+| Form | Result |
+| --- | --- |
+| `when RULE_INIT { proc p {} {…} }` | **REJECT** `command is not valid in the current scope` |
+| `when RULE_INIT { eval {proc p {} {…}} }` | **REJECT** — same error |
+| `when RULE_INIT { uplevel #0 {proc p {} {…}} }` | **REJECT** — same error |
+| `when RULE_INIT { eval {set x 1} }` | ACCEPT — so `eval` itself is fine |
+| `when RULE_INIT { uplevel #0 {set x 1} }` | ACCEPT — so `uplevel` itself is fine |
+| top-level `proc p …` + `[p]` | **REJECT** `undefined procedure: p` |
+| top-level `proc p …` + `[call p]` | **ACCEPT** |
+
+The compiler **scans braced script literals**, so wrapping `proc` in
+`eval {…}` or `uplevel #0 {…}` changes nothing. Nesting is not an escape hatch.
+
+### …but the ban is only lexical, and that is the whole story
+
+Put the script text in a **variable** and the compiler cannot see it. Then it
+works — provided *both* the definition and the call are hidden:
+
+```tcl
+when RULE_INIT {
+  set s "proc dpp \{\} \{ return persisted \}"
+  uplevel #0 $s          ;# definition: compiler sees only $s
+  set c "dpp"
+  uplevel #0 $c          ;# call: compiler sees only $c
+}
+```
+
+`uplevel #0 dpn` with a *literal* head is still rejected (`undefined procedure:
+dpn`) — that is the §4a load-time resolution rule, not a proc rule. Measured
+behaviour of the working form:
+
+| Property | Result |
+| --- | --- |
+| define + call in `RULE_INIT` | `define_rc=0 call_rc=0 v=persisted` |
+| survives into `HTTP_REQUEST` | **`persist=YES(persisted)`** |
+| survives across separate requests | **yes** — identical on a second request |
+| define a new proc mid-request | **`defineinreq=YES(madeinrequest)`** |
+
+So a runtime-defined proc is a **persistent, per-TMM global**, created once in
+`RULE_INIT` and reusable by every later event and every later connection.
+
+### Runtime event creation is impossible
+
+`when` is **not a runtime command at all**:
+
+```
+when_at_runtime=NO(invalid command name "when")
+```
+
+Measured both in `RULE_INIT` and inside `HTTP_REQUEST` on a live request. The
+event table is fixed when the rule loads; nothing in user space can extend it.
+
+### Consequence: the only user-space JIT is an expression string
+
+With `proc` lexically banned and `when` absent at runtime, the one dynamic-
+evaluation door left open is **building a Tcl `expr` string and letting a second
+substitution pass evaluate it**.
+
+That is exactly what KaiWilke's
+[Natural Speech Expression](https://github.com/KaiWilke/F5-Natural-Speech-Expression)
+does — an expression-language interpreter written as an iRule. It JIT-compiles a
+natural-language search filter into a Tcl expression, caches the compiled string
+in a `static::` array (which also lets TMM reuse the bytecode from the first
+execution), and evaluates it with an **unbraced** `if`:
+
+```tcl
+if $static::natural_speech_cache($search_string) { … }
+```
+
+Its own comments call this "controlled double substitution", and it carries
+heavy two-stage escaping precisely because the input is untrusted and this
+construct is a command-injection surface.
+
+**Diagnostic consequence.** Unbraced `if $var` is the *one* construct F5 itself
+warns about — §6 records `use curly braces to avoid double substitution` — and
+it is simultaneously the load-bearing primitive for the only JIT technique the
+dialect permits. An editor must surface it as a **warning, never an error**, and
+ideally recognise the `static::`-cached-expression idiom rather than flagging it
+as a bug.
 
 ---
 
