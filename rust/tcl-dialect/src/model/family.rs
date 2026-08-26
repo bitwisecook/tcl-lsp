@@ -50,10 +50,15 @@ use crate::version::StringCharacterModel;
 pub enum Family {
     /// Plain Tcl — the 8.4 … 9.1 release ladder.
     Tcl,
-    /// F5 iRules — an embedded Tcl 8.4.6 core with its own lexical/expr
-    /// fingerprint (the `}{` ghost separator, nine expr word operators).
-    /// The K36322151 bans and closed-world guarantee are environment
-    /// policy, not part of this identity (review B12).
+    /// F5 iRules — a **fork of Tcl 8.4.6 that evolved independently from
+    /// that point** (owner-attested, 2026-08-26), with its own
+    /// lexical/expr fingerprint (the `}{` ghost separator, nine expr word
+    /// operators). The fork point is [`Family::IRULES_FORK_POINT`]; the
+    /// family's own evolution ladder is keyed by TMOS release, and every
+    /// post-fork delta is evidence-corpus data, never inherited from the
+    /// Tcl ladder (F5 evidence review F2). The K36322151 bans and
+    /// closed-world guarantee are environment policy, not part of this
+    /// identity (review B12).
     F5Irules,
     /// Jim Tcl — the 0.76 … 0.84 release ladder measured on the jim
     /// branch; its per-release grammar axis values land with P6.
@@ -63,6 +68,12 @@ pub enum Family {
 impl Family {
     /// Every admitted family, in declaration order.
     pub const ALL: [Self; 3] = [Self::Tcl, Self::F5Irules, Self::Jim];
+
+    /// The Tcl patchlevel iRules forked from, after which it evolved
+    /// independently (owner-attested, 2026-08-26). This is fork
+    /// *provenance*: it seeds the family's baseline grammar and surface,
+    /// and nothing later on the Tcl ladder applies to iRules through it.
+    pub const IRULES_FORK_POINT: &'static str = "8.4.6";
 
     /// The family's stable lower-case name.
     #[must_use]
