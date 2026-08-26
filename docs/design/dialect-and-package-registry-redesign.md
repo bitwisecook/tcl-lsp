@@ -31,8 +31,10 @@ one resolved context:
 1. A **dialect / core profile** is the language core: a *family* at a
    *release* under a *build/capability profile* (`tcl` at 8.4–9.1,
    `f5-irules`, `jim` at 0.76–0.84 × its configure matrix). Core profiles
-   live in the compiled catalogue and own every lexer/expr/numeral/escape/
-   character-model axis. The build axis is not optional: the same Jim 0.84
+   live in the compiled catalogue — itself generated from SpecTcl
+   `dialect` sources (§6.2), per the owner directive that SpecTcl
+   supports dialects and packages alike — and own every
+   lexer/expr/numeral/escape/character-model axis. The build axis is not optional: the same Jim 0.84
    commit built default vs `--minimal` has a different character model,
    expr-function acceptance, and command surface (review B1), and unknown
    builds resolve to `Unknown`, never to a silently assumed default.
@@ -298,6 +300,16 @@ The reference-interpreter probe matrix is keyed by
 `(release, configure flags, platform, commit)` with stdout/stderr/exit
 status recorded losslessly (review H3) — the jim branch's per-release
 sweep becomes one *column family* of that matrix, not the family truth.
+
+Per the owner directive, the dialect data itself is **SpecTcl-authorable**:
+a `dialect` block (§6.2) declares a family, its release ladder with build
+profiles, and per-release values for the closed axis vocabulary — Rust
+owns the axes and their implementations; packs own the values. The
+shipped cores compile from those sources at build time, so "compiled
+catalogue" and "loadable dialect pack" are two backends of one
+description, and adding jim 0.85 or a future family is data plus measured
+probes, not new Rust — unless it needs an axis no family has needed
+before.
 
 **The `ExprGrammar` contract.** The word-operators/comments/numbers
 triple is not enough for a non-Tcl family; Jim is the case that proves
@@ -932,6 +944,7 @@ stronger claim.
 | `placement` spellings: `ambient` / `hosted`, versions `Pinned` / `tracks-base` / `keyed KEY` / requirement sets | closes blockers 6–8: a pack can say "hosted, floored by requirement" (Tk under tclsh — on Tk's **own** axis, per review B11) and "ambient at the BIG-IP-implied version, in this environment only" (iapps); `tracks-base` survives only for hosts that genuinely guarantee matched versions; the closed-world vendor gate re-derives from *all* declared environments, compiled and pack-declared alike |
 | `co_provides` / loader aliases (predicated) | corrected per review B11 — Tk 9 registers lowercase `tk` as the loading package and provides uppercase `Tk` via an `ifneeded` chain requiring the exact lowercase version, only when built without `TK_NO_DEPRECATED`. The spelling is a predicated relation ("requiring `Tk` requires exact `tk`; successful load co-provides `Tk`, under this build predicate"), not a flat alias; tcllib's D1 wrapper names ride the same mechanism |
 | `dynamic_surface` / `unknown_members` | the honesty escape hatch (review B6): a provider whose member set is runtime-extensible (`struct::tree` methods via `info commands`, `oo::dialect` DSLs, pave's computed methods) declares so instead of pretending closure |
+| `dialect NAME { … }` (pack level) — **owner directive: SpecTcl declares dialects, not only packages** | declares a language family or a release on one: `release R ?-build PROFILE?` rows building the ladder, and per-release **axis values from the closed, typed axis vocabulary** — `axis expand_syntax on`, `axis numbers jim080`, `axis braced_var first-close`, `axis escapes …`, `axis expr_comments …`, word-separator/brace-continuation/quote-termination/var-syntax/list-parse values, expr precedence table, symbolic-operator rows, mathfunc set, expr arity and substitution model, character model, capability predicates. A pack *sets values for axes Rust defines*; a new axis is still a Rust change (the lexer must implement it), so the closed vocabulary is the soundness boundary. Pack-declared dialects pass the §2 classification gate at load — a `dialect` block whose axis values equal an existing family's release is rejected with a notice naming the environment it should have been. Grammar declarations sit at the **top of the §6.4 trust lattice**: compiled family names are reserved, workspace-untrusted packs cannot alter any compiled dialect's axes, and a third-party dialect is namespaced like a third-party environment. This is also the vehicle for **Q1's endgame**: the shipped `tcl`/`f5-irules`/`jim` cores become SpecTcl `dialect` + surface sources compiled to Rust at build time (`tcl spec build --emit rust`), so the compiled catalogue and a loadable dialect pack are two backends of one description |
 | invocation-refinement descriptor (name TBD at implementation) | the declarative replacement for `command_forms`/`subcommand_forms` (**Q12**): per-form word patterns, traits, mutator/query split, and effects as data — Tk's 53 sites are the migration test; until it lands, Tk cannot round-trip |
 | the seven ratified-but-unimplemented words | `result_stability`, `event_requirement_form`, `data_collection`, `body_scope`, `side_switch_target`, `event_handler_priority`, `bpf_op` get loader implementations (prerequisite for any iRules surface pack-expression, and for closing the round-trip blind spot) |
 | `include` / surface composition (**Q6**, optional) | `include from PROVIDER {names…}` with overrides — the alternative to jim-style duplication for family surfaces |
@@ -1196,13 +1209,18 @@ gates on (adopted verbatim from the review):
 
 Recommendations marked ▸. Answers gate P0.
 
-1. **Core surface source of truth.** Keep `commands/{tcl,stdlib,irules}`
-   (and jim) as native Rust specs, or move their *sources* to SpecTcl with
-   build-time AOT generation of the Rust (the direction
-   [spec-packs.md](spec-packs.md) already states for compiled-in packs)?
-   ▸ Model first (P1), then AOT the core as a later phase; the
-   availability algebra is identical either way, and the equality gate
-   built for P3–P5 de-risks the eventual core conversion.
+1. **Core surface source of truth.** *Direction ruled by the owner:
+   SpecTcl must be extended to support dialects and packages* — the
+   format carries `dialect` blocks (§6.2) setting values for the closed
+   Rust-owned axis vocabulary, so the shipped `tcl`/`f5-irules`/`jim`
+   cores become SpecTcl sources compiled to Rust at build time
+   (`tcl spec build --emit rust`), with the compiled catalogue and a
+   loadable dialect pack as two backends of one description. Remaining
+   question is **sequencing only**: ▸ model first (P1) with native
+   sources, land the `dialect` vocabulary in P2, convert the shipped
+   cores to SpecTcl sources once the P3–P5 equality/behaviour gates have
+   proven the pipeline — the availability algebra is identical
+   throughout.
 2. **Pack-declared environments.** Confirm the EDA shells (identity,
    extensions, signatures, keyed tool pins) move out of the compiled
    catalogue into `specs/eda_*.tclspec` environment blocks. ▸ Yes —
