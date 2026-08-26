@@ -166,9 +166,54 @@ pub fn denied_axis(name: &str) -> Option<&'static str> {
         .map(|(_, axis)| *axis)
 }
 
+/// The wall-clock half of the default pack-evaluation budget — and `None`
+/// wherever there is no host clock a snapshot may depend on.
+///
+/// **Why this is target-gated rather than always armed.** A pack's snapshot is
+/// meant to be a function of `(content, vocabulary, tier)` and nothing else
+/// (design E §1.1, and the key `evaluate_pack_cached` memoises on). A
+/// wall-clock deadline is the one budget axis that can fire differently for
+/// the same three inputs, so it is only worth arming where the clock behind it
+/// is a real, monotonic, unthrottled one — which on
+/// `wasm32-unknown-unknown` it is not:
+///
+/// - the only clock there is the embedding page's `Date.now()`
+///   (`tcl_vm::host_wasm::BrowserClock`), and a browser throttles or freezes
+///   it in a backgrounded tab, so the same pack can load in a foreground tab
+///   and fail its budget in a background one;
+/// - with `tcl-vm`'s `js-clock` feature off — the import-free build — that
+///   clock reports the epoch and the deadline can never be reached at all, so
+///   the axis is silently inert rather than merely unreliable.
+///
+/// Neither is a budget worth having. What remains is the axis that *is* the
+/// containment guarantee: the command-step budget, which `Vm` counts itself
+/// and which needs no host at all (`Vm::set_wall_clock_budget`'s own
+/// documentation says as much — the wall clock is "the belt to its braces").
+/// The value-size cap is likewise host-free and stays armed. So a browser
+/// evaluation is bounded by steps and value size, and is deterministic in
+/// exactly the way the design asks for.
+///
+/// The residual gap, stated plainly: a pack that spends its whole evaluation
+/// inside *one* command whose result stays small is bounded by nothing on this
+/// target — a catastrophically backtracking `regexp` is the realistic shape,
+/// since the whitelist admits one. That is a stalled tab rather than a
+/// corrupted load (registration is transactional and the page is a worker's
+/// call away from being reloaded), and it is the price of a snapshot that
+/// means the same thing in every tab. A per-command step counter, which the
+/// VM could measure without a host, is the honest fix if it ever bites.
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+const PACK_EVAL_WALL_CLOCK: Option<std::time::Duration> = None;
+/// The wall-clock half of the default pack-evaluation budget: five seconds on
+/// every target with a real clock under it. See the `wasm32` twin for why it
+/// is target-gated.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+const PACK_EVAL_WALL_CLOCK: Option<std::time::Duration> = Some(std::time::Duration::from_secs(5));
+
 /// What a pack program runs under. Wider than a hook body's budget — a pack
-/// registers a whole library — but still a hard ceiling on every axis, so a
-/// runaway template fails the load instead of the process.
+/// registers a whole library — but still a hard ceiling on every axis the
+/// target can measure, so a runaway template fails the load instead of the
+/// process. See [`PACK_EVAL_WALL_CLOCK`] for the one axis that is not
+/// universal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackEvalConfig {
     /// The budget the whole evaluation runs under.
@@ -177,10 +222,12 @@ pub struct PackEvalConfig {
 
 impl Default for PackEvalConfig {
     fn default() -> Self {
+        let budget = Budget::of_commands(2_000_000).with_max_value_bytes(64 * 1024 * 1024);
         Self {
-            budget: Budget::of_commands(2_000_000)
-                .with_wall_clock(std::time::Duration::from_secs(5))
-                .with_max_value_bytes(64 * 1024 * 1024),
+            budget: match PACK_EVAL_WALL_CLOCK {
+                Some(wall_clock) => budget.with_wall_clock(wall_clock),
+                None => budget,
+            },
         }
     }
 }
@@ -439,8 +486,8 @@ fn panic_text(payload: &(dyn std::any::Any + Send)) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        PACK_EVAL_EXTRA_COMMANDS, PackEvalConfig, PackEvalFailure, UnknownHandler, WordHandler,
-        denied_axis, run_pack_program,
+        PACK_EVAL_EXTRA_COMMANDS, PACK_EVAL_WALL_CLOCK, PackEvalConfig, PackEvalFailure,
+        UnknownHandler, WordHandler, denied_axis, run_pack_program,
     };
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -503,6 +550,22 @@ mod tests {
         assert!(
             matches!(&failure, PackEvalFailure::Script(message) if message.contains("clock")),
             "{failure:?}"
+        );
+    }
+
+    /// The default budget arms every axis the target can measure, and the
+    /// wall clock only where a real clock backs it (see
+    /// [`PACK_EVAL_WALL_CLOCK`]).
+    #[test]
+    fn the_default_budget_arms_the_axes_this_target_can_measure() {
+        let budget = PackEvalConfig::default().budget;
+        assert_eq!(budget.commands, Some(2_000_000));
+        assert_eq!(budget.max_value_bytes, Some(64 * 1024 * 1024));
+        assert_eq!(budget.wall_clock, PACK_EVAL_WALL_CLOCK);
+        assert_eq!(
+            budget.wall_clock.is_none(),
+            cfg!(all(target_arch = "wasm32", target_os = "unknown")),
+            "the browser evaluates a pack under the step budget alone"
         );
     }
 

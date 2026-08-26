@@ -881,6 +881,50 @@ silently: a field that native specs can set but a pack cannot say, with no
 version word revs, e.g. 1.0 → 1.1; `VOCABULARY_VERSION` bumps only on
 meaning changes) and the loader must keep accepting every older vocabulary.
 
+### Authoring a SpecTcl 2.0 pack (design E)
+
+A 2.0 pack is **evaluated**, not walked: the file is a Tcl program run in a
+deterministic sandbox, and what loads is the snapshot of registrations it
+made ([`docs/design/spectcl-design-e-deep-dive.md`](docs/design/spectcl-design-e-deep-dive.md)
+§1). That buys templating, and it costs opacity — a reader of the file no
+longer sees the surface. These rules keep the cost paid:
+
+- **Canonical form unless repetition is the problem being solved.**
+  The canonical subset is straight-line registration calls only — no `proc`,
+  `set`, `foreach`, or computed argument (E-R11). Every pack shipped today is
+  canonical, and everything that *generates* a pack (the studio's renderer,
+  `spec import` and its MCP twin, `spec upgrade --restyle`, stub conversions)
+  emits canonical form. Reach for a program when forty commands differ in two
+  fields, not to save four lines.
+- **Read the expansion before shipping.** `tcl spec export` (MCP:
+  `spectcl_expand`) renders any snapshot back as canonical source. Generate
+  the template, expand it, read the expansion as a diff against intent. A
+  templated pack whose author has never seen its expansion is the opacity the
+  execution model exists to prevent — and expansion is total while
+  contraction is never attempted, so the expansion is the whole truth.
+- **`-available` rows over `available?`.** Branching on `available?` at
+  registration time makes the snapshot *one analysis target's* answer, marks
+  the pack target-dependent (E-R1), and excludes it from snapshot caching.
+  A `-available` row on the declaration states the same fact as data, and
+  every target then sees the right surface from one snapshot. Use `available?`
+  only when the *shape* of a declaration, not its availability, genuinely
+  differs — and expect the target-dependence notice.
+- **Keep the data table adjacent to the loop.** A templated declaration is
+  readable exactly when the rows feeding it are on the screen above it. A
+  table assembled across three `proc`s is a program, not a spec.
+- **Patch packs, not edited programs.** The studio never rewrites a
+  programmed pack (E-R12): a form edit against one lands as a canonical patch
+  pack in the `StudioOverride` tier, layered over the base by the ordinary
+  collision policy, and reported by the store's standing-overrides surface.
+  Fold a standing patch back into the program by hand, or keep it layered —
+  but do not hand-edit a snapshot back into its own generator.
+- **Everything else is unchanged.** The sandbox denies clocks, IO, sockets,
+  processes, environment and threads; registration is transactional; budgets
+  bound steps and value size (and wall clock, on targets that have a real
+  one). A runaway `foreach` is a budget notice naming its axis, not a hung
+  tool — which is what makes it safe to run a generated pack through
+  `spectcl_check` before reading a line of it.
+
 ### Argument role resolution order
 
 Three mechanisms assign argument roles (BODY, EXPR, VAR_READ, VAR_WRITE, etc.)

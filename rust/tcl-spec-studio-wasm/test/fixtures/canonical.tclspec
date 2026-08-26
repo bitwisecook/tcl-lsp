@@ -1,0 +1,18 @@
+# A canonical pack: literal registration calls only (design E-R11).
+#
+# The browser must browse this exactly as the native loader does — same
+# commands, same order, no expansion anywhere — which is the half of the
+# wasm eval-loader smoke that proves nothing regressed.
+speclib studio_smoke_canonical 2.0 {
+
+command smoke::greet {
+    arity 1
+    summary {Greet one name.}
+}
+
+command smoke::farewell {
+    arity 1..2
+    summary {Say goodbye, optionally loudly.}
+}
+
+}

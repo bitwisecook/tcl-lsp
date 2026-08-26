@@ -715,6 +715,64 @@ count fitting no window at all stays an ordinary E002/E003.
   DSL for the private-library path. `tcl spec build` pre-warms the same
   cache — an optimisation, never a requirement.
 
+## Authoring rules for SpecTcl 2.0 (design E)
+
+Under design E a pack is **evaluated**, not walked: the file runs as a Tcl
+program in a deterministic sandbox, and what loads is the snapshot of
+registrations it made
+([`spectcl-design-e-deep-dive.md`](spectcl-design-e-deep-dive.md) §1). Two
+consequences shape everything an author does — a pack can now *template* its
+declarations, and a reader of the file no longer necessarily sees the surface
+it produces. The rules below keep the first without paying for the second.
+
+- **Write canonical form unless repetition is the problem being solved.**
+  The **canonical subset** (E-R11) is straight-line registration calls only —
+  today's declarative vocabulary, no `proc`, `set`, `foreach`, or computed
+  argument. Every pack shipped so far is canonical, canonical source and
+  snapshot are a bijection modulo formatting, and everything that *generates*
+  a pack emits it: the studio's renderer, `tcl spec import` and its MCP twin,
+  `spec upgrade --restyle`, stub-tier conversions. Programs are for humans
+  with a repetition problem — forty commands differing in two fields — not
+  for saving four lines.
+- **Run `spec export` and read the expansion before shipping.**
+  `tcl spec export` (MCP: `spectcl_expand`) renders any snapshot back as
+  canonical source. Generate the template, expand it, read the expansion as a
+  diff against intent, iterate. Expansion is **total**; contraction —
+  recovering a program from its snapshot — is never attempted, so the
+  expansion is the whole truth about what a pack registered. A templated pack
+  whose author has never read its expansion is exactly the opacity the
+  frozen-snapshot model exists to prevent.
+- **Prefer an `-available` row to a branch on `available?`.** Branching on
+  `available?` while registering makes the snapshot **one analysis target's**
+  answer rather than the pack's: the pack is marked target-dependent (E-R1),
+  carries a notice saying so, and is excluded from snapshot caching. An
+  `-available` row states the same fact as *data*, and one snapshot then
+  serves every target correctly. Keep `available?` for the rare case where the
+  *shape* of a declaration differs between targets, not its availability.
+- **Keep the data table adjacent to the loop that consumes it.** A templated
+  declaration is readable exactly when its rows are on the screen above it.
+  A table assembled across three `proc`s in another part of the file is a
+  program, not a spec, and the next reader will run `spec export` instead of
+  reading it — which is a smell, not a workflow.
+- **Patch packs, not edited programs.** The studio edits a canonical pack in
+  place and byte-stably, and **never rewrites a programmed pack** (E-R12).
+  A form edit against one becomes a canonical patch pack in the
+  `StudioOverride` tier, layered over the base by the ordinary collision
+  policy (`-override` on each patched declaration, patch installed after the
+  base), with the source opening read-only beside its expansion. Standing
+  overrides are reported — by the store, and by `spec check` — so a patch
+  cannot rot silently: fold it back into the program by hand when the program
+  is the thing that should change, or keep it layered deliberately.
+- **What the sandbox guarantees, so authoring can lean on it.** No clock, no
+  IO, no network, no processes, no environment, no threads; registration is
+  transactional (any hard error loads nothing at all); budgets bound command
+  steps and value size, and wall clock on targets that have a real one — the
+  browser evaluates under the step budget alone, because a page's throttled
+  `Date.now()` would make the same pack load in one tab and fail in another.
+  A runaway `foreach` is therefore a budget notice naming its axis, not a hung
+  tool, which is what makes it safe to run a *generated* pack through
+  `spectcl_check` before reading a line of it.
+
 ## The acceptance rubric
 
 [`spec-dsl-examples/tricky-surfaces.md`](spec-dsl-examples/tricky-surfaces.md)

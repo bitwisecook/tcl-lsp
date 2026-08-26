@@ -302,3 +302,50 @@ fn canonical_rendering_preserves_a_real_packs_shape_and_override_flags() {
         }
     }
 }
+
+/// Every pack a human has written so far is **canonical** (E-R11), so the
+/// studio keeps editing all of them in place.
+///
+/// This is the guard on [`PackStore::programmed`]'s straight-line check. That
+/// check is a comparison between the document's own top-level statements and
+/// the registration record the snapshot carries, and a false positive on it
+/// would silently reroute an ordinary form edit into a patch pack — turning
+/// every test above into a test of the wrong path. Running it over the
+/// hand-written examples *and* the shipped `specs/` is what makes it safe to
+/// trust.
+#[test]
+fn every_hand_written_pack_is_canonical() {
+    let shipped: Vec<(String, String)> =
+        fs::read_dir(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../specs"))
+            .expect("the specs directory")
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|e| e == "tclspec"))
+            .map(|path| {
+                let name = path
+                    .file_name()
+                    .expect("a file name")
+                    .to_string_lossy()
+                    .into_owned();
+                (name, fs::read_to_string(&path).expect("readable"))
+            })
+            .collect();
+    assert!(
+        shipped.len() >= 8,
+        "expected the shipped packs, got {shipped:?}"
+    );
+
+    for (name, source) in examples().into_iter().chain(shipped) {
+        let store = PackStore::from_source(&source);
+        assert_eq!(
+            store.programmed(),
+            None,
+            "{name}: judged a program, so a form edit would become a patch pack"
+        );
+        assert_eq!(
+            store.patch_source(),
+            None,
+            "{name}: an unedited pack has no patch"
+        );
+    }
+}

@@ -1638,3 +1638,37 @@ packs unchanged, gate: studio round-trip suite) → `render_spectcl`
 emits 2.0 and the pin lifts → StudioOverride patch-pack editing for
 programmed packs → WASM job. The schema-churn from M-items proceeds
 independently behind the coverage witnesses.
+
+**Status.** Everything above has landed except the `render_spectcl`
+2.0 emission and its pin lift, which is independent of the two items
+either side of it:
+
+- ✅ **Evaluation loader + equivalence gate** — `tcl-spectcl`'s
+  `loader::eval`, gated by `tests/eval_loader.rs`.
+- ✅ **`spec export` / `spectcl_expand`** — `tcl_spectcl::export`,
+  rendering `Pack::registrations`; gated by `tests/export.rs`.
+- ✅ **Studio store reads through the eval loader** —
+  `PackStore::from_source` evaluates, `declaration_site` reports
+  expansion provenance, and the round-trip suite is unchanged.
+- ⬜ **`render_spectcl` emits 2.0 and the pin lifts** (P2-H).
+- ✅ **StudioOverride patch-pack editing (E-R12)** —
+  `PackStore::programmed` classifies the document,
+  `WriteBack::Patched` routes a form edit into a canonical patch pack
+  (`export_pack` of the edited commands plus the base's `default`
+  context rows), `PackStore::pack_set` layers it after the base at
+  `Tier::StudioOverride`, and `PackStore::standing_overrides` is the
+  queryable report. Canonical packs keep in-place editing untouched,
+  which `tests/pack_store.rs`'s canonicality guard holds over every
+  hand-written pack in the tree.
+- ✅ **WASM job** — the studio wasm links and *runs* the evaluation
+  loader; `rust/tcl-spec-studio-wasm/test/eval-loader.mjs` loads a
+  canonical and a templated fixture pack through the shipped exports
+  and exercises the patch path, and `make spec-studio-wasm` runs it.
+  The one target difference is documented at
+  `tcl_spec_hooks::pack_eval::PACK_EVAL_WALL_CLOCK`: on
+  `wasm32-unknown-unknown` the wall-clock budget is not armed (a
+  page's `Date.now()` is throttled in a backgrounded tab, and with
+  `tcl-vm`'s `js-clock` off it reports the epoch), so a browser
+  evaluation is bounded by the command-step and value-size budgets —
+  the two axes the VM measures itself, and the ones §1.2's determinism
+  contract actually wants.
