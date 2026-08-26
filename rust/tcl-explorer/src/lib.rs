@@ -35,6 +35,7 @@
 pub mod asm;
 pub mod coverage;
 pub mod cst;
+mod environment;
 pub mod formatters;
 pub mod render;
 pub mod serialise;
@@ -46,7 +47,6 @@ pub use serialise::{serialise_meta, serialise_result};
 pub use view_tree::{ViewNode, build_view};
 
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
-use tcl_dialect::DialectProfile;
 // The pack-carrying registry, not the plain one: since the EDA vendor
 // libraries became `.tclspec` loadables they exist nowhere else, so an
 // explorer on the plain registry reports every `synth_design` unknown while
@@ -209,8 +209,7 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // Memory-SSA is built so the `dataflow` view can surface alias sets
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
-    let profile =
-        DialectProfile::resolve_known(dialect).unwrap_or_else(|| DialectProfile::by_name(dialect));
+    let profile = environment::profile_for_dialect(dialect);
     let unit = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))
         .with_memory_ssa(registry, profile.availability_mask)
