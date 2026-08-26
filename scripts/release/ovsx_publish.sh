@@ -30,7 +30,10 @@
 # place.
 #
 # Usage:  scripts/release/ovsx_publish.sh [TAG] [VSIX...]
-#         TAG   defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).
+#         TAG   defaults to the tag in $GITHUB_REF (refs/tags/<TAG>).  Kept
+#               as an argument for parity with vsce_publish.sh, but this
+#               script no longer reads it: the channel isn't decided here
+#               (see below).
 #         VSIX  defaults to every *.vsix under dist/ (downloaded and
 #               checksum-verified by the workflow before this runs): the
 #               untargeted universal package plus six platform-targeted
@@ -45,14 +48,19 @@
 # environment natively (lib/util.js falls back to process.env.OVSX_PAT when
 # no --pat is given).
 #
-# Channel (scripts/release/prerelease.sh is the single source of truth): an
-# odd-minor 2.x tag (v2.1.x) publishes with --pre-release so it lands on the
-# Open VSX pre-release channel; 1.x and even-minor 2.x (v2.2.0) publish to
-# the normal channel, keeping 1.x the default install for everyone who
-# hasn't opted into pre-releases.
+# Channel: NOT decided by this script.  `ovsx publish` ignores --pre-release
+# for an already-packaged VSIX (node_modules/ovsx/lib/publish.js doPublish()
+# warns "Ignoring option '--pre-release' for prepackaged extension." and
+# sends no pre-release parameter at all) — every VSIX handed to this script
+# is prepackaged, so passing the flag here would be a silent no-op.  The
+# channel instead rides inside the VSIX manifest itself
+# (Microsoft.VisualStudio.Code.PreRelease), baked in by `vsce package
+# $(VSCE_PRERELEASE_FLAG)` at build time (Makefile), which open-vsx.org
+# reads directly from the uploaded package.  scripts/release/prerelease.sh
+# still governs that manifest flag at package time — just not anything in
+# this script.
 set -euo pipefail
 
-here="$(cd "$(dirname "$0")" && pwd)"
 tag="${1:-${GITHUB_REF#refs/tags/}}"
 if [ "$#" -gt 0 ]; then
     shift
@@ -63,14 +71,11 @@ else
     vsixes=(dist/*.vsix)
 fi
 
-prerelease_flag=""
-if [ "$(bash "$here/prerelease.sh" "$tag")" = "true" ]; then
-    echo "$tag is a pre-release — publishing with --pre-release."
-    prerelease_flag="--pre-release"
-fi
-
 : "${OVSX_PAT:?OVSX_PAT must be set (marketplace-openvsx Environment secret)}"
 for vsix in "${vsixes[@]}"; do
     echo "Publishing $vsix via ovsx (OVSX_PAT)"
-    editors/vscode/node_modules/.bin/ovsx publish $prerelease_flag --packagePath "$vsix"
+    # --skip-duplicate: a partial failure partway through this loop (e.g.
+    # package 5 of 7) must not turn a re-run into a hard failure on
+    # packages 1-4, which have already published successfully.
+    editors/vscode/node_modules/.bin/ovsx publish --skip-duplicate --packagePath "$vsix"
 done

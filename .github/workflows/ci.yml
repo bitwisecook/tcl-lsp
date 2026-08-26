@@ -1747,8 +1747,11 @@ jobs:
 
       - name: Publish to Open VSX
         # Body lives in scripts/release/ovsx_publish.sh: runs only the local
-        # ovsx binary and adds --pre-release for odd-minor 2.x tags
-        # (scripts/release/prerelease.sh is the single source of truth).
+        # ovsx binary.  The channel isn't chosen here — ovsx ignores
+        # --pre-release for an already-packaged VSIX, so it rides in the
+        # VSIX manifest instead, baked in by `vsce package` at build time
+        # (scripts/release/prerelease.sh is still the single source of
+        # truth for that manifest flag).
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: bash scripts/release/ovsx_publish.sh

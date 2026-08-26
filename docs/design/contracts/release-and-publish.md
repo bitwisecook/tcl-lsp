@@ -176,8 +176,12 @@ minor is stable.  The 2.x rewrite ships its alphas on `2.1.x`
 (`2.1.0`, `2.1.1`, …) and promotes to the stable `2.2.0` when ready.
 The 1.x line predates the convention and is always stable, so it stays
 the default download and the default Marketplace install for everyone
-who has not opted into pre-releases.  Open VSX mirrors the same
-convention with its own `--pre-release` flag on `ovsx publish`.
+who has not opted into pre-releases.  Open VSX reads the same
+pre-release channel from the VSIX manifest
+(`Microsoft.VisualStudio.Code.PreRelease`) that `vsce package` bakes in
+at build time — `ovsx publish` ignores `--pre-release` for an
+already-packaged VSIX, so the channel is decided once, at package time,
+not separately at each publish step.
 
 **`scripts/release/prerelease.sh X.Y.Z` is the single source of truth.**
 It prints `true`/`false`, and every pre-release switch reads it so CI,
@@ -188,10 +192,13 @@ the Makefile, and `tag.sh` can never disagree:
 * the `create-release` CI job adds `--prerelease` to `gh release create`.
 * the `publish-vsix-marketplace` CI job (and the laptop `make publish-vsix`)
   add `--pre-release` to `vsce publish` for odd-minor 2.x tags.
-* the `publish-vsix-openvsx` CI job (and the laptop `make publish-openvsx`)
-  add `--pre-release` to `ovsx publish` for odd-minor 2.x tags — the same
-  switch, read by the same `scripts/release/prerelease.sh`, that
-  `scripts/release/ovsx_publish.sh` shares with `vsce_publish.sh`.
+* `make package-vsix` (invoked by both `build-vsix` in CI and the laptop
+  `publish-vsix`/`publish-openvsx` targets) adds `--pre-release` to `vsce
+  package` for odd-minor 2.x tags, baking the channel into the VSIX
+  manifest.  `publish-vsix-openvsx` (and `make publish-openvsx`) then
+  publish that same manifest unchanged — `ovsx publish` has no separate
+  channel switch of its own for a prepackaged VSIX, so
+  `scripts/release/ovsx_publish.sh` does not read `prerelease.sh` at all.
 * the `publish-jetbrains-marketplace` CI job sets `JETBRAINS_CHANNEL=eap`
   for odd-minor 2.x tags, so pre-release plugins land on the JetBrains
   `eap` channel instead of the default Stable channel.
@@ -294,15 +301,24 @@ stored, is a design conversation: it requires updating this contract and
 
 ## Test anchors
 
-The invariant is machine-verifiable.  Every job that references a
-marketplace `secrets.*` must declare a protected `environment:`:
+The invariant is machine-verifiable, though nothing runs this
+automatically in CI today — it's a manual spot-check a reviewer can run
+by hand.  (Python is retired on this branch — see AGENTS.md — so this is
+plain `awk`/`grep`, not a committed script.)  Every job that references a
+marketplace `secrets.*` must declare a protected `environment:` inside
+that same job block:
 
 ```bash
-# Each workflow job that uses secrets.VSCE_PAT / secrets.OVSX_PAT /
-# secrets.JETBRAINS_TOKEN must bind to an Environment (manual gate).
-# scripts/release/check_publish_env.py parses ci.yml and fails if any such
-# job lacks an `environment:` key.
-python3 scripts/release/check_publish_env.py
+for job in publish-vsix-marketplace publish-vsix-openvsx publish-jetbrains-marketplace; do
+  block=$(awk -v job="  $job:" '
+    $0 == job { found=1 }
+    found && /^  [a-zA-Z-]+:$/ && $0 != job { exit }
+    found { print }
+  ' .github/workflows/ci.yml)
+  echo "$block" | grep -q 'environment:' \
+    && echo "ok: $job declares environment:" \
+    || (echo "FAIL: $job has no environment: block" && exit 1)
+done
 
 # Sublime and Zed are never published from CI:
 ! grep -rE "publish-sublime|publish-zed" .github/workflows/ \

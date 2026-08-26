@@ -433,9 +433,9 @@ Available targets:
   2026-12-01).
 - `make publish-openvsx` — Open VSX **laptop fallback only** (normally CI
   publishes it; see the note at the top of this step). No keyless path —
-  requires `OVSX_PAT` (a token from
-  <https://open-vsx.org/user-settings/tokens>, scoped to the `bitwisecook`
-  namespace).
+  requires `OVSX_PAT` (an account-wide token from
+  <https://open-vsx.org/user-settings/tokens> — that account must be a
+  member/owner of the `bitwisecook` namespace to publish there).
 - `make publish-jetbrains` — JetBrains Marketplace **laptop fallback only**
   (normally CI publishes it). Runs `./gradlew publishPlugin`. Requires
   `JETBRAINS_TOKEN` env var. The first-ever publish must be done

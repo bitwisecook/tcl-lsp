@@ -107,11 +107,12 @@ if [ -n "${OVSX_PAT:-}" ]; then
         unset OVSX_VERIFY_OUT
     fi
 else
-    warn "OVSX_PAT is not set. Generate a token at"
-    warn "  https://open-vsx.org/user-settings/tokens (scoped to the"
-    warn "  '$OVSX_NAMESPACE' namespace — create it first with"
+    warn "OVSX_PAT is not set. Generate an account-wide token at"
+    warn "  https://open-vsx.org/user-settings/tokens — that account must"
+    warn "  be a member/owner of the '$OVSX_NAMESPACE' namespace to"
+    warn "  publish there (create it first with"
     warn "  'ovsx create-namespace $OVSX_NAMESPACE' if this is the first"
-    warn "  publish) and export OVSX_PAT."
+    warn "  publish) — then export OVSX_PAT."
 fi
 
 ok "extension page: https://open-vsx.org/extension/$OVSX_NAMESPACE/tcl-lsp"

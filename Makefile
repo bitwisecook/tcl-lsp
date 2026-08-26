@@ -244,10 +244,10 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 	fi
 	@if [ -n "$$VSCE_PAT" ]; then \
 		echo "    VSCE_PAT set — using the legacy stored PAT (override)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --skip-duplicate --packagePath $(VSIX_FILE); \
 	elif az account show >/dev/null 2>&1; then \
 		echo "    Keyless publish via Azure Entra (--azure-credential, no PAT)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --skip-duplicate --packagePath $(VSIX_FILE); \
 	else \
 		echo "    No Azure CLI session for keyless publishing."; \
 		echo "    Run:  az login --allow-no-subscriptions"; \
@@ -261,17 +261,20 @@ publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / op
 	@# secrets.OVSX_PAT on the protected marketplace-openvsx Environment).
 	@# This laptop target is the fallback for when that CI job fails.
 	@# Open VSX has no keyless credential flow like vsce's Azure Entra path —
-	@# OVSX_PAT (a token from https://open-vsx.org/user-settings/tokens,
-	@# scoped to the bitwisecook namespace) must be set.
-	@if [ -n "$(VSCE_PRERELEASE_FLAG)" ]; then \
-		echo "    Pre-release channel (odd-minor $(VERSION)) — publishing with --pre-release."; \
-	fi
+	@# an account-wide OVSX_PAT (a token from
+	@# https://open-vsx.org/user-settings/tokens; publishing to the
+	@# bitwisecook namespace needs that account to be a member/owner of it)
+	@# must be set.
+	@# No --pre-release flag here: ovsx ignores it for an already-packaged
+	@# VSIX (ovsx_publish.sh explains why). The channel is already baked
+	@# into $(VSIX_FILE)'s manifest by `vsce package $(VSCE_PRERELEASE_FLAG)`
+	@# above, which open-vsx.org reads.
 	@if [ -z "$${OVSX_PAT:-}" ]; then \
 		echo "    OVSX_PAT is not set."; \
 		echo "    Generate a token at https://open-vsx.org/user-settings/tokens and export OVSX_PAT."; \
 		exit 1; \
 	fi
-	cd $(STAGE_DIR) && $(OVSX) publish $(VSCE_PRERELEASE_FLAG) --packagePath $(VSIX_FILE)
+	cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath $(VSIX_FILE)
 
 $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
@@ -402,9 +405,9 @@ publish-vsix-targets: package-vsix-targets ## Publish the six platform-targeted 
 		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
 		echo "==> Publishing $$f to VS Code Marketplace"; \
 		if [ -n "$${VSCE_PAT:-}" ]; then \
-			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath "$$f"); \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --skip-duplicate --packagePath "$$f"); \
 		elif az account show >/dev/null 2>&1; then \
-			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath "$$f"); \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --skip-duplicate --packagePath "$$f"); \
 		else \
 			echo "    No Azure CLI session for keyless publishing."; \
 			echo "    Run:  az login --allow-no-subscriptions"; \
@@ -423,7 +426,7 @@ publish-openvsx-targets: package-vsix-targets ## Publish the six platform-target
 	for vt in $(VSCE_TARGETS); do \
 		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
 		echo "==> Publishing $$f to Open VSX"; \
-		(cd $(STAGE_DIR) && $(OVSX) publish $(VSCE_PRERELEASE_FLAG) --packagePath "$$f"); \
+		(cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath "$$f"); \
 	done
 
 # Test targets
