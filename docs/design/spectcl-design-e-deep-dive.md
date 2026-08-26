@@ -430,6 +430,23 @@ change. And the closed-world rule stays exactly where B12 put it: the
 pack declares what exists; whether an environment treats the
 virtual-server's profile set as exhaustive is overlay policy.
 
+**Live evidence, post-scriptum.** After this walk was written the owner
+landed the appliance measurements
+([bigip-irule-parser-measurements.md](bigip-irule-parser-measurements.md)),
+which harden several rows from modelled to measured: the
+`event-priority-policy` default of 500 is confirmed on the wire (lower
+priority runs first, range 0–1000 enforced at load with a misleading
+diagnostic worth mirroring); the event-context validity matrix is
+compile-time enforced by the real compiler, with the caveat that
+`RULE_INIT` *accepts* protocol commands it cannot meaningfully run —
+so our event requirements should keep warning there even where the
+compiler is silent; the 31-command disabled list becomes measured
+environment-policy data (including `trace` being 8.3-form-only, an
+`arity_windows`-grade fact); and the two lexical divergences (the
+implicit word break and the newly discovered brace-line continuation)
+are `dialect`-block axis values for the f5-irules family pack, not
+anything a `family-surface` command row ever expresses.
+
 ## 4. iApps and tmsh — the surface E is cheapest for
 
 The iApps walk is short because the modelling is: 41 specs, almost all

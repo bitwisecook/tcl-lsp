@@ -886,6 +886,17 @@ private implementation of that domain.
 - **Manual tier (`make test-exhaustive`)**: full tcltest replay
   scoreboards, whole-corpus index/resolution sweeps, multi-release
   sweeps. Never wired into CI, per the standing testing-tier policy.
+- **Appliance tier (owner-run, checked-in transcripts)**: the BIG-IP
+  probe corpus at `scripts/dev/bigip-probes/` with its results
+  ([measurements](bigip-irule-parser-measurements.md)) is the iRules
+  analogue of the live matrix — re-runnable against a real appliance,
+  never CI. Its word-formation and continuation tables become hermetic
+  lexer conformance vectors (R1–R7 and N1–N5 rows with the stock-Tcl
+  control column, same format as §7.2), and the
+  `simonkowallik/irulescan` `tests/bigip/syntax/` torture suite — which
+  surfaced the N-rules — is the adoption candidate for regression
+  fixtures (licence check before vendoring, per the corpus hygiene
+  rules).
 
 ### 7.7 Phase placement
 

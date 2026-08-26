@@ -92,6 +92,17 @@ rules for the KCS/documentation split live in
   TclOO/Tk, tcllib, the EDA shells, tcl-bpf, SpecTcl self-hosting, and
   corpus-chosen oddities — collecting numbered `E-R` ruling candidates
   and the feedback each walk sends into the Rust model.
+- [bigip-irule-parser-measurements.md](bigip-irule-parser-measurements.md) —
+  **measured evidence** (owner, live appliance): the E3 transcript the
+  BIG-IP evidence review recorded as pending — 378 probes against
+  BIG-IP 21.1.0.1 with same-host stock-Tcl controls. Answers F3's
+  six-row matrix (the `}{` separator is generic and lexical, gated on
+  the word starting with `{` or `"`; `{*}` must not be implemented),
+  discovers a second independent divergence (brace-line continuation,
+  the N-rules), measures the 31-disabled command surface, 16
+  discriminating 8.4-vs-8.5 features, four Tcl contexts on one
+  appliance, event-context compile-time validity, and rule priority
+  order. Probe corpus in `scripts/dev/bigip-probes/`.
 - [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
   — **F5 evidence review** of the fixed iRules, tmsh, and iApps Tcl-version
   assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI

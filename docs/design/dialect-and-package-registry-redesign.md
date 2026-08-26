@@ -135,7 +135,7 @@ the F5 half of the migration:
 |---|---|
 | F1 six language contexts | accepted — `BigIpExecutionContext` { TmmIRule, TmshCliScript, IAppImplementation, IAppPresentationApl, IAppPresentationTclCallback, HostShellTcl } keys every F5 grammar/command/variable/package/policy/evidence record; APL's `tcl` clauses get a typed embedded-range descriptor, never a whole-document language id; `f5-bigip` stops being a catch-all Tcl identity |
 | F2 unprovenanced releases | accepted, with one owner-attested fact upgrading the iRules baseline: **iRules branched off Tcl 8.4.6 and evolved independently from that point** (owner ruling, 2026-08-26). `Family::F5Irules` is therefore modelled as a *fork* — fork point Tcl 8.4.6, its own evolution ladder keyed by TMOS release — not "8.4-based forever"; post-fork deltas (grammar, surface, semantics per TMOS release) come from the evidence corpus. The iApps/tmsh "8.5"/"8.5.13" claims remain **baseline hypotheses** pending the probe; `EmbeddedRuntimeEvidence` records are the truth; unmeasured BIG-IP releases resolve to `Unknown` or an explicitly labelled nearest-known **assistance** profile |
-| F3 `}{` overclaim | accepted — the current lexer-wide ghost separator is a **hypothesis matching shipping behaviour**, kept until the live generic matrix (`list {a}{b}`, `set x {a}{b}`, `if{1}{…}`, `{*}{a b}`) decides its scope; if command-scoped, it moves to declarative argument grammar; if release-varying, it gains a BIG-IP lifecycle. The six-row matrix becomes checked-in fixtures with stock-Tcl controls; E3's appliance transcript is pending |
+| F3 `}{` overclaim | **answered by live measurement** ([measurements](bigip-irule-parser-measurements.md) §3): the six-row matrix ran on TMM 21.1.0.1 with same-host stock controls. The separator is generic (`list {a}{b}` and `set x {a}{b}` both split), lexical (stays lexer data, no per-command grammar, no BIG-IP lifecycle), and gated on the word having *started* with `{` or `"` (`if{1}{…}` stays one bare word). `{*}` must not be implemented in the iRules dialect — the separator wins and expansion does not exist. The same run discovered the independent brace-line continuation divergence (N-rules) the matrix did not cover. The probe corpus is checked in at `scripts/dev/bigip-probes/`; §3 of the measurements is E4-grade, the rest is a strong non-conforming transcript pending a mechanical E4 re-run |
 | F4 tmsh role policy | accepted — a command-visibility overlay distinct from the Tcl baseline and the ambient `tmsh::*` surface; completion may show policy-disabled commands with the reason, semantic hooks must not treat them as callable |
 | F5 `tcl_platform` effects | accepted — context overlays may refine a core variable binding's effects: the iRules overlay distinguishes the CMP-demoting global from the `static::` alias, carries the F5 source, and is lifecycle-keyed |
 | F6 tmsh syntax axis | accepted — a distinct typed version axis (never comparable with Tcl axes) plus a registry-declared state transition for `tmsh::modify cli version active`: constant argument updates subsequent tmsh resolution, dynamic widens to `Unknown`; realm scope assigned only after the probe establishes it |
@@ -161,8 +161,9 @@ genuine per-variant delta is already centralised in
 
 | Axis | Values today |
 |---|---|
-| `{*}` expansion (TIP 157) | off in 8.4 and iRules; on 8.5+ |
-| iRules `}{` ghost separator | `f5-irules` only — a zero-width `SEP` token injected in `Lexer::parse_brace` (`rust/tcl-lexer/src/lexer.rs:1242`), which is why `if {1}{#true}` segments as three words on BIG-IP and warns everywhere else. **Scope is a hypothesis under live probe** (§0.2 F3): the lexer-wide rule predicts more than the published `if` examples establish (`list {a}{b}`, expansion interaction); the six-row discriminating matrix with stock-Tcl controls decides whether it stays lexer data, moves to per-command argument grammar, or gains a BIG-IP lifecycle |
+| `{*}` expansion (TIP 157) | off in 8.4 and iRules; on 8.5+. **iRules is measured, not merely off**: on TMM the separator wins — `{*}$l` lexes as a literal `*` word plus the unexpanded list, silently ([measurements](bigip-irule-parser-measurements.md) §1). The iRules lexer must produce exactly that (two words, no error, no expansion); implementing 8.5 expansion here would silently disagree with the appliance |
+| iRules implicit word break (`}{`) | `f5-irules` only — **measured on BIG-IP 21.1.0.1** ([measurements](bigip-irule-parser-measurements.md) §1, §3): the six-row F3 matrix is answered and the separator is **generic and lexical**, not `if` grammar. Normative rules R1–R7: fires only when the word *started* with `{` or `"` (bare words, `$v{b}`, `${v}b`, `[cmd]{b}` are untouched — 23 diverging vs 11 identical cases, split exact), applies repeatedly and in every word position including the command name (`{set}zz 7` runs `set zz 7`), restarts word parsing from scratch (`}else{log` becomes the bare word `else{log`), emits no diagnostic, and leaves the `expr` sub-parser unmodified. The zero-width `SEP` token in `Lexer::parse_brace` (`rust/tcl-lexer/src/lexer.rs:1242`) matches the appliance; it stays lexer data with no BIG-IP lifecycle |
+| iRules brace-line continuation (N-rules) | `f5-irules` only — the **second, independent measured divergence** ([measurements](bigip-irule-parser-measurements.md) §2): a newline does not terminate a command when the next line's first non-whitespace character is `{` (K&R brace style is legal). Unconditional (not arity- or command-dependent: `list a b` ⏎ `{c}` → 3 elements), any nesting depth; a blank, whitespace-only, or comment line terminates normally; `else`/`elseif` are a separate one-newline lookahead by `if` that does not cross a blank line. Not yet implemented in the lexer — a new value on the brace-continuation axis the §6 dialect-block vocabulary already names |
 | `${…}` close rule | `FirstClose` (8.x) vs `Tcl9Nesting` (9.x) |
 | Leading-BOM skip on `source` | 9.x only |
 | `#` comments in `[expr]` (TIP 582) | 9.x only |
@@ -284,7 +285,7 @@ profiles and the jim branch:
 | Today | Classification | Notes |
 |---|---|---|
 | `tcl8.4` … `tcl9.1` | dialect (family `tcl`, releases 8.4–9.1) | 9.1 has no grammar delta vs 9.0 but is a core release; releases are the family's version ladder, not separate catalogue entries |
-| `f5-irules` | dialect (family `f5-irules`, 8.4-based) | qualifies on lexical/expr fingerprint alone: the `}{` ghost separator and nine expr word operators (and the declaration-only top-level file form). The K36322151 command bans, closed-world resolution, and the static-head-identity consequence are environment/realm **policy** riding on top (review B12) |
+| `f5-irules` | dialect (family `f5-irules`, 8.4-based) | qualifies on lexical/expr fingerprint alone, now **measured** ([measurements](bigip-irule-parser-measurements.md)): the implicit word break (R-rules), the brace-line continuation (N-rules), the inert `{*}`, and the expr word operators — pervasive in the corpus (332 hits) and confirmed live, with `expr` math functions additionally validated at rule load (and the declaration-only top-level file form; top-level `proc` reachable only via `call`). All sixteen discriminating 8.4-vs-8.5 features behave as 8.4 in every F5 context, consistent with the owner-attested 8.4.6 fork. The 31-command disabled list (`namespace`, `time`, `rename`, `interp`, `package` among them, plus 8.3-era-only `trace`), closed-world resolution, and the static-head-identity consequence are environment/realm **policy** riding on top (review B12), now backed by per-command load probes |
 | `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
 | `f5-iapps` | environment `f5-iapps` = tcl@8.5 + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | grammar is `GRAMMAR_TCL85` verbatim; APL container routing is a language-id fact, not a dialect fact |
 | `f5-tmsh` | environment `f5-tmsh` = tcl@8.5 + tmsh pack (ambient, BIG-IP-keyed) | no tmsh lexing mode exists (the `AGENTS.md` owner-map claim is stale); the `IAPPS\|TMSH` spec files split into two packs sharing sources |
@@ -451,9 +452,15 @@ What changes versus `DialectProfile`:
 - **The dialect carries no command surface.** Core command surfaces attach
   to providers (§4); the dialect only decides grammar and which core
   provider ladder the environment's floor points into.
-- iRules keeps its lexical/expr grammar here: the ghost-separator flag and
-  the word operators are `Family::F5Irules` facts; the command bans and
-  closed-world guarantee are environment/realm policy (§2).
+- iRules keeps its lexical/expr grammar here: the implicit word break
+  (R-rules), the brace-line continuation (N-rules), the inert `{*}`, and
+  the word operators are `Family::F5Irules` facts — all live-measured
+  ([measurements](bigip-irule-parser-measurements.md)); the command bans
+  and closed-world guarantee are environment/realm policy (§2). The
+  measured context split (TMM and scriptd behaviourally identical, a
+  tmsh cli script reproducing both divergences, three-way `tcl_platform`
+  fabrication, the two APL contexts still `Unknown`) keys the F1
+  execution contexts rather than adding families.
 
 ### 3.2 `Package` — providers of surface declarations
 
