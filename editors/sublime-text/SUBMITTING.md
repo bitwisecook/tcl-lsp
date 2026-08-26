@@ -22,6 +22,23 @@ rather than a git tag's source tarball. That is what this package uses:
   `tcl-lsp-server-<triple>` asset for the host on first use and verifies
   it against `SHA256SUMS`.
 
+### Where this stands today
+
+The current stable release is **v2.2.0** — the release that took the 2.x
+line out of preview. It carries every `tcl-lsp-server-<triple>` asset and
+the cosign-signed `SHA256SUMS` the plugin downloads and verifies against,
+but its Sublime asset still uses the pre-submission name
+(`tcl-lsp-sublime-2.2.0.sublime-package`, with a Linux binary inside).
+
+So the channel PR waits for **the first stable release built from this
+change** — any `2.2.x` patch or later even-minor tag — which is what
+publishes `TclLsp.sublime-package`. Nothing else is outstanding: the
+download path is already verified end to end against v2.2.0's assets (an
+unstamped checkout resolves 2.2.0 from the GitHub API, fetches
+`tcl-lsp-server-x86_64-unknown-linux-gnu`, verifies its checksum, stages
+the spec packs beside it, and the resulting server answers an LSP
+`initialize` with `TCL_LSP_SPEC_PACK_DIR` pointing at them).
+
 ### Pre-releases stay off the channel
 
 Package Control ignores GitHub's `prerelease` flag — its GitHub client
@@ -70,7 +87,8 @@ Notes on each key:
 ## Before opening the PR
 
 1. **A stable release must already carry the asset.** Package Control
-   resolves nothing otherwise. Check:
+   resolves nothing otherwise, and the newest stable release predating
+   this change carries only the old asset name. Check:
 
    ```bash
    gh release view "$(gh release list --repo bitwisecook/tcl-lsp \
