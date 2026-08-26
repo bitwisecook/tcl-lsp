@@ -1,0 +1,143 @@
+# Variable-resolution conformance vectors — the shared ground truth for
+# every implementation of Tcl's *variable* name resolution in this repo.
+#
+# Format (pipe-separated; `-` = empty column; `#` starts a comment line):
+#   current-namespace | frame kind | setup ops | probe | expected per release
+#
+# current-namespace  ::-rooted; the namespace the frame belongs to.
+# frame kind         global  probe runs at script level in :: (no call frame)
+#                    nseval  probe runs inside `namespace eval <ns> {...}`
+#                    proc    probe runs inside a proc defined in <ns>, called once
+# setup ops          comma-separated mini-ops, run inside the frame in order:
+#                      ns(NS)            namespace eval NS {}
+#                      delns(NS)         namespace delete NS
+#                      var(NAME=VALUE)   set NAME {VALUE}
+#                      decl(TEXT)        TEXT verbatim: `global x`, `variable x 5`
+#                      unset(NAME)       unset NAME
+#                      upvar(ARGS)       upvar ARGS
+#                      nsupvar(ARGS)     namespace upvar ARGS   (8.5+)
+#                      eval(SCRIPT)      SCRIPT verbatim (escape hatch; commented)
+#                    Commas inside parentheses do not split; parentheses nest.
+# probe              read NAME | set NAME VALUE | which NAME | exists NAME |
+#                    vars PATTERN
+#                      read   -> set NAME                       (lookup path)
+#                      set    -> set NAME VALUE                 (creation path)
+#                      which  -> namespace which -variable NAME
+#                      exists -> info exists NAME
+#                      vars   -> lsort [info vars PATTERN]
+# expected           the two-element Tcl list `<catch code> <result-or-message>`.
+#                    A single value means every modelled release agrees; a
+#                    `RANGE=VALUE;RANGE=VALUE` list gives the columns per
+#                    release over the ladder 8.4, 8.5, 8.6, 9.0, 9.1 (`9.0+` =
+#                    9.0 and later).  The entries must cover the whole ladder.
+#
+# The whole frame — setup included — runs inside the `catch`, so a row whose
+# *setup* is what a release rejects (`namespace upvar` before 8.5) states that
+# release's real error text as its column instead of being left out.
+#
+# `tcl_syntax::var_conformance::vector_script` renders each row as that script;
+# `tests/variable_resolution_conformance.rs` runs every row against every real
+# tclsh the machine has (TCL_LSP_TCLSH84/85/86/90/91, else PATH probes) and
+# asserts that release's own column, skipping loudly for a release with no
+# binary.
+#
+# Pinned live on 8.4.20, 8.5.19, 8.6.14, 9.0.4, and 9.1b0 (2026-08-26): every
+# row below was run against all five interpreters and states each release's own
+# answer.
+#
+# C references: TclLookupVar / TclObjLookupVarEx (generic/tclVar.c),
+# Tcl_FindNamespaceVar (generic/tclNamesp.c).  Rows are transcribed from the C
+# suites of tmp/tcl9.0.4/tests and tmp/tcl8.6.16/tests; each group names its
+# source tests.
+#
+# documented-non-conformance
+#   Behaviours deliberately excluded because the C suite itself marks them
+#   broken — do not "fix" our model to match them:
+#   * namespace-56.4 (knownBug, Tcl bug 16fe1b5807): a namespace literally
+#     named `:` cannot be reached as an ensemble.  The colon-run rules we do
+#     model live in command_resolution_vectors.txt and namespace_op_vectors.txt.
+#   * info-15.8 (knownBug): `info procs` in a namespace does not report a
+#     global proc shadowed by a namespace proc consistently.  Our `vars`/
+#     `which` probes never depend on it.
+#   * var-3.3 / var-3.4 (testupvar): they need the `tcltest` C shim to reach
+#     MakeUpvar's flag combinations directly; a stock tclsh cannot run them, so
+#     the reachable halves are covered by the upvar rows below instead.
+
+# TIP 278 — the global secondary lookup for *variables* is gone at 9.0, while
+# commands keep it (namespace-14.3, 17.7, namespace-old-6.12, 6.14).  These are
+# the rows the whole multi-release oracle exists for.
+::test_ns_1 | nseval | var(::v=10) | read v | 8.4-8.6=0 10;9.0+=1 {can't read "v": no such variable}
+::test_ns_1 | nseval | ns(::test_ns_1::test_ns_2), var(::test_ns_1::test_ns_2::v=20) | read test_ns_2::v | 0 20
+::test_ns_1 | nseval | ns(::test_ns_2), var(::test_ns_2::v=30) | read test_ns_2::v | 8.4-8.6=0 30;9.0+=1 {can't read "test_ns_2::v": no such variable}
+::test_ns_1 | nseval | var(::x=314159), decl(variable x 777), unset(x) | read x | 8.4-8.6=0 314159;9.0+=1 {can't read "x": no such variable}
+::test_ns_cache1 | nseval | var(::test_ns_cache_var=global version) | read test_ns_cache_var | 8.4-8.6=0 {global version};9.0+=1 {can't read "test_ns_cache_var": no such variable}
+::test_ns_cache1 | nseval | var(::test_ns_cache_var=global version), decl(variable test_ns_cache_var {cache1 version}) | read test_ns_cache_var | 0 {cache1 version}
+::test_ns_cache1 | nseval | var(::test_ns_cache_var=global version), decl(variable test_ns_cache_var {cache1 version}), unset(test_ns_cache_var) | read test_ns_cache_var | 8.4-8.6=0 {global version};9.0+=1 {can't read "test_ns_cache_var": no such variable}
+# the same fallback seen through `namespace which -variable` (namespace-34.7):
+# ::env is always there, so 8.x finds it from a child namespace and 9.x does not
+::test_ns_3 | nseval | - | which env | 8.4-8.6=0 ::env;9.0+=0 {}
+::test_ns_3 | nseval | decl(variable v3 333) | which v3 | 0 ::test_ns_3::v3
+::test_ns_3 | nseval | ns(::test_ns_2), var(::test_ns_2::v2=222) | which ::test_ns_2::v2 | 0 ::test_ns_2::v2
+::test_ns_3 | nseval | ns(::test_ns_2) | which ::test_ns_2::noSuchVar | 0 {}
+# namespace-17.10: the varName cache a proc leaves behind must not resurrect
+# the namespace variable for the *global* read that follows — 8.x answers the
+# namespace value it cached, 9.x answers the global one
+:: | global | ns(::test_ns_1), eval(proc test_ns {} {set ::test_ns_1::a 0}), eval(test_ns), eval(rename test_ns {}), eval(namespace eval test_ns_1 unset a), eval(set a 0), eval(namespace eval test_ns_1 set a 1), eval(namespace delete test_ns_1) | read a | 8.4-8.6=0 1;9.0+=0 0
+
+# TclLookupVar scoping flags: `global` is TCL_GLOBAL_ONLY, `variable` is
+# TCL_NAMESPACE_ONLY, an absolute name is neither (var-1.2 .. 1.6).
+::test_ns_var | proc | var(::x=global value), eval(namespace eval ::test_ns_var {variable x {namespace value}}), decl(global x) | read x | 0 {global value}
+::test_ns_var | proc | var(::x=global value), eval(namespace eval ::test_ns_var {variable x {namespace value}}), decl(variable x) | read x | 0 {namespace value}
+:: | global | var(::x=global value) | read x | 0 {global value}
+::test_ns_var | nseval | var(::x=global value), decl(variable x {namespace value}) | read x | 0 {namespace value}
+::test_ns_var | nseval | var(::x=global value), decl(variable x {namespace value}) | read ::x | 0 {global value}
+:: | global | - | read a:::b | 1 {can't read "a:::b": no such variable}
+:: | global | - | read ::foobarfoo | 1 {can't read "::foobarfoo": no such variable}
+:: | global | - | read thisvar(doesntexist) | 1 {can't read "thisvar(doesntexist)": no such variable}
+
+# The creation-vs-lookup asymmetry (var-1.9 .. 1.13): creation always lands in
+# the frame's own namespace, and never writes through to the global the 8.x
+# lookup would have found.
+::test_ns_var | nseval | - | set v hello | 0 hello
+::test_ns_var | nseval | var(::v=globalv), eval(set v localv) | read ::v | 8.4-8.6=0 localv;9.0+=0 globalv
+::test_ns_var | nseval | var(::v=globalv), eval(set v localv) | which v | 8.4-8.6=0 ::v;9.0+=0 ::test_ns_var::v
+::test_ns_var | nseval | eval(set ::y 789) | read ::y | 0 789
+::test_ns_var | nseval | - | set ::test_ns_var::foo::bar 314159 | 1 {can't set "::test_ns_var::foo::bar": parent namespace doesn't exist}
+::test_ns_var | nseval | - | set ::test_ns_var::foo:: 1997 | 1 {can't set "::test_ns_var::foo::": parent namespace doesn't exist}
+::test_ns_var | nseval | eval(namespace eval test_ns_var2::test_ns_var3 {set aNeWnAmEiNnS 77777}) | which test_ns_var2::test_ns_var3::aNeWnAmEiNnS | 0 ::test_ns_var::test_ns_var2::test_ns_var3::aNeWnAmEiNnS
+
+# A `:` in the middle or at the end of a variable name is an ordinary
+# character — only a run of two or more colons separates (var-1.14).
+::test_ns_var | nseval | eval(set : 123) | read : | 0 123
+::test_ns_var | nseval | eval(set v: 456) | read v: | 0 456
+::test_ns_var | nseval | eval(set x:y: 789) | read x:y: | 0 789
+::test_ns_var | nseval | eval(set x:y: 789) | vars x:* | 0 x:y:
+::test_ns_var | nseval | eval(set : 123) | exists : | 0 1
+::test_ns_var | nseval | - | exists : | 0 0
+
+# upvar links (var-3.1 .. 3.11).
+:: | proc | var(::x=1997), decl(global x) | read x | 0 1997
+::test_ns_var | proc | eval(namespace eval ::test_ns_var {variable v 1998}), decl(variable v) | read v | 0 1998
+:: | global | var(::aaaaa=77777), upvar(#0 aaaaa xxxxx) | read xxxxx | 0 77777
+::test_ns_var | nseval | var(::a=121212), upvar(::a vvv) | read vvv | 0 121212
+::test_ns_var | nseval | var(::a=789789), upvar(#0 a lnk) | read lnk | 0 789789
+:: | global | var(::aaaaa=789789), upvar(#0 aaaaa test_ns_fred::lnk) | read aaaaa | 1 {can't create "test_ns_fred::lnk": parent namespace doesn't exist}
+:: | global | var(::aaaaa=789789), upvar(#0 aaaaa foo(bar)) | read aaaaa | 8.4=0 789789;8.5+=1 {bad variable name "foo(bar)": can't create a scalar variable that looks like an array element}
+
+# A link that outlives its target (var-1.15 .. 1.18): the link survives, the
+# write does not, and the message names what died.
+:: | proc | eval(namespace eval ::test_ns_var {variable foo 2}), decl(variable ::test_ns_var::foo) | read foo | 0 2
+:: | proc | eval(namespace eval ::test_ns_var {variable foo 2}), decl(variable ::test_ns_var::foo), eval(namespace delete ::test_ns_var) | set foo 3 | 1 {can't set "foo": upvar refers to variable in deleted namespace}
+::test_ns_var | nseval | eval(namespace eval subns {variable foo 2}), upvar(0 subns::foo foo), eval(namespace delete subns) | set foo 3 | 1 {can't set "foo": upvar refers to variable in deleted namespace}
+:: | proc | eval(array set x {1 2 3 4}), upvar(0 x(1) foo), eval(unset x) | set foo 3 | 1 {can't set "foo": upvar refers to element in deleted array}
+
+# `namespace upvar` (upvar-NS-1.x) is 8.5+ — TIP 219 — so 8.4's column is the
+# real `bad option` text from its own subcommand table (generic/tclNamesp.c,
+# Tcl 8.4.20, and tmp/tcl8.4.20/tests/namespace.test lines 857 and 964),
+# confirmed against a real 8.4.20 interpreter.
+::test_ns_1 | nseval | nsupvar(test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=1 {namespace "test_ns_0" not found in "::test_ns_1"}
+::test_ns_1 | nseval | ns(test_ns_0), nsupvar(test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=1 {can't read "w": no such variable}
+::test_ns_1 | nseval | eval(namespace eval test_ns_0 {variable x hit}), nsupvar(test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 hit
+::test_ns_1 | proc | eval(namespace eval ::test_ns_1::test_ns_0 {variable x hit}), nsupvar(test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 hit
+::test_ns_1 | proc | eval(namespace eval ::test_ns_1 {variable x hit}), nsupvar(test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=1 {namespace "test_ns_0" not found in "::test_ns_1"}
+::test_ns_1 | nseval | ns(::test_ns_0), var(::test_ns_0::x=abs), nsupvar(::test_ns_0 x w) | read w | 8.4=1 {bad option "upvar": must be children, code, current, delete, eval, exists, export, forget, import, inscope, origin, parent, qualifiers, tail, or which};8.5+=0 abs

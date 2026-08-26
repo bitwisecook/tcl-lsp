@@ -90,7 +90,7 @@ fn analyser_settlement_matches_every_vector() {
         // local-first guess (the first candidate) for cross-file
         // consumers — pin that exact behaviour so it can't silently
         // change.
-        let expected = v.want.clone().unwrap_or_else(|| {
+        let expected = v.want().unwrap_or_else(|| {
             tcl_syntax::naming::command_resolution_candidates(&v.ns, &v.path, &v.call)
                 .into_iter()
                 .next()

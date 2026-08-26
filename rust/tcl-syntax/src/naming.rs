@@ -1391,6 +1391,9 @@ pub fn rebase_synthetic_offset_names<F: Fn(&str) -> bool>(
 /// each row with [`conformance::vector_script`] and diffs the interpreter's
 /// answer against `want`.
 pub mod conformance {
+    use crate::release_expectations::{PerRelease, newest_release};
+    use tcl_dialect::TclVersion;
+
     /// One resolution scenario: from `ns` (with `path` as its
     /// `namespace path`), a call to `call` with exactly `defs` defined
     /// must dispatch `want` (`None` = `invalid command name`).
@@ -1404,10 +1407,29 @@ pub mod conformance {
         pub defs: Vec<String>,
         /// The call text as written (bare, relative-qualified, or absolute).
         pub call: String,
-        /// The `::`-rooted winner, or `None` for `invalid command name`.
-        pub want: Option<String>,
+        /// The winner per modelled release — a single value when every
+        /// release agrees, release-tagged columns when they do not (see
+        /// [`crate::release_expectations`]).
+        pub wants: PerRelease,
         /// 1-based line in the vector file (for failure messages).
         pub line: usize,
+    }
+
+    impl ResolutionVector {
+        /// The `::`-rooted winner on `release`, or `None` for
+        /// `invalid command name`.
+        #[must_use]
+        pub fn want_for(&self, release: TclVersion) -> Option<String> {
+            let column = self.wants.get(release);
+            (column != "-").then(|| column.to_owned())
+        }
+
+        /// The `::`-rooted winner on the newest modelled release — the
+        /// column the release-agnostic pure resolver asserts against.
+        #[must_use]
+        pub fn want(&self) -> Option<String> {
+            self.want_for(newest_release())
+        }
     }
 
     /// The raw vector table (see the file header for the format).
@@ -1445,7 +1467,9 @@ pub mod conformance {
                 path: split_list(fields[1]),
                 defs: split_list(fields[2]),
                 call: fields[3].to_string(),
-                want: (fields[4] != "-").then(|| fields[4].to_string()),
+                wants: PerRelease::parse(fields[4]).unwrap_or_else(|why| {
+                    panic!("vector line {}: {why}", idx + 1);
+                }),
                 line: idx + 1,
             });
         }

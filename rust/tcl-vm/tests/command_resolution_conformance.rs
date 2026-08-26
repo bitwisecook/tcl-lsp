@@ -86,7 +86,7 @@ fn vm_dispatch_matches_every_vector() {
             "vector line {}: VM errored on script:\n{script}",
             v.line
         );
-        let want = v.want.clone().unwrap_or_else(|| "-".to_string());
+        let want = v.want().unwrap_or_else(|| "-".to_string());
         assert_eq!(
             out.trim(),
             want,

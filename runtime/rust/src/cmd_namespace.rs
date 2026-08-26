@@ -1343,7 +1343,7 @@ mod tests {
                 );
                 assert_eq!(i.eval_str(b"set __r"), Code::Ok);
                 let got = String::from_utf8_lossy(&i.result_bytes()).to_string();
-                let want = v.want.clone().unwrap_or_else(|| "-".to_string());
+                let want = v.want().unwrap_or_else(|| "-".to_string());
                 assert_eq!(
                     got, want,
                     "vector line {} (ns={} path={:?} defs={:?} call={}): runtime dispatch \
