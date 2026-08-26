@@ -314,7 +314,11 @@ profiles and the jim branch:
 
 ```rust
 // rust/tcl-dialect (illustrative shapes, not final signatures)
-pub enum Family { Tcl, F5Irules, Jim /*, SslicTcl? */ }
+pub enum Family { Tcl, F5Tcl, F5Irules, Jim /*, SslicTcl? */ }
+// F5Tcl forks from Tcl@8.4.6; F5Irules forks from F5Tcl (fork of a
+// fork, §2): grammar resolution walks the fork edges, so an axis the
+// offshoot does not override answers from the trunk, and the trunk
+// from tcl@8.4.6.
 
 pub struct Release(/* ordinal within the family's ladder */);
 

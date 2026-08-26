@@ -76,10 +76,12 @@ pub mod upgrade;
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use install::registry_with_packs;
 pub use loader::{
-    AmbientPackage, ClauseGrammar, HookDecl, HookFamily, HookOwner, HookSource,
-    KNOWN_VOCABULARY_VERSIONS, LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand,
-    PackDialect, PackDialectAxis, PackEnvironment, PackEnvironmentTier, VocabularyClass, load_pack,
-    roles_from_manufacturers, speclib_version_span,
+    AmbientPackage, ClauseGrammar, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
+    HookSource, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
+    NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackDialect, PackDialectAxis,
+    PackEnvironment, PackEnvironmentTier, VocabularyClass, eval_snapshot_key, evaluate_pack,
+    evaluate_pack_cached, evaluate_pack_with, load_pack, roles_from_manufacturers,
+    speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
 pub use upgrade::{

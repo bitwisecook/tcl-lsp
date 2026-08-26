@@ -690,6 +690,13 @@ pub struct InterpState {
     /// seam a step debugger drives). `None` in normal runs — the only
     /// per-instruction cost is an `Option` check.
     debug_hook: Option<crate::debug::DebugHook>,
+    /// Optional shared cell tracking the source line of the instruction being
+    /// dispatched — the lightweight sibling of the debug hook, for an embedder
+    /// that needs "what line is the interpreter on" (the `SpecTcl`
+    /// pack-evaluation loader attributes captured registrations with it)
+    /// without paying for a per-command [`crate::debug::DebugSnapshot`].
+    /// `None` in normal runs — one `Option` check per instruction.
+    line_watch: Option<std::rc::Rc<std::cell::Cell<u32>>>,
     /// The `(line, span-start)` key of the last command the debug hook fired
     /// for, so it fires once per source command rather than per instruction
     /// (`startCommand` is emitted only conditionally, so it cannot be the
@@ -1351,6 +1358,7 @@ impl InterpState {
             out,
             compiler: None,
             debug_hook: None,
+            line_watch: None,
             last_debug_key: None,
             pending_exit: None,
             eval_cache: HashMap::new(),
@@ -1787,6 +1795,23 @@ impl Vm {
     pub fn set_debug_hook(&mut self, hook: Option<crate::debug::DebugHook>) {
         self.debug_hook = hook;
         self.last_debug_key = None;
+    }
+
+    /// Install a shared cell the VM keeps set to the source line of the
+    /// instruction being dispatched — the cheap sibling of
+    /// [`Self::set_debug_hook`] for an embedder that only needs line
+    /// attribution (a registered command reads the cell to learn which line
+    /// invoked it). Pass `None` to detach.
+    pub fn set_line_watch(&mut self, watch: Option<std::rc::Rc<std::cell::Cell<u32>>>) {
+        self.line_watch = watch;
+    }
+
+    /// Publish `line` to the line watch, when one is installed.
+    #[inline]
+    pub(crate) fn note_line(&self, line: u32) {
+        if let Some(watch) = &self.line_watch {
+            watch.set(line);
+        }
     }
 
     /// Record a pending `exit` with the given process code. The VM library does

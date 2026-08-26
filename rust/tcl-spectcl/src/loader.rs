@@ -18,8 +18,18 @@
 
 //! `SpecTcl` — the `.tclspec` spec-pack loader.
 //!
-//! A spec pack is **one Tcl script, read from the CST and never executed**.
-//! This module walks that tree — the same
+//! Two front ends share one set of row readers:
+//!
+//! - **This module's [`load_pack`]** — the CST loader: the pack is **one Tcl
+//!   script, read from the CST and never executed**, the reference
+//!   behaviour every other loader is measured against.
+//! - **[`evaluate_pack`]** — design E's evaluation loader
+//!   (`SpecTcl` 2.0): the pack runs as a sandboxed, deterministic Tcl
+//!   program whose registration words capture the same [`Stmt`] shapes and
+//!   replay them through the readers below, behind its own explicit entry
+//!   points. `load_pack`'s behaviour is unchanged by its existence.
+//!
+//! The CST walk uses the same
 //! [`build_document`](tcl_compiler::parsing::syntax::build::build_document) /
 //! [`segments_from_document`](tcl_compiler::parsing::syntax::segment::segments_from_document)
 //! pair every static scan in the toolchain uses — and turns the declarations
@@ -121,10 +131,15 @@ use crate::catalogue;
 mod available;
 mod dialect_block;
 mod environment_block;
+mod eval;
 mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
 pub use environment_block::{PackEnvironment, PackEnvironmentTier};
+pub use eval::{
+    EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, eval_snapshot_memoised,
+    evaluate_pack, evaluate_pack_cached, evaluate_pack_with,
+};
 pub use vocabulary_class::VocabularyClass;
 
 // ---------------------------------------------------------------------------
@@ -829,10 +844,16 @@ pub struct Pack {
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
     /// Why the whole pack failed closed, when it did (§6.1: an unsupported
-    /// `speclib` **major**). `Some` always comes with an empty `commands`
-    /// and one explaining notice — this is a load error wearing the
-    /// never-panicking shape the rest of the loader has.
+    /// `speclib` **major**; under evaluation also a broken transaction).
+    /// `Some` always comes with an empty `commands` and one explaining
+    /// notice — this is a load error wearing the never-panicking shape the
+    /// rest of the loader has.
     pub load_error: Option<LoadError>,
+    /// Whether the pack used `available?` during evaluation (design E-R1):
+    /// its surface depends on the analysis target, so its snapshot must not
+    /// be cached per (content, vocabulary) alone. Always `false` from the
+    /// CST loader, which never evaluates.
+    pub target_dependent: bool,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
 }
@@ -843,6 +864,19 @@ pub enum LoadError {
     /// The `speclib` word named a vocabulary major past this loader
     /// (§6.1). The string is the declared version, verbatim.
     UnsupportedMajor(String),
+    /// Evaluation (design E, §1.2) raised an uncaught error — a Tcl error,
+    /// a compile failure, or an engine crash. Registration is transactional,
+    /// so nothing loaded.
+    EvaluationFailed(String),
+    /// Evaluation outran its budget on the named axis (§1.2): `command
+    /// steps`, `wall clock`, or `value size`.
+    BudgetExhausted(&'static str),
+    /// Evaluation reached for a command the determinism contract denies
+    /// (§1.2). The string is the denial, naming the command and its axis.
+    Determinism(String),
+    /// A registration touched something the pack's provenance tier may not
+    /// (design E-R2). The string names the registration and the tier.
+    Provenance(String),
 }
 
 impl fmt::Display for LoadError {
@@ -852,6 +886,15 @@ impl fmt::Display for LoadError {
                 f,
                 "SpecTcl vocabulary {declared} is a major this loader does not support"
             ),
+            Self::EvaluationFailed(message) => {
+                write!(f, "pack evaluation failed: {message}")
+            }
+            Self::BudgetExhausted(axis) => {
+                write!(f, "pack evaluation exhausted its budget on the {axis} axis")
+            }
+            Self::Determinism(message) | Self::Provenance(message) => {
+                write!(f, "{message}")
+            }
         }
     }
 }
@@ -907,28 +950,13 @@ impl Pack {
 /// Never fails: a pack with no `speclib` wrapper, or with declarations this
 /// server does not know, loads as much as it can and reports the rest through
 /// [`Pack::notices`].
-// One arm per pack-level statement word, over a struct initialised field by
-// field. Splitting it would scatter the single place the pack vocabulary is
-// enumerated, which is the property that makes a missing word obvious here.
-#[allow(clippy::too_many_lines)]
 #[must_use]
 pub fn load_pack(source: &str) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
         ..Log::default()
     };
-    let mut pack = Pack {
-        name: String::new(),
-        display_name: None,
-        file_extensions: Vec::new(),
-        ambient_packages: Vec::new(),
-        environments: Vec::new(),
-        dialects: Vec::new(),
-        dsl_version: String::new(),
-        commands: Vec::new(),
-        load_error: None,
-        notices: Vec::new(),
-    };
+    let mut pack = empty_pack();
 
     let top = pack_statements(source);
     let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
@@ -982,79 +1010,8 @@ pub fn load_pack(source: &str) -> Pack {
     // Two passes: pack-level tables and descriptors first, so a `command`
     // may reference one declared after it.
     for stmt in block(body) {
-        match stmt.word_text(0) {
-            "values" => tables.add_values(&stmt, &mut log),
-            "descriptor" => tables.add_descriptor(&stmt, &mut log),
-            "hook" => tables.add_hook(&stmt, &mut log),
-            "default" => tables.add_default(&stmt, &mut log),
-            "display_name" => {
-                let name = stmt.word_text(1);
-                if name.is_empty() {
-                    log.say(stmt.line, "`display_name` needs a name");
-                } else {
-                    if pack.display_name.is_some() {
-                        log.say(stmt.line, "`display_name` redeclared; last wins");
-                    }
-                    pack.display_name = Some(name.to_owned());
-                }
-            }
-            "file_extension" => {
-                if let Some(row) = file_extension_row(&stmt, &mut log) {
-                    if pack
-                        .file_extensions
-                        .iter()
-                        .any(|prior| prior.extension == row.extension)
-                    {
-                        log.say(
-                            stmt.line,
-                            format!("`file_extension {}` redeclared; first wins", row.extension),
-                        );
-                    } else {
-                        pack.file_extensions.push(row);
-                    }
-                }
-            }
-            "ambient_package" => {
-                log.v12(stmt.line, "ambient_package");
-                if let Some(row) = ambient_package_row(&stmt, &mut log) {
-                    pack.ambient_packages.push(row);
-                }
-            }
-            "environment" => {
-                log.v20(stmt.line, "environment");
-                if let Some(environment) = environment_block::parse(&stmt, &mut log) {
-                    if pack
-                        .environments
-                        .iter()
-                        .any(|prior| prior.id == environment.id)
-                    {
-                        log.say(
-                            stmt.line,
-                            format!(
-                                "`environment {}` redeclared; the first is kept",
-                                environment.id
-                            ),
-                        );
-                    } else {
-                        pack.environments.push(environment);
-                    }
-                }
-            }
-            "dialect" => {
-                log.v20(stmt.line, "dialect");
-                if let Some(dialect) = dialect_block::parse(&stmt, &mut log) {
-                    if pack.dialects.iter().any(|prior| prior.name == dialect.name) {
-                        log.say(
-                            stmt.line,
-                            format!("`dialect {}` redeclared; the first is kept", dialect.name),
-                        );
-                    } else {
-                        pack.dialects.push(dialect);
-                    }
-                }
-            }
-            "command" => declarations.push(stmt),
-            _ => log.unknown_property(&stmt),
+        if apply_pack_stmt(&mut pack, &mut tables, &stmt, &mut log) {
+            declarations.push(stmt);
         }
     }
 
@@ -1064,37 +1021,143 @@ pub fn load_pack(source: &str) -> Pack {
         }
     }
 
-    // Vocabulary consistency: words newer than the pack's declaration.
-    // Additions never gate, so THIS loader read them fine — but a loader
-    // speaking only the declared vocabulary drops each one silently, and
-    // raising the declaration is how a pack says it needs them. One notice
-    // per site, so an editor can mark every offending row.
-    //
-    // A pack with no `speclib` line declares nothing to be inconsistent with,
-    // and one declaring a vocabulary at or above the word's own is correct;
-    // both are skipped.
-    if !pack.dsl_version.is_empty() {
-        let declared = pack.dsl_version.clone();
-        let name = pack.name.clone();
-        for (context, line, word, since) in std::mem::take(&mut log.newer_words) {
-            if tcl_registry::version::compare(&declared, since).is_ge() {
-                continue;
-            }
-            log.notices.push(Notice {
-                context,
-                line,
-                class: VocabularyClass::Presentation,
-                message: format!(
-                    "`{word}` is SpecTcl {since} vocabulary, but this pack declares \
-                     vocabulary {declared}; a {declared} loader drops the word — declare \
-                     `speclib {name} {since}`"
-                ),
-            });
-        }
-    }
-
+    finish_newer_words(&pack, &mut log);
     pack.notices = log.notices;
     pack
+}
+
+/// A pack with nothing in it yet — the starting point of both loaders.
+fn empty_pack() -> Pack {
+    Pack {
+        name: String::new(),
+        display_name: None,
+        file_extensions: Vec::new(),
+        ambient_packages: Vec::new(),
+        environments: Vec::new(),
+        dialects: Vec::new(),
+        dsl_version: String::new(),
+        commands: Vec::new(),
+        load_error: None,
+        target_dependent: false,
+        notices: Vec::new(),
+    }
+}
+
+/// Apply one pack-scope statement — every arm of the pack vocabulary except
+/// `command`, which the caller collects for the second pass. Returns `true`
+/// exactly when the statement is a `command` declaration.
+///
+/// Shared by [`load_pack`] and the evaluation loader's replay, so the two
+/// front ends cannot drift on what a pack-level word means.
+fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &mut Log) -> bool {
+    match stmt.word_text(0) {
+        "values" => tables.add_values(stmt, log),
+        "descriptor" => tables.add_descriptor(stmt, log),
+        "hook" => tables.add_hook(stmt, log),
+        "default" => tables.add_default(stmt, log),
+        "display_name" => {
+            let name = stmt.word_text(1);
+            if name.is_empty() {
+                log.say(stmt.line, "`display_name` needs a name");
+            } else {
+                if pack.display_name.is_some() {
+                    log.say(stmt.line, "`display_name` redeclared; last wins");
+                }
+                pack.display_name = Some(name.to_owned());
+            }
+        }
+        "file_extension" => {
+            if let Some(row) = file_extension_row(stmt, log) {
+                if pack
+                    .file_extensions
+                    .iter()
+                    .any(|prior| prior.extension == row.extension)
+                {
+                    log.say(
+                        stmt.line,
+                        format!("`file_extension {}` redeclared; first wins", row.extension),
+                    );
+                } else {
+                    pack.file_extensions.push(row);
+                }
+            }
+        }
+        "ambient_package" => {
+            log.v12(stmt.line, "ambient_package");
+            if let Some(row) = ambient_package_row(stmt, log) {
+                pack.ambient_packages.push(row);
+            }
+        }
+        "environment" => {
+            log.v20(stmt.line, "environment");
+            if let Some(environment) = environment_block::parse(stmt, log) {
+                if pack
+                    .environments
+                    .iter()
+                    .any(|prior| prior.id == environment.id)
+                {
+                    log.say(
+                        stmt.line,
+                        format!(
+                            "`environment {}` redeclared; the first is kept",
+                            environment.id
+                        ),
+                    );
+                } else {
+                    pack.environments.push(environment);
+                }
+            }
+        }
+        "dialect" => {
+            log.v20(stmt.line, "dialect");
+            if let Some(dialect) = dialect_block::parse(stmt, log) {
+                if pack.dialects.iter().any(|prior| prior.name == dialect.name) {
+                    log.say(
+                        stmt.line,
+                        format!("`dialect {}` redeclared; the first is kept", dialect.name),
+                    );
+                } else {
+                    pack.dialects.push(dialect);
+                }
+            }
+        }
+        "command" => return true,
+        _ => log.unknown_property(stmt),
+    }
+    false
+}
+
+/// Vocabulary consistency: words newer than the pack's declaration.
+/// Additions never gate, so THIS loader read them fine — but a loader
+/// speaking only the declared vocabulary drops each one silently, and
+/// raising the declaration is how a pack says it needs them. One notice
+/// per site, so an editor can mark every offending row.
+///
+/// A pack with no `speclib` line declares nothing to be inconsistent with,
+/// and one declaring a vocabulary at or above the word's own is correct;
+/// both are skipped.
+fn finish_newer_words(pack: &Pack, log: &mut Log) {
+    if pack.dsl_version.is_empty() {
+        log.newer_words.clear();
+        return;
+    }
+    let declared = pack.dsl_version.clone();
+    let name = pack.name.clone();
+    for (context, line, word, since) in std::mem::take(&mut log.newer_words) {
+        if tcl_registry::version::compare(&declared, since).is_ge() {
+            continue;
+        }
+        log.notices.push(Notice {
+            context,
+            line,
+            class: VocabularyClass::Presentation,
+            message: format!(
+                "`{word}` is SpecTcl {since} vocabulary, but this pack declares \
+                 vocabulary {declared}; a {declared} loader drops the word — declare \
+                 `speclib {name} {since}`"
+            ),
+        });
+    }
 }
 
 /// Report every `speclib` block after the first — none of them is loaded.
@@ -3891,6 +3954,36 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         return None;
     };
 
+    command_from_parts(
+        name,
+        overrides_shipped,
+        stmt.line,
+        tables,
+        log,
+        |spec, acc, log| {
+            for stmt in block(body) {
+                apply_command_stmt(spec, acc, &stmt, tables, log);
+            }
+        },
+    )
+}
+
+/// Everything [`load_command`] does past reading the `command` statement's
+/// own words: defaults, the body (delivered by `fill`, however the front end
+/// gets its statements — the CST walk or the evaluator's capture), sealing,
+/// containment, and §6.1 degradation. Shared so the two loaders build a
+/// command through one code path.
+// Loading is a single tolerant transaction: defaults, hooks, projected rows,
+// lifecycle containment, and degradation notices must seal together.
+#[allow(clippy::too_many_lines)]
+fn command_from_parts(
+    name: &str,
+    overrides_shipped: bool,
+    line: u32,
+    tables: &PackTables,
+    log: &mut Log,
+    fill: impl FnOnce(&mut CommandSpec, &mut CommandAcc, &mut Log),
+) -> Option<PackCommand> {
     log.begin_spec();
     log.scoped(format!("command {name}"), |log| {
         let mut spec = CommandSpec {
@@ -3911,9 +4004,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         }
 
         let mut acc = CommandAcc::default();
-        for stmt in block(body) {
-            apply_command_stmt(&mut spec, &mut acc, &stmt, tables, log);
-        }
+        fill(&mut spec, &mut acc, log);
 
         // A `clause_grammar` derives BOTH hook behaviours; the pack still
         // declares STRUCTURALLY_CHECKED_ARITY and the loader warns if it does
@@ -3937,13 +4028,13 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             }
             if !spec.traits.contains(Traits::STRUCTURALLY_CHECKED_ARITY) {
                 log.say(
-                    stmt.line,
+                    line,
                     "a `clause_grammar` command should also declare the \
                      STRUCTURALLY_CHECKED_ARITY trait",
                 );
             }
             if grammar.head.is_empty() {
-                log.say(stmt.line, "a `clause_grammar` needs a `head` clause");
+                log.say(line, "a `clause_grammar` needs a `head` clause");
             }
         }
 
@@ -3954,7 +4045,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             spec.arg_role_resolver.is_some() || spec.command_prefix_resolver.is_some(),
             spec.script_timing_resolver.is_some() || spec.traits.contains(Traits::DEFERS_BODY),
             &format!("command `{}`", spec.name),
-            stmt.line,
+            line,
             log,
         );
         spec.arg_roles = leak_slice(args.roles);
@@ -3965,7 +4056,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
         spec.arg_rows = arg_rows;
-        spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", stmt.line, log);
+        spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
         spec.options = leak_slice(acc.options);
         spec.forms = leak_slice(acc.forms);
         spec.side_effects = leak_slice(acc.side_effects);
@@ -3980,10 +4071,10 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         spec.lifecycle = checked_lifecycle(
             spec.lifecycle,
             &format!("command `{}`", spec.name),
-            stmt.line,
+            line,
             log,
         );
-        check_command_containment(&spec, stmt.line, log);
+        check_command_containment(&spec, line, log);
 
         // §6.1's fail-closed rule. A semantic-class word this build cannot
         // read means the command's security / control-flow / binding facts
@@ -3993,7 +4084,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         // affected capability answers `Unknown` instead.
         if log.semantic_unknown {
             log.say_classified(
-                stmt.line,
+                line,
                 VocabularyClass::Semantic,
                 format!(
                     "`command {name}` is excluded from strong analysis: it uses \
@@ -4009,7 +4100,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
             hooks: acc.hooks,
             clause_grammar: acc.clause_grammar,
             degraded: log.assistance_unknown,
-            line: stmt.line,
+            line,
             file: std::path::PathBuf::new(),
         })
     })
@@ -5050,16 +5141,31 @@ fn load_subcommand(
 ) -> Option<SubCommand> {
     let name = stmt.word_text(1).to_owned();
     let body = stmt.arg(2)?;
+    subcommand_from_parts(&name, kind, stmt.line, log, |sub, acc, log| {
+        for stmt in block(body) {
+            apply_subcommand_stmt(sub, acc, &stmt, tables, hooks, &name, log);
+        }
+    })
+}
+
+/// Everything [`load_subcommand`] does past reading the statement's own
+/// words, shared with the evaluation loader exactly as
+/// [`command_from_parts`] is.
+fn subcommand_from_parts(
+    name: &str,
+    kind: &str,
+    line: u32,
+    log: &mut Log,
+    fill: impl FnOnce(&mut SubCommand, &mut SubAcc, &mut Log),
+) -> Option<SubCommand> {
     let outer = log.context.clone();
     log.scoped(format!("{outer} / {kind} {name}"), |log| {
         let mut sub = SubCommand {
-            name: leak_str(&name),
+            name: leak_str(name),
             ..SubCommand::DEFAULT
         };
         let mut acc = SubAcc::default();
-        for stmt in block(body) {
-            apply_subcommand_stmt(&mut sub, &mut acc, &stmt, tables, hooks, &name, log);
-        }
+        fill(&mut sub, &mut acc, log);
         let (args, arg_rows) = acc.args.seal();
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
@@ -5067,7 +5173,7 @@ fn load_subcommand(
             sub.arg_role_resolver.is_some() || sub.command_prefix_resolver.is_some(),
             sub.script_timing_resolver.is_some() || sub.traits.contains(Traits::DEFERS_BODY),
             &format!("{kind} `{name}`"),
-            stmt.line,
+            line,
             log,
         );
         sub.arg_roles = leak_slice(args.roles);
@@ -5078,15 +5184,14 @@ fn load_subcommand(
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
         sub.arg_rows = arg_rows;
-        sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, stmt.line, log);
+        sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
         sub.options = leak_slice(acc.options);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
         sub.option_constraints = leak_slice(acc.option_constraints);
         sub.versioned_arg_values = leak_slice(acc.versioned_arg_values);
-        sub.lifecycle =
-            checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), stmt.line, log);
+        sub.lifecycle = checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), line, log);
         Some(sub)
     })
 }

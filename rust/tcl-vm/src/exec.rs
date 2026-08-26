@@ -1917,6 +1917,9 @@ impl Vm {
         }
         let instr = &asm.instructions[f.pc];
         f.pc += 1;
+        // Line-watch seam: keep the embedder's cell on the dispatching
+        // instruction's source line (see `Vm::set_line_watch`).
+        self.note_line(instr.source_line);
         // Step-debugger seam: fire once per source command, before it runs.
         #[allow(clippy::redundant_closure_for_method_calls)] // Span isn't named in this crate.
         let span_start = instr.source_span.map(|s| s.start());

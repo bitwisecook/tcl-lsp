@@ -553,7 +553,10 @@ fn keyed_axis(key: &str) -> Option<KeyedAxis> {
 }
 
 /// The compiled canonical id or alias `name` collides with, if any.
-fn reserved_name(name: &str) -> Option<String> {
+///
+/// `pub(super)` so the evaluation loader's E-R2 provenance gate asks the
+/// same question this block's own rejection does.
+pub(super) fn reserved_name(name: &str) -> Option<String> {
     for definition in compiled_definitions() {
         if definition.id.as_str() == name {
             return Some(definition.id.as_str().to_owned());

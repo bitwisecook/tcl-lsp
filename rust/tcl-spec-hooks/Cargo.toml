@@ -40,6 +40,11 @@ tcl-engine-api = { path = "../tcl-engine-api" }
 tcl-engine-tclvm = { path = "../tcl-engine-tclvm" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-dialect = { path = "../tcl-dialect" }
+# `pack_eval` — the SpecTcl 2.0 pack-evaluation host — is deliberately
+# engine-specific: re-entrant body evaluation from inside a registered
+# command and per-command line tracking are `Vm` facilities the neutral
+# interface does not carry, so that one module speaks to the VM directly.
+tcl-vm = { path = "../tcl-vm" }
 
 [dev-dependencies]
 tcl-compiler = { path = "../tcl-compiler" }

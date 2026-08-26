@@ -71,6 +71,7 @@ pub mod crash;
 pub mod emit;
 pub mod host;
 mod intern;
+pub mod pack_eval;
 pub mod program;
 pub mod sandbox;
 
