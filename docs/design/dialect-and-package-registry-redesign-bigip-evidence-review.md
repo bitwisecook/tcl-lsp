@@ -444,8 +444,24 @@ there is no separator before the first `{`; and `list {*}{a b}` yields
 `* {a b}`, so the separator wins and `{*}` must not be implemented in this
 dialect.
 
-The rest of that run — interpreter identity, the 85-builtin command surface, the
-event-context matrix, and the traffic lab — answers the same questions but did
+A second E4-conforming probe (§4a of that document) answers **F1** by running one
+34-case list across `TmmIRule`, `TmshCliScript`, `IAppImplementation` and
+`HostShellTcl`. Result: the three F5 contexts are **one parser** — every grammar
+and newline case is identical, and the word-form `expr` operators are present in
+all three, not just in iRules — but they are **not one environment**. `exec` is
+absent in `TmmIRule` and works in the other two; `info commands` counts 152/95/95;
+`tcl_platform` is fabricated, **empty**, and real-Linux respectively; and
+`tcl_patchLevel` does not exist at all in `TmshCliScript`. So the
+`BigIpExecutionContext` key is needed, but it should split on command surface and
+environment rather than on grammar. `IAppPresentationApl` and
+`IAppPresentationTclCallback` were **not** exercised and are recorded `Unknown`.
+
+That probe also settles §F2's "one observed `tclsh`" objection concretely: the
+host `/usr/bin/tclsh8.4` is **8.4.13**, whereas all three F5 contexts embed
+**8.4.6**. A version read off the host would have been wrong for every F5 row.
+
+The rest of that run — the 85-builtin command surface, the event-context matrix,
+and the traffic lab — answers the same questions but did
 **not** implement the §E4 contract: no `__tcl_lsp_probe_*` prefix, no per-create
 absence check or `EXIT` trap, and the traffic lab attached rules to virtual
 servers. `save sys config` was never run and every object was deleted and proven
