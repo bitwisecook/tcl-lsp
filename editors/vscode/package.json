@@ -54,7 +54,7 @@
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "Analysis is safe in an untrusted workspace: the language server never executes the Tcl it analyses, and on vscode.dev / github.dev it is a wasm module in a Web Worker with no filesystem and no process. On the desktop, however, the extension launches a native tcl-lsp-server binary and can run tclsh, and several settings choose which program that is or where it reads from — so those settings are ignored until you trust the workspace.",
+      "description": "Analysis is safe in an untrusted workspace: the language server never executes the Tcl it analyses, and on vscode.dev / github.dev it is a wasm module in a Web Worker with no filesystem and no process. The one exception is a spec pack the workspace itself carries (a .tclspec under .tcl-lsp/, or beside a tclpkg.tcl manifest), which loads with no setting: its analysis hooks are pack-authored Tcl, run in a sandboxed VM with a closed command whitelist (no open, exec, source, or socket) under command and wall-clock budgets. On the desktop, however, the extension launches a native tcl-lsp-server binary and can run tclsh, and several settings choose which program that is or where it reads from — so those settings are ignored until you trust the workspace.",
       "restrictedConfigurations": [
         "tclLsp.serverPath",
         "tclLsp.rustServerPath",

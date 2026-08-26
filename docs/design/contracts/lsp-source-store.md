@@ -139,13 +139,22 @@ Two rules govern it:
 1. **A real `specs/` directory wins.** The mount is consulted only when the
    bundled tier is otherwise empty, the same rule an on-disk `specs/` already
    applies to the embedded fallback.
-2. **The mount is additive to the shipped loadables.** Files found there carry
-   `Origin::HostMount`, and `bundled::load_discovered_in` decides its
-   embedded-pack fallback on "no bundled file came from a *shipped directory*"
-   rather than "the bundled tier is empty". A real `specs/` holds the eight
-   shipped EDA loadables, so finding one means they are accounted for; a host
-   that upserts one vendor pack has said nothing about the EDA libraries and
-   must not silently lose them.
+2. **The mount is additive to the shipped loadables, file name by file name.**
+   Files found there carry `Origin::HostMount`, and
+   `bundled::load_discovered_in` decides its embedded-pack fallback on "no
+   bundled file came from a *shipped directory*" rather than "the bundled tier
+   is empty". A real `specs/` holds the eight shipped EDA loadables, so finding
+   one means they are accounted for; a host that upserts one vendor pack has
+   said nothing about the EDA libraries and must not silently lose them.
+   Within that fallback the embedded copy is **keyed by file name**: an
+   embedded source is appended only when no discovered bundled-tier file
+   already carries that file name. A host may mount a vendor pack of its own,
+   or the shipped packs themselves — VS Code's web entry upserts the staged
+   `dist/web/specs/*.tclspec`, which is the browser's normal startup — or
+   both. Without the name key the second shape loaded every shipped pack
+   twice under one name: the merge has no content dedup, so the session paid a
+   doubled ~2 MB parse on its single worker thread and reported ~1,489
+   duplicate-command warnings against files the user never wrote.
 
 `MemoryStore`'s implied directories are what make the walk work: upserting
 `<mount>/eda/xilinx.tclspec` makes `<mount>` and `<mount>/eda` listable with no

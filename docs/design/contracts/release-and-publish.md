@@ -117,6 +117,20 @@ maintainer doesn't have to remember the sequence.  `make publish-vsix` /
 `make publish-openvsx` / `make publish-jetbrains` remain laptop fallbacks if
 a CI publish job fails.
 
+**Failure mode — a red `build-vsix` ancestor leaves a half-populated
+Release.**  `build-vsix` needs `lsp-server-wasi` (the universal package's
+`server/wasm/` module), `test-ext`, and `test-ext-web`, and
+`publish-checksums` needs `build-vsix`.  So when any of those goes red on a
+tag, the Release still gets the native binaries (`publish-native-binaries`)
+and the editor packages (JetBrains, Sublime, Zed, the Claude skills), but no
+`.vsix` and — because the sums are computed over whatever is attached, once —
+no `SHA256SUMS` or its cosign bundle.  `install.sh` aborts on a missing
+`SHA256SUMS` rather than installing unverified artefacts, so it cannot install
+*that tag* until the run is fixed and re-run — not even the native binaries
+that did attach (`TCL_LSP_NO_VERIFY=1` is the documented escape hatch, and is not one
+to recommend).  Fix forward and re-run the failed jobs on the same tag; the
+assets that already uploaded are overwritten in place.
+
 ## The 2.1.x pre-release sequence is a program, not a procedure
 
 Step 2 above is the *primitive*.  For the `rust` pre-release line there is

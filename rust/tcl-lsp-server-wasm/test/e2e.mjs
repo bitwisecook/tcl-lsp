@@ -28,13 +28,17 @@
  * already-built `dist/`.
  */
 
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { runInThisContext } from "node:vm";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const dist = join(here, "..", "dist");
+// The shipped loadables, at the one path both the server's `include_str!`
+// fallback and the VSIX staging read them from.  The browser host primes these
+// exact files into the mount, so the scenario below has to use the real ones.
+const SHIPPED_SPECS = join(here, "..", "..", "..", "specs");
 
 const SPEC_URI = "file:///w/demo.tclspec";
 const TCL_URI = "file:///w/demo.tcl";
@@ -45,6 +49,8 @@ const TCL_URI = "file:///w/demo.tcl";
 // package database is built from the upserted index files, and `.tclspec`
 // packs the host registers load as the bundled tier.
 const WS_ROOT = "file:///ws";
+// The third session's root: no files at all, because the packs are the subject.
+const PRIMED_ROOT = "file:///primed";
 const WS_MAIN_URI = "file:///ws/main.tcl";
 const WS_HELPERS_URI = "file:///ws/lib/helpers.tcl";
 
@@ -389,6 +395,67 @@ async function workspaceSession(wasmBindgen) {
     return session.logs;
 }
 
+/*
+ * The browser host's real startup composition: the SHIPPED packs, mounted.
+ *
+ * `editors/vscode/src/extensionBrowser.ts` primes `dist/web/specs/*.tclspec`
+ * into the virtual mount before `initialize`, so every bundled-tier file the
+ * worker discovers already carries a shipped name.  The embedded fallback is
+ * keyed by file name for exactly this reason (`bundled::load_discovered_in`):
+ * key it on the *directory* alone and each pack loads twice under one name —
+ * eight extra megabyte-scale parses on the worker's single thread and ~1,489
+ * duplicate-command warnings per session.
+ *
+ * `workspaceSession` above deliberately mounts a pack under a name nothing
+ * ships (`vendor.tclspec`), which is why it never saw this.  Both shapes are
+ * host reality, so both are covered.
+ */
+async function primedShippedPacksSession(wasmBindgen) {
+    const session = new Session(wasmBindgen.LspWorker);
+
+    const names = (await readdir(SHIPPED_SPECS)).filter((name) => name.endsWith(".tclspec")).sort();
+    check(
+        "the shipped spec packs are on disk to prime",
+        names.length === 8,
+        `${names.length} packs`,
+    );
+    for (const name of names) {
+        const text = await readFile(join(SHIPPED_SPECS, name), "utf8");
+        session.worker.vfs_upsert_spec_pack(name, text);
+    }
+
+    await session.request("initialize", {
+        processId: null,
+        rootUri: PRIMED_ROOT,
+        workspaceFolders: [{ uri: PRIMED_ROOT, name: "primed" }],
+        capabilities: clientCapabilities(),
+    });
+    session.notify("initialized", {});
+
+    // ~2 MB of pack text parsed on one worker thread, with no compiled-pack
+    // cache in the browser — give it room rather than flaking on a slow runner.
+    const packLine = await until(() => session.logs.find((line) => line.startsWith("SpecTcl:")), {
+        tries: 600,
+        every: 50,
+    });
+    const packCount = Number(/(\d+) pack/.exec(packLine ?? "")?.[1] ?? -1);
+    const noticeCount = Number(/(\d+) notice/.exec(packLine ?? "")?.[1] ?? -1);
+    check(
+        "priming the shipped packs loads each of them exactly once",
+        packCount === 8,
+        packLine ?? "no SpecTcl log line",
+    );
+    check(
+        "priming the shipped packs reports no notices",
+        noticeCount === 0,
+        packLine ?? "no SpecTcl log line",
+    );
+
+    const shutdown = await session.request("shutdown", null);
+    check("the primed-packs session shuts down", shutdown.error === undefined);
+    return session.logs;
+}
+
 async function main() {
     const wasmBindgen = await loadModule();
     const session = new Session(wasmBindgen.LspWorker);
@@ -555,6 +622,7 @@ async function main() {
     check("shutdown answers", shutdown.error === undefined);
 
     const workspaceLogs = await workspaceSession(wasmBindgen);
+    const primedLogs = await primedShippedPacksSession(wasmBindgen);
 
     console.log("");
     console.log(`${results.length - failures}/${results.length} checks passed`);
@@ -567,6 +635,8 @@ async function main() {
     if (failures > 0) {
         console.log(`workspace session log lines: ${workspaceLogs.length}`);
         for (const line of workspaceLogs) console.log(`   > ${line}`);
+        console.log(`primed-packs session log lines: ${primedLogs.length}`);
+        for (const line of primedLogs) console.log(`   > ${line}`);
     }
     process.exit(failures === 0 ? 0 : 1);
 }

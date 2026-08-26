@@ -690,7 +690,12 @@ count fitting no window at all stays an ordinary E002/E003.
   executable. A browser worker has neither, so when that yields nothing
   discovery walks the server's closed-file store at
   `discovery::VIRTUAL_PACK_MOUNT`, where the host upserts its own packs —
-  additively, so the shipped loadables survive. See
+  additively, so the shipped loadables survive. Additive is **keyed by file
+  name**: the shipped loadables are compiled into the server as a fallback,
+  and one is used only when the host mounted no file of that name. A host may
+  mount a vendor pack of its own, the shipped packs themselves (which is what
+  the VS Code web extension does at startup), or both, and each pack loads
+  exactly once either way. See
   [contracts/lsp-source-store.md](contracts/lsp-source-store.md),
   "The virtual spec-pack mount".
 - **Compiled-pack cache in the OS cache directory**
@@ -708,6 +713,34 @@ count fitting no window at all stays an ordinary E002/E003.
   (drafts round-trip through it), and the `spec-author` skill emits the
   DSL for the private-library path. `tcl spec build` pre-warms the same
   cache — an optimisation, never a requirement.
+
+### Workspace trust: the setting is gated, the workspace tier is not
+
+VS Code's untrusted-workspace mode splits the loading rules above in two,
+and the split is deliberate.
+
+`tclLsp.specPacks` is in the extension's `restrictedConfigurations`
+(`editors/vscode/package.json`), so an untrusted workspace's value for it is
+ignored — only the user's own value applies. It has to be: the setting names
+arbitrary paths, and a `.vscode/settings.json` is workspace-authored content,
+so honouring it would let a repository point the loader at any file on the
+machine, including one the user never opened.
+
+The rest of the workspace tier — a `.tclspec` under `.tcl-lsp/`, or beside a
+`tclpkg.tcl` manifest — is **not** gated, and loads in an untrusted workspace
+with no setting at all. It cannot name anything outside the folder the user
+opened, so it is exactly the same class of content as the `.tcl` files the
+analyser already reads.
+
+What makes that safe is not trust, it is the hook sandbox above: a pack's
+only executable surface is its hook bodies, they are pure words-to-data
+functions on a closed command whitelist (no `open`, `exec`, `source`, or
+`socket`), each pack gets its own engine, and every invocation runs under a
+command count and wall-clock budget with `catch_unwind` and
+quarantine-on-first-crash around it. A workspace pack can therefore make the
+editor say something wrong about the workspace's own code; it cannot reach
+the machine. If that ever stops being true — a hook family gaining ambient
+authority — the workspace tier has to become trust-gated in the same breath.
 
 ## The acceptance rubric
 

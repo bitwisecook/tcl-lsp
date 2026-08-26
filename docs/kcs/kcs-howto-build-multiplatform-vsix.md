@@ -49,6 +49,41 @@ client needs — would carry about 19 MiB nobody could ever run.
 `make verify-vsix` asserts the split in both directions: the universal
 package must contain it, a targeted package must not.
 
+### What is in a package, and why it is large
+
+The universal package unpacks to roughly **430 MiB** and downloads as roughly
+**120-130 MiB**. That is expected, and it is worth knowing where it goes
+before someone tries to "fix" it:
+
+- Seven native `tcl-lsp-server` binaries, about 47 MiB each (13 MiB
+  compressed) — the bulk of the package.
+- The browser language server, `dist/web/` — about 25 MiB (6 MiB
+  compressed). It ships in **every** flavour, targeted or not, because one
+  `package.json` declares the `browser` entry point, so a targeted package
+  that omitted it would claim web support it could not deliver.
+- The WASI module, `server/wasm/` — about 19 MiB (6 MiB compressed), in the
+  universal package only.
+- The bundled `.tclspec` loadables, **nine times over**: once per native
+  triple in `server/<dir>/specs/`, once in `dist/web/specs/`, and once in
+  `server/wasm/specs/`. Each copy is about 1.9 MiB (0.35 MiB compressed), so
+  about 17 MiB of the unpacked total. The same eight packs are *also*
+  compiled into every binary and both wasm modules as the
+  standalone-install fallback (`tcl_spectcl::bundled`).
+
+The nine copies are not an accident of the staging script. Each native server
+looks for `specs/` **beside its own executable**
+(`tcl_spectcl::discovery::bundled_dir`), so every `server/<dir>/` needs its
+own. The browser rung has no executable and no filesystem: its copy has to sit
+under `dist/web/`, the web bundle root the extension host can fetch over
+http, and the extension upserts those files into the server's virtual pack
+mount at startup. The WASI rung has no executable path either: its copy is a
+directory mounted into the guest and named by `TCL_LSP_SPEC_PACK_DIR`. Three
+rungs, three ways of reaching a file, one set of packs — see
+[`lsp-runtime-and-transports.md`](../design/rust/lsp-runtime-and-transports.md)
+Part 6 and [`spec-packs.md`](../design/spec-packs.md).
+
+(Sizes measured on an x86-64 Linux build; other triples differ by a few MiB.)
+
 The Rust-target-to-bundle-directory map is the single source of truth in
 `SERVER_TARGET_MAP` in the [`Makefile`](../../Makefile). The bundle
 directory name equals Node's `process.platform-process.arch` — for
@@ -66,10 +101,11 @@ also in the `Makefile`).
    cannot run is skipped loudly).
 3. Package and verify the universal package: `make package-vsix`. This
    stages every built binary into `server/<dir>/`, stages the WebAssembly
-   module into `server/wasm/` (building it with `make lsp-server-wasi`
-   only if `rust/tcl-lsp-server-wasi/dist/` has none), and runs `make
-   verify-vsix`, which fails if the package contains a `.pyz`, is missing
-   a requested binary, or is missing the module.
+   module into `server/wasm/` (building it with `make lsp-server-wasi` only
+   if `rust/tcl-lsp-server-wasi/dist/` has none, or if the module there is
+   older than that crate's sources), and runs `make verify-vsix`, which fails
+   if the package contains a `.pyz`, is missing a requested binary, or is
+   missing the module.
 4. Package and verify the six platform-targeted packages: `make
    package-vsix-targets`. Each needs the corresponding native binary
    already built (step 1); `SERVER_TARGET_MAP` resolves each platform

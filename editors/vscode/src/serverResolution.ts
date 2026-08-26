@@ -51,8 +51,14 @@ export function bundlePlatformDir(): string {
  * the extension root.  Mirrored by the Makefile's `$(VSIX_FILE)` staging and
  * asserted by `verify-vsix`; the six platform-targeted VSIXes deliberately do
  * NOT carry it, because each already ships its own native binary.
+ *
+ * A literal, forward-slashed string, not `path.join`: this names an entry
+ * inside a VSIX, whose separator is `/` on every host.  `bundledWasiModulePath`
+ * puts it through `path.join`, which turns it into a host path where that
+ * matters; going the other way — a `path.join` constant carrying `\` on
+ * Windows — cannot be undone by a caller that needs the archive spelling.
  */
-export const WASI_MODULE_RELATIVE_PATH = path.join("server", "wasm", "tcl-lsp-server-wasi.wasm");
+export const WASI_MODULE_RELATIVE_PATH = "server/wasm/tcl-lsp-server-wasi.wasm";
 
 /**
  * The bundled SpecTcl loadables staged beside the module, relative to the
@@ -62,8 +68,14 @@ export const WASI_MODULE_RELATIVE_PATH = path.join("server", "wasm", "tcl-lsp-se
  * which is what `tcl_spectcl::discovery::bundled_dir` looks for.  A WASI guest
  * has no executable to sit beside, so the same directory is mounted into the
  * guest and named by `TCL_LSP_SPEC_PACK_DIR` instead — see `./wasiServer`.
+ *
+ * Forward-slashed for the same reason as `WASI_MODULE_RELATIVE_PATH`, and one
+ * more: this is handed straight to `@vscode/wasm-wasi` as an
+ * `extensionLocation` mount descriptor path, which is a URI path and never a
+ * host path, so a `\` from `path.join` on a Windows host would be wrong at
+ * the point of use rather than merely unidiomatic.
  */
-export const WASI_SPECS_RELATIVE_PATH = path.join("server", "wasm", "specs");
+export const WASI_SPECS_RELATIVE_PATH = "server/wasm/specs";
 
 /** The bundled WASI module's absolute path inside an installed extension. */
 export function bundledWasiModulePath(extensionPath: string): string {

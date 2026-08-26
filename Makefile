@@ -138,6 +138,14 @@ SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
 # module as a *prerequisite*, and prerequisites expand when the rule is read.
 LSP_SERVER_WASI_DIR    := $(ROOT)rust/tcl-lsp-server-wasi
 LSP_SERVER_WASI_MODULE := $(LSP_SERVER_WASI_DIR)/dist/tcl-lsp-server-wasi.wasm
+# The module's own sources, so the file rule further down can tell a stale
+# module from an up-to-date one.  Same `shell find` idiom as $(TS_SRCS); the
+# crate is its own workspace with its own lockfile, so its lockfile is the one
+# named here.  Declared beside the module for the same reason it is: this
+# expands where the rule is read.
+LSP_SERVER_WASI_SRCS := $(shell find $(LSP_SERVER_WASI_DIR)/src -type f 2>/dev/null) \
+	$(LSP_SERVER_WASI_DIR)/Cargo.toml $(LSP_SERVER_WASI_DIR)/Cargo.lock \
+	$(LSP_SERVER_WASI_DIR)/build-wasi.sh
 # Where the universal VSIX stages it, relative to the extension root.  Mirrored
 # by `WASI_MODULE_RELATIVE_PATH` in editors/vscode/src/serverResolution.ts.
 VSIX_WASI_DIR := server/wasm
@@ -1696,9 +1704,23 @@ lsp-server-wasi: ## Build the LSP server as a WASI stdio program (Rust → wasm3
 # dependency on the phony target above.  CI's `build-vsix` downloads the module
 # the `lsp-server-wasi` job already built, optimised, and signed; a phony
 # prerequisite would rebuild it there (a wasip1 toolchain plus a release LTO
-# link) on top of the download.  Present ⇒ used as-is; absent ⇒ built.  Delete
-# `dist/` (or run `make lsp-server-wasi`) to force a rebuild.
-$(LSP_SERVER_WASI_MODULE):
+# link) on top of the download.
+#
+# The prerequisites are what keep "present ⇒ used as-is" honest.  `dist/` is
+# git-ignored, so it survives every branch switch: with no prerequisites at all
+# the documented laptop fallbacks (`make publish-vsix` / `publish-openvsx`)
+# would happily package whatever module an earlier branch left behind.  Naming
+# the crate's own sources means a source change re-links and an untouched
+# module is reused.  Note this decides only whether cargo is *consulted* — the
+# recipe's `cargo build` still fingerprints the whole dependency closure, so a
+# change under `rust/tcl-lsp-server` re-links once anything here (or `dist/`)
+# is touched.  Delete `dist/` (or run `make lsp-server-wasi`) to force a build.
+#
+# CI's direction holds: `build-vsix` checks out first and downloads second, and
+# `actions/download-artifact` extracts with `unzip-stream`, which never
+# restores the zip's stored mtimes — the module lands at download time, newer
+# than every prerequisite, so nothing re-links there.
+$(LSP_SERVER_WASI_MODULE): $(LSP_SERVER_WASI_SRCS)
 	$(MAKE) --no-print-directory lsp-server-wasi
 
 # The fixture directory is preopened by the harness itself (`wasmtime --dir`),

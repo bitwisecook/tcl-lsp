@@ -58,6 +58,7 @@
 //! `TCL_LSP_SPEC_PACK_DIR`, a dev checkout — wins outright, exactly as
 //! before.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock, RwLock};
 
@@ -180,10 +181,33 @@ pub fn load_discovered(files: &[PackFile]) -> PackSet {
 
 /// [`load_discovered`] reading each file's bytes from `store` rather than
 /// `std::fs` — the browser worker's path, where `files` came from
-/// [`discover_in`](crate::discovery::discover_in) over the same store. The
-/// embedded fallback is unchanged: a host that supplies nothing under
-/// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT) still gets the
-/// shipped EDA loadables, because they are compiled in rather than read.
+/// [`discover_in`](crate::discovery::discover_in) over the same store.
+///
+/// The rule the embedded fallback follows here, in full:
+///
+/// 1. A real `specs/` directory — any bundled-tier file that is not from the
+///    host mount — is authoritative and suppresses the fallback outright. A
+///    distribution or `TCL_LSP_SPEC_PACK_DIR` must be able to *replace* the
+///    shipped loadables, not merely add to them.
+/// 2. Otherwise the fallback is **keyed by file name**: an embedded source is
+///    appended only when no discovered bundled-tier file already has that
+///    file name.
+///
+/// Rule 2 is what makes both host shapes work, and the browser has both. A
+/// host may mount one vendor pack of its own — it has said nothing about the
+/// EDA libraries and must not silently lose them, so the embedded eight still
+/// arrive. Or it may mount the shipped packs themselves: VS Code's web entry
+/// (`editors/vscode/src/extensionBrowser.ts`, `primeSpecPacks`) upserts the
+/// staged `dist/web/specs/*.tclspec` under
+/// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT), which is the
+/// browser's normal startup. Or both at once. Appending the embedded copy on
+/// top of a mounted shipped file would load that pack twice under one name,
+/// and the merge has no content dedup ([`crate::pack`]): the browser session
+/// paid a doubled ~2 MB parse on its single worker thread and reported ~1,489
+/// duplicate-command warnings against files the user never wrote.
+///
+/// A host that supplies nothing at all still gets every shipped EDA loadable,
+/// because they are compiled in rather than read.
 #[must_use]
 pub fn load_discovered_in(
     store: &dyn tcl_lsp_core::vfs::SourceStore,
@@ -199,7 +223,19 @@ pub fn load_discovered_in(
         .iter()
         .any(|(file, _)| file.tier == Tier::Bundled && file.origin != Origin::HostMount);
     if !has_shipped_dir {
-        sources.extend(embedded_sources());
+        // Name-keyed, not all-or-nothing: whatever the host mounted is its own
+        // copy of that file and stands in for the embedded one. Only the
+        // shipped files it did *not* mount are appended.
+        let mounted: BTreeSet<std::ffi::OsString> = sources
+            .iter()
+            .filter(|(file, _)| file.tier == Tier::Bundled)
+            .filter_map(|(file, _)| file.path.file_name().map(std::ffi::OsStr::to_os_string))
+            .collect();
+        sources.extend(
+            embedded_sources()
+                .into_iter()
+                .filter(|(file, _)| !file.path.file_name().is_some_and(|n| mounted.contains(n))),
+        );
     }
     crate::pack::load_sources(sources, notices)
 }
@@ -541,6 +577,142 @@ mod tests {
                 .iter()
                 .all(|p| p.files.iter().all(|f| !f.starts_with("<embedded>"))),
             "an on-disk bundled tier must suppress the embedded fallback: {:#?}",
+            set.packs
+        );
+    }
+
+    /// The **browser host's** real composition, and the bug it hid: VS Code's
+    /// web entry (`editors/vscode/src/extensionBrowser.ts`, `primeSpecPacks`)
+    /// upserts the *shipped* `dist/web/specs/*.tclspec` into
+    /// [`VIRTUAL_PACK_MOUNT`](crate::discovery::VIRTUAL_PACK_MOUNT), so every
+    /// discovered bundled-tier file already carries a shipped name. Keying
+    /// the fallback on "no *shipped directory*" alone appended the embedded
+    /// copy on top of them, and the merge has no content dedup: every pack
+    /// loaded twice under the same name, ~1,489 duplicate-command warnings
+    /// per session and a doubled ~2 MB parse on the worker's single thread.
+    #[test]
+    fn a_host_that_mounts_the_shipped_packs_does_not_load_them_twice() {
+        let _cache = cache_guard();
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        for (name, text) in EMBEDDED_PACKS {
+            store.upsert(
+                PathBuf::from(crate::discovery::VIRTUAL_PACK_MOUNT).join(name),
+                (*text).as_bytes().to_vec(),
+            );
+        }
+        let files = crate::discovery::discover_in(
+            &store,
+            &DiscoveryOptions {
+                skip_user_tier: true,
+                ..DiscoveryOptions::default()
+            },
+        );
+        let set = load_discovered_in(&store, &files);
+
+        let mut names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
+        names.sort_unstable();
+        assert_eq!(
+            names,
+            vec![
+                "eda_cadence",
+                "eda_mentor",
+                "eda_microchip",
+                "eda_quartus",
+                "eda_synopsys",
+                "eda_xilinx",
+                "sdc_base",
+                "upf"
+            ],
+            "the eight EDA loadables, once each"
+        );
+        let warnings: Vec<String> = set
+            .notices
+            .iter()
+            .filter(|n| n.severity == crate::pack::Severity::Warning)
+            .map(|n| format!("{}:{} {}", n.path.display(), n.line, n.message))
+            .collect();
+        assert!(
+            warnings.is_empty(),
+            "the primed-shipped-packs composition must load clean, got {} warning(s):\n{}",
+            warnings.len(),
+            warnings
+                .iter()
+                .take(5)
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+        for pack in &set.packs {
+            assert_eq!(
+                pack.files.len(),
+                1,
+                "pack `{}` must load from the mounted file only: {:#?}",
+                pack.name,
+                pack.files
+            );
+            assert!(
+                pack.files.iter().all(|f| !f.starts_with("<embedded>")),
+                "pack `{}` must not gain the embedded copy of a file the host mounted: {:#?}",
+                pack.name,
+                pack.files
+            );
+        }
+    }
+
+    /// The other half of the name-keyed rule, and the reason it is keyed on
+    /// the file name rather than on the mount being empty: a host that
+    /// mounts *one* shipped-named file plus a pack of its own keeps its own
+    /// copy of that one file and still gets the other seven EDA loadables.
+    #[test]
+    fn a_mounted_shipped_name_replaces_only_its_own_embedded_file() {
+        let _cache = cache_guard();
+        let mount = PathBuf::from(crate::discovery::VIRTUAL_PACK_MOUNT);
+        let store = tcl_lsp_core::vfs::MemoryStore::new();
+        store.upsert(
+            mount.join("sdc_base.tclspec"),
+            b"speclib sdc_base 1 {}\n".to_vec(),
+        );
+        store.upsert(
+            mount.join("vendor.tclspec"),
+            b"speclib hostvendor 1 {}\n".to_vec(),
+        );
+        let files = crate::discovery::discover_in(
+            &store,
+            &DiscoveryOptions {
+                skip_user_tier: true,
+                ..DiscoveryOptions::default()
+            },
+        );
+        let set = load_discovered_in(&store, &files);
+
+        let names: Vec<&str> = set.packs.iter().map(|p| p.name.as_str()).collect();
+        assert!(
+            names.contains(&"hostvendor"),
+            "the host's own pack must survive: {names:?}"
+        );
+        assert_eq!(
+            names.len(),
+            9,
+            "the host's pack, its `sdc_base.tclspec`, and the seven embedded \
+             files it did not mount: {names:?}"
+        );
+        let sdc = set
+            .packs
+            .iter()
+            .find(|p| p.name == "sdc_base")
+            .expect("the mounted sdc_base pack");
+        assert_eq!(
+            sdc.files,
+            vec![mount.join("sdc_base.tclspec")],
+            "a mounted shipped name must not be joined by its embedded copy"
+        );
+        assert!(
+            set.packs
+                .iter()
+                .any(|p| p.name == "eda_xilinx"
+                    && p.files.iter().all(|f| f.starts_with("<embedded>"))),
+            "the seven files the host did not mount must still come from the \
+             embedded copy: {:#?}",
             set.packs
         );
     }

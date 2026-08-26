@@ -438,6 +438,20 @@ platform-targeted VSIXes carry only their own binary. `make verify-vsix`
 asserts both halves, so neither can drift. The end state — dropping the natives
 from the universal package — is deliberately not taken here.
 
+The universal package's shape is also why the spec packs ship **nine times**
+as files in it: `server/<dir>/specs/` for each of the seven native triples
+(each server probes beside its own executable), `dist/web/specs/` for the
+browser rung (no executable and no filesystem — the files have to sit in the
+web bundle the extension host can fetch, and the extension upserts them into
+the virtual pack mount), and `server/wasm/specs/` for this rung (mounted into
+the guest and named by `TCL_LSP_SPEC_PACK_DIR`). Every native binary and both
+wasm modules additionally carry the same eight packs compiled in, as the
+standalone-install fallback. Three rungs reach a file three different ways, so
+each needs its own reachable copy; at about 1.9 MiB per copy that is about
+17 MiB of the universal package's roughly 430 MiB unpacked. The full payload
+breakdown is in
+[`kcs-howto-build-multiplatform-vsix.md`](../../kcs/kcs-howto-build-multiplatform-vsix.md).
+
 `ms-vscode.wasm-wasi-core` is a **soft** dependency and can never become
 `extensionDependencies`: one `package.json` produces all seven VSIX flavours,
 so a hard declaration would force a WASI runtime on every user whose platform

@@ -25,6 +25,7 @@ import {
   RUST_SERVER_EXE,
   resolveRustServer,
   WASI_MODULE_RELATIVE_PATH,
+  WASI_SPECS_RELATIVE_PATH,
   wasiRuntimeAction,
   wasiUriMapping,
 } from "../serverResolution";
@@ -103,9 +104,21 @@ suite("Server resolution ladder", () => {
   });
 
   test("the wasm module is staged under server/wasm/", () => {
+    // Forward slashes, literally: these constants name entries inside a VSIX
+    // (and, for the specs directory, a `@vscode/wasm-wasi` mount-descriptor
+    // path), neither of which is a host path.  `path.join` would spell them
+    // with `\` on a Windows host.  Only `bundledWasiModulePath` turns the
+    // module's into a host path, which is where `path.join` belongs.
+    assert.strictEqual(WASI_MODULE_RELATIVE_PATH, "server/wasm/tcl-lsp-server-wasi.wasm");
+    assert.strictEqual(WASI_SPECS_RELATIVE_PATH, "server/wasm/specs");
+    assert.ok(
+      !WASI_MODULE_RELATIVE_PATH.includes("\\") && !WASI_SPECS_RELATIVE_PATH.includes("\\"),
+      "a VSIX entry / mount path never carries a backslash",
+    );
     assert.strictEqual(
-      WASI_MODULE_RELATIVE_PATH,
-      path.join("server", "wasm", "tcl-lsp-server-wasi.wasm"),
+      bundledWasiModulePath(EXT),
+      path.join(EXT, "server", "wasm", "tcl-lsp-server-wasi.wasm"),
+      "the disk path is the one that gets host separators",
     );
   });
 });
