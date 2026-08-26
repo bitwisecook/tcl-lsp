@@ -533,6 +533,11 @@ mod tests {
         );
     }
 
+    // Unix-only: `rooted_file_uri` exists for wasm32-unknown-unknown, whose
+    // virtual paths are unix-shaped, so a unix host is the faithful proxy. On
+    // Windows the round-trip below is meaningless — `to_file_path` yields
+    // `\`-separated components for a path shape the target never produces.
+    #[cfg(unix)]
     #[test]
     fn a_rooted_path_gets_the_same_uri_from_file_path_would_give() {
         // The `wasm32-unknown-unknown` fallback must not invent a second
@@ -566,7 +571,6 @@ mod tests {
                 Some(path),
                 "{raw} did not round-trip",
             );
-            #[cfg(unix)]
             assert_eq!(
                 Some(&ours),
                 tower_lsp_server::ls_types::Uri::from_file_path(path).as_ref(),
