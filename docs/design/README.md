@@ -74,6 +74,13 @@ rules for the KCS/documentation split live in
   separation between provider catalogues and per-interpreter live bindings,
   then specifies corrected version-set, build-profile, trust, lifetime,
   editor-identity, and behavioural-parity contracts.
+- [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
+  — **F5 evidence review** of the fixed iRules, tmsh, and iApps Tcl-version
+  assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI
+  scripts, iApp implementation Tcl, presentation APL and its embedded Tcl
+  callbacks, and host Tcl. It combines upstream parser evidence, official F5
+  interfaces, stock-Tcl controls, and an isolated live-appliance probe contract,
+  with required provenance and conformance gates.
 
 ## Name resolution
 

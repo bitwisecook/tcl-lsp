@@ -1025,7 +1025,7 @@ struct Eda {
     help: &'static [&'static str],
 }
 
-static EDA_SHELLS: [Eda; 6] = [
+const EDA_SHELLS: [Eda; 6] = [
     Eda {
         id: "cadence-eda-tcl",
         display: "Cadence EDA Tcl",
@@ -1132,7 +1132,7 @@ static EDA_SHELLS: [Eda; 6] = [
 
 fn eda_environments() -> Vec<EnvironmentDefinition> {
     EDA_SHELLS
-        .iter()
+        .into_iter()
         .map(|shell| {
             let mut placements = vec![
                 keyed("sdc", KeyedAxis::SdcVersion),
