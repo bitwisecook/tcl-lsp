@@ -253,8 +253,8 @@ for the full contract:
 2. **Helpers** — `scripts/{build,codegen,check,capture,release,install,dev}/*`.
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
-4. **Publishing** — VS Code and JetBrains publish *from CI* behind
-   manually-approved Environments; Package Control (Sublime) and Zed
+4. **Publishing** — VS Code, Open VSX, and JetBrains publish *from CI*
+   behind manually-approved Environments; Package Control (Sublime) and Zed
    publish from the maintainer's laptop (they need no token).
 
 **Invariant: a publish secret used in a workflow must be an Environment
@@ -272,6 +272,15 @@ approval and cannot run on a non-tag ref.  Concretely:
   so freshly-fetched npm code never runs with it in the environment.
   `make publish-vsix` stays as a laptop fallback (keyless `az login`, or
   `VSCE_PAT`).
+- **Open VSX** (open-vsx.org — what code-server / openvscode-server /
+  Gitpod / Theia installs use) publishes from CI with `secrets.OVSX_PAT`,
+  an Environment secret on `marketplace-openvsx` (same protections).  It
+  ships the same VSIXes `vsce` publishes (the untargeted universal package
+  plus six platform-targeted ones) via the local, committed-lockfile `ovsx`
+  binary; the `publish-vsix-openvsx` job is gated on `vars.PUBLISH_VSIX_OPENVSX`
+  and never runs `--target` at publish time, same as the VS Code job.
+  `make publish-openvsx` stays as a laptop fallback (no keyless path —
+  `OVSX_PAT` only).
 - **JetBrains Marketplace** publishes from CI with `secrets.JETBRAINS_TOKEN`,
   an Environment secret on `marketplace-jetbrains` (same protections),
   uploading the released, checksum-verified `.zip` via the Marketplace REST

@@ -38,8 +38,10 @@ NODE_BIN="$EXT_DIR/node_modules/.bin"
 JB_DIR="$ROOT/editors/jetbrains"
 
 VSCE="$NODE_BIN/vsce"
+OVSX="$NODE_BIN/ovsx"
 
 VSCE_PUBLISHER="bitwisecook"
+OVSX_NAMESPACE="bitwisecook"
 SUBLIME_MIRROR_REPO="${TCL_LSP_SUBLIME_MIRROR_REPO:-bitwisecook/tcl-lsp-sublime-text}"
 ZED_UPSTREAM="zed-industries/extensions"
 
@@ -73,6 +75,46 @@ elif [ -x "$VSCE" ]; then
         warn "  - run 'cd $EXT_DIR && ./node_modules/.bin/vsce login $VSCE_PUBLISHER'"
     fi
 fi
+
+# ---------------------------------------------------------------- Open VSX
+
+hdr "Open VSX (publish-openvsx)"
+
+if [ -x "$OVSX" ]; then
+    OVSX_VERSION="$("$OVSX" --version 2>/dev/null || echo unknown)"
+    ok "ovsx installed (version $OVSX_VERSION)"
+else
+    err "ovsx not installed — run 'make npm-env' (or 'cd $EXT_DIR && npm install')"
+fi
+
+if [ -n "${OVSX_PAT:-}" ]; then
+    ok "OVSX_PAT env var is set (non-interactive publish ready)"
+    if [ -x "$OVSX" ]; then
+        # Cheap namespace sanity check: one GET against open-vsx.org's
+        # verify-pat endpoint (ovsx reads OVSX_PAT from the environment
+        # natively — see scripts/release/ovsx_publish.sh). Network failure
+        # here is a [warn], not a [fail]: this machine may simply have no
+        # route to open-vsx.org right now, which doesn't block the CI job.
+        if OVSX_VERIFY_OUT="$("$OVSX" verify-pat "$OVSX_NAMESPACE" 2>&1)"; then
+            ok "OVSX_PAT verified against namespace '$OVSX_NAMESPACE'"
+        else
+            warn "OVSX_PAT did not verify against namespace '$OVSX_NAMESPACE':"
+            warn "  $(printf '%s' "$OVSX_VERIFY_OUT" | tail -1)"
+            warn "  (token may be expired/wrong-scope, the '$OVSX_NAMESPACE'"
+            warn "  namespace may not exist yet, or open-vsx.org is"
+            warn "  unreachable from here)"
+        fi
+        unset OVSX_VERIFY_OUT
+    fi
+else
+    warn "OVSX_PAT is not set. Generate a token at"
+    warn "  https://open-vsx.org/user-settings/tokens (scoped to the"
+    warn "  '$OVSX_NAMESPACE' namespace — create it first with"
+    warn "  'ovsx create-namespace $OVSX_NAMESPACE' if this is the first"
+    warn "  publish) and export OVSX_PAT."
+fi
+
+ok "extension page: https://open-vsx.org/extension/$OVSX_NAMESPACE/tcl-lsp"
 
 # ---------------------------------------------------------------- JetBrains
 
