@@ -1,12 +1,16 @@
 # Dialects, packages, and environments — the registry redesign (issue #1631)
 
-> **Status: PROPOSAL.** This is the design for the post-release architecture
-> directed in issue #1631, researched on branch
+> **Status: PROPOSAL, revision 2.** This is the design for the post-release
+> architecture directed in issue #1631, researched on branch
 > `claude/tcl-dialect-registry-design-lrzbsn` (2026-08-25). Nothing here is
-> implemented. §10 lists the open questions whose answers gate the design;
-> recommendations are marked. Where this document and
-> [dialect-profile-model.md](dialect-profile-model.md) disagree, this document
-> describes the *intended* model and that one describes the *shipping* model.
+> implemented. Revision 2 (2026-08-26) incorporates the
+> [adversarial review](dialect-and-package-registry-redesign-adversarial-review.md)
+> of revision 1: all thirteen blocking findings are **accepted** and the model
+> is corrected accordingly — §0.1 records the disposition. §10 lists the open
+> questions whose answers gate the design; recommendations are marked. Where
+> this document and [dialect-profile-model.md](dialect-profile-model.md)
+> disagree, this document describes the *intended* model and that one
+> describes the *shipping* model.
 
 Companions: [spec-packs.md](spec-packs.md) (the SpecTcl format contract this
 extends), [eda-library-packages.md](eda-library-packages.md) (the precedent
@@ -15,40 +19,96 @@ this generalises), [contracts/dialect-detection.md](contracts/dialect-detection.
 [contracts/shared-utility-contracts-rust.md](contracts/shared-utility-contracts-rust.md)
 (the #1621 boundary docs marking the seams this design removes).
 
-## 0. The ruling, and the model in three sentences
+## 0. The ruling, and the model in four layers
 
 Issue #1631 rules that the current catalogue conflates two kinds of thing:
 **dialects** — genuine core-language variants that change how the lexer,
 parser, and analyser behave — and **loadable packages** — plain Tcl plus a
-command surface. The redesign separates them and adds the one concept the
-split exposes as missing:
+command surface. The redesign separates them, and — corrected by the
+adversarial review — keeps four layers apart that revision 1 collapsed into
+one resolved context:
 
-1. A **dialect** is a grammar core: a language *family* at a *release*
-   (`tcl` at 8.4–9.1, `f5-irules`, `jim` at 0.76–0.84). Dialects live in the
-   compiled catalogue and own every lexer/expr/numeral/escape axis.
-2. A **package** is a versioned command surface (`Tk`, every tcllib module,
-   the iApps/tmsh surfaces, Expect, the EDA vendor libraries). Packages are
-   SpecTcl packs — bundled, user, or workspace — and own availability via
-   lifecycle windows on their own version trains.
-3. An **environment** is a named, selectable combination the user actually
-   works in: a dialect plus a **release target set** (a single release or a
-   range such as tcl 8.5–9.0), ambient packages at platform-implied
-   versions, identity (display name, language id, file extensions,
-   detection signatures), and policy (closed-world, fixed ensembles,
-   version ceiling). `tcl8.6`, `f5-irules`, `f5-iapps`, `xilinx-eda-tcl`,
-   and `tk` are all environment names. Environments are **dynamic data** —
-   compiled-in for the core set, declarable by packs, and definable and
-   overridable per workspace/user configuration — and carry the alias
-   table that keeps retired quasi-dialect names resolving.
+1. A **dialect / core profile** is the language core: a *family* at a
+   *release* under a *build/capability profile* (`tcl` at 8.4–9.1,
+   `f5-irules`, `jim` at 0.76–0.84 × its configure matrix). Core profiles
+   live in the compiled catalogue and own every lexer/expr/numeral/escape/
+   character-model axis. The build axis is not optional: the same Jim 0.84
+   commit built default vs `--minimal` has a different character model,
+   expr-function acceptance, and command surface (review B1), and unknown
+   builds resolve to `Unknown`, never to a silently assumed default.
+2. A **package** is a provider of versioned **surface declarations** —
+   commands a provider *may* install, with version sets, predicates, and
+   provenance (`Tk`, every tcllib module, the iApps/tmsh surfaces, Expect,
+   the EDA vendor libraries). Packages are SpecTcl packs — bundled, user,
+   or workspace. A surface declaration is catalogue evidence; it is never,
+   by itself, proof that a command is bound in a given interpreter (review
+   B2/B5).
+3. An **environment** is a named, selectable *definition* of what a project
+   works against: a core-profile selector plus per-axis **version-set
+   targets** (a single release or a set such as tcl `8.5-9.1`), expected/
+   ambient packages at platform-implied versions, server-side detection
+   facts, policy defaults (closed-world, fixed ensembles, version ceiling),
+   and a reference to a *fixed, contributed* editor language identity.
+   `tcl8.6`, `f5-irules`, `f5-iapps`, `xilinx-eda-tcl`, and `tk` are all
+   environment names. Environments are **dynamic data** — compiled-in for
+   the core set, declarable by packs, and adjusted per workspace/user
+   configuration through explicit **overlays** that never mutate the
+   canonical definition — and they carry the alias table that keeps retired
+   quasi-dialect names resolving.
+4. An **analysis world** is the per-document semantic state the compiler,
+   taint, side-effect, and codegen passes actually query: a graph of
+   interpreter **realms** (parent, children, safe interpreters), each with
+   temporal package state and command-binding knowledge
+   (`Absent`/`Must`/`May`/`Unknown`), fed by the environment as a prior and
+   by the existing transition vocabulary in
+   `rust/tcl-registry/src/state_transition.rs`. Catalogue data says what a
+   provider *can* mean; realm state says what a name *does* mean at this
+   call site (review B2/B4/B5).
 
 The only backwards compatibility maintained is (a) data-level: every name a
 user can write today (configs, language ids, directives, CLI flags, pack
 `-dialect` rows) keeps resolving through the environment alias table, and
-(b) format-level: every published `speclib` 1.x pack keeps loading
-unchanged. There are **no Rust-side compatibility shims**: the tk triangle,
-`TK_PROFILE`, `availability_for_name`'s union, `LanguageDialect::Set`,
+(b) format-level: every published `speclib` 1.x pack keeps loading — with
+the review-directed refinement that unknown *semantic* vocabulary in future
+packs fails closed rather than degrading silently (§6.1). There are **no
+Rust-side compatibility shims**: the tk triangle, `TK_PROFILE`,
+`availability_for_name`'s union, `LanguageDialect::Set`,
 `registry_for_dialect_profile`, and the retired `DialectSet` bits are
 deleted, not wrapped.
+
+## 0.1 Review disposition (revision 2)
+
+Every blocking finding of the
+[adversarial review](dialect-and-package-registry-redesign-adversarial-review.md)
+is accepted. The review's contract sketches (`CoreProfileId`, `VersionSet` /
+`ItemHistory`, `SurfaceDeclaration` / `BindingKnowledge`,
+`EnvironmentDefinition` / `EnvironmentOverlay`, `AnalysisWorld` /
+`RealmState`), its non-negotiable invariants I1–I10, and its safer phase
+order are adopted as part of this proposal. Where each landed:
+
+| Finding | Disposition | Where |
+|---|---|---|
+| B1 build/capability profile | accepted — core key is `(family, release, build)`; unknown builds are `Unknown` | §0, §3.1 |
+| B2 per-interpreter temporal state | accepted — analysis world of realms; whole-file activation demoted to a labelled assistance heuristic | §0, §4, §5.3 |
+| B3 `Lifecycle` ≠ requirement algebra | accepted — axis-typed `VersionSet` (normalised half-open unions) for targets/requirements; `ItemHistory` for per-item history; bound inclusivity explicit everywhere | §4, §5.4 |
+| B4 specificity ≠ Tcl resolution | accepted — provider specificity is catalogue *authoring* precedence only; runtime binding comes from the shared resolver + realm transitions; ambiguity widens, never picks | §4 |
+| B5 version ≠ surface | accepted — `SurfaceDeclaration` (candidates, predicated) vs `RealmBinding` (proved); `package provide` proves nothing about bindings | §3.2, §4 |
+| B6 SpecTcl census gaps | accepted — external census `[STRUCT]` closure + shared `InvocationSpec` + `DynamicSurface` honesty are P5 prerequisites; equality gate becomes representation **and** behavioural parity | §6.2, §6.3, §8 |
+| B7 editor identities are static | accepted — fixed contributed `EditorLanguageIdentity` set; dynamic server environments select among them, never mint new ids | §3.3, §7 |
+| B8 leaked-static reload growth | accepted — registry generations (arena/`Arc`) are a P2 prerequisite; ~3.1 MB per generation of ~2,400 specs makes leak-per-reload untenable | §6.3, §8 |
+| B9 workspace trust | accepted — provenance + trust classes on every fact; monotone security join; untrusted workspaces cannot weaken shipped analysis facts | §6.4 |
+| B10 endpoint detectors unproven | accepted — correctness is defined as agreement over every selected target; the reference evaluates every distinct grammar/semantic profile in the set; detectors are per-pair optimisations proved against that oracle; `primary` is explicit | §5.4 |
+| B11 Tk's `tk`/`Tk` loader semantics | accepted — canonical identities + predicated co-provides/loader aliases; Tk keeps its own version axis, never `tracks-base` by default | §3.2, §6.2 |
+| B12 enforcement-location criterion | accepted — classification compares observable semantic fingerprints; families vs releases-on-a-ladder; sublanguages are registry descriptors; restriction/safety is policy | §2 |
+| B13 unknown-word fail-open | accepted — vocabulary classified by compatibility effect; semantic unknowns quarantine or fail closed; unsupported major `speclib` fails closed | §6.1 |
+
+H1–H5 are likewise adopted: reserved canonical names + namespaced
+third-party ids + overlay identity (§3.3), the four-tier known-anywhere
+model for W002 (§4), the Jim probe matrix keyed by
+`(release, configure flags, platform, commit)` with lossless observations
+(§3.1, §8), picol as a negative control the model must reject explicitly
+rather than misdescribe (§2), and the assistance/semantics API split with
+different names and types (§5.3).
 
 ## 1. Evidence base
 
@@ -139,21 +199,39 @@ paths, and scale (~358 modules to migrate).
 
 ## 2. The classification rule
 
-> A **catalogue (dialect) entry** is justified if and only if the variant
-> owns a grammar or parse-level semantic delta: a `LexerGrammar` value, a
-> numeral/escape/expr-grammar axis value, or a parse-level structural rule
-> (declaration-only regions, command-use restriction enforced at parse
-> level) that no plain-Tcl release provides. Everything else — any variant
+Corrected per review B12 — the criterion compares **observable semantic
+fingerprints**, never which compiler module happens to enforce a rule
+(moving an allow-list check from an analyser pass into the parser must not
+turn a package into a dialect):
+
+> A **language family** is justified by observable *outer lexical/syntactic
+> or core evaluation* differences from every other family — a
+> `LexerGrammar`/expr/numeral/escape/character-model axis value no other
+> family's ladder provides. A **release** is a target point on an admitted
+> family's ladder, whether or not it changes grammar versus its neighbour
+> (tcl 9.1 is a release on the `tcl` ladder, not a separate justification
+> problem). A **command sublanguage** — a DSL living inside command
+> arguments, like tcllib's `oo::dialect` definition bodies or pave's widget
+> tuples — is registry descriptor data attached to an invocation, not a
+> dialect. **Availability, safety, and closed-world restrictions are
+> environment/realm policy**, not language identity: a safe interpreter
+> hides `open` while still being Tcl 9.0.4. Everything else — any variant
 > whose whole content is "commands, options, and versions" — is a package,
 > and any user-selectable name for "a base plus packages" is an
 > environment.
 
 The rule is machine-checkable and becomes an invariant test in
-`rust/tcl-dialect`: every dialect in the catalogue must either be a core
-release of a family or own at least one axis value distinct from its
-family baseline; every environment must reference a dialect and add **no**
-grammar knob (the `Environment` type simply has no grammar field, making
-the violation unrepresentable rather than tested).
+`rust/tcl-dialect`: every family in the catalogue must own at least one
+axis value distinct from every other family's ladder; every environment
+must reference a core-profile selector and add **no** grammar knob (the
+environment type simply has no grammar field, making the violation
+unrepresentable rather than tested). Two calibration controls from the
+review: a synthetic restriction moved between parser and analyser must not
+change its classification, and picol — a mutable per-interpreter command
+table over a tiny built-in set — is the negative control the model must
+either represent honestly (embedder/build capabilities plus dynamic
+bindings) or reject explicitly, never misdescribe with an invented
+catalogue.
 
 Applying it to today's 18 catalogue entries plus the two off-catalogue
 profiles and the jim branch:
@@ -161,7 +239,7 @@ profiles and the jim branch:
 | Today | Classification | Notes |
 |---|---|---|
 | `tcl8.4` … `tcl9.1` | dialect (family `tcl`, releases 8.4–9.1) | 9.1 has no grammar delta vs 9.0 but is a core release; releases are the family's version ladder, not separate catalogue entries |
-| `f5-irules` | dialect (family `f5-irules`, 8.4-based) | `}{` separator, nine expr word operators, declaration-only top level, static head identity |
+| `f5-irules` | dialect (family `f5-irules`, 8.4-based) | qualifies on lexical/expr fingerprint alone: the `}{` ghost separator and nine expr word operators (and the declaration-only top-level file form). The K36322151 command bans, closed-world resolution, and the static-head-identity consequence are environment/realm **policy** riding on top (review B12) |
 | `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
 | `f5-iapps` | environment `f5-iapps` = tcl@8.5 + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | grammar is `GRAMMAR_TCL85` verbatim; APL container routing is a language-id fact, not a dialect fact |
 | `f5-tmsh` | environment `f5-tmsh` = tcl@8.5 + tmsh pack (ambient, BIG-IP-keyed) | no tmsh lexing mode exists (the `AGENTS.md` owner-map claim is stale); the `IAPPS\|TMSH` spec files split into two packs sharing sources |
@@ -183,17 +261,35 @@ pub enum Family { Tcl, F5Irules, Jim /*, SslicTcl? */ }
 
 pub struct Release(/* ordinal within the family's ladder */);
 
-pub struct Dialect {
+pub struct CoreProfileId {
     pub family: Family,
     pub release: Release,          // tcl: 8.4..9.1; jim: 0.76..0.84; irules: TMOS-keyed or single
+    pub build: BuildProfileId,     // review B1 — semantic, not metadata
 }
 
-impl Family {
-    pub const fn releases(self) -> &'static [Release];
-    pub const fn grammar(self, r: Release) -> LexerGrammar;      // total function
-    pub const fn expr_surface(self, r: Release) -> ExprGrammar;  // total function — full contract below
+pub struct CoreProfile {
+    pub grammar: LexerGrammar,     // resolved, total over admitted ids
+    pub expr: ExprGrammar,         //   — full contract below
+    pub character_model: CharacterModelId,
+    pub capabilities: CapabilitySet, // typed; resolved centrally, in every fingerprint
 }
 ```
+
+**The build axis is load-bearing, not metadata** (review B1). The same Jim
+0.84 commit built with `./configure` versus `./configure --minimal` has a
+different character model (`é` is length 1 vs 2), different expr-function
+acceptance (`sqrt(4)` evaluates vs "syntax error in expression"), and a
+different command surface (`json::decode`, `tcl::prefix`, `zlib` present
+vs absent) — compiled in or out *before any interpreter exists*, so no
+`package require` model can recover it. Tcl's own history has the same
+axis (`TCL_UTF_MAX` 3/4/6 builds, threaded vs unthreaded 8.x). Families
+that are genuinely build-invariant declare one canonical build profile; a
+named profile may inherit a measured default; and an **unknown build
+resolves every unmeasured capability to `Unknown`**, never to the default.
+The reference-interpreter probe matrix is keyed by
+`(release, configure flags, platform, commit)` with stdout/stderr/exit
+status recorded losslessly (review H3) — the jim branch's per-release
+sweep becomes one *column family* of that matrix, not the family truth.
 
 **The `ExprGrammar` contract.** The word-operators/comments/numbers
 triple is not enough for a non-Tcl family; Jim is the case that proves
@@ -203,45 +299,75 @@ the field list short. The full surface a family × release must own:
 pub struct ExprGrammar {
     pub numbers: NumberSyntax,          // numeral grammar, incl. the special-float set
     pub comments: ExprCommentStyle,
-    pub word_operators: &'static [OperatorLexeme],     // in/ni, lt/le/gt/ge, contains, …
-    pub symbolic_operators: &'static [OperatorLexeme], // family extensions beyond the shared
-                                                       // C-Tcl set: Jim's <<< and >>> (all
-                                                       // releases), =* and =~ (≥0.84)
-    pub precedence: PrecedenceTable,    // binding power per operator, per family
-    pub mathfuncs: MathFuncSurface,     // the known-function set + call-target model
-    pub command_arity: ExprCommandArity, // Tcl: N args concatenated with spaces;
-                                         // Jim ≥0.81: exactly one argument
+    pub word_operators: &'static [WordOperator],       // eq/ne, in/ni, lt/le/gt/ge, contains, …
+
+    /// Binding power per operator. NOT derivable from the operator set:
+    /// Jim and Tcl share `eq`/`ne`/`lt`/`in` yet bind them at different
+    /// levels, so two cores can accept the identical operator set and
+    /// produce different parse trees.
+    pub precedence: fn(&str) -> Option<(u8, u8)>,
+
+    /// Symbolic (non-word) operators beyond the shared C-Tcl set,
+    /// release-gated WITHIN the family: Jim's `<<<` / `>>>` 64-bit
+    /// rotates (every modelled release) and `=*` / `=~` glob/regexp
+    /// match (0.84 only).
+    pub symbolic_operators: &'static [(&'static str, Release)],
+
+    /// The mathfunc surface as a SET, not a floor. A floor model
+    /// ("available since 8.5") cannot express a family that simply
+    /// never had a function.
+    pub mathfuncs: &'static [MathFunc],
+
+    pub arity: ExprArity,               // Concatenating | ExactlyOne
 }
 ```
 
-- **Precedence is a per-family fact, not a per-token fact.** Jim splits
-  what C Tcl merges into two levels into four distinct ones (`in`/`ni`
-  at 55; `eq`/`ne`/`=*`/`=~` at 60; `==`/`!=` at 70;
-  `lt`/`gt`/`le`/`ge` at 75). Today's `binary_bp` in
+Every value below is measured on `jimsh` built from the upstream tag
+(0.76–0.84) against tclsh 8.6/9.0 — the jim branch's model doc §6 carries
+the probes:
+
+- **Precedence is a per-family fact, not a per-token fact.** C Tcl merges
+  the comparison operators into two levels (`tclCompExpr.c`):
+  `== != eq ne` at one, `< > <= >= lt le gt ge in ni` at the other. Jim
+  splits the same operators across four-plus (`jim.c:9252-9285`, `OPRINIT`
+  precedences, stable across every modelled release): `in ni` 55,
+  `eq ne =* =~` 60, `== !=` 70, `lt gt le ge` 75, `< > <= >=` 80. So
+  `expr {"a" eq "b" == 1}` parses as `("a" eq "b") == 1` under Tcl and as
+  `"a" eq ("b" == 1)` under Jim. Today's `binary_bp` in
   `rust/tcl-syntax/src/expr/parser.rs` is a free function keyed on
-  operator text alone with no dialect parameter — it gains the
-  `ExprGrammar` (or its `PrecedenceTable`) as an argument, and the
-  shared C-Tcl table becomes the `Family::Tcl` value rather than the
-  hardcoded truth.
+  operator text alone with no dialect parameter — it gains the grammar as
+  an argument, and the shared C-Tcl table becomes the `Family::Tcl` value
+  rather than the hardcoded truth. (The 8.4→9.1 ladder never moved a
+  precedence, which is exactly why the gap was invisible until Jim.)
 - **Symbolic operators need lexer recognition, not just parsing.**
   `EXPR_WORD_OPERATORS` models word-shaped lexemes only; `<<<` must
   tokenise as one operator and `=~`/`=*` must not lex as `=` + junk, so
   the expr lexer's operator scanner reads the grammar's symbolic table
-  the same way `word_operator_lexeme_at` reads the word table.
-- **Mathfunc surfaces are family-keyed.** Today
-  `tcl-syntax/src/expr/mathfunc.rs` keys on `TclVersion`
-  (`spec_tcl90`/`spec_tcl91`); the surface becomes
-  `MathFuncSurface::for(family, release)` — Jim lacks `entier`, `bool`,
-  `min`, `max`, and `isqrt`, and the call-target model
-  (`FixedBuiltin` vs `CommandTable`) already varies by release within
-  the tcl family.
-- **`expr`'s own arity is dual-homed.** The diagnostic ("`expr` takes
-  exactly one argument from Jim 0.81") rides the ordinary registry
-  `arity_windows` on the `expr` `CommandSpec` under provider
-  `Core(jim)`; the *parse* behaviour — whether a multi-word `expr`
-  concatenates its words with spaces before parsing — is the
-  `command_arity` field here, because the analyser needs it before any
-  spec is resolved.
+  the same way `word_operator_lexeme_at` reads the word table. `=*`/`=~`
+  are semantically iRules' `matches_glob`/`matches_regex` at Jim's
+  spelling and precedence 60 — same semantic operation, three different
+  lexical homes, one registry-level identity.
+- **Mathfunc membership is a per-core-profile set.** Jim ships 26
+  functions (`jim.c:9294-9321`) and lacks five that C Tcl 8.5+ has:
+  `entier`, `bool`, `min`, `max`, `isqrt` — `expr {min(1,2)}` errors in
+  every modelled Jim release. Today's `TclVersion`-floor keying in
+  `tcl-syntax/src/expr/mathfunc.rs` (`spec_tcl90`/`spec_tcl91`) would
+  read those as "available since 8.5" and silently offer them under Jim.
+  The set is resolved per core profile — and per **build**: Jim's math
+  extension is a configure choice, and a `--minimal` build rejects
+  `sqrt(4)` outright (§3.1, review B1) — with the call-target model
+  (`FixedBuiltin` vs `CommandTable`) still varying by release within the
+  tcl family.
+- **`expr`'s own arity is dual-homed, both homes keyed by core profile.**
+  Measured: `expr 1 + 2` yields 3 through Jim 0.80 and is
+  `wrong # args: should be "expr expression"` from 0.81 (Jim's own take
+  on TIP 526; C Tcl still concatenates in 9.1). The diagnostic rides the
+  registry's `arity_windows` on the `expr` spec under provider
+  `Core(jim)` — the core surface is a provider (§3.2), so core-keyed
+  arity windows are already representable. The *parse* behaviour —
+  whether a multi-word `expr` concatenates its words with spaces before
+  parsing — is the `arity` field here, because the analyser needs it
+  before any spec is resolved.
 
 `RuntimeExprSurface` (today: release floor ∧ dialect-set intersection)
 re-derives from `ExprGrammar` plus provider availability; nothing keeps
@@ -249,7 +375,8 @@ a second operator table.
 
 What changes versus `DialectProfile`:
 
-- **Grammar is a function of (family, release), not a catalogue row.** The
+- **Grammar is a function of (family, release, build), not a catalogue
+  row.** The
   nine jim profiles, and the five tcl release profiles, collapse into
   family release ladders. Adding jim 0.85 is one enum variant plus its
   measured axis values — no new profile literal, no editor row explosion
@@ -262,23 +389,49 @@ What changes versus `DialectProfile`:
 - **The dialect carries no command surface.** Core command surfaces attach
   to providers (§4); the dialect only decides grammar and which core
   provider ladder the environment's floor points into.
-- iRules keeps its structural grammar here: the ghost-separator flag, the
-  declaration-only top-level rules, and the static-head-identity guarantee
-  are `Family::F5Irules` facts.
+- iRules keeps its lexical/expr grammar here: the ghost-separator flag and
+  the word operators are `Family::F5Irules` facts; the command bans and
+  closed-world guarantee are environment/realm policy (§2).
 
-### 3.2 `Package` — versioned command surfaces
+### 3.2 `Package` — providers of surface declarations
 
-A package is a named provider with a version train (or several concurrent
-major trains) whose command surface is expressed in SpecTcl and gated by
-lifecycle windows — the mechanism that already exists (`Lifecycle`,
-`arity_windows`, versioned arg rows, versioned values, W135/W139/W149).
-The redesign adds (§6):
+A package is a named provider of **surface declarations**: commands the
+provider *may* install, each with an axis-typed applicability
+`VersionSet`, an optional capability/platform predicate, an invocation
+spec, and provenance. Declarations are catalogue evidence for analysis —
+never proof of a live binding, because Tcl loads packages by evaluating
+`ifneeded` scripts that can inspect platform state, define only some
+commands, select accelerator backends, or fail after partial mutation
+(review B5; tcllib's `try`, `snit`, and `sha1` all do this in release
+form). The declaration mechanism extends what already exists
+(`Lifecycle`, `arity_windows`, versioned arg rows, versioned values,
+W135/W139/W149). The redesign adds (§6):
 
-- **Multi-train truth.** A command may carry several disjoint provided
-  windows (`struct::graph` 1.x and 2.x shapes coexist; the resolver picks
-  the train `package require`'s requirement selects). The importer already
-  derives windows from release snapshots; it gains "same name, parallel
-  trains" awareness.
+- **Multi-train truth.** A command may carry several disjoint
+  applicability sets (`struct::graph` 1.x and 2.x shapes coexist; the
+  resolver picks the train `package require`'s requirement selects). The
+  importer already derives windows from release snapshots; it gains "same
+  name, parallel trains" awareness. Per review B3, applicability is a
+  `VersionSet` (normalised half-open unions on a named axis), while an
+  item's introduced/deprecated/retired history stays a separate
+  `ItemHistory` — one declaration can have several applicability sets
+  without pretending its history is one interval.
+- **Dynamic-surface honesty.** A pack can declare that a provider's
+  member set is runtime-extensible (`DynamicSurface`/`UnknownMembers`)
+  instead of pretending closure — tcllib's `struct::tree` discovers its
+  method set with `info commands`, `oo::dialect` manufactures definition
+  DSLs, and pave installs computed methods on single objects at runtime
+  (review B6).
+- **Package identity is not a flat alias table.** Tk 9 registers
+  lowercase `tk` as the loading package and provides uppercase `Tk` only
+  through an `ifneeded` chain that requires the exact lowercase version —
+  and only when built without `TK_NO_DEPRECATED` (review B11). The model
+  therefore has canonical package identities plus **predicated
+  co-provides and loader aliases** ("requiring `Tk` requires exact `tk`;
+  successful load co-provides `Tk`, under this build predicate"), and Tk
+  keeps its own version axis: compatibility with Tcl is a requirement
+  relation, never `tracks-base`, unless a specific host environment truly
+  guarantees matched versions.
 - **Placement claims.** A pack can say how a package is present in an
   environment: `ambient` (just there, at a platform-implied or keyed
   version — iRules' F5 surface, Tk under wish), `hosted` (installable,
@@ -301,37 +454,64 @@ The redesign adds (§6):
 ### 3.3 `Environment` — the selectable, aliasable identity
 
 ```rust
-pub struct Environment {
-    pub name: Arc<str>,                // "tcl8.6", "f5-irules", "f5-iapps", "xilinx-eda-tcl", "tk"
+pub struct EnvironmentDefinition {
+    pub id: EnvironmentId,             // canonical, reserved or namespaced — see the collision contract
     pub aliases: Vec<Arc<str>>,        // "irules", "tcl-irule", retired names, …
     pub display_name: Arc<str>,
-    pub editor_language_id: Option<Arc<str>>, // "tcl86", "tcl-irule", "tcl-iapp", …
-    pub family: Family,
-    pub targets: TargetSpec,           // Single(release) | Range(min, max) | Set(…) — §5.4
-    pub ambient: Vec<PackagePlacement>, // package, version (Pinned | TracksBase | Keyed), ambient/hosted
-    pub policy: EnvironmentPolicy,     // closed_world, fixed_ensembles, version_ceiling, strict_ascii, …
-    pub detection: DetectionFacts,     // file_extensions, filenames, content signatures, shebang words
+    pub editor_identity: Option<EditorLanguageIdentityId>, // from the FIXED contributed set — review B7
+    pub core: CoreProfileSelector,     // family + build profile + default release
+    pub targets: VersionSet,           // per-axis target sets — §5.4
+    pub expected_packages: Vec<PackagePlacement>, // package, version set (Pinned | Keyed | requirement), ambient/hosted
+    pub policy_defaults: EnvironmentPolicy, // closed_world, fixed_ensembles, version_ceiling, strict_ascii, …
+    pub server_detection: DetectionFacts, // file_extensions, filenames, content signatures, shebang words
     pub help_terms: Vec<Arc<str>>,
+    pub provenance: Provenance,        // built-in | bundled pack | user | workspace — trust class, §6.4
+}
+
+pub struct EnvironmentOverlay {
+    pub base: EnvironmentId,
+    pub target_changes: TargetChanges,
+    pub package_changes: PackageChanges,
+    pub origin: ConfigurationOrigin,   // hash + origin are part of resolved identity
 }
 ```
 
-**Environments are dynamic.** They come from four sources, nearest wins by
-the same tier discipline the pack discovery already uses: (1) the compiled
-core set (family ladders, `f5-irules`, `f5-iapps`, `f5-tmsh`, `expect`,
-`tk`, …); (2) pack-declared environment blocks (§6.2); (3) workspace and
-user configuration — a project can define `myproject-tool` = tcl@8.6 +
-packs X, Y ambient + its own extensions, or override a named environment's
-targets and ambient set per folder; (4) implicit derivation from a
-`tclpkg.tcl` manifest (`tcl >=8.5 <9.1` + its `require` rows). Because
-environments change at runtime (config edits, pack reloads), they are
-**not** interned `&'static` statics with pointer-identity equality the way
-`DialectProfile` is today: the environment registry holds
-`Arc<Environment>` values, equality is by name plus a content generation,
-and the salsa layer keys on `(name, generation)` — the same invalidation
-discipline the pack overlay key already implements
-(`specPacksReloaded` → registry rebuild). Compiled and pack-declared
-entries are constructed once per (re)load; config-declared entries rebuild
-on `didChangeConfiguration`.
+**Environments are dynamic — as definitions plus overlays, never mutation.**
+Definitions come from: (1) the compiled core set (family ladders,
+`f5-irules`, `f5-iapps`, `f5-tmsh`, `expect`, `tk`, …); (2) pack-declared
+environment blocks (§6.2); (3) workspace and user configuration — a
+project can define `myproject-tool` = tcl@8.6 + packs X, Y ambient.
+Workspace/user *adjustments* to a named environment (targets, expected
+packages — including the derivation from a `tclpkg.tcl` manifest's
+`tcl >=8.5 <9.1` and `require` rows) are `EnvironmentOverlay`s whose
+content hash, origin, and trust class are part of the resolved identity —
+the canonical definition is never redefined in place (review H1). The
+collision contract: **all compiled canonical names are reserved** (not
+only family names); third-party environments get namespaced stable ids
+plus display names; alias cycles and same-precedence collisions are load
+errors, not nearest-wins picks; and file-detection precedence is a
+separate, explicit ladder that reports *ambiguity* rather than
+lexicographic first-wins. Because environments change at runtime (config
+edits, pack reloads), they are **not** interned `&'static` statics with
+pointer-identity equality the way `DialectProfile` is today: the registry
+holds `Arc` values, equality is by id plus content generation, and the
+salsa layer keys on `(id, generation, overlay hash)` — the same
+invalidation discipline the pack overlay key already implements
+(`specPacksReloaded` → registry rebuild).
+
+**Editor identity is split out** (review B7). VS Code and Zed language
+ids, extensions, and filename patterns are extension-manifest
+*contribution points*, fixed at build/install time — a server cannot mint
+a new editor language id from a workspace pack. `EditorLanguageIdentity`
+is therefore a fixed, generated, contributed set (today's ids: `tcl`,
+`tcl84`…`tcl91`, `tcl-irule`, `tcl-iapp`, `tcl-bigip`, `tclspec`, …), and
+dynamic server environments *select among* them — a new workspace
+environment attaches its documents to a generic contributed Tcl identity
+while the server tracks the real environment. A pack may request
+detection patterns; the editor adapter reports whether it can apply them
+dynamically (VS Code: workspace `files.associations` per #1626; JetBrains:
+#1650; Zed/Sublime: static manifests only) — the design never promises a
+new native file type where the host cannot register one.
 
 - **Environments are the only user-facing names.** All six ingress kinds —
   `# tcl-dialect:` directives, `tclLsp.dialect` settings and
@@ -364,70 +544,143 @@ on `didChangeConfiguration`.
   `DialectSet::all().difference(IRULES | IAPPS)` on the tcllib pack and
   becomes "the `f5-iapps` environment is closed over its ambient set".
 
-## 4. The availability algebra
+## 4. Availability: catalogue declarations, version sets, and binding knowledge
 
 `DialectSet` — the per-release bitmask doing double duty as version range
 (`TCL85_PLUS`), vendor tag (`IRULES`), and library marker (`TK`) — is
-retired. Availability becomes one algebra used at every level (command,
-subcommand, sub-subcommand, option, option value, side-effect, special
-variable, form):
+retired. What replaces it is **two layers**, per review B2–B5, not one:
+a declarative catalogue algebra used at every level (command, subcommand,
+sub-subcommand, option, option value, side-effect, special variable,
+form), and a realm-scoped binding-knowledge layer that semantic passes
+query.
+
+### 4.1 The catalogue layer — surface declarations and version sets
 
 ```rust
 pub enum Provider {
     Core(Family),                  // the family's core surface
-    Package(&'static str),         // "Tk", "struct::graph", "iapps", "xilinx", …
+    Package(PackageId),            // "tk", "struct::graph", "iapps", "xilinx", …
 }
 
-pub struct Provided {
+pub struct VersionAxisId(/* interned typed axis */);
+
+pub struct VersionSet {
+    pub axis: VersionAxisId,
+    pub ranges: Arc<[HalfOpenRange]>,  // normalised, disjoint; exact points where the
+}                                      // comparator requires them
+
+pub struct ItemHistory {               // one item's own story on one axis
+    pub introduced: Option<Version>,
+    pub deprecated: Option<Version>,
+    pub retired: Option<Version>,
+}
+
+pub struct SurfaceDeclaration {
     pub provider: Provider,
-    pub window: Lifecycle,         // introduced / deprecated / retired — the existing type
+    pub applicable: VersionSet,        // when this shape exists — parallel trains = several sets
+    pub predicate: CapabilityPredicate, // build/platform/feature conditions (B1/B5)
+    pub history: ItemHistory,          // deprecation metadata, fixes
+    pub invocation: InvocationSpecId,
+    pub provenance: Provenance,        // trust class — §6.4
 }
-
-// on CommandSpec and every nested gate:
-pub availability: &'static [Provided],   // empty ⇒ inherit from parent level
 ```
 
-- **Resolution**: a spec is available in a resolved document context iff
-  some `Provided` row's provider is *active* in the context and the
-  context's floor for that provider falls inside the window. Context
-  floors come from the environment (dialect release for `Core`, ambient
-  placements for packages) composed with `package require` facts under the
-  already-landed max-then-closest `FloorSource` precedence.
-- **Two query modes**: the context carries an *interval* per provider,
-  not just a floor (§5.4). Assistance queries answer at the primary
-  release (floor ∈ window); compatibility queries answer across the
-  declared range (window ⊇ interval), which is what makes PyCharm-style
-  multi-target warnings a mode of the same data rather than a second
-  registry.
-- **Core deltas become windows, not bits**: `lmap` is
-  `[{Core(tcl), 8.6..}]`; `case` is `[{Core(tcl), 8.4..8.6retired}]`; a
-  command shared with Jim adds `{Core(jim), 0.76..}` to the same spec.
-  Today's `TCL85_PLUS` masks translate mechanically. The jim branch's
-  76-command duplication becomes either multi-row availability on shared
-  specs or narrow overriding specs (**Q6** decides the authoring shape);
-  either way the multimap-by-name registry and a generalised
-  most-specific-wins rule (narrowest provider set beats widest, replacing
-  today's fewest-bits tiebreak) keep resolution deterministic.
+Two version types, deliberately (review B3): `Lifecycle`/`ItemHistory`
+answers "when was this one item introduced, deprecated, retired";
+`VersionSet` answers requirement/target set algebra — Tcl requirements
+are **alternatives of ranges with exclusive maxima** (`8.5-9.0` excludes
+9.0; `8.5` alone excludes 9.0.4; `8.5 9.0-9.1` is a union that admits
+it), so requirements and targets are normalised unions of half-open
+ranges, never a single interval. Every set carries its axis: a Tcl core
+`Release`, a package version, a BIG-IP release, and an ECharts release
+are not comparable by accident, and the normaliser plus `contains`/
+`intersect`/`subset` are differentially tested against real
+`package vsatisfies` (invariant I2). Wherever this document or any UI
+writes a range, bound inclusivity is explicit — "tcl 8.5–9.0
+(inclusive)" and Tcl's own `8.5-9.0` (max-exclusive) are different sets
+and must never be conflated in a settings value.
+
+- **Core deltas become declarations, not bits**: `lmap` is
+  `[{Core(tcl), 8.6-}]`; `case` is `[{Core(tcl), 8.4-9.0}]` (retired at
+  9.0, exclusive); a command shared with Jim adds `{Core(jim), 0.76-}` to
+  the same spec. Today's `TCL85_PLUS` masks translate mechanically. The
+  jim branch's 76-command duplication becomes either multi-row
+  availability on shared specs or narrow overriding specs (**Q6** decides
+  the authoring shape).
+- **Authoring precedence is not resolution.** The generalised
+  most-specific-wins rule (narrowest provider set beats widest) decides
+  only *which declaration a catalogue author intended to override* —
+  pack tiers and specificity are authoring precedence. It never decides
+  which command Tcl will call (review B4): that is the next layer's job.
+
+### 4.2 The binding layer — realms and knowledge
+
+```rust
+pub enum BindingKnowledge {
+    Absent,
+    Must(InvocationSpecId),            // proved: this binding, here
+    May(Arc<[InvocationSpecId]>),      // candidates; order/branch not proved
+    Unknown,                           // dynamic loader, unknown interp target, …
+}
+
+pub struct AnalysisWorld {             // per document/compilation unit
+    pub realms: RealmMap<InterpreterId, RealmState>,
+}
+
+pub struct RealmState {
+    pub packages: PackageStateMap,     // unknown / available / loading / provided(version)
+    pub command_bindings: CommandBindingMap,
+    pub hidden_commands: HiddenCommandMap,   // safe-interp hide/expose
+    pub namespace_state: NamespaceState,     // imports, aliases, renames
+    pub policy: InterpreterPolicy,
+}
+```
+
+Package state is **per interpreter and temporal** (review B2): Tcl keeps
+the package table on the interpreter, `ifneeded`/`unknown` run arbitrary
+scripts, a child interpreter inherits nothing, a safe child hides core
+commands while providing the same `Tcl` version, and
+`package provide Demo 1.0` survives `rename demo {}` — so a provided
+version proves nothing about the live command table. The transitions that
+update realm state — `package`, `source`, `proc`, `rename`,
+`namespace import` (ordinary vs `-force` differ observably), `interp
+alias`, `interp hide`/`expose`, child-interpreter operations — already
+have a home: `rust/tcl-registry/src/state_transition.rs` (command
+bindings, interpreter topology, policy, widening) integrates here rather
+than being bypassed by a document-global floor. Dynamic operands widen
+the affected domain to `May`/`Unknown`.
+
+The consumer contract (invariants I3–I5): **no taint, side-effect,
+lowering, or codegen hook is selected before its binding is proved**;
+ambiguity takes the conservative union of effects or abstains, and never
+picks a candidate by catalogue order or provider specificity. Load-order
+permutations that change the real binding (two packages exporting one
+name; `namespace import` vs `-force`) must change — or widen — the
+resolved answer.
+
 - **iRules' safety property is preserved and strengthened.** Today the
   bare `IRULES` mask guarantees no core spec leaks into iRules without a
-  ban list. In the new model the `f5-irules` environment is closed-world:
-  only providers in its ambient closure resolve, and the iRules surface is
-  an explicit allow-list (`Core(F5Irules)` rows or the pack-expressed
-  equivalent). `trace`/`interp`/`namespace` stay unknown because nothing
-  provides them — same property, expressed as presence, not subtraction.
-- **W002 ruling** ("exists, but not in this dialect"): the known-anywhere
-  set is re-sourced from *all discoverable providers* — every family's
-  core surface plus every bundled/user/workspace pack — instead of the
-  hardcoded pack list in `all_dialect_command_names()`. The message
-  upgrades: "`button` is provided by package `Tk` (not active in this
-  `f5-irules` environment)"; the EDA/SpecTcl exclusion asymmetry
-  disappears.
+  ban list. In the new model the `f5-irules` environment is closed-world
+  *policy* over an explicit allow-list surface, and the realm layer is
+  what makes it sound: `trace`/`interp`/`namespace` stay unknown because
+  nothing provides them, and because iRules has no dynamic binding
+  machinery the realm state stays `Must`-almost-everywhere — the static
+  decidability it enjoys today, now derived rather than assumed.
+- **Known-anywhere has four tiers, not one** (review H2): globally
+  documented; installable/indexed for this project; expected from the
+  selected environment; and must/may-active in this realm. W002 names the
+  tier that supplied its candidate ("`button` is provided by package
+  `tk` — indexed in this workspace but not required here"), replacing the
+  hardcoded pack list in `all_dialect_command_names()`. A pack merely
+  present on disk must not silently change typo diagnostics in unrelated
+  environments. Security and compilation queries use realm bindings only;
+  completion may opt into the broader tiers with annotations.
 - Fast paths that today rely on bit tests (spec filtering, the zed query
   generator's `TK_AND_TCL` unions, `grammar_union`) re-derive from the
-  provider rows at registry build time; a small `FamilySet` bitset may be
+  declarations at registry build time; a small `FamilySet` bitset may be
   kept as an internal optimisation but is not part of the model.
 
-## 5. Resolution: from bytes to a resolved context
+## 5. Resolution: from bytes to environment, targets, and realms
 
 ### 5.1 Environment resolution (ingress)
 
@@ -450,10 +703,11 @@ by the server-side directive tier) finally coherent.
 
 Per document, in order:
 
-1. **Environment** gives the dialect (family + release) and the ambient
-   placement floors (e.g. iRules: `iapps`-style F5 surface at the
-   BIG-IP-keyed version; `tk` environment: Tk ambient tracking base;
-   `xilinx-eda-tcl`: xilinx pack at the ToolVersion-keyed floor).
+1. **Environment** gives the core profile (family + release + build
+   profile) and the expected placements (e.g. iRules: the F5 surface
+   ambient at the BIG-IP-keyed version; `tk` environment: Tk ambient on
+   its own axis; `xilinx-eda-tcl`: xilinx pack at the ToolVersion-keyed
+   floor).
 2. **Workspace facts** add hosted availability and floors: discovered
    packs (bundled/user/workspace tiers unchanged), `tclpkg.tcl` manifests
    (`require json 1.0.0`, `tcl >=8.6` — today zero-coupled to the spec
@@ -468,6 +722,18 @@ Per document, in order:
    (`8.5 9`) and same-major selection (`require struct::graph 1.2` picks
    the 1.x train even when 2.4.4 is present). Cross-file inheritance over
    the source graph continues to work as today.
+
+**This chain feeds two differently-named APIs** (review B2/H5). The
+*assistance view* — completion, hover annotations, W120 — may keep
+whole-file activation as an explicitly labelled heuristic: after
+`package require Foo` anywhere in the file, offering Foo's commands
+everywhere is convenient. The *semantic view* — compiler, taint,
+side-effects, codegen — is position-, path-, and realm-sensitive: a call
+before the require, a require inside a conditional, or a require in a
+child interpreter must not activate the surface at that program point,
+and unknown control flow widens. The two views have different names and
+types so a semantic pass cannot accidentally call the assistance
+shortcut (invariant I3).
 
 New diagnostics this enables (numbers illustrative, assigned at
 implementation): requirement unsatisfiable by any known train of the
@@ -519,21 +785,37 @@ provider):
    only the lower bound (`requirement_lower_bound`); range targeting
    keeps the whole satisfiable set.
 
-**Two query modes on the same availability data.** Resolution and
-assistance (completion, hover, signature help) answer under a designated
-*primary* release per provider — recommended: the range maximum, because
-the newest grammar and surface accept a superset on almost every axis
-(**Q15**). Compatibility checking answers under the whole interval:
+**Correctness is defined first, then optimised** (review B10).
+Compatibility means: the relevant parse and semantic facts agree for
+**every selected target** in the version set — not merely at its
+endpoints. Targets can be non-contiguous sets, an axis can change and
+change back across a ladder, and a grammar delta can alter *word
+structure* (Jim's quote termination, brace continuation, variable
+syntax), not just one token's value — so endpoint comparison is not a
+proof. The **reference implementation** evaluates every distinct
+grammar/semantic profile represented in the finite set (releases with
+identical resolved profiles deduplicate — the ladders are small),
+preserving a token-spanned parse per distinct grammar where structure
+differs. Per-axis **detectors are optimisations for one profile pair**,
+admitted only after differential corpus/fuzz testing proves them
+equivalent to the reference for that pair; a synthetic A→B→A test axis
+keeps endpoint-only shortcuts from regressing in. Assistance (completion,
+hover, signature help) answers under an **explicit `primary`** target —
+required for any multi-target project, defaulting to the newest selected
+release but never silently (**Q15**): "maximum is usually a superset" is
+a heuristic, not a contract. Compatibility checking answers over the
+whole set:
 
-- **Availability across the range**: a command, subcommand, option,
-  option value, or arity window whose `Provided` window does not cover
-  the target interval gets a range diagnostic naming both ends —
-  "`lmap` requires tcl 8.6; declared targets include 8.5",
+- **Availability across the set**: a command, subcommand, option,
+  option value, or arity window whose applicability `VersionSet` does
+  not cover the target set gets a range diagnostic naming the failing
+  targets — "`lmap` requires tcl 8.6; declared targets include 8.5",
   "`case` was removed in tcl 9.0; declared targets include 9.0",
   "`struct::graph` 2.x form used; declared targets include struct 1.2"
   (the W149 deferred-verdict and W139 straddle-hedge diagnostics are the
-  single-floor seeds of this family). The check is literally window ⊇
-  interval instead of floor ∈ window — the windows are already ranges.
+  single-floor seeds of this family). The check is `targets ⊆
+  applicable` on the §4.1 set algebra — the declarations are already
+  sets.
 - **Grammar divergence across the range** (core providers): for each
   grammar axis whose value differs between the interval's endpoints, a
   detector flags constructs whose *meaning or validity* diverges:
@@ -549,11 +831,14 @@ the newest grammar and surface accept a superset on almost every axis
   - expr — `#` comments (9.x-only), `lt`/`le`/`gt`/`ge` (9.x operators,
     8.x bareword errors), `in`/`ni` (8.5+), `**` (8.5+).
   - words — `{*}` (8.5+), the leading-BOM rule.
-  Implementation shape: the axes are a small closed set, so this is a
-  targeted post-lex pass over tokens whose axis differs across the
-  interval — not a full second lex. The tclsh corpus (`tmp/tcl8.4.20` …
-  `tmp/tcl9.1b0`) and the differential fuzzer are the oracles that
-  validate each detector.
+  Implementation shape: the reference multi-profile evaluation above is
+  the semantics; where an axis pair provably diverges only token-locally
+  (numerals, escapes), a targeted post-lex detector replaces the second
+  parse for that pair once the differential corpus/fuzz gate proves it
+  equivalent. Axes that change word structure (Jim's brace continuation,
+  quote termination, `$(…)`) keep the per-profile parse. The tclsh corpus
+  (`tmp/tcl8.4.20` … `tmp/tcl9.1b0`), the built reference interpreters,
+  and the differential fuzzer are the oracles.
 - **Semantic divergence across the range**: differential constant folding
   at the interval endpoints (`const_fold_versioned` already exists per
   release; disagreement ⇒ warning), and the small table of runtime
@@ -576,15 +861,13 @@ actionable warning when the user has *declared* the range.
 
 ## 6. SpecTcl 2.0 (`speclib … 2.0`)
 
-### 6.1 Compatibility contract (unchanged in kind, restated)
+### 6.1 Compatibility contract (corrected by review B13)
 
-The loader stays **version-blind with a single parser**: every word ever
-ratified is readable forever; the `speclib` version word remains an
-author's promise about which loaders can read the file, enforced by
-notices (`Log::since`), never by gating. `VOCABULARY_VERSION` (the cache
-key) bumps once for 2.0 because translation output changes. Where 2.0
-changes *meaning*, the change is expressed as a **new word plus a
-translation of the legacy word**, never as per-version dispatch:
+**Reading older packs stays maximal; degrading newer packs fails closed.**
+The loader keeps a single parser — every word ever ratified is readable
+forever, and where 2.0 changes *meaning*, the change is expressed as a
+**new word plus a translation of the legacy word**, never as per-version
+dispatch:
 
 - `dialects {…}` (1.x) keeps loading forever: its 1.x vocabulary
   (`tcl8.5+`, `all-tcl`, `tk`, `f5-iapps`, `irules`, …) is translated at
@@ -594,6 +877,35 @@ translation of the legacy word**, never as per-version dispatch:
   loads to an identical surface under the 2.0 loader — extended
   `every_known_vocabulary_loads_the_same_command_surface` coverage plus a
   frozen 1.x corpus gate pin this.
+- `VOCABULARY_VERSION` (the cache key) bumps once for 2.0 because
+  translation output changes.
+
+The **forward** direction — an older loader meeting newer vocabulary —
+drops the revision-1 "warn and continue for everything" stance. An
+unknown word that says "this argument is code", "this method is a sink",
+or "this environment is closed-world" must not be discarded while the
+rest of the spec loads: the old server would then issue *stronger*,
+safer-looking results precisely because it ignored the field it did not
+understand. Vocabulary is therefore classified by compatibility effect
+(invariant I9):
+
+- **presentation-only** unknowns (hover prose, display names, help
+  terms): warn and drop, as today;
+- **validation/assistance** unknowns (arity shapes, roles, value sets):
+  quarantine the affected invocation spec — the command stays known, but
+  the affected capability reports `Unknown` instead of a confident
+  verdict;
+- **security / control-flow / binding / lowering / codegen** unknowns:
+  the affected command (or pack, for pack-level words) is excluded from
+  strong analysis — no taint verdicts, no specialised lowering, no
+  codegen hooks — and the degradation notice surfaces on the *source
+  files that consume the degraded spec*, not only on the pack file;
+- an unsupported **major** `speclib` version fails closed; a newer minor
+  loads through declared feature/capability negotiation.
+
+Each newly ratified semantic word ships with a downgrade fixture: an
+old-loader test proving the word's absence yields abstention, never a
+stronger claim.
 
 ### 6.2 New vocabulary (the additive core of 2.0)
 
@@ -601,9 +913,10 @@ translation of the legacy word**, never as per-version dispatch:
 |---|---|
 | `available {PROVIDER WINDOW…}` on commands/subcommands/options/values | the §4 algebra: `available {tcl 8.6-} {jim 0.78-}` / `available {package Tk 8.5-8.6}`; replaces `dialects` + implicit `required_package` gating |
 | `provides NAME VERSION ?VERSION…?` (pack level) | declares the package trains this pack describes, including parallel majors; commands default their provider to the pack's `provides` |
-| `environment NAME { … }` (pack level) | declares an environment: `dialect tcl 8.5`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `language_id ID`, `file_extension`/`filename`/`signature` detection rows, `display_name`, `policy` knobs — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim |
-| `placement` spellings: `ambient` / `hosted`, versions `Pinned` / `tracks-base` / `keyed KEY` | closes blockers 6–8: a pack can finally say "hosted, tracks the base Tcl" (Tk under tclsh) and "ambient at the BIG-IP-implied version, in this environment only" (iapps); the closed-world vendor gate re-derives from *all* declared environments, compiled and pack-declared alike |
-| `alias PACKAGE NAME` | package-name aliases (`Tk` vs Tk 9's lowercase `tk` — verify against the 9.0 corpus during implementation; tcllib's D1 wrapper names) |
+| `environment NAME { … }` (pack level) | declares an environment definition: `core tcl 8.5 ?-build PROFILE?`, `ambient PACKAGE VERSION\|tracks-base\|keyed KEY`, `hosted PACKAGE …`, `alias NAME…`, `editor_identity ID` (selecting from the **fixed contributed set** — review B7, never minting a new editor language id), `file_extension`/`filename`/`signature` server-side detection rows, `display_name`, `policy` knobs — subsumes and closes #1643 (`ambient_package -dialects`) by scoping placements to the declaring environment instead of flag-scoping a global claim |
+| `placement` spellings: `ambient` / `hosted`, versions `Pinned` / `tracks-base` / `keyed KEY` / requirement sets | closes blockers 6–8: a pack can say "hosted, floored by requirement" (Tk under tclsh — on Tk's **own** axis, per review B11) and "ambient at the BIG-IP-implied version, in this environment only" (iapps); `tracks-base` survives only for hosts that genuinely guarantee matched versions; the closed-world vendor gate re-derives from *all* declared environments, compiled and pack-declared alike |
+| `co_provides` / loader aliases (predicated) | corrected per review B11 — Tk 9 registers lowercase `tk` as the loading package and provides uppercase `Tk` via an `ifneeded` chain requiring the exact lowercase version, only when built without `TK_NO_DEPRECATED`. The spelling is a predicated relation ("requiring `Tk` requires exact `tk`; successful load co-provides `Tk`, under this build predicate"), not a flat alias; tcllib's D1 wrapper names ride the same mechanism |
+| `dynamic_surface` / `unknown_members` | the honesty escape hatch (review B6): a provider whose member set is runtime-extensible (`struct::tree` methods via `info commands`, `oo::dialect` DSLs, pave's computed methods) declares so instead of pretending closure |
 | invocation-refinement descriptor (name TBD at implementation) | the declarative replacement for `command_forms`/`subcommand_forms` (**Q12**): per-form word patterns, traits, mutator/query split, and effects as data — Tk's 53 sites are the migration test; until it lands, Tk cannot round-trip |
 | the seven ratified-but-unimplemented words | `result_stability`, `event_requirement_form`, `data_collection`, `body_scope`, `side_switch_target`, `event_handler_priority`, `bpf_op` get loader implementations (prerequisite for any iRules surface pack-expression, and for closing the round-trip blind spot) |
 | `include` / surface composition (**Q6**, optional) | `include from PROVIDER {names…}` with overrides — the alternative to jim-style duplication for family surfaces |
@@ -625,6 +938,59 @@ translation of the legacy word**, never as per-version dispatch:
 - **Cache honesty**: `LOADER_BUILD` stops being hand-maintained (derive
   from a build hash) before tens of thousands of tcllib lines depend on
   it.
+- **Registry generations, not leaks** (review B8): the loader's
+  leak-per-load discipline (documented in `loader.rs`) is untenable once
+  the largest catalogues become reloadable packs — a `CommandSpec` is
+  1,296 bytes and a full generation of ~2,400 specs is ~3.1 MB before
+  nested slices, so a Spec Studio session editing a mass-migrated surface
+  leaks hundreds of MB. Dynamic pack specs and all their nested data move
+  into an arena/`Arc<RegistryGeneration>`; queries return
+  generation-bound handles rather than public `&'static` references;
+  dropping the last registry snapshot drops the generation; salsa keys
+  carry the generation id. Immutable built-ins stay true statics. This is
+  a **P2 prerequisite**, gated by a reload-1,000-times allocator test
+  (invariant I7).
+- **Shared `InvocationSpec`** (review B6): semantic properties common to
+  free commands, ensemble arms, object methods, and deeper dispatch —
+  taint sinks, forms, deprecation replacements, effects — move to a
+  shared invocation capability model instead of being copied field by
+  field into `SubCommand`. This is the structural fix for the external
+  census's G7/G15 (method-level sinks and forms), and the prerequisite
+  for honest specs of ticklecharts' method-level file-write sink and
+  SpiceGenTcl's `runAndRead` process sinks.
+- **The migration gate is representation *and* behaviour** (review B6):
+  byte-compared registry dumps only prove the new form preserves what the
+  old form said — not that either describes the upstream library. Each
+  migration phase adds behavioural-parity fixtures (completion, hover,
+  semantic token roles, arity, control flow, taint, side effects,
+  deprecation, binding transitions) grounded in upstream source, and the
+  external census's `[STRUCT]` gaps must be closed — or explicitly
+  abstained from via `dynamic_surface` — before a library's migration is
+  called complete (invariant I10).
+
+### 6.4 Trust and provenance (workspace data is a security boundary)
+
+Review B9: nearest-wins tier precedence is an *editing* model, not a
+security lattice. A repository-controlled `.tcl-lsp/*.tclspec` can today
+`-override` a shipped command; under this design it could otherwise also
+weaken a taint sink, open a closed-world environment, or alter a hook —
+precisely the facts that warn about that repository's own code. Every
+declaration and resolved fact therefore carries provenance and a trust
+class — at minimum: built-in, signed/bundled, user-trusted,
+workspace-trusted, workspace-untrusted, live Studio override — and merges
+are capability-specific (invariant I6):
+
+- ordinary prose (hover, display names, docs) merges by authoring
+  precedence, as today;
+- **security facts merge monotonically**: untrusted data can add sinks
+  and restrictions, never remove or weaken built-in taint, side-effect,
+  safety, closed-world, or codegen facts;
+- in an untrusted workspace (the editor's Workspace Trust state), pack
+  additions may improve colouring, completion, and documentation; native
+  or Tcl hook execution is disabled; and overriding a canonical
+  environment or shipped command requires explicit trusted opt-in;
+- diagnostics and hover expose the winning fact's provenance, so a
+  trusted override is visible, not silent.
 
 ## 7. Rust surface changes (no shims)
 
@@ -636,17 +1002,20 @@ sweeps):
   combinators, `TK_AND_TCL`), `DialectProfile`, `PLAIN_TCL`, `TK_PROFILE`,
   `resolve_known`, `availability_for_name`, `hosts_tk`, the per-name
   tables (`expr_grammar_base_version`, `TclVersion::from_profile`) are
-  replaced by `Family`/`Release`/`Dialect`, `Environment`,
-  `Environment::resolve`, and the availability algebra. The empty-string
-  "no dialect stated ≠ plain tcl" behaviour pin from #1621 carries over as
-  `Option<&Environment>`.
+  replaced by `Family`/`Release`/`CoreProfile`, `EnvironmentDefinition` +
+  `EnvironmentOverlay`, `Environment::resolve`, and the axis-typed
+  `VersionSet` algebra. The empty-string "no dialect stated ≠ plain tcl"
+  behaviour pin from #1621 carries over as an optional environment
+  handle.
 - **`rust/tcl-registry`**: `CommandSpec.dialects: Option<DialectSet>` →
-  `availability: &[Provided]` (with the same `None`-inherits nesting);
-  `build_default`'s unconditional `tk_specs()` load and `load_dialect`'s
-  exact-bit match are replaced by provider-driven registry assembly;
-  `ProfileQueries` becomes `ContextQueries` over (environment, floors);
-  `all_dialect_command_names` re-sourced per the W002 ruling; detection
-  tables move to environment data. The `commands/{tk,iapps,tcllib,expect}`
+  surface declarations (`availability` rows with the same `None`-inherits
+  nesting); `build_default`'s unconditional `tk_specs()` load and
+  `load_dialect`'s exact-bit match are replaced by provider-driven
+  registry assembly; `ProfileQueries` splits into assistance-view queries
+  over (environment, floors) and semantic-view queries over realm
+  `BindingKnowledge` (§4.2, integrating `state_transition.rs`);
+  `all_dialect_command_names` re-sourced per the four-tier W002 ruling;
+  detection tables move to environment data. The `commands/{tk,iapps,tcllib,expect}`
   native packs are deleted at their migration phases (§8), `commands/
   {tcl,stdlib,irules}` (and jim) remain per **Q1**.
 - **`rust/tcl-spectcl` / `tcl-spec-studio`**: 2.0 vocabulary in loader,
@@ -681,59 +1050,98 @@ sweeps):
   equality during each migration (§8), and the loader-direction round-trip
   (§6.3).
 
-## 8. Migration plan
+## 8. Migration plan (review-corrected order)
 
 Each phase lands green on `rust` with `make rust-check` + smoke, deep
-suites in CI; no phase leaves a consumer on a compatibility wrapper.
+suites in CI; no phase leaves a consumer on a compatibility wrapper. The
+order follows the review's correction: contracts and oracles before the
+model, realm state and the range reference implementation before any
+optimisation, durable SpecTcl foundations before any mass migration —
+so the pack move cannot cement the wrong lifetime, trust, range, or
+runtime-binding APIs.
 
-- **P0 — contracts.** This document ratified (questions answered);
-  classification rule + invariant test; `AGENTS.md` owner-map corrections
-  (§9); glossary entries (dialect, package, environment, provider,
-  placement).
-- **P1 — the model.** `Family`/`Dialect`/`Environment` + availability
-  algebra land in `tcl-dialect`/`tcl-registry` with today's data expressed
-  in the new model (tk/iapps still native specs, now provider-gated); all
-  consumers move in the same series — mechanical because #1621 already
-  funnelled ingress to a handful of seams. The four validators collapse to
-  `Environment::resolve`. Editor catalogues regenerate (names unchanged ⇒
-  small diffs). The tk triangle, `TK_PROFILE`, and `LanguageDialect::Set`
-  die here.
-- **P1b — range targeting.** `TargetSpec` on contexts, the
-  covering-interval query mode, the range-availability diagnostic family
-  (core and package providers uniformly), and the first grammar-divergence
-  detectors (numerals — the octal case — then escapes, `${…}`, expr
-  axes), each validated against the tclsh corpus. Ships behind the
-  targets setting; single-target projects are unaffected.
-- **P2 — SpecTcl 2.0.** New words + legacy translation + loader-direction
-  gate + `spec upgrade`; spec-studio parity; `spec-author` skill refresh
-  (its vocabulary section is already stale at 1.1).
-- **P3 — Tk as a pack.** Invocation-refinement descriptor first (Tk is
-  its migration test), then `specs/tk.tclspec` generated from the native
-  specs, equality-gated (registry dump old vs new, byte-compared), then
-  the native `commands/tk` deleted. The `tk` environment ships beside it.
-  The Tk semantics epic (#1710) continues against the pack form.
-- **P4 — iapps/tmsh/expect as packs.** Split the shared `IAPPS|TMSH`
-  sources into two packs + shared `values`/`descriptor` tables; expect
-  moves whole; the EDA environment shells move into their packs (Rust
-  catalogue shrinks to core).
-- **P5 — tcllib as packs.** Importer-driven from release snapshots
-  (2.0 now; 1.17–1.21 as history for windows — **Q9** decides depth and
-  bundling), per-module packs mirroring tcllib's own module structure,
-  equality-gated against the native specs, then `commands/tcllib`
-  deleted. Multi-train cases (`struct`, `struct::graph`, `struct::tree`)
-  are the acceptance tests.
+These invariants hold from P0 onward and every phase cites the ones it
+gates on (adopted verbatim from the review):
+
+| ID | Invariant | Gate |
+|---|---|---|
+| I1 | Equal core-profile ids imply equal measured syntax/core semantics | cross-build and cross-release oracle matrix |
+| I2 | Values from different version axes cannot be compared | type/compile-fail tests plus property tests |
+| I3 | Package and binding facts are scoped to an interpreter realm and program point | parent/child/safe/ordering e2e suite |
+| I4 | No taint/effect/lowering/codegen hook is selected before binding proof | ambiguity and dynamic-loader tests |
+| I5 | Ambiguity widens effects or abstains; it never picks by catalogue order | load/import/rename permutation suite |
+| I6 | Untrusted data cannot weaken trusted security facts | workspace-trust downgrade suite |
+| I7 | Dropped registry generations release dynamic specs | 1,000-reload allocator test |
+| I8 | Every advertised editor identity is actually contributed by that editor package | installed-extension manifest gate |
+| I9 | Unknown semantic vocabulary fails closed | old-loader/new-pack downgrade fixtures |
+| I10 | Pack migration preserves user-observable behaviour, not only serialised bytes | LSP/compiler/taint behavioural parity suite |
+
+- **P0 — contracts and oracles.** This document (revision 2) ratified:
+  the four-layer separation, the `VersionSet` algebra differentially
+  tested against `package vsatisfies`, the trust policy, the
+  binding-proof rule, the editor-identity boundary, the name/alias
+  collision contract, and the immutable upstream oracle ledger (pinned
+  revisions + build matrix, per review Appendix B / H3). `AGENTS.md`
+  owner-map corrections (§9); glossary entries.
+- **P1 — core/environment model only.** `Family`/`Release`/`CoreProfile`
+  (with build profiles), `EnvironmentDefinition`/`EnvironmentOverlay`,
+  and central ingress land in `tcl-dialect`/`tcl-registry` with today's
+  data expressed in the new model — existing native package specs stay in
+  place. The four validators collapse to `Environment::resolve`. Editor
+  catalogues regenerate (names unchanged ⇒ small diffs). The tk triangle,
+  `TK_PROFILE`, and `LanguageDialect::Set` die here. Gates: I1, I2, I8.
+- **P1a — realm state.** Integrate `state_transition.rs` with provider
+  candidates: package transitions, safe interpreters, import/alias/rename
+  effects, and the one shared name resolver produce `BindingKnowledge`;
+  the assistance and semantic query APIs split. Gates: I3, I4, I5.
+- **P1b — range targeting, reference first.** Typed `VersionSet` targets
+  on contexts, the `targets ⊆ applicable` diagnostic family (core and
+  package providers uniformly), and the **per-distinct-profile reference
+  evaluator**; detector/parse optimisations (numerals first — the octal
+  case) land only after the differential gate proves each pair against
+  the reference. Ships behind the targets setting; single-target projects
+  are unaffected.
+- **P2 — durable SpecTcl foundation.** Registry generations (I7),
+  trust-aware provenance (I6), the fail-closed vocabulary classes (I9),
+  shared `InvocationSpec` capabilities, the loader-direction gate, 2.0
+  words + legacy translation + `spec upgrade`, spec-studio parity, and
+  closure or explicit `dynamic_surface` abstention for the external
+  census's `[STRUCT]` gaps; `spec-author` skill refresh (its vocabulary
+  section is already stale at 1.1).
+- **P3 — Tk pilot.** Invocation-refinement descriptor first (Tk's 53
+  `subcommand_forms` sites are its migration test), then
+  `specs/tk.tclspec` generated from the native specs, gated on
+  representation parity **and** behavioural parity (I10) — including
+  Tcl/Tk version independence and the lowercase/uppercase loader
+  semantics (B11) — then the native `commands/tk` deleted. The `tk`
+  environment ships beside it. The Tk semantics epic (#1710) continues
+  against the pack form.
+- **P4 — smaller packages.** iapps/tmsh (splitting the shared
+  `IAPPS|TMSH` sources into two packs + shared `values`/`descriptor`
+  tables), expect, and the EDA environment shells move into their packs
+  incrementally with the same behaviour and trust gates; the Rust
+  catalogue shrinks to core.
+- **P5 — tcllib by adversarial module.** Importer-driven from release
+  snapshots (2.0 now; 1.17–1.21 as history — **Q9** decides depth and
+  bundling), per-module packs mirroring tcllib's structure — **starting
+  with the hostile shapes**: `struct::tree`, `struct::graph`,
+  `fileutil::traverse`, and `oo::dialect`, scaling to the long tail only
+  after those dynamic surfaces are honest. Multi-train cases (`struct`,
+  `struct::graph`) are the version-set acceptance tests.
 - **P6 — jim rebased.** The jim branch re-lands on the new model: its
-  measured grammar data and probe scripts carry over intact as family
-  data; its 134-file pack becomes either multi-row availability on shared
-  core specs or a jim surface pack (**Q6**); its ten profiles and
+  measured grammar data and probe scripts carry over as **release ×
+  build-profile** columns (never one default-build column as the family
+  truth — H3); its 134-file pack becomes either multi-row availability on
+  shared core specs or a jim surface pack (**Q6**); its ten profiles and
   `JimVersion` disappear into the `jim` family ladder. (**Q10** may
-  reorder P6 before P3–P5 if the branch should merge early.)
+  reorder P6 earlier if the branch should merge early.)
 - **P7 — irules surface pack-expression (optional, deferred).** Requires
-  the seven words + `event_requires` draft-model fix; the dialect (grammar,
-  structure, closed world) stays compiled regardless. **Q5**.
-- **P8 — sweep.** Docs (the ~15 design/contract docs and ~10 KCS pages the
-  inventory flagged, README dialect tables), samples, `docs/generated`
-  regeneration, deletion of the last transitional data.
+  the seven words + `event_requires` draft-model fix; the dialect
+  (grammar, structure) and closed-world policy stay compiled regardless.
+  **Q5**.
+- **P8 — sweep.** Docs (the ~15 design/contract docs and ~10 KCS pages
+  the inventory flagged, README dialect tables), samples,
+  `docs/generated` regeneration, deletion of the last transitional data.
 
 ## 9. Defects found during research (fix regardless of this design)
 
@@ -813,10 +1221,13 @@ Recommendations marked ▸. Answers gate P0.
    `closed` for irules, `ambient-only-plus-require` for iapps/tmsh — and
    whether `open` should gain an opt-in strict mode for teams that want
    unrequired-package completion suppressed.
-8. **Require position sensitivity.** Keep whole-file activation with W120
-   (▸), or model "command used before its `package require`" as a new
-   ordering diagnostic (implementable later; the scan already records
-   ranges)?
+8. **Require position sensitivity.** *Settled by review B2/H5, narrowed
+   to a UX question.* Whole-file activation survives only in the
+   assistance view, explicitly labelled; the semantic view is position-,
+   path-, and realm-sensitive (§5.2). Remaining question: should the
+   assistance view also surface an ordering hint ("used before its
+   `package require`") by default, or leave that to the semantic
+   diagnostics? ▸ Surface it — the scan already records ranges.
 9. **tcllib depth and shipping.** Which releases become windows (▸ 2.0
    authoritative + windows derived back to 1.17), per-module packs (▸ yes,
    135 modules mirroring upstream) — and are they *bundled* with the
@@ -831,6 +1242,9 @@ Recommendations marked ▸. Answers gate P0.
     policy (no per-version dispatch, 1.x readable forever, one
     `VOCABULARY_VERSION` bump) — and that `dialects`/`ambient_package`
     become documented-legacy spellings rather than removed words. ▸ Yes.
+    *Amended by review B13*: the forward direction adds the fail-closed
+    vocabulary classes of §6.1 — an unsupported major fails closed, and
+    semantic unknowns quarantine rather than warn-and-drop.
 12. **Invocation refinement.** Green-light designing the declarative
     replacement for `command_forms`/`subcommand_forms` (whole-descriptor,
     all-or-nothing swap; Tk's 53 sites as the migration test), or prefer
@@ -845,12 +1259,13 @@ Recommendations marked ▸. Answers gate P0.
     `Keyed` axes) stay CLI/config-level knobs that set environment
     placement floors (▸), or become general per-package version overrides
     (`--package-version NAME=V`) now that packages are first-class?
-15. **Primary release for a range.** When targets are `tcl 8.5–9.0`,
-    which release do parsing and assistance answer under? ▸ The range
-    maximum (newest grammar accepts the superset on almost every axis;
-    divergence detectors cover the rest) — but say the word if you want
-    the minimum ("oldest-first" authoring) or an explicit
-    `primary` field on the target spec.
+15. **Primary target for a range/set.** *Narrowed by review B10*:
+    `primary` is an explicit, required field for any multi-target
+    project — "maximum is usually a superset" is a default, not a
+    contract, and compatibility never depends on it (the reference
+    evaluates every selected profile). Remaining question: what does the
+    UI default `primary` to when the user declares targets without one?
+    ▸ The newest selected release, stated visibly in the status UI.
 16. **Range diagnostics shape.** New diagnostic family for range
     compatibility (▸ — a dedicated W15x-style block covering
     "introduced after range min", "removed before range max", and each
@@ -863,11 +1278,35 @@ Recommendations marked ▸. Answers gate P0.
     range-safe commands) or stay permissive with annotations (▸
     permissive: offer everything at the primary release, annotate
     "8.6+" the way version floors already annotate)?
-18. **Dynamic environment scope.** Confirm the definition sources and
-    their precedence — compiled < pack-declared < user config <
-    workspace/folder config (nearest wins, matching pack-tier
-    discipline) — and whether a workspace may *redefine* a compiled name
-    (▸ no: workspace definitions may extend or override targets/ambient
-    of a named environment and define new names, but core family names
-    stay canonical so diagnostics keep meaning the same thing
-    everywhere).
+18. **Dynamic environment scope.** *Superseded in part by review H1,
+    which this revision adopts*: all compiled canonical names are
+    reserved (not only family names); workspace/user adjustments are
+    `EnvironmentOverlay`s that never redefine the base; third-party
+    environments get namespaced stable ids; alias cycles and
+    same-precedence collisions are errors. Remaining question: the
+    namespacing scheme for third-party ids — pack-name-prefixed
+    (`spicegentcl/ngspice`) vs reverse-DNS vs free-form-with-registry.
+    ▸ Pack-name-prefixed: short, collision-free by construction, and
+    legible in a status bar.
+19. **Trust defaults and UX** (§6.4, review B9). Confirm the trust
+    classes and the untrusted-workspace rules — and decide the opt-in
+    surface: is trusting a workspace pack's overrides (a) the editor's
+    Workspace Trust alone, (b) a per-pack tcl-lsp consent recorded in
+    user config, or (c) both required for security-weakening overrides?
+    ▸ (c): editor trust gates hook execution; per-pack consent gates
+    security-fact overrides, with provenance always shown in hover.
+20. **Build-profile scope for the Tcl family itself** (review B1). Jim
+    gets the full build axis. Does the `tcl` family model historical
+    build variance (`TCL_UTF_MAX` 3/4/6, threaded vs unthreaded 8.x) as
+    build profiles, or declare one canonical build profile per release
+    and treat deviant builds as out of scope? ▸ One canonical profile
+    per release now, with the axis *representable* so a future
+    `tcl-utf6` profile is data, not surgery — the 8.x UTF-6 builds still
+    exist in EDA vendor tools.
+21. **Realm-analysis depth for the first release** (review B2). Full
+    `AnalysisWorld` realm tracking (child interps, safe interps,
+    hide/expose) can land incrementally: confirm the initial scope —
+    ▸ single-realm position-sensitive package/binding state first
+    (already sound for the vast majority of scripts), with
+    `interp create`/`interp eval` widening everything they touch to
+    `Unknown` until the multi-realm map lands (P1a completes it).

@@ -46,13 +46,15 @@ rules for the KCS/documentation split live in
   21-package taxonomy, the `is_available` package-loaded gate, detection
   hardening, and base-version reconciliation.
 - [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
-  — **proposal** (issue #1631): the dialect/package/environment split —
-  dialects as grammar cores (family × release), packages as versioned SpecTcl
-  surfaces, environments as the dynamic, named, aliasable selections users
-  work in; the provider-window availability algebra replacing `DialectSet`,
-  version-range targeting (declare tcl 8.5–9.0 or a library range and get
-  cross-version compatibility warnings), SpecTcl 2.0 vocabulary, and the
-  phased migration plan with the open questions.
+  — **proposal, revision 2** (issue #1631): the four-layer model — core
+  profiles (family × release × build), packages as providers of SpecTcl
+  surface declarations, dynamic environments (definitions + overlays with a
+  fixed editor-identity set), and realm-scoped binding knowledge; the
+  axis-typed `VersionSet` algebra replacing `DialectSet`, version-range
+  targeting with a per-profile reference evaluator, SpecTcl 2.0 with
+  fail-closed semantic vocabulary and trust-aware provenance, and the
+  review-corrected migration plan. Revision 2 accepts all thirteen blocking
+  findings of the adversarial review (disposition in §0.1).
 - [dialect-and-package-registry-redesign-adversarial-review.md](dialect-and-package-registry-redesign-adversarial-review.md)
   — **request-changes review** of the #1631 proposal, grounded in immutable Tcl,
   Tk, JimTcl, picol, tcllib, ticklecharts, pave, and SpiceGenTcl sources plus
