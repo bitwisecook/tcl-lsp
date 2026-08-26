@@ -45,7 +45,7 @@ import {
   workspace,
 } from "vscode";
 import { LanguageClient } from "vscode-languageclient/browser";
-import { workerLspTransports } from "./webLspTransport";
+import { workerLspTransports, WorkerTransport } from "./webLspTransport";
 import { DIALECT_LABELS } from "./chat/dialectCatalog";
 import {
   ANY_SCHEME,
@@ -101,22 +101,106 @@ const WEB_UNSUPPORTED: Record<string, string> = {
   "tclLsp.copyFileAsGzipBase64": "reads the file with fs and compresses with node zlib",
 };
 
-let client: LanguageClient | undefined;
+/**
+ * One running language server: its worker, its store sync, its client, and the
+ * subscriptions that only make sense while it is alive.
+ *
+ * A session is disposable and replaceable *as a unit*, which is what
+ * "Tcl: Restart Server" needs. Restarting cannot mean `stop()` then `start()`
+ * on the same worker: `stop()` sends `shutdown` + `exit`, the server reaches
+ * `State::Exited`, and the wasm pump loop (`rust/tcl-lsp-server-wasm/src/lib.rs`)
+ * breaks out of `while let Some(text) = queue.next()` on the next `poll_ready`
+ * error and drops its inbox — so the re-`initialize` is discarded, `start()`
+ * never resolves, and the session is dead until the tab is reloaded. The
+ * worker has to be terminated and rebuilt.
+ */
+interface Session {
+  worker: Worker;
+  sync: WorkspaceStoreSync;
+  client: LanguageClient;
+  /** Detach the JSON-RPC port listener — see `./webLspTransport`. */
+  disposeTransport: () => void;
+  /** Subscriptions bound to *this* server, not to the extension's lifetime. */
+  disposables: vscode.Disposable[];
+}
+
+let session: Session | undefined;
+let extensionContext: ExtensionContext | undefined;
 let dialectStatusBarItem: StatusBarItem;
 let versionStatusBarItem: StatusBarItem;
 let outputChannel: vscode.OutputChannel;
 
+/**
+ * How long the server may take to answer `initialize` before activation gives
+ * up and says so.
+ *
+ * Generous — the wasm module is ~25 MiB and is fetched and instantiated on
+ * first activation — but bounded, because an unbounded await here does not
+ * merely fail: activation never returns, so the extension host's
+ * "eager extensions activated" gate never opens.
+ */
+const START_TIMEOUT_MS = 180_000;
+
+/** How long a graceful `shutdown`/`exit` may take before the worker is killed anyway. */
+const STOP_TIMEOUT_MS = 2_000;
+
 export function getClient(): LanguageClient | undefined {
-  return client;
+  return session?.client;
+}
+
+function log(message: string): void {
+  outputChannel?.appendLine(message);
 }
 
 export async function activate(context: ExtensionContext) {
   const activateStart = Date.now();
+  extensionContext = context;
   outputChannel = window.createOutputChannel("Tcl Language Server");
   context.subscriptions.push(outputChannel);
-  const ch = outputChannel;
-  const log = (message: string) => ch.appendLine(message);
 
+  registerStatusBar(context);
+  registerCommands(context);
+  registerScratchRuleWriteBack(context);
+  registerChatFallbacks(context);
+
+  context.subscriptions.push(
+    workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("tclLsp.dialect")) {
+        updateDialectStatusBar();
+        updateIruleContext(window.activeTextEditor);
+      }
+      const client = session?.client;
+      if (client && EDITOR_SETTINGS_AFFECTING_FEATURES.some((s) => e.affectsConfiguration(s))) {
+        void client.sendNotification("workspace/didChangeConfiguration", {
+          settings: { tclLsp: { features: resolveAllFeatureToggles() } },
+        });
+      }
+    }),
+    { dispose: () => void stopSession() },
+  );
+
+  session = await startSession(context);
+  if (session) {
+    void ensureStickyScrollDefaultModel(context, outputChannel);
+  }
+
+  log(`[timing] extension activation: ${Date.now() - activateStart}ms`);
+  return { getClient };
+}
+
+export async function deactivate(): Promise<void> {
+  await stopSession();
+}
+
+/**
+ * Build a whole server session: worker, store, client.
+ *
+ * The budget is read here rather than at activation, so raising
+ * `tclLsp.web.workspaceSync.*` and running "Tcl: Restart Server" actually
+ * re-reads the workspace under the new limits — which is what the
+ * documentation tells a user to do.
+ */
+async function startSession(context: ExtensionContext): Promise<Session | undefined> {
   const webAssets = vscode.Uri.joinPath(context.extensionUri, "dist", "web");
   const workerUri = vscode.Uri.joinPath(webAssets, "worker.js");
   let worker: Worker;
@@ -128,14 +212,18 @@ export async function activate(context: ExtensionContext) {
     // `blob:` URL and cannot resolve `tcl_lsp_server_wasm.js` beside it. The
     // host forwards `options` to the real `Worker`, so `self.name` is the one
     // channel that survives; `worker.js`'s `assetBaseUrl` reads it.
-    worker = new Worker(workerUri.toString(true), { name: `${webAssets.toString(true)}/` });
+    //
+    // Encoded (`toString()`, not `toString(true)`): the worker recovers the
+    // name's last whitespace-separated field, because VS Code prefixes it, so
+    // an install path containing a space would otherwise truncate the base.
+    worker = new Worker(workerUri.toString(), { name: `${webAssets.toString()}/` });
   } catch (err) {
     window.showErrorMessage(
       "Tcl LSP: could not start the language server worker. The web build's " +
         `assets are missing from this install (expected ${workerUri.toString()}).`,
     );
     log(`[web] worker construction failed: ${String(err)}`);
-    return;
+    return undefined;
   }
   log(`[web] language server worker: ${workerUri.toString()}`);
 
@@ -147,66 +235,123 @@ export async function activate(context: ExtensionContext) {
   const globs = deriveSyncGlobs(context.extension.packageJSON as SyncManifest);
   log(`[web] workspace sync globs: ${globs.join(" ")}`);
   const sync = new WorkspaceStoreSync(store, globs, log);
-  context.subscriptions.push({ dispose: () => sync.dispose() });
   const budget = readBudget();
-  await sync.primeSpecPacks(vscode.Uri.joinPath(context.extensionUri, "dist", "web", "specs"));
+  await sync.primeSpecPacks(vscode.Uri.joinPath(webAssets, "specs"));
   const primeStart = Date.now();
   await sync.primeWorkspace(budget);
   log(`[timing] workspace store prime: ${Date.now() - primeStart}ms`);
 
   const diffSuppressor = new DiffDiagnosticsSuppressor();
-  context.subscriptions.push(diffSuppressor);
+  const disposables: vscode.Disposable[] = [diffSuppressor];
 
+  // The client asks for transports on every start, so the previous one is
+  // detached first rather than left listening on the same worker.
+  let transport: WorkerTransport | undefined;
   // No scheme filter: a web workspace is served by whatever filesystem provider
   // the host registered (`vscode-vfs` on github.dev, `vscode-test-web` under
   // the web smoke test), so a `file:`-only selector matches nothing.
-  client = new LanguageClient(
+  const client = new LanguageClient(
     "tcl-lsp",
     "Tcl Language Server",
-    async () => workerLspTransports(worker),
+    async () => {
+      transport?.dispose();
+      transport = workerLspTransports(worker);
+      return transport.transports;
+    },
     buildClientOptions(diffSuppressor, ANY_SCHEME),
   );
 
-  registerStatusBar(context);
-  registerCommands(context);
-  registerScratchRuleWriteBack(context);
+  const started = await startWithTimeout(client, workerUri);
+  if (!started) {
+    transport?.dispose();
+    worker.terminate();
+    sync.dispose();
+    for (const disposable of disposables) {
+      disposable.dispose();
+    }
+    return undefined;
+  }
 
-  context.subscriptions.push(
-    workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("tclLsp.dialect")) {
-        updateDialectStatusBar();
-        updateIruleContext(window.activeTextEditor);
-      }
-      if (client && EDITOR_SETTINGS_AFFECTING_FEATURES.some((s) => e.affectsConfiguration(s))) {
-        void client.sendNotification("workspace/didChangeConfiguration", {
-          settings: { tclLsp: { features: resolveAllFeatureToggles() } },
-        });
-      }
-    }),
-  );
-
-  const clientStartTime = Date.now();
-  await client.start();
-  log(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
-
+  const notify = (changes: Array<{ uri: string; type: number }>) => {
+    void client.sendNotification("workspace/didChangeWatchedFiles", { changes });
+  };
   // Live from here on: an upsert plus the ordinary `didChangeWatchedFiles` an
   // editor sends for a file changed outside it.
-  sync.watch(budget, (changes) => {
-    void client?.sendNotification("workspace/didChangeWatchedFiles", { changes });
-  });
+  sync.watch(budget, notify);
+  sync.watchFolders(budget, notify);
 
-  void ensureStickyScrollDefaultModel(context, ch);
-  registerPackAssociationSync(context, ch);
-
-  log(`[timing] extension activation: ${Date.now() - activateStart}ms`);
-  return { getClient };
+  const built: Session = {
+    worker,
+    sync,
+    client,
+    disposeTransport: () => transport?.dispose(),
+    disposables,
+  };
+  registerPackAssociationSync(context, outputChannel, built);
+  return built;
 }
 
-export async function deactivate(): Promise<void> {
-  if (client) {
-    await client.stop();
-    client = undefined;
+/**
+ * Await `client.start()`, but not forever.
+ *
+ * A worker that never initialises — missing assets, a wasm that will not
+ * instantiate — otherwise leaves `start()` pending for the life of the tab,
+ * and because activation awaits it the extension host stalls with nothing on
+ * screen to explain why.
+ */
+async function startWithTimeout(client: LanguageClient, workerUri: vscode.Uri): Promise<boolean> {
+  const clientStartTime = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      client.start(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(`no reply to initialize within ${Math.round(START_TIMEOUT_MS / 1000)}s`),
+            ),
+          START_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    log(`[timing] client.start: ${Date.now() - clientStartTime}ms`);
+    return true;
+  } catch (err) {
+    log(`[web] the language server failed to start: ${String(err)}`);
+    window.showErrorMessage(
+      `Tcl LSP: the language server did not start (${String(err)}). Its worker and wasm ` +
+        `module should be at ${workerUri.toString()} — check the Tcl Language Server output ` +
+        "channel for what the worker reported.",
+    );
+    return false;
+  } finally {
+    if (timer !== undefined) {
+      clearTimeout(timer);
+    }
   }
+}
+
+/** Tear a session down completely, worker included. */
+async function stopSession(): Promise<void> {
+  const current = session;
+  session = undefined;
+  if (!current) {
+    return;
+  }
+  current.sync.dispose();
+  for (const disposable of current.disposables.splice(0)) {
+    disposable.dispose();
+  }
+  try {
+    // Graceful first, so the server gets its `shutdown`/`exit` — but bounded,
+    // because a wedged worker must not block the rebuild that replaces it.
+    await current.client.stop(STOP_TIMEOUT_MS);
+  } catch (err) {
+    log(`[web] the language server did not stop cleanly: ${String(err)}`);
+  }
+  current.disposeTransport();
+  current.worker.terminate();
 }
 
 function registerStatusBar(context: ExtensionContext): void {
@@ -370,14 +515,64 @@ function registerCommands(context: ExtensionContext): void {
   }
 }
 
+/**
+ * Answer the contributed chat participants with the reason they cannot work
+ * here, instead of failing raw.
+ *
+ * `contributes.chatParticipants` is unconditional, so `@irule` / `@tcl` / `@tk`
+ * are offered in the browser whether or not anything registers them — and an
+ * unregistered participant fails with a bare "no handler" that names nothing.
+ * The handlers themselves are desktop-only: they reach the extension's node
+ * entry for the client and the dialect, and the iRules one loads its prompts
+ * with `fs`.
+ */
+function registerChatFallbacks(context: ExtensionContext): void {
+  const participants: Record<string, string> = {
+    "tcl-lsp.irule": "@irule",
+    "tcl-lsp.tcl": "@tcl",
+    "tcl-lsp.tk": "@tk",
+  };
+  for (const [id, name] of Object.entries(participants)) {
+    try {
+      context.subscriptions.push(
+        vscode.chat.createChatParticipant(id, (_request, _chatContext, response) => {
+          response.markdown(
+            `\`${name}\` is desktop-only in this release: the chat participants load their ` +
+              "prompt packs from the extension's files and drive the native language server. " +
+              "Everything else — diagnostics, highlighting, hover, completion, formatting, and " +
+              "the optimiser — works here.",
+          );
+        }),
+      );
+    } catch (err) {
+      // The Chat API is unavailable (no Copilot Chat in this host): nothing to
+      // register, and nothing for a user to invoke either.
+      log(`[web] chat participant ${name} not registered: ${String(err)}`);
+      return;
+    }
+  }
+}
+
 // Commands
 
+/**
+ * "Tcl: Restart Server" — tear the session down and build a new one.
+ *
+ * Deliberately not `client.stop()` + `client.start()`: see the `Session`
+ * comment. The worker is terminated and replaced, which also re-reads the
+ * workspace under whatever `tclLsp.web.workspaceSync.*` currently says.
+ */
 async function restartServer(): Promise<void> {
-  if (client) {
-    await client.stop();
-    await client.start();
+  const context = extensionContext;
+  if (!context) {
+    return;
+  }
+  await stopSession();
+  session = await startSession(context);
+  if (session) {
     window.showInformationMessage("Tcl Language Server restarted.");
   }
+  // A failed start has already reported itself, with the reason.
 }
 
 async function selectDialect(): Promise<void> {
@@ -416,6 +611,7 @@ function activeTclEditor(action: string): vscode.TextEditor | undefined {
 }
 
 async function executeServerCommand<T>(command: string, args: unknown[]): Promise<T | null> {
+  const client = session?.client;
   if (!client) {
     window.showWarningMessage("The Tcl language server is not running.");
     return null;
@@ -865,7 +1061,7 @@ function registerScratchRuleWriteBack(context: ExtensionContext): void {
 
 function activeBigipEditor(): vscode.TextEditor | undefined {
   const editor = window.activeTextEditor;
-  if (!editor || !client) {
+  if (!editor || !session) {
     window.showWarningMessage("Open a BIG-IP configuration file first.");
     return undefined;
   }
@@ -1027,12 +1223,15 @@ function base64DecodeText(text: string): string {
  * discovered SpecTcl packs claim (issue #1626) — the same push/pull pair the
  * node entry runs, against the same server.
  */
-function registerPackAssociationSync(context: ExtensionContext, ch: vscode.OutputChannel): void {
-  if (!client) {
-    return;
-  }
-  context.subscriptions.push(
-    client.onNotification(
+function registerPackAssociationSync(
+  context: ExtensionContext,
+  ch: vscode.OutputChannel,
+  current: Session,
+): void {
+  // Bound to this session: a restart builds a new client, and a subscription
+  // left on the old one would never fire again.
+  current.disposables.push(
+    current.client.onNotification(
       "tcl-lsp/specPacksReloaded",
       (params: { pack_file_extensions?: PackFileExtension[] }) => {
         void syncPackFileAssociations(context, params?.pack_file_extensions ?? [], (message) =>

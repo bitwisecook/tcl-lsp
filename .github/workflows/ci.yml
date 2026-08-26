@@ -564,6 +564,35 @@ jobs:
         if: env.RUN_EXT_WEB == 'true'
         run: cd editors/vscode && npm ci
 
+      # `@vscode/test-web` downloads a VS Code *web* build on every run, the way
+      # `@vscode/test-electron` downloads a desktop one in `test-ext`. Key on
+      # the resolved commit from the same endpoint test-web itself uses: a
+      # coarser key (a date window) is actively broken, because cache entries
+      # are immutable, so a build that ships mid-window is downloaded but never
+      # saved and every remaining run re-downloads. Falling back to a date stamp
+      # when the endpoint is unreachable only costs a download.
+      - name: Resolve the VS Code web build
+        if: env.RUN_EXT_WEB == 'true'
+        id: vscode-web-version
+        run: |
+          set -uo pipefail
+          ver=$(curl -fsSL --max-time 20 \
+            https://update.code.visualstudio.com/api/update/web-standalone/insider/latest \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])' 2>/dev/null || true)
+          if [ -z "$ver" ]; then
+            ver="unresolved-$(date -u +%Y-%m-%d)"
+            echo "::warning::could not resolve the VS Code web build; using $ver"
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "VS Code web (insider) resolves to: $ver"
+
+      - name: Cache the VS Code web download
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: editors/vscode/.vscode-test-web
+          key: vscode-test-web-${{ runner.os }}-${{ steps.vscode-web-version.outputs.version }}
+
       - name: Build the browser language server
         if: env.RUN_EXT_WEB == 'true'
         run: make lsp-server-wasm

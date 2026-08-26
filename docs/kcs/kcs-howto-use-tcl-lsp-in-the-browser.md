@@ -44,10 +44,11 @@ workspace files it read, and anything it skipped.
 ## What is different from the desktop
 
 **Desktop-only commands.** Runtime validation (it runs `tclsh`), the compiler
-explorer, the spec studio, the Tk preview, "Copy file as base64", the package
-scaffolder, and the `@irule` / `@tcl` / `@tk` chat participants need a process
-or a filesystem. Running one in the browser tells you which, instead of failing
-obscurely.
+explorer, the spec studio, the Tk preview, "Copy file as base64", and the
+package scaffolder need a process or a filesystem. Running one in the browser
+tells you which, instead of failing obscurely. The `@irule` / `@tcl` / `@tk`
+chat participants are desktop-only for the same reason, and say so in the chat
+if you call one.
 
 **Cross-file results on a GitHub repository.** The browser server has no
 filesystem, so the extension reads the workspace itself and hands the files
@@ -64,7 +65,14 @@ file and its definitions resolve.
 `tclLsp.web.workspaceSync.maxFileBytes` (2 MiB per file). Nothing is dropped
 quietly: every skipped file is named in the **Tcl Language Server** output
 channel, with the setting that would include it. Raise the setting, then run
-**Tcl: Restart Server**.
+**Tcl: Restart Server** — the restart rebuilds the server and re-reads the
+workspace under the new limits.
+
+**Diagnostics can appear on non-file documents.** A web workspace has no single
+URI scheme to pin to, so Tcl documents are matched on any scheme. A side effect
+is that a Tcl file opened from another provider — the original side of a diff,
+for instance — is analysed too. Set `tclLsp.suppressDiagnosticsInDiffEditors` if
+you would rather diff views stayed clean.
 
 **Workspace trust.** Analysis needs no trust — the server never executes the
 Tcl it reads. The settings that choose which program the *desktop* extension

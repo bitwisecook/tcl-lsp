@@ -36,9 +36,19 @@ import * as vscode from "vscode";
 
 const EXTENSION_ID = "bitwisecook.tcl-lsp";
 
+/** The browser entry's exported API. */
+type LspClientLike = { sendRequest?: (method: string, params: unknown) => Promise<unknown> };
+type ExtensionApi = { getClient?: () => LspClientLike | undefined } | undefined;
+
 /** Generous: the wasm module is ~25 MiB and instantiates on first activation. */
 const ACTIVATION_TIMEOUT_MS = 180_000;
 const ANALYSIS_TIMEOUT_MS = 180_000;
+
+/**
+ * A restart rebuilds the worker and re-reads the workspace, so it costs about
+ * as much as a cold activation — but it must not be unbounded.
+ */
+const RESTART_TIMEOUT_MS = 180_000;
 
 const results: string[] = [];
 const failures: string[] = [];
@@ -121,12 +131,7 @@ export async function run(): Promise<void> {
   // once already — a document selector pinned to `file:` left the server
   // answering every direct request while the editor saw nothing, because no
   // provider was registered for a `vscode-test-web:` document.
-  const api = extension.exports as
-    | {
-        getClient?: () =>
-          { sendRequest?: (method: string, params: unknown) => Promise<unknown> } | undefined;
-      }
-    | undefined;
+  const api = extension.exports as ExtensionApi;
   let direct: { data?: number[] } | undefined;
   try {
     direct = (await api?.getClient?.()?.sendRequest?.("textDocument/semanticTokens/full", {
@@ -178,7 +183,63 @@ export async function run(): Promise<void> {
     (diagnostics ?? []).map((d) => String(d.code)).join(","),
   );
 
+  await checkRestart(api, document);
+
   report();
+}
+
+/**
+ * "Tcl: Restart Server" must rebuild the session, not stop and start the same
+ * worker.
+ *
+ * This is a regression test for a specific, silent failure: `client.stop()`
+ * drives the server to `State::Exited`, which makes the wasm pump loop break
+ * and drop its inbox, so the re-`initialize` is discarded and `start()` never
+ * resolves — the command hangs and the session is dead until the tab reloads.
+ * The bounded wait is what makes that show up as a failed check here instead
+ * of a suite that hangs until the harness kills it.
+ */
+async function checkRestart(api: ExtensionApi, document: vscode.TextDocument): Promise<void> {
+  const before = api?.getClient?.();
+  let completed = false;
+  try {
+    await Promise.race([
+      vscode.commands.executeCommand("tclLsp.restartServer"),
+      sleep(RESTART_TIMEOUT_MS).then(() => {
+        throw new Error(`did not return within ${RESTART_TIMEOUT_MS}ms`);
+      }),
+    ]);
+    completed = true;
+  } catch (err) {
+    console.error(`tcl-lsp web smoke: restart failed: ${String(err)}`);
+  }
+  check("Tcl: Restart Server completes", completed);
+  if (!completed) {
+    return;
+  }
+
+  const after = api?.getClient?.();
+  check(
+    "the restart built a new client rather than reusing the exited one",
+    after !== undefined && after !== before,
+    after === before ? "same client instance" : "new client instance",
+  );
+
+  const tokens = await waitFor("semantic tokens after restart", ANALYSIS_TIMEOUT_MS, async () => {
+    try {
+      const result = (await after?.sendRequest?.("textDocument/semanticTokens/full", {
+        textDocument: { uri: document.uri.toString() },
+      })) as { data?: number[] } | undefined;
+      return (result?.data?.length ?? 0) > 0 ? result : undefined;
+    } catch {
+      return undefined;
+    }
+  });
+  check(
+    "the server answers again after a restart",
+    tokens !== undefined,
+    tokens ? `${(tokens.data?.length ?? 0) / 5} tokens` : "no answer within the timeout",
+  );
 }
 
 function report(): void {

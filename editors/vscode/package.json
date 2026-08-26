@@ -63,7 +63,8 @@
         "tclLsp.libraryPaths",
         "tclLsp.specPacks",
         "tclLsp.packageManager.registryUrl",
-        "tclLsp.packageManager.cacheDir"
+        "tclLsp.packageManager.cacheDir",
+        "tclLsp.packageManager.autoInstallOnSave"
       ]
     }
   },

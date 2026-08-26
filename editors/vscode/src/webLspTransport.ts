@@ -52,13 +52,27 @@ interface JsonRpcPort {
  * (`{ tclLsp: "upsert" | "delete" | "upsertSpecPack", … }`) are objects by
  * design and are posted to the worker directly.
  */
-export function workerLspTransports(worker: Worker): MessageTransports {
+export interface WorkerTransport {
+  transports: MessageTransports;
+  /**
+   * Detach from the worker.
+   *
+   * The language client asks for transports on *every* `start()`, so a
+   * transport that only ever adds its listener leaves one behind per start —
+   * and each survivor keeps parsing and dispatching every frame into a
+   * connection that has moved on. The owner disposes the previous transport
+   * before building the next one.
+   */
+  dispose(): void;
+}
+
+export function workerLspTransports(worker: Worker): WorkerTransport {
   const port: JsonRpcPort = {
     onmessage: null,
     postMessage: (message: unknown) => worker.postMessage(JSON.stringify(message)),
     addEventListener: (type, handler) => worker.addEventListener(type, handler),
   };
-  worker.addEventListener("message", (event: MessageEvent) => {
+  const listener = (event: MessageEvent) => {
     let data: unknown = event.data;
     if (typeof data === "string") {
       try {
@@ -73,9 +87,20 @@ export function workerLspTransports(worker: Worker): MessageTransports {
     // The reader reads `data` and nothing else off the event, so a plain
     // object carrying the parsed message is all it needs.
     port.onmessage?.({ data } as MessageEvent);
-  });
+  };
+  worker.addEventListener("message", listener);
   // The reader/writer only ever use the three members `JsonRpcPort` declares;
   // their parameter type names the concrete DOM classes that carry them.
   const asPort = port as unknown as Worker;
-  return { reader: new BrowserMessageReader(asPort), writer: new BrowserMessageWriter(asPort) };
+  const reader = new BrowserMessageReader(asPort);
+  const writer = new BrowserMessageWriter(asPort);
+  return {
+    transports: { reader, writer },
+    dispose: () => {
+      worker.removeEventListener("message", listener);
+      port.onmessage = null;
+      reader.dispose();
+      writer.dispose();
+    },
+  };
 }

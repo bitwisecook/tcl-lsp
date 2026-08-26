@@ -164,6 +164,22 @@ export interface SyncReport {
 
 const decoder = new TextDecoder("utf-8");
 
+/** `FileChangeType` on the wire — the protocol's own numbering. */
+const FileChange = { Created: 1, Changed: 2, Deleted: 3 } as const;
+
+/**
+ * Name at most `limit` URIs, then say how many more there are.
+ *
+ * A skipped-file list is diagnostic, and a workspace that overruns the budget
+ * can overrun it by thousands — one log line holding every one of them is not
+ * readable and is not what a reader needs to act.
+ */
+function listUris(uris: readonly vscode.Uri[], limit = 20): string {
+  const shown = uris.slice(0, limit).map((uri) => uri.toString());
+  const rest = uris.length - shown.length;
+  return rest > 0 ? `${shown.join(", ")} (+${rest} more)` : shown.join(", ");
+}
+
 /**
  * Sweep the workspace into the server's store, then keep it live.
  *
@@ -172,11 +188,75 @@ const decoder = new TextDecoder("utf-8");
 export class WorkspaceStoreSync {
   private readonly watchers: vscode.Disposable[] = [];
 
+  /**
+   * What the store currently holds, `uri.toString()` → byte length.
+   *
+   * The budget has to be a property of the *session*, not of the startup
+   * sweep: without this, a workspace that generates files while the editor is
+   * open grows the server's store without limit, because the watcher path had
+   * no idea how much the sweep had already sent. It also makes a replacement
+   * exact — an edited file's new size replaces its old one rather than adding
+   * to the total — and it is what lets a removed folder's files be withdrawn.
+   */
+  private readonly stored = new Map<string, number>();
+  private storedBytes = 0;
+
+  /** Live-path budget refusals already logged, so a generated tree cannot spam. */
+  private liveSkipsLogged = 0;
+
   constructor(
     private readonly host: SourceStoreHost,
     private readonly globs: string[],
     private readonly log: (message: string) => void,
   ) {}
+
+  /** Register (or replace) one file in the store, keeping the running totals exact. */
+  private upsertTracked(uri: vscode.Uri, text: string, byteLength: number): void {
+    const key = uri.toString();
+    this.storedBytes += byteLength - (this.stored.get(key) ?? 0);
+    this.stored.set(key, byteLength);
+    this.host.upsert(key, text);
+  }
+
+  /** Withdraw one file from the store. Returns whether it held anything. */
+  private deleteTracked(uri: vscode.Uri): boolean {
+    const key = uri.toString();
+    const held = this.stored.get(key);
+    if (held === undefined) {
+      this.host.delete(key);
+      return false;
+    }
+    this.storedBytes -= held;
+    this.stored.delete(key);
+    this.host.delete(key);
+    return true;
+  }
+
+  /**
+   * Whether `byteLength` fits, counting a replacement as only its delta.
+   */
+  private fits(uri: vscode.Uri, byteLength: number, budget: WorkspaceSyncBudget): boolean {
+    const key = uri.toString();
+    const held = this.stored.get(key);
+    if (held === undefined && this.stored.size >= budget.maxFiles) {
+      return false;
+    }
+    return this.storedBytes - (held ?? 0) + byteLength <= budget.maxTotalBytes;
+  }
+
+  /** Log a live-path budget refusal, capped so a burst cannot flood the channel. */
+  private logLiveSkip(message: string): void {
+    const CAP = 20;
+    if (this.liveSkipsLogged < CAP) {
+      this.log(message);
+    } else if (this.liveSkipsLogged === CAP) {
+      this.log(
+        `[web] further workspace-budget messages suppressed for this session — ` +
+          "raise tclLsp.web.workspaceSync.maxFiles / .maxTotalBytes and restart the server",
+      );
+    }
+    this.liveSkipsLogged += 1;
+  }
 
   /**
    * Read every matching workspace file and upsert it, within budget.
@@ -214,7 +294,8 @@ export class WorkspaceStoreSync {
     );
 
     for (const uri of uris) {
-      if (report.sent >= budget.maxFiles || report.bytes >= budget.maxTotalBytes) {
+      // Cheap pre-check: no room for even the smallest file left.
+      if (this.stored.size >= budget.maxFiles || this.storedBytes >= budget.maxTotalBytes) {
         report.overBudget.push(uri);
         continue;
       }
@@ -236,7 +317,15 @@ export class WorkspaceStoreSync {
         report.tooLarge.push(uri);
         continue;
       }
-      this.host.upsert(uri.toString(), decoder.decode(bytes));
+      // Checked BEFORE the file is counted, so the total cannot end up over
+      // `maxTotalBytes` by most of one file. A file that does not fit is
+      // skipped rather than ending the sweep — a smaller one after it still
+      // gets in, and the report names every skip either way.
+      if (!this.fits(uri, bytes.byteLength, budget)) {
+        report.overBudget.push(uri);
+        continue;
+      }
+      this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
       report.sent += 1;
       report.bytes += bytes.byteLength;
     }
@@ -280,11 +369,10 @@ export class WorkspaceStoreSync {
         `${report.bytes} bytes (budget ${budget.maxFiles} files / ${budget.maxTotalBytes} bytes / ` +
         `${budget.maxFileBytes} bytes per file)`,
     );
-    const name = (uri: vscode.Uri) => uri.toString();
     if (report.tooLarge.length > 0) {
       this.log(
-        `[web] skipped ${report.tooLarge.length} file(s) over tclLsp.web.workspaceSync.maxFileBytes: ` +
-          report.tooLarge.map(name).join(", "),
+        `[web] skipped ${report.tooLarge.length} file(s) over ` +
+          `tclLsp.web.workspaceSync.maxFileBytes: ${listUris(report.tooLarge)}`,
       );
     }
     if (report.overBudget.length > 0) {
@@ -292,13 +380,13 @@ export class WorkspaceStoreSync {
         `[web] skipped ${report.overBudget.length} file(s) — the workspace budget ran out. ` +
           "Cross-file results for them will be missing. Raise " +
           "tclLsp.web.workspaceSync.maxFiles / .maxTotalBytes to include them: " +
-          report.overBudget.map(name).join(", "),
+          listUris(report.overBudget),
       );
     }
     if (report.unreadable.length > 0) {
       this.log(
         `[web] skipped ${report.unreadable.length} unreadable file(s): ` +
-          report.unreadable.map(name).join(", "),
+          listUris(report.unreadable),
       );
     }
   }
@@ -362,6 +450,11 @@ export class WorkspaceStoreSync {
    * `workspace/didChangeWatchedFiles` an editor sends for a file changed
    * outside it. The upsert always lands first, because the server re-reads the
    * file *through the store* while handling the notification.
+   *
+   * The budget applies here exactly as it does to the startup sweep. It has to:
+   * a build that writes generated `.tcl` while the editor is open would
+   * otherwise grow the server's store without limit, one create at a time,
+   * past every cap the user set.
    */
   watch(
     budget: WorkspaceSyncBudget,
@@ -371,42 +464,142 @@ export class WorkspaceStoreSync {
       const watcher = vscode.workspace.createFileSystemWatcher(glob);
       this.watchers.push(
         watcher,
-        watcher.onDidCreate((uri) => void this.pushFile(uri, 1, budget, notify)),
-        watcher.onDidChange((uri) => void this.pushFile(uri, 2, budget, notify)),
+        watcher.onDidCreate((uri) => void this.pushFile(uri, FileChange.Created, budget, notify)),
+        watcher.onDidChange((uri) => void this.pushFile(uri, FileChange.Changed, budget, notify)),
         watcher.onDidDelete((uri) => {
-          this.host.delete(uri.toString());
-          notify([{ uri: uri.toString(), type: 3 }]);
+          this.deleteTracked(uri);
+          notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
         }),
       );
     }
   }
 
+  /**
+   * Sweep folders added to the workspace after startup, and withdraw the files
+   * of folders removed from it.
+   *
+   * Without this an added folder is invisible until the server restarts, and a
+   * removed one keeps answering out of the store for files no longer in the
+   * workspace.
+   */
+  watchFolders(
+    budget: WorkspaceSyncBudget,
+    notify: (changes: Array<{ uri: string; type: number }>) => void,
+  ): void {
+    this.watchers.push(
+      vscode.workspace.onDidChangeWorkspaceFolders((event) => {
+        for (const folder of event.removed) {
+          const prefix = folder.uri.toString().replace(/\/?$/, "/");
+          const withdrawn: Array<{ uri: string; type: number }> = [];
+          for (const key of [...this.stored.keys()]) {
+            if (key.startsWith(prefix)) {
+              this.deleteTracked(vscode.Uri.parse(key));
+              withdrawn.push({ uri: key, type: FileChange.Deleted });
+            }
+          }
+          if (withdrawn.length > 0) {
+            this.log(`[web] folder removed: withdrew ${withdrawn.length} file(s) from the store`);
+            notify(withdrawn);
+          }
+        }
+        if (event.added.length > 0) {
+          void this.primeFolders(event.added, budget, notify);
+        }
+      }),
+    );
+  }
+
+  /** Read one or more newly-added folders into the store, within budget. */
+  private async primeFolders(
+    folders: readonly vscode.WorkspaceFolder[],
+    budget: WorkspaceSyncBudget,
+    notify: (changes: Array<{ uri: string; type: number }>) => void,
+  ): Promise<void> {
+    this.warnAboutNonFileSchemes(folders);
+    const found = new Map<string, vscode.Uri>();
+    for (const folder of folders) {
+      for (const glob of this.globs) {
+        try {
+          for (const uri of await vscode.workspace.findFiles(
+            new vscode.RelativePattern(folder, glob),
+          )) {
+            found.set(uri.toString(), uri);
+          }
+        } catch (err) {
+          this.log(`[web] file search failed for ${glob} in ${folder.name}: ${String(err)}`);
+        }
+      }
+    }
+    const added: Array<{ uri: string; type: number }> = [];
+    for (const uri of [...found.values()].sort((left, right) =>
+      left.toString().localeCompare(right.toString()),
+    )) {
+      if (await this.pushFile(uri, FileChange.Created, budget, () => {})) {
+        added.push({ uri: uri.toString(), type: FileChange.Created });
+      }
+    }
+    this.log(`[web] folder added: ${added.length}/${found.size} file(s) sent to the store`);
+    if (added.length > 0) {
+      notify(added);
+    }
+  }
+
+  /**
+   * Send one created/changed file, honouring the budget.
+   *
+   * Returns whether the store now holds the file's current contents.
+   *
+   * The two refusals below both *withdraw* a file the store already had rather
+   * than leaving the previous copy in place. A file that grew past the cap is
+   * the case that matters: leaving the old contents there means the server
+   * keeps answering — confidently — out of a copy that no longer exists on
+   * disk. An absent file gives a visibly incomplete answer; a stale one gives
+   * a wrong answer that looks complete.
+   */
   private async pushFile(
     uri: vscode.Uri,
     changeType: number,
     budget: WorkspaceSyncBudget,
     notify: (changes: Array<{ uri: string; type: number }>) => void,
-  ): Promise<void> {
+  ): Promise<boolean> {
+    let bytes: Uint8Array;
     try {
-      const bytes = await vscode.workspace.fs.readFile(uri);
-      if (bytes.byteLength > budget.maxFileBytes) {
-        this.log(
-          `[web] ${uri.toString()} changed but is over ` +
-            `tclLsp.web.workspaceSync.maxFileBytes (${bytes.byteLength} bytes) — not sent`,
-        );
-        return;
-      }
-      this.host.upsert(uri.toString(), decoder.decode(bytes));
+      bytes = await vscode.workspace.fs.readFile(uri);
     } catch (err) {
       this.log(`[web] could not read changed file ${uri.toString()}: ${String(err)}`);
-      return;
+      return false;
     }
+
+    const withdraw = (why: string): boolean => {
+      const held = this.deleteTracked(uri);
+      this.logLiveSkip(
+        `[web] ${uri.toString()} ${why} — ${held ? "withdrawn from the store" : "not sent"}`,
+      );
+      if (held) {
+        notify([{ uri: uri.toString(), type: FileChange.Deleted }]);
+      }
+      return false;
+    };
+
+    if (bytes.byteLength > budget.maxFileBytes) {
+      return withdraw(`is over tclLsp.web.workspaceSync.maxFileBytes (${bytes.byteLength} bytes)`);
+    }
+    if (!this.fits(uri, bytes.byteLength, budget)) {
+      return withdraw("does not fit the workspace budget");
+    }
+
+    this.upsertTracked(uri, decoder.decode(bytes), bytes.byteLength);
     notify([{ uri: uri.toString(), type: changeType }]);
+    return true;
   }
 
   dispose(): void {
     for (const watcher of this.watchers.splice(0)) {
       watcher.dispose();
     }
+    // The session this tracked is over and the store it described goes with
+    // its worker; nothing should be able to read the accounting back.
+    this.stored.clear();
+    this.storedBytes = 0;
   }
 }

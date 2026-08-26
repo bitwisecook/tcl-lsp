@@ -114,7 +114,14 @@ What differs from the desktop:
   explorer, the spec studio, the Tk preview, "Copy file as base64", the package
   scaffolder, and the `@irule` / `@tcl` / `@tk` chat participants need a process
   or a filesystem. Invoking one on the web reports which, rather than failing
-  obscurely.
+  obscurely — the commands show a message naming the reason, and the chat
+  participants answer in the chat with theirs.
+- **Diagnostics can appear on non-file documents.** A web workspace has no
+  single URI scheme to pin to, so Tcl documents are matched on *any* scheme.
+  A side effect is that a Tcl file opened from another provider — the original
+  side of a diff, say — is analysed too. Set
+  `tclLsp.suppressDiagnosticsInDiffEditors` if you would rather diff views
+  stayed clean.
 - **Cross-file analysis is limited on a virtual workspace.** The browser server
   has no filesystem, so the extension reads the workspace itself and hands the
   files to the server. That transfer currently only carries files on the `file:`

@@ -265,6 +265,36 @@ channel with the setting that would include it. A workspace the server has only
 part of gives confident single-file answers and quietly incomplete cross-file
 ones, which is the failure mode the budget must never cause without saying so.
 
+The budget is a property of the **session**, not of the startup sweep, so the
+host tracks what the store holds (URI → byte length) and applies the same caps
+to the watcher. Two consequences are load-bearing rather than incidental:
+
+- A tree that generates files while the editor is open cannot grow the store
+  past the caps one create at a time.
+- A file that grows past `maxFileBytes` — or no longer fits the total — is
+  **withdrawn** (`delete` plus a `didChangeWatchedFiles` deletion), not left
+  behind. Keeping the previous copy would leave the server answering out of
+  contents that no longer exist: an absent file gives a visibly incomplete
+  answer, a stale one gives a wrong answer that looks complete.
+
+### Restarting means rebuilding the worker
+
+**A host must not restart the server by stopping and starting the same worker.**
+`shutdown` + `exit` drive the server to `State::Exited`; the pump loop in
+`rust/tcl-lsp-server-wasm/src/lib.rs` then breaks out of
+`while let Some(text) = queue.next().await` on the next `poll_ready` error and
+drops its inbox, so every later `send` is discarded — including the
+re-`initialize`. The client's `start()` never resolves and the session is dead
+with no error anywhere.
+
+Restart is therefore: stop the client (bounded — a wedged worker must not block
+the rebuild), `terminate()` the worker, and build a fresh worker, store sweep,
+and client. Re-reading the budget at that point is what makes "raise the limit
+and restart" work at all. The VS Code host's web smoke test asserts this
+directly (restart returns, the client object is a new one, and the server
+answers afterwards); with the stop/start shape that test hangs rather than
+failing, which is why its wait is bounded.
+
 **Known gap.** On github.dev and vscode.dev the workspace is on a virtual
 scheme (`vscode-vfs:`), so by the rule above every upsert is discarded and only
 open documents are analysed. The host says so at startup rather than leaving it
