@@ -270,11 +270,23 @@ array and the event array. Verified against wasmtime 47.0.3:
 
 A host that refuses an `fd_read` subscription on stdin is handled rather than
 assumed away, though it is worth being blunt about how much is left. Only a
-permanent refusal latches the degraded mode — `ENOTSUP`, `EINVAL` or `EBADF`,
-the errnos that mean the host will never poll stdin; `EINTR` and other
-transient failures are retried a bounded number of times and otherwise reported
-as "nothing arrived", because treating a passing failure as a permanent one
-would throw away the good path for the rest of the session.
+permanent refusal latches the degraded mode — `ENOTSUP`, `ENOSYS`, `EINVAL`,
+`EBADF`, `ENOTCAPABLE`, `EPERM`, `EACCES` or `ENOTSOCK`, the errnos that name
+the host rather than the moment: an unimplemented call, a rejected
+subscription, a descriptor the host will not poll, and the rights or policy
+refusals that preview1 can only tighten over a process's life, never relax.
+`EINTR` and other transient failures — and any errno the classification does
+not name — are retried a bounded number of times and otherwise reported as
+"nothing arrived", because treating a passing failure as a permanent one would
+throw away the good path for the rest of the session.
+
+The two mistakes are not symmetric, which is what sets that bar. A transient
+misread as permanent costs the good path; a permanent refusal misread as
+transient *hangs the session*, because every wait then exhausts its retries and
+reports "nothing arrived", the degraded mode never latches, and the blocking
+read that would have worked is never reached. `ENOTCAPABLE` — a host that
+grants stdin `fd_read` but not the polling right — is exactly that shape, and
+is classified accordingly.
 
 Once latched, the wait becomes a clock-only `poll_oneoff` followed by a read —
 and since `fill_buf` on wasip1 stdin blocks, that read parks the thread until
@@ -294,6 +306,14 @@ so `std`'s own buffering can never hold bytes that the readiness poll cannot
 see. Frames are decoded incrementally (`src/framing.rs`): a partial frame yields
 nothing and leaves the decoder ready for the rest, which a driver that has to
 hand the thread back after every read cannot do without.
+
+A header's `Content-Length` is client-supplied arithmetic, so the decoder never
+trusts it to fit: the body's end index is computed with `checked_add`, and a
+length that would carry it past the end of the address space is reported as a
+malformed frame and recovered from exactly as a missing length is — drop the
+header block, resynchronise on the next `Content-Length:`, keep the session.
+The release profile compiles with overflow checks off and `panic = "abort"`, so
+an unchecked index there would not be a wrong answer but a dead session.
 
 stdout has exactly one writer. Responses from detached calls and server-initiated
 requests both land on one unbounded queue that the driver drains, so two

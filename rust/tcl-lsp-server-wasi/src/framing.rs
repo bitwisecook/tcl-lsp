@@ -54,9 +54,9 @@ impl Decoder {
     ///
     /// Returns `None` when the buffer holds only part of a frame — the caller
     /// reads more and asks again. A frame whose headers are malformed (no
-    /// `Content-Length`, or an unparseable one) is dropped along with its
-    /// header block rather than wedging the stream: the next `\r\n\r\n`
-    /// resynchronises.
+    /// `Content-Length`, an unparseable one, or one naming a body that no
+    /// address space could hold) is dropped along with its header block rather
+    /// than wedging the stream: the next `\r\n\r\n` resynchronises.
     ///
     /// # What that recovery can and cannot do
     ///
@@ -95,15 +95,26 @@ impl Decoder {
             return Some(Err(FrameError::MissingContentLength));
         };
         let body_start = header_end + header_len;
-        if self.buffer.len() < body_start + length {
+        // Checked, because `length` is whatever the client wrote and the
+        // release profile leaves overflow checks off: a wrapped end index
+        // would pass the completeness test below and then slice backwards,
+        // and a panic in this module is a process abort (`panic = "abort"`
+        // on wasip1), so one hostile header would end the session.
+        let Some(body_end) = body_start.checked_add(length) else {
+            self.buffer.drain(..body_start);
+            self.resynchronise();
+            return Some(Err(FrameError::ContentLengthOutOfRange));
+        };
+        if self.buffer.len() < body_end {
             return None;
         }
-        let body: Vec<u8> = self.buffer[body_start..body_start + length].to_vec();
-        self.buffer.drain(..body_start + length);
+        let body: Vec<u8> = self.buffer[body_start..body_end].to_vec();
+        self.buffer.drain(..body_end);
         Some(String::from_utf8(body).map_err(|_| FrameError::NotUtf8))
     }
 
-    /// Drop the orphaned body left by a length-less header block.
+    /// Drop the orphaned body left by a header block that named no usable
+    /// length.
     ///
     /// Advances the buffer to the next `Content-Length:`, which is where the
     /// next well-formed frame begins. If there is no such text yet the buffer
@@ -121,6 +132,9 @@ impl Decoder {
 pub enum FrameError {
     /// The header block carried no usable `Content-Length`.
     MissingContentLength,
+    /// The `Content-Length` named a body reaching past the end of the address
+    /// space, so no read could ever complete the frame.
+    ContentLengthOutOfRange,
     /// The body was not valid UTF-8. JSON-RPC over LSP is always UTF-8.
     NotUtf8,
 }
@@ -129,6 +143,9 @@ impl std::fmt::Display for FrameError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::MissingContentLength => f.write_str("a header block with no Content-Length"),
+            Self::ContentLengthOutOfRange => {
+                f.write_str("a Content-Length larger than the address space can hold")
+            }
             Self::NotUtf8 => f.write_str("a message body that is not valid UTF-8"),
         }
     }
@@ -303,6 +320,44 @@ mod tests {
         let framed = encode("{\"jsonrpc\":\"2.0\"}");
         let messages = decode_all(&[&framed]);
         assert_eq!(messages, vec![Ok("{\"jsonrpc\":\"2.0\"}".to_owned())]);
+    }
+
+    /// A `Content-Length` no address space can hold is a malformed frame, not
+    /// a fatal one.
+    ///
+    /// The end index is `body_start + length`, and `length` is whatever the
+    /// client wrote: unchecked, it wraps below `body_start`, passes the
+    /// completeness test, and slices backwards. Under `panic = "abort"` that
+    /// ends the session, so the property under test is that the decoder
+    /// survives the frame *and* still parses the next one.
+    #[test]
+    fn a_content_length_near_usize_max_is_rejected_and_the_next_frame_decodes() {
+        let stream = format!(
+            "Content-Length: {}\r\n\r\n{{\"orphaned\":true}}Content-Length: 2\r\n\r\n{{}}",
+            usize::MAX
+        );
+        let messages = decode_all(&[stream.as_bytes()]);
+        assert_eq!(
+            messages,
+            vec![
+                Err(FrameError::ContentLengthOutOfRange),
+                Ok("{}".to_owned())
+            ]
+        );
+    }
+
+    /// Every length that *can* address a body stays a completeness question.
+    ///
+    /// The rejection above is about representability alone — an enormous but
+    /// addressable length is simply a frame that has not arrived yet, and the
+    /// decoder must keep waiting for it rather than reporting an error.
+    #[test]
+    fn a_huge_but_addressable_content_length_is_merely_incomplete() {
+        let mut decoder = Decoder::new();
+        decoder.push(format!("Content-Length: {}\r\n\r\n", usize::MAX / 2).as_bytes());
+        decoder.push(b"{}");
+        assert!(decoder.next_message().is_none());
+        assert!(decoder.buffered() > 0);
     }
 
     #[test]
