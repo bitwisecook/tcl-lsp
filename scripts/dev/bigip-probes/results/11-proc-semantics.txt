@@ -1,0 +1,85 @@
+Proc semantics + disabled-command mechanism split — 2026-08-26, BIG-IP 21.1.0.1
+Driver: lib/e4-context-probe.sh   Cases: suites/11-proc-semantics.cases
+Runtime-reachability rule: irules/proc-semantics/ctx_disabled_runtime.conf
+
+======== E4.1 inventory (no configuration change) ========
+
+Sys::Version
+Main Package 
+  Product      BIG-IP
+  Version      21.1.0.1
+  Build        0.0.26
+  Edition      Point Release 1
+  Date         Tue Jul 14 05:03:24 PDT 2026
+  FIPS Module  Cryptographic Module for BIG-IP
+
+-- tmsh binary --
+usage: tmsh <options ...> <command>
+  An option may be specified once. A command may follow the options, in
+-- host tcl binaries --
+lrwxrwxrwx. 1 root root    8 Aug  2 11:32 /usr/bin/tclsh -> tclsh8.5
+-rwxr-xr-x. 1 root root 7192 Jul 10 12:46 /usr/bin/tclsh8.4
+-rwxr-xr-x. 1 root root 7192 Jul 10 13:00 /usr/bin/tclsh8.5
+-- policy/system --
+shell user: root (uid 0)
+sys db systemauth.disablebash { value "false"}
+
+======== E4.2 HostShellTcl (HOST ONLY — not a BIG-IP execution context) ========
+-- /usr/bin/tclsh8.4 --
+TCLLSPPROBE|HostShellTcl|0| p_define_call rc=0 v=(42) ;; p_no_args rc=0 v=(plain) ;; p_default_arg rc=0 v=(7) ;; p_varargs rc=0 v=(3) ;; p_recursion rc=0 v=(120) ;; p_upvar rc=0 v=(9) ;; p_global rc=0 v=(11) ;; p_nested_define rc=0 v=(in)
+TCLLSPPROBE|HostShellTcl|1| p_redefine rc=0 v=(two) ;; p_info_procs rc=0 v=(__p10) ;; p_call_cmd rc=1 v=(invalid command name "call") ;; p_proc_in_proc_scope rc=0 v=(3) ;; p_return_code rc=0 v=(boom) ;; p_rename rc=0 v=(orig) ;; p_uplevel rc=0 v=(4) ;; REPORTED patchlevel=8.4.13 tclversion=8.4 tcl_patchLevel=8.4.13 tmshversion=n/a
+TCLLSPPROBE|HostShellTcl|2| REPORTED ncommands=101 ;; REPORTED tcl_platform(8) byteOrder=littleEndian,machine=x86_64,os=Linux,osVersion=3.10.0-862.14.4.el7.ve.x86_64,platform=unix,threaded=1,user=root,wordSize=8
+-- /usr/bin/tclsh8.5 --
+TCLLSPPROBE|HostShellTcl|0| p_define_call rc=0 v=(42) ;; p_no_args rc=0 v=(plain) ;; p_default_arg rc=0 v=(7) ;; p_varargs rc=0 v=(3) ;; p_recursion rc=0 v=(120) ;; p_upvar rc=0 v=(9) ;; p_global rc=0 v=(11) ;; p_nested_define rc=0 v=(in)
+TCLLSPPROBE|HostShellTcl|1| p_redefine rc=0 v=(two) ;; p_info_procs rc=0 v=(__p10) ;; p_call_cmd rc=1 v=(invalid command name "call") ;; p_proc_in_proc_scope rc=0 v=(3) ;; p_return_code rc=0 v=(boom) ;; p_rename rc=0 v=(orig) ;; p_uplevel rc=0 v=(4) ;; REPORTED patchlevel=8.5.13 tclversion=8.5 tcl_patchLevel=8.5.13 tmshversion=n/a
+TCLLSPPROBE|HostShellTcl|2| REPORTED ncommands=108 ;; REPORTED tcl_platform(9) byteOrder=littleEndian,machine=x86_64,os=Linux,osVersion=3.10.0-862.14.4.el7.ve.x86_64,platform=unix,pointerSize=8,threaded=1,user=root,wordSize=8
+
+======== E4.3 TmshCliScript ========
+TCLLSPPROBE|TmshCliScript|0| p_define_call rc=0 v=(42) ;; p_no_args rc=0 v=(plain) ;; p_default_arg rc=0 v=(7) ;; p_varargs rc=0 v=(3) ;; p_recursion rc=0 v=(120) ;; p_upvar rc=0 v=(9) ;; p_global rc=0 v=(11) ;; p_nested_define rc=0 v=(in)
+TCLLSPPROBE|TmshCliScript|1| p_redefine rc=0 v=(two) ;; p_info_procs rc=0 v=(__p10) ;; p_call_cmd rc=1 v=(invalid command name "call") ;; p_proc_in_proc_scope rc=0 v=(3) ;; p_return_code rc=0 v=(boom) ;; p_rename rc=0 v=(orig) ;; p_uplevel rc=0 v=(4) ;; REPORTED patchlevel=8.4.6 tclversion=8.4 tcl_patchLevel=UNSET tmshversion=21.1.0.1
+TCLLSPPROBE|TmshCliScript|2| REPORTED ncommands=111 ;; REPORTED tcl_platform(0) 
+CLEANUP-PROOF cli script = absent (ok)
+
+======== E4.4 TmmIRule (unattached rule; RULE_INIT runs once per TMM) ========
+-- attached to any virtual server? (E4.7) --
+not attached (ok)
+TCLLSPPROBE|TmmIRule|0| p_define_call rc=0 v=(42) ;; p_no_args rc=0 v=(plain) ;; p_default_arg rc=0 v=(7) ;; p_varargs rc=0 v=(3) ;; p_recursion rc=0 v=(120) ;; p_upvar rc=0 v=(9) ;; p_global rc=0 v=(11) ;; p_nested_define rc=0 v=(in)
+TCLLSPPROBE|TmmIRule|1| p_redefine rc=0 v=(two) ;; p_info_procs rc=0 v=(__p10) ;; p_call_cmd rc=1 v=(proc __p11 not found (line 1)     invoked from within "call ...) ;; p_proc_in_proc_scope rc=0 v=(3) ;; p_return_code rc=0 v=(boom) ;; p_rename rc=0 v=(orig) ;; p_uplevel rc=0 v=(4) ;; REPORTED patchlevel=8.4.6 tclversion=8.4 tcl_patchLevel=8.4.6 tmshversion=n/a
+TCLLSPPROBE|TmmIRule|2| REPORTED ncommands=168 ;; REPORTED tcl_platform(7) byteOrder=littleEndian,machine=bigip-21-1-0-1.bragi0.com,os=BIG-IP,osVersion=21.1.0,platform=unix,tmmVersion=26,wordSize=8
+CLEANUP-PROOF ltm rule = absent (ok)
+
+======== E4.4b command resolution time (TmmIRule) ========
+REJECTED at load: error: [undefined procedure: __no_such_command__]
+=> iRules resolve command names at rule load, even inside catch.
+CLEANUP-PROOF unknown-cmd rule = absent (ok)
+
+======== E4.5 IAppImplementation ========
+TCLLSPPROBE|IAppImplementation|0| p_define_call rc=0 v=(42) ;; p_no_args rc=0 v=(plain) ;; p_default_arg rc=0 v=(7) ;; p_varargs rc=0 v=(3) ;; p_recursion rc=0 v=(120) ;; p_upvar rc=0 v=(9) ;; p_global rc=0 v=(11) ;; p_nested_define rc=0 v=(in)
+TCLLSPPROBE|IAppImplementation|1| p_redefine rc=0 v=(two) ;; p_info_procs rc=0 v=(__p10) ;; p_call_cmd rc=1 v=(invalid command name "call") ;; p_proc_in_proc_scope rc=0 v=(3) ;; p_return_code rc=0 v=(boom) ;; p_rename rc=0 v=(orig) ;; p_uplevel rc=0 v=(4) ;; REPORTED patchlevel=8.4.6 tclversion=8.4 tcl_patchLevel=8.4.6 tmshversion=21.1.0.1
+TCLLSPPROBE|IAppImplementation|2| REPORTED ncommands=111 ;; REPORTED tcl_platform(7) byteOrder=littleEndian,machine=x86_64,os=Linux,osVersion=3.10.0-862.14.4.el7.ve.x86_64,platform=unix,user=,wordSize=4
+CLEANUP-PROOF iApp service = absent (ok)
+CLEANUP-PROOF iApp template = absent (ok)
+
+======== E4.6 APL presentation contexts ========
+IAppPresentationApl          = Unknown (no non-interactive renderer exercised)
+IAppPresentationTclCallback  = Unknown (no non-interactive renderer exercised)
+(the IAppImplementation result above must NOT be copied into either row)
+
+======== E4.7 final state ========
+residual probe objects:
+  ltm rule            : 0
+  cli script          : 0
+  application template: 0
+  application service : 0
+save sys config: NOT RUN
+
+================================================================================
+Runtime reachability of the 31 load-disabled commands (TmmIRule, via eval)
+ABSENT  = interpreter reports 'invalid command name' -> not in the build
+PRESENT = any other error -> in the interpreter, refused only by the rule compiler
+================================================================================
+TCLLSPPROBE|TmmIRule|dis0| auto_execok=ABSENT auto_import=ABSENT auto_load=ABSENT auto_qualify=ABSENT cd=ABSENT eof=PRESENT exec=ABSENT exit=ABSENT
+TCLLSPPROBE|TmmIRule|dis1| fblocked=PRESENT fconfigure=ABSENT fcopy=PRESENT file=ABSENT flush=PRESENT gets=PRESENT glob=ABSENT interp=PRESENT
+TCLLSPPROBE|TmmIRule|dis2| load=ABSENT namespace=PRESENT open=ABSENT package=PRESENT pid=PRESENT pwd=ABSENT rename=PRESENT seek=PRESENT
+TCLLSPPROBE|TmmIRule|dis3| socket=ABSENT source=ABSENT tell=PRESENT time=PRESENT unknown=ABSENT update=PRESENT vwait=PRESENT
+CLEANUP-PROOF absent (ok)

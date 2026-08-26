@@ -416,6 +416,99 @@ rejected at load with the "disabled" wording (§5).
 
 ---
 
+## 4b. Procedures, and what actually separates the contexts
+
+### Ordinary procs work everywhere, including iRules
+
+Fifteen proc cases run through the same four-wrapper harness
+([`suites/11-proc-semantics.cases`](../../scripts/dev/bigip-probes/suites/11-proc-semantics.cases),
+transcript [`results/11-proc-semantics.txt`](../../scripts/dev/bigip-probes/results/11-proc-semantics.txt)).
+Fourteen of fifteen are **identical in all three F5 contexts**:
+
+| Case | TmmIRule | TmshCliScript | IAppImplementation |
+| --- | --- | --- | --- |
+| define + direct call | `42` | `42` | `42` |
+| no args / default arg / varargs | `plain` / `7` / `3` | same | same |
+| recursion (`5!`) | `120` | `120` | `120` |
+| `upvar` / `global` / `uplevel` | `9` / `11` / `4` | same | same |
+| proc defined inside a proc | `in` | `in` | `in` |
+| redefinition wins | `two` | `two` | `two` |
+| `info procs` | `__p10` | `__p10` | `__p10` |
+| `return -code error` | `boom` | `boom` | `boom` |
+| `rename` a proc | `orig` | `orig` | `orig` |
+| **`call <proc>`** | **`proc __p11 not found`** | **`invalid command name "call"`** | **`invalid command name "call"`** |
+
+So the answer to "can tmsh and iApps have regular procs with regular proc
+calls?" is **yes, unreservedly** — and so can iRules, *at runtime*. What iRules
+add is not a restriction on `proc` itself but a **load-time** rule: a proc
+written at rule top level is reachable only through `call`, because a literal
+command head must resolve when the rule is loaded (§4a). Define a proc at
+runtime and call it directly and TMM is perfectly happy.
+
+`call` itself is an `f5-irules` command: it exists only in TMM, and even there it
+resolves *rule* procs, not runtime-defined ones — hence
+`proc __p11 not found` rather than `invalid command name`.
+
+### The 31 "disabled" commands are two mechanisms, not one
+
+Re-probing each of the 31 through `eval` at runtime splits them exactly
+([`ctx_disabled_runtime.conf`](../../scripts/dev/bigip-probes/irules/proc-semantics/ctx_disabled_runtime.conf)):
+
+**Absent from TMM's interpreter (16)** — `invalid command name` even via `eval`:
+
+```
+auto_execok  auto_import  auto_load  auto_qualify  cd    exec  exit
+fconfigure   file         glob       load          open  pwd   socket
+source       unknown
+```
+
+**Present in the interpreter, refused only by the rule compiler (15)** —
+reachable via `eval`, and `rename` demonstrably works:
+
+```
+eof  fblocked  fcopy  flush  gets  interp  namespace  package
+pid  rename    seek   tell   time  update  vwait
+```
+
+The first group is a smaller interpreter build. The second is **pure load-time
+policy** — the commands are right there, and only the compiler's opinion stops
+you. That distinction matters for diagnostics: the second group is a policy
+warning about rule *source*, not a statement about the language.
+
+### Recommended model: `f5-tcl` with `f5-irules` as an offshoot
+
+The measurements support splitting the F5 story in two, rather than treating
+`f5-irules` as the sole F5 dialect:
+
+**`f5-tcl` — the shared fork.** Everything the three contexts agree on:
+
+- the parser: R-rules, N-rules, inert `{*}`, the exact `${name}` / bare-word
+  gating (§1, §2, §4a)
+- the `expr` extensions: `starts_with`, `ends_with`, `contains`, `equals`,
+  `matches`, `matches_glob`, `matches_regex`, and word-form `and` / `or` / `not`
+  — **present in tmsh and iApps too, not iRules-only**
+- Tcl 8.4.6 semantics throughout, including 8.4 numerals (`0b101` fails)
+- ordinary `proc` semantics in full
+
+**`f5-irules` — an offshoot of `f5-tcl`,** adding, and only in TMM:
+
+- closed-world command resolution **at rule load**, unaffected by `catch`
+- the event model: `when` blocks, per-event command validity, duplicate/nested
+  event rejection, `priority` 0–1000 (default 500)
+- declaration-only top level; top-level `proc` reachable only via `call`
+- the 15-command load-time policy ban, plus a 16-command smaller interpreter
+- `expr` math-function validation at load
+
+**`f5-tmsh` and `f5-iapps`** then become `f5-tcl` **environments**, differing
+from each other only in ambient packages and host facts — `exec` present,
+`tcl_platform` empty vs real-Linux, `package names` small vs large — with no
+grammar delta between them at all.
+
+This keys the F1 execution contexts without inventing a family per context, and
+it puts each measured fact at the level where it was actually observed.
+
+---
+
 ## 5. Command availability
 
 All 85 stock Tcl 8.4 builtins were probed individually against the iRule
