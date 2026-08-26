@@ -18,7 +18,7 @@ editor) need the `tcl-lsp-server-<target-triple>` binary from
 | Editor | Artefact | Install |
 |--------|----------|---------|
 | [VS Code](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` (manual) or an auto-selected platform package | `code --install-extension`, or VS Code Marketplace |
-| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style), or Open VSX |
 | [Sublime Text](#sublime-text) | `Tcl.sublime-package` | Package Control: install **Tcl-LSP**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<triple>` | Lua config |
@@ -103,6 +103,13 @@ code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
 
 (Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
 "Install from VSIX" entry in their Extensions panel.)
+
+The extension is also published to **Open VSX**
+(<https://open-vsx.org/extension/bitwisecook/tcl-lsp>), the marketplace
+that code-server, openvscode-server, Gitpod, and Theia point at by
+default. Where one of those is configured with the Open VSX registry,
+install `tcl-lsp` from its built-in Extensions panel directly instead
+of sideloading a `.vsix`.
 
 ## Sublime Text
 

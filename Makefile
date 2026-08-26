@@ -45,6 +45,7 @@ NPM      := npm
 NODE_BIN := $(EXT_DIR)/node_modules/.bin
 TSC      := $(NODE_BIN)/tsc
 VSCE     := $(NODE_BIN)/vsce
+OVSX     := $(NODE_BIN)/ovsx
 VSCODE   ?= code
 
 # Stamps (used to avoid re-running expensive steps when deps haven't changed)
@@ -203,8 +204,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: claude-skills
 .PHONY: smoke-vsix
 # Packaging + publish + release
-.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
+.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix publish-openvsx
+.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets publish-openvsx-targets
 .PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
@@ -253,6 +254,24 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 		echo "    (or set VSCE_PAT to use the legacy stored-PAT path instead.)"; \
 		exit 1; \
 	fi
+
+publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / openvscode-server / Gitpod / Theia; laptop fallback; CI is the primary path)
+	@echo "==> Publishing $(VSIX_FILE) to Open VSX"
+	@# Releases normally publish via ovsx from CI (job publish-vsix-openvsx,
+	@# secrets.OVSX_PAT on the protected marketplace-openvsx Environment).
+	@# This laptop target is the fallback for when that CI job fails.
+	@# Open VSX has no keyless credential flow like vsce's Azure Entra path —
+	@# OVSX_PAT (a token from https://open-vsx.org/user-settings/tokens,
+	@# scoped to the bitwisecook namespace) must be set.
+	@if [ -n "$(VSCE_PRERELEASE_FLAG)" ]; then \
+		echo "    Pre-release channel (odd-minor $(VERSION)) — publishing with --pre-release."; \
+	fi
+	@if [ -z "$${OVSX_PAT:-}" ]; then \
+		echo "    OVSX_PAT is not set."; \
+		echo "    Generate a token at https://open-vsx.org/user-settings/tokens and export OVSX_PAT."; \
+		exit 1; \
+	fi
+	cd $(STAGE_DIR) && $(OVSX) publish $(VSCE_PRERELEASE_FLAG) --packagePath $(VSIX_FILE)
 
 $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
@@ -392,6 +411,19 @@ publish-vsix-targets: package-vsix-targets ## Publish the six platform-targeted 
 			echo "    (or set VSCE_PAT to use the legacy stored-PAT path instead.)"; \
 			exit 1; \
 		fi; \
+	done
+
+publish-openvsx-targets: package-vsix-targets ## Publish the six platform-targeted .vsix files to Open VSX (laptop fallback; CI is the primary path)
+	@set -eu; \
+	if [ -z "$${OVSX_PAT:-}" ]; then \
+		echo "    OVSX_PAT is not set."; \
+		echo "    Generate a token at https://open-vsx.org/user-settings/tokens and export OVSX_PAT."; \
+		exit 1; \
+	fi; \
+	for vt in $(VSCE_TARGETS); do \
+		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
+		echo "==> Publishing $$f to Open VSX"; \
+		(cd $(STAGE_DIR) && $(OVSX) publish $(VSCE_PRERELEASE_FLAG) --packagePath "$$f"); \
 	done
 
 # Test targets
@@ -1868,7 +1900,7 @@ release-prepare: ## Preflight + benchmark + notes + verify + commit for V=x.y.z 
 release-rust-tag: ## Verify the prepared artefacts, then tag V=x.y.z (rust line)
 	@bash $(ROOT)scripts/release/rust_release.sh tag $(V)
 
-publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-vsix-targets publish-openvsx publish-openvsx-targets publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
@@ -1896,19 +1928,20 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
 	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"
 	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
-	@echo "     # then VS Code + JetBrains publish from CI behind the approval gate"
+	@echo "     # then VS Code + Open VSX + JetBrains publish from CI behind the approval gate"
 	@echo "     # (see docs/design/contracts/release-and-publish.md)"
-	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode"
-	@echo "     and marketplace-jetbrains deployments when prompted"
+	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode,"
+	@echo "     marketplace-openvsx, and marketplace-jetbrains deployments when prompted"
 	@echo "  4. make publish-sublime publish-zed   # local; Sublime + Zed only"
 	@echo ""
 	@echo "  Marketplaces:"
 	@echo "    VS Code    -> CI job publish-vsix-marketplace      (secrets.VSCE_PAT, marketplace-vscode)"
+	@echo "    Open VSX   -> CI job publish-vsix-openvsx          (secrets.OVSX_PAT, marketplace-openvsx)"
 	@echo "    JetBrains  -> CI job publish-jetbrains-marketplace (secrets.JETBRAINS_TOKEN, marketplace-jetbrains)"
 	@echo "    Sublime    -> make publish-sublime  (laptop; git push to mirror)"
 	@echo "    Zed        -> make publish-zed       (laptop; preps a local PR for review)"
 	@echo ""
-	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-jetbrains"
+	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-openvsx / publish-jetbrains"
 
 # The KCS help database is no longer a build step: the native `tcl` binary
 # embeds its help pages directly (see the tcl crate's build.rs).

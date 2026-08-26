@@ -136,6 +136,10 @@ code --install-extension tcl-lsp-vscode-<version>-universal.vsix
 The extension bundles the native server — nothing else to install. Settings
 live under **Settings > Extensions > Tcl**.
 
+Also published to [Open VSX](https://open-vsx.org/extension/bitwisecook/tcl-lsp)
+for code-server, openvscode-server, Gitpod, and Theia — see
+[INSTALL-editors.md](INSTALL-editors.md#vs-code-compatible-editors).
+
 ### Neovim
 
 Copy [`tcl_lsp.lua`](editors/neovim/) to `~/.config/nvim/server/` and enable it

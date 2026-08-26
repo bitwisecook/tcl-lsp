@@ -1669,6 +1669,90 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: bash scripts/release/vsce_publish.sh
 
+  # Open VSX (open-vsx.org) publish — what code-server / openvscode-server /
+  # Gitpod / Theia installs use.  Mirrors publish-vsix-marketplace exactly:
+  # the publish token (OVSX_PAT) is an Environment secret on the protected
+  # `marketplace-openvsx` Environment (required reviewer + a v*-tag-only
+  # deployment policy).  Per the AGENTS.md invariant, a publish secret may
+  # live in CI only when it is stored this way: reachable solely by a job
+  # that targets the protected Environment, which PAUSES for manual approval
+  # and can never run on a non-tag ref.  Hardening carried over from the
+  # VS Code job:
+  #   * OVSX_PAT is scoped to the publish step's `env:` only, so the
+  #     freshly-fetched npm code in `npm ci` never runs with the token in
+  #     its environment.
+  #   * the .vsix is pulled from the GitHub Release (which persists) and
+  #     checksum-verified against the cosign-signed SHA256SUMS — not from a
+  #     workflow artifact, which cleanup-*-artifacts could delete while this
+  #     job sits waiting for approval.
+  #
+  # Gated off until PUBLISH_VSIX_OPENVSX is set (a non-secret flag
+  # variable), so forks/clones without the secret never reach the gate.
+  # Nothing depends on this job, so its approval wait never blocks cleanup.
+  publish-vsix-openvsx:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_VSIX_OPENVSX == 'true'
+    needs: [build-vsix, publish-checksums]
+    runs-on: ubuntu-24.04
+    environment: marketplace-openvsx
+    permissions:
+      contents: read # gh release download
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: corepack enable npm
+
+      - name: Install ovsx from the committed lockfile
+        run: cd editors/vscode && npm ci
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: 'v2.6.3'
+
+      - name: Download the released VSIX and verify against the signed SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          mkdir -p dist && cd dist
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern '*.vsix' --pattern 'SHA256SUMS' \
+            --pattern 'SHA256SUMS.cosign.bundle' --clobber
+          # Verify SHA256SUMS is the manifest publish-checksums actually signed
+          # (keyless OIDC) BEFORE trusting any hash in it.  The Release stays
+          # mutable while this job waits for approval, so an actor with
+          # release-write could otherwise swap the .vsix AND SHA256SUMS as a
+          # self-consistent pair and pass a bare `sha256sum -c`.  Pinning the
+          # cosign identity to this repo's ci.yml on a v* tag makes that swap
+          # detectable.
+          cosign verify-blob \
+            --bundle SHA256SUMS.cosign.bundle \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            --certificate-identity-regexp '^https://github\.com/bitwisecook/tcl-lsp/\.github/workflows/ci\.yml@refs/tags/v' \
+            SHA256SUMS
+          # --ignore-missing: SHA256SUMS lists every release asset; we only
+          # fetched the .vsix, so verify just that one (others are skipped).
+          sha256sum -c --ignore-missing SHA256SUMS
+
+      - name: Publish to Open VSX
+        # Body lives in scripts/release/ovsx_publish.sh: runs only the local
+        # ovsx binary and adds --pre-release for odd-minor 2.x tags
+        # (scripts/release/prerelease.sh is the single source of truth).
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: bash scripts/release/ovsx_publish.sh
+
   # JetBrains Marketplace publish.  Mirrors publish-vsix-marketplace exactly:
   # the publish token (JETBRAINS_TOKEN) is an Environment secret on the
   # protected `marketplace-jetbrains` Environment (required reviewer + a

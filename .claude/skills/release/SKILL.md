@@ -47,8 +47,8 @@ There are two, and they are cut from **different branches**:
 
 | Line | Branch | Channel | GitHub release |
 | --- | --- | --- | --- |
-| **1.x — stable** | `main` | VS Code stable / JetBrains stable | latest |
-| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / JetBrains eap | pre-release, never "latest" |
+| **1.x — stable** | `main` | VS Code stable / Open VSX stable / JetBrains stable | latest |
+| **2.x — pre-release** (the Python → Rust rewrite) | `rust` | VS Code pre-release / Open VSX pre-release / JetBrains eap | pre-release, never "latest" |
 
 Nothing declares which line you are on except the version: `scripts/release/prerelease.sh`
 is the single source of truth, and it says a tag is a pre-release when
@@ -340,18 +340,20 @@ step 9.
 
 ### 9. Editor publishing
 
-**VS Code and JetBrains are published by CI, not here.** When the tag's CI
-run reaches the `publish-vsix-marketplace` and `publish-jetbrains-marketplace`
-jobs, each pauses on its protected Environment (`marketplace-vscode` /
+**VS Code, Open VSX, and JetBrains are published by CI, not here.** When the
+tag's CI run reaches the `publish-vsix-marketplace`, `publish-vsix-openvsx`,
+and `publish-jetbrains-marketplace` jobs, each pauses on its protected
+Environment (`marketplace-vscode` / `marketplace-openvsx` /
 `marketplace-jetbrains`) waiting for a reviewer. CI then publishes the
 released, checksum-verified `.vsix` / plugin `.zip` using the Environment
-secret (`secrets.VSCE_PAT` / `secrets.JETBRAINS_TOKEN`) — no publish token
-ever leaves the laptop, and the channel (stable vs pre-release/eap) is derived
-from the tag by `scripts/release/prerelease.sh`, not passed by hand.
+secret (`secrets.VSCE_PAT` / `secrets.OVSX_PAT` / `secrets.JETBRAINS_TOKEN`) —
+no publish token ever leaves the laptop, and the channel (stable vs
+pre-release/eap) is derived from the tag by `scripts/release/prerelease.sh`,
+not passed by hand.
 
-**Approve both deployments with `gh`, from the release laptop, as part of this
-flow** — there is no need to open the Actions UI. Only do this once step 8 has
-passed: approving is what actually ships to the marketplaces.
+**Approve all three deployments with `gh`, from the release laptop, as part of
+this flow** — there is no need to open the Actions UI. Only do this once step
+8 has passed: approving is what actually ships to the marketplaces.
 
 ```bash
 tag="vX.Y.Z"
@@ -362,11 +364,11 @@ run=$(gh run list --workflow ci.yml --limit 20 \
         --json databaseId,headBranch,event \
         --jq "[.[] | select(.headBranch==\"$tag\" and .event==\"push\")][0].databaseId")
 
-# Both environments wait at once. Check `can_approve` before trying.
+# All three environments wait at once. Check `can_approve` before trying.
 gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
   --jq '.[] | "\(.environment.id)  \(.environment.name)  can_approve=\(.current_user_can_approve)"'
 
-# Approve both in a single call, feeding the ids straight from the query above.
+# Approve all three in a single call, feeding the ids straight from the query above.
 ids=$(gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
         --jq '.[].environment.id')
 gh api "repos/bitwisecook/tcl-lsp/actions/runs/$run/pending_deployments" \
@@ -386,10 +388,11 @@ not a reviewer on that Environment — report that rather than working around it
 
 If `current_user_can_approve` is `false`, the account `gh` is authenticated as
 is not a reviewer on that Environment — report that rather than trying to work
-around it. The laptop targets `make publish-vsix` / `make publish-jetbrains`
-remain only as fallbacks if a CI job itself fails.
+around it. The laptop targets `make publish-vsix` / `make publish-openvsx` /
+`make publish-jetbrains` remain only as fallbacks if a CI job itself fails.
 
-This step's own remaining work is just **Sublime and Zed**.
+This step's own remaining work is just **Sublime and Zed** (Open VSX is
+published by CI alongside the VS Code Marketplace — see the note above).
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
@@ -408,16 +411,17 @@ Then ask which editors to publish to using `AskUserQuestion`:
 > Which editors should be published? (All / None / comma-separated list of: sublime, zed)
 > Default: None
 
-(VS Code and JetBrains are excluded — CI publishes both via the approval
-gates above. Only add `vscode` / `jetbrains` here if you are deliberately
-invoking the laptop fallback because a CI job failed.)
+(VS Code, Open VSX, and JetBrains are excluded — CI publishes all three via
+the approval gates above. Only add `vscode` / `openvsx` / `jetbrains` here if
+you are deliberately invoking the laptop fallback because a CI job failed.)
 
 Based on the response:
 
 - **None** (default): Skip publishing entirely.
 - **All**: Run `make publish-sublime publish-zed`. Do **not** run
-  `make publish-all`: it includes `publish-vsix` and `publish-jetbrains`,
-  which would try to re-publish the versions CI already shipped.
+  `make publish-all`: it includes `publish-vsix`, `publish-openvsx`, and
+  `publish-jetbrains`, which would try to re-publish the versions CI already
+  shipped.
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
@@ -427,6 +431,11 @@ Available targets:
   and runs `vsce publish --azure-credential`. Set `VSCE_PAT` only to force
   the legacy stored-PAT path (discouraged; Azure DevOps global PATs retire
   2026-12-01).
+- `make publish-openvsx` — Open VSX **laptop fallback only** (normally CI
+  publishes it; see the note at the top of this step). No keyless path —
+  requires `OVSX_PAT` (a token from
+  <https://open-vsx.org/user-settings/tokens>, scoped to the `bitwisecook`
+  namespace).
 - `make publish-jetbrains` — JetBrains Marketplace **laptop fallback only**
   (normally CI publishes it). Runs `./gradlew publishPlugin`. Requires
   `JETBRAINS_TOKEN` env var. The first-ever publish must be done
