@@ -52,6 +52,7 @@ pub mod assembly;
 pub mod binding;
 pub mod context;
 pub mod ingress;
+pub mod registration;
 pub mod surface;
 
 pub use assembly::{
@@ -64,6 +65,10 @@ pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
     is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
     static_context_for_profile, static_document_context_for, static_document_context_for_profile,
+};
+pub use registration::{
+    EnvironmentExtension, EnvironmentRegistrationError, live_environments, provenance_label,
+    register_environments,
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,

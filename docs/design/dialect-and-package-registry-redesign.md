@@ -1081,9 +1081,16 @@ maximally.
   family release and names the environment it should have been.
   Conversion to live `Family` data is P3+.
 
-Not yet landed: `provides`, `co_provides`, `dynamic_surface` /
-`unknown_members`, the invocation-refinement descriptor, the seven
-ratified-but-unimplemented words, and `include`.
+**Status (P2-H remainder).** `provides` (with the fallback-provider
+default), `co_provides` (parsed and carried as data; the alias mechanics
+that consume it are P3+), `dynamic_surface` / `unknown_members` (mapping
+to the open-surface facts on commands and object classes), `include`
+(pack-file inclusion under the determinism contract), and the additive
+`environment NAME -extend { … }` form are landed at the shared
+row-reader seam of both loaders — see the centralisation document's §6
+status note for the details and the registration seam that consumes the
+environment blocks. Not yet landed: the invocation-refinement descriptor
+and the seven ratified-but-unimplemented words.
 
 
 | Word | Purpose |

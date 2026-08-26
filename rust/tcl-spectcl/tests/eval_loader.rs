@@ -584,3 +584,96 @@ fn an_unknown_registration_word_classifies_instead_of_erroring() {
         eval.notices
     );
 }
+
+/// The 2.0 word batch loads identically through both loaders — the shared
+/// row-reader seam means neither front end can drift on `provides`,
+/// `co_provides`, `dynamic_surface`/`unknown_members`, or the
+/// `environment -extend` block.
+#[test]
+fn the_new_two_point_oh_words_load_identically_through_both_loaders() {
+    let source = "speclib probe 2.0 {\n\
+                  provides upf 1.0\n\
+                  co_provides Tk -requires-exact tk\n\
+                  environment synopsys-eda-tcl -extend {\n\
+                  \x20   file_extension upfx -name {Probe UPF Extension}\n\
+                  }\n\
+                  command demo {\n\
+                  \x20   arity 1\n\
+                  \x20   dynamic_surface\n\
+                  }\n\
+                  }\n";
+    let cst = load_pack(source);
+    let eval = evaluate_pack(source);
+    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
+    assert_eq!(
+        snapshot(&cst),
+        snapshot(&eval),
+        "{}",
+        first_diff(&snapshot(&cst), &snapshot(&eval))
+    );
+    assert_eq!(cst.provides, eval.provides);
+    assert_eq!(cst.co_provides, eval.co_provides);
+    assert!(eval.environments[0].extends);
+}
+
+/// A straight-line `include` pack loads identically through both loaders:
+/// the CST expansion and the evaluation-side static driver splice the same
+/// fragment under the same content-hash keyed determinism rules.
+#[test]
+fn an_included_fragment_loads_identically_through_both_loaders() {
+    let resolver = |name: &str| match name {
+        "extra.frag" => Ok("command extra {\n arity 2\n}\n".to_owned()),
+        other => Err(format!("no such fragment `{other}`")),
+    };
+    let source = "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n";
+    let cst_context = tcl_spectcl::IncludeContext::new(resolver);
+    let cst = tcl_spectcl::load_pack_with(source, Some(&cst_context));
+    let eval = tcl_spectcl::loader::evaluate_pack_in(
+        source,
+        &EvalOptions::default(),
+        Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(resolver))),
+    );
+    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
+    assert!(eval.notices.is_empty(), "{:#?}", eval.notices);
+    assert_eq!(
+        snapshot(&cst),
+        snapshot(&eval),
+        "{}",
+        first_diff(&snapshot(&cst), &snapshot(&eval))
+    );
+    assert!(cst.command("extra").is_some());
+
+    // Both loaders refuse the same cycle, with the same notice.
+    let cyclic_source = "speclib probe 2.0 {\n include self.frag\n}\n";
+    let cycle = |name: &str| match name {
+        "self.frag" => Ok("include self.frag\n".to_owned()),
+        other => Err(format!("no such fragment `{other}`")),
+    };
+    let cst_cycle = tcl_spectcl::load_pack_with(
+        cyclic_source,
+        Some(&tcl_spectcl::IncludeContext::new(cycle)),
+    );
+    let eval_cycle = tcl_spectcl::loader::evaluate_pack_in(
+        cyclic_source,
+        &EvalOptions::default(),
+        Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(cycle))),
+    );
+    let keys = |pack: &Pack| {
+        let mut keys: Vec<_> = pack
+            .notices
+            .iter()
+            .map(|n| (n.context.clone(), n.class, n.message.clone()))
+            .collect();
+        keys.sort();
+        keys
+    };
+    assert_eq!(keys(&cst_cycle), keys(&eval_cycle));
+    assert!(
+        cst_cycle
+            .notices
+            .iter()
+            .any(|n| n.message.contains("include cycle")),
+        "{:#?}",
+        cst_cycle.notices
+    );
+}

@@ -79,7 +79,11 @@ Rules:
 per-context registry generations, provider-filtered from the same spec
 sources `build_default`/`load_dialect` use, cached by
 `(environment identity, keyed-versions hash)`; dynamic pack ingestion is
-a documented P2 seam), and `binding.rs` (`BindingKnowledge`,
+a documented P2 seam — whose **environment half landed with P2-H**:
+`registration.rs` swaps pack-declared environment definitions and
+`-extend` contributions into the live registry at the next generation
+under the §6.4 trust lattice, and the ingress resolves against it — see
+the §6 status note), and `binding.rs` (`BindingKnowledge`,
 `PackageStateMap`, and the `PackageTransition` family as a parallel type
 pending P1a realm integration). The equivalence sweeps pass with **zero
 divergences** (the deliberate-divergence allowlist is empty): per-spec
@@ -746,12 +750,16 @@ need the P1 environment registry (and R4's ruling); U6 is independent.
   `all-tcl` → `{tcl 8.4-}`, `tcl8.x` → `{tcl 8.4-9.0}` (exclusive maximum
   stated), `f5-irules` → the core family, `tk` → `{package Tk}` on Tk's own
   axis, `f5-bigip` → error.
-- **U3 (partial)** — role discrimination is *detected*, not performed: the
-  five environment-membership tokens (`f5-iapps`, `f5-tmsh`, `expect`,
-  `spectcl`, `bpf`) leave their row byte-identical, gain a
-  `# TODO(spectcl 2.0):` marker above it, and make the file report
-  partially upgraded. The mapping itself waits on the P1 environment
-  registry.
+- **U3** — role discrimination is performed against the live environment
+  registry: a membership token whose environment declares exactly one
+  ambient package translates to that provider (`f5-iapps` →
+  `{package f5-iapps-cmds}`, `f5-tmsh` → `{package f5-tmsh-cmds}`,
+  `expect` → `{package Expect}`), and the loader's `available` reader
+  carries an environment-derived package↔bit table (the exact inverse),
+  so the translated spec is byte-equal. `spectcl` and `bpf` stay markers
+  **by measurement, not by gap**: their environments declare no ambient
+  provider (their surfaces are compiled), so no `available` row can carry
+  the claim yet — the marker names that reason.
 - **U7** — post-rewrite proof through the vocabulary log: the rewritten
   file is re-loaded and every site needing a vocabulary above its own
   declaration is reported.
@@ -759,21 +767,81 @@ need the P1 environment registry (and R4's ruling); U6 is independent.
   by the loader's own lexer and applied back-to-front; `hook` bodies are
   never descended into, because they are arbitrary Tcl rather than pack
   vocabulary.
+- **U4** — `ambient_package NAME VERSION` rehomes into
+  `environment OWNER -extend { ambient NAME VERSION }`, where OWNER is
+  derived by the cannot-infer rule: the pack's sole declared
+  `environment` block, else its sole membership token across `dialects`
+  rows; an ambiguous pack (or a non-plain version) keeps a
+  `# TODO(spectcl 2.0):` marker and reports partial. (No bundled pack
+  uses the row; the path is test-covered.)
+- **U5** — `file_extension … -dialect D` moves its detection into
+  `environment D -extend { … }` (the flag dropped, everything else
+  verbatim); an unresolvable `D` keeps the marker. The bundled pilot —
+  `upf.tclspec`'s `upf` row — translates and verifies.
+- **U6** — `--infer-provides` hoists a uniform `required_package` (the
+  pack-level default, else one identical row in every command) to a
+  pack-level `provides`, whose loader semantics (`provides` is the
+  fallback provider default) keep the snapshot byte-equal. Off by
+  default.
 - **U9** — `--verify` compares `command_entry_json` snapshots of the
   original and the rewritten pack across every dialect a 1.x row can gate
-  on (`tcl8.4`–`tcl9.1`, `f5-irules`).
+  on — the Tcl ladder, `f5-irules`, **and** (since U3 translates them)
+  `f5-iapps`, `f5-tmsh`, `expect`, `spectcl`, `bpf` — plus the
+  **environment-effect snapshot** (`upgrade::environment_effect_snapshot`):
+  the scoped detection and placement rows both forms load to, which is
+  what licenses U4/U5 to move a row's home while proving the registry
+  effect stayed put.
 - **U10** — explicit `--from` / `--to`, downgrades refused.
 
-Over the eight bundled packs today, `--verify` reports **1,167 rows would
+Over the eight bundled packs today, `--verify` reports **1,168 rows would
 translate, 0 left as TODO, 8/8 byte-identical registry snapshots**
 (cadence 77, mentor 69, microchip 1, quartus 77, synopsys 68, xilinx 788,
-sdc_base 86, upf 1). No bundled pack was rewritten.
+sdc_base 86, upf 2 — its `all-tcl` default and its U5 `file_extension`
+row). No bundled pack was rewritten.
 
-Still open: U3's actual mapping, U4 (`ambient_package` → environment-scoped
-`ambient` placement), U5 (`file_extension … -dialect` → detection rows
-inside the `environment` block), and U6 (`--infer-provides`). U3–U5 all
-need the P1 environment registry to be wired into the loader; U6 is
-independent and unstarted.
+**The rest of the P2-H remainder landed with it** (same change):
+
+- The §6.2 words `provides` (+ the fallback-provider default),
+  `co_provides` (parsed and carried as data; the loader-alias mechanics
+  that consume it are P3+), `dynamic_surface` / `unknown_members` (the
+  M8/G-series honesty hatch, mapping to `allow_unknown_subcommands` on
+  commands and `-dynamic-surface`/`-unknown-members` →
+  `allow_unknown_methods` on `object_class`), and `include` (pack-file
+  inclusion under the determinism contract: literal pack-scope names
+  only, resolver-bounded IO — `pack::load` scopes it to the including
+  pack's own directory and bypasses the compiled cache for
+  include-bearing packs — content-hash-keyed cycle rejection, bounded
+  depth, provenance inherited, and the registration record carries the
+  *included statements* so export writes the expansion). Every word is
+  implemented once at the shared row-reader seam (both loaders), rides
+  the export gates, and classifies **semantic** in the §6.1 downgrade
+  table so an older build abstains rather than strengthening.
+- `environment NAME -extend { … }` — the additive form the U4/U5
+  rewrites target: detection rows and placements contributed to an
+  environment declared elsewhere (compiled included); identity rows are
+  rejected, and the §6.4 trust gate on extending a compiled base lives
+  at registration and in the E-R2 evaluation gate.
+- **Live environment registration** (the §1.1 P2 seam):
+  `tcl_registry::model::registration::register_environments` swaps a
+  rebuilt `EnvironmentRegistry` (compiled seed + extensions + dynamic
+  definitions) in at the next generation, transactionally and
+  idempotently; `model::ingress` resolves against the live registry, so
+  invalidation is the generation bump the per-context caches already
+  key on. Trust: reserved-name claims fail with the provenance-naming
+  error for every non-built-in tier; workspace/studio tiers cannot
+  extend compiled environments (`tcl_spectcl::registration` re-applies
+  the E-R2 tier check for CST-loaded packs). The integration gate
+  (`tcl-spectcl/tests/environment_registration.rs`) proves a
+  pack-declared environment resolves through
+  `model::ingress::resolve_environment` with its declared detection
+  facts and ambient placements, and that reserved/untrusted claims fail.
+  `PackDialect` blocks still do not register (Family conversion is
+  P3+); production wiring of `register_pack_environments` into
+  discovery/load is the remaining half.
+
+Still open from this section: nothing in U0–U10. The invocation-refinement
+descriptor and the seven ratified-but-unimplemented words remain §6.2
+work.
 
 ## 7. The name-resolution oracle programme
 

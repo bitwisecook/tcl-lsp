@@ -92,13 +92,17 @@ use tcl_dialect::{DialectProfile, LibraryVersionOverrides};
 use crate::model::assembly::{ContextRegistry, registry_for_environment_if_built};
 use crate::model::context::{KeyedVersions, ResolvedContext};
 
-/// The compiled environment registry, resolved once per process. Pack- or
-/// configuration-declared environments join here when the toolchain gains
-/// a dynamic-environment channel (P2); until then generation 0 is the
-/// whole world, matching the compiled catalogue the old ingress read.
-pub fn environments() -> &'static EnvironmentRegistry {
-    static CELL: OnceLock<EnvironmentRegistry> = OnceLock::new();
-    CELL.get_or_init(EnvironmentRegistry::compiled)
+/// The **live** environment registry: the compiled seed set at
+/// generation 0 until a pack registers environments through
+/// [`crate::model::registration::register_environments`] (the P2
+/// dynamic-environment channel), then each registration's rebuilt
+/// registry at the next generation. Every resolve below reads the live
+/// value, so a registered environment becomes resolvable — and its
+/// generation bump invalidates downstream generation caches — with no
+/// second wiring.
+#[must_use]
+pub fn environments() -> Arc<EnvironmentRegistry> {
+    crate::model::registration::live_environments()
 }
 
 /// One resolved document environment: the definition plus the identity

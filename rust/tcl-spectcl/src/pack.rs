@@ -118,11 +118,12 @@ pub struct MergedPack {
     /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
     /// 2.0), merged first-declaration-wins across the pack's files.
     ///
-    /// Carried, not yet registered: turning these into live
-    /// [`EnvironmentDefinition`](tcl_dialect::model::EnvironmentDefinition)s
-    /// in the runtime registry is P3 wire-up, and
-    /// [`PackEnvironment::to_definition`](crate::PackEnvironment::to_definition)
-    /// is the whole of the conversion it will call.
+    /// Carried; registering them into the live registry is
+    /// [`crate::registration::register_environments`]'s call, which
+    /// consumes exactly these blocks (declarations through
+    /// [`PackEnvironment::to_definition`](crate::PackEnvironment::to_definition),
+    /// `-extend` blocks through `to_extension`) under the §6.4 trust
+    /// lattice.
     pub environments: Vec<crate::loader::PackEnvironment>,
     /// The `dialect NAME { … }` blocks the pack declares (`SpecTcl` 2.0),
     /// merged first-declaration-wins across the pack's files.
@@ -284,7 +285,18 @@ pub(crate) fn load_sources(
     // merge below consumes these `Pack`s rather than re-reading the source.
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
     for (file, source) in sources {
-        let pack = crate::cache::load_pack_cached(&source);
+        // A pack carrying `include` rows loads through a file-system
+        // include context scoped to its own directory, and bypasses the
+        // compiled cache — whose key hashes only this file's bytes and so
+        // cannot see an included file change under it.
+        let pack = if crate::loader::uses_include(&source) {
+            crate::loader::load_pack_with(
+                &source,
+                Some(&crate::loader::IncludeContext::for_file(&file.path)),
+            )
+        } else {
+            crate::cache::load_pack_cached(&source)
+        };
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's
             // explanation of why still belongs on the file.
@@ -604,11 +616,15 @@ fn merge_group(
         }
         merged.ambient_packages.extend(pack.ambient_packages);
         for environment in pack.environments {
-            if !merged
-                .environments
-                .iter()
-                .any(|prior| prior.id == environment.id)
-            {
+            // Declarations dedupe by id (first wins, as within one file);
+            // `-extend` blocks are additive contributions and every one is
+            // kept — two files may each extend the same base.
+            let duplicate = !environment.extends
+                && merged
+                    .environments
+                    .iter()
+                    .any(|prior| !prior.extends && prior.id == environment.id);
+            if !duplicate {
                 merged.environments.push(environment);
             }
         }

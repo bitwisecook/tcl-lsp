@@ -57,6 +57,8 @@
 //!   `{package Tk 8.5-8.6}` carries the name and reports that the window
 //!   is not representable yet.
 
+use std::sync::LazyLock;
+
 use tcl_dialect::DialectSet;
 use tcl_dialect::model::{Family, Release, Version, VersionAxisId, VersionSet};
 
@@ -83,6 +85,49 @@ const PROVIDERS: &[&str] = &["tcl", "f5-irules", "jim", "package"];
 /// This is the exact inverse of `tcl spec upgrade`'s U2 rule `tk` →
 /// `{package Tk}`, and it is what makes the two spellings byte-equal.
 const PACKAGE_DIALECT_BITS: &[(&str, DialectSet)] = &[("Tk", DialectSet::TK)];
+
+/// The **environment-derived** half of the same table (upgrade spec U3):
+/// each compiled environment whose surface is one ambient package and
+/// whose id has a 1.x dialect bit pairs that package's name with the bit.
+///
+/// This is what makes `available {package f5-iapps-cmds}` load byte-equal
+/// to the 1.x `dialects f5-iapps` it replaces: the environment registry
+/// answers *which package at which placement* stands behind each
+/// environment-membership token, and this projection carries the answer
+/// back onto the closed 1.x bit vocabulary. Derived, not hand-written, so
+/// a seeded environment cannot drift from its own translation.
+static ENVIRONMENT_PACKAGE_BITS: LazyLock<Vec<(String, DialectSet)>> = LazyLock::new(|| {
+    tcl_dialect::model::compiled_definitions()
+        .into_iter()
+        .filter(|definition| definition.core.is_some())
+        .filter_map(|definition| {
+            let bit = crate::catalogue::dialect_bit(definition.id.as_str())?;
+            let ambient: Vec<_> = definition
+                .expected_packages
+                .iter()
+                .filter(|placement| placement.ambient)
+                .collect();
+            let [sole] = ambient.as_slice() else {
+                return None;
+            };
+            Some((sole.package.as_ref().to_owned(), bit))
+        })
+        .collect()
+});
+
+/// The 1.x dialect bit standing behind `package`, when one does.
+pub(crate) fn package_bit(package: &str) -> Option<DialectSet> {
+    PACKAGE_DIALECT_BITS
+        .iter()
+        .find(|(name, _)| *name == package)
+        .map(|(_, bit)| *bit)
+        .or_else(|| {
+            ENVIRONMENT_PACKAGE_BITS
+                .iter()
+                .find(|(name, _)| name == package)
+                .map(|(_, bit)| *bit)
+        })
+}
 
 /// `available SPEC ?SPEC…?` at property scope, taking every word after the
 /// first `skip`.
@@ -272,12 +317,9 @@ fn package_row(rest: &[String], line: u32, log: &mut Log) -> Option<Row> {
             ),
         );
     }
-    if let Some((_, bit)) = PACKAGE_DIALECT_BITS
-        .iter()
-        .find(|(package, _)| *package == name)
-    {
+    if let Some(bit) = package_bit(name) {
         return Some(Row {
-            bits: *bit,
+            bits: bit,
             package: None,
         });
     }

@@ -592,6 +592,13 @@ pub struct SpecUpgradeArgs {
     /// snapshots (upgrade spec U9). Implies --check.
     #[arg(long)]
     pub verify: bool,
+
+    /// Hoist a uniform `required_package` (the pack-level default, or one
+    /// identical row in every command) to a pack-level `provides`
+    /// declaration (upgrade spec U6). Off by default: it changes the
+    /// pack's shape, not just its spelling.
+    #[arg(long = "infer-provides")]
+    pub infer_provides: bool,
 }
 
 /// Flags of `tcl spec import`.

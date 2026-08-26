@@ -40,13 +40,14 @@
 //!
 //! ## What this module does, and does not, do
 //!
-//! It **parses, validates, and carries**. Registering a pack-declared
-//! environment into the live [`EnvironmentRegistry`] is P3 wire-up; what
-//! lands here is a [`PackEnvironment`] on the pack plus
-//! [`PackEnvironment::to_definition`], the total conversion into an
-//! [`EnvironmentDefinition`] with the declaring tier's [`Provenance`].
-//! Unit tests cover the conversion, so the wire-up is a call, not a
-//! design.
+//! It **parses, validates, and carries**: a [`PackEnvironment`] on the
+//! pack plus the two total conversions the registration seam consumes —
+//! [`PackEnvironment::to_definition`] (a declaration into an
+//! [`EnvironmentDefinition`] at the declaring tier's [`Provenance`]) and
+//! [`PackEnvironment::to_extension`] (an `-extend` block into an
+//! additive [`tcl_registry::model::EnvironmentExtension`]). Registering
+//! either into the live [`EnvironmentRegistry`] is
+//! [`crate::registration`]'s call, under the §6.4 trust lattice.
 //!
 //! ## Reserved names (§3.3)
 //!
@@ -123,11 +124,22 @@ pub struct PackPlacementRow {
     pub line: u32,
 }
 
-/// A parsed `environment NAME { … }` block.
+/// A parsed `environment NAME { … }` block, or its additive
+/// `environment NAME -extend { … }` form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackEnvironment {
-    /// The canonical id the block declares.
+    /// The canonical id the block declares — or, for an `-extend` block,
+    /// the id (or alias) of the environment being extended.
     pub id: String,
+    /// Whether this is the `-extend` form: an **additive** contribution
+    /// of detection facts and placements to an environment declared
+    /// elsewhere (a compiled one, or another pack's). An extend block
+    /// may not restate identity facts (`core`, `policy`, `alias`,
+    /// `editor_identity`, `display_name`) — those belong to the owner —
+    /// and, unlike a declaration, it may name a compiled environment:
+    /// the §6.4 trust gate on that lives at registration (and in the
+    /// E-R2 evaluation gate), where the tier is known.
+    pub extends: bool,
     /// `alias NAME` rows, in declaration order.
     pub aliases: Vec<String>,
     /// `display_name TEXT`, defaulting to the id.
@@ -162,6 +174,10 @@ impl PackEnvironment {
     /// and its target set is empty rather than "everything".
     #[must_use]
     pub fn to_definition(&self, tier: PackEnvironmentTier) -> EnvironmentDefinition {
+        debug_assert!(
+            !self.extends,
+            "an extend block converts through `to_extension`, never to a definition"
+        );
         let targets = self.core.map_or_else(
             || VersionSet::empty(VersionAxisId::core(Family::Tcl)),
             |core| release_line(core.family, core.default_release),
@@ -209,6 +225,45 @@ impl PackEnvironment {
     }
 }
 
+impl PackEnvironment {
+    /// The [`tcl_registry::model::EnvironmentExtension`] an `-extend`
+    /// block describes, at `tier` — the registration seam's input.
+    #[must_use]
+    pub fn to_extension(
+        &self,
+        tier: PackEnvironmentTier,
+    ) -> tcl_registry::model::EnvironmentExtension {
+        debug_assert!(
+            self.extends,
+            "a declaration block converts through `to_definition`, never to an extension"
+        );
+        tcl_registry::model::EnvironmentExtension {
+            base: self.id.clone(),
+            file_extensions: self.file_extensions.clone(),
+            filenames: self
+                .filenames
+                .iter()
+                .map(|f| Arc::from(f.as_str()))
+                .collect(),
+            content_signatures: self
+                .signatures
+                .iter()
+                .map(|s| Arc::from(s.as_str()))
+                .collect(),
+            placements: self
+                .placements
+                .iter()
+                .map(|row| PackagePlacement {
+                    package: Arc::from(row.package.as_str()),
+                    version: row.version.clone(),
+                    ambient: row.ambient,
+                })
+                .collect(),
+            provenance: tier.provenance(),
+        }
+    }
+}
+
 /// The single-release-line target set of one ladder release — the same
 /// `[R·a0, next·a0)` window the compiled definitions use.
 fn release_line(family: Family, release: Release) -> VersionSet {
@@ -226,21 +281,32 @@ fn release_line(family: Family, release: Release) -> VersionSet {
         .unwrap_or_else(|_| VersionSet::empty(VersionAxisId::core(family)))
 }
 
-/// Parse one `environment NAME { … }` block, or reject it.
+/// Parse one `environment NAME { … }` block (or
+/// `environment NAME -extend { … }`), or reject it.
 pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
     let name = stmt.word_text(1);
     if name.is_empty() || stmt.words.get(1).is_some_and(|word| word.braced) {
         log.say(stmt.line, "`environment` needs a name and a `{ … }` block");
         return None;
     }
-    let Some(body) = stmt.arg(2) else {
+    let extends = stmt.word_text(2) == "-extend";
+    if extends {
+        log.since(stmt.line, "environment -extend", "2.0");
+    }
+    let body_index = if extends { 3 } else { 2 };
+    let Some(body) = stmt.arg(body_index) else {
         log.say(
             stmt.line,
             format!("`environment {name}` has no `{{ … }}` block; the block is rejected"),
         );
         return None;
     };
-    if let Some(reserved) = reserved_name(name) {
+    // A declaration claiming a compiled name is the §3.3 reservation and
+    // is rejected outright. An `-extend` block *must* name an existing
+    // environment — compiled included — so the reservation does not apply
+    // to it; the §6.4 trust gate on extending a compiled base lives where
+    // the tier is known (registration, and the E-R2 evaluation gate).
+    if !extends && let Some(reserved) = reserved_name(name) {
         log.say(
             stmt.line,
             format!(
@@ -252,6 +318,7 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
     }
     let mut environment = PackEnvironment {
         id: name.to_owned(),
+        extends,
         aliases: Vec::new(),
         display_name: None,
         editor_identity: None,
@@ -295,6 +362,25 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
 /// it, so there is no decorative word here to drop safely.
 fn read_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bool {
     let words = &stmt.words;
+    // An `-extend` block is additive by construction: identity rows
+    // belong to the environment's owner, and reading one here would let
+    // an extension restate what §6.4 says only the owner may state.
+    if environment.extends
+        && matches!(
+            stmt.word_text(0),
+            "core" | "policy" | "alias" | "editor_identity" | "display_name"
+        )
+    {
+        log.say(
+            stmt.line,
+            format!(
+                "`{}` is an identity row and an `environment -extend` block is \
+                 additive (detection rows and placements only); the block is rejected",
+                stmt.word_text(0)
+            ),
+        );
+        return false;
+    }
     match stmt.word_text(0) {
         "display_name" => environment.display_name = Some(stmt.word_text(1).to_owned()),
         "alias" => match stmt.word_text(1) {
@@ -554,9 +640,10 @@ fn keyed_axis(key: &str) -> Option<KeyedAxis> {
 
 /// The compiled canonical id or alias `name` collides with, if any.
 ///
-/// `pub(super)` so the evaluation loader's E-R2 provenance gate asks the
-/// same question this block's own rejection does.
-pub(super) fn reserved_name(name: &str) -> Option<String> {
+/// `pub(crate)` so the evaluation loader's E-R2 provenance gate and the
+/// registration seam ([`crate::registration`]) ask the same question this
+/// block's own rejection does.
+pub(crate) fn reserved_name(name: &str) -> Option<String> {
     for definition in compiled_definitions() {
         if definition.id.as_str() == name {
             return Some(definition.id.as_str().to_owned());

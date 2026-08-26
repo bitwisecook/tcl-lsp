@@ -31,19 +31,37 @@
 //!    reformatting. Author layout, comments, and delimiters survive, and
 //!    the diff is reviewable (U8).
 //! 2. **The 1.x dialect vocabulary is closed** — [`TRANSLATIONS`],
-//!    [`DEFERRED`], and the single refused token below are all of it — so
-//!    the translation table is total and a token outside it means the
+//!    [`MEMBERSHIP`], and the single refused token below are all of it —
+//!    so the translation table is total and a token outside it means the
 //!    file is *refused*, never guessed at (U0).
 //! 3. **The version word moves only when the body did** (U1). A `2.0`
 //!    header over 1.x spellings is loadable but is a failed upgrade, so a
 //!    file with any row left for the environment wire-up (U3) reports
 //!    *partially upgraded* and keeps its 1.x header.
 //!
-//! What is **not** here: U3's environment-membership mapping, U4's
-//! `ambient_package` rehoming, and U5's `file_extension -dialect` move all
-//! need the P1 environment registry. Each is detected, left byte-identical,
-//! and reported — with a `# TODO(spectcl 2.0):` marker written above the
-//! row so the file itself says what is left.
+//! With the P1 environment registry live, the environment-shaped halves
+//! are real translations rather than markers:
+//!
+//! - **U3** — an environment-membership token maps to the environment's
+//!   own ambient package provider (`f5-iapps` → `{package
+//!   f5-iapps-cmds}`), read off the registry's placement rows; a token
+//!   whose environment declares **no** ambient provider (`spectcl`,
+//!   `bpf` — their surfaces are compiled, not package-provided) keeps
+//!   the marker, because inventing a provider would re-scope the claim.
+//! - **U4** — `ambient_package NAME VERSION` becomes an
+//!   environment-scoped `ambient` placement inside an
+//!   `environment OWNER -extend { … }` block, where OWNER is the pack's
+//!   sole declared environment or its sole membership token; an
+//!   ambiguous pack keeps the marker. Never guessed.
+//! - **U5** — `file_extension … -dialect D` becomes a detection row
+//!   inside `environment D -extend { … }`; an unresolvable `D` keeps
+//!   the marker.
+//!
+//! The U9 gate widens with them: `--verify` compares command snapshots
+//! across every axis a 1.x row can gate on **and** the
+//! [`environment_effect_snapshot`] — the scoped detection and placement
+//! rows both forms load to — so a translation that moved a row's home
+//! must still mean the same thing to the registry.
 
 use std::ops::Range;
 
@@ -86,12 +104,34 @@ const TRANSLATIONS: &[(&str, &str)] = &[
 
 /// Tokens that are **environment membership**, not availability (U3).
 ///
-/// Each names an environment whose ambient package provides the surface;
-/// spelling that as an `available` row needs the P1 environment registry to
-/// say which package, at which placement. Until then the row is left
-/// byte-identical and marked, because guessing here would silently
-/// re-scope a claim.
-const DEFERRED: &[&str] = &["f5-iapps", "f5-tmsh", "expect", "spectcl", "bpf"];
+/// Each names an environment whose ambient package provides the surface.
+/// The environment registry answers *which* package at *which* placement:
+/// a token whose environment declares exactly one ambient package
+/// translates to `{package NAME}` (which the loader projects back onto
+/// the same 1.x bit, so the spec is byte-equal — see
+/// `loader::available`'s environment-derived table); a token whose
+/// environment declares none stays a marker, because its surface is
+/// compiled rather than package-provided and no `available` row can say
+/// that yet.
+const MEMBERSHIP: &[&str] = &["f5-iapps", "f5-tmsh", "expect", "spectcl", "bpf"];
+
+/// The ambient package provider standing behind an environment-membership
+/// token, when the environment registry declares exactly one.
+fn membership_provider(token: &str) -> Option<String> {
+    let environment = tcl_registry::model::resolve_known_environment(token)?;
+    environment.definition.core?;
+    let ambient: Vec<&str> = environment
+        .definition
+        .expected_packages
+        .iter()
+        .filter(|placement| placement.ambient)
+        .map(|placement| placement.package.as_ref())
+        .collect();
+    match ambient.as_slice() {
+        [sole] => Some((*sole).to_owned()),
+        _ => None,
+    }
+}
 
 /// The one token that is an outright error (Q3): `f5-bigip` is a
 /// configuration surface that leaves the Tcl axis, so no `available` row
@@ -105,6 +145,10 @@ pub struct UpgradeOptions {
     pub from: String,
     /// The vocabulary to rewrite it to.
     pub to: String,
+    /// U6: hoist a uniform `required_package` (the pack-level default, or
+    /// one identical row in every command) to a pack-level `provides`.
+    /// Off by default — it changes shape, not spelling.
+    pub infer_provides: bool,
 }
 
 impl Default for UpgradeOptions {
@@ -112,6 +156,7 @@ impl Default for UpgradeOptions {
         Self {
             from: OLDEST_VOCABULARY_VERSION.to_owned(),
             to: NEWEST_VOCABULARY_VERSION.to_owned(),
+            infer_provides: false,
         }
     }
 }
@@ -225,7 +270,7 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
 
     let sites = dialects_sites(source);
     let mut edits: Vec<Edit> = Vec::new();
-    let mut todo_lines: Vec<usize> = Vec::new();
+    let mut markers: Vec<(usize, &'static str)> = Vec::new();
     for site in &sites {
         match plan_site(site, &mut outcome) {
             SitePlan::Translate(rows) => {
@@ -245,7 +290,7 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
                     text: after,
                 });
             }
-            SitePlan::Defer => todo_lines.push(site.line_start),
+            SitePlan::Defer => markers.push((site.line_start, MARKER_U3)),
             SitePlan::Refuse => return outcome,
         }
     }
@@ -253,22 +298,23 @@ pub fn upgrade_source(source: &str, options: &UpgradeOptions) -> UpgradeOutcome 
         return outcome;
     }
 
-    todo_lines.sort_unstable();
-    todo_lines.dedup();
-    for start in todo_lines {
-        let indent: String = source[start..]
-            .chars()
-            .take_while(|c| *c == ' ' || *c == '\t')
-            .collect();
-        edits.push(Edit {
-            at: start..start,
-            text: format!(
-                "{indent}# TODO(spectcl 2.0): this row's tokens name environment \
-                 membership, not availability;\n{indent}# they become the environment's \
-                 ambient package once the environment registry lands (upgrade spec U3).\n"
-            ),
-        });
+    // U4/U5: the pack-level environment-shaped rows, over the same lexer.
+    let rows = pack_level_rows(source);
+    let owner = source_owner(&rows, &sites);
+    plan_ambient_rows(
+        source,
+        &rows,
+        owner.as_deref(),
+        &mut outcome,
+        &mut edits,
+        &mut markers,
+    );
+    plan_extension_rows(source, &rows, &mut outcome, &mut edits, &mut markers);
+    if options.infer_provides {
+        plan_infer_provides(source, &rows, &mut outcome, &mut edits);
     }
+
+    emit_markers(source, markers, &mut edits);
 
     // U1: the version word moves only when the body rewrite completed on
     // this file. A `2.0` header over rows still spelled 1.x is loadable but
@@ -357,17 +403,26 @@ fn plan_site(site: &Site, outcome: &mut UpgradeOutcome) -> SitePlan {
             });
             return SitePlan::Refuse;
         }
-        if DEFERRED.contains(&token.as_str()) {
-            outcome.deferred.push(Deferred {
-                line: site.line,
-                token: token.clone(),
-                reason: format!(
-                    "`{token}` names environment membership, not availability; it becomes \
-                     that environment's ambient package once the environment registry \
-                     lands (upgrade spec U3)"
-                ),
-            });
-            defer = true;
+        if MEMBERSHIP.contains(&token.as_str()) {
+            // U3: the environment registry answers which package stands
+            // behind the membership token. One ambient provider is the
+            // unambiguous mapping; none means the environment's surface
+            // is compiled, and the row keeps its marker.
+            if let Some(package) = membership_provider(token) {
+                rows.push(format!("package {package}"));
+            } else {
+                outcome.deferred.push(Deferred {
+                    line: site.line,
+                    token: token.clone(),
+                    reason: format!(
+                        "`{token}` names environment membership, and the `{token}` \
+                         environment declares no ambient package provider (its surface \
+                         is compiled, not package-provided), so no `available` row can \
+                         carry the claim yet (upgrade spec U3)"
+                    ),
+                });
+                defer = true;
+            }
             continue;
         }
         let Some((_, row)) = TRANSLATIONS
@@ -411,6 +466,448 @@ fn render_row_word(rows: &[String], is_flag: bool) -> String {
     }
 }
 
+/// Write each marker as a `# TODO(spectcl 2.0)` comment block above its
+/// row, at the row's own indent, one block per (row, reason) pair.
+fn emit_markers(source: &str, mut markers: Vec<(usize, &'static str)>, edits: &mut Vec<Edit>) {
+    markers.sort_unstable();
+    markers.dedup();
+    for (start, message) in markers {
+        let indent: String = source[start..]
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .collect();
+        let mut text = String::new();
+        for line in message.lines() {
+            text.push_str(&indent);
+            text.push_str("# ");
+            text.push_str(line);
+            text.push('\n');
+        }
+        edits.push(Edit {
+            at: start..start,
+            text,
+        });
+    }
+}
+
+/// The U3 marker: the row's tokens stayed because no ambient provider
+/// stands behind them.
+const MARKER_U3: &str = "TODO(spectcl 2.0): this row keeps an environment-membership token whose\n\
+                         environment declares no ambient package provider; its surface is compiled,\n\
+                         so the row has no `available` spelling yet (upgrade spec U3).";
+
+/// The U4 marker: the pack's owning environment could not be inferred.
+const MARKER_U4: &str = "TODO(spectcl 2.0): this `ambient_package` row needs the pack's owning\n\
+                         environment and it could not be inferred (declare exactly one `environment`\n\
+                         block, or gate the pack on one membership token); upgrade spec U4.";
+
+/// The U5 marker: the routing target could not be resolved.
+const MARKER_U5: &str = "TODO(spectcl 2.0): this `file_extension` row's `-dialect` names no\n\
+                         catalogue environment, so its detection row has no `environment` block\n\
+                         to move into; upgrade spec U5.";
+
+// ---------------------------------------------------------------------------
+// Pack-level rows (U4/U5/U6) — located through the same lexer as the sites
+// ---------------------------------------------------------------------------
+
+/// One pack-level statement, with the ranges a replacement edit needs.
+struct PackRow {
+    /// The decoded words.
+    words: Vec<String>,
+    /// Each word's **outer** byte range (delimiters included).
+    word_ranges: Vec<Range<usize>>,
+    /// Each word's **content** byte range (inside any delimiters).
+    content_ranges: Vec<Range<usize>>,
+    /// Whether each word was written braced.
+    braced: Vec<bool>,
+    /// The whole statement's byte range.
+    range: Range<usize>,
+    /// 1-based line of the statement.
+    line: u32,
+    /// Byte offset of the start of the statement's line.
+    line_start: usize,
+}
+
+impl PackRow {
+    fn word(&self, index: usize) -> &str {
+        self.words.get(index).map_or("", String::as_str)
+    }
+
+    /// The statement's leading indentation, as written.
+    fn indent<'s>(&self, source: &'s str) -> &'s str {
+        let head = &source[self.line_start..self.range.start];
+        if head.chars().all(|c| c == ' ' || c == '\t') {
+            head
+        } else {
+            ""
+        }
+    }
+}
+
+/// Every statement directly inside the first `speclib` body — pack scope
+/// only, no recursion — located through the loader's own lexer.
+fn pack_level_rows(source: &str) -> Vec<PackRow> {
+    let source_map = SourceMap::new(source);
+    let (document, _warnings) = build_document(source, LexerConfig::default());
+    let mut body: Option<Range<usize>> = None;
+    for segment in segments_from_document(document, &source_map) {
+        if segment.texts.first().map(String::as_str) != Some("speclib") {
+            continue;
+        }
+        if let Some(token) = segment.argv.get(3) {
+            let content = token.span.start() as usize + usize::from(token.content_offset);
+            let close = token.span.end() as usize;
+            if token.kind == TokenType::Str && !token.in_quote && close > content {
+                body = Some(content..close);
+            }
+        }
+        break;
+    }
+    let Some(body) = body else {
+        return Vec::new();
+    };
+    let mut rows = rows_in(&source[body.clone()], body.start);
+    locate_row_lines(source, &mut rows);
+    rows
+}
+
+/// The statements of one block's text, with ranges absolute to the file.
+fn rows_in(text: &str, base: usize) -> Vec<PackRow> {
+    let source_map = SourceMap::new(text);
+    let (document, _warnings) = build_document(text, LexerConfig::default());
+    let mut out = Vec::new();
+    for segment in segments_from_document(document, &source_map) {
+        let mut words = Vec::new();
+        let mut word_ranges = Vec::new();
+        let mut content_ranges = Vec::new();
+        let mut braced = Vec::new();
+        for (index, token) in segment.argv.iter().enumerate() {
+            let Some(word) = segment.texts.get(index) else {
+                continue;
+            };
+            words.push(word.clone());
+            let start = token.span.start() as usize;
+            let end = token.span.end() as usize;
+            word_ranges.push(base + start..base + outer_end(end, token.content_offset));
+            content_ranges.push(base + start + usize::from(token.content_offset)..base + end);
+            braced.push(token.kind == TokenType::Str && !token.in_quote);
+        }
+        let (Some(first), Some(last)) = (word_ranges.first(), word_ranges.last()) else {
+            continue;
+        };
+        let range = first.start..last.end;
+        out.push(PackRow {
+            words,
+            word_ranges,
+            content_ranges,
+            braced,
+            range,
+            line: 0,
+            line_start: 0,
+        });
+    }
+    out
+}
+
+/// Fill each row's line number and line start from the whole file.
+fn locate_row_lines(source: &str, rows: &mut [PackRow]) {
+    let line_starts = line_starts_of(source);
+    for row in rows {
+        let (line, line_start) = locate(&line_starts, row.range.start);
+        row.line = line;
+        row.line_start = line_start;
+    }
+}
+
+fn line_starts_of(source: &str) -> Vec<usize> {
+    let mut line_starts: Vec<usize> = vec![0];
+    for (offset, byte) in source.bytes().enumerate() {
+        if byte == b'\n' {
+            line_starts.push(offset + 1);
+        }
+    }
+    line_starts
+}
+
+fn locate(line_starts: &[usize], offset: usize) -> (u32, usize) {
+    let index = match line_starts.binary_search(&offset) {
+        Ok(found) => found,
+        Err(next) => next.saturating_sub(1),
+    };
+    (
+        u32::try_from(index + 1).unwrap_or(u32::MAX),
+        line_starts[index],
+    )
+}
+
+/// The pack's owning environment, from its source (U4's cannot-infer
+/// rule): the sole declared (non-`-extend`) `environment` block wins;
+/// with none declared, the sole environment-membership token across the
+/// pack's `dialects` rows; anything else is ambiguous. Never guessed.
+fn source_owner(rows: &[PackRow], sites: &[Site]) -> Option<String> {
+    let mut declared: Vec<&str> = rows
+        .iter()
+        .filter(|row| {
+            row.word(0) == "environment"
+                && !row.word(1).is_empty()
+                && row.word(2) != "-extend"
+                && row.words.len() >= 3
+        })
+        .map(|row| row.word(1))
+        .collect();
+    declared.sort_unstable();
+    declared.dedup();
+    if let [sole] = declared.as_slice() {
+        return Some((*sole).to_owned());
+    }
+    if !declared.is_empty() {
+        return None;
+    }
+    let mut tokens: Vec<String> = sites
+        .iter()
+        .flat_map(|site| list_words(&site.value_text))
+        .filter(|token| MEMBERSHIP.contains(&token.as_str()))
+        .collect();
+    tokens.sort_unstable();
+    tokens.dedup();
+    match tokens.as_slice() {
+        [sole] => Some(sole.clone()),
+        _ => None,
+    }
+}
+
+/// U4: rehome each `ambient_package NAME VERSION` row into the owning
+/// environment's `-extend` block, or mark it.
+fn plan_ambient_rows(
+    source: &str,
+    rows: &[PackRow],
+    owner: Option<&str>,
+    outcome: &mut UpgradeOutcome,
+    edits: &mut Vec<Edit>,
+    markers: &mut Vec<(usize, &'static str)>,
+) {
+    for row in rows.iter().filter(|row| row.word(0) == "ambient_package") {
+        let name = row.word(1);
+        let version = row.word(2);
+        if name.is_empty() || version.is_empty() {
+            // The loader already drops an incomplete row with its own
+            // notice; there is nothing translatable here.
+            continue;
+        }
+        let plain_version = tcl_dialect::model::Version::parse(version).is_ok();
+        let (Some(owner), true) = (owner, plain_version) else {
+            outcome.deferred.push(Deferred {
+                line: row.line,
+                token: format!("ambient_package {name}"),
+                reason: if plain_version {
+                    format!(
+                        "`ambient_package {name}` never named its environment and the \
+                         pack's owner is ambiguous; declare exactly one `environment` \
+                         block or gate the pack on one membership token (upgrade spec U4)"
+                    )
+                } else {
+                    format!(
+                        "`ambient_package {name} {version}` does not carry a plain \
+                         version, so its placement row cannot be spelled without \
+                         changing meaning (upgrade spec U4)"
+                    )
+                },
+            });
+            markers.push((row.line_start, MARKER_U4));
+            continue;
+        };
+        let indent = row.indent(source);
+        // The row's own bytes past the head word, verbatim, so the
+        // author's spelling of name and version survives.
+        let rest = &source[row.word_ranges[1].start..row.range.end];
+        let before = source[row.range.clone()].to_owned();
+        let after =
+            format!("environment {owner} -extend {{\n{indent}    ambient {rest}\n{indent}}}");
+        outcome.translated.push(Translated {
+            line: row.line,
+            before,
+            after: after.clone(),
+        });
+        edits.push(Edit {
+            at: row.range.clone(),
+            text: after,
+        });
+    }
+}
+
+/// U5: move each `file_extension … -dialect D` row's detection into
+/// `environment D -extend { … }`, or mark it.
+fn plan_extension_rows(
+    source: &str,
+    rows: &[PackRow],
+    outcome: &mut UpgradeOutcome,
+    edits: &mut Vec<Edit>,
+    markers: &mut Vec<(usize, &'static str)>,
+) {
+    for row in rows.iter().filter(|row| row.word(0) == "file_extension") {
+        let Some(flag) = row.words.iter().position(|word| word == "-dialect") else {
+            // No routing claim: the row is display-only and stays valid
+            // 2.0 vocabulary where it is.
+            continue;
+        };
+        let Some(value_range) = row.word_ranges.get(flag + 1) else {
+            continue;
+        };
+        let dialect = row.word(flag + 1);
+        // The same resolution the loader's own row reader applies: only a
+        // catalogue environment is a routing target.
+        let Some(profile) = crate::environment::catalogue_profile_for_dialect(dialect) else {
+            outcome.deferred.push(Deferred {
+                line: row.line,
+                token: format!("file_extension {}", row.word(1)),
+                reason: format!(
+                    "`-dialect {dialect}` names no catalogue environment, so the \
+                     detection row has no `environment` block to move into \
+                     (upgrade spec U5)"
+                ),
+            });
+            markers.push((row.line_start, MARKER_U5));
+            continue;
+        };
+        // The row minus the `-dialect D` flag (and the whitespace before
+        // it), verbatim.
+        let mut cut_start = row.word_ranges[flag].start;
+        while cut_start > row.range.start
+            && matches!(source.as_bytes()[cut_start - 1], b' ' | b'\t')
+        {
+            cut_start -= 1;
+        }
+        let inner = format!(
+            "{}{}",
+            &source[row.range.start..cut_start],
+            &source[value_range.end..row.range.end]
+        );
+        let indent = row.indent(source);
+        let before = source[row.range.clone()].to_owned();
+        let after = format!(
+            "environment {} -extend {{\n{indent}    {}\n{indent}}}",
+            profile.name,
+            inner.trim_end()
+        );
+        outcome.translated.push(Translated {
+            line: row.line,
+            before,
+            after: after.clone(),
+        });
+        edits.push(Edit {
+            at: row.range.clone(),
+            text: after,
+        });
+    }
+}
+
+/// U6 (`--infer-provides`): hoist a uniform `required_package` to a
+/// pack-level `provides` — the pack-level default when one exists, else
+/// one identical row in every command.
+fn plan_infer_provides(
+    source: &str,
+    rows: &[PackRow],
+    outcome: &mut UpgradeOutcome,
+    edits: &mut Vec<Edit>,
+) {
+    if rows.iter().any(|row| row.word(0) == "provides") {
+        return;
+    }
+    // The pack-level default is the simple hoist: same fallback rule at
+    // load (`provides` feeds the same default), so the snapshot is
+    // unchanged.
+    if let Some(row) = rows
+        .iter()
+        .find(|row| row.word(0) == "default" && row.word(1) == "required_package")
+    {
+        let name = row.word(2);
+        if name.is_empty() {
+            return;
+        }
+        let before = source[row.range.clone()].to_owned();
+        let after = format!("provides {name}");
+        outcome.translated.push(Translated {
+            line: row.line,
+            before,
+            after: after.clone(),
+        });
+        edits.push(Edit {
+            at: row.range.clone(),
+            text: after,
+        });
+        return;
+    }
+    // Else: one identical `required_package` row in every command.
+    let commands: Vec<&PackRow> = rows.iter().filter(|row| row.word(0) == "command").collect();
+    if commands.is_empty() {
+        return;
+    }
+    let mut name: Option<String> = None;
+    let mut row_sites: Vec<PackRow> = Vec::new();
+    for command in &commands {
+        let Some(body) = (2..command.words.len()).find(|&index| command.braced[index]) else {
+            return;
+        };
+        let content = command.content_ranges[body].clone();
+        let mut body_rows = rows_in(&source[content.clone()], content.start);
+        locate_row_lines(source, &mut body_rows);
+        let required: Vec<PackRow> = body_rows
+            .into_iter()
+            .filter(|row| row.word(0) == "required_package" && !row.word(1).is_empty())
+            .collect();
+        let [row] = &required[..] else {
+            return;
+        };
+        match &name {
+            None => name = Some(row.word(1).to_owned()),
+            Some(prior) if prior == row.word(1) => {}
+            Some(_) => return,
+        }
+        row_sites.extend(required);
+    }
+    let Some(name) = name else {
+        return;
+    };
+    for row in &row_sites {
+        // Delete the whole line when the row owns it; otherwise just the
+        // statement's bytes.
+        let line_end = source[row.range.end..]
+            .find('\n')
+            .map_or(source.len(), |at| row.range.end + at + 1);
+        let alone = source[row.line_start..row.range.start]
+            .chars()
+            .all(|c| c == ' ' || c == '\t')
+            && source[row.range.end..line_end.saturating_sub(1)]
+                .chars()
+                .all(|c| c == ' ' || c == '\t');
+        let at = if alone {
+            row.line_start..line_end
+        } else {
+            row.range.clone()
+        };
+        outcome.translated.push(Translated {
+            line: row.line,
+            before: source[row.range.clone()].to_owned(),
+            after: String::new(),
+        });
+        edits.push(Edit {
+            at,
+            text: String::new(),
+        });
+    }
+    let first = commands[0];
+    let indent = first.indent(source).to_owned();
+    outcome.translated.push(Translated {
+        line: first.line,
+        before: String::new(),
+        after: format!("provides {name}"),
+    });
+    edits.push(Edit {
+        at: first.line_start..first.line_start,
+        text: format!("{indent}provides {name}\n\n"),
+    });
+}
+
 /// Apply every edit back-to-front, so no earlier offset is disturbed.
 fn apply(source: &str, mut edits: Vec<Edit>) -> String {
     edits.sort_by_key(|edit| std::cmp::Reverse(edit.at.start));
@@ -419,6 +916,158 @@ fn apply(source: &str, mut edits: Vec<Edit>) -> String {
         out.replace_range(edit.at, &edit.text);
     }
     out
+}
+
+// ---------------------------------------------------------------------------
+// The environment-effect snapshot (the U5 extension of the U9 gate)
+// ---------------------------------------------------------------------------
+
+/// The environment-scoped rows a loaded pack means to the registry —
+/// detection routing and package placements — normalised so the 1.x
+/// spelling (`file_extension … -dialect`, pack-level `ambient_package`)
+/// and its 2.0 rehoming (`environment … -extend { … }`) render
+/// identically. `--verify` compares this string across the rewrite, which
+/// is what lets U4/U5 move a row's home while proving the registry effect
+/// did not move.
+///
+/// A pack-level `ambient_package` row never named its environment; it is
+/// attributed to the same owner the U4 rewrite would scope it to
+/// ([`source_owner`]'s loaded-pack twin), and `?` when that owner is
+/// ambiguous — on both sides of a comparison, so ambiguity itself
+/// round-trips.
+#[must_use]
+pub fn environment_effect_snapshot(pack: &crate::loader::Pack) -> String {
+    effect_snapshot(
+        &pack.file_extensions,
+        &pack.environments,
+        &pack.ambient_packages,
+        &pack.commands,
+    )
+}
+
+/// [`environment_effect_snapshot`] over a merged pack — the form
+/// `--verify` compares, since it loads through the real merge.
+#[must_use]
+pub fn merged_environment_effect_snapshot(pack: &crate::pack::MergedPack) -> String {
+    effect_snapshot(
+        &pack.file_extensions,
+        &pack.environments,
+        &pack.ambient_packages,
+        &pack.commands,
+    )
+}
+
+fn effect_snapshot(
+    file_extensions: &[crate::loader::FileExtension],
+    environments: &[crate::loader::PackEnvironment],
+    ambient_packages: &[crate::loader::AmbientPackage],
+    commands: &[crate::loader::PackCommand],
+) -> String {
+    let owner = pack_owner(environments, commands);
+    let mut rows: Vec<String> = Vec::new();
+    for extension in file_extensions {
+        if let Some(dialect) = extension.dialect {
+            rows.push(format!(
+                "detect {dialect} extension {} name {}",
+                extension.extension,
+                extension
+                    .display_name
+                    .as_deref()
+                    .unwrap_or(&extension.extension)
+            ));
+        }
+    }
+    for environment in environments {
+        for claim in &environment.file_extensions {
+            rows.push(format!(
+                "detect {} extension {} name {}",
+                environment.id, claim.extension, claim.display_name
+            ));
+        }
+        for filename in &environment.filenames {
+            rows.push(format!("detect {} filename {filename}", environment.id));
+        }
+        for signature in &environment.signatures {
+            rows.push(format!("detect {} signature {signature}", environment.id));
+        }
+        for placement in &environment.placements {
+            rows.push(format!(
+                "placement {} {} {} {}",
+                environment.id,
+                if placement.ambient {
+                    "ambient"
+                } else {
+                    "hosted"
+                },
+                placement.package,
+                placement_text(&placement.version),
+            ));
+        }
+    }
+    for ambient in ambient_packages {
+        let version = tcl_dialect::model::Version::parse(ambient.version)
+            .map_or_else(|_| ambient.version.to_owned(), |v| format!("pinned {v}"));
+        rows.push(format!(
+            "placement {} ambient {} {version}",
+            owner.as_deref().unwrap_or("?"),
+            ambient.name,
+        ));
+    }
+    rows.sort_unstable();
+    let mut out = String::new();
+    for row in rows {
+        out.push_str(&row);
+        out.push('\n');
+    }
+    out
+}
+
+fn placement_text(placement: &tcl_dialect::model::Placement) -> String {
+    use tcl_dialect::model::Placement;
+    match placement {
+        Placement::Pinned(version) => format!("pinned {version}"),
+        Placement::TracksBase => "tracks-base".to_owned(),
+        Placement::Keyed(axis) => format!("keyed {axis:?}"),
+        Placement::Requirement(set) => format!("requirement {set:?}"),
+    }
+}
+
+/// [`source_owner`]'s loaded-pack twin, deriving the same answer from a
+/// loaded pack's pieces: the sole declared environment block, else the
+/// sole membership gate across the pack's specs — which survives the U2/U3
+/// rewrite because the translated `available` rows project back onto the
+/// same 1.x bits.
+fn pack_owner(
+    environments: &[crate::loader::PackEnvironment],
+    commands: &[crate::loader::PackCommand],
+) -> Option<String> {
+    let declared: Vec<&crate::loader::PackEnvironment> = environments
+        .iter()
+        .filter(|environment| !environment.extends)
+        .collect();
+    if let [sole] = declared.as_slice() {
+        return Some(sole.id.clone());
+    }
+    if !declared.is_empty() {
+        return None;
+    }
+    let mut union = tcl_dialect::DialectSet::empty();
+    for command in commands {
+        if let Some(set) = command.spec.dialects {
+            union |= set;
+        }
+    }
+    let members: Vec<&str> = MEMBERSHIP
+        .iter()
+        .copied()
+        .filter(|token| {
+            crate::catalogue::dialect_bit(token).is_some_and(|bit| union.intersects(bit))
+        })
+        .collect();
+    match members.as_slice() {
+        [sole] => Some((*sole).to_owned()),
+        _ => None,
+    }
 }
 
 /// U7: every site in `source` whose word is newer than the file's own
@@ -601,7 +1250,63 @@ mod tests {
         );
     }
 
-    /// U3: an environment-membership token is left byte-identical, marked
+    /// U3: a membership token whose environment declares one ambient
+    /// package translates to that package's `available` row, and the
+    /// rewritten pack loads to the same specs (the environment-derived
+    /// package↔bit table in `loader::available`).
+    #[test]
+    fn a_membership_token_translates_to_its_environments_ambient_package() {
+        let source = "speclib probe 1.2 {\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects {tcl8.6 f5-iapps}\n\
+                      \x20 }\n\
+                      \x20 command duo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects f5-tmsh\n\
+                      \x20 }\n\
+                      \x20 command trio {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects expect\n\
+                      \x20 }\n\
+                      }\n";
+        let outcome = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
+        assert!(
+            outcome
+                .source
+                .contains("available {tcl 8.6} {package f5-iapps-cmds}"),
+            "{}",
+            outcome.source
+        );
+        assert!(
+            outcome.source.contains("available {package f5-tmsh-cmds}"),
+            "{}",
+            outcome.source
+        );
+        assert!(
+            outcome.source.contains("available {package Expect}"),
+            "{}",
+            outcome.source
+        );
+        let before = load_pack(source);
+        let after = load_pack(&outcome.source);
+        for name in ["demo", "duo", "trio"] {
+            assert_eq!(
+                format!("{:?}", before.command(name).expect(name).spec),
+                format!("{:?}", after.command(name).expect(name).spec),
+                "{name}"
+            );
+        }
+        assert!(
+            outcome.above_target.is_empty(),
+            "{:#?}",
+            outcome.above_target
+        );
+    }
+
+    /// U3: a membership token whose environment declares **no** ambient
+    /// provider (its surface is compiled) is left byte-identical, marked
     /// in place, and reported — and the version word does **not** move,
     /// because the file is only partially upgraded (U1).
     #[test]
@@ -609,20 +1314,25 @@ mod tests {
         let source = "speclib probe 1.2 {\n\
                       \x20 command demo {\n\
                       \x20   arity 1\n\
-                      \x20   dialects {tcl8.6 f5-iapps}\n\
+                      \x20   dialects {tcl8.6 spectcl}\n\
+                      \x20 }\n\
+                      \x20 command duo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects bpf\n\
                       \x20 }\n\
                       }\n";
         let outcome = upgrade_source(source, &UpgradeOptions::default());
         assert_eq!(outcome.status, UpgradeStatus::Partial, "{outcome:#?}");
-        assert_eq!(outcome.deferred.len(), 1);
-        assert_eq!(outcome.deferred[0].token, "f5-iapps");
+        assert_eq!(outcome.deferred.len(), 2, "{:#?}", outcome.deferred);
+        assert_eq!(outcome.deferred[0].token, "spectcl");
+        assert_eq!(outcome.deferred[1].token, "bpf");
         assert!(
             outcome.source.contains("# TODO(spectcl 2.0):"),
             "{}",
             outcome.source
         );
         assert!(
-            outcome.source.contains("dialects {tcl8.6 f5-iapps}"),
+            outcome.source.contains("dialects {tcl8.6 spectcl}"),
             "the row itself is untouched: {}",
             outcome.source
         );
@@ -631,6 +1341,191 @@ mod tests {
             "a partial upgrade keeps its 1.x header: {}",
             outcome.source
         );
+    }
+
+    /// U4: an `ambient_package` row rehomes into the owning environment's
+    /// `-extend` block — here the owner is the pack's sole membership
+    /// token — and the environment-effect snapshot is unchanged across
+    /// the rewrite.
+    #[test]
+    fn an_ambient_package_row_rehomes_into_the_owning_environment() {
+        let source = "speclib probe 1.2 {\n\
+                      ambient_package iapp_utils 1.4\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects f5-iapps\n\
+                      \x20 }\n\
+                      }\n";
+        let outcome = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
+        assert!(
+            outcome
+                .source
+                .contains("environment f5-iapps -extend {\n    ambient iapp_utils 1.4\n}"),
+            "{}",
+            outcome.source
+        );
+        let before = load_pack(source);
+        let after = load_pack(&outcome.source);
+        assert!(
+            after.ambient_packages.is_empty(),
+            "{:#?}",
+            after.ambient_packages
+        );
+        assert_eq!(after.environments.len(), 1, "{:#?}", after.notices);
+        assert!(after.environments[0].extends);
+        assert_eq!(
+            super::environment_effect_snapshot(&before),
+            super::environment_effect_snapshot(&after),
+            "the registry effect must not move"
+        );
+        assert!(
+            outcome.above_target.is_empty(),
+            "{:#?}",
+            outcome.above_target
+        );
+    }
+
+    /// U4's cannot-infer rule: with no declared environment and no sole
+    /// membership token, the row keeps its marker and the file reports
+    /// partial.
+    #[test]
+    fn an_ambient_package_row_with_no_owner_is_deferred() {
+        let source = "speclib probe 1.2 {\n\
+                      ambient_package iapp_utils 1.4\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20   dialects tcl8.6\n\
+                      \x20 }\n\
+                      }\n";
+        let outcome = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(outcome.status, UpgradeStatus::Partial, "{outcome:#?}");
+        assert!(
+            outcome.source.contains("ambient_package iapp_utils 1.4"),
+            "{}",
+            outcome.source
+        );
+        assert!(
+            outcome
+                .source
+                .contains("# TODO(spectcl 2.0): this `ambient_package` row"),
+            "{}",
+            outcome.source
+        );
+    }
+
+    /// U5: a `file_extension … -dialect D` row's detection moves into
+    /// `environment D -extend { … }`, the flag itself dropped, everything
+    /// else verbatim — and the effect snapshot is unchanged.
+    #[test]
+    fn a_file_extension_dialect_row_moves_into_the_environment_block() {
+        let source = "speclib probe 1.1 {\n\
+                      file_extension upf -name {Unified Power Format} -dialect synopsys-eda-tcl\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20 }\n\
+                      }\n";
+        let outcome = upgrade_source(source, &UpgradeOptions::default());
+        assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
+        assert!(
+            outcome.source.contains(
+                "environment synopsys-eda-tcl -extend {\n\
+                 \x20   file_extension upf -name {Unified Power Format}\n\
+                 }"
+            ),
+            "{}",
+            outcome.source
+        );
+        let before = load_pack(source);
+        let after = load_pack(&outcome.source);
+        assert!(after.file_extensions.is_empty());
+        assert_eq!(
+            super::environment_effect_snapshot(&before),
+            super::environment_effect_snapshot(&after),
+        );
+        assert!(
+            outcome.above_target.is_empty(),
+            "{:#?}",
+            outcome.above_target
+        );
+    }
+
+    /// U6: `--infer-provides` hoists the pack-level default, and the
+    /// rewritten pack loads to the same specs through the `provides`
+    /// fallback.
+    #[test]
+    fn infer_provides_hoists_the_pack_level_default() {
+        let source = "speclib probe 1.2 {\n\
+                      default required_package upf\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20 }\n\
+                      }\n";
+        let options = UpgradeOptions {
+            infer_provides: true,
+            ..UpgradeOptions::default()
+        };
+        let outcome = upgrade_source(source, &options);
+        assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
+        assert!(
+            outcome.source.contains("provides upf"),
+            "{}",
+            outcome.source
+        );
+        assert!(
+            !outcome.source.contains("default required_package"),
+            "{}",
+            outcome.source
+        );
+        let before = load_pack(source);
+        let after = load_pack(&outcome.source);
+        assert_eq!(after.provides.len(), 1);
+        assert_eq!(
+            before.command("demo").expect("demo").spec.required_package,
+            after.command("demo").expect("demo").spec.required_package,
+        );
+    }
+
+    /// U6's per-command shape: a uniform `required_package` row in every
+    /// command hoists to one pack-level `provides`, and specs are
+    /// unchanged.
+    #[test]
+    fn infer_provides_hoists_uniform_per_command_rows() {
+        let source = "speclib probe 1.2 {\n\
+                      \x20 command demo {\n\
+                      \x20   arity 1\n\
+                      \x20   required_package upf\n\
+                      \x20 }\n\
+                      \x20 command duo {\n\
+                      \x20   arity 1\n\
+                      \x20   required_package upf\n\
+                      \x20 }\n\
+                      }\n";
+        let options = UpgradeOptions {
+            infer_provides: true,
+            ..UpgradeOptions::default()
+        };
+        let outcome = upgrade_source(source, &options);
+        assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
+        assert!(
+            outcome.source.contains("provides upf"),
+            "{}",
+            outcome.source
+        );
+        assert!(
+            !outcome.source.contains("required_package upf"),
+            "{}",
+            outcome.source
+        );
+        let before = load_pack(source);
+        let after = load_pack(&outcome.source);
+        for name in ["demo", "duo"] {
+            assert_eq!(
+                before.command(name).expect(name).spec.required_package,
+                after.command(name).expect(name).spec.required_package,
+                "{name}"
+            );
+        }
     }
 
     /// Q3: `f5-bigip` refuses the whole file rather than being translated
@@ -675,6 +1570,7 @@ mod tests {
             &UpgradeOptions {
                 from: "2.0".to_owned(),
                 to: "1.2".to_owned(),
+                ..UpgradeOptions::default()
             },
         );
         assert_eq!(outcome.status, UpgradeStatus::Refused);

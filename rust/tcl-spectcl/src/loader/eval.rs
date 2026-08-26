@@ -222,6 +222,8 @@ const ROW_WORDS: &[&str] = &[
     "display_name",
     "file_extension",
     "ambient_package",
+    "provides",
+    "co_provides",
     "environment",
     "dialect",
     // command scope
@@ -254,6 +256,8 @@ const ROW_WORDS: &[&str] = &[
     "body_arg_implicit_args",
     "body_kind",
     "allow_unknown_subcommands",
+    "dynamic_surface",
+    "unknown_members",
     "prefix_matching",
     "self_receiver_words",
     "return_type",
@@ -525,6 +529,21 @@ struct State {
     /// The file's declarative skeleton, verbatim, for line-exact body
     /// evaluation.
     verbatim: VerbatimIndex,
+    /// The include context this evaluation resolves `include` rows
+    /// through, when the caller gave one (`evaluate_pack_in`).
+    include: Option<Rc<super::IncludeContext>>,
+    /// Content hashes on the current inclusion path, the root source
+    /// first — the CST loader's cycle key, shared spelling.
+    include_stack: Vec<u64>,
+    /// Whether an included fragment is currently being evaluated: the
+    /// verbatim index describes the *root* file, so line-keyed lookups
+    /// must not fire inside an included one.
+    in_include: bool,
+    /// Sites that used vocabulary the capture layer (not the replay's
+    /// readers) consumed — today only `include` — replayed into the
+    /// vocabulary-consistency log so the per-site "newer than declared"
+    /// notices match the CST loader's.
+    newer_word_sites: Vec<(u32, &'static str)>,
 }
 
 impl State {
@@ -546,8 +565,13 @@ impl State {
 
     /// A captured invocation as a [`Stmt`]: the file's verbatim statement
     /// when the invocation corresponds to one, the evaluated values
-    /// otherwise.
+    /// otherwise. Inside an included fragment the verbatim index (which
+    /// describes the root file) is not consulted, so a line-number
+    /// coincidence cannot substitute the wrong statement.
     fn captured(&self, word: &str, args: &[String], line: u32) -> Stmt {
+        if self.in_include {
+            return capture_stmt(word, args, line);
+        }
         self.verbatim
             .row(word, args.len(), line)
             .unwrap_or_else(|| capture_stmt(word, args, line))
@@ -885,6 +909,134 @@ fn stage_subcommand(
     Ok(())
 }
 
+/// The `include` handler (2.0, Q6): valid only as a literal pack-scope
+/// row; the resolved fragment evaluates in place with provenance
+/// inherited, under the same content-hash cycle key the CST loader uses.
+fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
+    let state = Rc::clone(state);
+    Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
+        let line = state.borrow().absolute_line(ctx.line());
+        let at_pack = state.borrow().scopes.is_empty();
+        if !at_pack {
+            // Inside a command/subcommand body `include` is not pack
+            // vocabulary; captured as a row, it replays to the unknown
+            // word path exactly as in the CST loader.
+            let mut st = state.borrow_mut();
+            let stmt = st.captured("include", args, line);
+            st.push_node(Node::Row(stmt));
+            return Ok(None);
+        }
+        let words: Vec<&str> = args.iter().map(String::as_str).collect();
+        stage_include(ctx, &state, &words, line)?;
+        Ok(None)
+    })
+}
+
+/// Resolve and evaluate one `include` row. Shared by the host command and
+/// the static driver, so the two evaluation paths cannot drift.
+fn stage_include(
+    ctx: &mut PackEvalCtx<'_>,
+    state: &Rc<RefCell<State>>,
+    words: &[&str],
+    line: u32,
+) -> Result<(), String> {
+    // The vocabulary-consistency log's eval-side record: `include` is 2.0
+    // vocabulary, and the replay turns this into the same per-site notice
+    // the CST loader's `expand_includes` logs.
+    state.borrow_mut().newer_word_sites.push((line, "include"));
+    let name = match super::include_name(words, line) {
+        Ok(name) => name,
+        Err(notice) => {
+            state.borrow_mut().eval_notices.push(notice);
+            return Ok(());
+        }
+    };
+    let resolved = {
+        let st = state.borrow();
+        st.include.clone().map(|context| context.resolve(&name))
+    };
+    let Some(resolved) = resolved else {
+        let notice = eval_notice(
+            "pack",
+            line,
+            VocabularyClass::Semantic,
+            format!(
+                "`include {name}` needs a pack search path and this load was given \
+                 none; the row is dropped and its declarations are not loaded"
+            ),
+        );
+        state.borrow_mut().eval_notices.push(notice);
+        return Ok(());
+    };
+    let text = match resolved {
+        Ok(text) => text,
+        Err(error) => {
+            let notice = eval_notice(
+                "pack",
+                line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` did not resolve ({error}); the row is dropped \
+                     and its declarations are not loaded"
+                ),
+            );
+            state.borrow_mut().eval_notices.push(notice);
+            return Ok(());
+        }
+    };
+    let text = text.strip_prefix('\u{feff}').unwrap_or(&text).to_owned();
+    let hash = xxhash_rust::xxh3::xxh3_64(text.as_bytes());
+    {
+        let mut st = state.borrow_mut();
+        if st.include_stack.contains(&hash) {
+            let notice = eval_notice(
+                "pack",
+                line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` closes an include cycle (its content is already \
+                     on the inclusion path); the row is dropped"
+                ),
+            );
+            st.eval_notices.push(notice);
+            return Ok(());
+        }
+        if st.include_stack.len() >= super::INCLUDE_DEPTH_LIMIT {
+            let notice = eval_notice(
+                "pack",
+                line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` exceeds the include depth limit ({}); the row \
+                     is dropped",
+                    super::INCLUDE_DEPTH_LIMIT
+                ),
+            );
+            st.eval_notices.push(notice);
+            return Ok(());
+        }
+        st.include_stack.push(hash);
+        st.base_lines.push(1);
+    }
+    let was_in_include = {
+        let mut st = state.borrow_mut();
+        std::mem::replace(&mut st.in_include, true)
+    };
+    let body = BodyText {
+        text,
+        base: 1,
+        verbatim: true,
+    };
+    let outcome = run_body(ctx, state, &body);
+    {
+        let mut st = state.borrow_mut();
+        st.in_include = was_in_include;
+        st.base_lines.pop();
+        st.include_stack.pop();
+    }
+    outcome
+}
+
 /// Run one body: when it is the file's verbatim text and every statement at
 /// this level is static vocabulary, capture the statements directly —
 /// exactly what evaluating them would do, minus the interpreter — and hand
@@ -987,6 +1139,10 @@ fn drive_static(
                 track_declared_support(&mut st, &args, stmt.line);
                 st.push_node(Node::Row(stmt.clone()));
             }
+            "include" if at_pack => {
+                let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
+                stage_include(ctx, state, &words, stmt.line)?;
+            }
             _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
         }
     }
@@ -1059,13 +1215,32 @@ fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
 /// transactional.
 #[must_use]
 pub fn evaluate_pack_with(source: &str, options: &EvalOptions) -> Pack {
+    evaluate_pack_in(source, options, None)
+}
+
+/// [`evaluate_pack_with`] with an [`super::IncludeContext`] resolving
+/// literal pack-scope `include` rows — the evaluation twin of
+/// [`super::load_pack_with`]. A computed include (an interpreter-path
+/// invocation inside a scope, or a substituted name) stays refused under
+/// the determinism contract.
+#[must_use]
+pub fn evaluate_pack_in(
+    source: &str,
+    options: &EvalOptions,
+    include: Option<Rc<super::IncludeContext>>,
+) -> Pack {
     // The file entry point treats a leading byte-order mark as a prologue,
     // exactly as the CST loader's `pack_statements` does (issue #1635).
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
 
     let state = Rc::new(RefCell::new(State::default()));
-    state.borrow_mut().verbatim = VerbatimIndex::of(source);
-    let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 4);
+    {
+        let mut st = state.borrow_mut();
+        st.verbatim = VerbatimIndex::of(source);
+        st.include = include;
+        st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+    }
+    let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 5);
     for &word in ROW_WORDS {
         vocabulary.push((word, row_handler(word, &state)));
     }
@@ -1073,6 +1248,7 @@ pub fn evaluate_pack_with(source: &str, options: &EvalOptions) -> Pack {
     vocabulary.push(("command", command_handler(&state)));
     vocabulary.push(("subcommand", subcommand_handler(&state)));
     vocabulary.push(("available?", available_handler(&state)));
+    vocabulary.push(("include", include_handler(&state)));
     let unknown = unknown_handler(&state);
 
     let outcome = pack_eval::run_pack_program(source, &vocabulary, &unknown, &options.config);
@@ -1194,12 +1370,20 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
             }
             "environment" => {
                 if let Some(reserved) = environment_block::reserved_name(reg.arg(1)) {
+                    let verb = if reg.has_flag("-extend") {
+                        // §6.4: altering a canonical environment — detection
+                        // rows and placements included — needs a trusted
+                        // tier, exactly as claiming its name does.
+                        "extends"
+                    } else {
+                        "claims"
+                    };
                     return Some((
                         reg.line(),
                         format!(
-                            "`environment {}` claims `{reserved}`, a compiled \
+                            "`environment {}` {verb} `{reserved}`, a compiled \
                              environment name, and this pack loads from the {class} \
-                             tier; an untrusted pack may not claim reserved names, so \
+                             tier; an untrusted pack may not touch reserved names, so \
                              the pack is not loaded (design E-R2)",
                             reg.arg(1)
                         ),
@@ -1320,6 +1504,11 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
 
     pack.registrations = registrations;
 
+    // Sites the capture layer consumed itself (`include`): logged here so
+    // the per-site vocabulary-consistency notices match the CST loader's.
+    for (line, word) in &state.newer_word_sites {
+        log.since(*line, word, "2.0");
+    }
     finish_newer_words(&pack, &mut log);
     pack.notices = log.notices;
     pack.notices.extend(state.eval_notices);

@@ -181,6 +181,7 @@ pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
     let options = UpgradeOptions {
         from: args.from.clone(),
         to: args.to.clone(),
+        infer_provides: args.infer_provides,
     };
     // `--verify` proves an upgrade rather than performing one, so it never
     // writes: the whole claim it makes is about bytes that are already on
@@ -289,7 +290,10 @@ fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
 ///
 /// Every axis a 1.x `dialects` row can gate on, so a translation that
 /// widened or narrowed availability anywhere shows up as a snapshot
-/// difference rather than passing unnoticed.
+/// difference rather than passing unnoticed. The environment-membership
+/// axes joined when U3 started translating their tokens: a widened or
+/// narrowed `f5-iapps` claim must show in the `f5-iapps` registry, not
+/// pass because the Tcl-ladder registries never admitted it.
 const VERIFY_DIALECTS: &[&str] = &[
     "tcl8.4",
     "tcl8.5",
@@ -297,6 +301,11 @@ const VERIFY_DIALECTS: &[&str] = &[
     "tcl9.0",
     "tcl9.1",
     "f5-irules",
+    "f5-iapps",
+    "f5-tmsh",
+    "expect",
+    "spectcl",
+    "bpf",
 ];
 
 /// U9: load the original and the rewritten pack and compare the registry
@@ -308,6 +317,26 @@ const VERIFY_DIALECTS: &[&str] = &[
 fn verify_snapshots(path: &Path, original: &str, upgraded: &str) -> anyhow::Result<bool> {
     let before = in_memory_pack(path, original);
     let after = in_memory_pack(path, upgraded);
+    // The U5 extension of the gate: the environment-scoped rows both
+    // forms load to — detection routing and package placements — must be
+    // identical, which is what licenses U4/U5 to move a row's *home*
+    // (pack level → `environment … -extend`) while the registry effect
+    // stays put once environment registration consumes the blocks.
+    for (before_pack, after_pack) in before.packs.iter().zip(after.packs.iter()) {
+        let left = tcl_spectcl::upgrade::merged_environment_effect_snapshot(before_pack);
+        let right = tcl_spectcl::upgrade::merged_environment_effect_snapshot(after_pack);
+        if left != right {
+            eprint_status(
+                warn_style(),
+                format!(
+                    "environment effect differs for pack `{}`:\n  before: {left}\n  \
+                     after: {right}",
+                    before_pack.name
+                ),
+            );
+            return Ok(false);
+        }
+    }
     let mut names: Vec<&str> = before
         .packs
         .iter()

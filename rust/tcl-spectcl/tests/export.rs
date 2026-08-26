@@ -347,3 +347,64 @@ fn the_expansion_names_every_registration_the_loop_made() {
     // raising a declared vocabulary is `spec upgrade`'s job, not export's.
     assert!(exported.starts_with("speclib fleet 2.0 {\n"), "{exported}");
 }
+
+/// The 2.0 word batch (P2-H): `provides`, `co_provides`,
+/// `dynamic_surface`/`unknown_members`, and the `environment -extend`
+/// block all round-trip through gate A's machinery — export, reload,
+/// identical snapshot, idempotent text.
+#[test]
+fn the_new_two_point_oh_words_round_trip_through_gate_a() {
+    let source = "speclib probe 2.0 {\n\
+                  provides upf 1.0 2.1\n\
+                  co_provides Tk -requires-exact tk -when {without TK_NO_DEPRECATED}\n\
+                  environment synopsys-eda-tcl -extend {\n\
+                  \x20   file_extension upfx -name {Probe UPF Extension}\n\
+                  \x20   ambient upf_extras 1.0\n\
+                  }\n\
+                  command demo {\n\
+                  \x20   arity 1\n\
+                  \x20   dynamic_surface\n\
+                  }\n\
+                  command duo {\n\
+                  \x20   arity 1\n\
+                  \x20   unknown_members\n\
+                  }\n\
+                  }\n";
+    let pack = load_pack(source);
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+    let (exported, losses) = export_pack_reporting(&pack);
+    assert!(losses.is_empty(), "{losses:#?}");
+    let reloaded = load_pack(&exported);
+    assert_eq!(snapshot(&pack), snapshot(&reloaded));
+    assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
+    assert_eq!(reloaded.provides.len(), 1);
+    assert_eq!(reloaded.co_provides.len(), 1);
+    assert_eq!(reloaded.environments.len(), 1);
+    assert!(reloaded.environments[0].extends);
+    let twice = export_pack_reporting(&reloaded).0;
+    assert_eq!(twice, exported, "export is not idempotent");
+}
+
+/// An `include`-assembled pack exports as its expansion — the included
+/// statements inline, no `include` row — and the export reloads
+/// context-free to the same snapshot.
+#[test]
+fn an_included_fragment_exports_as_its_expansion() {
+    let context = tcl_spectcl::IncludeContext::new(|name| match name {
+        "extra.frag" => Ok("command extra {\n arity 2\n}\n".to_owned()),
+        other => Err(format!("no such fragment `{other}`")),
+    });
+    let pack = tcl_spectcl::load_pack_with(
+        "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n",
+        Some(&context),
+    );
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+    let (exported, losses) = export_pack_reporting(&pack);
+    assert!(losses.is_empty(), "{losses:#?}");
+    assert!(!exported.contains("include"), "{exported}");
+    assert!(exported.contains("command extra {"), "{exported}");
+    // Context-free reload: the expansion needs no resolver.
+    let reloaded = load_pack(&exported);
+    assert_eq!(snapshot(&pack), snapshot(&reloaded));
+    assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
+}

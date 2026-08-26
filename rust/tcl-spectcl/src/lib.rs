@@ -73,22 +73,25 @@ pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
+pub mod registration;
 pub mod upgrade;
 
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};
 pub use install::registry_with_packs;
 pub use loader::{
-    AmbientPackage, ClauseGrammar, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
-    HookSource, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
-    NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackDialect, PackDialectAxis,
-    PackEnvironment, PackEnvironmentTier, VocabularyClass, eval_snapshot_key, evaluate_pack,
-    evaluate_pack_cached, evaluate_pack_with, load_pack, provenance_violation,
-    roles_from_manufacturers, speclib_version_span,
+    AmbientPackage, ClauseGrammar, CoProvides, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily,
+    HookOwner, HookSource, IncludeContext, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION,
+    LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackDialect, PackDialectAxis,
+    PackEnvironment, PackEnvironmentTier, PackProvides, VocabularyClass, eval_snapshot_key,
+    evaluate_pack, evaluate_pack_cached, evaluate_pack_in, evaluate_pack_with, load_pack,
+    load_pack_with, provenance_violation, roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
+pub use registration::{RegistrationOutcome, register_environments, register_pack_environments};
 pub use upgrade::{
-    OLDEST_VOCABULARY_VERSION, UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source,
+    OLDEST_VOCABULARY_VERSION, UpgradeOptions, UpgradeOutcome, UpgradeStatus,
+    environment_effect_snapshot, upgrade_source,
 };
 
 /// The `.tclspec` file extension, without the dot.

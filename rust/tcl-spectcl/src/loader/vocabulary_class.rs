@@ -92,6 +92,16 @@ impl std::fmt::Display for VocabularyClass {
 /// closed world. The assistance markers are the shape-and-value families.
 const MARKERS: &[(&str, VocabularyClass)] = &[
     ("taint", VocabularyClass::Semantic),
+    // The 2.0 batch (P2-H): dropping a `provides`/`co_provides` opens
+    // availability a provider gate was closing; dropping a
+    // `dynamic_surface`/`unknown_members` closes a surface the author
+    // declared open (false unknown-member diagnostics); dropping an
+    // `include` silently loses declared surface. None may load past an
+    // older build as decoration.
+    ("provides", VocabularyClass::Semantic),
+    ("surface", VocabularyClass::Semantic),
+    ("members", VocabularyClass::Semantic),
+    ("include", VocabularyClass::Semantic),
     ("sink", VocabularyClass::Semantic),
     ("unsafe", VocabularyClass::Semantic),
     ("safe", VocabularyClass::Semantic),
@@ -154,6 +164,24 @@ mod tests {
             "side_switch_target",
             "unsafe_command",
             "policy",
+        ] {
+            assert_eq!(classify(word), VocabularyClass::Semantic, "{word}");
+        }
+    }
+
+    /// The §6.1 downgrade fixture for the 2.0 batch: an older build that
+    /// does not speak these words must abstain (exclude the affected
+    /// spec), never publish a stronger claim by ignoring them.
+    #[test]
+    fn the_two_point_oh_words_classify_semantic() {
+        for word in [
+            "provides",
+            "co_provides",
+            "dynamic_surface",
+            "unknown_members",
+            "-dynamic-surface",
+            "-unknown-members",
+            "include",
         ] {
             assert_eq!(classify(word), VocabularyClass::Semantic, "{word}");
         }

@@ -135,10 +135,12 @@ mod eval;
 mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
+pub(crate) use environment_block::reserved_name as reserved_environment_name;
 pub use environment_block::{PackEnvironment, PackEnvironmentTier};
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, eval_snapshot_memoised,
-    evaluate_pack, evaluate_pack_cached, evaluate_pack_with, provenance_violation,
+    evaluate_pack, evaluate_pack_cached, evaluate_pack_in, evaluate_pack_with,
+    provenance_violation,
 };
 pub use vocabulary_class::VocabularyClass;
 
@@ -822,6 +824,17 @@ pub struct Pack {
     /// (`file_extension upf -name {Unified Power Format} -dialect …`),
     /// in declaration order.
     pub file_extensions: Vec<FileExtension>,
+    /// The package trains this pack declares it describes
+    /// (`provides upf ?VERSION…?`, `SpecTcl` 2.0 §6.2), in declaration
+    /// order. Commands with no availability default of their own default
+    /// their provider (`required_package`) to the first `provides` name.
+    pub provides: Vec<PackProvides>,
+    /// `co_provides` relations (`SpecTcl` 2.0, review B11): predicated
+    /// "requiring NAME routes to this pack's package" declarations,
+    /// carried as data — the loader-alias mechanics that consume them are
+    /// later wire-up (P3+), and carrying them is what keeps an older
+    /// build from silently flattening a predicated relation.
+    pub co_provides: Vec<CoProvides>,
     /// Packages this pack declares **ambient** in its dialect, with the
     /// version the runtime provides (`ambient_package Tk 8.6`), in
     /// declaration order.
@@ -909,6 +922,40 @@ impl fmt::Display for LoadError {
     }
 }
 
+/// One `provides NAME ?VERSION…?` row (`SpecTcl` 2.0 §6.2): a package
+/// train this pack describes. Several versions name parallel majors; no
+/// version at all declares the train without pinning any release, which
+/// is what `tcl spec upgrade --infer-provides` writes when it hoists a
+/// bare `required_package` default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackProvides {
+    /// The package name, as `package require` would spell it.
+    pub name: &'static str,
+    /// The declared train versions, possibly empty.
+    pub versions: Vec<&'static str>,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
+}
+
+/// One `co_provides NAME ?-requires-exact PACKAGE? ?-when PREDICATE?`
+/// row (`SpecTcl` 2.0, review B11): loading this pack's package
+/// co-provides `NAME`; requiring `NAME` requires the named package at
+/// the exact loaded version; all of it under an optional build
+/// predicate. Data only — see [`Pack::co_provides`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CoProvides {
+    /// The co-provided name (`Tk` for the lowercase-`tk` loader).
+    pub name: &'static str,
+    /// The package whose exact loaded version a requirement of
+    /// [`Self::name`] resolves through, when stated.
+    pub requires_exact: Option<&'static str>,
+    /// The build predicate the relation holds under, verbatim, when
+    /// stated (`without TK_NO_DEPRECATED`).
+    pub when: Option<&'static str>,
+    /// The declaring line, for notices and editors.
+    pub line: u32,
+}
+
 /// One `ambient_package NAME VERSION` row: a package the pack's dialect
 /// provides without a `package require`, and the version it provides.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -955,13 +1002,28 @@ impl Pack {
     }
 }
 
-/// Load a `.tclspec` source.
+/// Load a `.tclspec` source with no include context: an `include` row is
+/// reported and dropped, everything else loads as [`load_pack_with`].
 ///
 /// Never fails: a pack with no `speclib` wrapper, or with declarations this
 /// server does not know, loads as much as it can and reports the rest through
 /// [`Pack::notices`].
 #[must_use]
 pub fn load_pack(source: &str) -> Pack {
+    load_pack_with(source, None)
+}
+
+/// [`load_pack`] with an [`IncludeContext`] resolving `include NAME` rows
+/// (`SpecTcl` 2.0, Q6) under the determinism contract: literal names
+/// only, no IO beyond what the context's resolver reaches (the pack
+/// search path), content-hash-keyed cycle rejection, bounded depth, and
+/// provenance inherited — the included statements load as part of this
+/// pack, at its tier, exactly as if written in place. The registration
+/// record carries the **included statements** rather than the `include`
+/// row, so an export writes the expansion (design E's rule for every
+/// computed registration).
+#[must_use]
+pub fn load_pack_with(source: &str, include: Option<&IncludeContext>) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
         ..Log::default()
@@ -1020,6 +1082,12 @@ pub fn load_pack(source: &str) -> Pack {
     // Two passes: pack-level tables and descriptors first, so a `command`
     // may reference one declared after it.
     let body_stmts = block(body);
+    // `include` rows expand here — before the record and both passes —
+    // so the two passes and the canonical record all see the same
+    // statement stream, and neither loader front end re-implements the
+    // splice.
+    let mut include_chain = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+    let body_stmts = expand_includes(body_stmts, include, &mut include_chain, &mut log);
     // The canonical record is the statements themselves (design E-R11), taken
     // before the passes so it holds what the file *says* rather than what
     // survived reading it — a dropped row is a notice, not a missing
@@ -1048,6 +1116,8 @@ fn empty_pack() -> Pack {
         name: String::new(),
         display_name: None,
         file_extensions: Vec::new(),
+        provides: Vec::new(),
+        co_provides: Vec::new(),
         ambient_packages: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
@@ -1105,13 +1175,46 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
                 pack.ambient_packages.push(row);
             }
         }
+        "provides" => {
+            log.v20(stmt.line, "provides");
+            if let Some(row) = provides_row(stmt, log) {
+                // §6.2: commands default their provider to the pack's
+                // `provides`. The first `provides` name is the fallback; an
+                // explicit `default required_package` / `default available`
+                // always wins over it (see `command_from_parts`).
+                if tables.defaults.provides_package.is_none() {
+                    tables.defaults.provides_package = Some(row.name);
+                }
+                pack.provides.push(row);
+            }
+        }
+        "co_provides" => {
+            log.v20(stmt.line, "co_provides");
+            if let Some(row) = co_provides_row(stmt, log) {
+                pack.co_provides.push(row);
+            }
+        }
+        "include" => {
+            // The CST walk consumes `include` rows before this reader runs
+            // (`expand_includes`), so the only way here is the evaluation
+            // loader's interpreter-path replay — a templated pack computing
+            // an include, which the determinism contract does not follow.
+            log.v20(stmt.line, "include");
+            log.say_classified(
+                stmt.line,
+                VocabularyClass::Semantic,
+                "`include` must be a literal pack-scope row (the determinism contract \
+                 forbids a computed include); the row is dropped and its declarations \
+                 are not loaded",
+            );
+        }
         "environment" => {
             log.v20(stmt.line, "environment");
             if let Some(environment) = environment_block::parse(stmt, log) {
                 if pack
                     .environments
                     .iter()
-                    .any(|prior| prior.id == environment.id)
+                    .any(|prior| prior.id == environment.id && prior.extends == environment.extends)
                 {
                     log.say(
                         stmt.line,
@@ -1261,6 +1364,66 @@ fn ambient_package_row(stmt: &Stmt, log: &mut Log) -> Option<AmbientPackage> {
     })
 }
 
+/// `provides NAME ?VERSION…?` — one package train this pack describes.
+fn provides_row(stmt: &Stmt, log: &mut Log) -> Option<PackProvides> {
+    let name = stmt.word_text(1);
+    if name.is_empty() {
+        log.say(stmt.line, "`provides` needs a package name");
+        return None;
+    }
+    let versions: Vec<&'static str> = stmt
+        .words
+        .iter()
+        .skip(2)
+        .map(|word| leak_str(&word.text))
+        .collect();
+    Some(PackProvides {
+        name: leak_str(name),
+        versions,
+        line: stmt.line,
+    })
+}
+
+/// `co_provides NAME ?-requires-exact PACKAGE? ?-when PREDICATE?`.
+fn co_provides_row(stmt: &Stmt, log: &mut Log) -> Option<CoProvides> {
+    let name = stmt.word_text(1);
+    if name.is_empty() {
+        log.say(stmt.line, "`co_provides` needs the co-provided name");
+        return None;
+    }
+    let mut row = CoProvides {
+        name: leak_str(name),
+        requires_exact: None,
+        when: None,
+        line: stmt.line,
+    };
+    let words = &stmt.words;
+    let mut i = 2;
+    while i < words.len() {
+        match words[i].text.as_str() {
+            "-requires-exact" => {
+                let package = next_text(words, &mut i);
+                if package.is_empty() {
+                    log.say(stmt.line, "`-requires-exact` needs a package name");
+                } else {
+                    row.requires_exact = Some(leak_str(&package));
+                }
+            }
+            "-when" => {
+                let predicate = next_text(words, &mut i);
+                if predicate.is_empty() {
+                    log.say(stmt.line, "`-when` needs a predicate");
+                } else {
+                    row.when = Some(leak_str(&predicate));
+                }
+            }
+            other => log.unknown_flag("co_provides", stmt.line, other),
+        }
+        i += 1;
+    }
+    Some(row)
+}
+
 /// `file_extension EXT ?-name {…}? ?-dialect DIALECT?` — one extension the
 /// pack's language is written under. The extension is normalised to
 /// lower-case without a leading dot; `-dialect` must name a canonical
@@ -1318,6 +1481,206 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
         i += 1;
     }
     Some(row)
+}
+
+// ---------------------------------------------------------------------------
+// `include` — pack-file inclusion under the determinism contract (2.0, Q6)
+// ---------------------------------------------------------------------------
+
+/// Resolves `include NAME` rows to source text.
+///
+/// The resolver is the whole IO surface: the loader itself never opens a
+/// file, so "no IO beyond the pack search path" is enforced by handing the
+/// loader a resolver that reaches nothing else — [`IncludeContext::for_file`]
+/// reads only sibling files of the including pack, which is inside the
+/// search path the discovery layer already walks.
+pub struct IncludeContext {
+    resolver: IncludeResolver,
+}
+
+/// The resolver an [`IncludeContext`] wraps: include name in, source text
+/// (or a one-line reason) out.
+type IncludeResolver = Box<dyn Fn(&str) -> Result<String, String>>;
+
+impl std::fmt::Debug for IncludeContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("IncludeContext").finish_non_exhaustive()
+    }
+}
+
+impl IncludeContext {
+    /// A context over an arbitrary resolver — the seam tests and the
+    /// studio use.
+    pub fn new(resolver: impl Fn(&str) -> Result<String, String> + 'static) -> Self {
+        Self {
+            resolver: Box::new(resolver),
+        }
+    }
+
+    /// The file-system context for a pack at `path`: an include name
+    /// resolves against the pack's **own directory** only. Name
+    /// validation (no separators, no `..`) happens in the loader before
+    /// the resolver is asked, so this cannot be steered outside the
+    /// directory even by a hostile name.
+    #[must_use]
+    pub fn for_file(path: &std::path::Path) -> Self {
+        let dir = path.parent().map(std::path::Path::to_path_buf);
+        Self::new(move |name| {
+            let Some(dir) = &dir else {
+                return Err("the including pack has no parent directory".to_owned());
+            };
+            std::fs::read_to_string(dir.join(name)).map_err(|e| e.to_string())
+        })
+    }
+
+    fn resolve(&self, name: &str) -> Result<String, String> {
+        (self.resolver)(name)
+    }
+}
+
+/// The most deeply nested chain of `include`s the loader follows. The
+/// cap is a determinism bound, not a feature: a chain this deep is a
+/// mistake, and an unbounded walk over a resolver is not a loader.
+pub(crate) const INCLUDE_DEPTH_LIMIT: usize = 8;
+
+/// Whether `source`'s first pack body carries a pack-scope `include` row —
+/// the trigger [`crate::pack`] uses to load through a file-system
+/// [`IncludeContext`] instead of the compiled cache, whose key cannot see
+/// an included file's bytes. The substring test keeps the common
+/// include-free pack on the cached path with no second parse.
+#[must_use]
+pub(crate) fn uses_include(source: &str) -> bool {
+    if !source.contains("include") {
+        return false;
+    }
+    let top = pack_statements(source);
+    let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
+        return false;
+    };
+    let Some(body) = speclib.arg(3) else {
+        return false;
+    };
+    block(body)
+        .iter()
+        .any(|stmt| stmt.word_text(0) == "include")
+}
+
+/// Why one `include NAME` word is unusable, or `Ok` with the name.
+///
+/// Shared by both loader front ends so the CST walk and the evaluator
+/// cannot drift on what a valid include row is: exactly two words, a
+/// non-empty literal name, and no path structure — the resolver decides
+/// what a name means, but a name is never a path.
+pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> {
+    let reject = |message: String| Notice {
+        context: "pack".to_owned(),
+        line,
+        message,
+        class: VocabularyClass::Semantic,
+    };
+    if words.len() != 1 || words[0].is_empty() {
+        return Err(reject(
+            "`include` takes exactly one file name; the row is dropped and its \
+             declarations are not loaded"
+                .to_owned(),
+        ));
+    }
+    let name = words[0];
+    if name.contains(['/', '\\']) || name.contains("..") {
+        return Err(reject(format!(
+            "`include {name}` is not a plain file name (no path separators, no `..`); \
+             the row is dropped and its declarations are not loaded"
+        )));
+    }
+    Ok(name.to_owned())
+}
+
+/// Splice every pack-scope `include` row's resolved statements in place.
+///
+/// `chain` carries the content hashes of every file on the current
+/// inclusion path, the including pack first — the content-hash key the
+/// determinism contract names, and what rejects a cycle regardless of
+/// how the files spell each other's names.
+fn expand_includes(
+    stmts: Vec<Stmt>,
+    include: Option<&IncludeContext>,
+    chain: &mut Vec<u64>,
+    log: &mut Log,
+) -> Vec<Stmt> {
+    let mut out = Vec::with_capacity(stmts.len());
+    for stmt in stmts {
+        if stmt.word_text(0) != "include" {
+            out.push(stmt);
+            continue;
+        }
+        log.v20(stmt.line, "include");
+        let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
+        let name = match include_name(&words, stmt.line) {
+            Ok(name) => name,
+            Err(notice) => {
+                log.notices.push(notice);
+                continue;
+            }
+        };
+        let Some(context) = include else {
+            log.say_classified(
+                stmt.line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` needs a pack search path and this load was given \
+                     none; the row is dropped and its declarations are not loaded"
+                ),
+            );
+            continue;
+        };
+        let text = match context.resolve(&name) {
+            Ok(text) => text,
+            Err(error) => {
+                log.say_classified(
+                    stmt.line,
+                    VocabularyClass::Semantic,
+                    format!(
+                        "`include {name}` did not resolve ({error}); the row is dropped \
+                         and its declarations are not loaded"
+                    ),
+                );
+                continue;
+            }
+        };
+        let hash = xxhash_rust::xxh3::xxh3_64(text.as_bytes());
+        if chain.contains(&hash) {
+            log.say_classified(
+                stmt.line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` closes an include cycle (its content is already \
+                     on the inclusion path); the row is dropped"
+                ),
+            );
+            continue;
+        }
+        if chain.len() >= INCLUDE_DEPTH_LIMIT {
+            log.say_classified(
+                stmt.line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`include {name}` exceeds the include depth limit \
+                     ({INCLUDE_DEPTH_LIMIT}); the row is dropped"
+                ),
+            );
+            continue;
+        }
+        chain.push(hash);
+        // A fragment is a run of pack-scope statements; `pack_statements`
+        // gives it the same BOM prologue treatment a pack file gets. A
+        // `speclib` wrapper inside a fragment is not honoured — the word
+        // falls through to the ordinary unknown-property rule, exactly as
+        // it does under evaluation.
+        let spliced = expand_includes(pack_statements(&text), include, chain, log);
+        out.extend(spliced);
+        chain.pop();
+    }
+    out
 }
 
 /// The major component of a `speclib` version word, when it has one.
@@ -1382,6 +1745,10 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
 struct PackDefaults {
     dialects: Option<DialectSet>,
     required_package: Option<&'static str>,
+    /// The fallback provider `provides` declares (§6.2): applied only
+    /// when no explicit `default required_package` (or `default
+    /// available {package …}`) names one.
+    provides_package: Option<&'static str>,
     tcllib_package: Option<&'static str>,
     introduced_version: Option<&'static str>,
     deprecated_version: Option<&'static str>,
@@ -2630,6 +2997,12 @@ fn object_class_row(
         match words[i].text.as_str() {
             "-superclass" => superclasses = list_words(&next_text(words, &mut i)),
             "-allow-unknown" => allow_unknown_methods = true,
+            // The §6.2 `dynamic_surface` / `unknown_members` fact in its
+            // object-class spelling: the instance-method surface is open.
+            "-dynamic-surface" | "-unknown-members" => {
+                log.v20(stmt.line, &format!("object_class {}", words[i].text));
+                allow_unknown_methods = true;
+            }
             "-method-prefix-matching" => {
                 let value = next_text(words, &mut i);
                 if let Some(mode) = enum_by_name(
@@ -4006,7 +4379,10 @@ fn command_from_parts(
         let mut spec = CommandSpec {
             name: leak_str(name),
             dialects: tables.defaults.dialects,
-            required_package: tables.defaults.required_package,
+            required_package: tables
+                .defaults
+                .required_package
+                .or(tables.defaults.provides_package),
             tcllib_package: tables.defaults.tcllib_package,
             ..CommandSpec::DEFAULT
         };
@@ -4465,6 +4841,16 @@ fn apply_command_stmt(
             }
         }
         "allow_unknown_subcommands" => {
+            spec.allow_unknown_subcommands = parse_flag(stmt.tail());
+        }
+        // §6.2's honesty escape hatch (review B6): a provider whose member
+        // set is runtime-extensible declares so instead of pretending
+        // closure. Two ratified spellings, one fact — on a command the
+        // fact is the existing open-subcommand-table flag; the
+        // object-class form is the `-dynamic-surface` flag on
+        // `object_class`.
+        "dynamic_surface" | "unknown_members" => {
+            log.v20(stmt.line, stmt.word_text(0));
             spec.allow_unknown_subcommands = parse_flag(stmt.tail());
         }
         "prefix_matching" => {
@@ -7150,6 +7536,212 @@ mod tests {
             }),
             "{:?}",
             pack.notices
+        );
+    }
+
+    /// An `environment NAME -extend { … }` block parses additively: it may
+    /// name a compiled environment, carries detection rows and placements,
+    /// and refuses identity rows.
+    #[test]
+    fn an_environment_extend_block_is_additive() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n environment synopsys-eda-tcl -extend {\n \
+             file_extension upf -name {Unified Power Format}\n \
+             ambient upf_extras 1.0\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let environment = &pack.environments[0];
+        assert!(environment.extends);
+        assert_eq!(environment.id, "synopsys-eda-tcl");
+        assert_eq!(environment.file_extensions[0].extension.as_ref(), "upf");
+        assert_eq!(environment.placements.len(), 1);
+        let extension = environment.to_extension(PackEnvironmentTier::Bundled);
+        assert_eq!(extension.base, "synopsys-eda-tcl");
+        assert_eq!(extension.provenance, Provenance::BundledPack);
+        assert_eq!(extension.file_extensions.len(), 1);
+        assert_eq!(extension.placements.len(), 1);
+
+        // An identity row inside an extend block rejects the block.
+        let rejected = load_pack(
+            "speclib probe 2.0 {\n environment synopsys-eda-tcl -extend {\n \
+             core tcl 8.6\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(rejected.environments.is_empty());
+        assert!(
+            rejected
+                .notices
+                .iter()
+                .any(|n| n.message.contains("identity row")),
+            "{:?}",
+            rejected.notices
+        );
+    }
+
+    /// `provides` declares the pack's package trains and defaults command
+    /// providers; an explicit `default required_package` still wins.
+    #[test]
+    fn provides_defaults_the_command_provider() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n provides upf 1.0 2.1\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert_eq!(pack.provides.len(), 1);
+        assert_eq!(pack.provides[0].name, "upf");
+        assert_eq!(pack.provides[0].versions, vec!["1.0", "2.1"]);
+        assert_eq!(
+            pack.command("demo").expect("demo").spec.required_package,
+            Some("upf")
+        );
+
+        let explicit = load_pack(
+            "speclib probe 2.0 {\n provides upf\n \
+             default required_package sdc\n command demo { arity 1 }\n}",
+        );
+        assert_eq!(
+            explicit
+                .command("demo")
+                .expect("demo")
+                .spec
+                .required_package,
+            Some("sdc"),
+            "an explicit default beats the provides fallback"
+        );
+    }
+
+    /// `co_provides` parses its predicated relation and carries it as data.
+    #[test]
+    fn co_provides_carries_the_predicated_relation() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n provides tk\n \
+             co_provides Tk -requires-exact tk -when {without TK_NO_DEPRECATED}\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let relation = &pack.co_provides[0];
+        assert_eq!(relation.name, "Tk");
+        assert_eq!(relation.requires_exact, Some("tk"));
+        assert_eq!(relation.when, Some("without TK_NO_DEPRECATED"));
+    }
+
+    /// `dynamic_surface` / `unknown_members` set the open-surface fact on a
+    /// command, and the object-class flags set it on a class.
+    #[test]
+    fn dynamic_surface_opens_a_commands_member_set() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             dynamic_surface\n }\n command duo {\n arity 1\n \
+             unknown_members\n }\n command trio { arity 1 }\n \
+             command quad {\n arity 1\n \
+             object_class ::probe::tree -dynamic-surface {\n \
+             method walk { arity 0 }\n }\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert!(
+            pack.command("demo")
+                .expect("demo")
+                .spec
+                .allow_unknown_subcommands
+        );
+        assert!(
+            pack.command("duo")
+                .expect("duo")
+                .spec
+                .allow_unknown_subcommands
+        );
+        assert!(
+            !pack
+                .command("trio")
+                .expect("trio")
+                .spec
+                .allow_unknown_subcommands,
+            "saying nothing keeps the closed default"
+        );
+    }
+
+    /// `include` splices a fragment's declarations in place — provenance
+    /// inherited, registrations carrying the included statements — and the
+    /// determinism guards hold: no context, a cycle, and a path-shaped name
+    /// each drop the row with a semantic notice.
+    #[test]
+    fn include_splices_a_fragment_under_the_determinism_contract() {
+        let fragment = "command extra {\n arity 2\n}\n";
+        let context = IncludeContext::new(move |name| match name {
+            "extra.tclspec-frag" => Ok(fragment.to_owned()),
+            "self.tclspec-frag" => Ok("include self.tclspec-frag\n".to_owned()),
+            other => Err(format!("no such fragment `{other}`")),
+        });
+        let pack = load_pack_with(
+            "speclib probe 2.0 {\n include extra.tclspec-frag\n \
+             command demo { arity 1 }\n}",
+            Some(&context),
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert!(
+            pack.command("extra").is_some(),
+            "the fragment's command loads"
+        );
+        assert!(pack.command("demo").is_some());
+        assert!(
+            pack.registrations.iter().any(|reg| reg.arg(1) == "extra"),
+            "the record carries the included statements"
+        );
+        assert!(
+            !pack.registrations.iter().any(|reg| reg.word() == "include"),
+            "…and not the include row itself"
+        );
+
+        // No context: the row drops with a semantic notice.
+        let dropped = load_pack("speclib probe 2.0 {\n include extra.tclspec-frag\n}");
+        assert!(
+            dropped.notices.iter().any(|n| {
+                n.class == VocabularyClass::Semantic
+                    && n.message.contains("needs a pack search path")
+            }),
+            "{:?}",
+            dropped.notices
+        );
+
+        // A cycle is rejected by content hash.
+        let cyclic = load_pack_with(
+            "speclib probe 2.0 {\n include self.tclspec-frag\n}",
+            Some(&context),
+        );
+        assert!(
+            cyclic
+                .notices
+                .iter()
+                .any(|n| n.message.contains("include cycle")),
+            "{:?}",
+            cyclic.notices
+        );
+
+        // A path-shaped name never reaches the resolver.
+        let hostile = load_pack_with(
+            "speclib probe 2.0 {\n include ../outside\n}",
+            Some(&context),
+        );
+        assert!(
+            hostile
+                .notices
+                .iter()
+                .any(|n| n.message.contains("not a plain file name")),
+            "{:?}",
+            hostile.notices
+        );
+
+        // An unresolvable name reports the resolver's reason.
+        let missing = load_pack_with(
+            "speclib probe 2.0 {\n include nowhere.tclspec-frag\n}",
+            Some(&context),
+        );
+        assert!(
+            missing
+                .notices
+                .iter()
+                .any(|n| n.message.contains("did not resolve")),
+            "{:?}",
+            missing.notices
         );
     }
 
