@@ -62,7 +62,6 @@ use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_compiler::signature_scan::types::ParamDef;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::cache::registry_for_dialect;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::draft::{self, Draft};
@@ -382,7 +381,7 @@ fn consumes_a_value(script: &str) -> bool {
 /// script-argument declarations drive the walk.
 #[must_use]
 pub fn scan(body: &str, params: &[ParamDef], dialect: &str) -> Shape {
-    let registry = registry_for_dialect(dialect);
+    let registry = crate::environment::store_for_dialect(dialect);
     let mut stmts = Vec::new();
     statements(registry, body, 0, &mut stmts);
 

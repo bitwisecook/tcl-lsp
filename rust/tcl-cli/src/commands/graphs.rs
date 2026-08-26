@@ -463,7 +463,7 @@ mod tests {
         let entries = detect_event_entries(
             source,
             &LineIndex::new(source),
-            tcl_dialect::DialectProfile::irules(),
+            tcl_cli_support::environment::profile_for_dialect("f5-irules"),
         );
         assert_eq!(
             entries
@@ -480,7 +480,7 @@ mod tests {
         let entries = detect_event_entries(
             source,
             &LineIndex::new(source),
-            tcl_dialect::DialectProfile::irules(),
+            tcl_cli_support::environment::profile_for_dialect("f5-irules"),
         );
         assert_eq!(
             entries

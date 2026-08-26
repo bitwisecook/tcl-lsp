@@ -31,7 +31,6 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use tcl_core_types::{DiagCode, DocRow, OptCategory};
-use tcl_registry::ProfileQueries;
 
 use crate::util::repo_root;
 
@@ -290,23 +289,21 @@ fn ai_context() -> AiContext {
 }
 
 /// The modelled F5 iRules command surface, summarised from the registry
-/// (`ProfileQueries::vendor_surface` — dialect-profile model §5.4) so the
-/// prompt's picture of the surface regenerates with the data instead of
-/// drifting as hand-written prose: total command count plus the largest
+/// (`ResolvedContext::vendor_command_surface` — dialect-profile model §5.4)
+/// so the prompt's picture of the surface regenerates with the data instead
+/// of drifting as hand-written prose: total command count plus the largest
 /// `NS::` namespaces.
 fn irules_vendor_surface() -> String {
-    // The dialect name and the store both resolve through the one ingress
-    // seam (`crate::environment`).
-    //
-    // P1-G: `vendor_surface` itself stays on `ProfileQueries` — it is the
-    // one query in this crate with no `ResolvedContext` twin (ledger row
-    // F1's assistance half covers availability, not the vendor-bit
-    // summary), and inventing one here would be a model change rather than
-    // a port. The threaded profile is the resolved environment's, so the
-    // summary is keyed off the same environment either way.
-    let profile = crate::environment::profile_for_dialect("f5-irules");
-    let registry = crate::environment::store_for_profile(profile);
-    let Some(surface) = profile.vendor_surface(registry) else {
+    // The dialect name, the store, and the summary all resolve through the
+    // one ingress seam (`crate::environment`): the environment's document
+    // context answers the vendor-bit summary the retired
+    // `ProfileQueries::vendor_surface` did, pinned equal to it for every
+    // catalogue profile over that profile's own generation
+    // (`ResolvedContext`'s `vendor_surface_matches_the_profile_query`).
+    let registry = crate::environment::store_for_dialect("f5-irules");
+    let Some(surface) =
+        crate::environment::context_for_dialect("f5-irules").vendor_command_surface(registry)
+    else {
         return String::new();
     };
     let top: Vec<String> = surface
@@ -635,7 +632,9 @@ mod tests {
             for dialect in entry["dialects"].as_array().expect("dialects array") {
                 let name = dialect.as_str().expect("dialect name");
                 assert!(
-                    tcl_dialect::DialectProfile::find(name).is_some(),
+                    tcl_registry::model::resolve_environment(name)
+                        .catalogue_profile()
+                        .is_some(),
                     "{PROMPT_MANIFEST}: `{name}` is not a catalogued dialect"
                 );
             }

@@ -58,6 +58,11 @@ use crate::model::surface::{
     VENDOR_BIT_PACKAGES, VENDOR_BITS, ambient_placement_packages, is_closed_world_package,
     vendor_surface_package,
 };
+// The vendor-surface summary payload: plain registry-derived data, not
+// part of the retiring profile trait, so both faces answer with the one
+// type and the parity pin can compare them directly. It moves here with
+// the trait's deletion in P1-G.
+use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
 use crate::traits::Traits;
@@ -857,6 +862,48 @@ impl ResolvedContext {
             .map(|&(bit, _)| bit)
     }
 
+    /// This environment's **own vendor command surface** over `registry`,
+    /// summarised from registry data — the old
+    /// `ProfileQueries::vendor_surface`, derived from the resolved context:
+    /// the commands available here that carry the environment's vendor
+    /// authoring bit, grouped by `NS::` namespace prefix (bare names group
+    /// under `""`), sorted by descending size then name.
+    ///
+    /// `None` for an environment with no vendor surface of its own, and for
+    /// one whose surface resolves to nothing in `registry`. Feeds the
+    /// generated consumers (the AI prompt's F5-surface summary) so prose can
+    /// never drift from the data.
+    ///
+    /// Pinned equal to the retired profile query for every catalogue profile
+    /// over its own generation (`vendor_surface_matches_the_profile_query`).
+    #[must_use]
+    pub fn vendor_command_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
+        let vendor = self.vendor_authoring_bit()?;
+        let mut by_ns: std::collections::BTreeMap<String, usize> =
+            std::collections::BTreeMap::new();
+        let mut command_count = 0usize;
+        for name in registry.command_names() {
+            let Some(spec) = self.resolve_spec(registry, name) else {
+                continue;
+            };
+            if !is_vendor_own(spec, vendor) {
+                continue;
+            }
+            command_count += 1;
+            let ns = name.split_once("::").map_or("", |(ns, _)| ns);
+            *by_ns.entry(ns.to_owned()).or_insert(0) += 1;
+        }
+        if command_count == 0 {
+            return None;
+        }
+        let mut namespaces: Vec<(String, usize)> = by_ns.into_iter().collect();
+        namespaces.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        Some(VendorSurface {
+            command_count,
+            namespaces,
+        })
+    }
+
     /// The ambient **keyed** placement `spec` sits on here, if any — the
     /// old `keyed_pin_for`: the owning package's placement (only when
     /// keyed and ambient), or — for a vendor-own spec (gate carries the
@@ -873,10 +920,7 @@ impl ResolvedContext {
             return keyed_ambient(&placement).then_some(placement);
         }
         let vendor = self.vendor_authoring_bit()?;
-        let vendor_own = spec
-            .dialects
-            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
-        if !vendor_own {
+        if !is_vendor_own(spec, vendor) {
             return None;
         }
         self.environment
@@ -1069,6 +1113,18 @@ impl ContextQueries for ResolvedContext {
             .intersect(targets)
             .expect("targets were looked up on the same axis")
     }
+}
+
+/// Whether `spec` is one of an environment's **own vendor** commands: its
+/// gate carries that environment's vendor authoring bit and no plain-Tcl
+/// version, so the vendor bit is the discriminating tag rather than shared
+/// library data (tcllib's "everywhere but the closed sandboxes" complement
+/// gates). The membership rule
+/// [`ResolvedContext::vendor_command_surface`] and
+/// [`ResolvedContext::keyed_ambient_placement`] share.
+fn is_vendor_own(spec: &CommandSpec, vendor: DialectSet) -> bool {
+    spec.dialects
+        .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL))
 }
 
 /// The **total applicability breadth** of a declaration set — the
@@ -1553,6 +1609,48 @@ mod tests {
             }
         }
         println!("profile-query parity sweep: {checks} item checks, 0 divergences");
+    }
+
+    /// **P1-F wave-4 parity pin**: the context's vendor-surface summary
+    /// reproduces `ProfileQueries::vendor_surface` for every catalogue
+    /// profile, over that profile's own registry generation — the store
+    /// the generated AI prompt has always read it from. At least one
+    /// profile must actually have a surface, or the sweep would pass
+    /// vacuously on a pair of `None`s.
+    #[test]
+    fn vendor_surface_matches_the_profile_query() {
+        use crate::profile_queries::ProfileQueries;
+        use tcl_dialect::DialectProfile;
+        let mut with_surface = 0usize;
+        for profile in DialectProfile::all() {
+            let ctx = context(profile.name);
+            let store = crate::model::ingress::static_context_for(profile.name).commands();
+            let oracle = crate::model::f5_reclassified_oracle(profile);
+            let profile: &DialectProfile = &oracle;
+            let ported = ctx.vendor_command_surface(store);
+            assert_eq!(
+                ported,
+                profile.vendor_surface(store),
+                "{} vendor surface",
+                profile.name
+            );
+            if ported.is_some() {
+                with_surface += 1;
+            }
+        }
+        assert!(
+            with_surface > 0,
+            "no catalogue profile has a vendor surface — the sweep is vacuous"
+        );
+        // The lenient sink and the additive `tk` ingress author under no
+        // vendor bit, so neither has a surface of its own.
+        for lenient in ["tcl", "tk"] {
+            let store = crate::model::ingress::static_context_for(lenient).commands();
+            assert!(
+                context(lenient).vendor_command_surface(store).is_none(),
+                "{lenient} has no vendor surface"
+            );
+        }
     }
 
     #[test]

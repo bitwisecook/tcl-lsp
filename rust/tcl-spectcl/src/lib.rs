@@ -67,6 +67,7 @@ pub mod bundled;
 pub mod cache;
 pub mod catalogue;
 pub mod discovery;
+pub mod environment;
 pub mod export;
 pub mod hooks;
 pub mod install;

@@ -58,7 +58,8 @@ fn format_config(
     indent_style: Option<&str>,
     max_line_length: Option<usize>,
 ) -> FormatterConfig {
-    let mut config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect));
+    let mut config =
+        FormatterConfig::for_profile(tcl_cli_support::environment::profile_for_dialect(dialect));
     if let Some(size) = indent_size {
         config.indent_size = size;
     }
@@ -329,7 +330,7 @@ mod tests {
         assert!(irules.profile.is_irules());
         assert!(irules.lexer_config().irules_brace_separator);
 
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::static_context_for("f5-irules").commands();
         let source = "when HTTP_REQUEST {\n    if { 1 }{\n        pool p\n    }\n}\n";
         let out = tcl_lsp_core::formatting::format_tcl(source, &irules, registry);
         assert!(out.contains("} {"), "{out}");

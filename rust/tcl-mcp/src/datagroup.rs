@@ -34,7 +34,6 @@ use serde_json::{Value, json};
 use tcl_compiler::segmenter::segment_commands_with_offset;
 use tcl_lexer::LineIndex;
 use tcl_lsp_core::refactor::{extract_to_datagroup, walk_commands};
-use tcl_registry::registry_for_dialect;
 use tcl_syntax::switch_body::parse_braced_pairs;
 
 const DIALECT: &str = "f5-irules";
@@ -82,7 +81,7 @@ impl Candidate {
 
 /// Scan `source` for `if`/`switch` patterns extractable to data-groups.
 fn suggest(source: &str) -> Vec<Value> {
-    let registry = registry_for_dialect(DIALECT);
+    let registry = crate::environment::store_for_dialect(DIALECT);
     let line_index = LineIndex::new(source);
     let mut out = Vec::new();
 

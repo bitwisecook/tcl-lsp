@@ -25,7 +25,6 @@ use std::path::Path;
 use serde::Serialize;
 use tcl_cli_support::{OutputTarget, registry_for_dialect, write_text_output};
 use tcl_dialect::DialectProfile;
-use tcl_registry::ProfileQueries;
 
 /// JSON payload when the command resolves (fields are emitted in a fixed order).
 #[derive(Serialize)]
@@ -67,6 +66,11 @@ pub fn run_command_info(
         anyhow::bail!("command name is required");
     }
     let registry = registry_for_dialect(dialect.name);
+    // The dialect's assistance view — the `ResolvedContext` that replaces
+    // `ProfileQueries` (ledger row F1's assistance half). It answers over
+    // the pack-layered store this verb holds rather than its own
+    // generation, which is what `resolve_spec` exists for.
+    let context = tcl_cli_support::environment::context_for_dialect(dialect.name);
     let target = OutputTarget::from_arg(output);
 
     // Exact match, then a case-insensitive fallback (mirrors
@@ -74,15 +78,13 @@ pub fn run_command_info(
     // that exists in the data but is unavailable under `dialect` — banned
     // in iRules, version-gated above the profile's base — reports
     // not-found for that dialect.
-    let resolved_name: Option<String> = if dialect.resolve_command(&registry, query).is_some() {
+    let resolved_name: Option<String> = if context.resolve_spec(&registry, query).is_some() {
         Some(query.to_owned())
     } else {
         let lowered = query.to_lowercase();
         registry
             .command_names()
-            .find(|c| {
-                c.to_lowercase() == lowered && dialect.resolve_command(&registry, c).is_some()
-            })
+            .find(|c| c.to_lowercase() == lowered && context.resolve_spec(&registry, c).is_some())
             .map(str::to_owned)
     };
 
@@ -109,8 +111,8 @@ pub fn run_command_info(
         return Ok(1);
     };
 
-    let spec = dialect
-        .resolve_command(&registry, &resolved_name)
+    let spec = context
+        .resolve_spec(&registry, &resolved_name)
         .expect("resolved command spec");
     let summary = spec
         .hover
@@ -123,7 +125,7 @@ pub fn run_command_info(
         .unwrap_or_default();
     // §5.2 option gating (intersects + version ceiling) — the same rule
     // hover/completion/the snapshot use.
-    let mut switches: Vec<String> = dialect
+    let mut switches: Vec<String> = context
         .available_option_names(spec)
         .into_iter()
         .map(str::to_owned)

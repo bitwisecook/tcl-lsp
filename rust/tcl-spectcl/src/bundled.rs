@@ -272,7 +272,7 @@ pub fn registry_for_profile(profile: &'static DialectProfile) -> Arc<CommandRegi
 /// [`tcl_registry::registry_for_dialect`].
 #[must_use]
 pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
-    registry_for_profile(DialectProfile::by_name(dialect))
+    registry_for_profile(crate::environment::profile_for_dialect(dialect))
 }
 
 /// [`registry_for_dialect`] against a pack set the caller supplies rather than
@@ -283,7 +283,7 @@ pub fn registry_for_dialect(dialect: &str) -> Arc<CommandRegistry> {
 /// or on where its own binary happens to live.
 #[must_use]
 pub fn registry_for_dialect_from(dialect: &str, all: &PackSet) -> Arc<CommandRegistry> {
-    crate::install::registry_with_packs(DialectProfile::by_name(dialect), all)
+    crate::install::registry_with_packs(crate::environment::profile_for_dialect(dialect), all)
 }
 
 #[cfg(test)]
@@ -535,7 +535,7 @@ mod tests {
     fn a_standalone_install_with_no_specs_directory_resolves_an_eda_command() {
         let _cache = cache_guard();
         let standalone = resolve_packs(None);
-        let profile = tcl_dialect::DialectProfile::by_name("xilinx-eda-tcl");
+        let profile = crate::environment::profile_for_dialect("xilinx-eda-tcl");
         let registry = crate::install::registry_with_packs(profile, &standalone);
 
         let command = registry

@@ -439,20 +439,68 @@ wrongly succeeded before.
 
 ### Tooling / AI / editors
 
+**Status: CLI, MCP and studio ingress ported (P1-F wave 4, the final
+wave).** The two CLIs (`tcl-cli`, through the shared `tcl-cli-support`),
+the MCP server (`tcl-mcp`), the spec studio (`tcl-spec-studio`) and the
+pack loader's name ingress (`tcl-spectcl`) now resolve every dialect
+**name** through the one shared seam, `tcl_registry::model::ingress`, and
+answer availability from the resolved environment's `ResolvedContext`
+rather than from `ProfileQueries` over a threaded profile. Each crate
+carries one small `environment` module in the wave-2/3 shape —
+`profile_for_dialect`, `known_profile_for_dialect` (the validator),
+`context_for_dialect` (the assistance view), `store_for_dialect` (the
+generation's command store) — plus, where a crate genuinely needed both
+ingress forms, the exact `by_name` twin
+(`analyser_profile_for_dialect` / `analyser_mask_for_dialect`, built on
+`DocumentEnvironment::analyser_profile`): the CLI's KCS help filter and
+the pack-carrying registry cache key deliberately sink `tk` to the
+permissive fallback rather than promoting it, and splitting the two forms
+is what keeps that behaviour rather than silently widening it.
+
+`ProfileQueries` has no caller left in these crates: `tcl lookup` and the
+MCP `command_info` answer `resolve_command` / `available_option_names` /
+`keyed_version_range` from the document context, and
+`spectcl_check`'s collision test threads the target dialect's mask
+through the seam instead of reading the generation's profile *stamp*
+back. The MCP session-dialect plumbing's manual `KNOWN_DIALECTS`
+membership scan becomes `canonical_id_for_dialect`, and `set_dialect`'s
+validator becomes the one `Environment::resolve` — the same accepted
+widening wave 2 made at the LSP's `setDialect` (row F9): every *declared*
+name resolves, an unknown spelling is still rejected, and the advertised
+`enum` (row T6's payload) is untouched.
+
+The two wave-3 `xtask` holds are cleared. `gen_ai`'s vendor-surface
+summary moves to a new `ResolvedContext::vendor_command_surface`, pinned
+equal to `ProfileQueries::vendor_surface` for every catalogue profile over
+that profile's own generation (`vendor_surface_matches_the_profile_query`)
+— the additive twin the hold was waiting for. `gen_zed_queries`'
+ambient-package filter now threads each target's resolved context and asks
+`placement_is_ambient` (the documented twin of the retired
+`DialectProfile::is_ambient_package`) instead of reading the generation's
+profile stamp; every generator `--check` stays byte-identical.
+
+What deliberately stays: the `DialectProfile::all()` **enumerations** —
+the CLI's `--dialect` possible values and its unknown-dialect message, the
+MCP `dialect_schema` enum, the studio's picker, `registry-dump
+--all-dialects`' Tcl-release list — because the environment list has
+different contents and no `short_name` (the row F9 payload rule); those
+are rows T1/T3/T6/T7's payload, not refactors. Old APIs remain for other
+crates; deletion is P1-G.
+
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| T1 | `dialect_possible_values()`'s `+ tk` special case; `known_dialect_names()`'s manual chain | environment name+alias enumeration | P1 |
-| T2 | Explorer's second resolution with silent `by_name` plain-Tcl fallback | pass the resolved environment handle; unknown names error | P1 |
-| T3 | `registry-dump --all-dialects`'s single-`tcl8.6`-registry shortcut | per-family enumeration over the catalogue | P1 |
-| T4 | Hardcoded `tcl8.6` defaults (CLI `combined_effective_dialect`, VS Code `contextPack`, clap args) | the configured default environment | P1 |
-| T5 | f5-cli's unvalidated `--dialect: String` | validated ingress through `Environment::resolve` | P1 |
-| T6 | MCP `dialect_schema`'s 18-name enum; `spectcl_check`'s `availability_mask` bit test | environment enumeration; `targets ⊆ applicable` collision checking | P1/P2 |
-| T7 | Studio's `DIALECT_BITS` editor, dialect-string APIs, `SOURCE_DIALECT_KEY`, dialect-as-language-id client | provider/`VersionSet` editing, environment ids, generic contributed LSP identity (B7) | P2 |
+| T1 | `dialect_possible_values()`'s `+ tk` special case; `known_dialect_names()`'s manual chain | environment name+alias enumeration | P1 *(partial after wave 4: the `tk` name in both chains now resolves through the seam, and the CLI's ingest validator is `resolve_known_environment` rather than `DialectProfile::resolve_known` — but the enumerations themselves are this row's payload (`--help`'s possible values and the unknown-dialect message), so re-keying them is a user-visible change and stays open)* |
+| T2 | Explorer's second resolution with silent `by_name` plain-Tcl fallback | pass the resolved environment handle; unknown names error | P1 *(unchanged by wave 4: the second resolution lives in `tcl-explorer`'s `serialise`, not in the CLI verb — `tcl explore` itself now threads only the seam-resolved profile)* |
+| T3 | `registry-dump --all-dialects`'s single-`tcl8.6`-registry shortcut | per-family enumeration over the catalogue | P1 *(partial after wave 4: the `tcl8.6` name resolves through the seam; the shortcut and the `const_fold_version` family list are the payload and stay)* |
+| T4 | Hardcoded `tcl8.6` defaults (CLI `combined_effective_dialect`, VS Code `contextPack`, clap args) | the configured default environment | P1 *(partial after wave 4: both CLI defaults resolve through the seam and are marked `// T4:` at their sites; the spelling stays hardcoded until the configured default environment exists, because changing it changes what an unstated document is analysed as)* |
+| T5 | f5-cli's unvalidated `--dialect: String` | validated ingress through `Environment::resolve` | P1 *(unchanged by wave 4: `tcl-cli`'s own ingest validator is now `resolve_known_environment`, but `f5-cli` was outside this wave's turf and still threads its `--dialect` string into `DialectProfile::by_name`)* |
+| T6 | MCP `dialect_schema`'s 18-name enum; `spectcl_check`'s `availability_mask` bit test | environment enumeration; `targets ⊆ applicable` collision checking | P1/P2 *(partial after wave 4: the bit test now takes the **threaded target's** mask through the seam rather than reading it off the generation's profile stamp, so it no longer depends on the stamp; the enum is the payload half and `targets ⊆ applicable` is a model change, both open)* |
+| T7 | Studio's `DIALECT_BITS` editor, dialect-string APIs, `SOURCE_DIALECT_KEY`, dialect-as-language-id client | provider/`VersionSet` editing, environment ids, generic contributed LSP identity (B7) | P2 *(unchanged in substance by wave 4: the studio's `Builtins::for_dialect`, its command browser, the corpus scanner and the pack registry all resolve through the seam — `catalogue_dialect_or_default` is the `find(…).map_or("tcl9.0", …)` twin — but the DIALECT_BITS editor and the dialect-string APIs are the payload this row retires)* |
 | T8 | `render_spectcl`'s `is_dialect_set` conflation of availability with `safe_on_uninit`/`two_arg_optionless_dialects` | distinct spellings per gap ruling R4 | P2 |
 | T9 | `spec-author` skill's 1.1 instructions | 2.0 refresh (words, `dialect` blocks, `available`, upgrade workflow) | P2 |
 | T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case) | environment/provider-keyed ids; one-shot regeneration | P1 *(unchanged in substance by wave 3: `callback_inventory`'s ingress and registry access now go through the seam — the `tk` arm is `profile_for_dialect("tk")` and `visible_in` is the resolved environment's document authoring mask, replacing `resolve_known(…).unwrap_or(plain_tcl).availability_mask` — but the row ids and the `.chain(…)` enumeration are the payload this row retires, and re-keying them regenerates the committed JSON, so it stays open)* |
-| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` bit filters | declaration-derived fast paths | P1 *(unchanged in substance by wave 3: `gen_zed_queries`'s four targets are now `profile_for_dialect(id)` and its store is the environment's generation, but the `grammar_union` mask it projects under is `DialectSet` plumbing (row C1) and stays until P1-G. Its ambient-package filter reads the generation's profile **stamp**, the same `is_ambient_package` hold wave 2 left in the LSP, marked `// P1-G:` at the site)* |
-| T12 | AI manifest's release-keyed Tk fragment; prompt loader's alias-blind `dialects[]` check | environment-keyed manifest; alias-resolved loading | P1 |
+| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` bit filters | declaration-derived fast paths | P1 *(unchanged in substance by wave 3: `gen_zed_queries`'s four targets are now `profile_for_dialect(id)` and its store is the environment's generation, but the `grammar_union` mask it projects under is `DialectSet` plumbing (row C1) and stays until P1-G. Its ambient-package filter reads the generation's profile **stamp**, the same `is_ambient_package` hold wave 2 left in the LSP, marked `// P1-G:` at the site)*. **Wave 4 cleared that hold**: each target now carries its canonical environment id, `classify` takes the target's `ResolvedContext`, and the filter asks `placement_is_ambient` — the stamp read is gone and `--check` is byte-identical. The `grammar_union` mask stays (row C1). |
+| T12 | AI manifest's release-keyed Tk fragment; prompt loader's alias-blind `dialects[]` check | environment-keyed manifest; alias-resolved loading | P1 *(partial after wave 4: the manifest's catalogue-membership gate resolves through the seam (`resolve_environment(name).catalogue_profile()`, the exact `DialectProfile::find` twin); the release-keyed Tk fragment and the runtime prompt loader are the payload and stay)* |
 | T13 | Every hand-maintained projection found (Sublime map; the orphaned simulator data) | generated + drift-gated (rule 1.1) | P1 |
 
 ## 4. Gap rulings

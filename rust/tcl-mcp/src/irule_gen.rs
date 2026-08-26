@@ -118,7 +118,7 @@ pub fn generate_irule_test(args: &Value) -> Value {
         .collect();
     let ordered_events = event_registry.order_events(&event_names);
     let profiles = infer_profiles(&ordered_events);
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    let registry = crate::environment::store_for_dialect("f5-irules");
     // Build the event-rooted executable closure once for this request.  Every
     // execution-sensitive output below consumes this exact proof of liveness;
     // re-building it for object references could make setup disagree with the
@@ -995,7 +995,7 @@ mod tests {
     }
 
     fn registry() -> &'static tcl_registry::CommandRegistry {
-        tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules())
+        crate::environment::store_for_dialect("f5-irules")
     }
 
     fn executable(src: &str) -> Vec<tcl_irules::IrulesExecutableCommand> {

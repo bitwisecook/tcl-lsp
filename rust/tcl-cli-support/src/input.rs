@@ -103,7 +103,11 @@ impl InputDocument {
         if let Some(profile) = explicit {
             return profile;
         }
-        DialectProfile::by_name(tcl_registry::dialects::detect_dialect(
+        // T4: the `tcl8.6` invocation default stays the detector's own
+        // fallback spelling until the configured default environment
+        // lands (ledger row T4, P1) — resolving it here would change what
+        // an unstated document is analysed as.
+        crate::environment::profile_for_dialect(tcl_registry::dialects::detect_dialect(
             &self.source,
             self.filename(),
             "tcl8.6",
@@ -118,7 +122,7 @@ impl InputDocument {
     #[must_use]
     fn detected_dialect(&self) -> Option<&'static DialectProfile> {
         let detected = tcl_registry::dialects::detect_dialect(&self.source, self.filename(), "");
-        (!detected.is_empty()).then(|| DialectProfile::by_name(detected))
+        (!detected.is_empty()).then(|| crate::environment::profile_for_dialect(detected))
     }
 
     /// The originating file name, for the detector's extension tier.
@@ -172,22 +176,25 @@ pub fn combined_effective_dialect(
     documents
         .iter()
         .find_map(InputDocument::detected_dialect)
-        .unwrap_or_else(|| DialectProfile::by_name("tcl8.6"))
+        // T4: the hardcoded `tcl8.6` invocation default, unchanged — see
+        // `InputDocument::effective_dialect`.
+        .unwrap_or_else(|| crate::environment::profile_for_dialect("tcl8.6"))
 }
 
 /// Resolve an optional CLI dialect argument to its canonical profile.
 ///
 /// This is the CLI ingest boundary: an unrecognised spelling is an input
-/// error, never an accidental fallback to plain Tcl. Registered aliases are
-/// accepted through [`DialectProfile::find`] and become the catalog's one
-/// canonical profile before any command-specific behaviour runs. A recognised
-/// set-only ingress name (currently `tk`) has no catalog profile by design, so
-/// it is accepted through [`DialectSet::parse`] and resolved to the typed
-/// additive profile that carries its identity through downstream consumers.
+/// error, never an accidental fallback to plain Tcl. Every accepted
+/// spelling — a canonical id, a registered alias (`irules` → `f5-irules`),
+/// and the set-only `tk` ingress that has no catalog profile by design —
+/// resolves through the one environment resolver
+/// ([`crate::environment::known_profile_for_dialect`]), which hands back
+/// the typed additive profile for `tk` exactly as the retired
+/// `DialectProfile::resolve_known` did.
 pub fn resolve_dialect(value: Option<&str>) -> Result<Option<&'static DialectProfile>, CliError> {
     value
         .map(|name| {
-            DialectProfile::resolve_known(name).ok_or_else(|| {
+            crate::environment::known_profile_for_dialect(name).ok_or_else(|| {
                 CliError::input(format!(
                     "unknown dialect `{name}`; valid names are {} (registered aliases such as `irules` are also accepted)",
                     known_dialect_names()
@@ -204,7 +211,14 @@ fn known_dialect_names() -> String {
     DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
-        .chain(std::iter::once(DialectProfile::tk().name))
+        // T1: the `+ tk` chain is the *payload* this row retires (ledger
+        // row T1, P1) — the environment enumeration has different
+        // contents, so re-keying it changes this user-facing list rather
+        // than refactoring it. The `tk` name itself now resolves through
+        // the seam.
+        .chain(std::iter::once(
+            crate::environment::profile_for_dialect("tk").name,
+        ))
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -458,7 +472,13 @@ mod tests {
         assert_eq!(profile.name, "tk");
         assert!(!profile.is_fallback());
         assert!(profile.hosts_tk());
-        assert!(DialectProfile::availability_for_name("tk").contains(DialectSet::TK));
+        // The retired `availability_for_name` validator's answer, taken
+        // from the resolved environment's document authoring mask.
+        assert!(
+            crate::environment::context_for_dialect("tk")
+                .authoring_mask()
+                .contains(DialectSet::TK)
+        );
     }
 
     #[test]

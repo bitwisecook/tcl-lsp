@@ -80,7 +80,7 @@ pub fn registry_with_packs(
 /// the same entry it always would, now with the workspace's packs on top.
 #[must_use]
 pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<CommandRegistry> {
-    registry_with_packs(DialectProfile::by_name(dialect), packs)
+    registry_with_packs(crate::environment::profile_for_dialect(dialect), packs)
 }
 
 /// Insert every pack command the collision policy admits.
@@ -235,7 +235,9 @@ mod tests {
         let handle = registry_for_dialect_with_packs("tcl8.6", &empty);
         assert!(std::ptr::eq::<CommandRegistry>(
             handle.as_ref(),
-            tcl_registry::registry_for_dialect("tcl8.6"),
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
+                .as_ref(),
         ));
     }
 
@@ -249,7 +251,8 @@ mod tests {
             "speclib polite 1 {\n  command lsort { arity 99 }\n}\n",
         );
         let registry = registry_for_dialect_with_packs("tcl8.6", &polite);
-        let shipped = tcl_registry::registry_for_dialect("tcl8.6")
+        let shipped = tcl_registry::model::static_context_for("tcl8.6")
+            .commands()
             .get("lsort")
             .expect("shipped lsort");
         assert_eq!(
@@ -293,7 +296,9 @@ mod tests {
         assert_eq!(registry.ambient_package_floor("Tk"), Some("8.6"));
         assert_eq!(registry.ambient_package_floor("Itcl"), None);
         assert_eq!(
-            tcl_registry::registry_for_dialect("tcl8.6").ambient_package_floor("Tk"),
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
+                .ambient_package_floor("Tk"),
             None,
             "the un-overlaid registry is untouched"
         );
@@ -341,7 +346,8 @@ mod tests {
         );
         let _ = registry_for_dialect_with_packs("tcl8.6", &packs);
         assert_ne!(
-            tcl_registry::registry_for_dialect("tcl8.6")
+            tcl_registry::model::static_context_for("tcl8.6")
+                .commands()
                 .get("lsort")
                 .expect("lsort")
                 .arity
@@ -369,7 +375,7 @@ mod tests {
             );
             assert_eq!(
                 registry.profile().map(|p| p.name),
-                Some(DialectProfile::by_name(dialect).name),
+                Some(crate::environment::profile_for_dialect(dialect).name),
                 "the profile stamp survives the overlay"
             );
         }

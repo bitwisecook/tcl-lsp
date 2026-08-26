@@ -46,6 +46,7 @@ use std::process::ExitCode;
 use anyhow::{Context, Result};
 use tcl_dialect::{DialectProfile, DialectSet};
 use tcl_registry::CommandRegistry;
+use tcl_registry::model::ResolvedContext;
 use tcl_registry::traits::Traits;
 
 use crate::util::{self, repo_root};
@@ -55,6 +56,11 @@ use crate::util::{self, repo_root};
 struct Target {
     /// Directory under `editors/zed/languages/`.
     dir: &'static str,
+    /// The canonical environment id this language renders — the one
+    /// dialect-name ingress for the target, resolved through
+    /// [`crate::environment`] for its profile, its registry generation, and
+    /// the [`ResolvedContext`] its ambient-package filter is answered under.
+    id: &'static str,
     /// The dialect profile this language renders. The first-paint layer
     /// takes the profile's `grammar_union` — the deliberately coarse
     /// over-approximation for static grammars (dialect-profile-model.md
@@ -123,6 +129,7 @@ fn targets() -> Vec<Target> {
             // filtered out by `required_package` (it needs `package
             // require Tk`), so the ambient Tcl core is just ALL_TCL here.
             dir: "tcl",
+            id: "tcl",
             profile: crate::environment::profile_for_dialect("tcl"),
         },
         Target {
@@ -143,14 +150,17 @@ fn targets() -> Vec<Target> {
             // `lassign`, `zipfs`), so they are excluded by the mask
             // itself — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
+            id: "f5-irules",
             profile: crate::environment::profile_for_dialect("f5-irules"),
         },
         Target {
             dir: "iapps",
+            id: "f5-iapps",
             profile: crate::environment::profile_for_dialect("f5-iapps"),
         },
         Target {
             dir: "expect",
+            id: "expect",
             profile: crate::environment::profile_for_dialect("expect"),
         },
     ]
@@ -182,7 +192,7 @@ impl Buckets {
 /// Namespaced ambient commands are kept: they are the *point* of the dialect
 /// scoping (the F5 surface — `HTTP::uri`, `LB::server` — is entirely
 /// namespaced), and the tcl grammar parses `ns::cmd` as one `simple_word`.
-fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
+fn classify(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectSet) -> Buckets {
     let mut b = Buckets::default();
 
     for name in reg.command_names() {
@@ -206,17 +216,18 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
         // via `package require`; the LSP handles those. Keep only ambient
         // commands — including packages the profile ships ambiently (§7.1:
         // the F5 surfaces are the profile's own runtime, not a require).
-        // P1-G: the ambient-package question has a context-keyed twin
-        // (`ResolvedContext::ambient_package`) that answers identically over
-        // this generation's own environment; the swap waits for the profile
-        // stamp to retire, because this arm reads the stamp the generation
-        // carries rather than a threaded target — the same hold the LSP's
-        // `completion::command_detail` and `hover` carry from wave 2.
+        // The ambient-package question is asked of the **threaded target's**
+        // resolved context (`placement_is_ambient` — the documented twin of
+        // the retired `DialectProfile::is_ambient_package`) rather than read
+        // back off the generation's profile stamp, so this arm no longer
+        // depends on the stamp surviving. The generator drift gates
+        // (`--check`, and `committed_command_data_equals_live_registry`) are
+        // the oracle: the emitted queries are byte-identical.
         let Some(spec) = reg.specs(name).iter().find(|spec| {
             reg.spec_visible(spec, dialects)
                 && spec
                     .required_package
-                    .is_none_or(|pkg| reg.profile().is_some_and(|p| p.is_ambient_package(pkg)))
+                    .is_none_or(|pkg| context.placement_is_ambient(pkg))
         }) else {
             continue;
         };
@@ -275,8 +286,8 @@ fn render_any_of(names: &BTreeSet<String>) -> String {
 
 /// Build a full `highlights.scm` from the static template and the registry
 /// buckets for one language's dialect set.
-fn render(reg: &CommandRegistry, dialects: DialectSet) -> String {
-    let b = classify(reg, dialects);
+fn render(reg: &CommandRegistry, context: &ResolvedContext, dialects: DialectSet) -> String {
+    let b = classify(reg, context, dialects);
     let (literal_ops, word_ops): (BTreeSet<String>, BTreeSet<String>) =
         operator_spellings(dialects)
             .into_iter()
@@ -396,7 +407,11 @@ fn generated_files() -> Vec<(String, String)> {
             let reg = registry_for(t.profile);
             (
                 format!("editors/zed/languages/{}/highlights.scm", t.dir),
-                render(reg, t.profile.grammar_union),
+                render(
+                    reg,
+                    crate::environment::context_for_dialect(t.id),
+                    t.profile.grammar_union,
+                ),
             )
         })
         .collect()
@@ -409,7 +424,11 @@ pub fn run(check: bool) -> Result<ExitCode> {
 
     for t in targets() {
         let reg = registry_for(t.profile);
-        let b = classify(reg, t.profile.grammar_union);
+        let b = classify(
+            reg,
+            crate::environment::context_for_dialect(t.id),
+            t.profile.grammar_union,
+        );
         eprintln!(
             "  {:<7} {:>4} commands ({} control, {} keyword, {} builtin)",
             t.dir,
@@ -462,8 +481,12 @@ mod tests {
     fn tcl_bucket_dwarfs_the_old_hand_list_and_is_disjoint() {
         // build_default already carries the Tk surface, so the plain-Tcl
         // profile's registry classifies the TK_AND_TCL union directly.
-        let reg = registry_for(DialectProfile::plain_tcl());
-        let b = classify(reg, DialectSet::TK_AND_TCL);
+        let reg = registry_for(crate::environment::profile_for_dialect("tcl"));
+        let b = classify(
+            reg,
+            crate::environment::context_for_dialect("tcl"),
+            DialectSet::TK_AND_TCL,
+        );
         assert!(
             b.builtin.len() > 100,
             "expected the registry builtin surface to dwarf the ~30-entry hand list, got {}",
@@ -484,8 +507,18 @@ mod tests {
         // core Tcl — the whole point of dialect scoping.
         let tcl_dialects = DialectSet::TK_AND_TCL;
         let irules_dialects = DialectSet::ALL_TCL.union(DialectSet::IRULES);
-        let tcl = classify(registry_for(DialectProfile::plain_tcl()), tcl_dialects).total();
-        let irules = classify(registry_for(DialectProfile::irules()), irules_dialects).total();
+        let tcl = classify(
+            registry_for(crate::environment::profile_for_dialect("tcl")),
+            crate::environment::context_for_dialect("tcl"),
+            tcl_dialects,
+        )
+        .total();
+        let irules = classify(
+            registry_for(crate::environment::profile_for_dialect("f5-irules")),
+            crate::environment::context_for_dialect("f5-irules"),
+            irules_dialects,
+        )
+        .total();
         assert!(
             irules > tcl,
             "iRules ({irules}) should exceed plain Tcl ({tcl}) once F5 commands load"
@@ -592,9 +625,13 @@ mod tests {
     /// fails here even if someone hand-edited the file to look plausible.
     #[test]
     fn committed_command_data_equals_live_registry() {
-        for Target { dir, profile } in targets() {
+        for Target { dir, id, profile } in targets() {
             let reg = registry_for(profile);
-            let b = classify(reg, profile.grammar_union);
+            let b = classify(
+                reg,
+                crate::environment::context_for_dialect(id),
+                profile.grammar_union,
+            );
             let mut expected = BTreeSet::new();
             expected.extend(b.control.iter().cloned());
             expected.extend(b.keyword.iter().cloned());

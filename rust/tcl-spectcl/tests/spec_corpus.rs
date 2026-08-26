@@ -702,7 +702,7 @@ fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let result = analyser.analyse(source, dialect);
     let registry = tcl_registry::cache::registry_for_profile_if_built(
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_spectcl::environment::profile_for_dialect(dialect),
         overlay,
     )
     .unwrap_or_else(|| tcl_registry::registry_handle_for_dialect(dialect));
@@ -872,12 +872,12 @@ fn analyse_all(
 
 fn run_pack(pack: &PackUnderTest, root: &Path, corpus: &[CorpusFile]) -> PackReport {
     let (mut set, load) = load_one(pack);
-    let profile = tcl_dialect::DialectProfile::by_name(pack.dialect);
+    let profile = tcl_spectcl::environment::profile_for_dialect(pack.dialect);
     let notices = notice_lines(&set, root);
 
     // The natural collision outcome, recorded before the override flag is
     // forced — this is what a user installing the pack unchanged would get.
-    let plain_registry = tcl_registry::registry_for_dialect(pack.dialect);
+    let plain_registry = tcl_registry::model::static_context_for(pack.dialect).commands();
     let collisions = tcl_spectcl::pack::collision_notices(&set, plain_registry).len();
 
     let declared: usize = set.packs.iter().map(|p| p.commands.len()).sum();

@@ -31,6 +31,7 @@
 
 pub mod chrome;
 pub mod difflib;
+pub mod environment;
 mod highlight;
 mod input;
 mod output;

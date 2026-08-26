@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 pub fn tk_layout(args: &Value) -> Value {
     let source = args.get("source").and_then(Value::as_str).unwrap_or("");
     let dialect = args.get("dialect").and_then(Value::as_str).unwrap_or("tk");
-    let Some(profile) = tcl_dialect::DialectProfile::resolve_known(dialect) else {
+    let Some(profile) = crate::environment::known_profile_for_dialect(dialect) else {
         return json!({
             "error": format!("Unknown dialect '{dialect}'."),
             "schema_version": tcl_lsp_core::tk_preview::TK_UI_SCHEMA_VERSION,

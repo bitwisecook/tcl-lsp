@@ -1146,10 +1146,7 @@ fn untrusted(tier: Tier) -> bool {
 /// permissive all-Tcl view, the same registry the collision policy
 /// consults.
 fn compiled_command_exists(name: &str) -> bool {
-    let profile = tcl_dialect::DialectProfile::by_name("");
-    tcl_registry::registry_for_profile(profile)
-        .get(name)
-        .is_some()
+    crate::environment::lenient_store().get(name).is_some()
 }
 
 /// The first E-R2 violation in a pack's registration record, when the tier

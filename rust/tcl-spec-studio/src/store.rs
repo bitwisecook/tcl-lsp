@@ -91,10 +91,8 @@ use std::sync::Arc;
 use serde_json::{Value, json};
 use tcl_compiler::parsing::syntax::build::build_document;
 use tcl_compiler::parsing::syntax::segment::segments_from_document;
-use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
-use tcl_registry::cache::registry_for_dialect;
 use tcl_spectcl::Tier;
 use tcl_spectcl::loader::{self, FileExtension, HookOwner, HookSource, Notice, Pack};
 use tcl_spectcl::pack::{MergedPack, PackSet};
@@ -120,13 +118,14 @@ impl Builtins {
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
         // The catalogue holds the `&'static str` the caller means, alias
-        // spellings canonicalised onto it; a name with no profile at all
-        // resolves to the dialect the picker starts on, and keeping a
-        // `'static` name avoids an allocation per query.
-        let dialect = DialectProfile::find(dialect).map_or("tcl9.0", |profile| profile.name);
+        // spellings canonicalised onto it; a name with no catalogue entry
+        // at all resolves to the dialect the picker starts on, and keeping
+        // a `'static` name avoids an allocation per query. Both halves go
+        // through the one ingress seam (`crate::environment`).
+        let dialect = crate::environment::catalogue_dialect_or_default(dialect);
         Self {
             dialect,
-            registry: registry_for_dialect(dialect),
+            registry: crate::environment::store_for_dialect(dialect),
         }
     }
 
@@ -1018,7 +1017,7 @@ impl<'a> Resolution<'a> {
     #[must_use]
     pub fn registry(&self) -> Arc<CommandRegistry> {
         tcl_spectcl::install::registry_with_packs(
-            DialectProfile::by_name(self.builtins.dialect()),
+            crate::environment::profile_for_dialect(self.builtins.dialect()),
             &self.store.pack_set(),
         )
     }

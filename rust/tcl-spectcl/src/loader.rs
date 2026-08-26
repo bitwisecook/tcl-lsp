@@ -1302,7 +1302,7 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
             }
             "-dialect" => {
                 let dialect = next_text(words, &mut i);
-                match tcl_dialect::DialectProfile::find(&dialect) {
+                match crate::environment::catalogue_profile_for_dialect(&dialect) {
                     Some(profile) => row.dialect = Some(profile.name),
                     None => log.say(
                         stmt.line,

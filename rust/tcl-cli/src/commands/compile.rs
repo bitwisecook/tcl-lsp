@@ -58,7 +58,7 @@ fn maybe_optimise(
     optimise_on: bool,
 ) -> String {
     if optimise_on {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let profile = tcl_cli_support::environment::profile_for_dialect(dialect);
         apply_optimisations(
             source,
             &optimise_with_dialect(source, registry, Some(profile)),

@@ -1032,7 +1032,7 @@ fn a_pack_redefining_a_builtin_reports_and_does_not_silently_win() {
     );
     let set = load_files(&[path]);
 
-    let plain = tcl_registry::registry_for_dialect("tcl9.1");
+    let plain = tcl_registry::model::static_context_for("tcl9.1").commands();
     let with_packs = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
     let shipped = plain.get("lsort").expect("`lsort` is shipped");
     let after = with_packs.get("lsort").expect("`lsort` is still there");

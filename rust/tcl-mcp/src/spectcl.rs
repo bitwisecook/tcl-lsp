@@ -624,12 +624,24 @@ fn dict_get_key(body: &str, at: usize, after: usize) -> Option<String> {
 
 // ── Registry collisions ───────────────────────────────────────────────
 
-/// Resolve a name the way this registry's own dialect rules resolve it.
-fn shipped<'r>(registry: &'r CommandRegistry, name: &str) -> Option<&'r CommandSpec> {
-    match registry.profile() {
-        Some(profile) => registry.get_for_dialect(name, profile.availability_mask),
-        None => registry.get(name),
-    }
+/// Resolve a name the way the **target dialect** resolves it.
+///
+/// The mask comes from the threaded dialect name through the one ingress
+/// seam ([`crate::environment::analyser_mask_for_dialect`]) rather than
+/// being read back off the generation's profile *stamp*, so this no longer
+/// depends on the stamp surviving. Same answer: the store handed in here is
+/// the one built for that same name.
+///
+/// T6 (P2): the *payload* this ledger row retires is the bit test itself —
+/// a collision is properly `targets ⊆ applicable` over the declaration's
+/// version sets, not a mask intersection. That is a model change, not a
+/// port, and stays open.
+fn shipped<'r>(
+    registry: &'r CommandRegistry,
+    name: &str,
+    dialect: &str,
+) -> Option<&'r CommandSpec> {
+    registry.get_for_dialect(name, crate::environment::analyser_mask_for_dialect(dialect))
 }
 
 /// A warning when the target dialect's shipped registry already defines this
@@ -640,7 +652,7 @@ fn shipped<'r>(registry: &'r CommandRegistry, name: &str) -> Option<&'r CommandS
 /// `-override` means the pack's command never reaches a query — the failure
 /// worth catching before a user reports "my spec does nothing".
 fn collision_json(cmd: &PackCommand, registry: &CommandRegistry, dialect: &str) -> Option<Value> {
-    let shipped = shipped(registry, cmd.spec.name)?;
+    let shipped = shipped(registry, cmd.spec.name, dialect)?;
     let (effect, message) = if cmd.overrides_shipped {
         (
             "pack-spec-wins",

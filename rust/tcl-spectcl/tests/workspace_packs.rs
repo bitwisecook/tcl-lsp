@@ -135,7 +135,7 @@ fn installing_the_corpus_leaves_every_shipped_command_alone() {
     stage_examples(&root);
     let set = load_workspace(&root);
 
-    let plain = tcl_registry::registry_for_dialect("tcl9.1");
+    let plain = tcl_registry::model::static_context_for("tcl9.1").commands();
     let with_packs = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
 
     let collisions = pack::collision_notices(&set, &with_packs);
@@ -174,7 +174,7 @@ fn commands_the_registry_does_not_ship_are_installed() {
     stage_examples(&root);
     let set = load_workspace(&root);
 
-    let plain = tcl_registry::registry_for_dialect("tcl9.1");
+    let plain = tcl_registry::model::static_context_for("tcl9.1").commands();
     let with_packs = tcl_spectcl::install::registry_for_dialect_with_packs("tcl9.1", &set);
 
     let newcomers: Vec<&str> = set

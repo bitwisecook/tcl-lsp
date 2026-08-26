@@ -612,7 +612,7 @@ fn the_clause_grammar_derivation_agrees_with_the_shipped_walk() {
         .as_ref()
         .expect("if.tclspec declares a clause_grammar");
 
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("if")
         .expect("shipped if");
     let shipped_roles = shipped.arg_role_resolver.expect("if's role resolver");
@@ -669,7 +669,7 @@ fn the_manufacturer_derivation_agrees_with_the_shipped_resolver() {
 
     // 2. The derivation reproduces the shipped resolver's answer, call for
     //    call — including the bounds-checked cases that emit nothing.
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("oo::class")
         .expect("shipped oo::class");
     let shipped_roles = shipped
@@ -705,7 +705,7 @@ fn upvar_carries_its_frame_effect_verbatim() {
     let source = std::fs::read_to_string(examples_dir().join("upvar.tclspec")).expect("upvar");
     let pack = spectcl::load_pack(&source);
     let ported = pack.command("upvar").expect("upvar");
-    let shipped = tcl_registry::cache::registry_for_dialect("tcl9.1")
+    let shipped = tcl_spec_studio::environment::store_for_dialect("tcl9.1")
         .get("upvar")
         .expect("shipped upvar");
     assert_eq!(ported.spec.frame_effect, shipped.frame_effect);

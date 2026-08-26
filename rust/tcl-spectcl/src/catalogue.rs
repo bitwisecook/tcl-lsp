@@ -33,7 +33,7 @@
 
 use std::sync::LazyLock;
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectSet;
 use tcl_registry::side_effects::SideEffectTarget;
 use tcl_registry::taint::{TaintColour, TaintColourAtom};
 use tcl_registry::traits::{Trait, Traits};
@@ -427,7 +427,7 @@ pub static DIALECTS: LazyLock<Vec<Variant>> = LazyLock::new(|| {
     DIALECT_BITS
         .iter()
         .map(|(name, _)| {
-            let label = DialectProfile::find(name).map_or_else(
+            let label = crate::environment::catalogue_profile_for_dialect(name).map_or_else(
                 || {
                     BIT_ONLY_LABELS
                         .iter()
@@ -989,18 +989,19 @@ mod tests {
     #[test]
     fn dialect_labels_come_from_the_profile_catalogue() {
         for entry in DIALECTS.iter() {
-            let expected = DialectProfile::find(entry.key).map_or_else(
-                || {
-                    BIT_ONLY_LABELS
-                        .iter()
-                        .find(|(bit, _)| *bit == entry.key)
-                        .unwrap_or_else(|| {
-                            panic!("{} has neither a profile nor a label", entry.key)
-                        })
-                        .1
-                },
-                |profile| profile.display_name,
-            );
+            let expected = crate::environment::catalogue_profile_for_dialect(entry.key)
+                .map_or_else(
+                    || {
+                        BIT_ONLY_LABELS
+                            .iter()
+                            .find(|(bit, _)| *bit == entry.key)
+                            .unwrap_or_else(|| {
+                                panic!("{} has neither a profile nor a label", entry.key)
+                            })
+                            .1
+                    },
+                    |profile| profile.display_name,
+                );
             assert_eq!(entry.doc, expected, "{} is mislabelled", entry.key);
         }
     }
