@@ -177,6 +177,95 @@ function resolveServerDir(
  */
 export const WASM_WASI_CORE_EXTENSION_ID = "ms-vscode.wasm-wasi-core";
 
+/**
+ * One workspace folder, reduced to the two strings the guest mapping needs.
+ * Taken as plain strings so the mapping below stays free of the `vscode` API.
+ */
+export interface WasiWorkspaceFolder {
+  /** The folder's URI as the editor spells it, e.g. `file:///home/me/proj`. */
+  readonly uri: string;
+  /** The folder's display name — the guest path segment in a multi-root window. */
+  readonly name: string;
+}
+
+/** Translates URIs across the sandbox boundary, in both directions. */
+export interface WasiUriMapping {
+  /** An editor URI as the guest will see it. */
+  toGuest(uri: string): string;
+  /** A guest URI as the editor spells it. */
+  toEditor(uri: string): string;
+}
+
+/**
+ * Where the WASM WASI host mounts each workspace folder inside the guest.
+ *
+ * Single-root is `/workspace`; multi-root is `/workspaces/<folder name>` —
+ * note the **plural** in the multi-root form.
+ *
+ * This is why we do not use `@vscode/wasm-wasi-lsp`'s `createUriConverters()`:
+ * the two halves of that upstream disagree. `@vscode/wasm-wasi@1.0.2`'s
+ * `WorkspaceFolderDescriptor` documents the mount as `/workspace` (single) and
+ * `/workspaces/folder-name` (multi), and the wasm-wasi-core extension mounts
+ * accordingly — but `@vscode/wasm-wasi-lsp@0.1.0-pre.9`'s `createUriConverters`
+ * maps multi-root folders to `file:///workspace/<name>`, singular
+ * (`lib/main.js` lines 146-157). Single-root agrees; multi-root does not, so
+ * every URI in a multi-root window would be translated to a path the guest has
+ * nothing mounted at. Verified against those two exact versions; re-check this
+ * comment when either is bumped.
+ */
+export function guestMountPoint(folder: WasiWorkspaceFolder, multiRoot: boolean): string {
+  return multiRoot ? `/workspaces/${folder.name}` : "/workspace";
+}
+
+/**
+ * Build the URI translation for a window's workspace folders, or `undefined`
+ * when there are none (nothing is mounted, so there is nothing to translate).
+ *
+ * Folders are matched longest-editor-URI-first, and only on a whole path
+ * component, so a nested folder wins over its parent and a sibling directory
+ * whose path merely *starts* with another's (`…/proj` and `…/proj2`) cannot be
+ * mistaken for it. Upstream's converter does neither.
+ */
+export function wasiUriMapping(
+  folders: readonly WasiWorkspaceFolder[],
+): WasiUriMapping | undefined {
+  if (folders.length === 0) {
+    return undefined;
+  }
+  const multiRoot = folders.length > 1;
+  const pairs = folders
+    .map((folder) => ({
+      editor: trimTrailingSlash(folder.uri),
+      // The folder name goes in verbatim: the mount point the host created
+      // used the same string, and re-encoding it here would simply miss.
+      guest: `file://${guestMountPoint(folder, multiRoot)}`,
+    }))
+    .sort((a, b) => b.editor.length - a.editor.length);
+
+  const translate = (value: string, from: "editor" | "guest"): string => {
+    const to = from === "editor" ? "guest" : "editor";
+    for (const pair of pairs) {
+      const prefix = pair[from];
+      if (value === prefix) {
+        return pair[to];
+      }
+      if (value.startsWith(`${prefix}/`)) {
+        return pair[to] + value.slice(prefix.length);
+      }
+    }
+    return value;
+  };
+
+  return {
+    toGuest: (uri) => translate(uri, "editor"),
+    toEditor: (uri) => translate(uri, "guest"),
+  };
+}
+
+function trimTrailingSlash(uri: string): string {
+  return uri.endsWith("/") ? uri.slice(0, -1) : uri;
+}
+
 /** What the WASI rung should do about its missing-or-present host runtime. */
 export type WasiRuntimeAction = "start" | "prompt" | "declined";
 

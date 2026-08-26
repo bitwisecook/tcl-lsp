@@ -21,10 +21,12 @@ import * as path from "path";
 import {
   bundlePlatformDir,
   bundledWasiModulePath,
+  guestMountPoint,
   RUST_SERVER_EXE,
   resolveRustServer,
   WASI_MODULE_RELATIVE_PATH,
   wasiRuntimeAction,
+  wasiUriMapping,
 } from "../serverResolution";
 
 // A packaged install lives here; nothing on this path exists unless a test
@@ -105,6 +107,105 @@ suite("Server resolution ladder", () => {
       WASI_MODULE_RELATIVE_PATH,
       path.join("server", "wasm", "tcl-lsp-server-wasi.wasm"),
     );
+  });
+});
+
+suite("WASI guest URI mapping", () => {
+  const proj = { uri: "file:///home/me/proj", name: "proj" };
+  const other = { uri: "file:///home/me/other", name: "other" };
+
+  test("a single-root window mounts at /workspace, both ways", () => {
+    const map = wasiUriMapping([proj]);
+    assert.ok(map);
+    assert.strictEqual(
+      map.toGuest("file:///home/me/proj/src/a.tcl"),
+      "file:///workspace/src/a.tcl",
+    );
+    assert.strictEqual(
+      map.toEditor("file:///workspace/src/a.tcl"),
+      "file:///home/me/proj/src/a.tcl",
+    );
+    // The folder root itself, not just files under it.
+    assert.strictEqual(map.toGuest("file:///home/me/proj"), "file:///workspace");
+    assert.strictEqual(map.toEditor("file:///workspace"), "file:///home/me/proj");
+  });
+
+  test("a multi-root window mounts at /workspaces/<name> — plural", () => {
+    // The whole reason we do not use @vscode/wasm-wasi-lsp's converters:
+    // 0.1.0-pre.9 maps this to the singular `file:///workspace/proj`, which is
+    // not where @vscode/wasm-wasi@1.0.2's host mounts it.
+    const map = wasiUriMapping([proj, other]);
+    assert.ok(map);
+    assert.strictEqual(
+      map.toGuest("file:///home/me/proj/src/a.tcl"),
+      "file:///workspaces/proj/src/a.tcl",
+    );
+    assert.strictEqual(
+      map.toGuest("file:///home/me/other/b.tcl"),
+      "file:///workspaces/other/b.tcl",
+    );
+    assert.strictEqual(
+      map.toEditor("file:///workspaces/proj/src/a.tcl"),
+      "file:///home/me/proj/src/a.tcl",
+    );
+    assert.strictEqual(
+      map.toEditor("file:///workspaces/other/b.tcl"),
+      "file:///home/me/other/b.tcl",
+    );
+  });
+
+  test("every mapped URI round-trips", () => {
+    for (const folders of [[proj], [proj, other]]) {
+      const map = wasiUriMapping(folders);
+      assert.ok(map);
+      for (const folder of folders) {
+        const uri = `${folder.uri}/deep/nested/file.tcl`;
+        assert.strictEqual(map.toEditor(map.toGuest(uri)), uri, `round-trip ${uri}`);
+      }
+    }
+  });
+
+  test("a sibling whose path merely starts the same is not rewritten", () => {
+    // `file:///home/me/proj2` starts with `file:///home/me/proj`. A plain
+    // `startsWith` (what upstream does) would rewrite it into the guest and
+    // hand the server a path nothing is mounted at.
+    const map = wasiUriMapping([proj]);
+    assert.ok(map);
+    assert.strictEqual(map.toGuest("file:///home/me/proj2/a.tcl"), "file:///home/me/proj2/a.tcl");
+  });
+
+  test("a nested folder wins over its parent", () => {
+    const inner = { uri: "file:///home/me/proj/vendor", name: "vendor" };
+    const map = wasiUriMapping([proj, inner]);
+    assert.ok(map);
+    assert.strictEqual(
+      map.toGuest("file:///home/me/proj/vendor/x.tcl"),
+      "file:///workspaces/vendor/x.tcl",
+    );
+    assert.strictEqual(
+      map.toGuest("file:///home/me/proj/src/x.tcl"),
+      "file:///workspaces/proj/src/x.tcl",
+    );
+  });
+
+  test("an unmapped URI and a folderless window pass through untouched", () => {
+    const map = wasiUriMapping([proj]);
+    assert.ok(map);
+    assert.strictEqual(map.toGuest("untitled:Untitled-1"), "untitled:Untitled-1");
+    assert.strictEqual(map.toEditor("file:///elsewhere/x.tcl"), "file:///elsewhere/x.tcl");
+    // No folders: nothing is mounted, so there is nothing to convert.
+    assert.strictEqual(wasiUriMapping([]), undefined);
+  });
+
+  test("a trailing slash on a folder URI does not double up", () => {
+    const map = wasiUriMapping([{ uri: "file:///home/me/proj/", name: "proj" }]);
+    assert.ok(map);
+    assert.strictEqual(map.toGuest("file:///home/me/proj/a.tcl"), "file:///workspace/a.tcl");
+  });
+
+  test("the mount points match what the host documents", () => {
+    assert.strictEqual(guestMountPoint(proj, false), "/workspace");
+    assert.strictEqual(guestMountPoint(proj, true), "/workspaces/proj");
   });
 });
 

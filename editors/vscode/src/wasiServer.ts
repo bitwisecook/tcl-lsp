@@ -33,11 +33,12 @@
  *
  * - **Preopens.** `{ kind: 'workspaceFolder' }` maps the editor's workspace
  *   folders into the guest, which is what makes `vfs::NativeStore` — a literal
- *   `std::fs` delegation — see real files.  `createUriConverters()` is its
+ *   `std::fs` delegation — see real files.  `uriConvertersForWindow()` is its
  *   other half: it rewrites `file://` URIs between the editor's real paths and
  *   the guest's mount points, so nothing outside this module has to know the
- *   server is sandboxed.  The two are a documented pair and must be used
- *   together.
+ *   server is sandboxed.  The two are a pair and must agree exactly — which is
+ *   why the converters are ours and not `@vscode/wasm-wasi-lsp`'s, whose
+ *   multi-root spelling does not match the host's.
  * - **Spec packs.** The native rung finds its `.tclspec` loadables in a
  *   `specs/` directory beside the executable.  A guest has no executable
  *   path, so the staged directory is mounted read-only and named explicitly
@@ -55,13 +56,14 @@
 
 import * as vscode from "vscode";
 import { Wasm, type MountPointDescriptor, type WasmProcess } from "@vscode/wasm-wasi/v1";
-import { createStdioOptions, createUriConverters, startServer } from "@vscode/wasm-wasi-lsp";
+import { createStdioOptions, startServer } from "@vscode/wasm-wasi-lsp";
 import type { MessageTransports } from "vscode-languageclient";
 import type { ServerOptions } from "vscode-languageclient/node";
 import {
   WASI_SPECS_RELATIVE_PATH,
   WASM_WASI_CORE_EXTENSION_ID,
   wasiRuntimeAction,
+  wasiUriMapping,
 } from "./serverResolution";
 
 /**
@@ -76,10 +78,40 @@ const GUEST_SPEC_PACK_DIR = "/tcl-lsp/specs";
 /** `tcl_spectcl::discovery::BUNDLED_DIR_ENV` — keep the two spellings in step. */
 const SPEC_PACK_DIR_ENV = "TCL_LSP_SPEC_PACK_DIR";
 
+/** The `LanguageClientOptions.uriConverters` shape, as the client declares it. */
+interface UriConverters {
+  code2Protocol: (value: vscode.Uri) => string;
+  protocol2Code: (value: string) => vscode.Uri;
+}
+
 /** What `startWasiServer` hands back for `activate` to build a client from. */
 export interface WasiServerSetup {
   readonly serverOptions: ServerOptions;
-  readonly uriConverters: ReturnType<typeof createUriConverters>;
+  readonly uriConverters: UriConverters | undefined;
+}
+
+/**
+ * URI converters for the current window's workspace folders.
+ *
+ * Deliberately **not** `@vscode/wasm-wasi-lsp`'s `createUriConverters()`: that
+ * one maps multi-root folders to `file:///workspace/<name>` while the host
+ * mounts them at `file:///workspaces/<name>`. See `wasiUriMapping` in
+ * `./serverResolution` for the evidence and the pinned versions it was checked
+ * against; the mapping itself lives there because it is a pure string
+ * translation and is unit-tested as one.
+ */
+function uriConvertersForWindow(): UriConverters | undefined {
+  const folders = vscode.workspace.workspaceFolders ?? [];
+  const mapping = wasiUriMapping(
+    folders.map((folder) => ({ uri: folder.uri.toString(), name: folder.name })),
+  );
+  if (!mapping) {
+    return undefined;
+  }
+  return {
+    code2Protocol: (value) => mapping.toGuest(value.toString()),
+    protocol2Code: (value) => vscode.Uri.parse(mapping.toEditor(value)),
+  };
 }
 
 /**
@@ -181,9 +213,10 @@ export async function startWasiServer(
     );
     return undefined;
   }
-  channel.appendLine(
-    `WASM WASI Core ${wasm.versions.extension} (API v${wasm.versions.apt}) will host ${modulePath}`,
-  );
+  // `versions.extension` only: the API-version field is spelled `apt` in
+  // @vscode/wasm-wasi@1.0.2's `.d.ts` and `api` in the object the extension
+  // actually returns, so logging the typed name prints "undefined".
+  channel.appendLine(`WASM WASI Core ${wasm.versions.extension} will host ${modulePath}`);
 
   // Compiled once and reused: `tclLsp.restartServer` stops the client and
   // starts it again, which re-invokes the ServerOptions factory below, and
@@ -202,7 +235,7 @@ export async function startWasiServer(
 
   const mountPoints: MountPointDescriptor[] = [
     // Preopen the workspace — contract point 1.  Paired with
-    // `createUriConverters()` below, which maps between these mounts and the
+    // `uriConvertersForWindow()` below, which maps between these mounts and the
     // editor's real URIs.  A window with no workspace folder mounts nothing,
     // and every path outside a mount answers `NotFound` — the source store's
     // documented behaviour for a file it cannot see.
@@ -229,7 +262,7 @@ export async function startWasiServer(
     return startServer(process);
   };
 
-  return { serverOptions, uriConverters: createUriConverters() };
+  return { serverOptions, uriConverters: uriConvertersForWindow() };
 }
 
 /**

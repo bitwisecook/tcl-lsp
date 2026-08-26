@@ -218,12 +218,22 @@ export async function activate(context: ExtensionContext) {
     context.extensionPath,
   );
   if (!resolved) {
+    // Two genuinely different situations, and telling a user the wrong one
+    // sends them to the wrong fix.  With `tclLsp.serverPath` set the ladder
+    // stopped at that checkout on purpose — the packaged WASI module may well
+    // be sitting right there, and was declined rather than missing.
     window.showErrorMessage(
-      `Tcl LSP: no tcl-lsp-server found for ${bundlePlatformDir()}. ` +
-        "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
-        "or set 'tclLsp.rustServerPath' to a native binary. A packaged install reaching this " +
-        "point ships neither a binary for your OS/architecture nor the WebAssembly (WASI) " +
-        "fallback module — install the universal .vsix, which carries it.",
+      configuredServerPath.trim()
+        ? `Tcl LSP: no tcl-lsp-server built in the checkout named by 'tclLsp.serverPath' ` +
+            `(${configuredServerPath.trim()}). Build it there with ` +
+            "`cargo build -p tcl-lsp-server`, or clear 'tclLsp.serverPath' to fall back to " +
+            "whatever this install ships — a native binary for your platform, or the bundled " +
+            "WebAssembly (WASI) server."
+        : `Tcl LSP: no tcl-lsp-server found for ${bundlePlatformDir()}. ` +
+            "In a checkout, build it with `cargo build -p tcl-lsp-server` (or `make rust-server`), " +
+            "or set 'tclLsp.rustServerPath' to a native binary. A packaged install reaching this " +
+            "point ships neither a binary for your OS/architecture nor the WebAssembly (WASI) " +
+            "fallback module — install the universal .vsix, which carries it.",
     );
     return;
   }

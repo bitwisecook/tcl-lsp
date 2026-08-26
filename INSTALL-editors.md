@@ -90,22 +90,45 @@ curl -fLO "$base/tcl-lsp-server-wasi.wasm"
 install -m 0644 tcl-lsp-server-wasi.wasm ~/bin/tcl-lsp-server-wasi.wasm
 ```
 
-Run it from the directory you want the server to see:
+Grant it the project root and run it:
 
 ```sh
-wasmtime run --dir . tcl-lsp-server-wasi.wasm
+wasmtime run --dir /path/to/project ~/bin/tcl-lsp-server-wasi.wasm
 ```
 
-`--dir` is not optional. A WASI program sees only the directories the host
-grants it, so without one the server finds no files at all — no folder scan,
-no `source` resolution, no cross-file navigation. Grant the project root.
+`--dir` is not optional, and **the path must be absolute**. A WASI program sees
+only the directories the host grants it, and it sees them under the guest path
+`--dir` names. Editors send absolute `file:///…` URIs, so a relative preopen
+cannot match one: `--dir .` grants a directory the guest knows as `.`, and every
+`file:///path/to/project/x.tcl` the editor sends then resolves to nothing —
+no folder scan, no `source` resolution, no cross-file navigation, silently.
+`--dir /path/to/project` maps the directory at its real absolute path, and the
+URIs line up.
+
+### A wrapper script for editors
+
+Both editor configurations below are static files: they cannot compute the
+project root, and the one thing they could hardcode — `.` — is the form that
+does not work. So point them at a one-line wrapper that resolves it at launch:
+
+```sh
+cat > ~/bin/tcl-lsp-server-wasi <<'EOF'
+#!/bin/sh
+exec wasmtime run --dir "$PWD" "$HOME/bin/tcl-lsp-server-wasi.wasm"
+EOF
+chmod +x ~/bin/tcl-lsp-server-wasi
+```
+
+`$PWD` is absolute, and an editor launches its language server with the working
+directory it was started in — so start the editor from the project root. If you
+work on one fixed project, hardcode its path in the wrapper instead and start
+the editor from anywhere.
 
 **Helix** (`~/.config/helix/languages.toml`):
 
 ```toml
 [language-server.tcl-lsp]
-command = "wasmtime"
-args = ["run", "--dir", ".", "/home/you/bin/tcl-lsp-server-wasi.wasm"]
+command = "/home/you/bin/tcl-lsp-server-wasi"
 
 [[language]]
 name = "tcl"
@@ -118,8 +141,21 @@ language-servers = ["tcl-lsp"]
 
 ```lua
 return {
+  cmd = { vim.fn.expand('~/bin/tcl-lsp-server-wasi') },
+  filetypes = { 'tcl' },
+  root_markers = { 'tclpkg.tcl', '.git' },
+  settings = { tclLsp = { dialect = 'tcl8.6' } },
+}
+```
+
+Neovim can skip the wrapper and name the root itself, which is the more precise
+form when you open several projects in one session:
+
+```lua
+local root = vim.fs.root(0, { 'tclpkg.tcl', '.git' }) or vim.uv.cwd()
+return {
   cmd = {
-    'wasmtime', 'run', '--dir', '.',
+    'wasmtime', 'run', '--dir', root,
     vim.fn.expand('~/bin/tcl-lsp-server-wasi.wasm'),
   },
   filetypes = { 'tcl' },
@@ -128,14 +164,9 @@ return {
 }
 ```
 
-Both examples pass `--dir .`, so the granted directory is whatever the editor's
-working directory is when it launches the server — normally the project root.
-Name an absolute path (`--dir /path/to/project`) if your editor starts the
-server somewhere else.
-
 **VS Code** needs none of this. The `-universal` `.vsix` already carries the
 module and falls back to it automatically when it has no native binary for your
-platform — see [VS Code](#vs-code).
+platform — see [VS Code](#vs-code). It mounts your workspace folders itself.
 
 ## VS Code
 

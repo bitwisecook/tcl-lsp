@@ -37,12 +37,14 @@ runtime such as [wasmtime](https://wasmtime.dev/):
 ```sh
 base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
 curl -fLO "$base/tcl-lsp-server-wasi.wasm"
-wasmtime run --dir . tcl-lsp-server-wasi.wasm
+wasmtime run --dir /path/to/project tcl-lsp-server-wasi.wasm
 ```
 
-The `--dir` option grants the server a directory to read. Without one it sees
-no files at all, so grant the project root. The Helix and Neovim
-configurations are in
+The `--dir` option grants the server a directory to read, and the path must be
+absolute. Without one the server sees no files at all; with a relative one such
+as `--dir .` it sees the directory under a name no editor's `file:///…` URI can
+match, which looks the same from the editor. Grant the project root by its
+absolute path. The Helix and Neovim configurations are in
 [INSTALL-editors.md](../../INSTALL-editors.md#no-prebuilt-binary-for-your-platform).
 
 In VS Code this needs no setup: install the `-universal` package, which

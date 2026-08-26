@@ -94,6 +94,19 @@ These are not style preferences. Each one is a process abort if ignored.
    the inline `spawn_blocking` means no analysis snapshot ever survives across
    an await. A transport that reintroduces real concurrency there turns
    cancellations into aborts.
+4. **No `unsupported`-on-wasip1 std call may sit on a reachable path.** Several
+   `std` functions compile for wasm32-wasip1 and then *panic* when called —
+   which, by caveat 3, is an abort rather than an error. `std::process::id()` is
+   the one that bit: `tcl_spectcl`'s compiled-pack cache used it to name its
+   temp file, so the first spec-pack load killed the process (status 134,
+   immediately after `initialized`) in any session whose cache directory was
+   writable. It went unnoticed because the e2e harness's preopens made the cache
+   directory *uncreatable*, so the write returned early and the call was never
+   reached — the scenario that catches it now grants a writable cache on
+   purpose, and asserts the cache really appeared so it cannot go vacuous again.
+   The lesson generalises: a wasip1 abort hides behind whatever makes its path
+   unreachable in the tests, so a `std` call that is fine natively needs a
+   reachable-path test, not just a compile.
 
 ---
 
@@ -348,6 +361,7 @@ scenarios are chosen to pin the driver rather than the server:
 | ten idle seconds do not abort the process | the empty-park abort (caveat 2) |
 | `shutdown`+`exit` → 0, bare `exit` → 1, closed stdin → 0 | the exit paths |
 | go-to-definition into a `source`d sibling that is only on disk | `NativeStore` over preopens — the reason this transport exists rather than a re-framed browser one |
+| a session whose cache directory is inside a preopen survives spec-pack load | the wasip1 abort of caveat 4 — and the check that the cache directory really appeared, so the scenario cannot quietly stop reaching the write path |
 
 CI runs it in the `lsp-server-wasi` job, gated by the same path filter as
 `lsp-server-wasm` because the two transports share their entire dependency
@@ -365,8 +379,19 @@ binary for its architecture. The bare module is attached to every GitHub
 Release as `tcl-lsp-server-wasi.wasm` — signed, SBOM'd, and covered by the
 release `SHA256SUMS` like every other asset — and
 [`INSTALL-editors.md`](../../../INSTALL-editors.md) carries the Helix and
-Neovim configurations. `wasmtime run --dir . tcl-lsp-server-wasi.wasm` is the
-whole invocation: `--dir` is contract point 1, and the CLI supplies the rest.
+Neovim configurations. `wasmtime run --dir /path/to/project
+tcl-lsp-server-wasi.wasm` is the whole invocation: `--dir` is contract point 1,
+and the CLI supplies the rest.
+
+The preopen must be **absolute**, and that is a contract detail worth stating
+plainly because the failure is silent. `--dir .` grants the directory under the
+guest path `.`; clients send absolute `file:///…` URIs; nothing matches, and
+the server answers every cross-file question with nothing rather than with an
+error. Measured against this module: `--dir .` returns no locations for a
+go-to-definition into a `source`d sibling, `--dir /abs/path` returns the right
+one. A static editor config cannot compute a project root, so the install docs
+recommend a wrapper script (`exec wasmtime run --dir "$PWD" …`) rather than the
+one literal a static file could hold.
 
 **VS Code's WASM WASI Core extension** (`ms-vscode.wasm-wasi-core`), as the
 last rung of the VS Code extension's server ladder. `editors/vscode`'s node

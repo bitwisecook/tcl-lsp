@@ -47,12 +47,17 @@
  * The fifth is the filesystem: a multi-file session where the sourced sibling
  * exists only inside a `--dir` preopen, so `vfs::NativeStore` has to read it.
  *
+ * The sixth is the filesystem the other way round — a session that WRITES.
+ * Every other scenario leaves the compiled-pack cache unreachable, which hid a
+ * wasip1 abort for the whole life of this file; see `cacheWritableSession`.
+ *
  * Run with `make lsp-server-wasi-test`, or
  * `node test/e2e.mjs [path/to/module.wasm]` against an already-built `dist/`.
  */
 
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join, resolve } from "node:path";
 
@@ -113,7 +118,7 @@ async function until(probe, budgetMs, every = 50) {
  * `workspace/configuration` — the whole of scenario (3).
  */
 class Session {
-    constructor({ answerConfiguration = true, preopen = fixture } = {}) {
+    constructor({ answerConfiguration = true, preopen = fixture, env = {} } = {}) {
         this.answerConfiguration = answerConfiguration;
         this.nextId = 1;
         this.pending = new Map();
@@ -127,9 +132,15 @@ class Session {
         this.buffer = Buffer.alloc(0);
         this.stderr = "";
 
-        this.child = spawn("wasmtime", ["run", "--dir", `${preopen}::${ROOT}`, modulePath], {
-            stdio: ["pipe", "pipe", "pipe"],
-        });
+        const envArgs = Object.entries(env).flatMap(([key, value]) => [
+            "--env",
+            `${key}=${value}`,
+        ]);
+        this.child = spawn(
+            "wasmtime",
+            ["run", "--dir", `${preopen}::${ROOT}`, ...envArgs, modulePath],
+            { stdio: ["pipe", "pipe", "pipe"] },
+        );
         this.child.stdout.on("data", (chunk) => this.receive(chunk));
         this.child.stderr.on("data", (chunk) => {
             this.stderr += chunk.toString("utf8");
@@ -586,6 +597,110 @@ async function exitClosingStdinSession() {
     );
 }
 
+/*
+ * (6) A cache directory the guest can actually write to.
+ *
+ * Every other scenario preopens the tracked `fixture/` directory with no
+ * `XDG_CACHE_HOME`, so `tcl_userdirs::cache_dir()` resolves outside every
+ * preopen and the compiled-pack cache is simply uncreatable — which meant the
+ * whole spec-pack *write* path was structurally unreachable from this harness,
+ * and stayed green through a defect that killed the module in the field.
+ *
+ * `write_atomically` named its temp file with `std::process::id()`. On
+ * wasm32-wasip1 that is `unsupported::process::id`, which panics, and this
+ * module is `panic = "abort"` — so `wasmtime run --dir <project>` (the
+ * invocation the install docs recommend) aborted with status 134 seconds after
+ * `initialized`, right after creating `spectcl/`. The eight embedded packs are
+ * enough to trigger it; no user pack, no editor feature, nothing optional.
+ *
+ * The trigger is exactly "the cache directory resolves inside a preopen", so
+ * that is what this scenario arranges: a scratch copy of the fixture, mounted
+ * writable, with `XDG_CACHE_HOME` pointing inside the mount. The assertion that
+ * the cache directory really appeared is load-bearing — without it a future
+ * change to the preopen layout could quietly make this vacuous again, which is
+ * the precise way the original gap opened.
+ */
+async function cacheWritableSession() {
+    // A scratch copy: the tracked fixture must never grow a `.cache/`.
+    const scratch = await mkdtemp(join(tmpdir(), "tcl-lsp-wasi-cache-"));
+    let session;
+    try {
+        await cp(fixture, scratch, { recursive: true });
+        session = new Session({
+            preopen: scratch,
+            env: { XDG_CACHE_HOME: `${ROOT}/.cache` },
+        });
+        const appSource = await readFile(join(fixture, "app.tcl"), "utf8");
+
+        const initialize = await session.request(
+            "initialize",
+            initializeParams(),
+            STARTUP_BUDGET_MS,
+        );
+        check(
+            "initialize answers with a writable cache directory in reach",
+            Boolean(initialize?.result),
+        );
+
+        // `initialized` is what loads the spec packs, and the load is what
+        // writes the cache. Pre-fix the process was gone before the next check.
+        session.notify("initialized", {});
+        const initialised = await until(
+            () => session.logs.some((line) => line.includes("initialised")),
+            REPLY_BUDGET_MS,
+        );
+        check(
+            "the session survives spec-pack load when the cache is writable",
+            Boolean(initialised) && session.exitCode === null,
+            session.exitCode === null
+                ? "still running"
+                : `died with status ${session.exitCode}: ${session.stderr.split("\n")[1] ?? session.stderr.slice(0, 100)}`,
+        );
+
+        // Naming the abort, not just "it died": a panic message in stderr is
+        // the signature of an unsupported-on-wasip1 std call, and this harness
+        // should say which one rather than reporting a bare non-zero exit.
+        check(
+            "no unsupported-platform panic reaches stderr",
+            !session.stderr.includes("panicked") && !session.stderr.includes("no pids"),
+            session.stderr ? `stderr: ${session.stderr.slice(0, 160)}` : "no stderr",
+        );
+
+        // The write path really ran. If this directory is absent the scenario
+        // proved nothing — the cache was unreachable again, exactly as in every
+        // other scenario here.
+        const cacheDir = join(scratch, ".cache", "tcl-lsp", "spectcl");
+        const wrote = await stat(cacheDir).then(
+            (entry) => entry.isDirectory(),
+            () => false,
+        );
+        check(
+            "the compiled-pack cache was actually written inside the preopen",
+            wrote,
+            wrote ? cacheDir : `${cacheDir} was never created — this scenario is vacuous`,
+        );
+
+        // And the server still works afterwards: a load that aborted halfway
+        // through could leave the registry incomplete rather than kill anyone.
+        session.notify("textDocument/didOpen", {
+            textDocument: { uri: APP_URI, languageId: "tcl", version: 1, text: appSource },
+        });
+        const published = await until(() => session.diagnostics.get(APP_URI), REPLY_BUDGET_MS);
+        check(
+            "analysis still answers after the cache write",
+            Array.isArray(published),
+            published ? `${published.length} diagnostics` : "none",
+        );
+
+        session.notify("exit", null);
+        await Promise.race([session.exited, sleep(30_000).then(() => "timeout")]);
+        if (session.exitCode === null) session.kill();
+        return session;
+    } finally {
+        await rm(scratch, { recursive: true, force: true });
+    }
+}
+
 async function main() {
     console.log(`module: ${modulePath}`);
     const first = await mainSession();
@@ -595,10 +710,12 @@ async function main() {
     const third = await closedStdinSession();
     console.log("");
     await exitClosingStdinSession();
+    console.log("");
+    const fourth = await cacheWritableSession();
 
     console.log("");
     console.log(`${results.length - failures}/${results.length} checks passed`);
-    for (const session of [first, second, third]) {
+    for (const session of [first, second, third, fourth]) {
         if (session.stderr.trim()) {
             console.log("server stderr:");
             for (const line of session.stderr.trim().split("\n").slice(0, 10)) {

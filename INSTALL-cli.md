@@ -87,11 +87,13 @@ under a WebAssembly runtime:
 ```sh
 base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
 curl -fLO "$base/tcl-lsp-server-wasi.wasm"
-wasmtime run --dir . tcl-lsp-server-wasi.wasm
+wasmtime run --dir /path/to/project tcl-lsp-server-wasi.wasm
 ```
 
-`--dir` grants the server a directory to read; without one it sees no files at
-all. [INSTALL-editors.md](INSTALL-editors.md#no-prebuilt-binary-for-your-platform)
+`--dir` grants the server a directory to read, and the path must be **absolute**:
+editors send absolute `file:///…` URIs, and a relative preopen such as `--dir .`
+matches none of them, so the server silently sees no files.
+[INSTALL-editors.md](INSTALL-editors.md#no-prebuilt-binary-for-your-platform)
 has the Helix and Neovim configurations.
 
 ## Verify downloads
