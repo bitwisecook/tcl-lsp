@@ -123,6 +123,30 @@ model for W002 (§4), the Jim probe matrix keyed by
 rather than misdescribe (§2), and the assistance/semantics API split with
 different names and types (§5.3).
 
+## 0.2 F5 evidence review disposition
+
+The
+[BIG-IP evidence review](dialect-and-package-registry-redesign-bigip-evidence-review.md)
+(2026-08-26) reviews the residual F5 assumptions that survived revision 2.
+**All eight findings are accepted**, and its nine required changes gate
+the F5 half of the migration:
+
+| Finding | Disposition |
+|---|---|
+| F1 six language contexts | accepted — `BigIpExecutionContext` { TmmIRule, TmshCliScript, IAppImplementation, IAppPresentationApl, IAppPresentationTclCallback, HostShellTcl } keys every F5 grammar/command/variable/package/policy/evidence record; APL's `tcl` clauses get a typed embedded-range descriptor, never a whole-document language id; `f5-bigip` stops being a catch-all Tcl identity |
+| F2 unprovenanced releases | accepted — "8.4-based"/"8.5" become **baseline hypotheses** carrying their documentary source (F5's own "based on Tcl 8.4" wording); `EmbeddedRuntimeEvidence` records (build, context, reported patchlevel, probe-set results, source) are the truth; unmeasured BIG-IP releases resolve to `Unknown` or an explicitly labelled nearest-known **assistance** profile, never inherited "forever". The shipping 8.4.6/8.5.13 assertions in `dialect-profile-model.md` and `special_vars.rs` are re-labelled hypotheses pending the probe |
+| F3 `}{` overclaim | accepted — the current lexer-wide ghost separator is a **hypothesis matching shipping behaviour**, kept until the live generic matrix (`list {a}{b}`, `set x {a}{b}`, `if{1}{…}`, `{*}{a b}`) decides its scope; if command-scoped, it moves to declarative argument grammar; if release-varying, it gains a BIG-IP lifecycle. The six-row matrix becomes checked-in fixtures with stock-Tcl controls; E3's appliance transcript is pending |
+| F4 tmsh role policy | accepted — a command-visibility overlay distinct from the Tcl baseline and the ambient `tmsh::*` surface; completion may show policy-disabled commands with the reason, semantic hooks must not treat them as callable |
+| F5 `tcl_platform` effects | accepted — context overlays may refine a core variable binding's effects: the iRules overlay distinguishes the CMP-demoting global from the `static::` alias, carries the F5 source, and is lifecycle-keyed |
+| F6 tmsh syntax axis | accepted — a distinct typed version axis (never comparable with Tcl axes) plus a registry-declared state transition for `tmsh::modify cli version active`: constant argument updates subsequent tmsh resolution, dynamic widens to `Unknown`; realm scope assigned only after the probe establishes it |
+| F7 iApp action metadata | accepted — `requires-bigip-version-min/max`, `role-acl`, `run-as` parse into typed document overlays intersecting the configured targets; appliance security settings (e.g. `systemauth.disablebash`) are a separate live-policy overlay; unknown principals widen authorisation-sensitive analysis |
+| F8 conformance corpus | accepted — a checked-in F5 corpus (per-build, per-context manifests; exact scripts; normalised privacy-safe outputs; explicit `unknown` cells) with a transcript validator that never runs in CI; registry rows generate from the corpus and a drift gate fails when prose, rows, or tests disagree with it |
+
+**Migration hold**: no F5 row moves into the new source of truth until the
+review's acceptance matrix has its required coverage; until then the
+compiled seeds carry today's shipping claims explicitly marked as
+translation-of-shipping-hypotheses.
+
 ## 1. Evidence base
 
 The research establishing current state (agent sweeps over the workspace,
@@ -138,7 +162,7 @@ genuine per-variant delta is already centralised in
 | Axis | Values today |
 |---|---|
 | `{*}` expansion (TIP 157) | off in 8.4 and iRules; on 8.5+ |
-| iRules `}{` ghost separator | `f5-irules` only — a zero-width `SEP` token injected in `Lexer::parse_brace` (`rust/tcl-lexer/src/lexer.rs:1242`), which is why `if {1}{#true}` segments as three words on BIG-IP and warns everywhere else |
+| iRules `}{` ghost separator | `f5-irules` only — a zero-width `SEP` token injected in `Lexer::parse_brace` (`rust/tcl-lexer/src/lexer.rs:1242`), which is why `if {1}{#true}` segments as three words on BIG-IP and warns everywhere else. **Scope is a hypothesis under live probe** (§0.2 F3): the lexer-wide rule predicts more than the published `if` examples establish (`list {a}{b}`, expansion interaction); the six-row discriminating matrix with stock-Tcl controls decides whether it stays lexer data, moves to per-command argument grammar, or gains a BIG-IP lifecycle |
 | `${…}` close rule | `FirstClose` (8.x) vs `Tcl9Nesting` (9.x) |
 | Leading-BOM skip on `source` | 9.x only |
 | `#` comments in `[expr]` (TIP 582) | 9.x only |
@@ -1169,7 +1193,11 @@ gates on (adopted verbatim from the review):
   `IAPPS|TMSH` sources into two packs + shared `values`/`descriptor`
   tables), expect, and the EDA environment shells move into their packs
   incrementally with the same behaviour and trust gates; the Rust
-  catalogue shrinks to core.
+  catalogue shrinks to core. **The F5 half is additionally gated on the
+  §0.2 evidence programme**: `BigIpExecutionContext` keying, the
+  conformance corpus with its acceptance-matrix coverage, the tmsh
+  syntax axis, and the policy overlays land before any F5 row migrates;
+  unmeasured contexts ship as `Unknown`, never as inherited defaults.
 - **P5 — tcllib by adversarial module.** Importer-driven from release
   snapshots (2.0 now; 1.17–1.21 as history — **Q9** decides depth and
   bundling), per-module packs mirroring tcllib's structure — **starting
