@@ -974,6 +974,94 @@ spec-grade facts with provenance; a conflict between a hook narrowing
 and an inferred value is a diagnostic, never a silent override — the
 same discipline as every other semantic hook under invariant I4.
 
+## Operator commands: `tcl::mathop::` and `tcl::mathfunc::`
+
+These two namespaces look like ordinary command families a pack would
+author, and no design should author them. Each is one canonical entity
+with **two projections** — an expr-grammar surface and a command-table
+surface — and the projections have *different* availability, so a
+hand-written `command ::tcl::mathop::+ …` row is wrong twice over: it
+duplicates a fact the resolved `CoreProfile` already owns, and it
+carries only one of the two gates.
+
+**Ruling: derived, never authored.** The registry assembly emits the
+command projections from the resolved core's `ExprGrammar` — every
+operator spelling (`precedence` + `word_operators` +
+`symbolic_operators`) becomes a `tcl::mathop::` command entry, and
+every member of the `mathfuncs` set becomes a `tcl::mathfunc::` command
+entry — exactly as the VM already registers its bindings from the
+derived tables (ledger B3) and the runtime before it. The
+hand-maintained generated files and the old `Traits::OPERATOR_COMMAND`
+/ `DialectProfile::operators_as_commands` gating axis retire into this
+derivation alongside C12. Design E's templating strength
+(`foreach op {+ - * /} {command ::tcl::mathop::$op …}`) is therefore a
+non-goal for this family: the loop would re-author a derived surface.
+
+The two availability axes stay typed and distinct, as the registry's
+`mathfunc` module already insists:
+
+| axis | question | gate |
+|---|---|---|
+| expr grammar | is `abs(…)` a function, is `+` an operator, here? | `ExprGrammar` membership — `abs(1)` works in Tcl 8.4 and in iRules (fork of 8.4.6) |
+| command table | does the command `::tcl::mathfunc::abs` / `::tcl::mathop::+` exist here? | family `tcl` ∧ release ≥ 8.5 (TIP 232 / TIP 174); TIP 461's `lt`/`le`/`gt`/`ge` from 9.0 on our ladder; absent in iRules and Jim |
+
+So an 8.5–9.0 range target renders `expr {abs($x)}` clean everywhere
+but flags `::tcl::mathfunc::abs 1` nowhere, while an 8.4-inclusive or
+iRules target flags only the command spelling — both answers falling
+out of one entity's two gates, not two entries.
+
+**Resolution is already centralised and stays so.** In-expr `NAME(` is
+*not* an ordinary command lookup: it dispatches on `tcl::mathfunc::NAME`
+resolved relative to the calling namespace, then globally (TIP 232 —
+the rule is oracle-verified in `tcl-registry/src/mathfunc.rs`, the
+single home for the prefix and both gates). Under R-c this is just one
+more candidate shape feeding the one `exists` oracle: a user
+`proc ::tcl::mathfunc::f {x} {…}` is a `Must` binding that makes
+`expr {f(2)}` resolve with no spec involved; a namespace-local
+`::foo::tcl::mathfunc::f` shadows it for expr sites inside `::foo`; and
+`is_in_mathfunc_namespace` keeps the reverse door shut — a proc living
+there is never reachable as a bare command word. `namespace path
+::tcl::mathop` making bare `+` a command needs no special case at all:
+the derived entries are real commands, so ordinary path candidates find
+them. Note the asymmetry: `mathfunc` is extensible in both directions
+(defining the command adds the expr function), but `mathop` is
+one-directional — the grammar projects into commands, and creating a
+command named `::tcl::mathop::foo` never adds an `expr` operator.
+
+**What SpecTcl does author.** Two things only. Prose: hover and doc
+text attaches to the canonical entity and renders on both projections
+(`+` at an expr site and `::tcl::mathop::+` at a command site share one
+description). And *package-added math functions*, via a first-class
+`mathfunc` declaration — first-class because authoring the qualified
+command spelling by hand would under-declare, registering only one
+projection:
+
+```tcl
+# A / C — an EDA or numerics pack adding an expr function
+mathfunc db20 {x:double} {
+    returns double
+    doc {20·log₁₀(|x|) — the dB conversion used throughout the
+         measurement commands.}
+}
+```
+
+The loader registers both projections (the expr-function name and the
+`::tcl::mathfunc::db20` command), infers the Tcl-table gate
+(`available {tcl 8.5-}` — script-level extension does not exist
+before TIP 232, so a pack claiming 8.4 for a `mathfunc` fails the load
+with an availability diagnostic), and the declaration takes the same
+static types and `types` hooks as any command. The derived core
+entries need no hooks: their types come from the operator signatures
+themselves (`+` variadic `numeric`, `eq`/`in` exactly-two returning
+`boolean`, `!` exactly-one, TIP 461's ordering four string-typed).
+
+One terminology guard: none of this is an *alias* in the `interp
+alias` sense — the projections are real commands derived from one
+entity. Actual `interp alias` creation in user source stays where the
+redesign put it: an analyser transition producing alias bindings
+through the same R-c oracle, with registry alias data reserved for
+historical spellings.
+
 ## What the domain sweep shows
 
 - **Hooks separate the designs sharply.** E and F make Tcl-body hooks
