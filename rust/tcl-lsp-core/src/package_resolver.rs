@@ -59,6 +59,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
+use crate::vfs::{NativeStore, SourceStore};
+
 use tcl_lexer::{Lexer, Token, TokenType};
 
 pub use tcl_dialect::PackagePrefer;
@@ -819,17 +821,27 @@ impl PackageResolver {
     /// `pkgIndex.tcl` and `tclIndex` files, mirroring `tclPkgUnknown`'s
     /// `glob -directory $dir -join * pkgIndex.tcl` plus the `$dir/pkgIndex.tcl`
     /// case (`library/package.tcl:486-534`). Idempotent per directory.
+    ///
+    /// Reads the real filesystem; [`Self::scan_path_in`] is the same scan over
+    /// a caller-supplied [`SourceStore`].
     pub fn scan_path(&mut self, dir: &Path) {
-        if !dir.is_dir() {
+        self.scan_path_in(&NativeStore, dir);
+    }
+
+    /// [`Self::scan_path`] against `store` rather than `std::fs`, so a host
+    /// that has the bytes but no filesystem (the browser worker) builds the
+    /// same package database from them. See [`crate::vfs`].
+    pub fn scan_path_in(&mut self, store: &dyn SourceStore, dir: &Path) {
+        if !store.is_dir(dir) {
             return;
         }
         // The directory itself, then each immediate subdirectory in name
         // order — `read_dir` order is filesystem-dependent, and discovery
         // order decides which provider an unconstrained `resolve` answers, so
         // it must not vary across machines.
-        self.scan_single_dir(dir);
-        for path in sorted_subdirs(dir) {
-            self.scan_single_dir(&path);
+        self.scan_single_dir(store, dir);
+        for path in sorted_subdirs(store, dir) {
+            self.scan_single_dir(store, &path);
         }
     }
 
@@ -841,50 +853,62 @@ impl PackageResolver {
     /// the whole tree, the right behaviour for an IDE workspace root where a
     /// project may nest its packages arbitrarily deep (a full recursive walk).
     /// The `max_dirs` cap keeps a huge tree from stalling the scan.
+    ///
+    /// Reads the real filesystem; [`Self::scan_tree_in`] is the same walk over
+    /// a caller-supplied [`SourceStore`].
     pub fn scan_tree(&mut self, root: &Path, max_dirs: usize) {
+        self.scan_tree_in(&NativeStore, root, max_dirs);
+    }
+
+    /// [`Self::scan_tree`] against `store` rather than `std::fs`. See
+    /// [`Self::scan_path_in`].
+    pub fn scan_tree_in(&mut self, store: &dyn SourceStore, root: &Path, max_dirs: usize) {
         let mut stack = vec![root.to_path_buf()];
         let mut visited = 0usize;
         while let Some(dir) = stack.pop() {
             if visited >= max_dirs {
                 break;
             }
-            if !dir.is_dir() {
+            if !store.is_dir(&dir) {
                 continue;
             }
             visited += 1;
-            self.scan_single_dir(&dir);
+            self.scan_single_dir(store, &dir);
             // Reverse-sorted push so the LIFO pop visits children in name
             // order, keeping discovery order machine-independent.
-            for path in sorted_subdirs(&dir).into_iter().rev() {
+            for path in sorted_subdirs(store, &dir).into_iter().rev() {
                 stack.push(path);
             }
         }
     }
 
-    fn scan_single_dir(&mut self, dir: &Path) {
+    fn scan_single_dir(&mut self, store: &dyn SourceStore, dir: &Path) {
         let dir_buf = dir.to_path_buf();
         if self.scanned_dirs.contains(&dir_buf) {
             return;
         }
         self.scanned_dirs.push(dir_buf);
         let pkg_index = dir.join("pkgIndex.tcl");
-        if pkg_index.is_file()
-            && let Ok(content) = std::fs::read_to_string(&pkg_index)
+        if store.is_file(&pkg_index)
+            && let Ok(content) = store.read_to_string(&pkg_index)
         {
-            let infos =
-                parse_pkg_index(&content, dir, &pkg_index, &|p| p.is_file(), &list_tcl_files);
+            let infos = parse_pkg_index(&content, dir, &pkg_index, &|p| store.is_file(p), &|d| {
+                list_tcl_files(store, d)
+            });
             self.add_pkg_index(infos);
         }
         // `tclIndex` is matched case-insensitively (`tclIndex` / `tclindex`).
-        if let Ok(read) = std::fs::read_dir(dir) {
-            for entry in read.flatten() {
-                let name = entry.file_name();
-                if name.to_string_lossy().eq_ignore_ascii_case("tclindex") {
-                    let path = entry.path();
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        let dir_owned = path.parent().unwrap_or(dir).to_path_buf();
-                        self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| p.is_file()));
-                    }
+        if let Ok(entries) = store.read_dir(dir) {
+            for entry in entries {
+                let is_tcl_index = entry
+                    .path
+                    .file_name()
+                    .is_some_and(|name| name.to_string_lossy().eq_ignore_ascii_case("tclindex"));
+                if is_tcl_index && let Ok(content) = store.read_to_string(&entry.path) {
+                    let dir_owned = entry.path.parent().unwrap_or(dir).to_path_buf();
+                    self.add_tcl_index(parse_tcl_index(&content, &dir_owned, &|p| {
+                        store.is_file(p)
+                    }));
                 }
             }
         }
@@ -1179,13 +1203,17 @@ impl PackageResolver {
 /// filesystem order, and everything downstream of a scan (which provider wins
 /// a version tie, the order of a package's source files) must be identical on
 /// every machine.
-fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
+///
+/// The kind test is [`SourceStore::is_dir`] on the entry path, not the entry's
+/// own type: a `lib -> ../lib` symlink is a directory C Tcl's `auto_path` walk
+/// descends into, and the pre-store code asked `path.is_dir()` for exactly that
+/// reason.
+fn sorted_subdirs(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
     let mut subdirs = Vec::new();
-    if let Ok(read) = std::fs::read_dir(dir) {
-        for entry in read.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                subdirs.push(path);
+    if let Ok(entries) = store.read_dir(dir) {
+        for entry in entries {
+            if store.is_dir(&entry.path) {
+                subdirs.push(entry.path);
             }
         }
     }
@@ -1195,13 +1223,12 @@ fn sorted_subdirs(dir: &Path) -> Vec<PathBuf> {
 
 /// List the `*.tcl` files directly in `dir` (the `pkg_mkIndex` fallback),
 /// sorted by name for machine-independent output.
-fn list_tcl_files(dir: &Path) -> Vec<PathBuf> {
+fn list_tcl_files(store: &dyn SourceStore, dir: &Path) -> Vec<PathBuf> {
     let mut files = Vec::new();
-    if let Ok(read) = std::fs::read_dir(dir) {
-        for entry in read.flatten() {
-            let path = entry.path();
-            if path.extension().is_some_and(|e| e == "tcl") {
-                files.push(path);
+    if let Ok(entries) = store.read_dir(dir) {
+        for entry in entries {
+            if entry.path.extension().is_some_and(|e| e == "tcl") {
+                files.push(entry.path);
             }
         }
     }

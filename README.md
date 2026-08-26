@@ -136,6 +136,34 @@ code --install-extension tcl-lsp-vscode-<version>-universal.vsix
 The extension bundles the native server — nothing else to install. Settings
 live under **Settings > Extensions > Tcl**.
 
+The `-universal` package works on **any** architecture, not just the seven with
+a prebuilt binary: it also carries the language server as a WebAssembly (WASI)
+module and falls back to it when no native binary matches, offering a one-time
+prompt to install the WASM runtime it needs. Editors other than VS Code can
+take the same module — `tcl-lsp-server-wasi.wasm` — straight from Releases and
+run it under `wasmtime`; see
+[INSTALL-editors.md](INSTALL-editors.md#no-prebuilt-binary-for-your-platform).
+
+Also published to [Open VSX](https://open-vsx.org/extension/bitwisecook/tcl-lsp)
+for code-server, openvscode-server, Gitpod, and Theia — see
+[INSTALL-editors.md](INSTALL-editors.md#vs-code-compatible-editors).
+
+#### In the browser — vscode.dev and github.dev
+
+The same extension runs in a browser extension host, with no server binary
+and nothing to install locally: press `.` on a GitHub repository, or open
+<https://vscode.dev>, and install **Tcl/Tk, iRules, EDA-Tools, Expect
+LSP/MCP** from the Extensions panel. There the language server is the same
+analyser compiled to WebAssembly, running in a Web Worker in the page.
+
+What is the same: diagnostics, semantic highlighting, hover, completion,
+formatting, folding, optimisations, and the LSP-driven commands. What is
+not: anything that needs a process or a filesystem — runtime validation
+(`tclsh`), the compiler explorer, the spec studio, the Tk preview, and the
+Copilot chat participants stay desktop-only, and cross-file analysis is
+limited on a virtual workspace (see
+[INSTALL-editors.md](INSTALL-editors.md#vs-code-for-the-web)).
+
 ### Neovim
 
 Copy [`tcl_lsp.lua`](editors/neovim/) to `~/.config/nvim/server/` and enable it

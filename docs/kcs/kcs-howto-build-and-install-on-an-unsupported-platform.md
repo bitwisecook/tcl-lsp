@@ -27,6 +27,34 @@ which Windows users can download and install manually. On another platform,
 build the native programs you need from source. You do not need the
 dependencies for features you will not build.
 
+### First: you may not need to build the language server at all
+
+Every release also carries `tcl-lsp-server-wasi.wasm`, which is the language
+server compiled to WebAssembly. It is architecture-independent, it speaks
+ordinary stdio Language Server Protocol, and it needs only a WebAssembly
+runtime such as [wasmtime](https://wasmtime.dev/):
+
+```sh
+base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
+curl -fLO "$base/tcl-lsp-server-wasi.wasm"
+wasmtime run --dir /path/to/project tcl-lsp-server-wasi.wasm
+```
+
+The `--dir` option grants the server a directory to read, and the path must be
+absolute. Without one the server sees no files at all; with a relative one such
+as `--dir .` it sees the directory under a name no editor's `file:///…` URI can
+match, which looks the same from the editor. Grant the project root by its
+absolute path. The Helix and Neovim configurations are in
+[INSTALL-editors.md](../../INSTALL-editors.md#no-prebuilt-binary-for-your-platform).
+
+In VS Code this needs no setup: install the `-universal` package, which
+carries the module and falls back to it when it has no native binary for your
+platform.
+
+Build from source when you want the `tcl`, `f5-query`, or `tcl-mcp` command,
+or the extra speed of a native language server. The WebAssembly module is the
+same analyser, but it runs single-threaded inside a sandbox.
+
 ### Build the native programs
 
 Every native program needs:

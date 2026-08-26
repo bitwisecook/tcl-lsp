@@ -45,6 +45,7 @@ NPM      := npm
 NODE_BIN := $(EXT_DIR)/node_modules/.bin
 TSC      := $(NODE_BIN)/tsc
 VSCE     := $(NODE_BIN)/vsce
+OVSX     := $(NODE_BIN)/ovsx
 VSCODE   ?= code
 
 # Stamps (used to avoid re-running expensive steps when deps haven't changed)
@@ -130,6 +131,25 @@ SERVER_TARGETS_ALL := $(foreach p,$(SERVER_TARGET_MAP),$(firstword $(subst :, ,$
 SPEC_PACK_SRC   := $(ROOT)specs
 SPEC_PACK_FILES := $(wildcard $(SPEC_PACK_SRC)/*.tclspec)
 
+# The WASI language server — the same `LspService<Backend>` as the native
+# binary, linked for wasm32-wasip1 and driven over Content-Length-framed stdio
+# (`docs/design/rust/lsp-runtime-and-transports.md`).  Declared up here rather
+# than beside its build target further down because $(VSIX_FILE) names the
+# module as a *prerequisite*, and prerequisites expand when the rule is read.
+LSP_SERVER_WASI_DIR    := $(ROOT)rust/tcl-lsp-server-wasi
+LSP_SERVER_WASI_MODULE := $(LSP_SERVER_WASI_DIR)/dist/tcl-lsp-server-wasi.wasm
+# The module's own sources, so the file rule further down can tell a stale
+# module from an up-to-date one.  Same `shell find` idiom as $(TS_SRCS); the
+# crate is its own workspace with its own lockfile, so its lockfile is the one
+# named here.  Declared beside the module for the same reason it is: this
+# expands where the rule is read.
+LSP_SERVER_WASI_SRCS := $(shell find $(LSP_SERVER_WASI_DIR)/src -type f 2>/dev/null) \
+	$(LSP_SERVER_WASI_DIR)/Cargo.toml $(LSP_SERVER_WASI_DIR)/Cargo.lock \
+	$(LSP_SERVER_WASI_DIR)/build-wasi.sh
+# Where the universal VSIX stages it, relative to the extension root.  Mirrored
+# by `WASI_MODULE_RELATIVE_PATH` in editors/vscode/src/serverResolution.ts.
+VSIX_WASI_DIR := server/wasm
+
 # vsce's supported --target platform strings (see "Platform-specific
 # extensions" at code.visualstudio.com/api/working-with-extensions/publishing-extension).
 # Six of the seven SERVER_TARGET_MAP bundle dirs are also valid vsce
@@ -203,8 +223,8 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 .PHONY: claude-skills
 .PHONY: smoke-vsix
 # Packaging + publish + release
-.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
-.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
+.PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix publish-openvsx
+.PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets publish-openvsx-targets
 .PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
@@ -243,10 +263,10 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 	fi
 	@if [ -n "$$VSCE_PAT" ]; then \
 		echo "    VSCE_PAT set — using the legacy stored PAT (override)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --skip-duplicate --packagePath $(VSIX_FILE); \
 	elif az account show >/dev/null 2>&1; then \
 		echo "    Keyless publish via Azure Entra (--azure-credential, no PAT)."; \
-		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath $(VSIX_FILE); \
+		cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --skip-duplicate --packagePath $(VSIX_FILE); \
 	else \
 		echo "    No Azure CLI session for keyless publishing."; \
 		echo "    Run:  az login --allow-no-subscriptions"; \
@@ -254,7 +274,28 @@ publish-vsix: package-vsix ## Publish the .vsix to the VS Code Marketplace (lapt
 		exit 1; \
 	fi
 
-$(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
+publish-openvsx: package-vsix ## Publish the .vsix to Open VSX (code-server / openvscode-server / Gitpod / Theia; laptop fallback; CI is the primary path)
+	@echo "==> Publishing $(VSIX_FILE) to Open VSX"
+	@# Releases normally publish via ovsx from CI (job publish-vsix-openvsx,
+	@# secrets.OVSX_PAT on the protected marketplace-openvsx Environment).
+	@# This laptop target is the fallback for when that CI job fails.
+	@# Open VSX has no keyless credential flow like vsce's Azure Entra path —
+	@# an account-wide OVSX_PAT (a token from
+	@# https://open-vsx.org/user-settings/tokens; publishing to the
+	@# bitwisecook namespace needs that account to be a member/owner of it)
+	@# must be set.
+	@# No --pre-release flag here: ovsx ignores it for an already-packaged
+	@# VSIX (ovsx_publish.sh explains why). The channel is already baked
+	@# into $(VSIX_FILE)'s manifest by `vsce package $(VSCE_PRERELEASE_FLAG)`
+	@# above, which open-vsx.org reads.
+	@if [ -z "$${OVSX_PAT:-}" ]; then \
+		echo "    OVSX_PAT is not set."; \
+		echo "    Generate a token at https://open-vsx.org/user-settings/tokens and export OVSX_PAT."; \
+		exit 1; \
+	fi
+	cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath $(VSIX_FILE)
+
+$(VSIX_FILE): spec-studio-wasm $(if $(VSCE_TARGET),,$(LSP_SERVER_WASI_MODULE)) $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $(EXT_DIR)/.vscodeignore $(LICENSE_SRC) $(README_SRC) $(SCREENSHOTS) $(ROOT)scripts/install/filter-readme.mjs
 	@echo "==> Preparing VSIX staging directory"
 	rm -rf $(STAGE_DIR)
 	mkdir -p $(STAGE_DIR)
@@ -264,9 +305,34 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 		--exclude='.ruff_cache/' \
 		--exclude='.mypy_cache/' \
 		--exclude='.vscode-test/' \
+		--exclude='.vscode-test-web/' \
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	mkdir -p $(STAGE_DIR)/spec-studio
 	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(STAGE_DIR)/spec-studio/
+	@# The browser language server (package.json `browser`), for vscode.dev /
+	@# github.dev and every other web extension host.  Staged from
+	@# `make lsp-server-wasm`'s dist rather than trusting the extension
+	@# directory's own copy, so a VSIX can never ship a stale worker.  The
+	@# `spec-studio-wasm` prerequisite above already builds it.
+	@#
+	@# It ships in EVERY VSIX flavour, targeted or not: one package.json declares
+	@# both entry points, so a targeted package whose `browser` entry had no
+	@# assets would fail on the web while claiming to support it.
+	@echo "==> Staging the browser language server (dist/web)"
+	mkdir -p $(STAGE_DIR)/dist/web/specs
+	cp $(LSP_SERVER_WASM_DIR)/dist/worker.js \
+		$(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm.js \
+		$(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm_bg.wasm \
+		$(STAGE_DIR)/dist/web/
+	@# The bundled SpecTcl loadables again: the native server finds them in a
+	@# `specs/` directory beside its executable, and the browser server — which
+	@# has no executable — gets them upserted into the virtual pack mount at
+	@# startup (docs/design/contracts/lsp-source-store.md).
+	cp $(SPEC_PACK_FILES) $(STAGE_DIR)/dist/web/specs/
+	@# …plus a manifest naming them.  An installed web extension's files are
+	@# served over http, where VS Code's filesystem provider answers `readFile`
+	@# only, so the browser entry cannot list this directory to find them.
+	node -e "const fs=require('fs');const d='$(STAGE_DIR)/dist/web/specs';const p=fs.readdirSync(d).filter(f=>f.endsWith('.tclspec')).sort();fs.writeFileSync(d+'/index.json',JSON.stringify(p,null,2)+'\n')"
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
 	@echo "==> Bundling native tcl-lsp-server binaries: $(BUNDLED_TARGETS)"
@@ -291,6 +357,28 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 			echo "             or:  make server-cross-build-all  (all 7 — needs cross deps)"; \
 			exit 1; \
 		fi
+	@# The WASI language server — the universal package's last rung, for an
+	@# architecture none of the seven cross-compiled triples covers.  TRANSITIONAL:
+	@# the universal VSIX carries the natives AND this module; the six targeted
+	@# packages carry only their own native binary and must NOT inherit it, which
+	@# is why this whole block is conditional on an empty VSCE_TARGET (and why
+	@# `verify-vsix` asserts both halves).
+	@#
+	@# The spec packs ride along in `specs/` beside the module, mirroring the
+	@# native staging above.  A WASI guest has no executable for
+	@# `tcl_spectcl::discovery::bundled_dir` to sit beside, so editors/vscode's
+	@# wasiServer.ts mounts this directory into the guest and names it with
+	@# TCL_LSP_SPEC_PACK_DIR instead.
+	@set -eu; \
+		if [ -n "$(VSCE_TARGET)" ]; then \
+			echo "==> Skipping the WASI module (platform-targeted VSIX: $(VSCE_TARGET))"; \
+		else \
+			echo "==> Staging the WASI language server ($(VSIX_WASI_DIR)/)"; \
+			mkdir -p "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs"; \
+			cp "$(LSP_SERVER_WASI_MODULE)" "$(STAGE_DIR)/$(VSIX_WASI_DIR)/"; \
+			cp $(SPEC_PACK_FILES) "$(STAGE_DIR)/$(VSIX_WASI_DIR)/specs/"; \
+			echo "    $(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE)) (+ specs/)"; \
+		fi
 	cp $(LICENSE_SRC) $(STAGE_DIR)/LICENSE.txt
 	node $(ROOT)scripts/install/filter-readme.mjs $(README_SRC) --editor "VS Code" -o $(STAGE_DIR)/README.md
 	mkdir -p $(STAGE_DIR)/docs/screenshots
@@ -305,7 +393,7 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 	@echo "==> Verifying VSIX contents"
 	@set -euo pipefail; \
-		BAD_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(\.venv/|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|\.vscode-test/|\.stamps/|src/|testFixture/|out/test/|.*__pycache__/|.*\.pyc$$)' || true)"; \
+		BAD_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(\.venv/|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|\.vscode-test/|\.vscode-test-web/|\.stamps/|src/|testFixture/|out/test/|.*__pycache__/|.*\.pyc$$)' || true)"; \
 		if [[ -n "$$BAD_ENTRIES" ]]; then \
 			echo "VSIX contains dev/cache content that should be excluded:"; \
 			echo "$$BAD_ENTRIES"; \
@@ -344,6 +432,59 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			exit 1; \
 		fi; \
 		echo "==> VSIX bundles $$have/$$want native server binaries, each with the shipped spec packs"
+	@# The browser half.  `package.json` declares `browser`, which is what makes
+	@# the Marketplace flag the extension as web-supported, so a package that
+	@# ships the manifest without the worker assets advertises a language server
+	@# it cannot start.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		missing=""; \
+		for f in out/extension.browser.js dist/web/worker.js dist/web/tcl_lsp_server_wasm.js \
+			dist/web/tcl_lsp_server_wasm_bg.wasm; do \
+			echo "$$entries" | grep -qx "extension/$$f" || missing="$$missing $$f"; \
+		done; \
+		echo "$$entries" | grep -qx "extension/dist/web/specs/index.json" \
+			|| missing="$$missing dist/web/specs/index.json"; \
+		for pack in $(notdir $(SPEC_PACK_FILES)); do \
+			echo "$$entries" | grep -qx "extension/dist/web/specs/$$pack" \
+				|| missing="$$missing dist/web/specs/$$pack"; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "VSIX missing the browser (web extension host) payload:$$missing"; \
+			echo "Build it first: make lsp-server-wasm"; \
+			exit 1; \
+		fi; \
+		echo "==> VSIX carries the browser language server (dist/web) and its spec packs"
+	@# The WASI rung.  TRANSITIONAL split: the untargeted universal package
+	@# carries the module (it is the fallback for architectures with no native
+	@# binary), the six platform-targeted packages must NOT — each already ships
+	@# its own binary, and 6 x ~19 MiB of module nobody would ever run is pure
+	@# download weight.  Asserted in both directions so neither half can drift.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		wasi="extension/$(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE))"; \
+		if [ -n "$(VSCE_TARGET)" ]; then \
+			carried="$$(echo "$$entries" | grep -E "^extension/$(VSIX_WASI_DIR)/" || true)"; \
+			if [ -n "$$carried" ]; then \
+				echo "Platform-targeted VSIX ($(VSCE_TARGET)) must not carry the WASI module:"; \
+				echo "$$carried"; \
+				exit 1; \
+			fi; \
+			echo "==> VSIX is platform-targeted ($(VSCE_TARGET)) and correctly omits $(VSIX_WASI_DIR)/"; \
+		else \
+			missing=""; \
+			echo "$$entries" | grep -qx "$$wasi" || missing="$$missing $(VSIX_WASI_DIR)/$(notdir $(LSP_SERVER_WASI_MODULE))"; \
+			for pack in $(notdir $(SPEC_PACK_FILES)); do \
+				echo "$$entries" | grep -qx "extension/$(VSIX_WASI_DIR)/specs/$$pack" \
+					|| missing="$$missing $(VSIX_WASI_DIR)/specs/$$pack"; \
+			done; \
+			if [ -n "$$missing" ]; then \
+				echo "Universal VSIX missing the WASI language server payload:$$missing"; \
+				echo "Build it first: make lsp-server-wasi"; \
+				exit 1; \
+			fi; \
+			echo "==> VSIX carries the WASI language server ($(VSIX_WASI_DIR)) and its spec packs"; \
+		fi
 
 # ---------------------------------------------------------------------------
 # Platform-targeted VSIX packaging — six small, single-binary VSIXes
@@ -383,15 +524,28 @@ publish-vsix-targets: package-vsix-targets ## Publish the six platform-targeted 
 		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
 		echo "==> Publishing $$f to VS Code Marketplace"; \
 		if [ -n "$${VSCE_PAT:-}" ]; then \
-			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --packagePath "$$f"); \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --skip-duplicate --packagePath "$$f"); \
 		elif az account show >/dev/null 2>&1; then \
-			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --packagePath "$$f"); \
+			(cd $(STAGE_DIR) && $(VSCE) publish $(VSCE_PRERELEASE_FLAG) --azure-credential --skip-duplicate --packagePath "$$f"); \
 		else \
 			echo "    No Azure CLI session for keyless publishing."; \
 			echo "    Run:  az login --allow-no-subscriptions"; \
 			echo "    (or set VSCE_PAT to use the legacy stored-PAT path instead.)"; \
 			exit 1; \
 		fi; \
+	done
+
+publish-openvsx-targets: package-vsix-targets ## Publish the six platform-targeted .vsix files to Open VSX (laptop fallback; CI is the primary path)
+	@set -eu; \
+	if [ -z "$${OVSX_PAT:-}" ]; then \
+		echo "    OVSX_PAT is not set."; \
+		echo "    Generate a token at https://open-vsx.org/user-settings/tokens and export OVSX_PAT."; \
+		exit 1; \
+	fi; \
+	for vt in $(VSCE_TARGETS); do \
+		f="$(BUILD_DIR)/tcl-lsp-vscode-$(VERSION)-$$vt.vsix"; \
+		echo "==> Publishing $$f to Open VSX"; \
+		(cd $(STAGE_DIR) && $(OVSX) publish --skip-duplicate --packagePath "$$f"); \
 	done
 
 # Test targets
@@ -1062,6 +1216,13 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 		cd $(ROOT)rust/tcl-lsp-server-wasm; \
 		cargo fmt --all --check; \
 		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-lsp-server-wasi/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1; then \
+		echo "==> Checking tcl-lsp-server-wasi (fmt + clippy --target wasm32-wasip1)"; \
+		cd $(ROOT)rust/tcl-lsp-server-wasi; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license
@@ -1327,6 +1488,11 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	else \
 		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
 	fi
+	@# Stage the browser language server into editors/vscode/dist/web so a local
+	@# web run (`npm run test:web`, `vscode-test-web`) finds it.  Best-effort:
+	@# `make package-vsix` stages it itself from the same source and
+	@# `verify-vsix` asserts the result, so packaging never depends on this.
+	@cd $(EXT_DIR) && node scripts/copy-web-assets.cjs
 
 # Generated editor catalogs
 #
@@ -1522,6 +1688,54 @@ lsp-server-wasm-test: lsp-server-wasm ## Drive the wasm LSP server through a scr
 	@command -v node >/dev/null 2>&1 || { \
 		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
 	node $(LSP_SERVER_WASM_DIR)/test/e2e.mjs
+
+.PHONY: lsp-server-wasi lsp-server-wasi-test
+# The WASI sibling of `lsp-server-wasm`: the same `LspService<Backend>`, driven
+# over Content-Length-framed stdio inside a wasm32-wasip1 sandbox instead of
+# over `postMessage` in a browser worker.  Unlike the browser build this one
+# DOES run `wasm-opt -Os` — see build-wasi.sh for why that is safe here and not
+# there.
+lsp-server-wasi: ## Build the LSP server as a WASI stdio program (Rust → wasm32-wasip1) into rust/tcl-lsp-server-wasi/dist/
+	@rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1 \
+		|| rustup target add wasm32-wasip1
+	bash $(LSP_SERVER_WASI_DIR)/build-wasi.sh
+
+# The universal VSIX's prerequisite on the module, as a FILE rule rather than a
+# dependency on the phony target above.  CI's `build-vsix` downloads the module
+# the `lsp-server-wasi` job already built, optimised, and signed; a phony
+# prerequisite would rebuild it there (a wasip1 toolchain plus a release LTO
+# link) on top of the download.
+#
+# The prerequisites are what keep "present ⇒ used as-is" honest.  `dist/` is
+# git-ignored, so it survives every branch switch: with no prerequisites at all
+# the documented laptop fallbacks (`make publish-vsix` / `publish-openvsx`)
+# would happily package whatever module an earlier branch left behind.  Naming
+# the crate's own sources means a source change re-links and an untouched
+# module is reused.  Note this decides only whether cargo is *consulted* — the
+# recipe's `cargo build` still fingerprints the whole dependency closure, so a
+# change under `rust/tcl-lsp-server` re-links once anything here (or `dist/`)
+# is touched.  Delete `dist/` (or run `make lsp-server-wasi`) to force a build.
+#
+# CI's direction holds: `build-vsix` checks out first and downloads second, and
+# `actions/download-artifact` extracts with `unzip-stream`, which never
+# restores the zip's stored mtimes — the module lands at download time, newer
+# than every prerequisite, so nothing re-links there.
+$(LSP_SERVER_WASI_MODULE): $(LSP_SERVER_WASI_SRCS)
+	$(MAKE) --no-print-directory lsp-server-wasi
+
+# The fixture directory is preopened by the harness itself (`wasmtime --dir`),
+# so the multi-file scenario reads a sourced sibling that only ever exists on
+# the host filesystem — the proof that `vfs::NativeStore` works over preopens.
+lsp-server-wasi-test: lsp-server-wasi ## Drive the WASI LSP server through scripted sessions under wasmtime
+	@command -v node >/dev/null 2>&1 || { \
+		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
+	@command -v wasmtime >/dev/null 2>&1 || { \
+		echo "wasmtime not found — install the wasmtime CLI (v47+)"; exit 1; }
+	@echo "==> framing unit tests (wasm32-wasip1, run under wasmtime)"
+	cd $(LSP_SERVER_WASI_DIR) && CARGO_TARGET_DIR=$(LSP_SERVER_WASI_DIR)/target \
+		cargo test --target wasm32-wasip1
+	@echo "==> scripted LSP sessions"
+	node $(LSP_SERVER_WASI_DIR)/test/e2e.mjs
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"
@@ -1922,7 +2136,7 @@ release-prepare: ## Preflight + benchmark + notes + verify + commit for V=x.y.z 
 release-rust-tag: ## Verify the prepared artefacts, then tag V=x.y.z (rust line)
 	@bash $(ROOT)scripts/release/rust_release.sh tag $(V)
 
-publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-vsix-targets publish-openvsx publish-openvsx-targets publish-jetbrains publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
@@ -1950,21 +2164,22 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "  1. make publish-verify             # check that local credentials + tooling are ready"
 	@echo "  2. make release-tag V=X.Y.Z        # creates + pushes the annotated tag (e.g. 2.1.0)"
 	@echo "     # CI builds + signs + attaches every release artefact to the GitHub Release"
-	@echo "     # then VS Code + JetBrains publish from CI behind the approval gate"
+	@echo "     # then VS Code + Open VSX + JetBrains publish from CI behind the approval gate"
 	@echo "     # (see docs/design/contracts/release-and-publish.md)"
-	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode"
-	@echo "     and marketplace-jetbrains deployments when prompted"
+	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode,"
+	@echo "     marketplace-openvsx, and marketplace-jetbrains deployments when prompted"
 	@echo "  4. make publish-zed                # local; Zed only"
 	@echo "     # Sublime needs no publish step: Package Control reads the"
 	@echo "     # TclLsp.sublime-package asset straight off the GitHub Release"
 	@echo ""
 	@echo "  Marketplaces:"
 	@echo "    VS Code    -> CI job publish-vsix-marketplace      (secrets.VSCE_PAT, marketplace-vscode)"
+	@echo "    Open VSX   -> CI job publish-vsix-openvsx          (secrets.OVSX_PAT, marketplace-openvsx)"
 	@echo "    JetBrains  -> CI job publish-jetbrains-marketplace (secrets.JETBRAINS_TOKEN, marketplace-jetbrains)"
 	@echo "    Sublime    -> nothing to run (Package Control pulls the release asset)"
 	@echo "    Zed        -> make publish-zed       (laptop; preps a local PR for review)"
 	@echo ""
-	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-jetbrains"
+	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-openvsx / publish-jetbrains"
 
 # The KCS help database is no longer a build step: the native `tcl` binary
 # embeds its help pages directly (see the tcl crate's build.rs).

@@ -5,6 +5,7 @@ tsconfig.json
 **/*.ts
 **/*.map
 .vscode-test/**
+.vscode-test-web/**
 .venv/**
 .pytest_cache/**
 .ruff_cache/**
@@ -24,14 +25,25 @@ testFixture/**
 # Screenshot demo (dev only — dead-code-eliminated in normal builds)
 out/screenshotDemo.js
 
-# Individual tsc output — only the esbuild bundle (out/extension.js) is used
+# Individual tsc output — only the esbuild bundles are used: out/extension.js
+# (the `main` entry) and out/extension.browser.js (the `browser` entry). Note
+# out/extensionBrowser.js is tsc's per-file output for src/extensionBrowser.ts
+# and is NOT the browser bundle.
 out/chat/**
+out/clientCore.js
 out/compilerExplorer.js
 out/compilerExplorerHtml.js
+out/extensionBrowser.js
 out/iruleSkeleton.js
 out/runtimeValidation.js
 out/scaffold.js
+out/selectionTransforms.js
+out/serverResolution.js
+out/wasiServer.js
 out/templateSnippets.js
+out/templateSnippetsCatalog.js
+out/webLspTransport.js
+out/webWorkspaceSync.js
 
 # node_modules not needed — esbuild bundles everything
 node_modules/**

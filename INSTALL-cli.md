@@ -74,6 +74,28 @@ install -m 0755 f5-query-aarch64-apple-darwin  ~/.local/bin/f5
 
 The MCP server is published the same way, as `tcl-mcp-<triple>`.
 
+## No prebuilt binary for your platform?
+
+The `tcl`, `f5-query`, and `tcl-mcp` CLIs are native-only — build them from
+source (see [Build from source](#build-from-source)).
+
+The **language server** is not. Every release also carries
+`tcl-lsp-server-wasi.wasm`, the same server compiled to WebAssembly (WASI). It
+speaks ordinary stdio LSP, so any editor with a generic LSP client can run it
+under a WebAssembly runtime:
+
+```sh
+base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
+curl -fLO "$base/tcl-lsp-server-wasi.wasm"
+wasmtime run --dir /path/to/project tcl-lsp-server-wasi.wasm
+```
+
+`--dir` grants the server a directory to read, and the path must be **absolute**:
+editors send absolute `file:///…` URIs, and a relative preopen such as `--dir .`
+matches none of them, so the server silently sees no files.
+[INSTALL-editors.md](INSTALL-editors.md#no-prebuilt-binary-for-your-platform)
+has the Helix and Neovim configurations.
+
 ## Verify downloads
 
 ```sh

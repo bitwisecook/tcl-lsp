@@ -220,6 +220,13 @@ against, and how it stays fast under an editor's keystroke load.
   the guardrails that pin it.
 - [rust/lsp-performance.md](rust/lsp-performance.md) — native LSP
   performance: results, optimisations, and how to measure.
+- [rust/lsp-runtime-and-transports.md](rust/lsp-runtime-and-transports.md) —
+  the one protocol core and its three drivers: the `rt.rs` runtime seam's
+  native / browser / wasi arms and what each host owes them, the transport
+  comparison, the WASI stdin driver — why a blocking read starves a
+  single-threaded runtime, the `poll_oneoff` + yield loop that does not — the
+  host contract (preopens, stdout drain, exit codes), and how the WASI module
+  ships (the universal VSIX's fallback rung and the signed release asset).
 - [notes/tokio-task-resumption-wedge-repro.md](notes/tokio-task-resumption-wedge-repro.md)
   — the #1657 whole-server wedge: the instrumented evidence chain (a task
   woken twice and never polled again), what is excluded and by what, measured
@@ -278,6 +285,11 @@ are its rules, and what are the failure modes". One contract per file.
   handler-admission, and stdout liveness boundaries for the LSP transport.
 - [workspace-indexing.md](contracts/workspace-indexing.md) — workspace
   cache, index, and scanner contracts.
+- [lsp-source-store.md](contracts/lsp-source-store.md) — the one seam every
+  closed file reaches the server through: the `SourceStore` trait, why
+  `NativeStore` must stay a literal `std::fs` delegation, which crate the trait
+  lives in and why, the virtual `.tclspec` mount a browser host upserts packs
+  under, and the host message contract.
 - [package-loading.md](contracts/package-loading.md) — stdlib, tcllib,
   Tk, and iRules cross-file package loading.
 - [parsing.md](contracts/parsing.md) — segmentation and recovery

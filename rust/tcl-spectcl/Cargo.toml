@@ -32,6 +32,13 @@ tcl-core-types = { path = "../tcl-core-types" }
 tcl-dialect = { path = "../tcl-dialect" }
 tcl-registry = { path = "../tcl-registry" }
 tcl-spec-hooks = { path = "../tcl-spec-hooks" }
+# `tcl_lsp_core::vfs::SourceStore` only: pack discovery and pack reading run
+# over the same closed-file seam the LSP server's workspace scan and package
+# database do, so a browser host that has the `.tclspec` bytes but no
+# filesystem loads packs from them. That crate is the lowest one that can hold
+# the trait and both its implementations undivided — see `tcl_lsp_core::vfs`,
+# "Why the trait lives here".
+tcl-lsp-core = { path = "../tcl-lsp-core" }
 tcl-compiler = { path = "../tcl-compiler" }
 tcl-lexer = { path = "../tcl-lexer" }
 tcl-syntax = { path = "../tcl-syntax" }

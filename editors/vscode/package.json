@@ -49,6 +49,25 @@
     "workspaceContains:**/*.{[tT][cC][lL],[tT][kK],[iI][tT][cC][lL],[tT][mM],[iI][rR][uU][lL],[iI][rR][uU][lL][eE],[iI][aA][pP][pP],[iI][aA][pP][pP][iI][mM][pP][lL],[iI][mM][pP][lL],[eE][xX][pP],[aA][pP][lL],[tT][eE][sS][tT],[iI][rR][uU][lL][eE][sS],[eE][xX][pP][eE][cC][tT],[tT][mM][sS][hH],[tT][cC][lL][sS][pP][eE][cC]}"
   ],
   "main": "./out/extension.js",
+  "browser": "./out/extension.browser.js",
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "Analysis is safe in an untrusted workspace: the language server never executes the Tcl it analyses, and on vscode.dev / github.dev it is a wasm module in a Web Worker with no filesystem and no process. The one exception is a spec pack the workspace itself carries (a .tclspec under .tcl-lsp/, or beside a tclpkg.tcl manifest), which loads with no setting: its analysis hooks are pack-authored Tcl, run in a sandboxed VM with a closed command whitelist (no open, exec, source, or socket) under command and wall-clock budgets. On the desktop, however, the extension launches a native tcl-lsp-server binary and can run tclsh, and several settings choose which program that is or where it reads from — so those settings are ignored until you trust the workspace.",
+      "restrictedConfigurations": [
+        "tclLsp.serverPath",
+        "tclLsp.rustServerPath",
+        "tclLsp.runtimeValidation.enabled",
+        "tclLsp.runtimeValidation.tclshPath",
+        "tclLsp.libraryPaths",
+        "tclLsp.specPacks",
+        "tclLsp.packageManager.registryUrl",
+        "tclLsp.packageManager.cacheDir",
+        "tclLsp.packageManager.autoInstallOnSave"
+      ]
+    }
+  },
   "contributes": {
     "languages": [
       {
@@ -8742,6 +8761,36 @@
             "order": 0
           }
         }
+      },
+      {
+        "title": "Web (browser host)",
+        "order": 20,
+        "properties": {
+          "tclLsp.web.workspaceSync.maxFiles": {
+            "scope": "window",
+            "type": "number",
+            "default": 2000,
+            "minimum": 1,
+            "markdownDescription": "vscode.dev / github.dev only. The browser build of the server has no filesystem, so the extension reads the workspace and sends it to the server before analysis starts. Most files to send. Anything skipped is named in the `Tcl Language Server` output channel — cross-file results for those files will be missing.",
+            "order": 0
+          },
+          "tclLsp.web.workspaceSync.maxTotalBytes": {
+            "scope": "window",
+            "type": "number",
+            "default": 33554432,
+            "minimum": 1,
+            "markdownDescription": "vscode.dev / github.dev only. Most bytes to send in total when seeding the browser server's in-memory workspace. Default 32 MiB.",
+            "order": 1
+          },
+          "tclLsp.web.workspaceSync.maxFileBytes": {
+            "scope": "window",
+            "type": "number",
+            "default": 2097152,
+            "minimum": 1,
+            "markdownDescription": "vscode.dev / github.dev only. Largest single file to send to the browser server. Default 2 MiB.",
+            "order": 2
+          }
+        }
       }
     ]
   },
@@ -8777,11 +8826,13 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "precompile": "make -C ../.. copy-canonical",
-    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run bundle",
+    "compile": "tsc -p ./ && npm run copy-canonical && npm run copy-core-js && npm run copy-wasm && npm run copy-web-assets && npm run bundle && npm run bundle:browser",
     "copy-canonical": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('src','chat','canonical'),d=p.join('out','chat','canonical');if(fs.existsSync(s)){fs.mkdirSync(d,{recursive:true});fs.readdirSync(s).forEach(f=>fs.copyFileSync(p.join(s,f),p.join(d,f)))}\"",
     "copy-core-js": "node -e \"const fs=require('fs'),p=require('path');const s=p.join('..','..','rust','tcl-cli','gui','explorer-core.js'),d=p.join('out','explorer-core.js');if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,d)}\"",
     "copy-wasm": "node -e \"const fs=require('fs'),p=require('path');const dir=p.join('..','..','rust','tcl-cli','gui');['tcl_explorer_wasm.js','tcl_explorer_wasm_bg.wasm'].forEach(f=>{const s=p.join(dir,f);if(fs.existsSync(s)){fs.mkdirSync('out',{recursive:true});fs.copyFileSync(s,p.join('out',f))}})\"",
+    "copy-web-assets": "node scripts/copy-web-assets.cjs",
     "bundle": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=false --loader:.md=text",
+    "bundle:browser": "esbuild ./src/extensionBrowser.ts --bundle --platform=browser --target=es2020 --format=cjs --external:vscode --outfile=out/extension.browser.js --sourcemap --minify --tree-shaking=true --loader:.md=text",
     "bundle:screenshots": "esbuild ./src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js --sourcemap --minify --tree-shaking=true --define:__SCREENSHOT_MODE__=true --loader:.md=text",
     "watch": "tsc -watch -p ./",
     "lint": "npm run lint:ts && npm run format:check",
@@ -8791,6 +8842,9 @@
     "pretest": "npm run compile",
     "test": "node ./out/test/runTest.js",
     "test:multi-folder": "node ./out/test/runMultiFolderTest.js",
+    "bundle:web-test": "esbuild ./src/test/web/index.ts --bundle --platform=browser --target=es2020 --format=cjs --external:vscode --outfile=out/test/web/index.js --sourcemap",
+    "pretest:web": "npm run compile && npm run bundle:web-test",
+    "test:web": "vscode-test-web --browser=chromium --headless --extensionDevelopmentPath=. --extensionTestsPath=./out/test/web/index.js ./testFixture",
     "test:coverage": "mkdir -p ../../tmp/coverage/.v8-coverage-vscode ../../tmp/coverage/vscode && NODE_V8_COVERAGE=../../tmp/coverage/.v8-coverage-vscode node ./out/test/runTest.js && node scripts/coverage-report.cjs"
   },
   "devDependencies": {
@@ -8801,6 +8855,7 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vscode/test-electron": "^3.1.0",
+    "@vscode/test-web": "^0.0.81",
     "@vscode/vsce": "^3.9.2",
     "c8": "^12.0.0",
     "esbuild": "^0.28.2",
@@ -8808,12 +8863,15 @@
     "eslint-config-prettier": "^10.1.8",
     "glob": "^13.0.6",
     "mocha": "^11.8.0",
+    "ovsx": "^1.1.1",
     "prettier": "^3.9.6",
     "typescript": "^6.0.3",
     "vscode-oniguruma": "^2.0.1",
     "vscode-textmate": "^9.3.2"
   },
   "dependencies": {
+    "@vscode/wasm-wasi": "^1.0.2",
+    "@vscode/wasm-wasi-lsp": "0.1.0-pre.9",
     "vscode-languageclient": "^10.1.0"
   },
   "overrides": {
@@ -8828,6 +8886,9 @@
       "@azure/msal-node": "^5.1.5"
     },
     "lodash": "^4.18.1",
-    "undici": "^7.28.0"
+    "undici": "^7.28.0",
+    "@vscode/wasm-wasi-lsp": {
+      "vscode-languageclient": "$vscode-languageclient"
+    }
   }
 }

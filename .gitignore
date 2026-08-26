@@ -43,6 +43,9 @@ pnpm-debug.log*
 editors/vscode/out/
 editors/vscode/.vscode-test/
 .vscode-test/
+# The VS Code *web* build @vscode/test-web downloads for `npm run test:web`.
+editors/vscode/.vscode-test-web/
+.vscode-test-web/
 shared/_build_info.py
 server/_version.py
 tooling/explorer/static/build_info.json

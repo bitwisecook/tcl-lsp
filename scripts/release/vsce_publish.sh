@@ -69,5 +69,8 @@ fi
 : "${VSCE_PAT:?VSCE_PAT must be set (marketplace-vscode Environment secret)}"
 for vsix in "${vsixes[@]}"; do
     echo "Publishing $vsix via vsce (VSCE_PAT)"
-    editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --packagePath "$vsix"
+    # --skip-duplicate: a partial failure partway through this loop (e.g.
+    # package 5 of 7) must not turn a re-run into a hard failure on
+    # packages 1-4, which have already published successfully.
+    editors/vscode/node_modules/.bin/vsce publish $prerelease_flag --skip-duplicate --packagePath "$vsix"
 done

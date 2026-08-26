@@ -10,6 +10,10 @@ arm64, plus Linux riscv64) and run the one matching your machine. The
 Sublime Text package and the Zed extension download the matching binary
 on first use.
 
+On an architecture none of those seven covers, the same server is also
+published as a WebAssembly module — see
+[No prebuilt binary for your platform?](#no-prebuilt-binary-for-your-platform)
+
 The standalone editors (Neovim, Emacs, Helix, and any other LSP-capable
 editor) need the `tcl-lsp-server-<target-triple>` binary from
 [Releases](https://github.com/bitwisecook/tcl-lsp/releases/latest) — see
@@ -18,7 +22,7 @@ editor) need the `tcl-lsp-server-<target-triple>` binary from
 | Editor | Artefact | Install |
 |--------|----------|---------|
 | [VS Code](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` (manual) or an auto-selected platform package | `code --install-extension`, or VS Code Marketplace |
-| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style) |
+| [Cursor / Windsurf / VSCodium / Theia / code-server / Gitpod / Codespaces](#vs-code) | `tcl-lsp-vscode-<v>-universal.vsix` | Sideload the `.vsix` (`code --install-extension` style), or Open VSX |
 | [Sublime Text](#sublime-text) | `TclLsp.sublime-package` | Package Control: install **TclLsp**, or copy into `Installed Packages/` |
 | [JetBrains](#jetbrains) | `tcl-lsp-jetbrains-<v>.zip` | Settings > Plugins > Install from Disk |
 | [Neovim](#neovim) | `tcl-lsp-server-<triple>` | Lua config |
@@ -29,6 +33,10 @@ editor) need the `tcl-lsp-server-<target-triple>` binary from
 **[VS Code-compatible editors](#vs-code-compatible-editors)** (Cursor,
 Windsurf, VSCodium, code-server, Gitpod, Codespaces, Eclipse Theia)
 install the same `.vsix` unchanged.
+
+**[VS Code for the Web](#vs-code-for-the-web)** (vscode.dev, github.dev)
+runs the same extension in the browser, against a WebAssembly build of the
+language server — nothing is installed on the machine and no binary runs.
 
 **[Other LSP-capable editors](#other-lsp-capable-editors)** (Vim,
 Kate, Kakoune, Notepad++, Geany, Lite XL, micro, CudaText,
@@ -68,6 +76,98 @@ Verify it against the release `SHA256SUMS` (see
 `~/bin/tcl-lsp-server` as the command in the snippets below. The examples
 use that path throughout; substitute your own.
 
+## No prebuilt binary for your platform?
+
+The release also carries `tcl-lsp-server-wasi.wasm` — the same language
+server, compiled to WebAssembly (WASI). It speaks ordinary stdio LSP, so any
+editor that can run a command works with it; you supply the WebAssembly
+runtime. [wasmtime](https://wasmtime.dev/) is the one this project tests
+against.
+
+```sh
+base=https://github.com/bitwisecook/tcl-lsp/releases/latest/download
+curl -fLO "$base/tcl-lsp-server-wasi.wasm"
+install -m 0644 tcl-lsp-server-wasi.wasm ~/bin/tcl-lsp-server-wasi.wasm
+```
+
+Grant it the project root and run it:
+
+```sh
+wasmtime run --dir /path/to/project ~/bin/tcl-lsp-server-wasi.wasm
+```
+
+`--dir` is not optional, and **the path must be absolute**. A WASI program sees
+only the directories the host grants it, and it sees them under the guest path
+`--dir` names. Editors send absolute `file:///…` URIs, so a relative preopen
+cannot match one: `--dir .` grants a directory the guest knows as `.`, and every
+`file:///path/to/project/x.tcl` the editor sends then resolves to nothing —
+no folder scan, no `source` resolution, no cross-file navigation, silently.
+`--dir /path/to/project` maps the directory at its real absolute path, and the
+URIs line up.
+
+### A wrapper script for editors
+
+Both editor configurations below are static files: they cannot compute the
+project root, and the one thing they could hardcode — `.` — is the form that
+does not work. So point them at a one-line wrapper that resolves it at launch:
+
+```sh
+cat > ~/bin/tcl-lsp-server-wasi <<'EOF'
+#!/bin/sh
+exec wasmtime run --dir "$PWD" "$HOME/bin/tcl-lsp-server-wasi.wasm"
+EOF
+chmod +x ~/bin/tcl-lsp-server-wasi
+```
+
+`$PWD` is absolute, and an editor launches its language server with the working
+directory it was started in — so start the editor from the project root. If you
+work on one fixed project, hardcode its path in the wrapper instead and start
+the editor from anywhere.
+
+**Helix** (`~/.config/helix/languages.toml`):
+
+```toml
+[language-server.tcl-lsp]
+command = "/home/you/bin/tcl-lsp-server-wasi"
+
+[[language]]
+name = "tcl"
+scope = "source.tcl"
+file-types = ["tcl", "tk", "itcl", "tm", "tclspec", "irul", "irule", "iapp", "iappimpl", "impl"]
+language-servers = ["tcl-lsp"]
+```
+
+**Neovim** (`~/.config/nvim/server/tcl_lsp.lua`):
+
+```lua
+return {
+  cmd = { vim.fn.expand('~/bin/tcl-lsp-server-wasi') },
+  filetypes = { 'tcl' },
+  root_markers = { 'tclpkg.tcl', '.git' },
+  settings = { tclLsp = { dialect = 'tcl8.6' } },
+}
+```
+
+Neovim can skip the wrapper and name the root itself, which is the more precise
+form when you open several projects in one session:
+
+```lua
+local root = vim.fs.root(0, { 'tclpkg.tcl', '.git' }) or vim.uv.cwd()
+return {
+  cmd = {
+    'wasmtime', 'run', '--dir', root,
+    vim.fn.expand('~/bin/tcl-lsp-server-wasi.wasm'),
+  },
+  filetypes = { 'tcl' },
+  root_markers = { 'tclpkg.tcl', '.git' },
+  settings = { tclLsp = { dialect = 'tcl8.6' } },
+}
+```
+
+**VS Code** needs none of this. The `-universal` `.vsix` already carries the
+module and falls back to it automatically when it has no native binary for your
+platform — see [VS Code](#vs-code). It mounts your workspace folders itself.
+
 ## VS Code
 
 Install from the VS Code Marketplace
@@ -86,6 +186,77 @@ your platform and launches it automatically. There is no Python backend:
 to run against a local build, point `tclLsp.rustServerPath` at a
 `tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
 
+The `-universal` package works on **any** architecture, including ones with no
+prebuilt binary: it also carries the WebAssembly server, and falls back to it
+when no native binary matches. That fallback needs a WebAssembly runtime, so
+the first time it is used the extension offers to install Microsoft's
+[WASM WASI Core](https://marketplace.visualstudio.com/items?itemName=ms-vscode.wasm-wasi-core)
+extension. It is a one-time prompt and only ever appears on a platform with no
+native binary; nothing is installed on the platforms that have one.
+
+### VS Code for the Web
+
+The extension also runs in a **browser** extension host — <https://vscode.dev>,
+github.dev (press `.` on any GitHub repository), and any other deployment that
+runs extensions in the browser rather than in Node. Install it from the
+Extensions panel exactly as you would on the desktop; the Marketplace flags web
+support automatically, and no `tcl-lsp-server` binary is downloaded or run.
+
+The language server there is the same analyser, compiled to WebAssembly and
+running in a Web Worker in the page. Nothing leaves the browser: the wasm
+module and its assets are part of the extension, and the extension makes no
+network request of its own.
+
+Sideloading works too, and the **untargeted `-universal` package is the web
+package** — one manifest declares both entry points, so every VSIX flavour
+carries the browser server; the untargeted one is what a host with no platform
+match installs.
+
+What differs from the desktop:
+
+- **Desktop-only features.** Runtime validation (it runs `tclsh`), the compiler
+  explorer, the spec studio, the Tk preview, "Copy file as base64", the package
+  scaffolder, and the `@irule` / `@tcl` / `@tk` chat participants need a process
+  or a filesystem. Invoking one on the web reports which, rather than failing
+  obscurely — the commands show a message naming the reason, and the chat
+  participants answer in the chat with theirs.
+- **Diagnostics can appear on non-file documents.** A web workspace has no
+  single URI scheme to pin to, so Tcl documents are matched on *any* scheme.
+  A side effect is that a Tcl file opened from another provider — the original
+  side of a diff, say — is analysed too. Set
+  `tclLsp.suppressDiagnosticsInDiffEditors` if you would rather diff views
+  stayed clean.
+- **Cross-file analysis is limited on a virtual workspace.** The browser server
+  has no filesystem, so the extension reads the workspace itself and hands the
+  files to the server. That transfer currently only carries files on the `file:`
+  scheme, and github.dev / vscode.dev serve a repository on a virtual one
+  (`vscode-vfs:`) — so on those hosts each open file is analysed in full, while
+  results that depend on *un-opened* files (a definition in a sibling, the
+  package database, workspace symbols) are not available. The
+  `Tcl Language Server` output channel says so explicitly at startup.
+- **A budget on what is read.** `tclLsp.web.workspaceSync.maxFiles` (2000),
+  `.maxTotalBytes` (32 MiB), and `.maxFileBytes` (2 MiB) bound the startup
+  sweep. Nothing is dropped silently — every skipped file is named in the
+  output channel, with the setting to raise.
+- **Trust.** The extension declares `untrustedWorkspaces: limited`: analysis
+  itself is safe, but the settings that choose *which program* the desktop side
+  launches (`tclLsp.serverPath`, `tclLsp.rustServerPath`,
+  `tclLsp.runtimeValidation.*`) and where it reads from (`tclLsp.libraryPaths`,
+  `tclLsp.specPacks`, `tclLsp.packageManager.*`) are ignored until you trust
+  the workspace.
+
+To run the web build from a checkout:
+
+```sh
+make lsp-server-wasm                       # build the browser language server
+cd editors/vscode && npm run test:web      # headless smoke test over testFixture
+```
+
+`npm run test:web` drives [`@vscode/test-web`](https://www.npmjs.com/package/@vscode/test-web),
+which downloads a VS Code web build and a Playwright Chromium. On a machine
+that already has Playwright's browsers elsewhere, point at them with
+`PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers` instead of downloading again.
+
 ### VS Code-compatible editors
 
 The `-universal` package works in editors that cannot use the Microsoft
@@ -103,6 +274,13 @@ code-server --install-extension ~/Downloads/tcl-lsp-vscode-<v>-universal.vsix
 
 (Windsurf, Theia, and Gitpod all surface the same drag-and-drop or
 "Install from VSIX" entry in their Extensions panel.)
+
+The extension is also published to **Open VSX**
+(<https://open-vsx.org/extension/bitwisecook/tcl-lsp>), the marketplace
+that code-server, openvscode-server, Gitpod, and Theia point at by
+default. Where one of those is configured with the Open VSX registry,
+install `tcl-lsp` from its built-in Extensions panel directly instead
+of sideloading a `.vsix`.
 
 ## Sublime Text
 
