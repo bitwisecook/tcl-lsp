@@ -1473,3 +1473,127 @@ the snapshot and the registration-time trust gate carry the weight;
 where it is strongest (the EDA corpus, argparse-class embedded
 grammars, self-hosting, and every place today's model hides a Rust fn)
 no other surveyed design comes close.
+
+## 15. Tooling rework: the studio, the importer, and the AI surface
+
+Adopting E obliges three tool families that today assume
+`render ∘ load = identity` on pack text. The obligation splits cleanly
+once one distinction is named.
+
+### 15.1 The canonical subset
+
+**E-R11 (proposed): SpecTcl 2.0 has a *canonical form* — the
+straight-line subset of E.** A canonical pack contains only literal
+registration calls (exactly today's declarative vocabulary: every
+2.0 word that just landed, no `proc`/`foreach`/`set`, no computed
+arguments). Three facts make it load-bearing:
+
+- Every 1.x pack and every 2.0 pack written so far *is already
+  canonical* — the migration guarantee restated.
+- Canonical source ↔ snapshot is a bijection (modulo formatting), so
+  byte-stable round-tripping is a property of the subset, not of the
+  loader.
+- `tcl spec export` renders *any* snapshot — including one produced by
+  a programmed pack — as canonical source. Expansion is total;
+  contraction (recovering a program from its snapshot) is not
+  attempted, ever.
+
+Everything that *generates* packs emits canonical form: the studio's
+renderer, `tcl spec import` and its MCP twin, `spec upgrade`
+(`--restyle` restyles 1.x rows into canonical 2.0, never into
+templates), and stub-tier conversions. Programs are for humans;
+generators have nothing to gain from emitting cleverness.
+
+### 15.2 The spec studio
+
+The studio's architecture survives better than first appears, because
+its native object was never really the text — `draft.rs`/`schema.rs`
+edit D-shaped data, and `store.rs` already layers packs by `Tier` with
+`StudioOverride` at the top. The rework:
+
+- **Reading**: the store loads packs through the E evaluation loader
+  and browses *snapshots*. For canonical packs nothing observable
+  changes. For programmed packs, every derived command is browsable
+  and carries expansion provenance ("registered from `vivado-command`
+  at line 12, iteration `get_cells`") — the evaluator records the
+  registration call-site the way the CST loader records line numbers
+  today.
+- **Editing — E-R12 (proposed)**: a canonical pack is edited in place,
+  round-tripped byte-stably as today. A **programmed pack is never
+  rewritten by the studio**: its source opens read-only alongside its
+  expanded snapshot, and a form edit lands as a canonical *patch pack*
+  in the `StudioOverride` tier — the layering and collision policy
+  that tier already implements. The author folds patches back into
+  their program by hand (or keeps them layered); `spec check` reports
+  standing overrides so they cannot rot silently.
+- **Renderer**: `render_spectcl` emits canonical 2.0 and the
+  `DSL_VERSION` pin lifts exactly per the condition documented at the
+  constant (P2-H). `render_rs` gains a sibling: the `--emit rust`
+  backend consumes snapshots, so it is loader-fed rather than
+  draft-fed and works for programmed packs too.
+- **Sample/Test tab**: unchanged in concept (it explains analysis of a
+  sample against the loaded pack), but it runs against the snapshot,
+  so it also answers the programmed-pack author's question "what did
+  my loop actually register?" — the same affordance E-R13 gives the
+  AI tools.
+- **WASM**: the browser studio needs the evaluation loader compiled to
+  WASM. The tclvm already targets WASM for the compiler explorer, and
+  the deterministic sandbox (§1.2) is exactly the profile that
+  compiles cleanly — no clock, no IO, no threads. This is a build
+  requirement, not a design risk, but it gates shipping the studio
+  rework on the eval loader's WASM CI job.
+- **Form/schema machinery** (`schema`, `coverage`, `catalogue`, the
+  exhaustive-destructuring witnesses): untouched by E itself; the
+  M-series model changes will churn it on their own schedule, and the
+  witnesses are precisely what keeps that churn honest.
+
+The importer (`infer`/`versions`/`corpus`) is unchanged in substance:
+it derives drafts from package sources and now renders them as
+canonical 2.0 with the same evidence headers. Version-range
+derivation, release diffing, and the corpus heuristics do not care
+what surface they are printed in.
+
+### 15.3 The AI surface (tcl-mcp) — E-R13 (proposed)
+
+The MCP tools are how an AI authors packs, and E changes their loop in
+one direction only: **evaluation makes checking *safer* and richer,
+not weaker.** The determinism sandbox means an AI-generated pack — a
+program written by a model — is evaluated with no clock, no IO, no
+network, hard budgets, and transactional registration, so the check
+loop can run untrusted generated programs by construction; a runaway
+`foreach` is a budget notice, not a hung tool.
+
+- **`spectcl_check`** runs the evaluation loader and returns what it
+  returns today (notices, per-word diagnostics) plus the new notice
+  classes: determinism violations, budget blowouts naming the axis,
+  target-dependence (`available?` use), and provenance-class
+  registration errors.
+- **New verb `spectcl_expand`**: pack source in, canonical form out —
+  `tcl spec export` over MCP. This is the affordance that makes
+  programmed packs *reviewable* by their author: generate a template,
+  expand it, read the expansion as a diff against intent, iterate.
+  Without it an AI (or a human reviewer) sees only the program and
+  must simulate the loop in its head — exactly the B5-class opacity
+  §1.1 exists to prevent.
+- **`spec_import`** emits canonical 2.0 (15.1); its
+  hand-to-`spectcl_check` contract is unchanged.
+- **Authoring guidance** (AGENTS.md §specs, and the spec-authoring
+  material in `docs/design/spec-packs.md`) gains the E rules of thumb:
+  emit canonical form unless repetition is the problem being solved;
+  when templating, keep the data table adjacent to the loop; run
+  `expand` and read it before shipping; never branch on `available?`
+  when an `-available` row will do.
+
+The irule-generation and test tools are unaffected: they consume the
+registry, not pack text.
+
+### 15.4 Sequencing
+
+The studio and MCP reworks are gated on the evaluation loader (P2-I),
+in this order: loader lands with the equivalence gate → `spec export`
+/ `spectcl_expand` (small: snapshot → canonical renderer, shared with
+the studio) → studio store reads through the eval loader (canonical
+packs unchanged, gate: studio round-trip suite) → `render_spectcl`
+emits 2.0 and the pin lifts → StudioOverride patch-pack editing for
+programmed packs → WASM job. The schema-churn from M-items proceeds
+independently behind the coverage witnesses.
