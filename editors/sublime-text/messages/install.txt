@@ -1,28 +1,60 @@
-Tcl Language Support — powered by tcl-lsp
-==========================================
+TclLsp — Tcl Language Support
+=============================
 
-Thanks for installing! This package provides Tcl, iRules, iApps, and EDA
-language support for Sublime Text 4.
+Thanks for installing!  This package provides Tcl, iRules, iApps, EDA Tcl
+and Expect language support for Sublime Text 4, powered by tcl-lsp.
 
 Quick start
 -----------
 
-1.  Install the LSP package from Package Control (recommended) to enable
-    diagnostics, completions, hover, go-to-definition, formatting, code
-    actions, semantic tokens, rename, signature help, and inlay hints.
-2.  The bundled `tcl-lsp` server is ready to use — it ships with the
-    package. You only need Python 3.10+ on your PATH for the server to
-    run.
-3.  Open any `.tcl`, `.tk`, `.itcl`, `.tm`, `.irul`, `.irule`, `.iapp`,
-    `.iappimpl`, `.impl`, or `.exp` file to start using it.
+1.  Install the LSP package from Package Control to enable diagnostics,
+    completions, hover, go-to-definition, formatting, code actions,
+    semantic tokens, rename, signature help, and inlay hints:
 
-Configuration
--------------
+        Command Palette > Package Control: Install Package > LSP
 
-  Preferences > Package Settings > LSP-Tcl > Settings
+    Syntax highlighting, snippets, symbol indexing and editor defaults
+    work without it.
 
-Dialects supported: Tcl 8.4, 8.5, 8.6, 9.0, F5 iRules, F5 iApps, F5
-TMSH/BIG-IP, Synopsys/Cadence/Xilinx/Intel/Mentor EDA, and Expect.
+2.  Open any .tcl, .tk, .itcl, .tm, .irul, .irule, .iapp, .iappimpl,
+    .impl, or .exp file.
+
+3.  The first time a Tcl file is opened with LSP installed, the matching
+    tcl-lsp-server build for your platform is downloaded from the
+    project's GitHub releases into LSP's package storage and verified
+    against that release's SHA256SUMS.  To use a server you manage
+    yourself instead, set "server_path" in:
+
+        Preferences > Package Settings > TclLsp > LSP Settings
+
+Recommended setup
+-----------------
+
+Sublime Text ships its own TCL package, so each Tcl syntax would appear
+twice in the language menu, and LSP's semantic highlighting is off by
+default.  Run
+
+    Command Palette > Tcl: Recommended Setup
+
+to be asked before either preference is changed.  Nothing is changed
+without your say-so.
+
+Key bindings
+------------
+
+This package ships no key bindings.  Bind any of its commands yourself in
+Preferences > Key Bindings, e.g.
+
+    { "keys": ["ctrl+alt+f"], "command": "lsp_format_document" }
+
+The command names are listed in the README.
+
+Dialects
+--------
+
+Tcl 8.4 / 8.5 / 8.6 / 9.0 / 9.1, F5 iRules, F5 iApps, F5 tmsh/BIG-IP,
+Synopsys / Cadence / Xilinx / Intel Quartus / Mentor / Microchip EDA Tcl,
+SpecTcl, BPF and Expect.  Pick one with "Tcl: Select Dialect".
 
 Documentation
 -------------

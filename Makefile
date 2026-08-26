@@ -205,7 +205,7 @@ TS_SRCS  := $(shell find $(EXT_DIR)/src -name '*.ts' 2>/dev/null)
 # Packaging + publish + release
 .PHONY: build-editors build-editor-vsix verify-vsix install package-vsix publish-vsix
 .PHONY: build-editor-vsix-targets package-vsix-targets publish-vsix-targets
-.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime publish-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
+.PHONY: build-editor-jetbrains verify-jetbrains-server verify-editor-jetbrains publish-jetbrains build-editor-sublime verify-standalone-eda build-editor-zed publish-zed publish-all publish-verify publish-flow
 .PHONY: release release-tag release-sums
 .PHONY: release-perf release-notes-perf release-verify release-prepare release-rust-tag
 # Rust runtime port
@@ -1682,59 +1682,78 @@ publish-jetbrains: build-editor-jetbrains ## Publish JetBrains plugin to JetBrai
 	cd $(JB_DIR) && RELEASE_VERSION="$(SEMVER_VERSION)" JETBRAINS_CHANNEL="$(JETBRAINS_CHANNEL)" ./gradlew publishPlugin
 
 # Sublime Text package
+#
+# Unlike the VSIX / JetBrains bundles this package ships NO native binary:
+# Package Control serves one artefact to every platform, so a bundled
+# server would be right for one platform and wrong for the other five.
+# `plugin.py` instead downloads the `tcl-lsp-server-<triple>` asset for the
+# host from the release named in `server_version.json`, checksum-verified
+# against that release's SHA256SUMS, into LSP's package storage.
+#
+# The SpecTcl loadables (`docs/design/spec-packs.md`) still ship *in* the
+# package: they are plain data, identical on every platform, and the plugin
+# stages them beside the downloaded binary (TCL_LSP_SPEC_PACK_DIR).  Without
+# them the shipped EDA syntaxes (Cadence/Xilinx/Quartus/Mentor/Synopsys)
+# would highlight commands the server reports as unknown.
 
 ST_DIR      := $(ROOT)editors/sublime-text
-ST_PACKAGE  := $(BUILD_DIR)/tcl-lsp-sublime-$(VERSION).sublime-package
+# Package Control resolves the release asset by exact name, and a manual
+# install must land in `Installed Packages/` under the package name, so the
+# artefact is named for the package rather than the version.
+ST_PACKAGE  := $(BUILD_DIR)/TclLsp.sublime-package
 
 build-editor-sublime: $(ST_PACKAGE) ## Build Sublime Text package (.sublime-package)
 
-$(ST_PACKAGE): rust-server
+.PHONY: $(ST_PACKAGE)
+$(ST_PACKAGE):
 	@echo "==> Building Sublime Text package"
 	@rm -rf $(BUILD_DIR)/sublime-stage
 	@mkdir -p $(BUILD_DIR)/sublime-stage
 	cp -r $(ST_DIR)/. $(BUILD_DIR)/sublime-stage/
 	find $(BUILD_DIR)/sublime-stage -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 	find $(BUILD_DIR)/sublime-stage -name '.DS_Store' -delete 2>/dev/null || true
-	rm -f $(BUILD_DIR)/sublime-stage/README.md
-	@echo "==> Bundling the native LSP server binary"
-	@mkdir -p $(BUILD_DIR)/sublime-stage/server
-	cp $(ROOT)target/$(PROFILE)/tcl-lsp-server $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
-	chmod +x $(BUILD_DIR)/sublime-stage/server/tcl-lsp-server
-	@# The bundled SpecTcl loadables go *beside the executable*, which is where
-	@# `tcl_spectcl::discovery::bundled_dir` looks. plugin.py extracts the whole
-	@# `server/` subtree from the .sublime-package ZIP into the cache dir, so
-	@# `server/specs/` lands next to the extracted binary and is found there.
-	@# Without this the shipped EDA syntaxes (Cadence/Xilinx/Quartus/Mentor/
-	@# Synopsys) would highlight commands the server reports as unknown.
-	@mkdir -p $(BUILD_DIR)/sublime-stage/server/specs
-	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/server/specs/
+	find $(BUILD_DIR)/sublime-stage -name '*.pyc' -delete 2>/dev/null || true
+	@# The README's relative links only resolve inside the monorepo; Package
+	@# Control renders the copy on GitHub instead (see SUBMITTING.md).
+	rm -f $(BUILD_DIR)/sublime-stage/README.md $(BUILD_DIR)/sublime-stage/SUBMITTING.md
+	@mkdir -p $(BUILD_DIR)/sublime-stage/specs
+	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/specs/
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
+	@# The release the plugin downloads its server from.  A non-release
+	@# checkout stamps a `git describe` string, which plugin.py rejects and
+	@# falls back to resolving the latest published release.
+	printf '{\n    "version": "$(VERSION)"\n}\n' > $(BUILD_DIR)/sublime-stage/server_version.json
 	@echo "==> Packaging .sublime-package"
-	cd $(BUILD_DIR)/sublime-stage && zip -r $(ST_PACKAGE) . -x '__pycache__/*'
-	@# Same gate the VSIX and JetBrains packaging carry: a package that ships
-	@# the server without the loadables beside it silently loses every EDA
-	@# vendor command, since those specs have no Rust modules behind them.
+	@rm -f $(ST_PACKAGE)
+	cd $(BUILD_DIR)/sublime-stage && zip -qr $(ST_PACKAGE) . -x '__pycache__/*'
+	@# Packaging gate: the resources Sublime Text and Package Control need,
+	@# the spec packs the EDA dialects need, and no stray native binary.
 	@set -eu; \
 	entries="$$(unzip -Z1 $(ST_PACKAGE))"; \
 	missing=""; \
-	echo "$$entries" | grep -qx "server/tcl-lsp-server" || missing="$$missing server/tcl-lsp-server"; \
+	for want in plugin.py .python-version LSP-Tcl.sublime-settings \
+	            Tcl.sublime-syntax iRule.sublime-syntax \
+	            Default.sublime-commands messages.json LICENSE.txt \
+	            server_version.json; do \
+		echo "$$entries" | grep -qx "$$want" || missing="$$missing $$want"; \
+	done; \
 	for pack in $(notdir $(SPEC_PACK_FILES)); do \
-		echo "$$entries" | grep -qx "server/specs/$$pack" \
-			|| missing="$$missing server/specs/$$pack"; \
+		echo "$$entries" | grep -qx "specs/$$pack" \
+			|| missing="$$missing specs/$$pack"; \
 	done; \
 	if [ -n "$$missing" ]; then \
-		echo "Sublime package missing expected server / spec packs:$$missing"; \
+		echo "Sublime package missing expected resources:$$missing"; \
 		exit 1; \
 	fi; \
-	echo "==> Sublime package bundles the native server with the shipped spec packs"
-	cp $(ST_PACKAGE) $(BUILD_DIR)/Tcl.sublime-package
+	if echo "$$entries" | grep -q "^server/"; then \
+		echo "Sublime package bundles a native server; it must download one instead"; \
+		exit 1; \
+	fi; \
+	echo "==> Sublime package carries every resource and spec pack, and no native binary"
 	@echo ""
-	@echo "Built: $(ST_PACKAGE)"
-	@echo "       $(BUILD_DIR)/Tcl.sublime-package  (ready to install)"
+	@echo "Built: $(ST_PACKAGE)  (ready to install)"
 	@ls -lh $(ST_PACKAGE)
 
-publish-sublime: build-editor-sublime ## Publish Sublime Text package (push build/sublime-stage to the tcl-lsp-sublime-text mirror so Package Control sees the new tag)
-	@bash $(ROOT)scripts/release/publish_sublime.sh
 
 # The standalone-binary packaging gate. The VSIX / JetBrains / Sublime
 # bundles all stage `specs/` beside the server binary (SPEC_PACK_SRC above)
@@ -1868,7 +1887,7 @@ release-prepare: ## Preflight + benchmark + notes + verify + commit for V=x.y.z 
 release-rust-tag: ## Verify the prepared artefacts, then tag V=x.y.z (rust line)
 	@bash $(ROOT)scripts/release/rust_release.sh tag $(V)
 
-publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-sublime publish-zed ## Publish to all editor marketplaces
+publish-all: publish-vsix publish-vsix-targets publish-jetbrains publish-zed ## Publish to all editor marketplaces
 
 publish-verify: ## Sanity-check publishing readiness (credentials, tool versions, remote reach) without shipping
 	@bash $(ROOT)scripts/release/publish_verify.sh
@@ -1900,12 +1919,14 @@ publish-flow: ## Print the release + marketplace publish cheat-sheet
 	@echo "     # (see docs/design/contracts/release-and-publish.md)"
 	@echo "  3. wait for ci.yml to finish on the tag; approve the marketplace-vscode"
 	@echo "     and marketplace-jetbrains deployments when prompted"
-	@echo "  4. make publish-sublime publish-zed   # local; Sublime + Zed only"
+	@echo "  4. make publish-zed                # local; Zed only"
+	@echo "     # Sublime needs no publish step: Package Control reads the"
+	@echo "     # TclLsp.sublime-package asset straight off the GitHub Release"
 	@echo ""
 	@echo "  Marketplaces:"
 	@echo "    VS Code    -> CI job publish-vsix-marketplace      (secrets.VSCE_PAT, marketplace-vscode)"
 	@echo "    JetBrains  -> CI job publish-jetbrains-marketplace (secrets.JETBRAINS_TOKEN, marketplace-jetbrains)"
-	@echo "    Sublime    -> make publish-sublime  (laptop; git push to mirror)"
+	@echo "    Sublime    -> nothing to run (Package Control pulls the release asset)"
 	@echo "    Zed        -> make publish-zed       (laptop; preps a local PR for review)"
 	@echo ""
 	@echo "  Laptop fallbacks for the CI marketplaces: make publish-vsix / publish-jetbrains"

@@ -254,8 +254,10 @@ for the full contract:
 3. **CI** — `.github/workflows/*.yml` (PR gate + tag-triggered
    artefact build → sign → attach to GitHub Release).
 4. **Publishing** — VS Code and JetBrains publish *from CI* behind
-   manually-approved Environments; Package Control (Sublime) and Zed
-   publish from the maintainer's laptop (they need no token).
+   manually-approved Environments; Zed publishes from the maintainer's
+   laptop (no token).  Sublime Text has no publish step: Package Control
+   resolves the `TclLsp.sublime-package` asset the tagged CI run attaches
+   to the GitHub Release.
 
 **Invariant: a publish secret used in a workflow must be an Environment
 secret on a protected, manually-approved Environment.**  A marketplace
@@ -276,9 +278,11 @@ approval and cannot run on a non-tag ref.  Concretely:
   an Environment secret on `marketplace-jetbrains` (same protections),
   uploading the released, checksum-verified `.zip` via the Marketplace REST
   API.  `make publish-jetbrains` stays as a laptop fallback.
-- **Package Control (Sublime)** and **zed-industries/extensions** need no
-  token — they publish by pushing to a maintainer-owned mirror / opening a
-  PR — so they stay laptop-only and never enter CI.
+- **Package Control (Sublime)** needs no token and no publish step at
+  all: its channel entry points at the release asset, so the tagged CI
+  build is the publish (`editors/sublime-text/SUBMITTING.md`).
+  **zed-industries/extensions** needs no token either — it publishes by
+  opening a PR — so it stays laptop-only and never enters CI.
 - CI otherwise uses only GitHub's built-in `github.token` + sigstore OIDC
   for attestations.
 

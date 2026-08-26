@@ -1418,35 +1418,55 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
-      # `make build-editor-sublime` bundles the native tcl-lsp-server binary,
-      # so the Rust toolchain is required (no Python).  The zip smoke-test below
-      # uses the runner's preinstalled python3 stdlib only.
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
-        with:
-          toolchain: stable
-
+      # The Sublime package is pure resources — no Rust toolchain, no Python
+      # beyond the runner's preinstalled stdlib for the zip smoke-test.  It
+      # ships one artefact for every platform and `plugin.py` downloads the
+      # `tcl-lsp-server-<triple>` asset published by publish-native-binaries
+      # for the host, so the server MUST stay out of this package.
       - name: Build Sublime Text package
         run: make build-editor-sublime
 
       - name: Smoke-test Sublime package
         run: |
           python3 -c "
-          import zipfile, glob
-          path = glob.glob('build/tcl-lsp-sublime-*.sublime-package')[0]
-          zf = zipfile.ZipFile(path)
+          import zipfile, json
+          zf = zipfile.ZipFile('build/TclLsp.sublime-package')
           names = zf.namelist()
-          assert any(n.startswith('server/') for n in names), 'missing server directory'
+          assert not any(n.startswith('server/') for n in names), 'bundles a server'
           assert 'Tcl.sublime-syntax' in names, 'missing Tcl syntax'
           assert 'iRule.sublime-syntax' in names, 'missing iRule syntax'
           assert 'plugin.py' in names, 'missing plugin'
           assert 'LSP-Tcl.sublime-settings' in names, 'missing LSP settings'
-          print(f'OK: {len(names)} entries')
+          assert '.python-version' in names, 'missing plugin_host selector'
+          assert any(n.startswith('specs/') for n in names), 'missing spec packs'
+          version = json.loads(zf.read('server_version.json'))['version']
+          tag = '${{ github.ref_name }}'
+          assert version == tag[1:], f'server_version {version} != tag {tag}'
+          print(f'OK: {len(names)} entries, server version {version}')
           "
+
+      # Package Control has no pre-release channel, and — unlike the VS Code
+      # Marketplace — it ignores GitHub's `prerelease` flag: its GitHub client
+      # skips only *drafts*, then takes the newest release carrying an asset
+      # that matches the channel entry's exact name.  So the odd-minor
+      # pre-release line is kept off the channel by NAME: only a stable tag
+      # publishes `TclLsp.sublime-package`.  Pre-release testers still get a
+      # package, under a name the channel never resolves (rename it to
+      # `TclLsp.sublime-package` to install it by hand).
+      - name: Name the package for its release channel
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF#refs/tags/}"
+          if [ "$(bash scripts/release/prerelease.sh "$tag")" = "true" ]; then
+            mv build/TclLsp.sublime-package build/TclLsp-prerelease.sublime-package
+            echo "pre-release tag $tag -> TclLsp-prerelease.sublime-package (off the Package Control channel)"
+          else
+            echo "stable tag $tag -> TclLsp.sublime-package (what Package Control resolves)"
+          fi
 
       - uses: ./.github/actions/sign-and-upload
         with:
-          artefact-glob: "build/tcl-lsp-sublime-*.sublime-package"
+          artefact-glob: "build/TclLsp*.sublime-package"
           artefact-name: sublime-package
 
   # Build: Zed extension

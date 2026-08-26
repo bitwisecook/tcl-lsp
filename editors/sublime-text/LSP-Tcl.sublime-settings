@@ -6,6 +6,14 @@
     "selector": "source.tcl | source.irule | source.tcl-apl | source.tcl-bigip",
     "schemes": ["file", "buffer"],
 
+    // The `.tclspec` packs (EDA vendor command libraries) shipped with this
+    // package, staged beside the managed server binary.  Empty when the
+    // server comes from "server_path" below — that build keeps whatever
+    // packs sit beside it.
+    "env": {
+        "TCL_LSP_SPEC_PACK_DIR": "${spec_pack_dir}"
+    },
+
     // Server settings — passed as workspace/didChangeConfiguration.
     // All keys live under "tclLsp" to match the server's expected format.
     "settings": {
@@ -88,7 +96,10 @@
         "hint": "stippled"
     },
 
-    // User-configurable overrides — leave empty to use the bundled binary.
+    // Path to a tcl-lsp-server you manage yourself.  Leave it unset and
+    // the package downloads the build matching this release from
+    // https://github.com/bitwisecook/tcl-lsp/releases on first use,
+    // verifying it against the release's SHA256SUMS.
     //
     // "server_path": "/path/to/tcl-lsp-server",
 
