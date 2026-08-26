@@ -103,8 +103,9 @@ struct SpecEntry {
 /// filtering, the context its queries answer under, and the generation's
 /// **command store** — the same per-`(environment, pack overlay)` spec
 /// store the old per-profile cache owns, shared by handle so the two
-/// models can never drift while both exist (the P1-G deletion re-homes
-/// ownership here).
+/// models can never drift while both exist (ownership re-homes here when
+/// the old cache goes with ledger C1's re-type; P1-G already narrowed the
+/// cache to crate-internal visibility).
 pub struct ContextRegistry {
     context: ResolvedContext,
     commands: Arc<CommandRegistry>,
@@ -256,8 +257,9 @@ type GenerationKey = (EnvironmentIdentity, u64, u64);
 /// catalogue environments share their canonical id with their old
 /// profile, and the model-only environments (`tcl`, `tk`, third-party
 /// ids) fall back to the permissive plain profile, exactly the store
-/// every unresolved dialect string read before the port. Deleted with the
-/// old cache in P1-G, when the store becomes environment-owned.
+/// every unresolved dialect string read before the port. Deleted with
+/// the old cache under ledger C1's re-type, when the store becomes
+/// environment-owned (P1-G already made the cache crate-internal).
 fn store_profile(environment_id: &str) -> &'static DialectProfile {
     DialectProfile::find(environment_id).unwrap_or_else(DialectProfile::plain_tcl)
 }
@@ -496,14 +498,10 @@ mod tests {
                 .collect();
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
-            // F5 reclassification (measurements §4a): the iapps/tmsh
-            // rows compare against the documented reclassified twin —
-            // see `crate::model::f5_reclassified_oracle`.
-            let oracle = crate::model::f5_reclassified_oracle(profile);
             let definition = environments.resolve(profile.name).expect(profile.name);
             let context = ResolvedContext::resolve(definition, &keyed);
             for (name, spec, declarations) in &translated {
-                let old = oracle.is_available(spec);
+                let old = profile.is_available(spec);
                 let new = context.is_available(declarations);
                 assert_eq!(
                     old, new,
@@ -529,14 +527,10 @@ mod tests {
     fn per_environment_visibility_reproduces_the_old_registries() {
         let mut names_checked = 0usize;
         for profile in DialectProfile::all() {
-            // F5 reclassification (measurements §4a): compare against
-            // the reclassified twin for iapps/tmsh — see
-            // `crate::model::f5_reclassified_oracle`.
-            let oracle = crate::model::f5_reclassified_oracle(profile);
             let old_registry = registry_for_profile(profile);
             let old_visible: BTreeSet<&str> = old_registry
                 .command_names()
-                .filter(|name| oracle.resolve_command(old_registry, name).is_some())
+                .filter(|name| profile.resolve_command(old_registry, name).is_some())
                 .collect();
             let new_registry = new_registry_for(profile.name);
             let new_visible: BTreeSet<&str> =
@@ -549,7 +543,7 @@ mod tests {
                 profile.name
             );
             for name in &old_visible {
-                let old = oracle
+                let old = profile
                     .resolve_command(old_registry, name)
                     .expect("visible name resolves");
                 let new = new_registry
@@ -631,10 +625,6 @@ mod tests {
 
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
-            // F5 reclassification (measurements §4a): the hand-rolled
-            // rule runs on the reclassified twin for iapps/tmsh.
-            let oracle = crate::model::f5_reclassified_oracle(profile);
-            let profile: &DialectProfile = &oracle;
             let generation = new_registry_for(profile.name);
             let store = generation.commands();
             for name in store.command_names() {

@@ -227,6 +227,63 @@ that proves the retirement. **F** front end, **C** compiler/analyser,
 **B** backends, **T** tooling. No entry may be wrapped or kept alongside
 its replacement.
 
+**Status: P1-G (the deletion phase) is done.** After the P1-F waves left
+every production ingress on the seam, the remaining test-fixture call
+sites (~1,600 `by_name`-family and ~490 registry-door mentions across
+~220 files: `rust/tcl-vm/tests/*`, `#[cfg(test)]` modules across the
+workspace, the lsp-core/compiler/registry fixtures) were ported to
+`tcl_registry::model::ingress` — `resolve_environment(name)
+.analyser_profile()` is the exact `by_name` twin, `static_context_for
+(name).commands()` the exact `registry_for_dialect` store — and the old
+APIs were then removed:
+
+- **Deleted outright** (zero references, compiler-enforced):
+  `DialectProfile::by_name`, `by_opt_name`, `resolve_known`,
+  `availability_for_name`; `tcl_registry::registry_for_dialect` and
+  `registry_handle_for_dialect`. The three lower-crate compatibility
+  name boundaries that used them (`tcl_lexer::LexerConfig::for_dialect`
+  / `for_file_dialect` / `tokenise_expr*`, `tcl_syntax`'s
+  `parse_expr*`/`diagnose` name forms) survive — they are ledger
+  F8/C12's to retire, with ~200 callers — and now inline the
+  find-then-plain-sink resolution at the documented boundary.
+- **Narrowed to `pub(crate)`** (the compile-level half of the gate):
+  `tcl_registry::cache` (`registry_for_profile`,
+  `registry_handle_for_profile`, `registry_for_profile_if_built`) — the
+  cache stays the command-store owner behind the model's
+  `command_store` seam until the store re-homes with C1 — and the
+  `ProfileQueries` trait, which keeps only its crate-internal
+  consumers (`command_snapshot`, the option-descriptor layout) plus a
+  `cfg(test)` `LegacyProfileOracle` carrying the six sweep-only query
+  rules verbatim, so the P1-F parity sweeps keep pinning
+  `ResolvedContext` against the exact old rules after the deletion.
+- **Kept, with the reason recorded**: `DialectProfile::find` (the one
+  catalogue lookup — environment-id-keyed, what the seam and the
+  documented per-crate interop twins are built on; it resolves canonical
+  ids, never user strings); the named handles `plain_tcl`/`irules`/`tk`
+  (interned-statics accessors the seam itself consumes — not name
+  validators); `registry_for_profile_with_overlay` (the loader door
+  only `tcl-spectcl` writes); `DialectSet::parse` (no name-ingress
+  caller left — every remaining use projects an already-resolved
+  profile's canonical name into the C1 mask vocabulary, e.g. the unit
+  build's `semantic_dialect_set`, and retires with C1's re-type, which
+  P1-G deliberately does not chase); `tcl_lsp_core::registry_for_dialect`
+  (the crate's own wave-2 seam wrapper, not the retired cache door).
+- **The zero-reference gate**: `cargo xtask retired-api-gate` (wired
+  into `make xtask-check`) fails on any code-line reintroduction of the
+  retired spellings — comment citations exempt, the `tcl-registry`
+  crate-internal survivors scoped, escape hatch
+  `// retired-api-ok: <reason>` requiring a ledger entry here. The
+  gate's own tests prove it fails on a seeded violation of every
+  retired family.
+- **Old-catalogue correction (redesign §2 rows, measurements §4a)**:
+  the falsified `f5-iapps`/`f5-tmsh` rows now carry the `f5-tcl` trunk
+  facts — `GRAMMAR_F5_TCL` (R-rules, N-rules, inert `{*}`, 8.4
+  numerals; the same value `f5-irules` selects), `TCL84|vendor`
+  availability masks, 8.4 version ceiling/signature/runtime/expr bases
+  and VM pin, `operators_as_commands: false` (`::tcl::mathop` measured
+  absent). The `f5_reclassified_oracle` twin the parity sweeps carried
+  is deleted — the sweeps compare the corrected rows directly.
+
 ### Front end
 
 **Status: LSP side ported (P1-F wave 2).** `tcl-lsp-core`, `tcl-lsp-db`
@@ -293,13 +350,14 @@ invariant I4), and `side_effects.rs`'s hand-rolled selection retired
 onto `side_effect_hints_in_context` (C7) — measured **not** collapsible
 onto single-winner selection without behaviour change (`classvariable`,
 `next` under `bpf`), so the primitive keeps the availability-filtered
-newest-first-with-hints walk until P1a's binding proof. Old APIs remain
-for other crates; deletion is P1-G.
+newest-first-with-hints walk until P1a's binding proof. The old APIs
+this left for other crates are now deleted — see the P1-G status at the
+head of this section.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 *(partial: compiler no longer calls `availability_for_name` or synthesises `TK_PROFILE` from names; `DialectSet`-typed plumbing inside spec data and semantic-facts bundles remains until P1-G)* |
-| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 *(compiler and LSP ported: the resolver lives in `tcl_registry::model::ingress` and every `tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-db` and `tcl-lsp-server` name ingress goes through it — `by_name`, `by_opt_name`, `resolve_known`, `availability_for_name`, `available_dialects` membership and raw `DialectSet::parse` have no non-test caller left in those four crates; `special_vars::resolve_dialect` and the tooling/editor validators remain)* |
+| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 *(partial: `availability_for_name` is deleted (P1-G) and nothing synthesises `TK_PROFILE` from names; the `DialectSet`-typed plumbing inside spec data and semantic-facts bundles — e.g. the unit build's `semantic_dialect_set`, the profile masks the sweeps pin — is this row's remaining re-type, deliberately not chased by P1-G)* |
+| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 **done (P1-G)** *(`by_name`, `by_opt_name`, `resolve_known` and `availability_for_name` are deleted from the tree — test fixtures ported to the seam, the lower-crate compat name boundaries inline the find-then-plain-sink resolution (F8/C12 retire the boundaries themselves) — and `DialectSet::parse` has no name-ingress caller left (its remaining uses are C1 projections of canonical profile names). `special_vars::resolve_dialect` is deleted too (its production callers already threaded profiles through `dialect_set_for_profile`); the `retired-api-gate` holds the set at zero)* |
 | C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | P1a *(partial: the compiler's analyser-hook, lowering-hook, type-infer, and shimmer callers now go through the context-carrying model primitives with selection unchanged — the documented P1a seam; `lsp-db` holds no such bypass of its own, and the remaining `invocation_traits(…, empty)` readers follow in P1a)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | P1a |
 | C5 | `KnownPredicateCtx`'s unfiltered `builtin_command_names()` and the settlement-vs-W123 oracle split | the one `exists` oracle (R-c) | P1a |
@@ -344,8 +402,9 @@ generation's store is the very `Arc` the old `(profile, overlay)` cache
 owns (profile stamp included, which the Zed projection reads back); and
 the document authoring mask is test-pinned equal to the threaded
 profile's `availability_mask` for every profile an ingress can produce.
-The generator `--check` modes are the gate. Old APIs remain for other
-crates; deletion is P1-G.
+The generator `--check` modes are the gate. The old APIs this left for
+other crates are now deleted — see the P1-G status at the head of this
+section.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
@@ -484,8 +543,9 @@ the CLI's `--dialect` possible values and its unknown-dialect message, the
 MCP `dialect_schema` enum, the studio's picker, `registry-dump
 --all-dialects`' Tcl-release list — because the environment list has
 different contents and no `short_name` (the row F9 payload rule); those
-are rows T1/T3/T6/T7's payload, not refactors. Old APIs remain for other
-crates; deletion is P1-G.
+are rows T1/T3/T6/T7's payload, not refactors. The old APIs this left
+for other crates are now deleted — see the P1-G status at the head of
+this section.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
@@ -595,6 +655,7 @@ mirrored as Q22–Q25 in the main document):
 | Upgrade equivalence (`--verify`, §6 U9) | 1.x pack and its upgraded 2.0 form load to byte-identical registry snapshots | I10 |
 | Behavioural parity suites per migration | user-observable behaviour, not just serialisation | I10 |
 | Projection drift gates (existing + Sublime map + simulator data) | no hand-maintained projections | — |
+| Retired-API gate (`cargo xtask retired-api-gate`, P1-G) | the deleted dialect-name validators and string-keyed registry doors never reappear under their old spellings; escape hatch requires a ledger entry | I3–I5-adjacent |
 
 ## 6. `tcl spec upgrade`: the 1.x → 2.0 specification
 

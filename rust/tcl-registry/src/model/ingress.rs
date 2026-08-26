@@ -170,7 +170,8 @@ impl DocumentEnvironment {
     }
 
     /// The interned profile the analyser threads for this environment —
-    /// wave-1 interop (deleted in P1-G): the catalogue environments map to
+    /// wave-1 interop (retired with ledger C1's re-type; P1-G deleted the
+    /// name validators it replaced): the catalogue environments map to
     /// their same-named profile; the model-only ids (`tcl`, `tk`) map to
     /// the permissive fallback, exactly as the old name ingress resolved
     /// them.
@@ -504,7 +505,12 @@ mod tests {
     #[test]
     fn unit_profile_reproduces_the_old_lsp_ingress() {
         fn old(name: &str) -> &'static DialectProfile {
-            DialectProfile::resolve_known(name).unwrap_or_else(|| DialectProfile::by_name(name))
+            // The retired LSP ingress, spelled inline now the validators
+            // are deleted: `resolve_known` was the catalogue lookup plus
+            // the `tk` promotion, and `by_name` the plain-Tcl sink.
+            DialectProfile::find(name)
+                .or_else(|| (name == "tk").then(DialectProfile::tk))
+                .unwrap_or_else(DialectProfile::plain_tcl)
         }
         for profile in DialectProfile::all() {
             assert!(

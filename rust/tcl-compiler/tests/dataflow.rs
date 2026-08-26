@@ -78,8 +78,9 @@ use tcl_compiler::dataflow_graph::{
 use tcl_compiler::dead_stores::liveness_dead_stores;
 use tcl_compiler::def_use::{DefKind, DefUseChain, UseKind};
 use tcl_compiler::ssa::Version;
+use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -88,7 +89,7 @@ use tcl_registry::{CommandRegistry, registry_for_dialect};
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// `source → CompilationUnit` (lower → CFG → SSA → def-use → SCCP).

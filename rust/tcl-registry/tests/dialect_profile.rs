@@ -31,15 +31,17 @@
 //! and the retired `NON_IRULES_OPERATORS` union never creeps back as a gate.
 
 use tcl_dialect::{DialectProfile, DialectSet, NumberSyntax, TclVersion};
+use tcl_registry::model::ingress::{
+    static_context_for, static_document_context_for, static_document_context_for_profile as ctx_for,
+};
 use tcl_registry::traits::Traits;
-use tcl_registry::{ProfileQueries, registry_for_dialect};
 
 /// Whether `name` is a `tcl::mathop` operator-command spelling (bare `+`,
 /// `eq`, or a qualified `tcl::mathop::+` form). Data-driven: a bare name is
 /// an operator head iff the registry also carries its `tcl::mathop::`-
 /// qualified spelling — no hardcoded operator list.
 fn is_mathop_spelling(name: &str) -> bool {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     name.strip_prefix("::tcl::mathop::").is_some()
         || name.strip_prefix("tcl::mathop::").is_some()
         || !reg.specs(&format!("tcl::mathop::{name}")).is_empty()
@@ -68,7 +70,7 @@ fn retired_non_irules_operators_union_never_reappears_as_a_gate() {
         );
     };
     for profile in DialectProfile::all() {
-        let reg = registry_for_dialect(profile.name);
+        let reg = static_context_for(profile.name).commands();
         for name in reg.command_names() {
             for spec in reg.specs(name) {
                 check(spec.dialects, spec.name);
@@ -163,7 +165,7 @@ const IRULES_BANNED: &[&str] = &[
 /// mask excludes it by plain intersection, with no subtractive ban list.
 #[test]
 fn irules_banned_commands_lack_the_irules_bit() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     for banned in IRULES_BANNED {
         let specs = reg.specs(banned);
         assert!(!specs.is_empty(), "{banned}: names no registered spec");
@@ -182,7 +184,7 @@ fn irules_banned_commands_lack_the_irules_bit() {
 /// a spec carries the trait iff it is a `tcl::mathop` spelling.
 #[test]
 fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     for name in reg.command_names() {
         for spec in reg.specs(name) {
             assert_eq!(
@@ -195,21 +197,21 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
         }
     }
     // TP: operator heads resolve where operators are command heads…
-    let tcl90 = DialectProfile::by_name("tcl9.0");
+    let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     for op in ["+", "eq", "tcl::mathop::+"] {
         assert!(
-            tcl90.resolve_command(reg, op).is_some(),
+            ctx_for(tcl90).resolve_spec(reg, op).is_some(),
             "{op} resolves under tcl9.0"
         );
     }
     // …TN: and never under iRules (operators live only inside expr there) —
     // through the profile query, a bare mask query on the stamped registry
     // (§9.2), and the snapshot's independent most-specific resolver alike.
-    let ireg = registry_for_dialect("f5-irules");
+    let ireg = static_context_for("f5-irules").commands();
     let irules = DialectProfile::irules();
     for op in ["+", "eq", "tcl::mathop::+"] {
         assert!(
-            irules.resolve_command(ireg, op).is_none(),
+            ctx_for(irules).resolve_spec(ireg, op).is_none(),
             "{op} must not resolve under f5-irules"
         );
         assert!(
@@ -221,11 +223,11 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
     // added in Tcl 8.5 — a real tclsh 8.4 has no `::tcl` namespace at all,
     // so 8.4 shares iRules' reasoning here even though it carries no vendor
     // bit to key a disable-list entry off. Same three angles as iRules.
-    let reg84 = registry_for_dialect("tcl8.4");
-    let tcl84 = DialectProfile::by_name("tcl8.4");
+    let reg84 = static_context_for("tcl8.4").commands();
+    let tcl84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     for op in ["+", "eq", "tcl::mathop::+"] {
         assert!(
-            tcl84.resolve_command(reg84, op).is_none(),
+            ctx_for(tcl84).resolve_spec(reg84, op).is_none(),
             "{op} must not resolve under tcl8.4"
         );
         assert!(
@@ -243,14 +245,14 @@ fn operator_heads_carry_the_trait_and_follow_the_profile_shape() {
 /// subcommands again.
 #[test]
 fn irules_subcommands_named_like_banned_commands_stay_available() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let irules = DialectProfile::irules();
     for (cmd, sub_name) in [("DNS::header", "cd"), ("IP::stats", "in")] {
-        let spec = irules
-            .resolve_command(reg, cmd)
+        let spec = ctx_for(irules)
+            .resolve_spec(reg, cmd)
             .unwrap_or_else(|| panic!("{cmd} resolves under f5-irules"));
         assert!(
-            irules
+            ctx_for(irules)
                 .available_subcommands(spec)
                 .iter()
                 .any(|s| s.name == sub_name),
@@ -266,21 +268,21 @@ fn irules_subcommands_named_like_banned_commands_stay_available() {
 /// simply omits the `IRULES` bit.
 #[test]
 fn irules_banned_commands_never_resolve() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let irules = DialectProfile::irules();
 
     // TP: genuinely banned commands do not resolve (excluded by their
     // explicit non-IRULES `dialects` group, not a ban list).
     for banned in IRULES_BANNED {
         assert!(
-            irules.resolve_command(reg, banned).is_none(),
+            ctx_for(irules).resolve_spec(reg, banned).is_none(),
             "{banned}: banned command must not resolve under f5-irules"
         );
     }
     // TN: the iRules-enabled core and the F5 surface still resolve.
     for allowed in ["set", "if", "string", "foreach", "pool", "when", "log"] {
         assert!(
-            irules.resolve_command(reg, allowed).is_some(),
+            ctx_for(irules).resolve_spec(reg, allowed).is_some(),
             "{allowed}: must resolve under f5-irules"
         );
     }
@@ -288,7 +290,7 @@ fn irules_banned_commands_never_resolve() {
     // iRules runtime — via the version tags (which lack the IRULES bit).
     for versioned in ["dict", "lassign", "apply", "lmap", "coroutine"] {
         assert!(
-            irules.resolve_command(reg, versioned).is_none(),
+            ctx_for(irules).resolve_spec(reg, versioned).is_none(),
             "{versioned}: 8.5+/8.6 core is never present in iRules (D3)"
         );
     }
@@ -302,13 +304,15 @@ fn irules_banned_commands_never_resolve() {
 fn additive_profiles_resolve_their_embedded_tcl_core() {
     // (profile, resolves, still_unavailable)
     let cases: &[(&str, &[&str], &[&str])] = &[
-        // iApps: Tcl 8.5.13 host — dict/lassign/apply are real; lmap (8.6)
-        // and zipfs (9.0) are not. exec/file/socket are ALLOWED (host
+        // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6, NOT an
+        // 8.5 host (measured: bigip-irule-parser-measurements.md §4a —
+        // `IAppImplementation` fails every 8.5 discriminator, dict/
+        // lassign/apply included). exec/file/socket are ALLOWED (host
         // interpreter, not the TMM sandbox).
         (
             "f5-iapps",
-            &["dict", "lassign", "apply", "exec", "file", "socket", "set"],
-            &["lmap", "coroutine", "zipfs"],
+            &["exec", "file", "socket", "set"],
+            &["dict", "lassign", "apply", "lmap", "coroutine", "zipfs"],
         ),
         // expect: Tcl 8.6 base — coroutine/lmap/dict are real; zipfs (9.0)
         // is not; the expect surface resolves.
@@ -323,17 +327,17 @@ fn additive_profiles_resolve_their_embedded_tcl_core() {
         ("synopsys-eda-tcl", &["dict", "lmap"], &["zipfs"]),
     ];
     for &(dialect, resolves, unavailable) in cases {
-        let profile = DialectProfile::by_name(dialect);
-        let reg = registry_for_dialect(dialect);
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let reg = static_context_for(dialect).commands();
         for name in resolves {
             assert!(
-                profile.resolve_command(reg, name).is_some(),
+                ctx_for(profile).resolve_spec(reg, name).is_some(),
                 "{dialect}: {name} must resolve (embedded-core fix)"
             );
         }
         for name in unavailable {
             assert!(
-                profile.resolve_command(reg, name).is_none(),
+                ctx_for(profile).resolve_spec(reg, name).is_none(),
                 "{dialect}: {name} must stay unavailable"
             );
         }
@@ -345,8 +349,8 @@ fn additive_profiles_resolve_their_embedded_tcl_core() {
 /// consumers receive the full release/dialect fact set (issue #1466).
 #[test]
 fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
-    let registry = registry_for_dialect("bpf");
-    let profile = DialectProfile::by_name("bpf");
+    let registry = static_context_for("bpf").commands();
+    let profile = tcl_registry::model::ingress::resolve_environment("bpf").analyser_profile();
 
     assert_eq!(registry.profile(), Some(profile));
     assert_eq!(
@@ -356,8 +360,8 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
     assert_eq!(registry.runtime_version(), Some(TclVersion::V9_0));
     assert_eq!(registry.numbers(), NumberSyntax::Tcl90);
     assert_eq!(registry.octal_fold_policy(), Some(false));
-    assert!(profile.resolve_command(registry, "zipfs").is_some());
-    assert!(profile.resolve_command(registry, "setint").is_some());
+    assert!(ctx_for(profile).resolve_spec(registry, "zipfs").is_some());
+    assert!(ctx_for(profile).resolve_spec(registry, "setint").is_some());
 }
 
 /// Alias canonicalisation is load-bearing (§2.4): the legacy `irules`
@@ -365,9 +369,9 @@ fn bpf_registry_is_stamped_with_its_tcl90_embedding() {
 #[test]
 fn irules_alias_resolves_like_the_canonical_profile() {
     let via_alias = DialectProfile::irules();
-    let reg = registry_for_dialect("f5-irules");
-    assert!(via_alias.resolve_command(reg, "exec").is_none());
-    assert!(via_alias.resolve_command(reg, "pool").is_some());
+    let reg = static_context_for("f5-irules").commands();
+    assert!(ctx_for(via_alias).resolve_spec(reg, "exec").is_none());
+    assert!(ctx_for(via_alias).resolve_spec(reg, "pool").is_some());
 }
 
 /// §5.2 option gating: `intersects` membership plus the version ceiling.
@@ -377,22 +381,22 @@ fn irules_alias_resolves_like_the_canonical_profile() {
 /// option on every vendor command.
 #[test]
 fn option_gating_resolves_inherited_vendor_options() {
-    let reg = registry_for_dialect("expect");
-    let expect = DialectProfile::by_name("expect");
-    let spec = expect
-        .resolve_command(reg, "expect_after")
+    let reg = static_context_for("expect").commands();
+    let expect = tcl_registry::model::ingress::resolve_environment("expect").analyser_profile();
+    let spec = ctx_for(expect)
+        .resolve_spec(reg, "expect_after")
         .expect("expect_after resolves under expect");
     // TP: inherited (gate = parent EXPECT) options resolve under expect.
-    let names = expect.available_option_names(spec);
+    let names = ctx_for(expect).available_option_names(spec);
     for opt in ["-re", "-ex", "-gl", "-nocase", "-i", "-info"] {
         assert!(names.contains(&opt), "{opt} must resolve under expect");
     }
     // TN: the same options do NOT resolve under plain tcl8.6 (the command
     // itself is expect-only, so its gate never intersects TCL86).
-    let tcl86 = DialectProfile::by_name("tcl8.6");
+    let tcl86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     for opt in spec.options {
         assert!(
-            !tcl86.is_option_available(opt, spec.dialects),
+            !ctx_for(tcl86).option_available(opt, spec.dialects),
             "{}: expect-gated option must not resolve under plain tcl8.6",
             opt.name
         );
@@ -404,7 +408,7 @@ fn option_gating_resolves_inherited_vendor_options() {
 /// versions and composed vendor profiles.
 #[test]
 fn option_gating_honours_the_version_ceiling() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let switch_spec = reg.get("switch").expect("switch spec");
     let nocase = switch_spec
         .options
@@ -416,17 +420,19 @@ fn option_gating_honours_the_version_ceiling() {
 
     // TP: resolves at/above 8.5 — including the composed vendor profiles
     // whose embedded core is 8.5+ (the fix).
-    for d in ["tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "expect"] {
+    for d in ["tcl8.5", "tcl8.6", "tcl9.0", "expect"] {
         assert!(
-            DialectProfile::by_name(d).is_option_available(nocase, switch_spec.dialects),
+            static_document_context_for(d).option_available(nocase, switch_spec.dialects),
             "{d}: switch -nocase is 8.5+ core"
         );
     }
-    // TN/FN-guard: hidden below 8.5 — tcl8.4 (ceiling V8_4) and iRules
-    // (embedded 8.4; its bare mask never intersects a pure version gate).
-    for d in ["tcl8.4", "f5-irules"] {
+    // TN/FN-guard: hidden below 8.5 — tcl8.4 (ceiling V8_4), iRules
+    // (embedded 8.4; its bare mask never intersects a pure version gate),
+    // and the trunk-riding iApps host (fork of Tcl at 8.4.6 — measured,
+    // bigip-irule-parser-measurements.md §4a).
+    for d in ["tcl8.4", "f5-irules", "f5-iapps"] {
         assert!(
-            !DialectProfile::by_name(d).is_option_available(nocase, switch_spec.dialects),
+            !static_document_context_for(d).option_available(nocase, switch_spec.dialects),
             "{d}: switch -nocase must stay hidden on an 8.4 base"
         );
     }
@@ -437,7 +443,7 @@ fn option_gating_honours_the_version_ceiling() {
 /// mask intersects its gate's other bits.
 #[test]
 fn option_gating_blocks_later_version_leaks_into_supersets() {
-    let reg = registry_for_dialect("f5-iapps");
+    let reg = static_context_for("f5-iapps").commands();
     let regsub = reg.get("regsub").expect("regsub spec");
     let command_opt = regsub
         .options
@@ -458,14 +464,14 @@ fn option_gating_blocks_later_version_leaks_into_supersets() {
         "f5-irules",
     ] {
         assert!(
-            !DialectProfile::by_name(d).is_option_available(command_opt, regsub.dialects),
+            !static_document_context_for(d).option_available(command_opt, regsub.dialects),
             "{d}: regsub -command is 9.0-only"
         );
     }
     // TP: resolves at 9.0/9.1.
     for d in ["tcl9.0", "tcl9.1"] {
         assert!(
-            DialectProfile::by_name(d).is_option_available(command_opt, regsub.dialects),
+            static_document_context_for(d).option_available(command_opt, regsub.dialects),
             "{d}"
         );
     }
@@ -475,14 +481,14 @@ fn option_gating_blocks_later_version_leaks_into_supersets() {
 /// subcommands follow the profile mask.
 #[test]
 fn available_subcommands_follow_the_profile_mask() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     let dict = reg.get("dict").expect("dict spec");
-    let subs_86: Vec<&str> = DialectProfile::by_name("tcl8.6")
+    let subs_86: Vec<&str> = static_document_context_for("tcl8.6")
         .available_subcommands(dict)
         .iter()
         .map(|s| s.name)
         .collect();
-    let subs_90: Vec<&str> = DialectProfile::by_name("tcl9.0")
+    let subs_90: Vec<&str> = static_document_context_for("tcl9.0")
         .available_subcommands(dict)
         .iter()
         .map(|s| s.name)
@@ -509,7 +515,7 @@ fn available_subcommands_follow_the_profile_mask() {
 /// list, it holds uniformly on a raw, un-stamped registry too.
 #[test]
 fn bare_irules_mask_queries_exclude_non_irules_commands() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     for banned in IRULES_BANNED {
         assert!(
             reg.get_for_dialect(banned, DialectSet::IRULES).is_none(),
@@ -544,9 +550,9 @@ fn bare_irules_mask_queries_exclude_non_irules_commands() {
 /// dialect gate, and abstains for profiles without a vendor surface.
 #[test]
 fn vendor_surface_summarises_the_registry_truth() {
-    let reg = registry_for_dialect("f5-irules");
-    let surface = DialectProfile::irules()
-        .vendor_surface(reg)
+    let reg = static_context_for("f5-irules").commands();
+    let surface = ctx_for(DialectProfile::irules())
+        .vendor_command_surface(reg)
         .expect("iRules has a vendor surface");
     assert!(
         surface.command_count > 900,
@@ -569,13 +575,13 @@ fn vendor_surface_summarises_the_registry_truth() {
     // No vendor bit → no surface (plain Tcl); a vendor bit with an
     // identity-only mask (f5-bigip has no command pack) also abstains.
     assert!(
-        DialectProfile::by_name("tcl8.6")
-            .vendor_surface(registry_for_dialect("tcl8.6"))
+        static_document_context_for("tcl8.6")
+            .vendor_command_surface(static_context_for("tcl8.6").commands())
             .is_none()
     );
     assert!(
-        DialectProfile::by_name("f5-bigip")
-            .vendor_surface(registry_for_dialect("f5-bigip"))
+        static_document_context_for("f5-bigip")
+            .vendor_command_surface(static_context_for("f5-bigip").commands())
             .is_none()
     );
 }
@@ -585,7 +591,7 @@ fn vendor_surface_summarises_the_registry_truth() {
 /// so a command that lacks the `IRULES` bit is excluded there too.
 #[test]
 fn commands_for_event_excludes_banned_commands() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
     let cmds = reg.valid_irules_commands_for_event("HTTP_REQUEST", &events, &profiles, None);

@@ -69,7 +69,8 @@ use tcl_compiler::side_effects::{
     StorageType, classify_side_effects,
 };
 use tcl_dialect::DialectSet;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -724,7 +725,7 @@ fn classify_close_in_tcl_is_file_io() {
         &reg,
         "close",
         &["$fd"],
-        Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
     );
     let e = only_effect(&r);
     assert_eq!(e.target, SideEffectTarget::FileIo);
@@ -757,7 +758,7 @@ fn classify_file_io_does_not_kill_unknown_region() {
         &reg,
         "puts",
         &["hello"],
-        Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
     );
     let (_reads, writes) = r.to_effect_regions();
     assert_eq!(writes, EffectRegion::NONE);
@@ -897,7 +898,7 @@ fn hinted_tcl_commands_return_structured_effects() {
 
 /// Build a `CompilationUnit` for the binding tests with the `tcl9.0` dialect.
 fn build_top(src: &str) -> CompilationUnit {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     CompilationUnit::build_for(src, reg, false)
 }
 
@@ -979,7 +980,7 @@ fn stmt_idx_in_entry(cfg: &tcl_compiler::cfg::Function, name: &str) -> usize {
 #[test]
 fn binding_builtins_are_builtin() {
     // With no rebinding every core name keeps its builtin binding.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("set x 1\nputs [string length hi]\nincr x\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -995,7 +996,7 @@ fn binding_builtins_are_builtin() {
 
 #[test]
 fn binding_user_proc_is_proc() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc sq {n} {return [expr {$n*$n}]}\nputs [sq 5]\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1010,7 +1011,7 @@ fn binding_user_proc_is_proc() {
 fn binding_undefined_name_is_opaque() {
     // A name no proc/builtin provides resolves via the `unknown` handler
     // (opaque).
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("nosuchcommand a b c\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1027,7 +1028,7 @@ fn binding_undefined_name_is_opaque() {
 fn binding_proc_call_rename_call() {
     // tclsh: after `rename a b`, calling `a` errors (hits unknown) and `b` runs
     // the old proc body — the rename only perturbs calls that follow it.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc a {} {return 1}\na\nrename a b\nb\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1053,7 +1054,7 @@ fn binding_proc_call_rename_call() {
 #[test]
 fn binding_rename_deletion_is_opaque_not_error() {
     // tclsh: `rename foo {}` deletes foo; a later `foo` call hits `unknown`.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc foo {} {return 1}\nrename foo {}\nfoo\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1065,7 +1066,7 @@ fn binding_rename_deletion_is_opaque_not_error() {
 fn binding_builtin_rename_away_then_redefine_is_proc() {
     // tclsh: `rename incr ::orig_incr` then `proc incr …` makes `incr` a user
     // proc (no longer the foldable builtin) and `::orig_incr` the real builtin.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top(
         "rename incr ::orig_incr\nproc incr {v} {upvar 1 $v x; ::orig_incr x 100}\nset c 0\n",
     );
@@ -1085,7 +1086,7 @@ fn binding_builtin_rename_away_then_redefine_is_proc() {
 #[test]
 fn binding_proc_redefined_stays_proc() {
     // The later body wins; the name is still bound to *a* proc.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc f {} {return 1}\nproc f {} {return 2}\nf\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1099,7 +1100,7 @@ fn binding_proc_redefined_stays_proc() {
 fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
     // `max` is an expr math function but not a top-level command, so `proc max`
     // binds a real foldable proc (must not collapse to UNKNOWN).
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc max {a b} {return $a}\nputs [max 1 2]\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1114,7 +1115,7 @@ fn binding_proc_named_like_mathfunc_is_proc_not_builtin() {
 #[test]
 fn binding_alias_records_target() {
     // tclsh: `interp alias {} myset {} set` makes `myset` dispatch to `set`.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("interp alias {} myset {} set\nmyset x 1\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1129,7 +1130,7 @@ fn binding_alias_records_target() {
 #[test]
 fn binding_rename_in_one_arm_joins_to_unknown() {
     // A rename only on the true arm makes the merged binding ⊤ (Unknown).
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("if {$x} {rename string ::s2}\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1141,7 +1142,7 @@ fn binding_rename_in_one_arm_joins_to_unknown() {
 fn binding_rename_on_both_arms_agrees() {
     // The same rename on both arms is deterministic: `string` is renamed away
     // on every path ⇒ opaque, not ⊤.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top(
         "if {$x} {rename string ::s2} else {rename string ::s2}\nputs [string length hi]\n",
     );
@@ -1155,7 +1156,7 @@ fn binding_rename_on_both_arms_agrees() {
 
 #[test]
 fn binding_dynamic_rename_makes_everything_unknown() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("rename $cmd foo\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1165,7 +1166,7 @@ fn binding_dynamic_rename_makes_everything_unknown() {
 
 #[test]
 fn binding_dynamic_proc_name_makes_everything_unknown() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = build_top("proc $name {} {return 1}\nputs [string length hi]\n");
     let fu = cu.function("::top").unwrap();
     let cb = analyse_command_binding(&fu.cfg, reg, &[]);
@@ -1183,7 +1184,7 @@ fn binding_dynamic_proc_name_makes_everything_unknown() {
 
 #[test]
 fn module_scan_nested_rename_in_proc_is_caught() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for(
         "proc danger {} {if {$x} {rename string ::s2}}\nputs ok\n",
         reg,
@@ -1196,7 +1197,7 @@ fn module_scan_nested_rename_in_proc_is_caught() {
 
 #[test]
 fn module_scan_dynamic_rename_in_proc_distrusts_everything() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for("proc danger {} {rename $a $b}\nputs ok\n", reg, false);
     let mt = scan_module_command_mutations(&cu.ir_module, reg);
     assert!(!mt.trusts("string"));
@@ -1205,7 +1206,7 @@ fn module_scan_dynamic_rename_in_proc_distrusts_everything() {
 
 #[test]
 fn module_scan_clean_module_trusts_all() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for(
         "proc helper {x} {return [expr {$x+1}]}\nputs [helper 4]\n",
         reg,
@@ -1223,7 +1224,7 @@ fn module_scan_transient_rename_and_restore_is_caught() {
     // `string` is renamed away, used, then restored — its final binding is the
     // builtin default, but it was tampered with mid-body, so it must NOT be
     // trusted (calls in that window would hit `unknown`).
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for(
         "rename string ms\nset x [string length abc]\nrename ms string\n",
         reg,
@@ -1237,7 +1238,7 @@ fn module_scan_transient_rename_and_restore_is_caught() {
 fn module_scan_embedded_substitution_rename_is_dynamic() {
     // `rename ::$c mystr` — the old name carries a substitution after a literal
     // prefix, so it's a *dynamic* rename that can touch any command.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for(
         "set c string\nrename ::$c mystr\nputs [string length abc]\n",
         reg,
@@ -1253,7 +1254,7 @@ fn module_scan_embedded_substitution_rename_is_dynamic() {
 fn module_scan_embedded_substitution_in_new_name_is_dynamic() {
     // `rename foo bar[x]` — the new name carries a command substitution ⇒
     // dynamic ⇒ trusts nothing.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for("rename foo bar[x]\n", reg, false);
     let mt = scan_module_command_mutations(&cu.ir_module, reg);
     assert!(!mt.trusts("string"));
@@ -1262,7 +1263,7 @@ fn module_scan_embedded_substitution_in_new_name_is_dynamic() {
 
 #[test]
 fn module_scan_clean_module_still_trusts() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let cu = CompilationUnit::build_for(
         "proc fib {n} {return $n}\nputs [fib 3]\nputs [string length hi]\n",
         reg,

@@ -108,7 +108,10 @@ impl RuntimeExprSurface {
     /// Get the registry-backed `expr` surface for `version`.
     #[must_use]
     pub fn for_tcl_version(version: TclVersion) -> Self {
-        Self::for_profile(DialectProfile::by_name(version.dialect_profile_name()))
+        Self::for_profile(
+            crate::model::ingress::resolve_environment(version.dialect_profile_name())
+                .analyser_profile(),
+        )
     }
 
     /// Get the registry-backed `expr` surface for `profile`.
@@ -324,8 +327,9 @@ mod tests {
             BinOp::MatchesRegex,
         ];
         for name in ["f5-irules", "f5-tmsh", "f5-iapps"] {
-            let surface =
-                RuntimeExprSurface::for_profile(tcl_dialect::DialectProfile::by_name(name));
+            let surface = RuntimeExprSurface::for_profile(
+                crate::model::ingress::resolve_environment(name).analyser_profile(),
+            );
             for op in word_ops {
                 assert!(surface.supports_operator(op), "{name}: {op:?}");
             }
@@ -342,7 +346,8 @@ mod tests {
         // The config-schema `f5-bigip` identity has no Tcl expr surface of
         // its own and is deliberately excluded from the family derivation.
         assert!(
-            tcl_dialect::DialectProfile::by_name("f5-bigip")
+            crate::model::ingress::resolve_environment("f5-bigip")
+                .analyser_profile()
                 .f5_core_expr_grammar()
                 .is_none()
         );

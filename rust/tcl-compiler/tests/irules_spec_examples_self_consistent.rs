@@ -34,7 +34,8 @@
 use tcl_compiler::analyser::Analyser;
 use tcl_core_types::{DiagCode, Severity};
 use tcl_dialect::DialectSet;
-use tcl_registry::{events::EventRegistry, profiles::ProfileRegistry, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::{events::EventRegistry, profiles::ProfileRegistry};
 
 /// Every IRULE1001 diagnostic raised against `command` in `source`.
 fn invalidity_diagnostics_for(source: &str, command: &str) -> Vec<String> {
@@ -56,7 +57,7 @@ fn invalidity_diagnostics_for(source: &str, command: &str) -> Vec<String> {
 
 #[test]
 fn irules_documented_examples_do_not_violate_their_own_event_contract() {
-    let registry = registry_for_dialect("f5-irules");
+    let registry = static_context_for("f5-irules").commands();
     let mut names: Vec<&str> = registry.command_names().collect();
     names.sort_unstable();
     names.dedup();
@@ -103,7 +104,7 @@ fn irules_documented_examples_do_not_violate_their_own_event_contract() {
 
 #[test]
 fn irules_declared_additional_events_are_legal_in_the_registry_matrix() {
-    let registry = registry_for_dialect("f5-irules");
+    let registry = static_context_for("f5-irules").commands();
     let events = EventRegistry::build();
     let profiles = ProfileRegistry::build();
     let mut names: Vec<&str> = registry.command_names().collect();

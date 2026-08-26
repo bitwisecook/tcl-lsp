@@ -1288,12 +1288,18 @@ mod tests {
         ];
         for (op, rendered, before, since, opcode) in vectors {
             // FN: before the floor the operator is not specialised.
-            let mut old = ctx_for(&registry, tcl_dialect::DialectProfile::by_name(before));
+            let mut old = ctx_for(
+                &registry,
+                tcl_registry::model::ingress::resolve_environment(before).analyser_profile(),
+            );
             old.emit_expr(&binary(op));
             assert_refused(&old, rendered);
 
             // TP: from the floor it compiles to its own opcode.
-            let mut modern = ctx_for(&registry, tcl_dialect::DialectProfile::by_name(since));
+            let mut modern = ctx_for(
+                &registry,
+                tcl_registry::model::ingress::resolve_environment(since).analyser_profile(),
+            );
             modern.emit_expr(&binary(op));
             assert_eq!(
                 opcodes(&modern),
@@ -1305,7 +1311,10 @@ mod tests {
         // TN: `eq`/`ne` are in 8.4's operator table, so the gate must not
         // sweep them up with the operators that are not.
         for (op, opcode) in [(BinOp::StrEq, Op::STR_EQ), (BinOp::StrNe, Op::STR_NEQ)] {
-            let mut ctx = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.4"));
+            let mut ctx = ctx_for(
+                &registry,
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+            );
             ctx.emit_expr(&binary(op));
             assert_eq!(
                 opcodes(&ctx),
@@ -1335,11 +1344,17 @@ mod tests {
             right: Box::new(lit("3")),
         };
 
-        let mut old = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.4"));
+        let mut old = ctx_for(
+            &registry,
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
         old.emit_expr(&node);
         assert_refused(&old, "2 ** 3");
 
-        let mut modern = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.5"));
+        let mut modern = ctx_for(
+            &registry,
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         modern.emit_expr(&node);
         assert_eq!(opcodes(&modern), vec![Op::PUSH1]);
         assert_eq!(modern.literals.entries()[0], "8");
@@ -1364,7 +1379,10 @@ mod tests {
         assert!(opcodes(&irules).contains(&Op::IRULE_CONTAINS));
 
         // FN: not part of any plain-Tcl release's grammar.
-        let mut plain = ctx_for(&registry, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let mut plain = ctx_for(
+            &registry,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         plain.emit_expr(&contains);
         assert_refused(&plain, "$x contains $y");
 

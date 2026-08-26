@@ -71,7 +71,7 @@
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::taint::{TaintColour, TaintLattice, TaintWarning, find_taint_warnings_for_cu};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for dialect-insensitive snippets. iRules sources still taint
 /// here (registered globally), so the generic T100–T106 tests use it.
@@ -83,9 +83,10 @@ const IR: &str = "f5-irules";
 /// Every `TaintWarning` the whole-unit taint pass surfaces for `src` under
 /// `dialect`.
 fn warns(src: &str, dialect: &str) -> Vec<TaintWarning> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     find_taint_warnings_for_cu(&cu, registry, dialect_opt)
 }
 

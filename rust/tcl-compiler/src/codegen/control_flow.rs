@@ -1332,14 +1332,16 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut old = CodegenCtx::new(true, &[], &registry);
-        old.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.4"));
+        old.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile());
         old.emit_catch_body("expr {2 ** 3}");
         let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
         assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
 
         let mut modern = CodegenCtx::new(true, &[], &registry);
-        modern.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.5"));
+        modern.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile());
         modern.emit_catch_body("expr {2 ** 3}");
         let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
         assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");

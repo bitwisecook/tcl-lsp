@@ -181,7 +181,7 @@ mod tests {
     use super::*;
 
     fn subcommands_for_profile(name: &str) -> Vec<&'static str> {
-        let profile = tcl_dialect::DialectProfile::by_name(name);
+        let profile = crate::model::ingress::resolve_environment(name).analyser_profile();
         let floor = profile
             .library_floor_default("Tk")
             .unwrap_or_else(|| panic!("{name} must pin Tk"));

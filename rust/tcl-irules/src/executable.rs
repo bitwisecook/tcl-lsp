@@ -577,7 +577,10 @@ mod tests {
     fn commands(source: &str) -> Vec<IrulesExecutableCommand> {
         irules_executable_commands(
             source,
-            tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules()),
+            tcl_registry::model::ingress::static_context_for_profile(
+                tcl_dialect::DialectProfile::irules(),
+            )
+            .commands(),
         )
     }
 
@@ -606,7 +609,10 @@ mod tests {
             "when http_request { pool second_pool; call second_helper }\n",
             "when CLIENT_DATA { pool other_event_pool; call dormant }\n",
         );
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let closure = irules_event_executable_closure(source, "HTTP_REQUEST", registry);
         let pools: Vec<_> = closure
             .iter()
@@ -737,7 +743,10 @@ mod tests {
             "  }\n",
             "}\n",
         );
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let facts = irules_executable_commands(source, registry);
         let pools: Vec<_> = facts.iter().filter(|fact| fact.command == "pool").collect();
         assert_eq!(

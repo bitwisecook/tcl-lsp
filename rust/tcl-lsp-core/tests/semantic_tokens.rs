@@ -25,7 +25,7 @@
 //! number, and `#…` in command position is a comment.
 
 use tcl_lsp_core::semantic_tokens::{full, legend_token_modifiers, legend_token_types};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 #[derive(Debug)]
 struct Tok {
@@ -39,10 +39,10 @@ struct Tok {
 /// Decode the LSP delta-encoded token stream into absolute (line, char,
 /// length, type-name, modifier-bitmask) tuples.
 fn decode(source: &str, dialect: &str) -> Vec<Tok> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let st = full(
         source,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         registry,
     );
     let legend = legend_token_types();

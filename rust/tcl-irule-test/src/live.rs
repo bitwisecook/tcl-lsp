@@ -98,7 +98,7 @@ impl Svc {
     /// A compile service targeting `profile`'s grammar, registry, and dialect.
     fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
-            registry: tcl_registry::registry_for_profile(profile),
+            registry: tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             dialect: Some(profile),
         }
@@ -190,9 +190,14 @@ impl LiveSession {
         // Tcl by tmm_shim.tcl.
         let profile = DialectProfile::irules();
         vm.set_dialect_profile(profile);
-        assert!(vm.set_command_surface_profile(DialectProfile::by_name(
-            profile.vm_runtime_version.dialect_name(),
-        )));
+        assert!(
+            vm.set_command_surface_profile(
+                tcl_registry::model::ingress::resolve_environment(
+                    profile.vm_runtime_version.dialect_name()
+                )
+                .analyser_profile()
+            )
+        );
         vm.set_compiler(Box::new(Svc::for_profile(profile)));
         let mut session = Self { vm, output };
         session.bootstrap(lib_dir)?;

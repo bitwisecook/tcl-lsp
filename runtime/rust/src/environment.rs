@@ -36,9 +36,10 @@
 //! equal to the threaded profile's `availability_mask` for every profile
 //! an ingress can produce.
 //!
-//! P1-G: the `&'static DialectProfile` these helpers take and hand back
-//! retires with the profile itself, and the interpreter's pin carries a
-//! [`tcl_registry::model::DocumentEnvironment`] instead.
+//! Post-P1-G (which deleted the name validators and old cache doors):
+//! the `&'static DialectProfile` these helpers take and hand back
+//! retires with ledger C1's re-type, and the interpreter's pin then
+//! carries a [`tcl_registry::model::DocumentEnvironment`] instead.
 //!
 //! [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
 

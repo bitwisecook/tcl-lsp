@@ -90,7 +90,7 @@ fn frameless_runtime_set() -> &'static HashSet<String> {
 /// dialect mask. Production callers should pass their selected registry via
 /// the `*_with_registry` APIs instead.
 pub(crate) fn default_registry() -> &'static CommandRegistry {
-    tcl_registry::registry_for_dialect("tcl8.6")
+    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
 }
 
 /// Resolve a compiler statement's source-safe word snapshot to the registry's

@@ -68,7 +68,7 @@ struct CompilerSvc {
 impl CompilerSvc {
     fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
-            registry: tcl_registry::registry_for_profile(profile),
+            registry: tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             dialect: profile.name,
         }
@@ -88,7 +88,9 @@ impl CompileService for CompilerSvc {
             src,
             self.registry,
             self.config,
-            Some(tcl_dialect::DialectProfile::by_name(self.dialect)),
+            Some(
+                tcl_registry::model::ingress::resolve_environment(self.dialect).analyser_profile(),
+            ),
         );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, self.registry))
@@ -143,7 +145,10 @@ impl CompileService for WrongProfileCompilerSvc {
     type Module = tcl_bytecode::ModuleAsm;
 
     fn compile(&self, src: &str) -> Result<Self::Module, CompileError> {
-        CompilerSvc::for_profile(DialectProfile::by_name("tcl8.5")).compile(src)
+        CompilerSvc::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        )
+        .compile(src)
     }
 
     fn compile_for_profile(
@@ -157,7 +162,7 @@ impl CompileService for WrongProfileCompilerSvc {
 
 #[test]
 fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
-    let v84 = DialectProfile::by_name("tcl8.4");
+    let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     let mut fixed = Vm::new();
     fixed.set_dialect_profile(v84);
     fixed.set_compiler(Box::new(FixedFallbackCompilerSvc));
@@ -180,7 +185,7 @@ fn named_profiles_reject_fixed_or_mislabelled_compile_services() {
 
 #[test]
 fn command_surface_override_accepts_the_universal_fallback_from_tcl91() {
-    let v91 = DialectProfile::by_name("tcl9.1");
+    let v91 = tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
     let fallback = DialectProfile::plain_tcl();
     let mut vm = Vm::new();
     vm.set_dialect_profile(v91);
@@ -195,9 +200,9 @@ fn command_surface_override_accepts_the_universal_fallback_from_tcl91() {
 
 #[test]
 fn named_command_surface_override_cannot_hide_compiled_release_commands() {
-    let v91 = DialectProfile::by_name("tcl9.1");
-    let v90 = DialectProfile::by_name("tcl9.0");
-    let registry = tcl_registry::registry_for_profile(v91);
+    let v91 = tcl_registry::model::ingress::resolve_environment("tcl9.1").analyser_profile();
+    let v90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(v91).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(v91.grammar);
     let ir = lower_to_ir("lassign {a b} x; set x", registry, config, Some(v91));
     let cfg = build_cfg_codegen(&ir, false);
@@ -217,9 +222,9 @@ fn named_command_surface_override_cannot_hide_compiled_release_commands() {
 
 #[test]
 fn command_surface_override_rejects_a_same_release_narrower_profile() {
-    let bpf = DialectProfile::by_name("bpf");
-    let bigip = DialectProfile::by_name("f5-bigip");
-    let registry = tcl_registry::registry_for_profile(bpf);
+    let bpf = tcl_registry::model::ingress::resolve_environment("bpf").analyser_profile();
+    let bigip = tcl_registry::model::ingress::resolve_environment("f5-bigip").analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(bpf).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(bpf.grammar);
     // `lassign` becomes list/variable opcodes, so it proves that module
     // profile validation alone cannot enforce a later command-surface change.
@@ -242,7 +247,7 @@ fn command_surface_override_rejects_a_same_release_narrower_profile() {
 #[test]
 fn compatible_irules_host_surface_override_remains_accepted() {
     let irules = DialectProfile::irules();
-    let host = DialectProfile::by_name("tcl8.4");
+    let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
     let mut vm = Vm::new();
     vm.set_dialect_profile(irules);
     assert!(vm.set_command_surface_profile(host));
@@ -276,7 +281,11 @@ fn profile_output(src: &str, profile: &'static DialectProfile) -> String {
 
 /// [`profile_output`] for a plain release pin (the `--tcl-version` path).
 fn vm_output(src: &str, version: TclVersion) -> String {
-    profile_output(src, DialectProfile::by_name(version.dialect_name()))
+    profile_output(
+        src,
+        tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile(),
+    )
 }
 
 /// One script and what each release must produce (`puts` output, or the
@@ -544,10 +553,12 @@ fn hidden_builtin_stays_hidden_through_children_imports_and_aliases() {
 #[test]
 fn version_mutation_rechecks_an_existing_imports_source_identity() {
     let mut vm = Vm::new();
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.5",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    )));
     let setup = vm
         .eval_source(
             "namespace export lassign\n\
@@ -558,7 +569,9 @@ fn version_mutation_rechecks_an_existing_imports_source_identity() {
         )
         .expect("8.5 import setup compiles");
     assert!(setup.code.is_ok());
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
     let probe = vm
         .eval_source(
             "catch {namespace eval imported {set cmd [string cat imported_ lass ign]; $cmd {a b} x}} imported; \\
@@ -580,9 +593,9 @@ fn version_mutation_rechecks_an_existing_imports_source_identity() {
 #[test]
 #[allow(clippy::too_many_lines)] // One stateful profile lifecycle must stay in one causal vector.
 fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
-    let v85 = DialectProfile::by_name("tcl8.5");
-    let v84 = DialectProfile::by_name("tcl8.4");
-    let v86 = DialectProfile::by_name("tcl8.6");
+    let v85 = tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile();
+    let v84 = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
+    let v86 = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
     let mut vm = Vm::new();
     // TclOO is an 8.6 command surface (issue #1463), so the class factory is
     // only reachable there; the resulting object command is script-created and
@@ -640,7 +653,7 @@ fn profile_mutation_recompiles_cached_bodies_and_rejects_live_continuations() {
         foreign_vm.run_module(&generic_aot).result.to_str().as_ref(),
         "bytecode compiled for dialect profile tcl cannot run under tcl8.4"
     );
-    let traced_registry = tcl_registry::registry_for_profile(v85);
+    let traced_registry = tcl_registry::model::ingress::static_context_for_profile(v85).commands();
     let traced_config = tcl_lexer::LexerConfig::from_grammar(v85.grammar);
     let traced_ir = tcl_compiler::lowering::lower_to_ir_traced_with_dialect(
         "lassign {a b} x",
@@ -784,7 +797,9 @@ fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
     let mut vm = Vm::new();
     // TclOO's class factory is 8.6+ (issue #1463); the object it makes is
     // script-created and survives the flip to 8.4 below.
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+    );
     vm.set_compiler(Box::new(CountingCompilerSvc {
         calls: Rc::clone(&calls),
     }));
@@ -793,7 +808,9 @@ fn tcloo_method_profile_refresh_is_persisted_after_the_first_call() {
         .expect("class setup compiles");
     assert!(setup.code.is_ok(), "{}", setup.result.to_str());
 
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
     let before = calls.get();
     let first = vm.invoke_command("o", &[tcl_vm::Value::string("m")]);
     let after_first = calls.get();
@@ -961,10 +978,12 @@ fn refused_alias_rename_restores_import_provenance() {
 #[test]
 fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
     let mut vm = Vm::new();
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.5",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    )));
     let trace_setup = vm
         .eval_source(
             "proc on_delete args {lappend ::events delete}\n\
@@ -974,10 +993,12 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
         )
         .expect("8.5 trace setup compiles");
     assert!(trace_setup.code.is_ok());
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.4",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    )));
     let setup = vm
         .eval_source(
             "namespace eval src {interp alias {} ::src::a {} lassign; namespace export a}\n\
@@ -994,10 +1015,12 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
         "{cannot define or rename alias \"lassign\": would create a loop} ::src::a 0 0 0"
     );
 
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.5",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    )));
     let probe = vm
         .eval_source("list [namespace origin ::imported::a] [lassign {a b} value] $::events\n")
         .expect("8.5 probe compiles");
@@ -1011,19 +1034,23 @@ fn refused_alias_rename_preserves_a_hidden_destination_for_later_releases() {
 #[test]
 fn unavailable_local_candidate_falls_through_to_global_command() {
     let mut vm = Vm::new();
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.5",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+    )));
     let setup = vm
         .eval_source("namespace eval n {}; rename lassign ::n::x; proc ::x {} {return global}\n")
         .expect("8.5 setup compiles");
     assert!(setup.code.is_ok());
 
-    vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
-    vm.set_compiler(Box::new(CompilerSvc::for_profile(DialectProfile::by_name(
-        "tcl8.4",
-    ))));
+    vm.set_dialect_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
+    vm.set_compiler(Box::new(CompilerSvc::for_profile(
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    )));
     let probe = vm
         .eval_source("namespace eval n {x}\n")
         .expect("8.4 probe compiles");
@@ -1045,7 +1072,7 @@ fn equal_hidden_token_does_not_capture_visible_import_provenance() {
              interp hide {} a b\n\
              list [namespace origin ::consumer::a] [namespace origin ::b] \
                   [consumer::a] [b] [interp hidden {}]\n",
-            DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         ),
         "::src::a ::other::b hidden visible b"
     );
@@ -1059,7 +1086,7 @@ fn retiring_hidden_cross_alias_does_not_delete_equal_visible_command() {
              interp alias {} a target p; proc b {} {return visible}\n\
              interp hide {} a b; interp delete target\n\
              list [b] [interp hidden {}] [info commands b]\n",
-            DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         ),
         "visible {} b"
     );
@@ -1336,7 +1363,10 @@ fn vendor_profile_masks_differ_from_the_plain_release() {
         "invalid command name \"source\"",
         "the TMM sandbox has no source at all"
     );
-    let out = profile_output(src, DialectProfile::by_name("tcl8.4"));
+    let out = profile_output(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+    );
     assert!(
         !out.contains("invalid command name"),
         "plain tcl8.4 has source (it merely fails to read the file): {out}"
@@ -1454,8 +1484,8 @@ puts $log
 #[test]
 fn active_coroutine_and_execution_trace_follow_self_hide() {
     for profile in [
-        DialectProfile::by_name("tcl8.6"),
-        DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     ] {
         assert_eq!(
             profile_output(SELF_HIDING_COROUTINE, profile),
@@ -1639,7 +1669,13 @@ fn imported_proc_refresh_preserves_renamed_source_replacement() {
         "puts [list [::dst::p] [::src::p] [::src::q] [namespace origin ::dst::p]]\n",
     );
     let want = "original replacement original ::src::q";
-    assert_eq!(profile_output(src, DialectProfile::by_name("tcl8.6")), want);
+    assert_eq!(
+        profile_output(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+        ),
+        want
+    );
     for (env, names) in [
         ("TCLSH86", &["tclsh8.6"][..]),
         ("TCLSH90", &["tclsh9.0"][..]),

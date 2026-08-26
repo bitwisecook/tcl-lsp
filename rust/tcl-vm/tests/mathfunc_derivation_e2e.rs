@@ -74,7 +74,7 @@ impl CompileService for ProfiledCompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
             src,
             registry,
@@ -89,7 +89,8 @@ impl CompileService for ProfiledCompilerSvc {
 /// Compile + run `src` with the VM pinned to `version`; return
 /// `(ok, stdout)`.
 fn run_at(version: TclVersion, src: &str) -> (bool, String) {
-    let profile = DialectProfile::by_name(version.dialect_profile_name());
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+        .analyser_profile();
     let svc = ProfiledCompilerSvc { profile };
     let asm = svc.compile(src).expect("compile");
     let cap = Capture::default();

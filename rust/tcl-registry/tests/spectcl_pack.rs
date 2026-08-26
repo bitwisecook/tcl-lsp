@@ -23,10 +23,10 @@
 //! syntax memo (`docs/design/spec-dsl-examples/README.md`), not C-Tcl
 //! behaviour — `SpecTcl` is our own DSL, so the memo *is* its oracle.
 
-use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_dialect::DialectSet;
 use tcl_registry::ArgRole;
 use tcl_registry::definer::{DefinerFamily, SPECTCL_GRAMMARS};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// The pack loads by profile identity, through exactly the same
 /// `base_layers` path every other dialect pack takes — so the registry sweep
@@ -34,7 +34,7 @@ use tcl_registry::registry_for_dialect;
 /// per-pack wiring at all.
 #[test]
 fn the_pack_loads_for_the_spectcl_profile_and_nowhere_else() {
-    let spectcl = registry_for_dialect("spectcl");
+    let spectcl = static_context_for("spectcl").commands();
     assert!(
         spectcl.get("speclib").is_some(),
         "the spectcl registry carries the pack"
@@ -51,7 +51,10 @@ fn the_pack_loads_for_the_spectcl_profile_and_nowhere_else() {
     // word that can only ever be SpecTcl's, so it is the honest probe.
     for other in ["tcl8.6", "tcl9.0", "f5-irules", "expect", "bpf"] {
         assert!(
-            registry_for_dialect(other).get("speclib").is_none(),
+            static_context_for(other)
+                .commands()
+                .get("speclib")
+                .is_none(),
             "{other} must not see SpecTcl's statement words"
         );
     }
@@ -63,8 +66,10 @@ fn the_pack_loads_for_the_spectcl_profile_and_nowhere_else() {
 /// other way.
 #[test]
 fn generic_statement_words_do_not_collide_across_dialects() {
-    let spectcl = registry_for_dialect("spectcl");
-    let mask = DialectProfile::by_name("spectcl").availability_mask;
+    let spectcl = static_context_for("spectcl").commands();
+    let mask = tcl_registry::model::ingress::resolve_environment("spectcl")
+        .analyser_profile()
+        .availability_mask;
     for word in ["command", "option", "arg", "hover", "values", "hook"] {
         let spec = spectcl
             .get_for_dialect(word, mask)
@@ -76,7 +81,7 @@ fn generic_statement_words_do_not_collide_across_dialects() {
         );
     }
     // Tk keeps its own `option` everywhere else.
-    let tcl = registry_for_dialect("tcl9.0");
+    let tcl = static_context_for("tcl9.0").commands();
     let tk_option = tcl.get("option").expect("Tk `option` still exists");
     assert_ne!(tk_option.dialects, Some(DialectSet::SPECTCL));
 }
@@ -110,7 +115,7 @@ fn every_statement_word_is_gated_to_spectcl() {
 /// vocabularies with no walker changes.
 #[test]
 fn block_statements_carry_the_grammar_of_their_own_body() {
-    let reg = registry_for_dialect("spectcl");
+    let reg = static_context_for("spectcl").commands();
     let chain = [
         ("speclib", "command"),
         ("command", "arity"),
@@ -145,7 +150,7 @@ fn block_statements_carry_the_grammar_of_their_own_body() {
 /// definition context for it exactly as it does for a `method` body.
 #[test]
 fn hook_bodies_are_ordinary_tcl_not_a_declaration_block() {
-    let reg = registry_for_dialect("spectcl");
+    let reg = static_context_for("spectcl").commands();
     for hook in [
         "const_fold",
         "const_fold_versioned",
@@ -183,7 +188,7 @@ fn hook_bodies_are_ordinary_tcl_not_a_declaration_block() {
 /// spec's resolver everywhere else.
 #[test]
 fn the_override_flag_shifts_the_command_block() {
-    let reg = registry_for_dialect("spectcl");
+    let reg = static_context_for("spectcl").commands();
     let plain = ["mylib::sort", "{ arity 1.. }"];
     let overriding = ["lsort", "-override", "{ arity 1.. }"];
     assert_eq!(
@@ -218,7 +223,7 @@ fn the_override_flag_shifts_the_command_block() {
 /// is the last word however many flags intervene.
 #[test]
 fn object_class_finds_its_block_past_any_flags() {
-    let reg = registry_for_dialect("spectcl");
+    let reg = static_context_for("spectcl").commands();
     for call in [
         vec!["Resistor", "{ method value {} }"],
         vec!["Resistor", "-allow-unknown", "{ method value {} }"],

@@ -42,7 +42,7 @@
 //! ```
 
 use tcl_compiler::analyser::{Analyser, AnalysisResult};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 fn analyse(source: &str) -> AnalysisResult {
     Analyser::new().analyse(source, "tcl8.6").clone()
@@ -60,8 +60,8 @@ fn hover_at(src: &str, dialect: &str, line: u32, col: u32) -> Option<String> {
         line,
         col,
         &analysis,
-        Some(registry_for_dialect(dialect)),
-        tcl_dialect::DialectProfile::by_name(dialect),
+        Some(static_context_for(dialect).commands()),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
     )
     .map(|h| h.value)
 }
@@ -79,9 +79,9 @@ fn completion_items(
         line,
         col,
         &analysis,
-        Some(registry_for_dialect(dialect)),
+        Some(static_context_for(dialect).commands()),
         None,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
     )
 }
 
@@ -370,7 +370,7 @@ fn tp_references_are_symmetric_at_a_mathfunc_call_site() {
     let (decl_line, decl_col) = pos_of(SWEEP, "f {x} { return [expr {$x * 100}] }");
     let from_decl = tcl_lsp_core::references::references(
         SWEEP,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         decl_line,
         decl_col,
         &analysis,
@@ -379,7 +379,7 @@ fn tp_references_are_symmetric_at_a_mathfunc_call_site() {
     let (call_line, call_col) = pos_of(SWEEP, "f(2)");
     let from_call = tcl_lsp_core::references::references(
         SWEEP,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         call_line,
         call_col,
         &analysis,
@@ -412,7 +412,7 @@ fn tp_reference_lens_counts_the_mathfunc_override_and_the_global_proc_apart() {
     let analysis = analyse(SWEEP);
     let lenses = tcl_lsp_core::code_lens::code_lenses(
         SWEEP,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -484,10 +484,10 @@ fn tp_hover_and_completion_agree_with_the_sweep() {
 /// the override's dispatch intact / visible.
 #[test]
 fn tp_minify_and_call_graph_handle_the_override() {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
     let minified = tcl_lsp_core::minify::minify_tcl(
         SWEEP,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         registry,
     );
     assert!(
@@ -497,7 +497,7 @@ fn tp_minify_and_call_graph_handle_the_override() {
     let graph = tcl_lsp_core::graphs::call_graph(
         SWEEP,
         registry,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let text = graph.to_string();
     assert!(
@@ -531,7 +531,7 @@ puts [li {10 20 30} 1]
     assert!(
         tcl_lsp_core::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             line,
             col,
             &analysis,
@@ -569,7 +569,7 @@ puts [li 10 20]
 /// *command* spelling exists from 8.5 (TIP 232) and `isinf` only from 9.0.
 #[test]
 fn mathfunc_command_spellings_are_registered_and_gated() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     for name in ["tcl::mathfunc::isinf", "::tcl::mathfunc::isinf"] {
         assert!(
             reg.known_in_any_dialect(name),
@@ -715,7 +715,7 @@ proc mypkg::folded {} {
     let (line, col) = pos_of(src, "setdef {opts key args}");
     let refs = tcl_lsp_core::references::references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         line,
         col,
         &analysis,
@@ -749,7 +749,7 @@ proc mypkg::folded {} {
     let (line, col) = pos_of(src, "setdef {a}");
     let refs = tcl_lsp_core::references::references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         line,
         col,
         &analysis,
@@ -810,7 +810,7 @@ proc holder {} {
         assert!(
             tcl_lsp_core::references::references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 col + 1,
                 &analysis,
@@ -911,7 +911,7 @@ fn tp_mid_word_brace_does_not_suppress_a_real_variable_read() {
     assert!(
         !tcl_lsp_core::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             line,
             col + 1,
             &analysis,

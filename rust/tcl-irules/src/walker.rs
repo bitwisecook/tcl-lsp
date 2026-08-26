@@ -624,7 +624,10 @@ mod tests {
     /// Extract object references from `source` against the profile-stamped
     /// iRules registry (`pool` / `snatpool` / `class` are dialect commands).
     fn refs(source: &str) -> Vec<IrulesObjectReference> {
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         extract_irules_object_references(source, None, registry)
     }
 

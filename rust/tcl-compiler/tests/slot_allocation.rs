@@ -45,12 +45,13 @@ use tcl_compiler::slot_allocation::{
     Interference, SlotMapping, build_interference, coalesce_slots, live_out_by_name, slot_count,
 };
 use tcl_compiler::ssa::{SsaFunction, build_ssa};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// Lower `src`, build the CFG for the

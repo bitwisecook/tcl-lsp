@@ -63,7 +63,7 @@ impl CompileService for CompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
         {
@@ -96,7 +96,8 @@ impl Write for Capture {
 
 /// Compile and run `src`; return `(ok, result-string, captured-stdout)`.
 fn run_for_version(src: &str, version: tcl_dialect::TclVersion) -> (bool, String, String) {
-    let profile = DialectProfile::by_name(version.dialect_name());
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
     let service = CompilerSvc {
         registry: CommandRegistry::build_default(),
     };

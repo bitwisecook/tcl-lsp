@@ -794,14 +794,25 @@ fn fuzzy_method_fallback_does_not_hijack_prefix_match() {
 // exclusions, and the §5.1 subcommand gap — end-to-end over JSON-RPC.
 
 #[test]
-fn iapps_completion_offers_embedded_85_core_end_to_end() {
+fn iapps_completion_gates_the_85_core_end_to_end() {
+    // iApps ride the `f5-tcl` trunk — a fork of Tcl at 8.4.6 (measured,
+    // bigip-irule-parser-measurements.md §4a: `dict` fails in
+    // `IAppImplementation`) — so 8.5 core must NOT complete, while the
+    // 8.4 core does.
     let mut lsp = Lsp::tcl();
     let uri = unique_uri("iapp");
     lsp.open_document_lang(&uri, "dic\n", "tcl-iapp", 1);
     let got = labels(&mut lsp, &uri, 0, 3);
     assert!(
-        got.iter().any(|l| l == "dict"),
-        "dict (8.5 core) must complete in an iApp buffer: {got:?}"
+        !got.iter().any(|l| l == "dict"),
+        "dict (8.5 core) must not complete in an iApp buffer: {got:?}"
+    );
+    let uri2 = unique_uri("iapp");
+    lsp.open_document_lang(&uri2, "lappen\n", "tcl-iapp", 1);
+    let got = labels(&mut lsp, &uri2, 0, 6);
+    assert!(
+        got.iter().any(|l| l == "lappend"),
+        "lappend (8.4 core) must complete in an iApp buffer: {got:?}"
     );
 }
 

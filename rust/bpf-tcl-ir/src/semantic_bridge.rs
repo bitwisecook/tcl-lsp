@@ -502,10 +502,10 @@ mod tests {
     use super::*;
     use tcl_compiler::lowering::lower_to_ir;
     use tcl_registry::dialects::DialectSet;
-    use tcl_registry::registry_for_dialect;
+    use tcl_registry::model::ingress::static_context_for;
 
     fn bpf_registry() -> &'static CommandRegistry {
-        registry_for_dialect("bpf")
+        static_context_for("bpf").commands()
     }
 
     #[test]

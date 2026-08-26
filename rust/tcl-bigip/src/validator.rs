@@ -448,7 +448,7 @@ fn check_virtual_rules(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
 /// BIGIP6012: two or more iRules attached to a virtual server handle the same
 /// event at the same effective priority.
 fn check_virtual_rule_priority_conflicts(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     for (_path, vs) in view.virtual_servers.iter() {
         let mut handlers: BTreeMap<(String, u16), BTreeSet<String>> = BTreeMap::new();
         for rule_ref in vs.rules.paths() {
@@ -581,7 +581,7 @@ fn registry_profile_name(profile: ProfileType) -> &'static str {
 fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigDiagnostic>) {
     let event_registry = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
-    let command_registry = tcl_registry::registry_for_dialect("f5-irules");
+    let command_registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     for (_path, vs) in view.virtual_servers.iter() {
         let profile_types = profile_types_for_virtual(view, vs);
         let mut active: Vec<&str> = profile_types

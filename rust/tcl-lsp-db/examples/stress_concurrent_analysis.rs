@@ -363,7 +363,7 @@ fn final_correctness_check(
     let registry = db_final.registry(&params.dialect);
     let fresh_tokens = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
         &final_text,
-        tcl_dialect::DialectProfile::by_name(&params.dialect),
+        tcl_registry::model::ingress::resolve_environment(&params.dialect).analyser_profile(),
         registry,
         None,
         Some(&fresh),

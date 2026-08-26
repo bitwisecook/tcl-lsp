@@ -3769,7 +3769,7 @@ mod tests {
         let got = document_symbols(&db, file, cfg(&db));
         let expected = tcl_lsp_core::document_symbols::document_symbols(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         );
         assert_eq!(got, expected);
     }
@@ -3782,7 +3782,7 @@ mod tests {
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::semantic_tokens::full(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             reg,
         );
         assert_eq!(got, expected);
@@ -3809,7 +3809,7 @@ mod tests {
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             reg,
         );
         assert_ne!(
@@ -3833,7 +3833,7 @@ mod tests {
         let reg = db.registry("tcl9.0");
         let coarse = tcl_lsp_core::semantic_tokens::full(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             reg,
         );
         assert_eq!(
@@ -4486,7 +4486,7 @@ mod tests {
         let reg = db.registry("tcl");
         let expected = tcl_lsp_core::folding::folding_ranges(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             reg,
         );
         assert_eq!(got, expected);

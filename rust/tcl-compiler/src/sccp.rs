@@ -3235,11 +3235,15 @@ mod tests {
             )
         };
         assert_eq!(
-            fold(Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))),
+            fold(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+            )),
             LatticeValue::Const(ConstValue::Int(1))
         );
         assert_eq!(
-            fold(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
+            fold(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )),
             LatticeValue::Const(ConstValue::Int(2))
         );
         assert_eq!(

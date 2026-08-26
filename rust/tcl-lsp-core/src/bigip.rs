@@ -60,11 +60,11 @@ use crate::folding::{FoldKind, FoldingRange};
 pub fn is_bigip_conf_name(uri: &str) -> bool {
     let basename = uri.rsplit(['/', '\\']).next().unwrap_or(uri);
     let lower = basename.to_ascii_lowercase();
-    // P1-G: the claimed filenames are still profile data — the
-    // environment's `DetectionFacts` carry extensions/shebangs but not the
-    // filename claims yet (ledger F12/T13's generated-projection work). The
+    // Ledger F12/T13 (post-P1-G): the claimed filenames are still profile
+    // data — the environment's `DetectionFacts` carry extensions/shebangs
+    // but not the filename claims yet (the generated-projection work). The
     // *name* resolves through the one seam, so the profile is reached by
-    // canonical id rather than a second `by_name` validator.
+    // canonical id rather than a second name validator.
     crate::profile_for_dialect("f5-bigip")
         .filenames
         .contains(&lower.as_str())

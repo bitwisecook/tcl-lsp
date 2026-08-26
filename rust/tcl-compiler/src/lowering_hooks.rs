@@ -740,7 +740,7 @@ mod tests {
         src: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Statement {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let m = crate::lowering::lower_to_ir_with_config(
             src,
             registry,
@@ -760,8 +760,10 @@ mod tests {
     fn lower_set_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
             for src in ["set {*}$n 1", "set x$n 1", "set pre[f] 1"] {
-                let stmt =
-                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt = first_stmt_for_dialect(
+                    src,
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                );
                 assert!(
                     matches!(&stmt, Statement::Call { command, .. } if command == "set"),
                     "{dialect}: {src:?} must stay a Call, got {stmt:?}",
@@ -777,8 +779,10 @@ mod tests {
     fn lower_set_keeps_the_static_assign_for_a_spelled_out_name() {
         for dialect in ["tcl9.0", "tcl8.6", "tcl8.4", "f5-irules"] {
             for src in ["set x 1", "set {$n} 1", "set \\$x 1", "set a($i) 1"] {
-                let stmt =
-                    first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
+                let stmt = first_stmt_for_dialect(
+                    src,
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                );
                 assert!(
                     matches!(
                         &stmt,
@@ -799,7 +803,7 @@ mod tests {
         for dialect in ["tcl9.0", "tcl8.6"] {
             let stmt = first_stmt_for_dialect(
                 "set {*}$n 1",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             let Statement::Call {
                 command, tokens, ..

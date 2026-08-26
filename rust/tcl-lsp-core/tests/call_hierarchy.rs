@@ -40,7 +40,7 @@ fn incoming_names(source: &str, item: &CallHierarchyItem) -> Vec<String> {
     let analysis = a.analyse(source, "tcl8.6");
     incoming_calls(
         source,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         item,
         &analysis,
     )
@@ -54,7 +54,7 @@ fn outgoing_names(source: &str, item: &CallHierarchyItem) -> Vec<String> {
     let analysis = a.analyse(source, "tcl8.6");
     outgoing_calls(
         source,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         item,
         &analysis,
     )

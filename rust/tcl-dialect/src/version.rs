@@ -154,7 +154,9 @@ impl TclVersion {
     /// fold version, so versioned folds return only their invariant subset.
     #[must_use]
     pub fn from_dialect(dialect: Option<&str>) -> Option<Self> {
-        dialect.and_then(|name| Self::from_profile(DialectProfile::by_name(name)))
+        dialect
+            .and_then(DialectProfile::find)
+            .and_then(Self::from_profile)
     }
 
     /// Return the release fact represented by an already-resolved profile.

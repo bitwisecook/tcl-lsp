@@ -77,28 +77,33 @@ use tcl_lsp_core::minify::{
     MinifyResult, SymbolMap, minify_tcl, minify_tcl_aggressive, minify_tcl_compact,
     remap_line_references, unminify_error,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 fn min(src: &str) -> String {
-    minify_tcl(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
+    minify_tcl(
+        src,
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        reg(),
+    )
 }
 
 fn min_dialect(src: &str, dialect: &str) -> String {
     minify_tcl(
         src,
-        tcl_dialect::DialectProfile::by_name(dialect),
-        registry_for_dialect(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        static_context_for(dialect).commands(),
     )
 }
 
 fn compact(src: &str, isolated: bool) -> (String, SymbolMap) {
     minify_tcl_compact(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         isolated,
         reg(),
     )
@@ -107,7 +112,7 @@ fn compact(src: &str, isolated: bool) -> (String, SymbolMap) {
 fn agg(src: &str, isolated: bool) -> MinifyResult {
     minify_tcl_aggressive(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         isolated,
         reg(),
     )
@@ -498,7 +503,7 @@ fn switch_double_dash_uses_document_dialect_without_a_registry_profile() {
     let registry = CommandRegistry::build_default();
     let out = minify_tcl(
         "switch -- -x {\n  -x {\n    puts hit\n  }\n  default {\n    puts miss\n  }\n}\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &registry,
     );
     assert_eq!(out, "switch -- -x {-x {puts hit} default {puts miss}}");

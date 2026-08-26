@@ -98,7 +98,7 @@ use tcl_compiler::intervals::{
     Interval, build_guard_index, compute_intervals_with, constant, numbers_for_dialect,
     refine_interval,
 };
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for the shared helpers below (8.6 and 9.0 agree on every
 /// Tcl fact they exercise). The numeral-grammar tests name their dialect
@@ -109,7 +109,9 @@ const D: &str = "tcl8.6";
 /// The numeral grammar of [`D`], threaded into every lattice-surface call the
 /// way the analyser threads the document's dialect.
 fn numbers() -> tcl_dialect::NumberSyntax {
-    numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(D)))
+    numbers_for_dialect(Some(
+        tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+    ))
 }
 
 // ===========================================================================
@@ -148,7 +150,7 @@ fn messages(src: &str, code: &str) -> Vec<String> {
 fn func(src: &str) -> (CompilationUnit, String) {
     // Return the owning CU alongside the proc key so the borrow lives.
     (
-        CompilationUnit::build_for(src, registry_for_dialect(D), false),
+        CompilationUnit::build_for(src, static_context_for(D).commands(), false),
         "::f".to_owned(),
     )
 }
@@ -1050,9 +1052,11 @@ mod dialect_numerals {
         let src = format!(
             "proc f {{}} {{ for {{set i 0}} {{$i < {literal}}} {{incr i}} {{ puts $i }} }}"
         );
-        let cu = CompilationUnit::build_for(&src, registry_for_dialect(dialect), false);
+        let cu = CompilationUnit::build_for(&src, static_context_for(dialect).commands(), false);
         let fu = cu.procedures.get("::f").expect("::f lowered");
-        let numbers = numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(dialect)));
+        let numbers = numbers_for_dialect(Some(
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        ));
         let iv = compute_intervals_with(&fu.cfg, &fu.ssa, &fu.sccp.values, numbers);
         let gi = build_guard_index(&fu.cfg, &fu.ssa);
         let pc = pred_counts(fu);
@@ -1164,13 +1168,15 @@ mod dialect_numerals {
     #[test]
     fn leading_zero_const_value_abstains() {
         let x1 = |src: &str, dialect: &str| -> Option<Interval> {
-            let cu = CompilationUnit::build_for(src, registry_for_dialect(dialect), false);
+            let cu = CompilationUnit::build_for(src, static_context_for(dialect).commands(), false);
             let fu = cu.procedures.get("::f").expect("::f lowered");
             let iv = compute_intervals_with(
                 &fu.cfg,
                 &fu.ssa,
                 &fu.sccp.values,
-                numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(dialect))),
+                numbers_for_dialect(Some(
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                )),
             );
             let sym = fu.ssa.var_symbol("x")?;
             iv.get(&(sym, 1)).copied()
@@ -1192,19 +1198,27 @@ mod dialect_numerals {
     #[test]
     fn numbers_for_dialect_reads_the_profile_grammar() {
         assert_eq!(
-            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.4"))),
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile()
+            )),
             NumberSyntax::Tcl84
         );
         assert_eq!(
-            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.5"))),
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile()
+            )),
             NumberSyntax::Tcl85
         );
         assert_eq!(
-            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )),
             NumberSyntax::Tcl85
         );
         assert_eq!(
-            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl9.0"))),
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
+            )),
             NumberSyntax::Tcl90
         );
         assert_eq!(numbers_for_dialect(None), NumberSyntax::Tcl90);

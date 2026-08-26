@@ -70,7 +70,7 @@
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
@@ -81,8 +81,9 @@ const IR: &str = "f5-irules";
 
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -104,8 +105,9 @@ fn opt_count(src: &str, dialect: &str, code: &str) -> usize {
 
 /// Apply all (non-hint) optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
@@ -759,11 +761,11 @@ fn structure_elimination_nested_switch_via_multipass() {
         "if {1} {\n    switch xyz {\n        abc { set dead 1 }\n    }\n    set alive 2\n}";
     // One pass already removes the dead switch arm / unwraps the if (structural).
     assert!(opt_count(nested, TCL, "O112") >= 1);
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (fixed, _) = optimise_source_multipass(
         nested,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(

@@ -1981,10 +1981,9 @@ impl Analyser {
         // shells out, and which loads more script; fall back to the cached
         // dialect registry when the analyser was built without one (direct
         // handler calls in unit tests).
-        let registry: &CommandRegistry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect(self.dialect()));
+        let registry: &CommandRegistry = self.registry.as_deref().unwrap_or_else(|| {
+            tcl_registry::model::ingress::static_context_for(self.dialect()).commands()
+        });
 
         for stmt in &module.top_level.statements {
             walk_unknown_stmt(stmt, registry, &first_param, &mut info, 0);
@@ -4044,9 +4043,10 @@ mod tests {
                 "tcl9.0",
             )
             .clone();
-        let known = r
-            .class_hierarchy()
-            .known_methods(Some(tcl_registry::registry_for_dialect("tcl9.0")), "::C");
+        let known = r.class_hierarchy().known_methods(
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
+            "::C",
+        );
         assert!(known.contains(&"configure".to_owned()), "{known:?}");
         assert!(!known.contains(&"cget".to_owned()), "{known:?}");
     }

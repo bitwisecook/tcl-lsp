@@ -202,7 +202,7 @@ mod tests {
     use super::*;
 
     fn profile(name: &str) -> &'static DialectProfile {
-        DialectProfile::by_name(name)
+        crate::model::ingress::resolve_environment(name).analyser_profile()
     }
 
     #[test]
@@ -266,7 +266,7 @@ mod tests {
 
     #[test]
     fn math_function_spec_serves_registry_hover_data_under_the_expr_gate() {
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         let spec = reg
             .math_function_spec("sin", profile("tcl8.6"))
             .expect("sin has registry data under 8.6");
@@ -276,7 +276,7 @@ mod tests {
         // even though the spec's own command-table gate is TCL85_PLUS.
         assert!(reg.math_function_spec("sin", profile("tcl8.4")).is_some());
         // Version gate: `isnan` is 9.0+.
-        let reg9 = crate::registry_for_dialect("tcl9.0");
+        let reg9 = crate::model::ingress::static_context_for("tcl9.0").commands();
         assert!(
             reg9.math_function_spec("isnan", profile("tcl9.0"))
                 .is_some()
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn math_function_names_are_bare_sorted_and_gated() {
-        let reg = crate::registry_for_dialect("tcl9.0");
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         let names = reg.math_function_names(profile("tcl9.0"));
         assert!(names.contains(&"sin"), "{names:?}");
         assert!(names.contains(&"max"), "{names:?}");

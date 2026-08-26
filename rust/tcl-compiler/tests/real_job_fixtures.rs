@@ -11,7 +11,7 @@ use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const SQAWK_ASSEMBLE: &str = include_str!("fixtures/real_jobs/sqawk/assemble.tcl");
 const ODO_CHECKSUM: &str = include_str!("fixtures/real_jobs/odo-miner/checksum.tcl");
@@ -34,7 +34,7 @@ const FIXTURES: &[Fixture] = &[
 
 #[test]
 fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
 
     for fixture in FIXTURES {
         // Exercise the public lowering API independently of CompilationUnit so
@@ -78,7 +78,7 @@ fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
 
 #[test]
 fn real_jobs_compile_with_the_canonical_wasm_api() {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
 
     for fixture in FIXTURES {
         let unit = CompilationUnit::build_for_dialect(fixture.source, registry, false, "tcl8.6");

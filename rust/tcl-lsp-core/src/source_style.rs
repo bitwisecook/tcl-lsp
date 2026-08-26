@@ -627,7 +627,7 @@ mod tests {
             &no_disable(),
             &no_suppress(),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let w112: Vec<_> = diags.iter().filter(|d| d.code == "W112").collect();
         assert_eq!(w112.len(), 1, "{diags:?}");
@@ -667,21 +667,21 @@ mod tests {
         assert!(
             check_comment_continuation_for_dialect(
                 braced,
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
             .is_empty()
         );
         assert!(
             check_comment_continuation_for_dialect(
                 quoted,
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
             .is_empty()
         );
         assert!(
             check_comment_continuation_for_dialect(
                 tail,
-                tcl_dialect::DialectProfile::by_name("tcl9.0")
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()
             )
             .is_empty()
         );
@@ -692,7 +692,7 @@ mod tests {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # swallowed \\\n    puts hidden\n}\n";
         let diags = check_comment_continuation_for_dialect(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].range.start_line, 2);
@@ -709,7 +709,7 @@ mod tests {
         let src = "set result [switch $kind {\n    alpha {\n        # swallowed \\\n        puts hidden\n    }\n}]\n";
         let diags = check_comment_continuation_for_dialect(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert_eq!(diags.len(), 1, "{diags:?}");
         assert_eq!(diags[0].code, "W115");
@@ -751,7 +751,7 @@ mod tests {
             &disabled,
             &no_suppress(),
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -770,7 +770,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(diags.is_empty());
     }
@@ -790,7 +790,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(diags.iter().all(|d| d.code != "W112"));
     }
@@ -808,7 +808,7 @@ mod tests {
             &no_disable(),
             &suppressed,
             None,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(diags.iter().any(|d| d.code == "W118"));
     }

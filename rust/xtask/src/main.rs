@@ -85,6 +85,7 @@ mod number_drift;
 mod owner_resolution;
 mod registry_oracle;
 mod resolution_drift;
+mod retired_api_gate;
 mod sslictcl_data;
 mod tcltest_sweep;
 mod tzdata_bundle;
@@ -294,6 +295,18 @@ enum Command {
         check: bool,
     },
 
+    /// Flag any code use of the dialect/registry APIs retired in P1-G
+    /// (`DialectProfile::by_name` and kin, the string-keyed registry
+    /// doors, external `ProfileQueries`) — the zero-reference gate of the
+    /// centralisation ledger.
+    #[command(name = "retired-api-gate")]
+    RetiredApiGate {
+        /// Accepted for symmetry with the other gates (the lint always
+        /// verifies; it never rewrites).
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Verify that the shared semantic-owner contract resolves to live source
     /// files, public entry points, and registered Makefile drift gates.
     #[command(name = "owner-resolution")]
@@ -392,6 +405,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::WorkflowSync { check } => workflow_sync::run(check),
         Command::NumberDrift { check } => Ok(number_drift::run(check)),
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
+        Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
         Command::SslictclData {
             operation,

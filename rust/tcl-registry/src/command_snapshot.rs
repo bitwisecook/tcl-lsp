@@ -398,7 +398,7 @@ fn command_names(registry: &CommandRegistry, profile: &DialectProfile) -> Vec<St
 /// individual command entries.
 #[must_use]
 pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str) -> Option<Json> {
-    let profile = DialectProfile::by_name(dialect);
+    let profile = crate::model::ingress::resolve_environment(dialect).analyser_profile();
     profile
         .resolve_command(registry, name)
         .map(|spec| command_entry(spec, profile))
@@ -411,7 +411,7 @@ pub fn command_entry_json(registry: &CommandRegistry, dialect: &str, name: &str)
 /// unified fallback (design doc §8) — rather than the old ad-hoc `TCL86`.
 #[must_use]
 pub fn command_registry_snapshot(registry: &CommandRegistry, dialect: &str) -> Json {
-    let profile = DialectProfile::by_name(dialect);
+    let profile = crate::model::ingress::resolve_environment(dialect).analyser_profile();
     let names = command_names(registry, profile);
     let commands: Vec<Json> = names
         .iter()

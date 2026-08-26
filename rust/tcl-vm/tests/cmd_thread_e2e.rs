@@ -89,7 +89,7 @@ impl CompileService for ProfileCompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<Self::Module, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
         {
@@ -134,8 +134,8 @@ fn result(src: &str) -> String {
 
 fn assert_workers_inherit_a_separate_host_command_surface() {
     let dialect = DialectProfile::irules();
-    let host = DialectProfile::by_name("tcl8.4");
-    let registry = tcl_registry::registry_for_profile(dialect);
+    let host = tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(dialect.grammar);
     let source = "set w [thread::create]; set threaded [thread::send $w {llength [info commands interp]}]; thread::release $w; set p [tpool::create -maxworkers 1]; set j [tpool::post $p {llength [info commands interp]}]; set pooled [tpool::get $p $j]; tpool::release $p; list $threaded $pooled";
     let ir = lower_to_ir_for_bytecode_with_dialect(source, registry, config, Some(dialect));

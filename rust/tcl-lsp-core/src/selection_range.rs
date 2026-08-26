@@ -845,7 +845,7 @@ mod tests {
                 src,
                 cursor,
                 tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             )
             .expect("inner command");
             assert!(span.start() > 0 && span.end() - span.start() < source_len);
@@ -870,7 +870,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("nested command substitution");
         assert_eq!(
@@ -895,7 +895,7 @@ mod tests {
             src,
             cursor,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("inner command through aliased Body role");
         assert_eq!(

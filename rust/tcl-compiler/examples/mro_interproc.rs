@@ -50,7 +50,6 @@ use tcl_compiler::analyser::state::Analyser;
 use tcl_compiler::analyser::types::{AnalysisResult, ClassDef};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ir::Statement;
-use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 /// Lossless-enough `usize`→`f64` for percentage reporting (counts fit u32).
@@ -188,8 +187,10 @@ fn analyse_file(
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut a = Analyser::new();
         let result = a.analyse(&src, "tcl8.6");
-        let cu = CompilationUnit::build_for(&src, reg, false)
-            .with_interprocedural(reg, Some(DialectProfile::by_name("tcl8.6")));
+        let cu = CompilationUnit::build_for(&src, reg, false).with_interprocedural(
+            reg,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         let ns = NsContext::from_result(&result);
         // Resolve against the merged (cross-file) index — matches the FULL
         // config that produced the 81 % ⊤-rate.

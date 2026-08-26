@@ -25,7 +25,7 @@ use tcl_dialect::TclVersion;
 /// `(package name, availability)` for each declaration `content` yields,
 /// evaluated for `target`.
 fn availabilities(content: &str, target: Option<TclVersion>) -> Vec<(String, Availability)> {
-    let registry = tcl_registry::registry_for_dialect("tcl");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
     let mut out = Vec::new();
     scan(content, registry, &mut |reached| {
         let name = super::word_raw(reached.text, &reached.words[2]).to_owned();

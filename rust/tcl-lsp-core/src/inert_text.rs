@@ -269,7 +269,7 @@ mod tests {
     use super::*;
 
     fn reg() -> &'static CommandRegistry {
-        tcl_registry::registry_for_dialect("tcl8.6")
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
     }
 
     fn offset_of(src: &str, needle: &str) -> u32 {
@@ -369,7 +369,7 @@ mod tests {
             src,
             offset_of(src, "$level"),
             reg(),
-            tcl_dialect::DialectProfile::by_name("tcl8.6")
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         ));
         // Nested inside a proc body, which is descended into.
         let nested = "proc p {} {\n    set t {plain $level here}\n}\n";
@@ -377,7 +377,7 @@ mod tests {
             nested,
             offset_of(nested, "$level"),
             reg(),
-            tcl_dialect::DialectProfile::by_name("tcl8.6")
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         ));
     }
 
@@ -398,7 +398,7 @@ mod tests {
                     src,
                     offset_of(src, "$level"),
                     reg(),
-                    tcl_dialect::DialectProfile::by_name("tcl8.6")
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
                 ),
                 "should be live: {src:?}"
             );
@@ -414,7 +414,7 @@ mod tests {
             src,
             offset_of(src, "$level"),
             reg(),
-            tcl_dialect::DialectProfile::by_name("tcl8.6")
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         ));
     }
 
@@ -427,14 +427,14 @@ mod tests {
             quoted,
             offset_of(quoted, "$level"),
             reg(),
-            tcl_dialect::DialectProfile::by_name("tcl8.6")
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         ));
         let unknown = "zzznotacommand {plain $level here}\n";
         assert!(!offset_in_data_brace(
             unknown,
             offset_of(unknown, "$level"),
             reg(),
-            tcl_dialect::DialectProfile::by_name("tcl8.6")
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
         ));
     }
 }

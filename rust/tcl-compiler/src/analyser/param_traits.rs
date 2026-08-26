@@ -2345,7 +2345,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let identities = crate::head_identity::command_head_identities(
             prelude,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         infer_param_traits(
@@ -2420,7 +2420,7 @@ mod tests {
         let env_of = |prelude: &str| {
             crate::head_identity::command_head_identities(
                 prelude,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &registry,
             )
         };

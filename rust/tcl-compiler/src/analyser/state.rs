@@ -380,8 +380,8 @@ pub struct Analyser {
     /// The resolved document environment (centralisation R-a): set beside
     /// [`Self::profile`] at each `analyse*` ingress by
     /// [`crate::environment_ingress::resolve_environment`]. The profile
-    /// above is now *derived from* this resolution (wave-1 interop, gone
-    /// in P1-G); availability queries go through
+    /// above is now *derived from* this resolution (wave-1 interop,
+    /// retired with ledger C1's re-type); availability queries go through
     /// [`Self::analysis_context`] instead of the profile.
     pub(super) environment: Option<crate::environment_ingress::DocumentEnvironment>,
     /// The registry generation this walk reads — the per-context
@@ -1398,7 +1398,11 @@ impl Analyser {
     /// the analyser has none loaded (direct handler calls in unit tests).
     pub(super) fn command_takes_regex_pattern(&self, cmd_name: &str) -> bool {
         let registry = self.registry.as_deref().map_or_else(
-            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            || {
+                tcl_registry::model::ingress::static_context_for("tcl8.6")
+                    .commands()
+                    .as_ref()
+            },
             |r| r,
         );
         registry.get(cmd_name).and_then(|spec| spec.pattern_type)
@@ -2901,7 +2905,7 @@ mod tests {
         let mut a = Analyser::new();
 
         // 9.x nests, so `${a{b}c}::setdef` dispatches on `a{b}c`.
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
         assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b}c", "::setdef"));
         // A pure `${…}` token has no closer inside its text: all name.
@@ -2911,7 +2915,7 @@ mod tests {
         assert_eq!(a.split_braced_head("ns::v"), ("ns::v", ""));
 
         // 8.x ends the name at the first literal `}`.
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         assert_eq!(a.split_braced_head("ns}::setdef"), ("ns", "::setdef"));
         assert_eq!(a.split_braced_head("a{b}c}::setdef"), ("a{b", "c}::setdef"));
     }
@@ -4068,7 +4072,7 @@ mod tests {
         let source = "proc set {} {}"; // would normally trip W113
         let commands = segment_commands(source);
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         let r = a.analyse_commands(source, &commands, "tcl", false);
         // W113 was emitted by handle_proc but the tail didn't
         // run, so apply_disabled_diagnostics / dedupe didn't

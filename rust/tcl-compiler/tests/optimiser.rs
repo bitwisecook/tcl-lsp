@@ -51,7 +51,7 @@
 use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Shared helpers (mirror fp/opt.rs: opt_fires / optimised / opt_codes)
@@ -61,8 +61,9 @@ const TCL: &str = "tcl8.6";
 
 /// Every `Oxxx` code emitted by a single optimiser pass over `src`.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -76,15 +77,17 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Apply all (non-hint) optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// `(code, replacement)` pairs from the optimiser for `src`.
 fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .into_iter()
         .map(|o| (o.code.as_str().to_owned(), o.replacement.clone()))
@@ -133,11 +136,11 @@ fn propagation_and_constant_folding_core() {
     // the literal but does not also fold `5` into `b`. The fixpoint helper
     // reaches `set b 7`. tclsh: a=1; a=5; b==7. (Leading blank line is the byte
     // where the eliminated `set a 1` stood.)
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (reassign_out, _) = optimise_source_multipass(
         "set a 1\nset a 5\nset b [expr {$a + 2}]",
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert_eq!(reassign_out.trim_start_matches('\n'), "set b 7");
@@ -642,11 +645,11 @@ fn structure_elimination_nesting_via_multipass() {
     let pass1 = optimised(nested, TCL);
     assert!(pass1.contains("set alive 2"));
     assert!(opt_count(nested, TCL, "O112") >= 1);
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (fixed, _) = optimise_source_multipass(
         nested,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(!fixed.contains("set dead 1"));
@@ -1354,11 +1357,11 @@ fn accumulator_hint_o123() {
     }
 
     // The O123 finding is hint-only (informational, not an applied rewrite).
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let o123: Vec<_> = optimise_with_dialect(
         fac,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
     )
     .into_iter()
     .filter(|o| o.code.as_str() == "O123")
@@ -1421,11 +1424,11 @@ fn unused_irule_procs_o124() {
 
     // Multiple unused procs ⇒ two O124, naming each.
     let multi = "proc used {} {\n    return 1\n}\n\nproc unused_a {} {\n    return 2\n}\n\nproc unused_b {} {\n    return 3\n}\n\nwhen HTTP_REQUEST {\n    set val [call used]\n}";
-    let registry = registry_for_dialect(IR);
+    let registry = static_context_for(IR).commands();
     let o124s: Vec<_> = optimise_with_dialect(
         multi,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(IR)),
+        Some(tcl_registry::model::ingress::resolve_environment(IR).analyser_profile()),
     )
     .into_iter()
     .filter(|o| o.code.as_str() == "O124")
@@ -1590,12 +1593,12 @@ fn multipass_string_build_collapses_to_literal() {
     // Multi-pass: a write-only string build chain in a proc collapses to a
     // single `return {Hello World}`; the intermediate local is fully removed.
     // tclsh: the proc returns "Hello World" either way.
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let src = "proc build_banner {} {\n    set msg {Hello}\n    append msg { }\n    append msg World\n    return $msg\n}\n";
     let (out, _) = optimise_source_multipass(
         src,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(out.contains("return {Hello World}"));
@@ -1610,10 +1613,10 @@ fn multipass_string_build_collapses_to_literal() {
 // event must survive.
 mod cross_event_dse {
     use tcl_compiler::optimiser::manager::{apply_optimisations, optimise_with_dialect};
-    use tcl_registry::registry_for_dialect;
+    use tcl_registry::model::ingress::static_context_for;
 
     fn optimised(src: &str) -> String {
-        let reg = registry_for_dialect("f5-irules");
+        let reg = static_context_for("f5-irules").commands();
         apply_optimisations(
             src,
             &optimise_with_dialect(src, reg, Some(tcl_dialect::DialectProfile::irules())),
@@ -1775,7 +1778,7 @@ fn barrier_reference_blocks_o125_issue_1402() {
 /// `src` compiled to a unit whose top level carries the SCCP result the
 /// deletion passes read.
 fn top_level_unit(src: &str) -> tcl_compiler::compilation_unit::CompilationUnit {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     tcl_compiler::compilation_unit::CompilationUnit::build_for_dialect(src, registry, false, TCL)
 }
 
@@ -1783,7 +1786,7 @@ fn top_level_unit(src: &str) -> tcl_compiler::compilation_unit::CompilationUnit 
 /// use — the same seeding `find_loop_invariants_for_function` /
 /// `find_partial_redundancies_for_function` do internally.
 fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let cu = top_level_unit(src);
     let fu = &cu.top_level;
     let executable = &fu.sccp.executable_blocks;
@@ -1793,7 +1796,7 @@ fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
             &fu.cfg,
             &fu.ssa,
             executable,
-            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         )
         .len(),
         tcl_compiler::gvn::find_partial_redundancies(
@@ -1801,7 +1804,7 @@ fn gvn_offers_under_sccp(src: &str) -> (usize, usize) {
             &fu.cfg,
             &fu.ssa,
             executable,
-            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         )
         .len(),
     )
@@ -1856,7 +1859,7 @@ fn pre_offers_no_hoist_inside_a_block_o112_deletes_issue_1385() {
 // to seed the set: they read `fu.sccp.executable_blocks` themselves.
 #[test]
 fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let dead = "set lst $argv\nif {0} {\n    for {set i 0} {$i < 3} {incr i} {\n        lindex $lst 0\n    }\n    if {$argc} {\n        llength $lst\n    }\n    llength $lst\n}\n";
     let cu = top_level_unit(dead);
     let fu = &cu.top_level;
@@ -1871,7 +1874,7 @@ fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
         tcl_compiler::gvn::find_loop_invariants_for_function(
             registry,
             fu,
-            Some(tcl_dialect::DialectProfile::by_name(TCL))
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile())
         )
         .is_empty(),
         "O106 must not fire inside SCCP-dead code"
@@ -1880,7 +1883,7 @@ fn production_gvn_entries_read_the_sccp_executable_fact_issue_1385() {
         tcl_compiler::gvn::find_partial_redundancies_for_function(
             registry,
             fu,
-            Some(tcl_dialect::DialectProfile::by_name(TCL))
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile())
         )
         .is_empty(),
         "O105-PRE must not fire inside SCCP-dead code"

@@ -199,14 +199,18 @@ impl ExprSyntaxError {
     /// Typed callers use [`Self::diagnose_for_profile`].
     #[must_use]
     pub fn diagnose(source: &str, dialect: Option<&str>) -> Self {
-        Self::diagnose_for_profile(source, dialect.map(DialectProfile::by_name))
+        Self::diagnose_for_profile(
+            source,
+            dialect
+                .map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
+        )
     }
 
     /// Diagnose under an already-resolved dialect profile.
     #[must_use]
     pub fn diagnose_for_profile(source: &str, profile: Option<&DialectProfile>) -> Self {
         let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-            DialectProfile::by_name(profile.name)
+            DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
         });
         let (raw, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
         if has_unknown && let Some(error) = Self::first_invalid_character(source, &raw) {

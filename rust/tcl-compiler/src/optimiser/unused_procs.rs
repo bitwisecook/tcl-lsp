@@ -266,15 +266,17 @@ mod tests {
         // going through `by_name`. Asserting `irules()` twice here would pin
         // nothing: the alias leg is the half that can actually regress.
         assert!(is_irules_dialect(Some(
-            tcl_dialect::DialectProfile::by_name("irules")
+            tcl_registry::model::ingress::resolve_environment("irules").analyser_profile()
         )));
         assert_eq!(
-            tcl_dialect::DialectProfile::by_name("irules").name,
+            tcl_registry::model::ingress::resolve_environment("irules")
+                .analyser_profile()
+                .name,
             tcl_dialect::DialectProfile::irules().name,
             "the `irules` alias must still canonicalise onto the iRules profile"
         );
         assert!(!is_irules_dialect(Some(
-            tcl_dialect::DialectProfile::by_name("tcl")
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
         )));
         assert!(!is_irules_dialect(None));
     }
@@ -293,11 +295,10 @@ mod tests {
         // profile catalog canonicalises the `"irules"` alias, so both
         // spellings load the iRules pack exactly as the optimiser passes
         // recognise both via `is_irules_dialect`.
-        let registry = tcl_registry::cache::registry_for_profile(
-            dialect.map_or(tcl_dialect::DialectProfile::plain_tcl(), |profile| {
-                tcl_dialect::DialectProfile::by_name(profile.name)
-            }),
-        );
+        let registry = tcl_registry::model::ingress::static_context_for(
+            dialect.map_or("tcl", |profile| profile.name),
+        )
+        .commands();
         let cu = CompilationUnit::build_for(source, registry, false);
         let mut ctx = PassContext::with_dialect(&cu.source, ip, dialect);
         run(&mut ctx, &cu);
@@ -313,7 +314,7 @@ mod tests {
         assert!(
             run_pass(
                 source,
-                Some(tcl_dialect::DialectProfile::by_name("tcl")),
+                Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
                 ip.clone()
             )
             .is_empty()

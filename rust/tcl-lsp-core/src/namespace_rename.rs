@@ -466,7 +466,7 @@ mod tests {
         let analysis = analyse(source);
         let edits = namespace_rename_edits(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             cell,
             new_tail,

@@ -1947,7 +1947,11 @@ file; this call falls through to the 'unknown' handler."
             // Scoped borrow: `self.registry.as_deref()` must release before the
             // `&mut self` diagnostic pushes below.
             let registry = self.registry.as_deref().map_or_else(
-                || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+                || {
+                    tcl_registry::model::ingress::static_context_for("tcl8.6")
+                        .commands()
+                        .as_ref()
+                },
                 |r| r,
             );
             crate::sccp::existence_constant_branches(&fu.cfg, frame, registry, fu.dynamic_names)

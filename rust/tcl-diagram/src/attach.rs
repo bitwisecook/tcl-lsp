@@ -453,7 +453,7 @@ pub fn attach_reach(source: &str) -> AttachReach {
     if source.is_empty() {
         return reach;
     }
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let cu = CompilationUnit::build_for_profile(source, registry, false, DialectProfile::irules());
 
     // Each `when` handler (and any user proc) is its own frame; walk each with a
@@ -486,7 +486,7 @@ pub fn proc_call_refs(source: &str) -> Vec<String> {
     if source.is_empty() {
         return out;
     }
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let cu = CompilationUnit::build_for_profile(source, registry, false, DialectProfile::irules());
     let mut procs: Vec<_> = cu.ir_module.procedures.values().collect();
     procs.sort_by_key(|p| p.span.start());

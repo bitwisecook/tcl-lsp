@@ -20,7 +20,9 @@
 //! profile library pins × registry spec `min_version` data.
 
 use tcl_dialect::{DialectProfile, LibraryVersionOverrides};
-use tcl_registry::{ProfileQueries, registry_for_dialect};
+use tcl_registry::model::ingress::{
+    static_context_for, static_document_context_for_profile as ctx_for,
+};
 
 /// The data lock binding hover prose to structured version data: every
 /// spec whose hover snippet declares "Introduced in BIG-IP X.Y.Z" must
@@ -32,7 +34,7 @@ use tcl_registry::{ProfileQueries, registry_for_dialect};
 fn introduced_in_big_ip_prose_matches_min_version_data() {
     let marker = "Introduced in BIG-IP ";
     for dialect in ["f5-irules", "f5-iapps"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         for name in reg.command_names() {
             for spec in reg.specs(name) {
                 let prose_version = spec.hover.as_ref().and_then(|h| {
@@ -54,12 +56,16 @@ fn introduced_in_big_ip_prose_matches_min_version_data() {
                         panic!("{}: versioned F5 spec needs its package", spec.name)
                     });
                     assert!(
-                        DialectProfile::by_name(dialect).is_ambient_package(pkg),
+                        tcl_registry::model::ingress::resolve_environment(dialect)
+                            .analyser_profile()
+                            .is_ambient_package(pkg),
                         "{}: {pkg} must be an ambient pin of {dialect}",
                         spec.name
                     );
                 } else if let Some(pkg) = spec.required_package
-                    && DialectProfile::by_name(dialect).is_ambient_package(pkg)
+                    && tcl_registry::model::ingress::resolve_environment(dialect)
+                        .analyser_profile()
+                        .is_ambient_package(pkg)
                 {
                     assert_eq!(
                         spec.lifecycle.introduced, None,
@@ -79,7 +85,7 @@ fn introduced_in_big_ip_prose_matches_min_version_data() {
 fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
     let marker = "Introduced in BIG-IP ";
     let profile = DialectProfile::irules();
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     for name in reg.command_names() {
         let spec = reg.get(name).expect("registry command");
         for sub in spec.subcommands {
@@ -100,12 +106,12 @@ fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
                     sub.name
                 );
                 assert!(
-                    profile.keyed_pin_for(spec).is_some(),
+                    ctx_for(profile).keyed_ambient_placement(spec).is_some(),
                     "{} {}: a versioned iRules subcommand needs the keyed BIG-IP axis",
                     spec.name,
                     sub.name
                 );
-            } else if profile.keyed_pin_for(spec).is_some() {
+            } else if ctx_for(profile).keyed_ambient_placement(spec).is_some() {
                 assert_eq!(
                     sub.lifecycle.introduced, None,
                     "{} {}: an F5-surface min_version needs its introduction stated \
@@ -119,7 +125,7 @@ fn introduced_in_big_ip_subcommand_prose_matches_min_version_data() {
 
 #[test]
 fn bigip_21_1_irules_subcommands_and_values_are_versioned() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let c3d = reg.get("SSL::c3d").expect("SSL::c3d spec");
     for name in ["cert_lifespan", "cert_start_date"] {
         let sub = c3d.resolve_subcommand(name).expect("21.1 C3D subcommand");
@@ -148,7 +154,7 @@ fn bigip_21_1_irules_subcommands_and_values_are_versioned() {
 /// pinned above it is again.
 #[test]
 fn keyed_default_floor_gates_the_f5_surface() {
-    let reg = registry_for_dialect("f5-irules");
+    let reg = static_context_for("f5-irules").commands();
     let irules = DialectProfile::irules();
     let spec = reg.get("HTTP2::header").expect("HTTP2::header spec");
     assert_eq!(spec.lifecycle.introduced, Some("16.1.0"));
@@ -173,7 +179,7 @@ fn keyed_default_floor_gates_the_f5_surface() {
     // The availability axis (mask + §9) is untouched by the version axis:
     // the command still resolves under the profile — "resolves but needs a
     // newer BIG-IP" is W135's domain, not unknown-command's.
-    assert!(irules.resolve_command(reg, "HTTP2::header").is_some());
+    assert!(ctx_for(irules).resolve_spec(reg, "HTTP2::header").is_some());
     // And ambience: the F5 surface never needs `package require`.
     assert!(irules.is_ambient_package("f5-irules-cmds"));
 }
@@ -184,7 +190,7 @@ fn keyed_default_floor_gates_the_f5_surface() {
 fn hosted_pins_supply_tracking_floors() {
     let none = LibraryVersionOverrides::default();
     for (dialect, tk_floor) in [("tcl8.6", "8.6"), ("tcl9.0", "9.0"), ("tcl8.4", "8.4")] {
-        let p = DialectProfile::by_name(dialect);
+        let p = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
         assert_eq!(p.library_floor("Tk", &none), Some(tk_floor), "{dialect}");
         assert!(
             !p.is_ambient_package("Tk"),
@@ -194,7 +200,7 @@ fn hosted_pins_supply_tracking_floors() {
     // An 8.7-introduced Tk option is below no plain base today, so the
     // tracking floor correctly hides it everywhere ≤ 8.6 and admits it on
     // 9.x (Tk 9.0 carries the 8.7 additions).
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     let entry = reg.get("entry").expect("entry spec");
     let placeholder = entry
         .options

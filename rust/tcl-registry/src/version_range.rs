@@ -38,7 +38,6 @@
 use tcl_dialect::DialectSet;
 
 use crate::CommandRegistry;
-use crate::cache::registry_for_dialect;
 
 /// Every core-Tcl release the registry ships a pack for, oldest first.
 ///
@@ -74,7 +73,11 @@ pub fn core_releases_in(range: DialectSet) -> Vec<&'static str> {
 pub fn registries_over_range(range: DialectSet) -> Vec<&'static CommandRegistry> {
     core_releases_in(range)
         .into_iter()
-        .map(registry_for_dialect)
+        .map(|name| {
+            crate::model::ingress::static_context_for(name)
+                .commands()
+                .as_ref()
+        })
         .collect()
 }
 

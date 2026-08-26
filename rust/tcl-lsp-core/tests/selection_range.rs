@@ -202,7 +202,7 @@ fn registry_recursive_command_spans_cover_case_lambda_and_definition_members() {
             line,
             character,
             None,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         );
         assert!(
             links.iter().any(|link| {
@@ -232,7 +232,7 @@ fn alias_to_user_proc_named_method_does_not_recurse_into_data() {
         7,
         15,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     );
     assert!(
         !links.iter().any(|link| {

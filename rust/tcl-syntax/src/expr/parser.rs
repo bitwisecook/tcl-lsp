@@ -455,7 +455,10 @@ pub(super) fn numbers_for(
 ///
 /// Typed callers should use [`parse_expr_for_profile`].
 pub fn parse_expr(source: &str, dialect: Option<&str>) -> ExprNode {
-    parse_expr_for_profile(source, dialect.map(DialectProfile::by_name))
+    parse_expr_for_profile(
+        source,
+        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
+    )
 }
 
 /// Parse under an already-resolved dialect profile.
@@ -465,7 +468,7 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
     // canonical name down — so the grammar branch in the expr lexer and the
     // cache key below can never disagree about what a given spelling means.
     let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::by_name(profile.name)
+        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
     });
     let (raw_tokens, has_unknown) = tcl_lexer::tokenise_expr_checked_for_profile(source, resolved);
 
@@ -506,7 +509,7 @@ pub fn parse_expr_for_profile(source: &str, profile: Option<&DialectProfile>) ->
 // re-evaluates loop conditions on every iteration.
 //
 // Key shape: `(source, profile identity)` — the dialect string is
-// resolved through `DialectProfile::by_opt_name` and the canonical
+// resolved through the catalogue lookup (plain-sink fallback) and the canonical
 // profile name is the key, so alias spellings and unknown-dialect
 // typos share one entry per behaviour instead of one per spelling.
 // The cache is process-global (a `OnceLock<Mutex<…>>`) and capped at
@@ -586,7 +589,10 @@ fn expr_cache() -> &'static Mutex<ExprCache> {
 /// Typed callers should use [`parse_expr_cached_for_profile`].
 #[must_use]
 pub fn parse_expr_cached(source: &str, dialect: Option<&str>) -> Arc<ExprNode> {
-    parse_expr_cached_for_profile(source, dialect.map(DialectProfile::by_name))
+    parse_expr_cached_for_profile(
+        source,
+        dialect.map(|name| DialectProfile::find(name).unwrap_or_else(DialectProfile::plain_tcl)),
+    )
 }
 
 /// LRU-cached `parse_expr`.
@@ -606,7 +612,7 @@ pub fn parse_expr_cached_for_profile(
     profile: Option<&DialectProfile>,
 ) -> Arc<ExprNode> {
     let resolved = profile.map_or_else(DialectProfile::plain_tcl, |profile| {
-        DialectProfile::by_name(profile.name)
+        DialectProfile::find(profile.name).unwrap_or_else(DialectProfile::plain_tcl)
     });
     let key: ExprCacheKey = (source.to_owned(), resolved.name);
     {

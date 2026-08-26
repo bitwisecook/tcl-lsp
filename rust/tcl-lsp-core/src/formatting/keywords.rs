@@ -760,7 +760,7 @@ mod tests {
     }
 
     fn rewrites(cmd: &str, args: &[&str], config: &FormatterConfig) -> Vec<(usize, String)> {
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let owned: Vec<String> = args.iter().map(|s| (*s).to_string()).collect();
         let dynamic = vec![false; owned.len()];
         rewrites_for_command(
@@ -815,7 +815,7 @@ mod tests {
     #[test]
     fn a_dynamic_word_abstains() {
         let cfg = config(true, BooleanForm::Preserve);
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let args = vec!["le".to_owned(), "$s".to_owned()];
         // Marked dynamic by the caller (a `{*}`-expanded word).
         let out = rewrites_for_command(

@@ -297,7 +297,7 @@ mod tests {
     use super::*;
 
     fn registry() -> &'static CommandRegistry {
-        tcl_registry::cache::default_registry()
+        tcl_registry::default_registry()
     }
 
     fn ctx<'a>(

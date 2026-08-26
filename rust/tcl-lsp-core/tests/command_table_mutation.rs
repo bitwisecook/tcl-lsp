@@ -92,7 +92,7 @@ fn lens_count(source: &str, qname: &str) -> usize {
     let analysis = analyse(source);
     let title = tcl_lsp_core::code_lens::code_lenses(
         source,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         Some(&analysis),
         None,
         "",
@@ -113,7 +113,7 @@ fn refs(source: &str) -> impl Fn(u32, u32) -> Vec<u32> + '_ {
     move |line, character| {
         let mut lines = start_lines(&references(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             line,
             character,
             &analysis,
@@ -345,7 +345,7 @@ fn tn_rename_of_the_shadowed_original_does_not_touch_the_call_site() {
     let analysis = analyse(src);
     let edits = tcl_lsp_core::rename::rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         2,
         12,
         "newname",
@@ -368,7 +368,7 @@ fn tp_rename_of_the_alias_target_rewrites_the_declaration_and_alias_word() {
     let analysis = analyse(src);
     let edits = tcl_lsp_core::rename::rename(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         3,
         12,
         "classicbox",

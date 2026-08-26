@@ -52,8 +52,9 @@ use tcl_registry::model::ResolvedContext;
 /// environment-model form of the CLI's `resolve_known`-then-`by_name`
 /// ingress and of the named constructors (`plain_tcl`, `irules`, `tk`).
 ///
-/// P1-G: the profile retires and the verbs read their labels and grammar
-/// facts off the environment instead.
+/// Post-P1-G (which deleted the name validators): the threaded profile
+/// handle itself retires with ledger C1's re-type, when the verbs read
+/// their labels and grammar facts off the environment instead.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()

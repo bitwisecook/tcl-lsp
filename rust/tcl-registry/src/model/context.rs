@@ -60,8 +60,10 @@ use crate::model::surface::{
 };
 // The vendor-surface summary payload: plain registry-derived data, not
 // part of the retiring profile trait, so both faces answer with the one
-// type and the parity pin can compare them directly. It moves here with
-// the trait's deletion in P1-G.
+// type and the parity pin can compare them directly. P1-G removed the
+// trait from the public surface (it survives crate-internally, plus a
+// cfg(test) oracle for the sweeps); the type moves here when the trait
+// goes entirely under ledger C1/F1.
 use crate::profile_queries::VendorSurface;
 use crate::registry::CommandRegistry;
 use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
@@ -514,7 +516,7 @@ impl ResolvedContext {
     // so the bodies can mirror the old rules verbatim — behaviour is held
     // exactly while the *inputs* come from the centralised environment
     // model. The `DialectSet`-typed vocabulary they still speak retires
-    // with the rest of the mask model in P1-G.
+    // with the rest of the mask model under ledger C1 (post-P1-G).
 
     /// The authoring mask this context admits — the environment-derived
     /// mirror of the old `availability_mask` (sweep-pinned per catalogue
@@ -1431,12 +1433,7 @@ mod tests {
         use tcl_dialect::DialectProfile;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
-            // F5 reclassification (measurements §4a): the iapps/tmsh
-            // rows compare against the reclassified twin — see
-            // `crate::model::f5_reclassified_oracle` for the three
             // documented deltas (mask, ceiling, operator heads).
-            let oracle = crate::model::f5_reclassified_oracle(profile);
-            let profile: &DialectProfile = &oracle;
             assert_eq!(
                 ctx.authoring_mask(),
                 profile.availability_mask,
@@ -1519,17 +1516,12 @@ mod tests {
     /// one), and every option at its inherited parent gate.
     #[test]
     fn spec_queries_reproduce_profile_queries_for_every_profile() {
-        use crate::profile_queries::ProfileQueries;
+        use crate::profile_queries::{LegacyProfileOracle, ProfileQueries};
         use tcl_dialect::DialectProfile;
         let universe = crate::model::assembly::universe();
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
-            // F5 reclassification (measurements §4a): iapps/tmsh compare
-            // against the reclassified twin — see
-            // `crate::model::f5_reclassified_oracle`.
-            let oracle = crate::model::f5_reclassified_oracle(profile);
-            let profile: &DialectProfile = &oracle;
             for name in universe.command_names() {
                 for spec in universe.specs(name) {
                     assert_eq!(
@@ -1619,14 +1611,12 @@ mod tests {
     /// vacuously on a pair of `None`s.
     #[test]
     fn vendor_surface_matches_the_profile_query() {
-        use crate::profile_queries::ProfileQueries;
+        use crate::profile_queries::LegacyProfileOracle;
         use tcl_dialect::DialectProfile;
         let mut with_surface = 0usize;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
             let store = crate::model::ingress::static_context_for(profile.name).commands();
-            let oracle = crate::model::f5_reclassified_oracle(profile);
-            let profile: &DialectProfile = &oracle;
             let ported = ctx.vendor_command_surface(store);
             assert_eq!(
                 ported,

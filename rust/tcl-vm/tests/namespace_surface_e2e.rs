@@ -58,7 +58,7 @@ struct CompilerSvc {
 impl CompilerSvc {
     fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
-            registry: tcl_registry::registry_for_profile(profile),
+            registry: tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             // `Some(profile)` rather than the profile's *name*: this harness is
             // always constructed from a resolved profile, so there is no
@@ -96,7 +96,7 @@ impl CompileService for CompilerSvc {
 /// string (an uncaught error leaves its message there), or the compile
 /// rejection.
 fn run_at(src: &str, release: &str) -> String {
-    let profile = DialectProfile::by_name(release);
+    let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
     let svc = CompilerSvc::for_profile(profile);
     let asm = match svc.compile(src) {
         Ok(asm) => asm,
@@ -122,7 +122,7 @@ fn run_flipping(steps: &[(&str, &str)]) -> String {
     let mut vm = Vm::with_output(Box::new(Capture::default()));
     let mut last = String::new();
     for (release, src) in steps {
-        let profile = DialectProfile::by_name(release);
+        let profile = tcl_registry::model::ingress::resolve_environment(release).analyser_profile();
         vm.set_dialect_profile(profile);
         vm.set_compiler(Box::new(CompilerSvc::for_profile(profile)));
         match CompilerSvc::for_profile(profile).compile(src) {
@@ -227,7 +227,7 @@ fn origin_follows_import_chains() {
 fn command_origin_reports_none_for_a_command_that_was_not_imported() {
     use tcl_runtime_api::Namespaces;
 
-    let profile = DialectProfile::by_name("tcl9.0");
+    let profile = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
     let svc = CompilerSvc::for_profile(profile);
     let asm = svc
         .compile(

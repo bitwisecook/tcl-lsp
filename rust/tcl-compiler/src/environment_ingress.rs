@@ -37,8 +37,8 @@ pub(crate) use tcl_registry::model::ingress::{
 /// version-gate axis, whose `Package` arm predates the model's
 /// `Arc<str>` package names. Bounded by the compiled placement
 /// vocabulary (each distinct name leaks once). Retired with the axis's
-/// re-typing in P1-G. Compiler-local: it is not a dialect ingress, so it
-/// stays out of the shared seam.
+/// re-typing under ledger C1 (post-P1-G). Compiler-local: it is not a
+/// dialect ingress, so it stays out of the shared seam.
 #[must_use]
 pub(crate) fn interned_package_name(name: &str) -> &'static str {
     static CELL: OnceLock<Mutex<Vec<&'static str>>> = OnceLock::new();

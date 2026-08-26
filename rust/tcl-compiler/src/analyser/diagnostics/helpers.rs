@@ -625,7 +625,7 @@ fn collect_expr_cmd_sub_writes(
     considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {
@@ -675,7 +675,7 @@ fn collect_script_concat_writes(
     considered: &HashSet<BlockId>,
 ) -> FxHashSet<String> {
     use crate::ir::Statement;
-    let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let mut out = FxHashSet::default();
     for &bn in considered {
         let Some(block) = fu.cfg.blocks.get(&bn) else {

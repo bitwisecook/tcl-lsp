@@ -29,8 +29,9 @@ use tcl_compiler::cfg_builder::build_cfg_function;
 use tcl_compiler::ir::CommandTokens;
 use tcl_compiler::{Script, Statement};
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 use tcl_registry::bpf_op::{BpfDeclKind, BpfOpKind};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
 
 use crate::capability::{CapabilityPolicy, check_policy, collect_policy};
 use crate::deploy::resolve_attach;
@@ -184,7 +185,7 @@ pub fn compile_module(source: &str) -> Result<BpfModule, BpfError> {
 /// The canonical BPF registry, with the BPF profile and its Tcl 9.0 embedding
 /// stamped by the registry owner.
 fn bpf_registry() -> &'static CommandRegistry {
-    registry_for_dialect("bpf")
+    static_context_for("bpf").commands()
 }
 
 /// The default handler priority when the `when` header names none

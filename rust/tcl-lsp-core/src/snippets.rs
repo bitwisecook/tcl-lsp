@@ -468,7 +468,7 @@ mod tests {
 
     fn ctx<'a>(partial: &'a str, vars: &'a [String]) -> SnippetContext<'a> {
         SnippetContext {
-            profile: tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            profile: tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             indent_unit: "    ",
             scope_vars: vars,
             partial,

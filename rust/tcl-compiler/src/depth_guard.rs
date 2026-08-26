@@ -271,7 +271,8 @@ mod tests {
                     .analyse(&source, "tcl9.0")
                     .diagnostics
                     .len();
-                let registry = tcl_registry::registry_for_dialect("tcl9.0");
+                let registry =
+                    tcl_registry::model::ingress::static_context_for("tcl9.0").commands();
                 let module = crate::lowering::lower_to_ir(&source, registry);
                 let cfg = crate::cfg_builder::build_cfg(&module, false);
                 let blocks: usize = cfg.top_level.blocks.len()

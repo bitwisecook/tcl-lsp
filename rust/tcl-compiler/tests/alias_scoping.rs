@@ -90,14 +90,15 @@ use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_scoping::{
     global_declaration_indices, upvar_local_declaration_indices, variable_declaration_indices,
 };
+use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(D)
+    static_context_for(D).commands()
 }
 
 /// `Vec<String>` of arg texts — the shape the `var_scoping` helpers take.
@@ -139,7 +140,11 @@ fn codes(src: &str) -> Vec<String> {
         .collect();
     let registry = registry();
     let cu = CompilationUnit::build_for(src, registry, false);
-    for d in run_all_checks(&cu, registry, Some(tcl_dialect::DialectProfile::by_name(D))) {
+    for d in run_all_checks(
+        &cu,
+        registry,
+        Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile()),
+    ) {
         if d.code.is_optimisation() {
             continue;
         }

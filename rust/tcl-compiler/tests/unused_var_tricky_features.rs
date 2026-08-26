@@ -51,7 +51,8 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
 use tcl_compiler::ir::Statement;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect: the C Tcl 9 truth oracle (issue #941). The scoping
 /// constructs exercised here behave identically on 8.4–9.0.
@@ -67,12 +68,12 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     for d in run_all_checks(
         &cu,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(dialect)),
+        Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     ) {
         if d.code.is_optimisation() {
             continue;

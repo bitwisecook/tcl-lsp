@@ -47,8 +47,9 @@ pub const DEFAULT_DIALECT: &str = "tcl9.0";
 /// Resolve a dialect **name** to the profile the studio threads — the
 /// environment-model form of `DialectProfile::by_name`.
 ///
-/// P1-G: the profile retires and the studio reads its labels off the
-/// environment instead.
+/// Post-P1-G (which deleted the name validators): the threaded profile
+/// handle itself retires with ledger C1's re-type, when the studio reads
+/// its labels off the environment instead.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()
@@ -104,7 +105,9 @@ mod tests {
         for name in ["spectcl", "tcl9.0", "f5-irules"] {
             assert!(std::ptr::eq(
                 store_for_dialect(name),
-                tcl_registry::cache::registry_for_dialect(name)
+                tcl_registry::model::ingress::static_context_for(name)
+                    .commands()
+                    .as_ref()
             ));
         }
     }

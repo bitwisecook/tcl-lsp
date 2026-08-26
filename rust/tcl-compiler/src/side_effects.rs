@@ -1515,8 +1515,8 @@ mod tests {
 
     #[test]
     fn external_tk_selection_reads_are_neither_pure_nor_deterministic() {
-        let registry = tcl_registry::registry_for_dialect("tk");
-        let profile = tcl_dialect::DialectProfile::by_name("tk");
+        let registry = tcl_registry::model::ingress::static_context_for("tk").commands();
+        let profile = tcl_registry::model::ingress::resolve_environment("tk").analyser_profile();
         for command in ["clipboard", "selection"] {
             let effect =
                 classify_side_effects(registry, command, &["get".to_owned()], Some(profile), None);
@@ -1598,7 +1598,7 @@ mod tests {
             &registry,
             "log",
             &["hi".into()],
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             None,
         );
         assert!(!tcl.pure);

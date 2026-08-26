@@ -1312,8 +1312,8 @@ mod tests {
     #[test]
     fn compute_intervals_end_to_end() {
         use crate::compilation_unit::CompilationUnit;
-        use tcl_registry::cache::registry_for_dialect;
-        let registry = registry_for_dialect("tcl8.6");
+        use tcl_registry::model::ingress::static_context_for;
+        let registry = static_context_for("tcl8.6").commands();
         // A constant assignment gives a point interval the analysis can infer.
         let cu = CompilationUnit::build_for(
             "proc f {} { set x 5\n incr x\n return $x }",
@@ -1325,7 +1325,9 @@ mod tests {
             &fu.cfg,
             &fu.ssa,
             &fu.sccp.values,
-            numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name("tcl8.6"))),
+            numbers_for_dialect(Some(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            )),
         );
         // The analysis runs and produces a (possibly empty but well-formed) map;
         // every computed interval is a valid lattice element (not the lo>hi

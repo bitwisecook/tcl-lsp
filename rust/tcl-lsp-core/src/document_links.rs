@@ -563,7 +563,7 @@ mod tests {
         assert!(
             document_links(
                 "set x 1\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None
             )
             .is_empty()
@@ -571,7 +571,7 @@ mod tests {
         assert!(
             document_links(
                 "puts hello\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 None
             )
             .is_empty()
@@ -581,7 +581,11 @@ mod tests {
     #[test]
     fn absolute_path_surfaces_as_link() {
         let src = "source /usr/lib/tcl/init.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/lib/tcl/init.tcl");
     }
@@ -591,7 +595,7 @@ mod tests {
         let src = "source helper.tcl\n";
         let links = document_links(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/home/user/project"),
         );
         assert_eq!(links.len(), 1);
@@ -601,14 +605,22 @@ mod tests {
     #[test]
     fn relative_path_without_root_produces_no_link() {
         let src = "source helper.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(links.is_empty(), "{links:?}");
     }
 
     #[test]
     fn encoding_flag_skipped_before_path() {
         let src = "source -encoding utf-8 /tmp/foo.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///tmp/foo.tcl");
     }
@@ -617,7 +629,11 @@ mod tests {
     fn link_range_anchors_at_path_argument() {
         // `source ` is 7 chars; the path starts at col 7.
         let src = "source /tmp/foo.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].start_character, 7);
         // End col covers the path (12 chars: `/tmp/foo.tcl`).
@@ -632,7 +648,11 @@ mod tests {
             ("source {/tmp/foo.tcl}\n", 8u32), // `source ` = 7, then `{` at 7, content at 8
             ("source \"/tmp/foo.tcl\"\n", 8u32),
         ] {
-            let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+            let links = document_links(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                None,
+            );
             assert_eq!(links.len(), 1, "{src:?} → {links:?}");
             assert_eq!(links[0].target, "file:///tmp/foo.tcl");
             assert_eq!(
@@ -647,7 +667,11 @@ mod tests {
         // `source $somevar` — variable substitution, not a
         // literal path.  Skipped.
         let src = "source $somevar\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(links.is_empty(), "{links:?}");
     }
 
@@ -669,7 +693,7 @@ mod tests {
         let src = "set dir [file dirname [info script]]\nsource [file join $dir helper.tcl]\n";
         let links = document_links_in_context(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -706,7 +730,7 @@ mod tests {
         ] {
             let links = document_links_in_context(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &LinkContext {
                     imported_constants: None,
                     workspace_root: Some("/proj"),
@@ -748,12 +772,12 @@ mod tests {
         };
         let literal = document_links_in_context(
             "source helper.tcl\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &ctx,
         );
         let computed = document_links_in_context(
             "set dir .\nsource [file join $dir helper.tcl]\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &ctx,
         );
         assert_eq!(literal.len(), 1, "{literal:?}");
@@ -783,7 +807,7 @@ mod tests {
                    source [file join $currentDir esd_pulse_circuit.tcl]\n";
         let links = document_links_in_context(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj/test"),
@@ -815,7 +839,7 @@ mod tests {
                    source [file join $currentDir testUtilities.tcl]\n";
         let links = document_links_in_context(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -847,7 +871,7 @@ mod tests {
                    source [file join $sourceDir ngspice netlistParserClassNgspice.tcl]\n";
         let links = document_links_in_context(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -879,7 +903,7 @@ mod tests {
         let src = "source [file join lib helper.tcl]\n";
         let links = document_links(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/proj"),
         );
         assert_eq!(links.len(), 1, "{links:?}");
@@ -897,7 +921,7 @@ mod tests {
                    source [file join $dir $name]\n";
         let links = document_links_in_context(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &LinkContext {
                 imported_constants: None,
                 workspace_root: Some("/proj"),
@@ -918,7 +942,7 @@ mod tests {
         let src = "source lib/helper.tcl\n";
         let links = document_links(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/proj"),
         );
         assert_eq!(links.len(), 1, "{links:?}");
@@ -929,7 +953,11 @@ mod tests {
     #[test]
     fn double_dash_terminator_skipped() {
         let src = "source -- /tmp/x.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].target, "file:///tmp/x.tcl");
     }
@@ -939,7 +967,7 @@ mod tests {
         let src = "source helper.tcl\n";
         let links = document_links(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/home/user/"),
         );
         assert_eq!(links.len(), 1);
@@ -951,7 +979,7 @@ mod tests {
         let src = "source ~/lib/init.tcl\n";
         let links = document_links_with_home(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
             Some("/test-home"),
         );
@@ -962,8 +990,12 @@ mod tests {
     #[test]
     fn tilde_without_home_produces_no_link() {
         let src = "source ~/lib/init.tcl\n";
-        let links =
-            document_links_with_home(src, tcl_dialect::DialectProfile::by_name("tcl"), None, None);
+        let links = document_links_with_home(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+            None,
+        );
         assert!(links.is_empty(), "{links:?}");
     }
 
@@ -972,7 +1004,7 @@ mod tests {
         let src = "source ~\n";
         let links = document_links_with_home(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
             Some("/test-home"),
         );
@@ -1052,7 +1084,11 @@ mod tests {
         // hashes surfaces as a properly percent-encoded
         // `file://` URI rather than a raw concatenation.
         let src = "source /path/with spaces.tcl\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         // The literal-path arg may or may not parse cleanly
         // through the segmenter; if it does, the URI must be
         // escaped.  If not, the test is informational only.
@@ -1111,7 +1147,7 @@ mod tests {
         let src = "source [file join lib helper.tcl]\n";
         let links = document_links(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/home/user/project"),
         );
         assert_eq!(links.len(), 1, "{links:?}");
@@ -1121,7 +1157,11 @@ mod tests {
     #[test]
     fn source_with_absolute_file_join_segment_surfaces_link() {
         let src = "source [file join /usr/local/lib tcl init.tcl]\n";
-        let links = document_links(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let links = document_links(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(links.len(), 1, "{links:?}");
         assert_eq!(links[0].target, "file:///usr/local/lib/tcl/init.tcl");
     }

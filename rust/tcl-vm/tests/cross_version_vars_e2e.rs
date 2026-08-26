@@ -74,7 +74,7 @@ fn compile_exact_profile(
     src: &str,
     profile: &'static DialectProfile,
 ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-    let registry = tcl_registry::registry_for_profile(profile);
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
     if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config) {
         return Err(CompileError(msg));
@@ -106,7 +106,8 @@ impl std::io::Write for Capture {
 /// (the vectors communicate through stdout so the tclsh leg is directly
 /// comparable).
 fn vm_output(src: &str, version: TclVersion) -> String {
-    let profile = DialectProfile::by_name(version.dialect_name());
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+        .analyser_profile();
     let service = CompilerSvc {
         registry: CommandRegistry::build_default(),
     };
@@ -1129,7 +1130,8 @@ fn switch_subject_whole_under_the_8x_rule_only_follows_the_emulated_release() {
         registry: CommandRegistry::build_default(),
     };
     for version in [TclVersion::V9_0, TclVersion::V9_1] {
-        let profile = DialectProfile::by_name(version.dialect_name());
+        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile();
         let err = service
             .compile_for_profile(SWITCH_SUBJECT_EIGHT_ONLY_SCRIPT, profile)
             .expect_err("an unterminated ${ must not compile at 9.x");
@@ -1192,7 +1194,8 @@ fn unterminated_braced_var_in_a_compiled_word_is_a_parse_error() {
         TclVersion::V9_0,
         TclVersion::V9_1,
     ] {
-        let profile = DialectProfile::by_name(version.dialect_name());
+        let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_name())
+            .analyser_profile();
         let err = service
             .compile_for_profile(UNTERMINATED_IN_COMPILED_WORD_SCRIPT, profile)
             .expect_err("an unterminated ${ must not compile");

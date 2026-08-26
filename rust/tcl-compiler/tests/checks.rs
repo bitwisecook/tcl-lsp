@@ -88,7 +88,7 @@
 use tcl_compiler::analyser::{Analyser, Severity};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::compiler_checks::run_all_checks;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
@@ -108,9 +108,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -167,9 +168,10 @@ fn of_code(src: &str, dialect: &str, code: &str) -> Vec<(String, Severity, Vec<S
 /// destructive-file, and the other taint-pipeline codes do not flow through the
 /// analyser pass, so [`of_code`] cannot see them).
 fn taint_of_code(src: &str, dialect: &str, code: &str) -> Vec<(String, Severity)> {
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     run_all_checks(&cu, registry, dialect_opt)
         .into_iter()
         .filter(|d| !d.code.is_optimisation() && d.code.to_string() == code)
@@ -1917,10 +1919,10 @@ mod builtin_shadow {
 // W200 — binary format signed/unsigned modifier requires Tcl 8.5+ (TIP 275).
 //
 // Version-gated on the dialect's *effective Tcl version* (the §6
-// argument-DSL rung): it warns under 8.4-based runtimes (tcl8.4, iRules'
-// embedded 8.4.6) and is clean from 8.5 up — including f5-iapps, whose
-// host embeds a real Tcl 8.5.13 (the old hardcoded dialect list wrongly
-// flagged it).
+// argument-DSL rung): it warns under 8.4-based runtimes (tcl8.4, and the
+// whole F5 trunk — iRules, iApps and tmsh all ride the fork of Tcl at
+// 8.4.6, measured in bigip-irule-parser-measurements.md §4a) and is clean
+// from 8.5 up.
 // ===========================================================================
 mod binary_format_modifiers {
     use super::*;
@@ -1933,9 +1935,10 @@ mod binary_format_modifiers {
         assert_eq!(ds[0].1, Severity::Warning);
         assert_eq!(count("binary scan $data su x", "tcl8.4", "W200"), 1);
         assert_eq!(count("binary format su $val", IR, "W200"), 1);
-        // iApps embed Tcl 8.5.13 — the u/s modifiers are real there, and
-        // flagging them was a false positive the profile model fixed.
-        assert_eq!(count("binary format su $val", "f5-iapps", "W200"), 0);
+        // iApps ride the `f5-tcl` trunk (fork of Tcl at 8.4.6 — measured,
+        // bigip-irule-parser-measurements.md §4a: every 8.5 discriminator
+        // fails), so the 8.5 u/s modifiers flag there too.
+        assert_eq!(count("binary format su $val", "f5-iapps", "W200"), 1);
     }
 
     #[test]

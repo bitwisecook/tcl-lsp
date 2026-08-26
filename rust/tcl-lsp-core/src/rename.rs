@@ -2303,7 +2303,7 @@ mod tests {
         // Cursor on the `Show` of the declaration (line 1, col 20).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             20,
             "Display",
@@ -2345,7 +2345,7 @@ mod tests {
         // Cursor on the `alpha` of the declaration (line 1, col 9).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             "beta",
@@ -2382,7 +2382,7 @@ mod tests {
         let analysis = analyse(map_src);
         let refs = crate::references::references(
             map_src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             20,
             &analysis,
@@ -2402,7 +2402,7 @@ mod tests {
         let analysis = analyse(sub_src);
         let refs = crate::references::references(
             sub_src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             &analysis,
@@ -2436,7 +2436,7 @@ mod tests {
         );
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             20,
             "Display",
@@ -2466,7 +2466,7 @@ mod tests {
         // Cursor on the `greet` declaration (line 1, col 29).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             29,
             "salute",
@@ -2501,7 +2501,7 @@ mod tests {
         // from, so it stays untracked.
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             28,
             "salute",
@@ -2520,7 +2520,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "hi",
@@ -2549,7 +2549,7 @@ mod tests {
         // Cursor on the `classvar` declaration (line 0, col 20).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             20,
             "renamedClassvar",
@@ -2592,7 +2592,7 @@ mod tests {
         // Cursor on the `$tolComp` read inside the proc (line 2, col 14).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             14,
             "tolerance",
@@ -2625,7 +2625,7 @@ mod tests {
         // Cursor on the `set ::tolComp` declaration (line 4, col 8).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             8,
             "tolerance",
@@ -2654,7 +2654,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 "x",
@@ -2682,7 +2682,7 @@ mod tests {
         // Cursor on the `bar` declaration (line 1, col 9).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             "baz",
@@ -2706,7 +2706,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "newName",
@@ -2881,7 +2881,7 @@ mod tests {
         // Cursor on the `::Widget` of the class declaration (line 0, col 17).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             17,
             "Panel",
@@ -2972,7 +2972,7 @@ mod tests {
         // Cursor inside `$x`.
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "y",
@@ -3001,7 +3001,7 @@ mod tests {
         // Cursor on `name` inside the parameter list (col 12-16).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             13,
             "label",
@@ -3029,7 +3029,7 @@ mod tests {
         // Cursor on the catch result-var `name` (line 1, col 16-20).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             17,
             "resolved",
@@ -3064,7 +3064,7 @@ mod tests {
         // Cursor inside `${x}` on the `x`.
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "y",
@@ -3161,7 +3161,7 @@ mod tests {
         // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "data",
@@ -3186,7 +3186,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "y",
@@ -3210,7 +3210,7 @@ mod tests {
         // Cursor on the `d` of `dir` inside `${dir}view` (line 1, col 9).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             9,
             "direction",
@@ -3237,7 +3237,7 @@ mod tests {
         // Cursor on `arr` in the `set` target (line 0, col 4).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             6,
             "data",
@@ -3261,7 +3261,7 @@ mod tests {
         // Cursor on `arr` inside `${arr(0)}` (line 1, col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "data",
@@ -3398,7 +3398,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 "bad name",
@@ -3411,7 +3411,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 "1lead",
@@ -3424,7 +3424,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 0,
                 6,
                 "with-dash",
@@ -3443,7 +3443,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 1,
                 7,
                 "bad name",
@@ -3464,7 +3464,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "puts",
@@ -3486,7 +3486,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "salut",
@@ -3510,7 +3510,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "puts",
@@ -3543,7 +3543,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             14,
             "hello",
@@ -3573,7 +3573,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             14,
             "hello",
@@ -3603,7 +3603,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "hello",
@@ -3638,7 +3638,7 @@ mod tests {
         // Cursor on the `MyClass` declaration name (column 17).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             17,
             "Renamed",
@@ -3665,7 +3665,7 @@ mod tests {
         // Cursor on the `MyClass` in `MyClass new` (line 2, col 3).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             3,
             "Renamed",
@@ -3686,7 +3686,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             17,
             "1bad",
@@ -3704,7 +3704,7 @@ mod tests {
         r.load_dialect(tcl_dialect::DialectSet::IRULES);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             17,
             "if",
@@ -3742,7 +3742,7 @@ mod tests {
         // Cursor on the `greet` declaration (line 1 col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "salute",
@@ -3771,7 +3771,7 @@ mod tests {
         // Cursor on the `bar` declaration (line 1, col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "baz",
@@ -3802,7 +3802,7 @@ mod tests {
         // Cursor on the `Helper` declaration (line 4, col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             11,
             "Assist",
@@ -3828,7 +3828,7 @@ mod tests {
         // Cursor on `Sub::greet`'s declaration (line 5, col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             11,
             "salute",
@@ -3853,7 +3853,7 @@ mod tests {
         // Cursor on the first `greet` call site (line 2 col 25, after `my `).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             25,
             "salute",
@@ -3880,7 +3880,7 @@ mod tests {
         // Cursor on the `format` method's declaration (line 1, col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "render",
@@ -3905,7 +3905,7 @@ mod tests {
         // Cursor on the *property* declaration (line 1, col 13).
         let property_edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             1,
             13,
             "shade",
@@ -3922,7 +3922,7 @@ mod tests {
         // instead, leaving the same-named property untouched.
         let method_edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             2,
             11,
             "shade",
@@ -3955,7 +3955,7 @@ mod tests {
         // Cursor on the *classmethod* declaration (line 2, col 16).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             2,
             16,
             "hail",
@@ -4150,7 +4150,7 @@ mod tests {
         // Cursor on the `color` property declaration (line 1, col 13).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             1,
             13,
             "shade",
@@ -4172,7 +4172,7 @@ mod tests {
         let analysis = Analyser::new().analyse(src, "tcl9.0").clone();
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             1,
             13,
             "shade",
@@ -4197,7 +4197,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             2,
             "salute",
@@ -4219,7 +4219,7 @@ mod tests {
         // Cursor on the `getOptions` declaration (line 1, col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "fetchOptions",
@@ -4239,7 +4239,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "1bad",
@@ -4267,7 +4267,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "yip",
@@ -4294,7 +4294,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "yip",
@@ -4326,7 +4326,7 @@ mod tests {
         // Cursor on `find` in `ActiveRecord find foo bar` (line 7, col 13).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             7,
             13,
             "lookup",
@@ -4356,7 +4356,7 @@ mod tests {
         // Line 4 `rex bark` — cursor on `bark` (col 4).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             4,
             "yip",
@@ -4381,7 +4381,7 @@ mod tests {
         // Cursor on `bark` in `$d bark` (line 4, col 3).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             4,
             3,
             "yip",
@@ -4403,7 +4403,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "yip",
@@ -4423,7 +4423,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             4,
             "newvar",
@@ -4442,7 +4442,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             10,
             "total",
@@ -4462,7 +4462,7 @@ mod tests {
         // Rename `x` (read site, line 3) to `y` which already exists in scope.
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             3,
             10,
             "y",
@@ -4478,7 +4478,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             "hello",
@@ -4506,7 +4506,7 @@ mod tests {
         // Cursor on `speak` in Animal's declaration (line 1 col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "vocalise",
@@ -4537,7 +4537,7 @@ mod tests {
         // Cursor on `speak` in Dog's declaration (line 5 col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             7,
             "vocalise",
@@ -4571,7 +4571,7 @@ mod tests {
         // Cursor on `area` in Circle (line 5 col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             5,
             7,
             "measure",
@@ -4600,7 +4600,7 @@ mod tests {
         // Cursor on `run` in Engine (line 1 col 7).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             7,
             "start",
@@ -4635,7 +4635,7 @@ mod tests {
         // Cursor on `speak` in `$d speak` (line 7 col 3).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             7,
             3,
             "vocalise",
@@ -4671,7 +4671,7 @@ mod tests {
         // Cursor on `speak` in Animal's declaration (line 1 col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "vocalise",
@@ -4703,7 +4703,7 @@ mod tests {
         // Cursor on `speak` in Animal's declaration (line 1 col 11).
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             11,
             "vocalise",
@@ -4734,7 +4734,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             1,
             12,
             "Bar",
@@ -4760,7 +4760,7 @@ mod tests {
         let analysis = analyse(src);
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             1,
             12,
             "Bar",
@@ -4804,7 +4804,7 @@ mod tests {
         // Cursor on `make` in `::b::Widget`'s declaration.
         let edits = rename(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             9,
             15,
             "produce",
@@ -5055,7 +5055,7 @@ mod tests {
         let analysis = analyse(src);
         let err = rename_with_diagnosis(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             6,
             11,
             "GetX",
@@ -5070,7 +5070,7 @@ mod tests {
         assert!(
             rename(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 6,
                 11,
                 "GetX",
@@ -5144,7 +5144,7 @@ mod tests {
         ] {
             let err = rename_with_diagnosis(
                 IDX79_HAZARD,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 character,
                 "GetX",
@@ -5163,7 +5163,7 @@ mod tests {
             assert!(
                 rename(
                     IDX79_HAZARD,
-                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     line,
                     character,
                     "GetX",
@@ -5191,7 +5191,7 @@ mod tests {
         ] {
             let edits = rename_with_diagnosis(
                 IDX79_SAFE,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 line,
                 character,
                 "GetX",

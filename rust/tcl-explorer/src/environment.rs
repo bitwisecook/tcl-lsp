@@ -53,8 +53,9 @@ use tcl_dialect::DialectProfile;
 /// `resolve_known(name).unwrap_or_else(|| by_name(name))` ingress
 /// [`crate::run_pipeline`] used.
 ///
-/// P1-G: the profile retires and the pipeline reads its grammar/availability
-/// facts off the environment instead.
+/// Post-P1-G (which deleted the name validators): the threaded profile
+/// handle itself retires with ledger C1's re-type, when the pipeline
+/// reads its grammar/availability facts off the environment instead.
 #[must_use]
 pub fn profile_for_dialect(name: &str) -> &'static DialectProfile {
     tcl_registry::model::resolve_environment(name).unit_profile()

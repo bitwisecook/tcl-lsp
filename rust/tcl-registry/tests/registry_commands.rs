@@ -48,18 +48,18 @@
 use tcl_dialect::DialectSet;
 use tcl_registry::arity::Arity;
 use tcl_registry::events::EventRegistry;
+use tcl_registry::model::ingress::static_context_for;
 use tcl_registry::profiles::ProfileRegistry;
 use tcl_registry::{
     ArgRole, CommandRegistry, DataCollectionAction, KNOWN_DIALECTS, MethodDispatchKind,
     PayloadCollectionRequirement, SideSwitchTarget, Traits, available_dialects,
-    registry_for_dialect,
 };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// `registry_for_dialect(name)` returns a registry with that dialect loaded;
+/// `static_context_for(name).commands()` returns a registry with that dialect loaded;
 /// pair it with the parsed `DialectSet` for `get_for_dialect`.
 fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
     // "Available under dialect D" is membership in D's *profile availability
@@ -70,8 +70,10 @@ fn reg_and_set(dialect: &str) -> (&'static CommandRegistry, DialectSet) {
     // the bare bit here would wrongly exclude the whole Tcl core from every
     // vendor dialect.
     (
-        registry_for_dialect(dialect),
-        tcl_dialect::DialectProfile::by_name(dialect).availability_mask,
+        static_context_for(dialect).commands(),
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .analyser_profile()
+            .availability_mask,
     )
 }
 
@@ -1698,12 +1700,12 @@ fn cached_dialect_registries_are_populated() {
         "f5-iapps",
         "expect",
     ] {
-        let reg = registry_for_dialect(d);
+        let reg = static_context_for(d).commands();
         assert!(!reg.is_empty(), "{d} registry is empty");
         assert!(reg.get("set").is_some(), "{d} should have `set`");
     }
     // An unparseable dialect collapses to the plain-Tcl entry (still usable).
-    let junk = registry_for_dialect("not-a-real-dialect");
+    let junk = static_context_for("not-a-real-dialect").commands();
     assert!(junk.get("set").is_some());
     assert!(
         junk.get("HTTP::header").is_none(),
@@ -1923,7 +1925,7 @@ fn instance_methods_follow_the_owning_package_lifecycle() {
     // command-level availability. The registry must make the same answer
     // available to every downstream object-method consumer.
     for (dialect, current_is_available) in [("tcl9.0", false), ("tcl9.1", true)] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         assert_eq!(
             reg.instance_method("ttk::treeview", "current").is_some(),
             current_is_available,
@@ -2132,7 +2134,7 @@ fn interp_create_defines_command_at_its_name_argument() {
 /// real tclsh 8.6/9.0 `TclOO` commands.)
 #[test]
 fn tcloo_dispatch_keyword_membership() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     assert_eq!(
         reg.method_dispatch_keyword("my"),
         Some(MethodDispatchKind::SelfDispatch)
@@ -2199,7 +2201,7 @@ fn tcloo_dispatch_keyword_membership() {
 /// `CommandRegistry::resolves_only_in_method_context`.
 #[test]
 fn tcloo_method_context_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_METHOD_CONTEXT);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2248,7 +2250,7 @@ fn tcloo_method_context_membership() {
     // no Tcllib route) is not method-context-scoped because it does not
     // exist, while `link`, `mymethod`, and `classvariable` still are — each
     // has an 8.6 spelling via the `ooutil`-gated twin.
-    let reg86 = registry_for_dialect("tcl8.6");
+    let reg86 = static_context_for("tcl8.6").commands();
     assert!(!reg86.resolves_only_in_method_context("callback"));
     for name in [
         "link",
@@ -2265,7 +2267,7 @@ fn tcloo_method_context_membership() {
         );
     }
     // 8.5 has no TclOO at all, so the whole query answers `false` there.
-    let reg85 = registry_for_dialect("tcl8.5");
+    let reg85 = static_context_for("tcl8.5").commands();
     for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
         assert!(
             !reg85.resolves_only_in_method_context(name),
@@ -2280,7 +2282,7 @@ fn tcloo_method_context_membership() {
 /// literal (issue #1026).
 #[test]
 fn tcloo_method_alias_binding_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_BINDS_METHOD_ALIAS);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2294,7 +2296,11 @@ fn tcloo_method_alias_binding_membership() {
         );
     }
     // 8.5 has no `link` at all.
-    assert!(!registry_for_dialect("tcl8.5").binds_method_alias("link"));
+    assert!(
+        !static_context_for("tcl8.5")
+            .commands()
+            .binds_method_alias("link")
+    );
 }
 
 /// **Resolving is not calling.** Every `::oo::Helpers` member needs a real
@@ -2319,7 +2325,7 @@ fn tcloo_method_alias_binding_membership() {
 /// frame there is no such command at all — so this set is a strict subset.
 #[test]
 fn tcloo_method_frame_membership() {
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     let mut carriers = reg.commands_with_trait(Traits::TCLOO_REQUIRES_METHOD_FRAME);
     carriers.sort_unstable();
     carriers.dedup();
@@ -2358,13 +2364,13 @@ fn tcloo_method_frame_membership() {
     // 8.6 core has the three it ships plus `ooutil`'s `link` and
     // `classvariable`; `callback` is 9.0-only (no Tcllib route). 8.5 has no
     // TclOO at all.
-    let reg86 = registry_for_dialect("tcl8.6");
+    let reg86 = static_context_for("tcl8.6").commands();
     assert!(!reg86.requires_oo_method_frame("callback"));
     assert!(!reg86.requires_oo_method_frame("my"));
     for name in ["link", "next", "nextto", "self", "classvariable"] {
         assert!(reg86.requires_oo_method_frame(name), "{name} under 8.6");
     }
-    let reg85 = registry_for_dialect("tcl8.5");
+    let reg85 = static_context_for("tcl8.5").commands();
     for name in ["link", "my", "next", "nextto", "self", "classvariable"] {
         assert!(!reg85.requires_oo_method_frame(name), "{name}: no TclOO");
     }
@@ -2382,7 +2388,7 @@ fn tcloo_method_frame_membership() {
 #[test]
 fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
     for dialect in ["tcl8.5", "tcl8.6", "tcl8.7", "tcl9.0"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         let mask = reg
             .profile()
             .expect("built for a dialect")
@@ -2420,7 +2426,7 @@ fn qualified_oo_helpers_spellings_track_their_bare_twin_per_dialect() {
 #[test]
 fn tcloo_dispatch_keyword_set_matches_the_trait_carriers_per_dialect() {
     for dialect in ["tcl8.6", "tcl9.0", "f5-irules", "f5-iapps", "expect"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         let mut carriers: Vec<&str> = reg
             .commands_with_trait(Traits::TCLOO_SELF_DISPATCH)
             .into_iter()
@@ -2450,7 +2456,7 @@ fn tcloo_dispatch_keyword_set_matches_the_trait_carriers_per_dialect() {
 #[test]
 fn tcloo_dispatch_keywords_are_absent_before_86() {
     for dialect in ["tcl8.4", "tcl8.5"] {
-        let reg = registry_for_dialect(dialect);
+        let reg = static_context_for(dialect).commands();
         for keyword in ["my", "next", "nextto", "self"] {
             assert_eq!(
                 reg.method_dispatch_keyword(keyword),
@@ -2460,7 +2466,7 @@ fn tcloo_dispatch_keywords_are_absent_before_86() {
         }
     }
     // …and still resolves under 9.0.
-    let reg = registry_for_dialect("tcl9.0");
+    let reg = static_context_for("tcl9.0").commands();
     assert_eq!(
         reg.method_dispatch_keyword("my"),
         Some(MethodDispatchKind::SelfDispatch)
@@ -3321,7 +3327,8 @@ fn mqtt_payload_forms_declare_event_and_collection_contracts() {
 /// `-namespace` it accepts.
 #[test]
 fn the_ensemble_option_tables_match_their_owning_utility() {
-    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let registry =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = registry
         .get("namespace")
         .expect("`namespace` is a core command");
@@ -3370,7 +3377,8 @@ fn the_ensemble_option_tables_match_their_owning_utility() {
 /// `namespace ensemble exists` the whole union.
 #[test]
 fn an_explicitly_empty_operation_table_does_not_inherit_the_parents() {
-    let registry = tcl_registry::registry_handle_for_dialect("tcl");
+    let registry =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = registry
         .get("namespace")
         .expect("`namespace` is a core command");

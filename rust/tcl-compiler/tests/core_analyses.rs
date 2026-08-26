@@ -59,7 +59,7 @@ use tcl_compiler::analyser::Analyser;
 use tcl_compiler::analyses::{ConstValue, LatticeKind, LatticeValue};
 use tcl_compiler::compilation_unit::{CompilationUnit, FunctionUnit};
 use tcl_compiler::types::{TclType, TypeKind};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect for reproducers that are not dialect-sensitive.
 const D: &str = "tcl8.6";
@@ -72,7 +72,7 @@ const D: &str = "tcl8.6";
 /// the module script's function analysis; `cu.procedures[qname]` are the
 /// per-proc ones.
 fn build(src: &str) -> CompilationUnit {
-    CompilationUnit::build_for(src, registry_for_dialect(D), false)
+    CompilationUnit::build_for(src, static_context_for(D).commands(), false)
 }
 
 /// The lattice value for `(name, version)`. Resolves `name` through the
@@ -806,9 +806,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in tcl_compiler::compiler_checks::run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;

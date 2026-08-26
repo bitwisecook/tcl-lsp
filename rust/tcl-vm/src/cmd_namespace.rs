@@ -94,7 +94,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
     let profile =
         crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
     let dialect = crate::environment::surface_mask(profile);
-    let registry = tcl_registry::cache::default_registry();
+    let registry = tcl_registry::default_registry();
     let spec = registry
         .get_for_dialect("namespace", dialect)
         .expect("the core namespace command is registered for every Tcl release");

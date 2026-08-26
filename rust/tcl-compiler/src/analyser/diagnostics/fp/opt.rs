@@ -24,7 +24,7 @@
 use crate::compilation_unit::CompilationUnit;
 use crate::compiler_checks::run_all_checks;
 use crate::optimiser::manager::{apply_optimisations, optimise_with_dialect};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 use super::D;
 
@@ -34,8 +34,9 @@ use super::D;
 
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
@@ -43,15 +44,17 @@ fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Apply all optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// Collect `(code, replacement)` pairs from the optimiser for `src`.
 fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .into_iter()
         .map(|o| (o.code.as_str().to_owned(), o.replacement.clone()))
@@ -63,8 +66,9 @@ fn opt_rewrites(src: &str, dialect: &str) -> Vec<(String, String)> {
 /// `run_all_checks` rather than the optimiser rewrite manager — this helper is
 /// the right probe for those codes.
 fn check_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let cu = CompilationUnit::build_for(src, registry, false);
     run_all_checks(&cu, registry, d)
         .iter()
@@ -146,8 +150,8 @@ const FP_OPT_02_REPRO: &str = "set x [list]\nlappend x a\nputs $x\n";
 #[test]
 fn fp_opt_02_empty_list_quick_fix_uses_braces() {
     // FP-OPT-02: O116 on `[list]` must propose replacement "{}" (canonical empty-list literal).
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_02_REPRO, registry, d);
     let o116: Vec<_> = opts.iter().filter(|o| o.code.as_str() == "O116").collect();
     assert!(
@@ -241,8 +245,8 @@ proc decode {data} {
 fn fp_opt_04_call_by_name_suppresses_dead_store() {
     // FP-OPT-04: call-by-name upvar idiom must suppress O109/O126 on tag/type in decode.
     // Check optimiser codes (O109, O126) — the analyser W211/W220 are not in opt surface.
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_04_REPRO, registry, d);
     let relevant: Vec<_> = opts
         .iter()
@@ -268,8 +272,8 @@ proc f {} {
     return $x
 }
 ";
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(src, registry, d);
     let fires = opts
         .iter()
@@ -403,8 +407,8 @@ const FP_OPT_09_TN_REPRO: &str = "proc f {} {\n  for {set i 0} {$i < 3} {incr i}
 fn fp_opt_09_unknown_type_param_blocks_identity_rewrite() {
     // FP-OPT-09: $x + 0 on unknown-type param must NOT be rewritten to $x (hides coercion error).
     // Both the code check and the replacement check.
-    let registry = registry_for_dialect(D);
-    let d = Some(tcl_dialect::DialectProfile::by_name(D));
+    let registry = static_context_for(D).commands();
+    let d = Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile());
     let opts = optimise_with_dialect(FP_OPT_09_TP_REPRO, registry, d);
     // No O110 at all is fine; but if O110 fires it must not drop "+ 0".
     let unsound_o110: Vec<_> = opts

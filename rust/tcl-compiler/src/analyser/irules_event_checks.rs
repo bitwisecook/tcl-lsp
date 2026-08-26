@@ -1632,7 +1632,7 @@ mod tests {
 
     #[test]
     fn collect_event_bodies_extracts_priority_form() {
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let blocks = super::collect_event_bodies(
             "when HTTP_REQUEST priority 5 { body1 }",
             Some(registry),
@@ -1648,7 +1648,7 @@ mod tests {
         // Neither a commented-out handler nor one quoted inside a string is a
         // command, so neither contributes an event body — the byte scan this
         // replaced invented both (issue #1390).
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "# when HTTP_REQUEST { log local0. $x }\n\
                       log local0. \"when LB_SELECTED { set y 1 }\"\n\
                       when CLIENT_ACCEPTED { set z 1 }\n";
@@ -1671,7 +1671,7 @@ mod tests {
     /// issue #1390).
     #[test]
     fn collect_event_bodies_honours_the_tmm_ghost_separator() {
-        let registry = tcl_registry::cache::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let source = "when {HTTP_REQUEST}{ set token abc }\n\
                       when {CLIENT_DATA}{ log local0. $token }\n";
         let blocks = super::collect_event_bodies(

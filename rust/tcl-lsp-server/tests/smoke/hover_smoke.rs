@@ -168,7 +168,7 @@ async fn hover_smoke() {
 /// A `tk` document hovers under the Tk surface — a characterisation pin.
 ///
 /// `tk` is an additive command surface with no catalogue profile of its own,
-/// so `DialectProfile::by_name("tk")` sinks to the plain-Tcl fallback while
+/// so the analyser ingress form of `"tk"` sinks to the plain-Tcl fallback while
 /// `profile_for_dialect("tk")` keeps the `TK` bit. The hover ingress now uses
 /// the latter, for consistency with every other ingress.
 ///

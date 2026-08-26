@@ -719,7 +719,7 @@ mod tests {
     fn analyser_with_source(source: &str) -> Analyser {
         let mut a = Analyser::new();
         a.source = source.to_string();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a
     }
 

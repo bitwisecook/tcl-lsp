@@ -2743,7 +2743,12 @@ impl CommandRegistry {
         let case = resolved.spec.case_list?;
         let options = self.profile().map_or_else(
             || resolved.spec.option_specs(Some(dialect)),
-            |profile| crate::ProfileQueries::available_option_specs(profile, resolved.spec),
+            |profile| {
+                crate::profile_queries::ProfileQueries::available_option_specs(
+                    profile,
+                    resolved.spec,
+                )
+            },
         );
         let effective_dialect = self
             .profile()
@@ -3659,13 +3664,19 @@ impl CommandRegistry {
                         })
                         .collect()
                 },
-                |profile| crate::ProfileQueries::available_sub_option_specs(profile, spec, sub),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_sub_option_specs(
+                        profile, spec, sub,
+                    )
+                },
             );
             (options, args.slice_from(1), sub.prefix_matching, 0)
         } else {
             let options = self.profile().map_or_else(
                 || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
-                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
+                },
             );
             (
                 options,
@@ -3859,7 +3870,9 @@ impl CommandRegistry {
         if let Some(resolve) = spec.pattern_arg_resolver {
             let options = self.profile().map_or_else(
                 || spec.option_specs((!effective_dialect.is_empty()).then_some(effective_dialect)),
-                |profile| crate::ProfileQueries::available_option_specs(profile, spec),
+                |profile| {
+                    crate::profile_queries::ProfileQueries::available_option_specs(profile, spec)
+                },
             );
             return resolve(
                 args,
@@ -4925,7 +4938,7 @@ mod tests {
 
     #[test]
     fn unfilled_trailing_roles_reports_the_optional_capture_variables() {
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         // `catch {body}` leaves both `VarWrite` slots open.
         assert_eq!(
             reg.unfilled_trailing_roles("catch", &["{body}"]),
@@ -5669,7 +5682,7 @@ mod tests {
             InvocationWord::Literal(r"{\1}"),
         ];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             assert!(
                 registry
                     .format_string_args_words(
@@ -5705,7 +5718,7 @@ mod tests {
             InvocationWord::Dynamic,
             InvocationWord::Literal("callback"),
         ];
-        let registry = crate::registry_for_dialect("tcl9.0");
+        let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
         assert!(
             registry
                 .format_string_args_words(
@@ -5729,7 +5742,8 @@ mod tests {
             InvocationWord::Literal("%Y"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .format_string_args_words("clock", InvocationArguments::structured(&clock),),
             vec![FormatStringArg {
                 index: 3,
@@ -5751,7 +5765,8 @@ mod tests {
         ];
         for name in ["regexp", "regsub"] {
             assert!(
-                crate::registry_for_dialect("tcl9.0")
+                crate::model::ingress::static_context_for("tcl9.0")
+                    .commands()
                     .pattern_args_words(name, InvocationArguments::structured(&dynamic_prefix))
                     .is_empty(),
                 "{name}: $mode could be a leading option"
@@ -5763,7 +5778,8 @@ mod tests {
             InvocationWord::Literal("*.tcl"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "glob",
                     InvocationArguments::structured(&glob_dynamic_prefix)
@@ -5778,7 +5794,8 @@ mod tests {
             InvocationWord::Literal("abc"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "string",
                     InvocationArguments::structured(&string_dynamic_prefix),
@@ -5800,7 +5817,8 @@ mod tests {
             InvocationWord::Dynamic,
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words("regexp", InvocationArguments::structured(&regexp_start)),
             vec![PatternArg {
                 index: 2,
@@ -5810,10 +5828,12 @@ mod tests {
         );
         let non_option_template = [InvocationWord::DynamicNonOption, InvocationWord::Dynamic];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "regexp",
-                InvocationArguments::structured(&non_option_template),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "regexp",
+                    InvocationArguments::structured(&non_option_template),
+                ),
             vec![PatternArg {
                 index: 0,
                 kind: PatternType::Regex,
@@ -5825,7 +5845,8 @@ mod tests {
             InvocationWord::Literal("-literal"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words("glob", InvocationArguments::structured(&glob_terminator)),
             vec![PatternArg {
                 index: 1,
@@ -5847,7 +5868,8 @@ mod tests {
             InvocationWord::Literal("aaa"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl9.0")
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
                 .pattern_args_words(
                     "regexp",
                     InvocationArguments::structured(&strict_abbreviation)
@@ -5862,7 +5884,8 @@ mod tests {
             InvocationWord::Literal("a+"),
         ];
         assert!(
-            crate::registry_for_dialect("tcl8.6")
+            crate::model::ingress::static_context_for("tcl8.6")
+                .commands()
                 .pattern_args_words(
                     "lsearch",
                     InvocationArguments::structured(&stride_abbreviation)
@@ -5871,10 +5894,12 @@ mod tests {
             "a Tcl 9-only option abbreviation is invalid before Tcl 9"
         );
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "lsearch",
-                InvocationArguments::structured(&stride_abbreviation),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&stride_abbreviation),
+                ),
             vec![PatternArg {
                 index: 3,
                 kind: PatternType::Glob,
@@ -5886,10 +5911,12 @@ mod tests {
             InvocationWord::Literal("--"),
         ];
         assert_eq!(
-            crate::registry_for_dialect("tcl9.0").pattern_args_words(
-                "lsearch",
-                InvocationArguments::structured(&option_shaped_suffix),
-            ),
+            crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .pattern_args_words(
+                    "lsearch",
+                    InvocationArguments::structured(&option_shaped_suffix),
+                ),
             vec![PatternArg {
                 index: 1,
                 kind: PatternType::Glob,
@@ -6046,7 +6073,7 @@ mod tests {
         // remain. Keep the source-aware resolver aligned across every
         // supported core release, including the 9.0 -stride expansion.
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let proven_outer_option = [
                 InvocationWord::Literal("-glob"),
                 InvocationWord::Dynamic,
@@ -6103,7 +6130,7 @@ mod tests {
         // both spell like lsearch switches.
         let option_shaped_operands = ["-regexp", "-glob"];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let patterns = registry.pattern_args("lsearch", &option_shaped_operands);
             assert_eq!(
                 patterns,
@@ -6128,7 +6155,7 @@ mod tests {
         // dash-prefixed word as the list operand and inventing a pattern.
         let stride_abbrev = ["-str", "2", "{a b}", "a+"];
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             assert!(
                 registry.pattern_args("lsearch", &stride_abbrev).is_empty(),
                 "{dialect}: unavailable -stride abbreviation invalidates the invocation"
@@ -6141,7 +6168,7 @@ mod tests {
             );
         }
         for dialect in ["tcl9.0", "tcl9.1"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let patterns = registry.pattern_args("lsearch", &stride_abbrev);
             assert_eq!(
                 patterns,
@@ -6166,7 +6193,7 @@ mod tests {
             ["-unknown", "{a b}", "a+"].as_slice(),
             ["--", "{a b}", "a+"].as_slice(),
         ] {
-            let registry = crate::registry_for_dialect("tcl9.0");
+            let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
             assert!(
                 registry.pattern_args("lsearch", args).is_empty(),
                 "Tcl 9 invalid option prefix {args:?} must abstain"
@@ -6186,7 +6213,7 @@ mod tests {
             ["-regexp", "--"].as_slice(),
             ["-regexp", "-st"].as_slice(),
         ] {
-            let registry = crate::registry_for_dialect("tcl9.0");
+            let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
             assert_eq!(
                 registry.pattern_args("lsearch", args),
                 vec![PatternArg {
@@ -6204,7 +6231,7 @@ mod tests {
         use crate::patterns::{PatternArg, PatternType};
 
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             let dynamic_early = [
                 InvocationWord::Dynamic,
                 InvocationWord::Literal("{a b}"),
@@ -8865,7 +8892,7 @@ mod tests {
     fn irules_placement_contract_owns_declaration_and_execution_contexts() {
         use crate::events::{IrulesCommandPlacement as Placement, IrulesExecutionContext as Ctx};
 
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         for declaration in ["when", "proc", "timing", "priority"] {
             assert_eq!(
                 registry.irules_command_placement(declaration, Ctx::TopLevel),
@@ -8904,7 +8931,7 @@ mod tests {
     fn irules_declaration_owner_requires_braced_source_bodies() {
         use crate::events::IrulesTopLevelDeclaration as Declaration;
 
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         let events = crate::events::EventRegistry::build();
         let declaration = |name: &str, args: &[&str]| {
             let body_index = if name == "proc" {
@@ -9001,7 +9028,7 @@ mod tests {
 
     #[test]
     fn irules_declaration_owner_rejects_bare_and_quoted_source_bodies() {
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         for (name, args, body_index) in [
             ("when", &["HTTP_REQUEST", "set x 1"][..], 1),
             ("proc", &["p", "", "return"][..], 2),
@@ -9843,7 +9870,7 @@ mod tests {
     fn exact_return_options_and_process_exit_are_registry_owned() {
         use crate::completion::CompletionCode;
 
-        let reg = crate::registry_for_dialect("tcl8.6");
+        let reg = crate::model::ingress::static_context_for("tcl8.6").commands();
         // Oracle (tclsh 8.6/9.0): the default -level 1 return is caught by
         // `try on return`, even when its eventual procedure result is error.
         assert_eq!(
@@ -9941,7 +9968,7 @@ mod tests {
         use crate::invocation_words::{InvocationArguments, InvocationWord};
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             // Tcl 8.x's `exit` calls `Tcl_GetIntFromObj`. Despite the `int`
             // destination, its 64-bit implementation accepts the asymmetric
             // `-UINT_MAX..=UINT_MAX` range before casting to `int`.
@@ -9976,7 +10003,7 @@ mod tests {
         }
 
         for dialect in ["tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             // Tcl 9.0+ changed `exit` to `TclGetWideBitsFromObj`: every
             // integer, including a bignum beyond wide range, reaches
             // `Tcl_Exit` and has its low bits cast to `int` there.
@@ -10003,7 +10030,7 @@ mod tests {
         }
 
         for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let dynamic = [InvocationWord::Dynamic];
             assert_eq!(
                 reg.invocation_completion_knowledge(
@@ -10035,7 +10062,7 @@ mod tests {
         // value. A lone option-shaped word is therefore return's sole result;
         // with `-level 0`, it exposes the default TCL_OK instead.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             for (args, expected) in [
                 (&["-code"][..], CompletionCode::Return),
                 (&["-level"][..], CompletionCode::Return),
@@ -10077,7 +10104,7 @@ mod tests {
         // core primitive, including ones whose normal effect is process exit
         // or a loop transfer rather than TCL_ERROR.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             for (name, args) in [
                 ("error", &[][..]),
                 ("error", &["message", "info", "code", "extra"][..]),
@@ -10106,7 +10133,7 @@ mod tests {
         // while a bare/quoted substitution remains unknown and a decoded bare
         // escape can be supplied to this API as its effective static value.
         for dialect in ["tcl8.6", "tcl9.0"] {
-            let reg = crate::registry_for_dialect(dialect);
+            let reg = crate::model::ingress::static_context_for(dialect).commands();
             let trailing_option = [InvocationWord::Literal("-code")];
             assert_eq!(
                 reg.exact_invocation_completion_words(
@@ -10176,7 +10203,7 @@ mod tests {
     #[allow(clippy::too_many_lines)] // descriptor layout matrix
     fn case_list_invocation_layout_is_registry_owned() {
         use crate::spec::CaseMatchMode;
-        let reg = crate::registry_for_dialect("tcl9.0");
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         let Some((_, two_arg)) =
             reg.case_invocation("switch", &["-glob", "default {}"], DialectSet::TCL90)
         else {
@@ -10197,7 +10224,7 @@ mod tests {
         assert_eq!(options.mode, CaseMatchMode::Glob);
         assert!(options.nocase);
 
-        let tcl91 = crate::registry_for_dialect("tcl9.1");
+        let tcl91 = crate::model::ingress::static_context_for("tcl9.1").commands();
         let Some((_, integer)) = tcl91.case_invocation(
             "switch",
             &["-integer", "--", "1", "1 {set x 1}"],
@@ -10267,7 +10294,7 @@ mod tests {
             .is_none()
         );
 
-        let tcl84 = crate::registry_for_dialect("tcl8.4");
+        let tcl84 = crate::model::ingress::static_context_for("tcl8.4").commands();
         for two_arg_switch in [
             ["-regexp", "default {puts hit}"],
             ["--", "default {puts hit}"],
@@ -10319,13 +10346,13 @@ mod tests {
                 )
                 .is_none()
         );
-        let tcl85 = crate::registry_for_dialect("tcl8.5");
+        let tcl85 = crate::model::ingress::static_context_for("tcl8.5").commands();
         for (dialect, availability) in [
             ("tcl8.5", DialectSet::TCL85),
             ("tcl8.6", DialectSet::TCL86),
             ("tcl9.0", DialectSet::TCL90),
         ] {
-            let registry = crate::registry_for_dialect(dialect);
+            let registry = crate::model::ingress::static_context_for(dialect).commands();
             for two_arg_switch in [
                 ["-regexp", "default {puts hit}"],
                 ["--", "default {puts hit}"],
@@ -10381,7 +10408,7 @@ mod tests {
                 .is_none()
         );
 
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         assert!(
             expect
                 .case_invocation(
@@ -10444,7 +10471,7 @@ mod tests {
 
     #[test]
     fn inline_expect_case_flags_and_actions_are_registry_owned() {
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         let args = [
             "-re",
             "{ye+s}",
@@ -10481,7 +10508,7 @@ mod tests {
     #[test]
     #[allow(clippy::too_many_lines)] // Expect oracle layout matrix
     fn expect_inline_flag_table_matches_the_oracle() {
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         for flag in [
             "-glob",
             "-regexp",
@@ -10665,7 +10692,7 @@ mod tests {
 
     #[test]
     fn case_list_invocation_abstains_on_empty_and_truncated_shapes() {
-        let switch = crate::registry_for_dialect("tcl9.0");
+        let switch = crate::model::ingress::static_context_for("tcl9.0").commands();
         for args in [
             &[][..],
             &["subject"][..],
@@ -10682,7 +10709,7 @@ mod tests {
             );
         }
 
-        let expect = crate::registry_for_dialect("expect");
+        let expect = crate::model::ingress::static_context_for("expect").commands();
         for args in [
             &[][..],
             &["-brace"][..],
@@ -10810,7 +10837,7 @@ mod tests {
     /// `info commands <name>` in a fresh `interp create`.
     #[test]
     fn declares_command_at_is_the_fresh_interpreter_command_table() {
-        let reg = crate::registry_for_dialect("tcl9.0");
+        let reg = crate::model::ingress::static_context_for("tcl9.0").commands();
         // `info commands ::set` -> ::set
         for name in ["set", "::set", "puts", "::puts", "if", "foreach"] {
             assert!(reg.declares_command_at(name), "{name} is a global builtin");
@@ -10850,11 +10877,15 @@ mod tests {
     #[test]
     fn declares_command_at_is_dialect_specific() {
         assert!(
-            crate::registry_for_dialect("f5-irules").declares_command_at("HTTP::uri"),
+            crate::model::ingress::static_context_for("f5-irules")
+                .commands()
+                .declares_command_at("HTTP::uri"),
             "iRules declares HTTP::uri",
         );
         assert!(
-            !crate::registry_for_dialect("tcl9.0").declares_command_at("HTTP::uri"),
+            !crate::model::ingress::static_context_for("tcl9.0")
+                .commands()
+                .declares_command_at("HTTP::uri"),
             "plain Tcl does not",
         );
     }

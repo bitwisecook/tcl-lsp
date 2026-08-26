@@ -94,8 +94,9 @@ fn run(src: &str) -> (bool, String) {
 /// release-gated command is genuinely absent from the surface rather than
 /// merely unhidden — the shape `tclvm --tcl-version` builds.
 fn run_at(version: TclVersion, src: &str) -> (bool, String) {
-    let profile = DialectProfile::by_name(version.dialect_profile_name());
-    let registry = tcl_registry::registry_for_profile(profile);
+    let profile = tcl_registry::model::ingress::resolve_environment(version.dialect_profile_name())
+        .analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
         src,
         registry,
@@ -130,7 +131,7 @@ impl CompileService for ProfiledCompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let ir = tcl_compiler::lowering::lower_to_ir_for_bytecode_with_dialect(
             src,
             registry,

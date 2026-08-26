@@ -72,8 +72,9 @@ use tcl_compiler::expr_parser::parse_expr;
 use tcl_compiler::ir::{Script, Statement};
 use tcl_compiler::ir_helpers::{defs_from_expr, defs_from_ir_script, expr_has_command};
 use tcl_lexer::Span;
+use tcl_registry::CommandRegistry;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
 
 /// Default dialect — 8.6 and 9.0 agree on every Tcl fact exercised here.
 const D: &str = "tcl8.6";
@@ -117,7 +118,7 @@ fn w210_for(src: &str, var: &str) -> usize {
 
 /// Build a `CompilationUnit` under the default registry/dialect.
 fn build(src: &str) -> CompilationUnit {
-    CompilationUnit::build_for(src, registry_for_dialect(D), false)
+    CompilationUnit::build_for(src, static_context_for(D).commands(), false)
 }
 
 /// Build a `CompilationUnit` under a registry with iRules loaded, so `when`
@@ -742,8 +743,8 @@ mod compilation_unit_build {
         // unit; the unit must still be well-formed afterwards.
         let cu = build("proc src {} { return [exec cat /etc/passwd] }\nproc f {} { set x [src] }")
             .with_interprocedural(
-                registry_for_dialect(D),
-                Some(tcl_dialect::DialectProfile::by_name(D)),
+                static_context_for(D).commands(),
+                Some(tcl_registry::model::ingress::resolve_environment(D).analyser_profile()),
             );
         assert!(
             cu.interproc.is_some(),

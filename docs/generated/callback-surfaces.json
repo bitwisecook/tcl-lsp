@@ -4671,7 +4671,7 @@
     "notes": "script-timing resolver; timing is invocation-dependent"
   },
   {
-    "id": "interp bgerror/dynamic-command-prefix@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp bgerror/dynamic-command-prefix@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp bgerror",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -4679,8 +4679,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -4705,7 +4703,7 @@
     "notes": "command-prefix resolver; position and appended arity are invocation-dependent"
   },
   {
-    "id": "interp bgerror/dynamic-script-timing@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp bgerror/dynamic-script-timing@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp bgerror",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -4713,8 +4711,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -4777,7 +4773,7 @@
     "notes": "static script-body position"
   },
   {
-    "id": "interp limit/option -command value@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "interp limit/option -command value@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "interp limit",
     "surface": "subcommand-option",
     "kind": "body-script",
@@ -4785,8 +4781,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6797,7 +6791,7 @@
     "notes": "argument-role resolver; executable positions, if any, are invocation-dependent"
   },
   {
-    "id": "namespace ensemble/option -unknown value@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace ensemble/option -unknown value@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace ensemble",
     "surface": "subcommand-option",
     "kind": "command-prefix",
@@ -6805,8 +6799,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6907,7 +6899,7 @@
     "notes": "static script-body position"
   },
   {
-    "id": "namespace unknown/arg[0]@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace unknown/arg[0]@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace unknown",
     "surface": "subcommand",
     "kind": "command-prefix",
@@ -6915,8 +6907,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",
@@ -6941,7 +6931,7 @@
     "notes": "static CommandSpec command-prefix position"
   },
   {
-    "id": "namespace unknown/dynamic-script-timing@bpf+expect+f5-iapps+f5-tmsh+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
+    "id": "namespace unknown/dynamic-script-timing@bpf+expect+intel-quartus-eda-tcl+mentor-eda-tcl+microchip-libero-eda-tcl+spectcl+synopsys-eda-tcl+tcl8.5+tcl8.6+tcl9.0+tcl9.1+tk+xilinx-eda-tcl",
     "owner": "namespace unknown",
     "surface": "subcommand",
     "kind": "dynamic",
@@ -6949,8 +6939,6 @@
     "dialects": [
       "bpf",
       "expect",
-      "f5-iapps",
-      "f5-tmsh",
       "intel-quartus-eda-tcl",
       "mentor-eda-tcl",
       "microchip-libero-eda-tcl",

@@ -7156,7 +7156,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_respond() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::respond",
@@ -7168,7 +7168,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_header_insert() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::header",
@@ -7181,7 +7181,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_cookie_replace() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::cookie",
@@ -7196,7 +7196,7 @@ mod tests {
     fn classify_irules_sink_prefix_abbreviation() {
         // `HTTP::cookie ins` is a legal abbreviation of `insert`
         // and must still classify as the IRULE3002 output sink.
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::cookie",
@@ -7210,7 +7210,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_http_header_remove_is_none() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let hit = classify_sink(
             reg,
             "HTTP::header",
@@ -7222,7 +7222,7 @@ mod tests {
 
     #[test]
     fn classify_irules_sink_log_and_redirect() {
-        let reg = tcl_registry::registry_for_dialect("f5-irules");
+        let reg = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         assert_eq!(
             classify_sink(
                 reg,
@@ -7398,7 +7398,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings.iter().find(|w| w.code == DiagCode::T102);
@@ -7441,7 +7441,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7471,7 +7471,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7499,7 +7499,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7531,7 +7531,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7561,7 +7561,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7607,7 +7607,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         let t102 = warnings
@@ -7652,7 +7652,7 @@ mod tests {
             &fu.taints,
             &fu.sccp.executable_blocks,
             &registry,
-            Some(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
             &HashSet::new(),
         );
         assert!(
@@ -7721,7 +7721,7 @@ mod tests {
 
     #[test]
     fn irule3002_header_token_safe_name_position_suppresses() {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let args = vec!["insert".to_owned(), "$name".to_owned(), "$value".to_owned()];
         let lat = TaintLattice::tainted().with(TaintColour::HEADER_TOKEN_SAFE);
         // Var `name` occupies arg-index 1 (name position) → suppressed.
@@ -7878,7 +7878,7 @@ mod tests {
 
         let under_tcl = setter_warnings_for_dialect(
             "HTTP::uri foo",
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(
             under_tcl.is_empty(),

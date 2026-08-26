@@ -786,7 +786,7 @@ oo::class create chart {
     }
 
     fn reg() -> &'static tcl_registry::CommandRegistry {
-        tcl_registry::registry_for_dialect("tcl9.0")
+        tcl_registry::model::ingress::static_context_for("tcl9.0").commands()
     }
 
     fn offset_of(source: &str, needle: &str) -> u32 {
@@ -800,7 +800,7 @@ oo::class create chart {
         let bindings = caller_frame_bindings(
             &analysis,
             IDX58,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "dataset",
@@ -826,7 +826,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
@@ -847,7 +847,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "thing"
@@ -869,7 +869,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
@@ -887,7 +887,7 @@ oo::class create chart {
         let spans = caller_frame_reference_spans(
             &analysis,
             IDX58,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "dataset",
@@ -927,7 +927,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -950,7 +950,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -977,7 +977,7 @@ oo::class create chart {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared"
@@ -1012,7 +1012,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -1047,7 +1047,7 @@ oo::class create chart {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "shared",
@@ -1086,7 +1086,7 @@ oo::class create chart {
             let spans = caller_frame_reference_spans(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 call,
                 "shared",
@@ -1124,7 +1124,7 @@ proc build {} {
         let bindings = caller_frame_bindings(
             &analysis,
             IDX22,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "name",
@@ -1153,7 +1153,7 @@ proc build {} {
             let bindings = caller_frame_bindings(
                 &analysis,
                 &src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name",
@@ -1197,7 +1197,7 @@ oo::class create Widget {
         let bindings = caller_frame_bindings(
             &analysis,
             MIXIN_SRC,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             read,
             "name",
@@ -1226,7 +1226,7 @@ oo::class create Widget {
             caller_frame_bindings(
                 &analysis,
                 MIXIN_SRC,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "other"
@@ -1256,7 +1256,7 @@ oo::class create Widget {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
@@ -1292,7 +1292,7 @@ oo::class create Derived {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "name"
@@ -1314,7 +1314,7 @@ oo::class create Derived {
             caller_frame_bindings(
                 &analysis,
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 crate::definition::CallResolution::document_only().with_registry(reg()),
                 read,
                 "FocusGrab"
@@ -1335,7 +1335,7 @@ oo::class create Derived {
         let bindings = caller_frame_bindings(
             &analysis,
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             call,
             "name",
@@ -1370,7 +1370,7 @@ oo::class create Derived {
         let spans = caller_frame_reference_spans(
             &analysis,
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             crate::definition::CallResolution::document_only().with_registry(reg()),
             call,
             "shared",
@@ -1435,7 +1435,7 @@ proc RestoreFocusGrab {grab focus} {
                 line,
                 col,
                 &analysis,
-                Some(tcl_registry::registry_for_dialect("tcl9.0")),
+                Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
             )
             .unwrap_or_else(|| panic!("{label}: expected a hover"));
             assert!(
@@ -1447,7 +1447,7 @@ proc RestoreFocusGrab {grab focus} {
             assert_eq!(defs.len(), 1, "{label}: one definition: {defs:?}");
             let refs = crate::references::references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 line,
                 col,
                 &analysis,
@@ -1521,7 +1521,7 @@ oo::class create chart {
             line,
             character,
             &analysis,
-            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
         )
         .expect("caller-frame hover");
         assert!(
@@ -1564,7 +1564,7 @@ oo::class create chart {
         let (line, character) = read_position();
         let refs = crate::references::references(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             line,
             character,
             &analysis,
@@ -1575,7 +1575,7 @@ oo::class create chart {
         let (cl, cc) = call_site_position();
         let from_call = crate::references::references(
             SRC,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             cl,
             cc,
             &analysis,
@@ -1619,7 +1619,7 @@ oo::class create chart {
                     line,
                     col,
                     &analysis,
-                    Some(tcl_registry::registry_for_dialect("tcl9.0"))
+                    Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands())
                 )
                 .is_none(),
                 "`upvar {level}` must draw no caller-frame hover"
@@ -1627,7 +1627,7 @@ oo::class create chart {
             assert!(
                 crate::references::references(
                     &src,
-                    tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                    tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                     line,
                     col,
                     &analysis,
@@ -1677,7 +1677,7 @@ proc caller {} {
         .unwrap();
         let with_decls = crate::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             line,
             col,
             &analysis,
@@ -1690,7 +1690,7 @@ proc caller {} {
         );
         let without = crate::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             line,
             col,
             &analysis,
@@ -1754,7 +1754,7 @@ proc build {} {
             line,
             col,
             &analysis,
-            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
         )
         .expect("caller-frame hover for a literal target");
         assert!(
@@ -1781,7 +1781,7 @@ proc build {} {
         );
         let refs = crate::references::references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             line,
             col,
             &analysis,
@@ -1869,7 +1869,7 @@ oo::class create widget {
                 line,
                 col,
                 &analysis,
-                Some(tcl_registry::registry_for_dialect("tcl9.0"))
+                Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands())
             )
             .is_none(),
             "an unbound `$`-led read must draw no hover at all"
@@ -1877,7 +1877,7 @@ oo::class create widget {
         assert!(
             crate::references::references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 line,
                 col,
                 &analysis,

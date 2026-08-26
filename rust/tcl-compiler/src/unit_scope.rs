@@ -1853,7 +1853,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {a {b x}} { return $a }\nhelper 1 two\nhelper 1\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -1874,7 +1874,7 @@ mod tests {
         let mut a = scan_source_call_sites(
             &format!("{src}helper prod\n"),
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -1885,7 +1885,7 @@ mod tests {
         let b = scan_source_call_sites(
             &format!("{src}helper dev\n"),
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -1902,7 +1902,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nafter 0 helper\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -1923,7 +1923,7 @@ mod tests {
             let evidence = scan_source_call_sites(
                 src,
                 &reg,
-                tcl_dialect::DialectProfile::by_name(""),
+                tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                 &known(&["::helper"]),
                 &[],
             );
@@ -1941,7 +1941,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper one two\nhelper one two\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -1981,7 +1981,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "helper prod\nhelper prod\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -2065,7 +2065,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::a::helper", "::a::run", "::helper"]),
             &[],
         );
@@ -2102,7 +2102,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             src,
             &reg,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::foo::helper", "::foo::runIt", "::helper"]),
             &[],
         );
@@ -2124,7 +2124,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "proc helper {mode} { return $mode }\ncatch { helper prod }\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &known(&["::helper"]),
             &[],
         );
@@ -2145,7 +2145,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "a 1\nb 2\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::a", "::b"]),
             &[],
         );
@@ -2161,7 +2161,7 @@ mod tests {
         src: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> CallSiteEvidence {
-        let reg = tcl_registry::cache::registry_for_profile(dialect);
+        let reg = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let ir = crate::lowering::lower_to_ir(src, reg);
         let cfg_module = crate::cfg_builder::build_cfg(&ir, false);
         collect_call_site_constants(
@@ -2175,7 +2175,10 @@ mod tests {
     }
 
     fn evidence(src: &str) -> CallSiteEvidence {
-        evidence_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl"))
+        evidence_for_dialect(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        )
     }
 
     /// Whether `index` still has a single agreed literal across every
@@ -2379,7 +2382,7 @@ mod tests {
         let evidence = scan_source_call_sites(
             "oo::class create Dog { method bark {} { return woof } }\nDog new\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name(""),
+            tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
             &known(&["::unknown"]),
             &[],
         );
@@ -2520,7 +2523,7 @@ mod tests {
             let opaque = scan_source_call_sites(
                 src,
                 &reg,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &known,
                 &linked,
             );
@@ -2545,7 +2548,7 @@ mod tests {
         let opaque = scan_source_call_sites(
             "proc mine {x} { return $x }\nset cmd [gets stdin]\n$cmd dev\n",
             &reg,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &known,
             // Not in the callee's component: its reach is its own procs.
             &["::mine".to_owned()],

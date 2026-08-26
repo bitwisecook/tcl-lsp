@@ -490,14 +490,13 @@ fn cross_pack_command_notices(packs: &[MergedPack]) -> Vec<PackNotice> {
 /// Identical requirements short-circuit to `true` — the common case, and one
 /// no profile sweep could disagree with.
 fn could_collide(a: Option<&'static str>, b: Option<&'static str>) -> bool {
-    use tcl_registry::profile_queries::ProfileQueries as _;
-
     if a == b {
         return true;
     }
-    tcl_dialect::DialectProfile::all()
-        .iter()
-        .any(|profile| profile.package_available(a) && profile.package_available(b))
+    tcl_dialect::DialectProfile::all().iter().any(|profile| {
+        let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
+        context.required_package_available(a) && context.required_package_available(b)
+    })
 }
 
 /// Report every `file_extension` two different packs both claim.

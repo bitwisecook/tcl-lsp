@@ -110,7 +110,7 @@ fn references_class_includes_decl_and_every_instantiation() {
     // Cursor on `Dog` in the `oo::class create Dog` head (line 0, col 18).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -135,7 +135,7 @@ fn references_class_exclude_declaration_keeps_only_instantiations() {
     let analysis = analyse(src);
     let with_decl = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -143,7 +143,7 @@ fn references_class_exclude_declaration_keeps_only_instantiations() {
     );
     let without_decl = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -175,7 +175,7 @@ fn references_class_includes_superclass_usage_in_other_class() {
     // Cursor on `Dog` in its decl (line 0, col 18).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -204,7 +204,7 @@ fn references_class_includes_mixin_usage_in_other_class() {
     // Cursor on `M` in its decl (line 0, col 18).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -241,7 +241,7 @@ fn references_class_superclass_does_not_cross_a_namespace_collision() {
     // Cursor on `Base` in ::a's declaration (line 1, col 21).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         21,
         &analysis,
@@ -269,7 +269,7 @@ fn references_class_from_qualified_name_at_decl_resolves() {
     // `::Dog`.
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -291,7 +291,7 @@ fn document_highlights_var_marks_def_write_and_reads_read() {
     // Cursor inside the first `$x` (line 1).
     let h = document_highlights(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         &analysis,
@@ -315,7 +315,7 @@ fn document_highlights_var_out_of_scope_is_empty() {
     assert!(
         document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             7,
             &analysis
@@ -357,7 +357,7 @@ fn document_highlights_dedup_keeps_write_over_read_on_collision() {
     // Cursor on `$x` (line 1, col 6).
     let h = document_highlights(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         6,
         &analysis,
@@ -389,7 +389,7 @@ fn document_highlights_class_decl_and_instantiations_are_text() {
     // Cursor on `Dog` in the decl (line 0, col 18).
     let h = document_highlights(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         18,
         &analysis,
@@ -426,7 +426,7 @@ fn references_external_obj_method_two_instances_both_sites() {
     // Cursor on `bark` in `$a bark` (line 5, col 3).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         5,
         3,
         &analysis,
@@ -451,7 +451,7 @@ fn references_external_obj_method_inside_proc_body_subst() {
     // Cursor on the `bark` declaration (line 1, col 11).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         11,
         &analysis,
@@ -476,7 +476,7 @@ fn references_method_with_empty_body_sibling_still_resolves() {
     // Cursor on `bark` in `$d bark` (line 5, col 3).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         5,
         3,
         &analysis,
@@ -504,7 +504,7 @@ fn references_classmethod_decl_resolves_to_member() {
     // Cursor on the `build` classmethod declaration (line 1, col 17).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         17,
         &analysis,
@@ -534,7 +534,7 @@ fn references_property_decl_resolves_to_declaration_only() {
     // Cursor on the `color` property declaration (line 1, col 14).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         1,
         14,
         &analysis,
@@ -547,7 +547,7 @@ fn references_property_decl_resolves_to_declaration_only() {
     // Excluding the declaration leaves no external `$obj color` dispatch sites.
     let without_decl = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         1,
         14,
         &analysis,
@@ -569,7 +569,7 @@ fn document_highlights_method_decl_and_external_site_all_text() {
     // Cursor on the `bark` declaration (line 1, col 11).
     let h = document_highlights(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         11,
         &analysis,
@@ -598,7 +598,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             1,
             4,
             &analysis,
@@ -607,7 +607,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
         .is_empty()
             || !references(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 1,
                 4,
                 &analysis,
@@ -620,7 +620,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             99,
             0,
             &analysis,
@@ -631,7 +631,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     assert!(
         document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             99,
             0,
             &analysis
@@ -643,7 +643,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     assert!(
         references(
             "",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             0,
             &empty,
@@ -654,7 +654,7 @@ fn references_unknown_word_and_out_of_range_do_not_panic() {
     assert!(
         document_highlights(
             "",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             0,
             &empty
@@ -676,7 +676,7 @@ fn references_var_out_of_scope_is_empty() {
     assert!(
         references(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             7,
             &analysis,
@@ -695,7 +695,7 @@ fn document_highlights_unknown_word_is_empty() {
     assert!(
         document_highlights(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             0,
             6,
             &analysis
@@ -715,7 +715,7 @@ fn document_highlights_proc_decl_and_calls_are_text() {
     // Cursor on the `greet` declaration (line 0, col 6).
     let h = document_highlights(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         0,
         6,
         &analysis,
@@ -743,7 +743,7 @@ fn references_method_with_destructor_resolves_external_site() {
     // Cursor on the `bark` declaration (line 1, col 11).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         11,
         &analysis,
@@ -788,7 +788,7 @@ fn bug_intra_class_my_method_call_sites_are_missed() {
     // Cursor on the `bark` declaration (line 1, col 11).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         11,
         &analysis,
@@ -831,7 +831,7 @@ fn bug_intra_class_bare_head_is_not_a_real_reference() {
     // Cursor on the `greet` declaration (line 1, col 11).
     let refs = references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         1,
         11,
         &analysis,

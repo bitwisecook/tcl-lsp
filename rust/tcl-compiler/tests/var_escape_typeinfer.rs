@@ -77,7 +77,8 @@ use tcl_compiler::var_escape::{
     analyse_var_escape_cu, assign_local_slots, is_frame_inspecting_info_subcommand,
     is_safe_info_subcommand, solve_interprocedural_escape,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -86,7 +87,7 @@ use tcl_registry::{CommandRegistry, registry_for_dialect};
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// IR-walk escape summaries (the inliner's path). `ipa=true` folds the

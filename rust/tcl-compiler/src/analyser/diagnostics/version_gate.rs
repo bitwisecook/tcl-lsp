@@ -1563,13 +1563,12 @@ mod tests {
         key: u64,
         rows: &[(&'static str, &'static str)],
     ) -> Analyser {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                for (package, version) in rows {
-                    registry.insert_ambient_package(package, version);
-                }
-            });
+        let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            for (package, version) in rows {
+                registry.insert_ambient_package(package, version);
+            }
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1759,20 +1758,20 @@ mod tests {
             },
         ];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::grew",
-                    arity: Arity::exact(1),
-                    arity_windows: WINDOWS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
-                if let Some(version) = ambient {
-                    registry.insert_ambient_package("Probe", version);
-                }
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::grew",
+                arity: Arity::exact(1),
+                arity_windows: WINDOWS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+            if let Some(version) = ambient {
+                registry.insert_ambient_package("Probe", version);
+            }
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1793,18 +1792,18 @@ mod tests {
             arity: Arity::exact(2),
         }];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::shrank",
-                    // Fallback takes three; from 3.0 it takes two.
-                    arity: Arity::exact(3),
-                    arity_windows: WINDOWS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::shrank",
+                // Fallback takes three; from 3.0 it takes two.
+                arity: Arity::exact(3),
+                arity_windows: WINDOWS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -1860,19 +1859,19 @@ mod tests {
             ..tcl_registry::SubCommand::DEFAULT
         }];
 
-        let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
-        let _registry =
-            tcl_registry::cache::registry_for_profile_with_overlay(profile, key, |registry| {
-                registry.insert(tcl_registry::CommandSpec {
-                    name: "probe::ens",
-                    // Below 3.0 a bare call has a defined default.
-                    arity: Arity::at_least(0),
-                    arity_windows: WINDOWS,
-                    subcommands: SUBS,
-                    required_package: Some("Probe"),
-                    ..tcl_registry::CommandSpec::DEFAULT
-                });
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
+        let _registry = tcl_registry::registry_for_profile_with_overlay(profile, key, |registry| {
+            registry.insert(tcl_registry::CommandSpec {
+                name: "probe::ens",
+                // Below 3.0 a bare call has a defined default.
+                arity: Arity::at_least(0),
+                arity_windows: WINDOWS,
+                subcommands: SUBS,
+                required_package: Some("Probe"),
+                ..tcl_registry::CommandSpec::DEFAULT
             });
+        });
         Analyser::new().with_pack_overlay(key)
     }
 
@@ -2230,18 +2229,19 @@ mod tests {
 
     #[test]
     fn w200_binary_modifiers_follow_the_effective_version() {
-        // TIP 275: binary format/scan u/s modifiers are 8.5+.
+        // TIP 275: binary format/scan u/s modifiers are 8.5+. The F5
+        // trunk profiles all ride the fork of Tcl at 8.4.6 — measured,
+        // bigip-irule-parser-measurements.md §4a: iApps/tmsh fail every
+        // 8.5 discriminator, so the modifiers flag there too.
         let src = "binary format cu 5\n";
-        for d in ["tcl8.4", "f5-irules"] {
+        for d in ["tcl8.4", "f5-irules", "f5-iapps", "f5-tmsh"] {
             let diags = dsl_diags(src, d);
             assert!(
                 diags.iter().any(|(c, _)| c == "W200"),
                 "{d}: binary u modifier needs 8.5, got {diags:?}"
             );
         }
-        // The old hardcoded list wrongly flagged f5-iapps — its host is a
-        // real Tcl 8.5.13 where the modifiers work (FP fixed).
-        for d in ["f5-iapps", "tcl8.5", "tcl8.6", "f5-tmsh"] {
+        for d in ["tcl8.5", "tcl8.6"] {
             assert!(
                 dsl_diags(src, d).is_empty(),
                 "{d}: binary u modifier is real on 8.5+"
@@ -2621,7 +2621,8 @@ mod tests {
         /// Every W147 message `source` draws under `tcl8.6`, with the
         /// synthetic pack installed.
         fn conflicts(source: &str) -> Vec<String> {
-            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
             let _registry =
                 tcl_registry::registry_for_profile_with_overlay(profile, OVERLAY, |registry| {
                     registry.insert(spec("fauxgated", CONSTRAINTS));
@@ -2690,7 +2691,8 @@ mod tests {
                 ..tcl_registry::OptionConstraint::DEFAULT
             }];
             const KEY: u64 = 0x7e57_c0f2;
-            let profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+            let profile =
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
             let _registry =
                 tcl_registry::registry_for_profile_with_overlay(profile, KEY, |registry| {
                     registry.insert(spec("fauxretired", RETIRED));

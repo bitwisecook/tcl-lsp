@@ -38,8 +38,9 @@
 //! every profile an ingress can produce, so [`surface_mask`] answers the
 //! command-availability gate exactly as the mask read did.
 //!
-//! P1-G: the `&'static DialectProfile` these helpers take and hand back
-//! retires with the profile itself, and the VM's pin carries a
+//! Post-P1-G (which deleted the name validators and old cache doors):
+//! the `&'static DialectProfile` these helpers take and hand back
+//! retires with ledger C1's re-type, and the VM's pin then carries a
 //! [`tcl_registry::model::DocumentEnvironment`] instead.
 //!
 //! [`Vm::set_runtime_version`]: crate::Vm::set_runtime_version
@@ -52,7 +53,7 @@ use tcl_registry::CommandRegistry;
 /// Resolve a dialect **name** to the profile this VM pins.
 ///
 /// The environment-model form of the retired
-/// `DialectProfile::by_name(name)`: the resolved environment's
+/// the retired name resolver: the resolved environment's
 /// [`unit_profile`], which is its same-named catalogue profile for every
 /// release name the VM pins and the permissive fallback for the lenient
 /// and unknown spellings — exactly `by_name`'s answer at every one of
@@ -65,7 +66,7 @@ pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
 
 /// The command **store** for `profile` — the resolved environment's
 /// registry generation, replacing the retired
-/// `tcl_registry::registry_for_profile(profile)`.
+/// `tcl_registry::model::ingress::static_context_for_profile(profile).commands()`.
 ///
 /// A profile's canonical name **is** a canonical environment id, so this
 /// is an id-keyed generation lookup rather than a re-parse, and the
@@ -99,7 +100,7 @@ pub(crate) fn surface_mask(profile: &'static DialectProfile) -> DialectSet {
 /// profile handle.
 ///
 /// One resolution of the name, not two: the old form was
-/// `DialectProfile::by_name(name).availability_mask`, and the resolved
+/// the retired resolver's `availability_mask` read, and the resolved
 /// environment's document authoring mask is that same mask.
 ///
 /// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name

@@ -66,7 +66,8 @@ use tcl_compiler::cfg_layout::{EdgeKind, assign_lanes, build_cfg_edges, ordered_
 use tcl_compiler::expr_ast::render_expr;
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Shared helpers (mirror dataflow.rs / optimiser.rs registry setup)
@@ -75,7 +76,7 @@ use tcl_registry::{CommandRegistry, registry_for_dialect};
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// `source → CfgModule` via the analysis (faithful) builder.

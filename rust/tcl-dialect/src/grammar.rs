@@ -124,7 +124,10 @@ impl BracedVarStyle {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.braced_var
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .braced_var
         })
     }
 
@@ -329,7 +332,10 @@ impl EscapeSyntax {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.escapes
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .escapes
         })
     }
 
@@ -439,7 +445,10 @@ impl NumberSyntax {
     #[must_use]
     pub fn of_dialect_name(name: Option<&str>) -> Self {
         name.map_or(Self::default(), |n| {
-            crate::DialectProfile::by_name(n).grammar.numbers
+            crate::DialectProfile::find(n)
+                .unwrap_or_else(crate::DialectProfile::plain_tcl)
+                .grammar
+                .numbers
         })
     }
 

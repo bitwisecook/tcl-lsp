@@ -207,7 +207,8 @@ impl DialectSet {
     /// `matches!(dialect, Some("f5-irules" | "irules"))` copies.
     #[must_use]
     pub fn is_irules_dialect(name: Option<&str>) -> bool {
-        crate::profile::DialectProfile::by_opt_name(name).is_irules()
+        name.and_then(crate::profile::DialectProfile::find)
+            .is_some_and(crate::profile::DialectProfile::is_irules)
     }
 
     /// Whether `name`'s ensemble commands are *fixed* — the dialect
@@ -221,7 +222,8 @@ impl DialectSet {
     /// defect this closes).
     #[must_use]
     pub fn has_fixed_ensembles(name: Option<&str>) -> bool {
-        crate::profile::DialectProfile::by_opt_name(name).has_fixed_ensembles
+        name.and_then(crate::profile::DialectProfile::find)
+            .is_some_and(|p| p.has_fixed_ensembles)
     }
 
     /// Parse a dialect name string to a single-bit set.
@@ -359,13 +361,14 @@ impl DialectSet {
     #[must_use]
     pub fn expr_grammar_base_version(name: &str) -> Option<Self> {
         Some(match name {
-            "tcl8.4" | "f5-irules" | "cadence-eda-tcl" => Self::TCL84,
-            "tcl8.5"
-            | "f5-iapps"
-            | "f5-tmsh"
-            | "xilinx-eda-tcl"
-            | "intel-quartus-eda-tcl"
-            | "microchip-libero-eda-tcl" => Self::TCL85,
+            // f5-iapps/f5-tmsh ride the `f5-tcl` trunk (fork of Tcl at
+            // 8.4.6): measured, `docs/design/bigip-irule-parser-measurements.md`
+            // §4a — both contexts report 8.4.6 and fail every 8.5
+            // discriminator, `0b101` included.
+            "tcl8.4" | "f5-irules" | "f5-iapps" | "f5-tmsh" | "cadence-eda-tcl" => Self::TCL84,
+            "tcl8.5" | "xilinx-eda-tcl" | "intel-quartus-eda-tcl" | "microchip-libero-eda-tcl" => {
+                Self::TCL85
+            }
             "tcl8.6" | "synopsys-eda-tcl" | "mentor-eda-tcl" | "expect" => Self::TCL86,
             // SpecTcl's hook bodies are evaluated on our own Tcl 9.0-shaped
             // VM (`spec-packs.md`, "Purity and the sandbox"), so its expr
@@ -525,19 +528,18 @@ mod tests {
         // Plain Tcl versions map to themselves.
         assert_eq!(base("tcl8.4"), Some(DialectSet::TCL84));
         assert_eq!(base("tcl9.1"), Some(DialectSet::TCL91));
-        // iRules' *runtime* base (8.4.6) wins over its 8.6-shaped command
-        // signature — version-dependent behaviour follows the runtime.
-        assert_eq!(base("f5-irules"), Some(DialectSet::TCL84));
+        // The F5 trunk profiles all ride the fork of Tcl at 8.4.6 —
+        // measured, bigip-irule-parser-measurements.md §4a: every BIG-IP
+        // execution context reports 8.4.6 and fails every 8.5
+        // discriminator (`0b101` included).
+        for d in ["f5-irules", "f5-iapps", "f5-tmsh"] {
+            assert_eq!(base(d), Some(DialectSet::TCL84), "{d}");
+        }
         // Cadence Innovus/Genus run an 8.4-safe core (owner decision).
         assert_eq!(base("cadence-eda-tcl"), Some(DialectSet::TCL84));
-        // EDA / F5 vendor shells inherit their documented embedded core —
+        // EDA vendor shells inherit their documented embedded core —
         // unlike `DialectSet::TCL85_PLUS`, which deliberately excludes them.
-        for d in [
-            "f5-iapps",
-            "f5-tmsh",
-            "xilinx-eda-tcl",
-            "intel-quartus-eda-tcl",
-        ] {
+        for d in ["xilinx-eda-tcl", "intel-quartus-eda-tcl"] {
             assert_eq!(base(d), Some(DialectSet::TCL85), "{d}");
         }
         // Synopsys + modern Questa (Mentor) run an 8.6 core.

@@ -2834,7 +2834,7 @@ mod tests {
         caller: &str,
         dialect: &'static tcl_dialect::DialectProfile,
     ) -> Vec<String> {
-        let registry = tcl_registry::cache::registry_for_profile(dialect);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(dialect).commands();
         let ir = crate::lowering::lower_to_ir(src, registry);
         let ia = build_interprocedural_analysis(
             &ir,
@@ -2866,7 +2866,11 @@ mod tests {
                 "proc cb {{a b}} {{ return 0 }}\nproc go {{}} {{ lsort -command {prefix} {{x y}} }}\n"
             );
             assert_eq!(
-                calls_of(&src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+                calls_of(
+                    &src,
+                    "::go",
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                ),
                 vec!["::cb".to_owned()],
                 "`-command {prefix}` must record a call edge to cb",
             );
@@ -2879,7 +2883,11 @@ mod tests {
         let src = "proc cb {args} { return 0 }\n\
                    proc go {} { trace add variable v write [list cb] }\n";
         assert_eq!(
-            calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            calls_of(
+                src,
+                "::go",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec!["::cb".to_owned()]
         );
     }
@@ -2895,8 +2903,12 @@ mod tests {
                    proc pick {} { return cb }\n\
                    proc go {} { lsort -command [pick] {x y} }\n";
         assert!(
-            !calls_of(src, "::go", tcl_dialect::DialectProfile::by_name("tcl8.6"))
-                .contains(&"::cb".to_owned()),
+            !calls_of(
+                src,
+                "::go",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )
+            .contains(&"::cb".to_owned()),
             "the computed prefix's result is unknown, so cb is not a proven callee",
         );
     }
@@ -2919,7 +2931,7 @@ mod tests {
             calls_of(
                 "proc call {mode} { return $mode }\nproc go {} { call helper }\n",
                 "::go",
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             ),
             vec!["::call".to_owned()],
             "plain Tcl has no user-proc invoker, so `call` is just a procedure",
@@ -3151,7 +3163,7 @@ mod tests {
         // `CompilationUnit::with_interprocedural` supplies them.
         let identities = crate::head_identity::command_head_identities(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         build_interprocedural_analysis(
@@ -3262,7 +3274,7 @@ mod tests {
             &registry,
             false,
         )
-        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl9.0")));
+        .with_interprocedural(&registry, Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()));
         let summary = &cu.interproc.as_ref().expect("interproc").procedures["::build"];
         assert!(
             summary.direct_calls.iter().any(|c| c == "::onNode"),

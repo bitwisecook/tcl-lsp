@@ -477,7 +477,7 @@ pub fn collect_upvar_targets(body: &Script, params: &[String]) -> UpvarInfo {
     // the same reasoning (and the same issue #1035 allocation concern)
     // `global_write_info::detect_global_write_procs` records for its own
     // scan, which runs on the same per-keystroke path.
-    let registry = tcl_registry::cache::default_registry();
+    let registry = tcl_registry::default_registry();
     let mut info = UpvarInfo::default();
     walk_script(&body.statements, params, registry, &mut info);
     info

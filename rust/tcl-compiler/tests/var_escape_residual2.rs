@@ -76,14 +76,15 @@ use tcl_compiler::var_escape::{
     BarrierKind, EscapeReasonKind, EscapeTag, ProcEscapeSummary, TOP_LEVEL_QNAME,
     analyse_cfg_function, analyse_var_escape, analyse_var_escape_cu,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ── Shared helpers ──────────────────────────────────────────────────────────
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// Flow-sensitive CFG/SSA escape summaries (codegen's frame-analysis path),

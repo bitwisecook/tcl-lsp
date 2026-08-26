@@ -8,7 +8,7 @@ use tcl_compiler::dispatch_proof::DispatchEntryAssumption;
 use tcl_compiler::executable_ir::ExecutableFunctionId;
 use tcl_compiler::semantic_analysis::ExecutableAnalysisAvailability;
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const DIALECT: &str = "tcl8.6";
 const SOURCE: &str = r"
@@ -21,7 +21,7 @@ const SOURCE: &str = r"
 ";
 
 fn fixture() -> (CompilationUnit, &'static tcl_registry::CommandRegistry) {
-    let registry = registry_for_dialect(DIALECT);
+    let registry = static_context_for(DIALECT).commands();
     (
         CompilationUnit::build_for_dialect(SOURCE, registry, false, DIALECT),
         registry,

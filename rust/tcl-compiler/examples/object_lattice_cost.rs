@@ -55,7 +55,6 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::object_types::{
     LatticeStats, object_handle_classes, object_handle_classes_full_walk, object_handle_facts,
 };
-use tcl_dialect::DialectProfile;
 use tcl_registry::CommandRegistry;
 
 /// Lossless-for-realistic-counts `usize`→`f64`, as `mro_eval` does it.
@@ -130,12 +129,18 @@ fn measure(path: &Path, reg: &CommandRegistry, repeats: usize) -> Option<Row> {
     let lines = src.lines().count();
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let cu_ms = best_ms(repeats, || {
-            let cu = CompilationUnit::build_for(&src, reg, false)
-                .with_interprocedural(reg, Some(DialectProfile::by_name("tcl8.6")));
+            let cu = CompilationUnit::build_for(&src, reg, false).with_interprocedural(
+                reg,
+                Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                ),
+            );
             std::hint::black_box(&cu);
         });
-        let cu = CompilationUnit::build_for(&src, reg, false)
-            .with_interprocedural(reg, Some(DialectProfile::by_name("tcl8.6")));
+        let cu = CompilationUnit::build_for(&src, reg, false).with_interprocedural(
+            reg,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+        );
         let lattice_ms = best_ms(repeats, || {
             std::hint::black_box(object_handle_classes(&cu, reg));
         });

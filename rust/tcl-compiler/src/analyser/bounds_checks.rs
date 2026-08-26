@@ -505,7 +505,7 @@ fn body_writes_var(
 /// the registry-less fallback (mirroring [`is_loop_exit_command`]'s shape).
 fn writes_first_arg(name: &str, registry: Option<&tcl_registry::CommandRegistry>) -> bool {
     registry
-        .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"))
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands())
         .writes_first_arg_variable(name.trim_start_matches(':'))
 }
 
@@ -759,7 +759,8 @@ fn infer_list_length_from_recent_set(
     if before_offset == 0 || before_offset as usize > source.len() || var_name.is_empty() {
         return None;
     }
-    let registry = registry.unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"));
+    let registry = registry
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let mut script: &str = source;
     let mut base: u32 = 0;
     let mut best: Option<i64> = None;
@@ -1313,7 +1314,7 @@ mod tests {
         // `break` / `return` / `throw` / `tailcall` likewise count only as
         // commands. `return`/`throw` resolve via the registry's
         // TERMINATES_BLOCK trait; `break`/`tailcall` are recognised without it.
-        let reg = tcl_registry::registry_for_dialect("tcl8.6");
+        let reg = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         assert!(super::body_may_exit("break", Some(reg), config()));
         assert!(super::body_may_exit(
             "if {$c} {return}",

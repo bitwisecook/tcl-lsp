@@ -1299,7 +1299,7 @@ set parts [split [HTTP::uri /path] "?"]"#,
         let ws = warnings_for_dialect(
             r#"set x "foo"
 set parts [split $x "?"]"#,
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(ws.is_empty());
     }

@@ -880,7 +880,7 @@ mod tests {
         registry.load_dialect(tcl_dialect::DialectSet::EXPECT);
         folding_ranges(
             source,
-            tcl_dialect::DialectProfile::by_name("expect"),
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile(),
             &registry,
         )
     }
@@ -904,7 +904,11 @@ mod tests {
     #[test]
     fn empty_source_yields_no_folds() {
         assert!(
-            folding_ranges_default("", tcl_dialect::DialectProfile::by_name("tcl8.6")).is_empty()
+            folding_ranges_default(
+                "",
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            )
+            .is_empty()
         );
     }
 
@@ -912,7 +916,7 @@ mod tests {
     fn single_line_proc_has_no_fold() {
         let ranges = folding_ranges_default(
             "proc foo {} { return 1 }\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(fold_lines(&ranges, FoldKind::Region).is_empty());
     }
@@ -924,7 +928,10 @@ mod tests {
         // `puts hello \` + `world` is one logical command spanning two
         // physical lines — fold line 0 → 1.
         let src = "puts hello \\\n     world\n";
-        let ranges = folding_ranges_default(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(
             fold_lines(&ranges, FoldKind::Region).contains(&(0, 1)),
             "{ranges:?}",
@@ -934,7 +941,10 @@ mod tests {
     #[test]
     fn backslash_continuation_spans_three_lines() {
         let src = "mycmd a \\\nb \\\nc\n";
-        let ranges = folding_ranges_default(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(
             fold_lines(&ranges, FoldKind::Region).contains(&(0, 2)),
             "{ranges:?}",
@@ -945,7 +955,10 @@ mod tests {
     fn no_continuation_fold_without_backslash() {
         // A plain two-line script has no continuation → no region fold.
         let src = "puts hello\nputs world\n";
-        let ranges = folding_ranges_default(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(
             fold_lines(&ranges, FoldKind::Region).is_empty(),
             "{ranges:?}",
@@ -955,7 +968,10 @@ mod tests {
     #[test]
     fn two_separate_continued_commands_fold_independently() {
         let src = "aa x \\\ny\nbb p \\\nq\n";
-        let ranges = folding_ranges_default(src, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let region = fold_lines(&ranges, FoldKind::Region);
         assert!(region.contains(&(0, 1)), "{region:?}");
         assert!(region.contains(&(2, 3)), "{region:?}");
@@ -964,7 +980,10 @@ mod tests {
     #[test]
     fn proc_body_folds_to_close_brace_minus_one() {
         let source = "proc greet {name} {\n    puts \"Hello\"\n    puts \"$name\"\n}\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert!(!regions.is_empty(), "expected a region fold for the proc");
         assert!(
@@ -976,7 +995,10 @@ mod tests {
     #[test]
     fn namespace_body_emits_fold_at_line_zero() {
         let source = "namespace eval myns {\n    proc helper {} { return }\n}\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let starts: HashSet<u32> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region)
@@ -991,7 +1013,10 @@ mod tests {
     #[test]
     fn comment_block_of_three_lines_folds() {
         let source = "# This is a comment block\n# that spans multiple lines\n# explaining something important\nproc foo {} { return }\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let comments = fold_lines(&ranges, FoldKind::Comment);
         assert_eq!(comments, vec![(0, 2)]);
     }
@@ -1001,7 +1026,7 @@ mod tests {
         let src = "set help {\n# data one\n# data two\n# data three\n}\n";
         let ranges = folding_ranges(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry(),
         );
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
@@ -1011,7 +1036,7 @@ mod tests {
     fn single_comment_line_does_not_fold() {
         let ranges = folding_ranges_default(
             "# Just one comment\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         assert!(fold_lines(&ranges, FoldKind::Comment).is_empty());
     }
@@ -1019,7 +1044,10 @@ mod tests {
     #[test]
     fn if_body_emits_at_least_one_region_fold() {
         let source = "if {1} {\n    puts \"yes\"\n    puts \"really\"\n}\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -1042,7 +1070,10 @@ mod tests {
             "}\n",                         // 9
         );
         let regions = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
             FoldKind::Region,
         );
         assert!(
@@ -1196,7 +1227,10 @@ mod tests {
             "}\n",                       // 7
         );
         let regions = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
             FoldKind::Region,
         );
         assert!(
@@ -1220,7 +1254,10 @@ mod tests {
             "}\n",              // 6
         );
         let regions = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
             FoldKind::Region,
         );
         assert!(regions.contains(&(0, 2)), "{regions:?}");
@@ -1242,7 +1279,10 @@ mod tests {
             "}\n",              // 6
         );
         let regions = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
             FoldKind::Region,
         );
         assert!(regions.contains(&(2, 4)), "{regions:?}");
@@ -1255,7 +1295,10 @@ mod tests {
     #[test]
     fn while_body_emits_at_least_one_region_fold() {
         let source = "while {1} {\n    puts \"loop\"\n    puts \"again\"\n}\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(!fold_lines(&ranges, FoldKind::Region).is_empty());
     }
 
@@ -1269,7 +1312,10 @@ mod tests {
     #[test]
     fn apply_lambda_body_folds_and_recurses_into_nested_blocks() {
         let source = "apply {dir {\n    if {1} {\n        puts \"yes\"\n        puts \"again\"\n    }\n}} /tmp\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert!(
             regions.iter().any(|&(s, _)| s == 0),
@@ -1300,8 +1346,10 @@ mod tests {
             source.push_str(&"    ".repeat(i));
             source.push_str("}\n");
         }
-        let ranges =
-            folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            &source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region).len();
         assert!(
             regions >= LEVELS - 1,
@@ -1321,7 +1369,10 @@ mod tests {
             "    puts \"nope\"\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let mut bodies: Vec<(u32, u32)> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region && (r.start_line == 0 || r.start_line == 3))
@@ -1345,7 +1396,10 @@ mod tests {
         // An unterminated proc body should still be foldable so the
         // fold doesn't flicker off mid-edit.
         let source = "proc foo {} {\n    puts hi\n    puts there\n";
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert!(
             !regions.is_empty(),
@@ -1370,7 +1424,10 @@ mod tests {
             "    puts d\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         assert_eq!(
             regions.len(),
@@ -1406,7 +1463,10 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         for (i, a) in ranges.iter().enumerate() {
             for b in &ranges[i + 1..] {
                 if a.start_line == b.start_line && a.end_line == b.end_line {
@@ -1441,7 +1501,10 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         // Method body (``method greet … { … }``): start line 1, body
         // spans through line 3 — the closing ``}`` sits on line 4.
@@ -1468,11 +1531,17 @@ mod tests {
         );
 
         let tcl86 = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ),
             FoldKind::Region,
         );
         let tcl90 = fold_lines(
-            &folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            &folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            ),
             FoldKind::Region,
         );
 
@@ -1504,7 +1573,10 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl9.0"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         // Method body (`method paint {} { … }`): starts on line 2, spans
         // through line 4 (the closing `}` sits on line 5).
@@ -1601,7 +1673,10 @@ mod tests {
             // form a valid `method name args body` shape.
             "method 1 2 3\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let regions = fold_lines(&ranges, FoldKind::Region);
         // The proc body fold (line 0..2) is fine — that comes from
         // `proc`, not from misidentifying `method`. But there must
@@ -1718,7 +1793,10 @@ mod tests {
             "    }\n",
             "}\n",
         );
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         let proc_folds: Vec<&FoldingRange> = ranges
             .iter()
             .filter(|r| r.kind == FoldKind::Region && r.start_line == 0)
@@ -1780,7 +1858,10 @@ mod tests {
 
     fn assert_folds_in_bounds(source: &str, label: &str) {
         let line_count = lsp_line_count(source);
-        let ranges = folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(!ranges.is_empty(), "{label}: expected at least one fold");
         for r in &ranges {
             assert!(
@@ -1851,8 +1932,10 @@ mod tests {
         ];
         for (label, source) in cases {
             let line_count = lsp_line_count(source);
-            for r in folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            {
+            for r in folding_ranges_default(
+                source,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            ) {
                 assert!(
                     r.end_line < line_count,
                     "{label}: fold {}..{} ends past the last line (line_count {line_count})",
@@ -1879,8 +1962,10 @@ mod tests {
     fn tcloo_class_fixture_meets_the_sticky_scroll_bounds_contract() {
         let source = format!("{CLASS_AT_EOF}\n");
         let line_count = lsp_line_count(&source);
-        let ranges =
-            folding_ranges_default(&source, tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let ranges = folding_ranges_default(
+            &source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert!(!ranges.is_empty(), "expected folds for the class fixture");
 
         for r in &ranges {
@@ -1924,9 +2009,12 @@ mod tests {
     /// same holds and `while` itself is gone (`info commands while` → empty);
     /// after `proc while …` the call runs the user proc.
     fn body_fold_on_call_line(source: &str) -> bool {
-        folding_ranges_default(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-            .iter()
-            .any(|r| r.kind == FoldKind::Region && r.start_line == 1)
+        folding_ranges_default(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .iter()
+        .any(|r| r.kind == FoldKind::Region && r.start_line == 1)
     }
 
     const REBOUND_CALL: &str = "loop {$x} {\n    puts a\n    puts b\n}\n";

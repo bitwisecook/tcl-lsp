@@ -62,7 +62,7 @@ use tcl_compiler::optimiser::manager::{
     apply_optimisations, optimise_source_multipass, optimise_with_dialect,
 };
 use tcl_compiler::shimmer::{find_shimmer_warnings_for_cu, find_thunking_warnings_for_cu};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 const IR: &str = "f5-irules";
@@ -73,8 +73,9 @@ const IR: &str = "f5-irules";
 
 /// Sorted, de-duplicated `Oxxx` codes emitted by a single optimiser pass.
 fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     let mut v: Vec<String> = optimise_with_dialect(src, registry, d)
         .iter()
         .map(|o| o.code.as_str().to_owned())
@@ -86,8 +87,9 @@ fn opt_codes(src: &str, dialect: &str) -> Vec<String> {
 
 /// True if any optimisation with `code` fires on `src` under `dialect`.
 fn opt_fires(src: &str, dialect: &str, code: &str) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code.as_str() == code)
@@ -100,15 +102,17 @@ fn opt_absent(src: &str, dialect: &str, code: &str) -> bool {
 
 /// Apply all optimisations and return the rewritten source.
 fn optimised(src: &str, dialect: &str) -> String {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     apply_optimisations(src, &optimise_with_dialect(src, registry, d))
 }
 
 /// True if any emitted code is in `wanted`.
 fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| wanted.contains(&o.code.as_str()))
@@ -121,7 +125,7 @@ fn opt_any_of(src: &str, dialect: &str, wanted: &[&str]) -> bool {
 /// `FunctionUnit` path fails closed unless an occurrence has exact
 /// common-semantic registry facts, which has separate boundary tests in `gvn`.
 fn legacy_gvn_codes(src: &str) -> Vec<String> {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
     for function in cu.analysable_functions() {
@@ -129,7 +133,7 @@ fn legacy_gvn_codes(src: &str) -> Vec<String> {
             registry,
             &function.cfg,
             &function.ssa,
-            Some(tcl_dialect::DialectProfile::by_name(TCL)),
+            Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         ) {
             v.push(redundancy.code.as_str().to_owned());
         }
@@ -140,7 +144,7 @@ fn legacy_gvn_codes(src: &str) -> Vec<String> {
 
 /// Shimmer-warning codes (S100/S101 + S102 thunking).
 fn shimmer_codes(src: &str) -> Vec<String> {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let mut v: Vec<String> = Vec::new();
     for w in find_shimmer_warnings_for_cu(&cu, registry) {
@@ -195,11 +199,11 @@ fn o100_constant_propagation() {
     // (`set a 2`) needs the fixpoint helper to reach the fold (one pass removes
     // the dead store and forwards the literal; the multipass folds `b`), as in
     // optimiser.rs.
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (reassign, _) = optimise_source_multipass(
         "set a 1\nset a 2\nset b [expr {$a + 1}]",
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(reassign.contains("set b 3"));
@@ -1478,11 +1482,11 @@ fn o112_nested_via_multipass() {
     // `if {0}` dead block.
     let nested = "if {1} {\n    if {0} {\n        set dead 1\n    }\n    set alive 2\n}";
     assert!(optimised(nested, TCL).contains("set alive 2"));
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let (fixed, _) = optimise_source_multipass(
         nested,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(!fixed.contains("set dead 1"));
@@ -1841,7 +1845,7 @@ fn invert_logic_covers_tip461_and_membership_operators() {
 
 #[test]
 fn apply_optimisations_edge_cases() {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     // Empty optimisation set ⇒ source unchanged.
     assert_eq!(apply_optimisations("set x 1", &[]), "set x 1");
 
@@ -1861,7 +1865,7 @@ fn apply_optimisations_edge_cases() {
     let opts = optimise_with_dialect(
         src,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
     );
     let starts: Vec<u32> = opts.iter().map(|o| o.span.start()).collect();
     let mut sorted = starts.clone();
@@ -2337,12 +2341,12 @@ fn profile_directive_and_multipass() {
     // Multipass: a write-only string build in a proc collapses to a single
     // `return {Hello World}`; the intermediate local is removed. tclsh: the proc
     // returns "Hello World" either way.
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let build = "proc build_banner {} {\n    set msg {Hello}\n    append msg { }\n    append msg World\n    return $msg\n}\n";
     let (mp, _) = optimise_source_multipass(
         build,
         registry,
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
         10,
     );
     assert!(mp.contains("return {Hello World}"));

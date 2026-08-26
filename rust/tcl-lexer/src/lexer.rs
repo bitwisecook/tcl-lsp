@@ -280,7 +280,11 @@ impl LexerConfig {
     /// doesn't change parsing behaviour.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        Self::from_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+        Self::from_grammar(
+            tcl_dialect::DialectProfile::find(dialect)
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+                .grammar,
+        )
     }
 
     /// [`Self::from_grammar`] for the entry point that lexes a **whole file**:
@@ -314,7 +318,11 @@ impl LexerConfig {
     /// document links / inlay hints / references miss (issue #1243).
     #[must_use]
     pub fn for_file_dialect(dialect: &str) -> Self {
-        Self::for_file_grammar(tcl_dialect::DialectProfile::by_name(dialect).grammar)
+        Self::for_file_grammar(
+            tcl_dialect::DialectProfile::find(dialect)
+                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+                .grammar,
+        )
     }
 
     /// This config demoted to a **nested** re-lex: identical, except a leading

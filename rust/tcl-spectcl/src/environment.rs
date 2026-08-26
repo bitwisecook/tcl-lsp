@@ -22,7 +22,8 @@
 //!
 //! Only the name ingress lives here. Everything else in this crate keys off
 //! an already-resolved [`DialectProfile`] or off a pack's own declarations,
-//! and moves with the profile in P1-G.
+//! and moves with the profile when ledger C1's re-type retires it
+//! (post-P1-G, which deleted the name validators).
 //!
 //! The pack-carrying registries this crate publishes are deliberately
 //! resolved through the **analyser** profile
@@ -58,7 +59,7 @@ pub fn catalogue_profile_for_dialect(name: &str) -> Option<&'static DialectProfi
 
 /// The **lenient** command store — the permissive all-Tcl view the
 /// collision policy consults, replacing
-/// `registry_for_profile(DialectProfile::by_name(""))`.
+/// the retired `registry_for_profile` at the permissive fallback profile.
 #[must_use]
 pub fn lenient_store() -> &'static tcl_registry::CommandRegistry {
     tcl_registry::model::static_context_for("tcl").commands()

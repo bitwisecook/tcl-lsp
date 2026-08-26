@@ -55,7 +55,7 @@ pub mod bigip;
 pub mod body_kind;
 pub mod bpf_op;
 pub mod byte_array_effect;
-pub mod cache;
+pub(crate) mod cache;
 pub mod clause_shape;
 pub mod command_prefix_target;
 pub mod command_snapshot;
@@ -89,7 +89,7 @@ pub mod patterns;
 pub mod presentation;
 pub mod private_tcl_namespaces;
 pub mod profile_defaults;
-pub mod profile_queries;
+pub(crate) mod profile_queries;
 pub mod profiles;
 pub mod registry;
 pub mod repeated;
@@ -226,10 +226,7 @@ pub use arity::Arity;
 pub use bigip::{BigipObjectSpec, BigipPropertySpec, BigipRegistry, ValueKind};
 pub use body_kind::BodyKind;
 pub use byte_array_effect::ByteArrayEffect;
-pub use cache::{
-    registry_for_dialect, registry_for_profile, registry_for_profile_with_overlay,
-    registry_handle_for_dialect, registry_handle_for_profile, safe_interp_hidden_commands,
-};
+pub use cache::{default_registry, registry_for_profile_with_overlay, safe_interp_hidden_commands};
 pub use clause_shape::{ClauseShapeChecker, ClauseShapeError};
 pub use command_prefix_target::CommandPrefixTarget;
 pub use command_table::CommandTableEffect;
@@ -266,7 +263,7 @@ pub use literal_validation::{
 };
 pub use patterns::{FormatType, PatternType};
 pub use presentation::ArgPresentation;
-pub use profile_queries::{ProfileQueries, VendorSurface};
+pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };

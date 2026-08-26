@@ -1158,7 +1158,7 @@ pub fn top_level_when_handlers(source: &str) -> Vec<tcl_syntax::event_handler::E
     let resolver = WrittenHeadResolver;
     top_level_when_handlers_with_registry_and_head_resolver(
         source,
-        crate::registry_for_dialect("f5-irules"),
+        crate::model::ingress::static_context_for("f5-irules").commands(),
         &resolver,
     )
 }
@@ -4490,7 +4490,7 @@ mod tests {
 
     #[test]
     fn event_scan_ignores_case_and_unavailable_apply_when_words() {
-        let registry = crate::registry_for_dialect("f5-irules");
+        let registry = crate::model::ingress::static_context_for("f5-irules").commands();
         let source = r"
             switch -- $x { a { when CLIENT_DATA {} } default { when SERVER_DATA {} } }
             apply {{} { when HTTP_REQUEST {} }}
@@ -4509,7 +4509,7 @@ mod tests {
 
     #[test]
     fn non_irules_definition_bodies_are_not_event_handlers() {
-        let tcl = crate::registry_for_dialect("tcl9.0");
+        let tcl = crate::model::ingress::static_context_for("tcl9.0").commands();
         let source = r"
             oo::class create C {
                 method m {} { when HTTP_REQUEST {} }
@@ -4536,7 +4536,7 @@ mod tests {
         ";
         let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
             source,
-            crate::registry_for_dialect("tcl8.6"),
+            crate::model::ingress::static_context_for("tcl8.6").commands(),
             &WrittenHeadResolver,
         )
         .into_iter()
@@ -4556,7 +4556,7 @@ mod tests {
         ";
         let events: Vec<_> = top_level_when_handlers_with_registry_and_head_resolver(
             source,
-            crate::registry_for_dialect("tcl9.0"),
+            crate::model::ingress::static_context_for("tcl9.0").commands(),
             &WrittenHeadResolver,
         )
         .into_iter()

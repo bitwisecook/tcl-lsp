@@ -27,8 +27,10 @@ fn resolve(src: &str) -> Vec<SiteReport> {
     let reg = CommandRegistry::build_default();
     let mut a = Analyser::new();
     let result = a.analyse(src, "tcl8.6");
-    let cu = CompilationUnit::build_for(src, &reg, false)
-        .with_interprocedural(&reg, Some(tcl_dialect::DialectProfile::by_name("tcl8.6")));
+    let cu = CompilationUnit::build_for(src, &reg, false).with_interprocedural(
+        &reg,
+        Some(tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()),
+    );
     let ns = NsContext::from_result(&result);
     let (reports, _stats) = analyse_dispatch(
         &cu,

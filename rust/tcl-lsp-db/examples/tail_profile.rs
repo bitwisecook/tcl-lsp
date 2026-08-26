@@ -142,7 +142,7 @@ fn main() {
     println!("\n== compiler-check tail breakdown (whole-file, no memo) ==");
     let registry = db.registry(dialect);
     let cfg_lexer = tcl_lexer::LexerConfig::for_dialect(dialect);
-    let profile = tcl_dialect::DialectProfile::by_name(dialect);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
     let build = || {
         CompilationUnit::build_for_with_config(&src, registry, false, cfg_lexer)
             .with_interprocedural(registry, Some(profile))

@@ -40,7 +40,8 @@ use tcl_lsp_core::refactor::{
     DataGroupDefinition, Refactoring, data_group_tcl, extract_to_datagroup,
     extract_to_datagroup_from_if, extract_to_datagroup_from_switch,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ---------------------------------------------------------------------------
 // Harness
@@ -48,7 +49,7 @@ use tcl_registry::{CommandRegistry, registry_for_dialect};
 
 /// The iRules registry (so `if` / `switch` / `class` are all modelled).
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("f5-irules")
+    static_context_for("f5-irules").commands()
 }
 
 fn if_dg(source: &str, name: &str) -> Option<Refactoring> {

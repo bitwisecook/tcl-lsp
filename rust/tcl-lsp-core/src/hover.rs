@@ -1044,9 +1044,10 @@ fn builtin_command_hover_text(
     // command must exist — e.g. iRules bans it), and never shown for a
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
-    // P1-G: as in `completion::command_detail` — the context-keyed twin
-    // (`ResolvedContext::ambient_package`) answers identically over this
-    // document's own generation; the swap waits for the profile stamp.
+    // Ledger C1/F1 (post-P1-G): as in `completion::command_detail` — the
+    // context-keyed twin (`ResolvedContext::ambient_package`) answers
+    // identically over this document's own generation; the swap waits for
+    // the profile stamp.
     if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -4849,7 +4850,8 @@ mod tests {
             let mut analyser = Analyser::new();
             let analysis = analyser.analyse(source, dialect).clone();
             let (line, column) = position_of(source, needle);
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let hover = hover_with_profile(source, line, column, &analysis, None, profile)
                 .unwrap_or_else(|| panic!("no hover for {dialect}: {source}"));
             assert!(hover.value.contains(expected), "{}", hover.value);
@@ -5215,7 +5217,8 @@ mod tests {
         for (dialect, expected) in [("tcl8.6", false), ("tcl9.0", true)] {
             let mut analyser = tcl_compiler::analyser::Analyser::new();
             let analysis = analyser.analyse(src, dialect).clone();
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
             let found = hover_with_profile(
                 src,
                 0,
@@ -5527,7 +5530,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("hover should resolve the configure-scoped option");
         assert!(t.contains("`-inputmode`"), "{t}");
@@ -5544,7 +5547,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .expect("hover should still resolve the option under an older dialect");
         assert!(old.contains("Not available in the active dialect"), "{old}");
@@ -5554,7 +5557,7 @@ mod tests {
             30,
             &registry,
             "inputmode",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         )
         .expect("hover should resolve under tcl9.0");
         assert!(
@@ -5575,7 +5578,7 @@ mod tests {
             14,
             &registry,
             "exact",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .expect("hover should resolve a simple command's own option");
         assert!(t.contains("`-exact`"), "{t}");
@@ -5992,8 +5995,9 @@ mod tests {
         let src = "ttk::treeview .tree\n.tree current\n";
         let analysis = analyse(src);
         for (dialect, expected) in [("tcl9.0", false), ("tcl9.1", true)] {
-            let profile = tcl_dialect::DialectProfile::by_name(dialect);
-            let registry = tcl_registry::registry_for_dialect(dialect);
+            let profile =
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+            let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
             let hover = hover_with_profile(src, 1, 6, &analysis, Some(registry), profile);
             assert_eq!(
                 hover.is_some(),
@@ -6008,13 +6012,13 @@ mod tests {
         // into the provider.
         let raised = "package require Tk 9.1\nttk::treeview .tree\n.tree current\n";
         let raised_analysis = analyse(raised);
-        let tcl90 = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let tcl90 = tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let raised_hover = hover_with_profile(
             raised,
             2,
             6,
             &raised_analysis,
-            Some(tcl_registry::registry_for_dialect("tcl9.0")),
+            Some(tcl_registry::model::ingress::static_context_for("tcl9.0").commands()),
             tcl90,
         );
         assert!(

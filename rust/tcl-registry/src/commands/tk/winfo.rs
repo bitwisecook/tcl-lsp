@@ -459,7 +459,8 @@ mod tests {
             ("tcl9.0", false),
             ("tcl9.1", true),
         ] {
-            let profile = tcl_dialect::DialectProfile::by_name(profile_name);
+            let profile =
+                crate::model::ingress::resolve_environment(profile_name).analyser_profile();
             let floor = profile
                 .library_floor_default("Tk")
                 .unwrap_or_else(|| panic!("{profile_name} must pin Tk"));

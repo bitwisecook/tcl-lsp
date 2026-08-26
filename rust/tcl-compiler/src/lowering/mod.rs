@@ -4205,7 +4205,7 @@ mod tests {
     #[test]
     fn irules_event_priorities_follow_file_state_and_keep_repeated_handlers() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "priority 700\n\
              when HTTP_REQUEST {}\n\
@@ -4232,7 +4232,7 @@ mod tests {
     #[test]
     fn irules_declaration_body_shape_gates_lowered_regions() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "when HTTP_REQUEST priority 1001 {}\n\
              when HTTP_REQUEST bare_body\n\
@@ -4268,7 +4268,7 @@ mod tests {
     #[test]
     fn irules_declarations_only_lower_at_the_file_surface() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let module = lower_to_ir_with_config(
             "if {1} {\n\
                  when CLIENT_DATA { pool top_level_nested_when }\n\

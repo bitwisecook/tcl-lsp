@@ -864,7 +864,11 @@ impl Analyser {
         // Alias recognition is registry-driven; fall back to the cached
         // default registry when the analyser has none loaded.
         let scan_registry = self.registry.as_deref().map_or_else(
-            || tcl_registry::cache::registry_for_dialect("tcl8.6"),
+            || {
+                tcl_registry::model::ingress::static_context_for("tcl8.6")
+                    .commands()
+                    .as_ref()
+            },
             |r| r,
         );
         let scope_aliases =

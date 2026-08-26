@@ -1101,12 +1101,14 @@ fn resolve_unit_scope(
 /// (`f5-iapps` parses to `IAPPS` while its mask composes `TCL85|IAPPS`).
 /// `None` — the build named no dialect — selects nothing.
 ///
-/// P1-G (ledger C1): this is the last name→`DialectSet` projection in the
-/// unit build, kept because the semantic-facts bundle is still
-/// `DialectSet`-typed. It is `pub` so `tcl-lsp-db`'s per-item unit build
-/// reads the **same** projection instead of re-parsing the dialect name
-/// itself (P1-F wave 2); both retire when the bundle becomes
-/// declaration-keyed.
+/// Ledger C1: this is the last name→`DialectSet` projection in the unit
+/// build, kept because the semantic-facts bundle is still
+/// `DialectSet`-typed — it projects an already-resolved profile's
+/// canonical name, never a user-written string, so it is C1 plumbing
+/// rather than a name ingress (P1-G deleted those). It is `pub` so
+/// `tcl-lsp-db`'s per-item unit build reads the **same** projection
+/// instead of re-parsing the dialect name itself (P1-F wave 2); both
+/// retire when the bundle becomes declaration-keyed.
 #[must_use]
 pub fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
     dialect
@@ -2603,7 +2605,7 @@ mod tests {
             "puts hello",
             &registry(),
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let facts = &linear.top_level.semantic_facts;
         assert_eq!(facts.dialect(), DialectSet::TCL86);
@@ -2621,7 +2623,7 @@ mod tests {
             "if {1} { puts hello }",
             &registry(),
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let structured = structured.top_level.semantic_facts.executable();
         assert!(structured.function().is_some());
@@ -2652,7 +2654,7 @@ mod tests {
             "proc p {} { puts hello }\nnamespace eval ::n { puts body }\n",
             &registry(),
             false,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
         .with_deep_semantic_analysis(&registry(), DialectSet::TCL86);
         // The top-level source contains a structural `namespace eval` whose
@@ -3622,7 +3624,7 @@ mod tests {
                 crate::unit_scope::scan_source_call_sites(
                     other,
                     reg,
-                    tcl_dialect::DialectProfile::by_name(""),
+                    tcl_registry::model::ingress::resolve_environment("").analyser_profile(),
                     &known,
                     &[],
                 )

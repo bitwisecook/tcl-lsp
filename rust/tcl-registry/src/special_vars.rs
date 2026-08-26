@@ -219,51 +219,15 @@ impl SpecialVarSpec {
     }
 }
 
-/// Resolve a dialect *name* to the [`DialectSet`] flag used for membership
-/// tests — the profile's availability mask
-/// ([`tcl_dialect::DialectProfile::availability_mask`]).
+/// The availability set the special-variable membership tests answer under
+/// for an already-resolved profile — the profile's
+/// [`availability_mask`](tcl_dialect::DialectProfile::availability_mask).
+/// The LSP/CLI ingress resolves the dialect name once (through
+/// `tcl_registry::model::ingress`) and threads the profile; the old
+/// name-keyed `resolve_dialect` validator is deleted (ledger C2, P1-G).
 ///
-/// This was the availability-mask widening precedent the compositional
-/// profile generalises (design doc §2.1): special variables and commands now
-/// share ONE per-dialect mask instead of two hand-kept tables. Consequences
-/// worth naming:
-///
-/// * An unrecognised name — empty, generic (`"tcl"`), or config-only
-///   (`"f5-bigip"` / `"f5-tmsh"`) — resolves to every standard Tcl version,
-///   so plain-Tcl analysis sees the full standard set (the `PLAIN_TCL` sink).
-/// * **iRules** stays restricted to its bare bit: the TMM interpreter does
-///   not provide the command-line / auto-loader / environment globals, so
-///   `env` / `argv` / `auto_path` are *not* recognised there.
-/// * **iApps** now composes `TCL85|IAPPS`: an iApp runs a real Tcl 8.5.13
-///   *host* interpreter (not the TMM sandbox), so the standard interpreter
-///   globals resolve there — the old bare-`IAPPS` view wrongly hid them.
-/// * A specific Tcl version (`tcl8.6`) keeps its exact bit, so per-key
-///   version gating (`tcl_platform(pointerSize)` is 8.5+) stays precise.
-/// * A vendor shell (Expect, the EDA tools) composes its documented embedded
-///   Tcl base with its own bit (`TCL86|EXPECT`, …) — the standard globals
-///   resolve, but keys introduced *after* the embedded base version no
-///   longer leak in.
-/// * `tk` has no profile (it is a library over a Tcl base, not a dialect —
-///   design doc §7.2); its parseable bit keeps the historical
-///   superset-widening behaviour until the versioned-library axis models it.
-#[must_use]
-pub fn resolve_dialect(dialect: &str) -> DialectSet {
-    if let Some(profile) = tcl_dialect::DialectProfile::find(dialect) {
-        return profile.availability_mask;
-    }
-    // Parseable but not a catalog profile — today exactly `tk`: a Tcl
-    // superset that provides the standard globals on top of its own.
-    DialectSet::parse(dialect).map_or(DialectSet::ALL_TCL, |bit| bit | DialectSet::ALL_TCL)
-}
-
-/// [`resolve_dialect`]'s typed twin for callers that already hold a resolved
-/// profile — the LSP/CLI ingress resolves the dialect name once and threads
-/// the profile, so re-spelling `profile.name` back into a string only to
-/// re-resolve it here is exactly the round trip #1405 removes.
-///
-/// `None` (no dialect resolved) keeps [`resolve_dialect`]'s unknown-name
-/// answer, [`DialectSet::ALL_TCL`]: the permissive `PLAIN_TCL` sink, whose
-/// own [`tcl_dialect::DialectProfile::availability_mask`] is that same set.
+/// `None` (no dialect resolved) answers [`DialectSet::ALL_TCL`]: the
+/// permissive `PLAIN_TCL` sink, whose own mask is that same set.
 #[must_use]
 pub fn dialect_set_for_profile(profile: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
     profile.map_or(DialectSet::ALL_TCL, |p| p.availability_mask)
@@ -280,7 +244,7 @@ pub fn special_var(name: &str) -> Option<&'static SpecialVarSpec> {
 }
 
 /// Look up a special variable that is available in `dialect` (the resolved
-/// availability mask, from [`resolve_dialect`] or [`dialect_set_for_profile`]).
+/// availability mask, from [`dialect_set_for_profile`]).
 #[must_use]
 pub fn special_var_in_dialect(name: &str, dialect: DialectSet) -> Option<&'static SpecialVarSpec> {
     special_var(name).filter(|v| v.available_in(dialect))
@@ -897,10 +861,16 @@ pub const SPECIAL_VARS: &[SpecialVarSpec] = &[
 mod tests {
     use super::*;
 
-    /// The string ingress the tests exercise these queries through — the
-    /// production callers resolve once and thread the mask instead.
+    /// The catalogue mask the tests exercise these queries under — the
+    /// production callers resolve an environment once and thread the
+    /// profile's mask instead.
     fn d(dialect: &str) -> DialectSet {
-        resolve_dialect(dialect)
+        // The seam's sink behaviour: a non-catalogue name (`tcl`, `tk`)
+        // answers the permissive fallback's mask, as the environment
+        // ingress resolves it.
+        tcl_dialect::DialectProfile::find(dialect)
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
+            .availability_mask
     }
 
     #[test]
@@ -957,7 +927,7 @@ mod tests {
 
             let mut actual: Vec<_> = SPECIAL_VARS
                 .iter()
-                .filter(|spec| spec.readable_at_startup_in(resolve_dialect(dialect)))
+                .filter(|spec| spec.readable_at_startup_in(d(dialect)))
                 .map(|spec| spec.name)
                 .collect();
             actual.sort_unstable();
@@ -969,7 +939,7 @@ mod tests {
         // `static::` does not promise a value for arbitrary static variables.
         let mut irules: Vec<_> = SPECIAL_VARS
             .iter()
-            .filter(|spec| spec.readable_at_startup_in(resolve_dialect("f5-irules")))
+            .filter(|spec| spec.readable_at_startup_in(d("f5-irules")))
             .map(|spec| spec.name)
             .collect();
         irules.sort_unstable();
@@ -1042,10 +1012,7 @@ mod tests {
     fn tcl_platform_keys_are_dialect_versioned() {
         let spec = special_var("tcl_platform").unwrap();
         // `tmmVersion` is iRules-only.
-        let irules_keys: Vec<_> = spec
-            .keys_in(resolve_dialect("f5-irules"))
-            .map(|k| k.key)
-            .collect();
+        let irules_keys: Vec<_> = spec.keys_in(d("f5-irules")).map(|k| k.key).collect();
         assert!(irules_keys.contains(&"tmmVersion"));
         assert!(irules_keys.contains(&"os"));
         assert!(!irules_keys.contains(&"pointerSize")); // Tcl-only key
@@ -1053,18 +1020,9 @@ mod tests {
         // `pointerSize` arrived in Tcl 8.5, while `pathSeparator` arrived in
         // Tcl 8.6; build-only keys are deliberately not advertised by a
         // release-only profile.
-        let keys_85: Vec<_> = spec
-            .keys_in(resolve_dialect("tcl8.5"))
-            .map(|k| k.key)
-            .collect();
-        let keys_86: Vec<_> = spec
-            .keys_in(resolve_dialect("tcl8.6"))
-            .map(|k| k.key)
-            .collect();
-        let keys_84: Vec<_> = spec
-            .keys_in(resolve_dialect("tcl8.4"))
-            .map(|k| k.key)
-            .collect();
+        let keys_85: Vec<_> = spec.keys_in(d("tcl8.5")).map(|k| k.key).collect();
+        let keys_86: Vec<_> = spec.keys_in(d("tcl8.6")).map(|k| k.key).collect();
+        let keys_84: Vec<_> = spec.keys_in(d("tcl8.4")).map(|k| k.key).collect();
         assert!(keys_85.contains(&"pointerSize"));
         assert!(keys_86.contains(&"pointerSize"));
         assert!(!keys_84.contains(&"pointerSize"));
@@ -1170,12 +1128,9 @@ mod tests {
     fn version_dialects_keep_exact_bit_for_per_key_gating() {
         // A specific Tcl version must not be widened to ALL_TCL, or per-key
         // version gating (pointerSize is 8.5+) would leak into 8.4.
-        assert_eq!(resolve_dialect("tcl8.4"), DialectSet::TCL84);
+        assert_eq!(d("tcl8.4"), DialectSet::TCL84);
         let spec = special_var("tcl_platform").unwrap();
-        let keys_84: Vec<_> = spec
-            .keys_in(resolve_dialect("tcl8.4"))
-            .map(|k| k.key)
-            .collect();
+        let keys_84: Vec<_> = spec.keys_in(d("tcl8.4")).map(|k| k.key).collect();
         assert!(!keys_84.contains(&"pointerSize"));
     }
 }

@@ -876,7 +876,10 @@ mod tests {
     use tcl_compiler::analyser::Analyser;
 
     fn analyse(source: &str) -> AnalysisResult {
-        analyse_as(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
+        analyse_as(
+            source,
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
     }
 
     fn analyse_as(source: &str, dialect: &'static tcl_dialect::DialectProfile) -> AnalysisResult {
@@ -891,7 +894,7 @@ mod tests {
             method,
             is_classmethod,
             "Renamed",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
     }
 
@@ -1091,7 +1094,7 @@ mod tests {
         let analysis = analyse(source);
         namespace_variable_rename_hazard(
             source,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             cell,
             &LineIndex::new(source),
@@ -1104,7 +1107,7 @@ mod tests {
         let analysis = analyse(source);
         namespace_variable_rename_hazard(
             source,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             &analysis,
             cell,
             &LineIndex::new(source),

@@ -998,7 +998,9 @@ mod tests {
     fn shared_specifier_table_covers_q_and_q_and_release_gate() {
         let modern = specifiers(
             b"q Q su",
-            signedness_available(tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            signedness_available(
+                tcl_dialect::DialectProfile::find("tcl8.6").expect("catalogue profile"),
+            ),
         );
         assert_eq!(
             modern.iter().map(|s| s.letter).collect::<Vec<_>>(),
@@ -1008,7 +1010,9 @@ mod tests {
 
         let old = specifiers(
             b"su",
-            signedness_available(tcl_dialect::DialectProfile::by_name("tcl8.4")),
+            signedness_available(
+                tcl_dialect::DialectProfile::find("tcl8.4").expect("catalogue profile"),
+            ),
         );
         assert_eq!(old[0].modifier, None);
     }

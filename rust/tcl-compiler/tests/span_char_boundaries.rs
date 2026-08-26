@@ -216,7 +216,7 @@ fn body_text_in_region_leaves_a_position_preserving_overlay_alone() {
 fn assert_lowered_spans_are_sliceable(src: &str, dialect: &str) {
     use tcl_compiler::ir::for_each_statement;
 
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
     let module = tcl_compiler::lowering::lower_to_ir_with_config(
         src,
         registry,
@@ -308,7 +308,7 @@ fn a_compound_body_lowers_at_the_offsets_it_is_written_at() {
         ("uplevel 1 {set x 1}x\n", false),
         ("eval {set x 1}x\n", false),
     ] {
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = tcl_compiler::lowering::lower_to_ir(src, registry);
         let scripts: Vec<&tcl_compiler::ir::Script> = if body_unit {
             module.body_units.values().map(|unit| &unit.body).collect()
@@ -352,7 +352,7 @@ fn a_substituted_body_word_is_not_lowered_at_its_written_offsets() {
         "namespace eval ::ns [list $o fw]\u{200b}",
     ] {
         assert_lowered_spans_are_sliceable(src, "tcl8.6");
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = tcl_compiler::lowering::lower_to_ir(src, registry);
         assert!(
             module.body_units.is_empty(),
@@ -393,7 +393,7 @@ fn a_substituted_try_finally_or_handler_body_is_not_lowered_at_its_written_offse
     ] {
         assert_lowered_spans_are_sliceable(src, "tcl8.6");
 
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = tcl_compiler::lowering::lower_to_ir(src, registry);
         let mut structured_try = false;
         tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
@@ -417,7 +417,7 @@ fn a_literal_try_finally_or_handler_body_still_lowers() {
     ] {
         assert_lowered_spans_are_sliceable(src, "tcl8.6");
 
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = tcl_compiler::lowering::lower_to_ir(src, registry);
         let mut structured_try = false;
         tcl_compiler::ir::for_each_statement(&module.top_level, &mut |stmt| {
@@ -438,7 +438,7 @@ fn a_literal_namespace_eval_body_still_registers_its_unit() {
         "namespace eval ::ns {set x 1}",
         "namespace eval ::ns {set x 1}\n",
     ] {
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let module = tcl_compiler::lowering::lower_to_ir(src, registry);
         assert_eq!(
             module.body_units.len(),

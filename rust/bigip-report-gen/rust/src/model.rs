@@ -154,7 +154,7 @@ pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -
         diagnostics.extend(tcl_bigip::apl::validate_iapp_presentation(
             &model,
             refs.as_deref(),
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         ));
     } else if is_iapp_implementation_uri(uri)
         && let Some(presentation) = iapp_peer(uri, sources, false)
@@ -164,7 +164,7 @@ pub fn collect_report_diagnostics(uri: &str, source: &str, sources: &[Source]) -
         diagnostics.extend(tcl_bigip::apl::validate_iapp_implementation(
             &refs,
             Some(&model),
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         ));
     }
     J::Array(diagnostics.iter().map(f5_diagnostic_json).collect())
@@ -702,7 +702,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     // Parse through the shared event-handler owner, then order into canonical
     // firing order rather than alphabetical order (which scrambles the
     // lifecycle, e.g. CLIENTSSL_HANDSHAKE ahead of CLIENT_ACCEPTED).
-    let command_registry = tcl_registry::registry_for_dialect("f5-irules");
+    let command_registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let identities = tcl_compiler::head_identity::command_head_identities(
         &body,
         tcl_dialect::DialectProfile::irules(),
@@ -756,7 +756,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
         "flowchart".into(),
         J::String(tcl_diagram::irule_flowchart_graph(
             &body,
-            tcl_registry::registry_for_dialect("f5-irules"),
+            tcl_registry::model::ingress::static_context_for("f5-irules").commands(),
         )),
     );
     o.insert("usedBy".into(), J::Array(used_by(used, fp)));

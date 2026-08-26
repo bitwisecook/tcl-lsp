@@ -449,7 +449,7 @@ fn emit_dead_stores_and_unused(
     // are still respected.
     let scan_registry = purity
         .registry
-        .unwrap_or_else(|| tcl_registry::cache::registry_for_dialect("tcl8.6"));
+        .unwrap_or_else(|| tcl_registry::model::ingress::static_context_for("tcl8.6").commands());
     let scope_aliases = scan_scope_aliases(&fu.cfg, scan_registry);
     // Caller-locals this function passes by name to an
     // upvar callee — not dead/unused even when the name-level SSA sees

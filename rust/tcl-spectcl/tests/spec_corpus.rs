@@ -120,8 +120,8 @@ use tcl_engine_api::{Budget, CompileUnit, Engine, EngineError, HostCommand, Valu
 use tcl_engine_tclvm::TclVmEngine;
 use tcl_registry::arg_role::ArgRole;
 use tcl_registry::arity::Arity;
+use tcl_registry::model::ingress::static_document_context_for_profile as ctx_for;
 use tcl_registry::pack_hooks;
-use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::spec::CommandSpec;
 use tcl_spec_hooks::{CrashRecord, HookHost};
 use tcl_spectcl::discovery::{Origin, PackFile, Tier};
@@ -701,11 +701,11 @@ fn load_one(pack: &PackUnderTest) -> (PackSet, Duration) {
 fn analyse(source: &str, dialect: &str, overlay: u64) -> (usize, usize) {
     let mut analyser = Analyser::new().with_pack_overlay(overlay);
     let result = analyser.analyse(source, dialect);
-    let registry = tcl_registry::cache::registry_for_profile_if_built(
-        tcl_spectcl::environment::profile_for_dialect(dialect),
-        overlay,
-    )
-    .unwrap_or_else(|| tcl_registry::registry_handle_for_dialect(dialect));
+    let registry = std::sync::Arc::clone(
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+            .commands(),
+    );
     let optimisations = optimise_raw(source, &registry, Some(dialect));
     (result.diagnostics.len(), optimisations.len())
 }
@@ -788,7 +788,7 @@ fn installation_of(
     let mut unresolved: Vec<String> = Vec::new();
     for merged in &set.packs {
         for command in &merged.commands {
-            if profile.package_available(command.spec.required_package) {
+            if ctx_for(profile).required_package_available(command.spec.required_package) {
                 installed += 1;
                 if registry.get(command.spec.name).is_none() {
                     unresolved.push(command.spec.name.to_owned());

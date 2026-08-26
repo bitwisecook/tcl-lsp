@@ -205,7 +205,7 @@ mod tests {
         let diags = validate_iapp_implementation(
             &refs,
             Some(&model),
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         assert!(codes(&diags).contains(&"IAPP7001"));
     }
@@ -217,7 +217,7 @@ mod tests {
         let diags = validate_iapp_implementation(
             &refs,
             Some(&model),
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         assert!(diags.is_empty());
     }
@@ -230,7 +230,7 @@ mod tests {
         let diags = validate_iapp_presentation(
             &model,
             Some(&refs),
-            tcl_dialect::DialectProfile::by_name("f5-iapps"),
+            tcl_registry::model::ingress::resolve_environment("f5-iapps").analyser_profile(),
         );
         assert!(codes(&diags).contains(&"IAPP7002"));
     }
@@ -243,7 +243,7 @@ mod tests {
             validate_iapp_implementation(
                 &refs,
                 Some(&model),
-                tcl_dialect::DialectProfile::by_name("tcl")
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()
             )
             .is_empty()
         );

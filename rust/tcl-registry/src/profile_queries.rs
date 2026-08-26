@@ -32,7 +32,9 @@ use tcl_dialect::{DialectProfile, DialectSet};
 
 use crate::hover::OptionSpec;
 use crate::registry::CommandRegistry;
-use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
+#[cfg(test)]
+use crate::spec::SubSubCommand;
+use crate::spec::{CommandSpec, SubCommand};
 use crate::traits::Traits;
 
 /// Availability queries a resolved [`DialectProfile`] answers against
@@ -51,18 +53,6 @@ pub trait ProfileQueries {
     /// queries agree with mask queries on any registry.
     fn is_available(&self, spec: &CommandSpec) -> bool;
 
-    /// Whether a [`CommandSpec::required_package`](crate::CommandSpec::required_package)
-    /// gate is satisfied under this profile — the package third of
-    /// [`Self::is_available`], on its own.
-    ///
-    /// Separated out because the *sourcing* of a command can depend on it
-    /// before any availability question is asked: the EDA vendor libraries
-    /// ship as bundled `SpecTcl` loadables (`docs/design/spec-packs.md`), and
-    /// every vendor's pack is discovered for every profile, so the installer
-    /// needs this answer to keep a Cadence `report_timing` out of the Vivado
-    /// profile's registry rather than letting it shadow the Vivado one.
-    fn package_available(&self, required: Option<&'static str>) -> bool;
-
     /// Resolve `name` to its command spec under this profile — the single
     /// availability primitive the diagnostics (W123/W002), completion,
     /// and the CLI snapshot share. Mask query + disable filter.
@@ -71,43 +61,6 @@ pub trait ProfileQueries {
         registry: &'r CommandRegistry,
         name: &str,
     ) -> Option<&'r CommandSpec>;
-
-    /// Whether `sub` (of `spec`) is available under this profile: the
-    /// subcommand's own dialect gate — falling back to the parent
-    /// command's — intersected with the availability mask (§5.1).
-    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool;
-
-    /// The subcommands of `spec` available under this profile, in
-    /// declaration order — the filtered iterator completion was missing
-    /// (§5.1's `available_subcommands`).
-    fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand>;
-
-    /// Whether `sub_sub` (a second-level operation of `sub`, itself a
-    /// subcommand of `spec`) is available under this profile at the resolved
-    /// `package_version`.
-    ///
-    /// Both axes apply, exactly as they do one level up: the dialect gate
-    /// `sub_sub.dialects` inherits from `sub.dialects.or(spec.dialects)` and
-    /// is intersected with the availability mask, and the owning package's
-    /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
-    /// (`None` = permissive).
-    fn is_sub_subcommand_available(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        sub_sub: &SubSubCommand,
-        package_version: Option<&str>,
-    ) -> bool;
-
-    /// The second-level operations of `sub` available under this profile at
-    /// `package_version`, in declaration order — the sub-subcommand twin of
-    /// [`Self::available_subcommands`].
-    fn available_sub_subcommands(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        package_version: Option<&str>,
-    ) -> Vec<&'static SubSubCommand>;
 
     /// Whether `opt` is available under this profile, given the gate it
     /// inherits from its parent (`spec.dialects`, or
@@ -138,11 +91,6 @@ pub trait ProfileQueries {
     /// declaration order. (`'static`: spec option tables are interned.)
     fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec>;
 
-    /// Option / switch names of subcommand `sub`, whose options inherit
-    /// `sub.dialects.or(spec.dialects)` as their parent gate.
-    fn available_sub_option_names(&self, spec: &CommandSpec, sub: &SubCommand)
-    -> Vec<&'static str>;
-
     /// The [`OptionSpec`]s of subcommand `sub` available under this
     /// profile (same inheritance as
     /// [`Self::available_sub_option_names`]).
@@ -151,45 +99,6 @@ pub trait ProfileQueries {
         spec: &CommandSpec,
         sub: &SubCommand,
     ) -> Vec<&'static OptionSpec>;
-
-    /// Look up an option of `spec` by canonical name or alias, honouring
-    /// this profile's gate (§5.2) and the resolved `package_version`.
-    fn find_option<'r>(
-        &self,
-        spec: &'r CommandSpec,
-        option_name: &str,
-        package_version: Option<&str>,
-    ) -> Option<&'r OptionSpec>;
-
-    /// The profile's **own vendor command surface**, summarised from
-    /// registry data (§5.4 "out-of-registry vendor knowledge"): the
-    /// available commands carrying this profile's vendor bit, grouped by
-    /// `NS::` namespace prefix (bare names group under `""`), sorted by
-    /// descending size then name. `None` for profiles with no vendor
-    /// surface of their own. Feeds generated consumers (the AI prompt's
-    /// F5-surface summary) so prose can never drift from the data.
-    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface>;
-
-    /// The **declared version range** of `spec` on this profile's keyed
-    /// library axis, when `spec` belongs to one of the profile's ambient
-    /// `Keyed` pins (the F5 surfaces): the explicit introduction release,
-    /// or the axis **baseline** (BIG-IP 15.0 — "the data is declared
-    /// against 15.0+") when none is recorded, plus the removal release
-    /// (`None` = still present). `None` for specs outside a keyed pin —
-    /// their plain `min_version` semantics are untouched.
-    fn keyed_version_range(
-        &self,
-        spec: &CommandSpec,
-    ) -> Option<(Option<&'static str>, Option<&'static str>)>;
-
-    /// The ambient `Keyed` [`tcl_dialect::LibraryPin`] `spec` belongs to
-    /// under this profile: by its `owning_package`, or — for a
-    /// **vendor-own** spec (its gate carries the profile's vendor bit and
-    /// no plain-Tcl version, the same membership rule
-    /// [`ProfileQueries::vendor_surface`] uses) — the profile's single
-    /// ambient keyed pin, so the F5 packs need no per-spec
-    /// `required_package` backfill to sit on the version axis.
-    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin>;
 }
 
 /// A profile's vendor command surface summary (see
@@ -251,10 +160,6 @@ impl ProfileQueries for DialectProfile {
             && package_available(self, spec.required_package)
     }
 
-    fn package_available(&self, required: Option<&'static str>) -> bool {
-        package_available(self, required)
-    }
-
     fn resolve_command<'r>(
         &self,
         registry: &'r CommandRegistry,
@@ -263,46 +168,6 @@ impl ProfileQueries for DialectProfile {
         registry
             .get_for_dialect(name, self.availability_mask)
             .filter(|spec| self.is_available(spec))
-    }
-
-    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
-        sub.dialects
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
-    }
-
-    fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand> {
-        spec.subcommands
-            .iter()
-            .filter(|sub| self.is_subcommand_available(spec, sub))
-            .collect()
-    }
-
-    fn is_sub_subcommand_available(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        sub_sub: &SubSubCommand,
-        package_version: Option<&str>,
-    ) -> bool {
-        sub_sub
-            .dialects
-            .or(sub.dialects)
-            .or(spec.dialects)
-            .is_none_or(|gate| gate.intersects(self.availability_mask))
-            && sub_sub.available_for_version(package_version)
-    }
-
-    fn available_sub_subcommands(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-        package_version: Option<&str>,
-    ) -> Vec<&'static SubSubCommand> {
-        sub.sub_subcommands
-            .iter()
-            .filter(|sub_sub| self.is_sub_subcommand_available(spec, sub, sub_sub, package_version))
-            .collect()
     }
 
     fn is_option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool {
@@ -359,6 +224,108 @@ impl ProfileQueries for DialectProfile {
         out
     }
 
+    fn available_sub_option_specs(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+    ) -> Vec<&'static OptionSpec> {
+        let parent = sub.dialects.or(spec.dialects);
+        sub.options
+            .iter()
+            .filter(|opt| self.is_option_available(opt, parent))
+            .collect()
+    }
+}
+
+/// The retired per-profile query rules the equivalence sweeps still need
+/// as their **oracle** (`model::context`'s P1-F parity sweeps): the
+/// production surface for each of these questions is
+/// [`crate::model::ResolvedContext`], and the trait methods here exist
+/// only so the sweeps can keep pinning the context answers against the
+/// exact old rules after the old API's deletion (P1-G).
+#[cfg(test)]
+pub(crate) trait LegacyProfileOracle {
+    /// Whether `sub` (of `spec`) is available under this profile: the
+    /// subcommand's own dialect gate — falling back to the parent
+    /// command's — intersected with the availability mask (§5.1).
+    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool;
+
+    /// Whether `sub_sub` (a second-level operation of `sub`, itself a
+    /// subcommand of `spec`) is available under this profile at the resolved
+    /// `package_version`.
+    ///
+    /// Both axes apply, exactly as they do one level up: the dialect gate
+    /// `sub_sub.dialects` inherits from `sub.dialects.or(spec.dialects)` and
+    /// is intersected with the availability mask, and the owning package's
+    /// [`crate::lifecycle::Lifecycle`] must admit `package_version`
+    /// (`None` = permissive).
+    fn is_sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
+        package_version: Option<&str>,
+    ) -> bool;
+
+    /// Option / switch names of subcommand `sub`, whose options inherit
+    /// `sub.dialects.or(spec.dialects)` as their parent gate.
+    fn available_sub_option_names(&self, spec: &CommandSpec, sub: &SubCommand)
+    -> Vec<&'static str>;
+
+    /// The profile's **own vendor command surface**, summarised from
+    /// registry data (§5.4 "out-of-registry vendor knowledge"): the
+    /// available commands carrying this profile's vendor bit, grouped by
+    /// `NS::` namespace prefix (bare names group under `""`), sorted by
+    /// descending size then name. `None` for profiles with no vendor
+    /// surface of their own. Feeds generated consumers (the AI prompt's
+    /// F5-surface summary) so prose can never drift from the data.
+    fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface>;
+
+    /// The **declared version range** of `spec` on this profile's keyed
+    /// library axis, when `spec` belongs to one of the profile's ambient
+    /// `Keyed` pins (the F5 surfaces): the explicit introduction release,
+    /// or the axis **baseline** (BIG-IP 15.0 — "the data is declared
+    /// against 15.0+") when none is recorded, plus the removal release
+    /// (`None` = still present). `None` for specs outside a keyed pin —
+    /// their plain `min_version` semantics are untouched.
+    fn keyed_version_range(
+        &self,
+        spec: &CommandSpec,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)>;
+
+    /// The ambient `Keyed` [`tcl_dialect::LibraryPin`] `spec` belongs to
+    /// under this profile: by its `owning_package`, or — for a
+    /// **vendor-own** spec (its gate carries the profile's vendor bit and
+    /// no plain-Tcl version, the same membership rule
+    /// [`ProfileQueries::vendor_surface`] uses) — the profile's single
+    /// ambient keyed pin, so the F5 packs need no per-spec
+    /// `required_package` backfill to sit on the version axis.
+    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin>;
+}
+
+#[cfg(test)]
+impl LegacyProfileOracle for DialectProfile {
+    fn is_subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
+        sub.dialects
+            .or(spec.dialects)
+            .is_none_or(|gate| gate.intersects(self.availability_mask))
+    }
+
+    fn is_sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
+        package_version: Option<&str>,
+    ) -> bool {
+        sub_sub
+            .dialects
+            .or(sub.dialects)
+            .or(spec.dialects)
+            .is_none_or(|gate| gate.intersects(self.availability_mask))
+            && sub_sub.available_for_version(package_version)
+    }
+
     fn available_sub_option_names(
         &self,
         spec: &CommandSpec,
@@ -372,68 +339,6 @@ impl ProfileQueries for DialectProfile {
             }
         }
         names
-    }
-
-    fn available_sub_option_specs(
-        &self,
-        spec: &CommandSpec,
-        sub: &SubCommand,
-    ) -> Vec<&'static OptionSpec> {
-        let parent = sub.dialects.or(spec.dialects);
-        sub.options
-            .iter()
-            .filter(|opt| self.is_option_available(opt, parent))
-            .collect()
-    }
-
-    fn find_option<'r>(
-        &self,
-        spec: &'r CommandSpec,
-        option_name: &str,
-        package_version: Option<&str>,
-    ) -> Option<&'r OptionSpec> {
-        let matches = |opt: &&'r OptionSpec| {
-            opt.matches(option_name)
-                && self.is_option_available(opt, spec.dialects)
-                && opt.available_for_version(package_version)
-        };
-        spec.options.iter().find(matches).or_else(|| {
-            spec.command_forms
-                .iter()
-                .flat_map(|f| f.options.iter())
-                .find(matches)
-        })
-    }
-
-    fn keyed_version_range(
-        &self,
-        spec: &CommandSpec,
-    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
-        let pin = self.keyed_pin_for(spec)?;
-        let tcl_dialect::LibraryVersion::Keyed(key) = pin.version else {
-            return None;
-        };
-        let lifecycle = spec.lifecycle.with_baseline(key.baseline_version());
-        Some((lifecycle.introduced, lifecycle.retired))
-    }
-
-    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin> {
-        let keyed_ambient = |pin: &&'static tcl_dialect::LibraryPin| {
-            pin.ambient && matches!(pin.version, tcl_dialect::LibraryVersion::Keyed(_))
-        };
-        if let Some(pkg) = spec.owning_package()
-            && let Some(pin) = self.library_pin(pkg)
-        {
-            return keyed_ambient(&pin).then_some(pin);
-        }
-        let vendor = self.vendor_bit?;
-        let vendor_own = spec
-            .dialects
-            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
-        if !vendor_own {
-            return None;
-        }
-        self.libraries.iter().find(keyed_ambient)
     }
 
     fn vendor_surface(&self, registry: &CommandRegistry) -> Option<VendorSurface> {
@@ -468,5 +373,35 @@ impl ProfileQueries for DialectProfile {
             command_count,
             namespaces,
         })
+    }
+    fn keyed_version_range(
+        &self,
+        spec: &CommandSpec,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
+        let pin = self.keyed_pin_for(spec)?;
+        let tcl_dialect::LibraryVersion::Keyed(key) = pin.version else {
+            return None;
+        };
+        let lifecycle = spec.lifecycle.with_baseline(key.baseline_version());
+        Some((lifecycle.introduced, lifecycle.retired))
+    }
+
+    fn keyed_pin_for(&self, spec: &CommandSpec) -> Option<&'static tcl_dialect::LibraryPin> {
+        let keyed_ambient = |pin: &&'static tcl_dialect::LibraryPin| {
+            pin.ambient && matches!(pin.version, tcl_dialect::LibraryVersion::Keyed(_))
+        };
+        if let Some(pkg) = spec.owning_package()
+            && let Some(pin) = self.library_pin(pkg)
+        {
+            return keyed_ambient(&pin).then_some(pin);
+        }
+        let vendor = self.vendor_bit?;
+        let vendor_own = spec
+            .dialects
+            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
+        if !vendor_own {
+            return None;
+        }
+        self.libraries.iter().find(keyed_ambient)
     }
 }

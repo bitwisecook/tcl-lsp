@@ -461,7 +461,9 @@ mod tests {
         // The canonical name and its legacy aliases are one dialect; a caller
         // passing either gets the iRules lexer.
         for spelling in ["f5-irules", "irules", "tcl-irule"] {
-            let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(spelling));
+            let cfg = FormatterConfig::for_profile(
+                tcl_registry::model::ingress::resolve_environment(spelling).analyser_profile(),
+            );
             assert!(cfg.profile.is_irules(), "{spelling}");
             assert!(cfg.lexer_config().irules_brace_separator, "{spelling}");
         }
@@ -469,7 +471,9 @@ mod tests {
 
     #[test]
     fn a_core_release_projects_its_mask_and_forward_range() {
-        let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl8.6"));
+        let cfg = FormatterConfig::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert_eq!(cfg.dialect_bits(), Some(DialectSet::TCL86));
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
@@ -499,7 +503,9 @@ mod tests {
         // its own names a range no profile implies.
         let cfg = FormatterConfig {
             target_range_override: Some(DialectSet::TCL86 | DialectSet::TCL90),
-            ..FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl9.0"))
+            ..FormatterConfig::for_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            )
         };
         assert_eq!(
             tcl_registry::version_range::core_releases_in(cfg.target_range()),
@@ -511,7 +517,9 @@ mod tests {
 
     #[test]
     fn an_unknown_dialect_name_lands_on_the_permissive_fallback() {
-        let cfg = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name("tcl-9000"));
+        let cfg = FormatterConfig::for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl-9000").analyser_profile(),
+        );
         assert!(cfg.profile.is_fallback());
         assert_eq!(cfg, FormatterConfig::default());
     }

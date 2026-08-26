@@ -86,7 +86,7 @@ fn smoke_completion_binary_exists() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.iter().any(|i| i.label == "puts"), "{items:?}");
 }
@@ -113,7 +113,7 @@ fn var_brace_trigger_emits_braced_text_edit() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -145,7 +145,7 @@ fn var_completion_replace_range_swallows_existing_braced_reference() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -176,7 +176,7 @@ fn var_completion_bare_form_forward_scan_over_namespace_segments() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -208,7 +208,7 @@ fn var_completion_hyphenated_name_forces_brace_form() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items.iter().find(|i| i.label == "$a-b");
     if let Some(v) = v {
@@ -237,7 +237,7 @@ fn var_completion_cross_namespace_offers_qualified_name() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let q = items
         .iter()
@@ -275,7 +275,7 @@ fn var_brace_forward_scan_handles_nested_braces_and_backslash() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items.iter().find(|i| i.label == "$na");
     if let Some(v) = v {
@@ -311,7 +311,7 @@ fn var_bare_forward_scan_crosses_namespace_separator() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // Whether or not a candidate matches, the call must not panic and the bare
     // scan ran. If `$a::b` is offered, its edit covers through `b`.
@@ -341,7 +341,7 @@ fn array_element_completion_lists_recorded_indices() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
@@ -372,7 +372,7 @@ fn array_element_completion_filters_by_index_prefix() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"$arr(one)"), "{ls:?}");
@@ -401,7 +401,7 @@ fn array_element_completion_replace_range_swallows_existing_paren() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     if let Some(one) = items.iter().find(|i| i.label == "$arr(one)") {
         let edit = one.text_edit.as_ref().expect("array edit");
@@ -425,7 +425,7 @@ fn array_element_completion_unknown_array_yields_nothing() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         items.is_empty(),
@@ -455,7 +455,7 @@ fn switch_completion_attaches_replacement_edit_over_dash_partial() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let opt = items
         .iter()
@@ -489,7 +489,7 @@ fn switch_partial_at_col_zero_is_not_a_switch() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // `-` is in SKIP_BUILTIN_NAMES, so it never surfaces as a command either.
     assert!(
@@ -672,7 +672,7 @@ fn string_is_class_completion_uses_subcommand_arg_values() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let ls = labels(&items);
     assert!(ls.contains(&"alnum"), "{ls:?}");
@@ -812,7 +812,7 @@ fn workspace_proc_detail_uses_singular_for_one_param() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let one = items
         .iter()
@@ -857,7 +857,7 @@ fn workspace_proc_zero_params_is_plural() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let noop = items.iter().find(|i| i.label == "znoop");
     if let Some(noop) = noop {
@@ -885,7 +885,7 @@ fn workspace_completion_dedupes_against_local_and_builtins() {
         &cur,
         None,
         Some(&index),
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // `shared` appears exactly once (the local copy).
     assert_eq!(
@@ -925,7 +925,7 @@ fn qualified_global_var_completes_in_bare_form() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let v = items
         .iter()
@@ -991,7 +991,7 @@ fn plain_tcl_dialect_skips_irules_event_segmentation() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         !items.iter().any(|i| i.label.starts_with("iRule")),
@@ -1022,7 +1022,7 @@ fn proc_completion_renders_param_signature_detail() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let greet = items
         .iter()
@@ -1054,7 +1054,7 @@ fn proc_completion_paramless_detail_is_no_args() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let noop = items.iter().find(|i| i.label == "noop").expect("noop");
     assert_eq!(noop.detail.as_deref(), Some("(no args)"), "{noop:?}");
@@ -1074,7 +1074,7 @@ fn proc_completion_variadic_detail_includes_args() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let va = items.iter().find(|i| i.label == "va").expect("va");
     let detail = va.detail.as_deref().unwrap_or("");
@@ -1102,7 +1102,7 @@ fn no_matching_command_or_proc_yields_no_symbols() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         items.iter().all(|i| i.kind == CompletionKind::Snippet),
@@ -1128,7 +1128,7 @@ fn command_context_in_leading_indent_falls_through_cleanly() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // Empty partial at this point → the fallback lists symbols (the user proc
     // among them). No crash, and `helper` is reachable.
@@ -1153,7 +1153,7 @@ fn empty_array_name_yields_no_array_completion() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.is_empty(), "empty array name → nothing: {items:?}");
 }
@@ -1170,7 +1170,7 @@ fn variable_trigger_out_of_bounds_line_does_not_panic() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(items.is_empty() || items.iter().all(|i| i.kind == CompletionKind::Snippet));
 }
@@ -1191,7 +1191,7 @@ fn builtin_documentation_carries_registry_summary() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let puts = items
         .iter()

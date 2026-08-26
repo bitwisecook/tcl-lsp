@@ -43,7 +43,6 @@
 use std::sync::Arc;
 
 use tcl_dialect::DialectProfile;
-use tcl_registry::profile_queries::ProfileQueries;
 use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
@@ -68,10 +67,18 @@ pub fn registry_with_packs(
     packs: &PackSet,
 ) -> Arc<CommandRegistry> {
     if packs.key == 0 || packs.is_empty() {
-        return tcl_registry::registry_handle_for_profile(profile);
+        return std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
+        );
     }
+    // Resolved BEFORE entering the overlay builder: the builder's closure
+    // runs with the registry cache's lock held, and resolving a document
+    // context takes that same lock to reach the un-overlaid store — doing
+    // it inside the closure deadlocks (found in P1-G when the vendor gate
+    // moved from `ProfileQueries` to the context).
+    let context = tcl_registry::model::ingress::static_document_context_for_profile(profile);
     tcl_registry::registry_for_profile_with_overlay(profile, packs.key, |registry| {
-        install_into(registry, packs, profile);
+        install_into(registry, packs, context);
     })
 }
 
@@ -113,7 +120,11 @@ pub fn registry_for_dialect_with_packs(dialect: &str, packs: &PackSet) -> Arc<Co
 ///
 /// Hosted packages (`Tk`, tcllib, a private pack's own `package require`) are
 /// never affected: they are ambient in no profile, so the gate passes them.
-fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'static DialectProfile) {
+fn install_into(
+    registry: &mut CommandRegistry,
+    packs: &PackSet,
+    context: &tcl_registry::model::ResolvedContext,
+) {
     let plan = hooks::plan_for(packs);
     for pack in &packs.packs {
         // Ambient-package declarations go in unfiltered: they are a claim
@@ -123,7 +134,7 @@ fn install_into(registry: &mut CommandRegistry, packs: &PackSet, profile: &'stat
             registry.insert_ambient_package(ambient.name, ambient.version);
         }
         for command in &pack.commands {
-            if profile.package_available(command.spec.required_package)
+            if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
                 registry.insert(hooks::specialise(command, &plan).clone());

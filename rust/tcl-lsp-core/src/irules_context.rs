@@ -171,15 +171,26 @@ mod tests {
     fn inert_when_text_is_neither_context_nor_file_event() {
         let src = "set payload {when CLIENT_DATA {}}\nset q \"when SERVER_DATA {}\"\nwhen HTTP_REQUEST {}";
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             ["HTTP_REQUEST"]
         );
         assert_eq!(
-            find_enclosing_when_event(src, 0, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                0,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
         assert_eq!(
-            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                1,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
     }
@@ -188,11 +199,18 @@ mod tests {
     fn unknown_event_is_not_an_editor_execution_context() {
         let src = "when BOGUS_EVENT {\n  pool /Common/inert\n}\nwhen HTTP_REQUEST {}";
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             ["HTTP_REQUEST"]
         );
         assert_eq!(
-            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                1,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
     }
@@ -207,7 +225,10 @@ mod tests {
             "when HTTP_RESPONSE timing on priority 20 {}\n",
         );
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             ["CLIENT_DATA", "SERVER_DATA"]
         );
     }
@@ -215,7 +236,13 @@ mod tests {
     #[test]
     fn case_and_unavailable_apply_when_words_are_not_events() {
         let src = "switch -- $x { a { when CLIENT_DATA {} } }\napply {{} { when HTTP_REQUEST {} }}";
-        assert!(scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)).is_empty());
+        assert!(
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            )
+            .is_empty()
+        );
     }
 
     #[test]
@@ -225,15 +252,26 @@ mod tests {
                    event HTTP_REQUEST { set x 1 }\n\
                    ::when CLIENT_DATA { set y 1 }\n";
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             ["CLIENT_DATA"]
         );
         assert_eq!(
-            find_enclosing_when_event(src, 2, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                2,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
         assert_eq!(
-            find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                3,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("CLIENT_DATA".to_owned())
         );
     }
@@ -243,7 +281,11 @@ mod tests {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nset top 1\n";
         // Line 3 sits past the closing brace — back at the top level.
         assert_eq!(
-            find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                3,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
     }
@@ -254,7 +296,11 @@ mod tests {
         // the `when … {` line is already "inside".
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 0, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                0,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -263,7 +309,11 @@ mod tests {
     fn cursor_inside_body_reports_event() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                1,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -272,7 +322,11 @@ mod tests {
     fn event_name_is_uppercased() {
         let src = "when http_request {\n    set x 1\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 1, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                1,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -285,12 +339,20 @@ mod tests {
             "when HTTP_REQUEST {\n    when CLIENT_DATA {\n        set y 2\n    }\n    set x 1\n}\n";
         // Line 2 sits inside the nested CLIENT_DATA body.
         assert_eq!(
-            find_enclosing_when_event(src, 2, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                2,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
         // Line 4 is in the outer body, past the nested block's close.
         assert_eq!(
-            find_enclosing_when_event(src, 4, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                4,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
     }
@@ -299,7 +361,10 @@ mod tests {
     fn scan_collects_all_events_sorted_deduped() {
         let src = "when HTTP_REQUEST {\n    set x 1\n}\nwhen RULE_INIT {\n    set y 2\n}\nwhen HTTP_REQUEST {\n    set z 3\n}\n";
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             vec!["HTTP_REQUEST".to_string(), "RULE_INIT".to_string()]
         );
     }
@@ -308,7 +373,10 @@ mod tests {
     fn scan_ignores_nested_when_words() {
         let src = "when HTTP_REQUEST {\n    if {1} {\n        when CLIENT_DATA { log local0. x }\n    }\n}\n";
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             vec!["HTTP_REQUEST".to_string()]
         );
     }
@@ -317,11 +385,18 @@ mod tests {
     fn rooted_nested_when_stays_in_outer_event_context() {
         let src = "::when http_request {\n  if {1} {\n    :::when client_data {\n      log local0. x\n    }\n  }\n}\n";
         assert_eq!(
-            find_enclosing_when_event(src, 3, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                src,
+                3,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             Some("HTTP_REQUEST".to_string())
         );
         assert_eq!(
-            scan_file_events(src, tcl_dialect::DialectProfile::by_name(D)),
+            scan_file_events(
+                src,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             vec!["HTTP_REQUEST".to_string()]
         );
     }
@@ -329,10 +404,20 @@ mod tests {
     #[test]
     fn empty_source_is_top_level() {
         assert_eq!(
-            find_enclosing_when_event("", 0, tcl_dialect::DialectProfile::by_name(D)),
+            find_enclosing_when_event(
+                "",
+                0,
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            ),
             None
         );
-        assert!(scan_file_events("", tcl_dialect::DialectProfile::by_name(D)).is_empty());
+        assert!(
+            scan_file_events(
+                "",
+                tcl_registry::model::ingress::resolve_environment(D).analyser_profile()
+            )
+            .is_empty()
+        );
     }
 
     /// Regression coverage for issue #996: top-level boundary discovery must
@@ -352,8 +437,15 @@ mod tests {
         }
         src.push_str("}\n");
 
-        let _ = find_enclosing_when_event(&src, 1, tcl_dialect::DialectProfile::by_name(D));
-        let _ = scan_file_events(&src, tcl_dialect::DialectProfile::by_name(D));
+        let _ = find_enclosing_when_event(
+            &src,
+            1,
+            tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+        );
+        let _ = scan_file_events(
+            &src,
+            tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+        );
     }
 
     #[test]
@@ -377,13 +469,13 @@ mod tests {
         for dialect in ["f5-irules", "irules", "tcl-irule"] {
             let facts = EventHandlerFacts::new(
                 "when HTTP_REQUEST {}",
-                tcl_dialect::DialectProfile::by_name(dialect),
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             );
             assert_eq!(facts.file_events(), ["HTTP_REQUEST"], "{dialect}");
         }
         let tcl = EventHandlerFacts::new(
             "when HTTP_REQUEST {}",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         assert!(tcl.file_events().is_empty());
     }

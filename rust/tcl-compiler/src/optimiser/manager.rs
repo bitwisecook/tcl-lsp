@@ -1384,7 +1384,7 @@ mod tests {
         let tcl_opts = optimise_with_dialect(
             src,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
         );
         assert!(
             tcl_opts.iter().all(|o| o.code != DiagCode::O124),

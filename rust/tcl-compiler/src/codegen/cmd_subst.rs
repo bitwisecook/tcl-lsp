@@ -1499,9 +1499,11 @@ mod tests {
     #[test]
     fn inline_expr_subst_parses_under_the_compile_dialect() {
         let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let mut ctx = CodegenCtx::new(true, &["x"], registry);
-        ctx.dialect = Some(tcl_dialect::DialectProfile::by_name(profile.name));
+        ctx.dialect = Some(
+            tcl_registry::model::ingress::resolve_environment(profile.name).analyser_profile(),
+        );
         ctx.emit_inline_cmd_subst("[expr {$x contains \"a\"}]");
         let ops: Vec<Op> = ctx.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::IRULE_CONTAINS), "{ops:?}");
@@ -1515,14 +1517,16 @@ mod tests {
         let registry = CommandRegistry::build_default();
 
         let mut old = CodegenCtx::new(true, &[], &registry);
-        old.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.4"));
+        old.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile());
         old.emit_inline_cmd_subst("[expr {2 ** 3}]");
         let ops: Vec<Op> = old.instructions.iter().map(|i| i.op).collect();
         assert!(ops.contains(&Op::EXPR_STK), "{ops:?}");
         assert!(old.literals.entries().iter().any(|l| l == "2 ** 3"));
 
         let mut modern = CodegenCtx::new(true, &[], &registry);
-        modern.dialect = Some(tcl_dialect::DialectProfile::by_name("tcl8.5"));
+        modern.dialect =
+            Some(tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile());
         modern.emit_inline_cmd_subst("[expr {2 ** 3}]");
         let ops: Vec<Op> = modern.instructions.iter().map(|i| i.op).collect();
         assert!(!ops.contains(&Op::EXPR_STK), "{ops:?}");

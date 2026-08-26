@@ -117,7 +117,7 @@ fn trio_at(source: &str, (line, character): (u32, u32)) -> Trio {
         hover: hover(source, line, character, &analysis, Some(&registry)).map(|h| h.value.clone()),
         references: references(
             source,
-            tcl_dialect::DialectProfile::by_name(D),
+            tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
             line,
             character,
             &analysis,
@@ -436,7 +436,7 @@ fn outline_members(source: &str) -> Vec<(String, String)> {
         "",
         &tcl_lsp_core::document_symbols::document_symbols(
             source,
-            tcl_dialect::DialectProfile::by_name(D),
+            tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
         ),
         &mut out,
     );

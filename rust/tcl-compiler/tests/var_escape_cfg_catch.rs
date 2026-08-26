@@ -74,10 +74,11 @@ use tcl_compiler::lowering::lower_to_ir;
 use tcl_compiler::ssa::build_ssa;
 use tcl_compiler::var_escape::cfg_propagation::state::CfgEscapeResult;
 use tcl_compiler::var_escape::{EscapeTag, analyse_cfg_function};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 /// Drive the low-level [`analyse_cfg_function`] entry point directly on a single

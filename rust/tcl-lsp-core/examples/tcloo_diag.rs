@@ -74,7 +74,7 @@ fn main() {
         let analysis = Analyser::new().analyse(&src, dialect);
         let st = tcl_lsp_core::semantic_tokens::full_with_cu_and_analysis(
             &src,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
             &registry,
             Some(&cu),
             Some(&analysis),

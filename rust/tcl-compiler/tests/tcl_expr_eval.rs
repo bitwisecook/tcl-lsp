@@ -104,7 +104,7 @@ fn eval_dialect(expr: &str, dialect: &str) -> Option<TclValue> {
     eval_tcl_expr_in_dialect(
         &parse_expr(expr, None),
         &Env::new(),
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
     )
 }
 

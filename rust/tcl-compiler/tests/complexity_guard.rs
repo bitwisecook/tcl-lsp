@@ -73,12 +73,13 @@ use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::ssa::{
     COMPLEXITY_GUARD_BLOCKS, DEEP_ANALYSIS_BODY_BYTES, build_ssa, is_complexity_guarded,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 const TCL: &str = "tcl8.6";
 
 fn registry() -> &'static CommandRegistry {
-    registry_for_dialect(TCL)
+    static_context_for(TCL).commands()
 }
 
 /// A straight-line chain of `n` blocks (`b0 → b1 → … → return`). Built directly

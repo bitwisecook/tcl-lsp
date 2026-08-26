@@ -1369,7 +1369,9 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     // representable (and never occurs), so clamp to `u32::MAX`.
     let body_len = u32::try_from(db.body_text.len()).unwrap_or(u32::MAX);
     let body_tok = Token::new(tcl_lexer::TokenType::Str, tcl_lexer::Span::new(0, body_len));
-    a.registry = Some(tcl_registry::cache::registry_handle_for_profile(a.profile));
+    a.registry = Some(std::sync::Arc::clone(
+        tcl_registry::model::ingress::static_context_for_profile(a.profile).commands(),
+    ));
     a.line_offsets = Some(super::state::compute_line_offsets(&a.source));
     // Capture qualified (`::`/`static::`) reads that miss the (empty) enclosing
     // global scope, so the graft can replay them on the shell's real globals.

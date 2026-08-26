@@ -45,14 +45,14 @@ use std::collections::HashMap;
 
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::types::{TclType, TypeKind, TypeLattice};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 /// All `(version -> TypeLattice)` entries inferred for variable `var` in the
 /// function `qname` (`"::top"` for the top-level script) of `src`.
 ///
 /// Groups every `ValueKey` whose symbol name equals `var` by SSA version.
 fn var_types(src: &str, qname: &str, var: &str) -> HashMap<u32, TypeLattice> {
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     let fu = if qname == "::top" {
         &cu.top_level
@@ -774,7 +774,7 @@ proc wire_namespace_vars {} {
     unset -nocomplain ::demo::value
 }
 ";
-    let registry = registry_for_dialect("tcl8.6");
+    let registry = static_context_for("tcl8.6").commands();
     let cu = CompilationUnit::build_for(src, registry, false);
     // The proc unit exists and carries a (possibly empty) type map.
     let fu = cu

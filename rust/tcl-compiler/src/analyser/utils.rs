@@ -107,7 +107,10 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
 pub fn parse_noqa_line_suppressions(
     source: &str,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
-    parse_noqa_line_suppressions_for_dialect(source, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+    parse_noqa_line_suppressions_for_dialect(
+        source,
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+    )
 }
 
 /// Dialect-aware [`parse_noqa_line_suppressions`].
@@ -1785,11 +1788,12 @@ mod tests {
     #[test]
     fn comment_facts_are_exact_slices_and_never_promote_pre_comment_noqa() {
         let src = "set marker \"noqa\"; # ordinary comment\n# café noqa: W305\nputs \"\u{202e}\"\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let facts = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert_eq!(
             facts.len(),
@@ -1836,11 +1840,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_expect_clause_flags_and_lambda_bodies() {
         let src = "expect {\n    -re {ready} {\n        # expect arm\n        # continuation \\\n        hidden\n    }\n}\napply {{} {\n    # lambda body\n    puts ok\n}}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("expect");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("expect").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("expect"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1859,11 +1864,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_definition_member_bodies() {
         let src = "oo::class create Example {\n    method run {} {\n        # member body\n        puts ok\n    }\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1874,11 +1880,12 @@ mod tests {
     #[test]
     fn script_comment_facts_reaches_nested_command_substitution_case_arms() {
         let src = "set result [switch $kind {\n    alpha {\n        # nested comment \\\n        hidden\n    }\n}]\nset data {[switch $kind { beta { # inert } }]}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1894,11 +1901,12 @@ mod tests {
     #[test]
     fn script_comment_facts_uses_proven_alias_identity_for_body_roles() {
         let src = "interp alias {} define {} proc\ndefine f {} {\n    # noqa: W305\n    puts \"\u{202e}\"\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             comments.iter().any(|fact| fact.line == 2),
@@ -1912,11 +1920,12 @@ mod tests {
         // an argument, not a script comment. A member-keyword spelling is not
         // enough to prove the alias owns definition-member semantics.
         let src = "proc method {name parameters body} {\n    return \"$name:$parameters:$body\"\n}\ninterp alias {} define_method {} method\noo::class create C {\n    define_method m {} {\n        # inert data\n        puts must-not-run\n    }\n}\n";
-        let profile = tcl_dialect::DialectProfile::by_name("tcl9.0");
+        let profile =
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile();
         let comments = script_comment_facts(
             src,
             tcl_lexer::LexerConfig::for_file_dialect("tcl9.0"),
-            tcl_registry::cache::registry_for_profile(profile),
+            tcl_registry::model::ingress::static_context_for_profile(profile).commands(),
         );
         assert!(
             !comments.iter().any(|fact| fact.line == 6),

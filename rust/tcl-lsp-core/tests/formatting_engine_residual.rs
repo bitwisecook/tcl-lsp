@@ -54,10 +54,11 @@ use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::formatting::{
     FormatterConfig, IndentStyle, format_tcl, formatting, formatting_with, range_formatting,
 };
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 fn fmt(src: &str) -> String {

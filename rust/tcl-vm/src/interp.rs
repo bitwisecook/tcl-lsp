@@ -6820,7 +6820,8 @@ mod family_b_tests {
             src: &str,
             profile: &'static DialectProfile,
         ) -> Result<Self::Module, CompileError> {
-            let registry = tcl_registry::registry_for_profile(profile);
+            let registry =
+                tcl_registry::model::ingress::static_context_for_profile(profile).commands();
             let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
             let ir = lower_to_ir(src, registry, config, Some(profile));
             let cfg = build_cfg_codegen(&ir, false);
@@ -6834,9 +6835,13 @@ mod family_b_tests {
         let child_name = vm.create_child(Some("child".to_string()), false);
         let child = vm.child_id(&child_name).unwrap();
         vm.in_interp(child, |child_vm| {
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+            );
             child_vm.hide_command("lassign", "held").unwrap();
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+            );
         });
         let named = vm.invoke_hidden_in_child("child", "held", &[]).unwrap();
         assert_eq!(named.code, Code::Error);
@@ -6854,9 +6859,13 @@ mod family_b_tests {
     #[test]
     fn root_invokehidden_rechecks_identity_and_restores_hidden_state_after_error() {
         let mut vm = Vm::new();
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         vm.hide_command("lassign", "held").unwrap();
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.4"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
+        );
 
         let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(result.code, Code::Error);
@@ -6874,16 +6883,22 @@ mod family_b_tests {
 
     fn prepare_stale_hidden_proc(vm: &mut Vm) {
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
     }
 
     fn prepare_trace_deleted_hidden_proc(vm: &mut Vm) {
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -6895,7 +6910,9 @@ mod family_b_tests {
         assert_eq!(eval_value(vm, "trace add execution p enter replace"), "");
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(vm, "proc p {} { return initial }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
     }
 
     #[test]
@@ -6925,7 +6942,9 @@ mod family_b_tests {
         );
 
         vm.in_interp(child, |child| {
-            child.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+            child.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+            );
         });
         let by_id = vm.invoke_hidden_by_id(child, "held", &[]).unwrap();
         assert_eq!(by_id.code, Code::Ok);
@@ -6986,7 +7005,9 @@ mod family_b_tests {
     fn relocated_hidden_refresh_persists_at_the_live_visible_key() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(eval_value(&mut vm, "proc p {} { return hidden }"), "");
         assert_eq!(
             eval_value(
@@ -7001,7 +7022,9 @@ mod family_b_tests {
         );
         vm.hide_command("p", "held").unwrap();
         assert_eq!(eval_value(&mut vm, "proc p {} { return replacement }"), "");
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
 
         let result = vm.invoke_hidden_in_child("", "held", &[]).unwrap();
         assert_eq!(result.code, Code::Ok);
@@ -7014,7 +7037,9 @@ mod family_b_tests {
     fn imported_proc_profile_refresh_updates_the_resolved_import_not_its_source_name() {
         let mut vm = Vm::new();
         vm.set_compiler(Box::new(TestCompiler));
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.5"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
+        );
         assert_eq!(
             eval_value(
                 &mut vm,
@@ -7025,7 +7050,9 @@ mod family_b_tests {
             ""
         );
 
-        vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+        vm.set_dialect_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        );
         assert_eq!(eval_value(&mut vm, "::dst::p"), "original");
         assert_eq!(eval_value(&mut vm, "::src::p"), "replacement");
         assert_eq!(eval_value(&mut vm, "::src::q"), "original");
@@ -7059,12 +7086,16 @@ mod family_b_tests {
         let child_name = vm.create_child(Some("child".to_string()), false);
         let child = vm.child_id(&child_name).unwrap();
         vm.in_interp(child, |child_vm| {
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl9.0"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            );
             child_vm.register_native_command("tcl::mathfunc::isfinite", Rc::new(TestNative));
             child_vm
                 .hide_command("tcl::mathfunc::isfinite", "held")
                 .unwrap();
-            child_vm.set_dialect_profile(DialectProfile::by_name("tcl8.6"));
+            child_vm.set_dialect_profile(
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+            );
         });
 
         assert_eq!(

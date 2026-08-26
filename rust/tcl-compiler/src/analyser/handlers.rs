@@ -11030,7 +11030,7 @@ mod tests {
         // dialect-profile-model.md §8, one sink) carries no label, covered
         // by the sibling no-label test below.
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         a.handle_proc_command(
             &["set".to_string(), String::new(), String::new()],
             &[
@@ -11112,7 +11112,7 @@ mod tests {
     fn handle_proc_no_w113_for_non_builtin_name() {
         // ``foo`` is not a built-in — no W113.
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
             &["foo".to_string(), String::new(), String::new()],
             &[
@@ -11138,7 +11138,7 @@ mod tests {
         // ``set`` because the registry indexes by bare command
         // name (``::`` is trimmed at lookup).
         let mut a = Analyser::new();
-        a.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        a.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         a.handle_proc_command(
             &["::set".to_string(), String::new(), String::new()],
             &[
@@ -11213,7 +11213,7 @@ mod tests {
 
         // Same proc, plain tcl dialect → no W113.
         let mut b = Analyser::new();
-        b.profile = tcl_dialect::DialectProfile::by_name("tcl");
+        b.profile = tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile();
         b.handle_proc_command(
             &["pool".to_string(), String::new(), String::new()],
             &[
@@ -11556,7 +11556,9 @@ mod tests {
         // pattern cannot undo it. Oracle: a namespace exporting `keep`, then
         // `namespace export -clear ::bad`, exports nothing afterwards.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &[
                 "export".to_string(),
@@ -11582,7 +11584,9 @@ mod tests {
     #[test]
     fn handle_namespace_export_clear_records_an_ordered_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "bar".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 10))],
@@ -11626,7 +11630,9 @@ mod tests {
         // ::src::*`. Consuming every matching word instead recorded two
         // tombstones and silently dropped the `-clear` export.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &[
                 "export".to_string(),
@@ -11656,7 +11662,9 @@ mod tests {
         // The flag is only ever the *first* word: oracle `namespace export a
         // -clear` → `namespace export` returns `a -clear`.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "a".to_string(), "-clear".to_string()],
             &[
@@ -11684,7 +11692,9 @@ mod tests {
         // second is recorded as the pattern word it is — one whose empty
         // source namespace both wildcard resolvers already decline.
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_import_command(
             &[
                 "import".to_string(),
@@ -11712,7 +11722,9 @@ mod tests {
     #[test]
     fn handle_namespace_export_bare_clear_records_a_tombstone() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_namespace_export_command(
             &["export".to_string(), "-clear".to_string()],
             &[esc_tok(span(0, 6)), esc_tok(span(7, 13))],
@@ -12998,7 +13010,9 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -13022,7 +13036,9 @@ mod tests {
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
         // `-command` recognition is registry-driven (`ENSEMBLE_CREATE_OPTIONS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -13656,7 +13672,9 @@ mod tests {
         // so only the genuine `-command ::real::target` is recorded.
         use crate::analyser::types::{Scope, ScopeKind};
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.result
             .global_scope
             .children
@@ -14049,7 +14067,9 @@ mod tests {
 
     fn switch_analyser() -> Analyser {
         let mut analyser = Analyser::new();
-        analyser.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        analyser.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         analyser
     }
 
@@ -14203,7 +14223,9 @@ mod tests {
     fn handle_catch_with_result_var_defines_it() {
         let mut a = Analyser::new();
         // The binding positions come from the registry's VarWrite roles.
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string()],
             &[esc_tok(span(0, 4)), esc_tok(span(5, 8))],
@@ -14215,7 +14237,9 @@ mod tests {
     #[test]
     fn handle_catch_with_options_var_defines_both() {
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_catch_command(
             &["body".to_string(), "res".to_string(), "opts".to_string()],
             &[
@@ -15087,7 +15111,9 @@ mod tests {
     fn handle_oo_class_create_records_class() {
         let mut a = Analyser::new();
         // Metaclass recognition is now registry-trait-driven (`IS_OO_METACLASS`).
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &["create".to_string(), "MyClass".to_string()],
@@ -15110,7 +15136,9 @@ mod tests {
         // arg_tokens stripped of cmd_name (matching the
         // ``process_command`` dispatch convention).
         let mut a = Analyser::new();
-        a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         let handled = a.handle_oo_class_command(
             "oo::class",
             &[

@@ -570,7 +570,7 @@ mod tests {
         // helper returns a non-empty subcommand map under a
         // narrow dialect.
         let tcl84 = crate::environment_ingress::context_for_profile(
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         );
         let sig =
             signature_for_command(&reg, "info", tcl84.context()).expect("info present in 8.4");

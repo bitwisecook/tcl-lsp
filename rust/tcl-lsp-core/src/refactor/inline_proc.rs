@@ -632,7 +632,11 @@ mod tests {
 
     /// Run the transform at the first occurrence of `needle` in `src`.
     fn at(src: &str, needle: &str) -> Option<Refactoring> {
-        at_dialect(src, needle, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+        at_dialect(
+            src,
+            needle,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        )
     }
 
     /// The rewritten document, or the refusal reason, under `dialect`.
@@ -650,7 +654,11 @@ mod tests {
 
     /// The rewritten document, or the refusal reason.
     fn outcome(src: &str, needle: &str) -> Result<String, String> {
-        outcome_for(src, needle, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+        outcome_for(
+            src,
+            needle,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+        )
     }
 
     // -- TP: binding is performed and the result is correct ---------------
@@ -895,7 +903,7 @@ mod tests {
             outcome_for(
                 src,
                 "double 0o17",
-                tcl_dialect::DialectProfile::by_name("tcl8.5")
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile()
             )
             .unwrap(),
             "proc double {x} {\n    expr {$x * 2}\n}\nexpr {0o17 * 2}\n"
@@ -903,7 +911,7 @@ mod tests {
         let reason = outcome_for(
             src,
             "double 0o17",
-            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.4").analyser_profile(),
         )
         .unwrap_err();
         assert!(reason.contains("not a number"), "{reason}");

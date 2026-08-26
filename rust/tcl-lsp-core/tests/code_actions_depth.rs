@@ -921,7 +921,7 @@ fn context_collect_bootstrap_for_irule1005() {
         "{boot:?}"
     );
     let new_text = &boot.edits[0].new_text;
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let handler = registry.event_handler_spec().expect("event handler spec");
     let priority = handler
         .event_handler_priority

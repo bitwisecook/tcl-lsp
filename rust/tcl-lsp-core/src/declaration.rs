@@ -385,7 +385,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -410,7 +410,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -434,7 +434,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -457,7 +457,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -483,7 +483,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -508,7 +508,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -534,7 +534,7 @@ mod tests {
             src,
             l,
             c + 1,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -554,7 +554,7 @@ mod tests {
             src,
             1,
             2,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -580,7 +580,7 @@ mod tests {
             src,
             2,
             9,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg(),
         );
@@ -609,13 +609,13 @@ mod tests {
         let registry = reg();
         let identities = tcl_compiler::head_identity::command_head_identities(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         let end = u32::try_from(src.len()).unwrap_or(0);
         let scan = DeclScan {
             source: src,
-            dialect: tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            dialect: tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             target,
             visible: &[],
             registry: &registry,

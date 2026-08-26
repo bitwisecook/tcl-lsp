@@ -324,7 +324,7 @@ mod tests {
     use super::*;
 
     fn reg() -> &'static CommandRegistry {
-        tcl_registry::registry_for_dialect("tcl8.6")
+        tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
     }
 
     /// Builds the `line_index` [`expr_arg_context_at`] now expects, so the
@@ -340,7 +340,7 @@ mod tests {
             reg(),
             crate::document_floor::DocumentFloor::new(
                 &analysis,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             ),
         )
     }

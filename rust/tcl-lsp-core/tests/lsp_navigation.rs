@@ -510,7 +510,7 @@ fn declaration_var_jumps_to_global_statement_not_the_set() {
         src,
         4,
         11,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -533,7 +533,7 @@ fn declaration_var_jumps_to_variable_statement_in_namespace() {
         src,
         4,
         16,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -561,7 +561,7 @@ fn declaration_var_jumps_to_upvar_alias_site() {
         src,
         2,
         12,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -585,7 +585,7 @@ fn declaration_non_variable_falls_back_to_definition() {
         src,
         1,
         2,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         &analysis,
         &reg(),
     );
@@ -611,7 +611,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             src,
             99,
             0,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
         )
@@ -622,7 +622,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             src,
             0,
             999,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             &reg()
         )
@@ -634,7 +634,7 @@ fn declaration_out_of_range_and_empty_file_do_not_panic() {
             "",
             0,
             0,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &empty,
             &reg()
         )

@@ -1375,7 +1375,7 @@ mod tests {
         assert_eq!(items.len(), 1, "{items:?}");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1402,7 +1402,7 @@ mod tests {
         let target = &items[0];
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             target,
             &analysis,
         );
@@ -1421,7 +1421,7 @@ mod tests {
         let target = &items[0];
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             target,
             &analysis,
         );
@@ -1437,7 +1437,7 @@ mod tests {
         let target = &items[0];
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             target,
             &analysis,
         );
@@ -1455,7 +1455,7 @@ mod tests {
         assert_eq!(items[0].name, "caller");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1475,7 +1475,7 @@ mod tests {
         assert_eq!(items[0].name, "caller");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1506,7 +1506,7 @@ mod tests {
         assert!(
             outgoing_calls(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &bogus,
                 &analysis
             )
@@ -1526,7 +1526,7 @@ mod tests {
         assert_eq!(items[0].name, "caller");
         let unresolved = unresolved_outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1547,7 +1547,7 @@ mod tests {
         assert_eq!(items[0].name, "caller");
         let unresolved = unresolved_outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1583,7 +1583,7 @@ mod tests {
         let items = prepare(src, 1, 11, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1598,7 +1598,8 @@ mod tests {
         let src = "oo::class create C {\n    method read {} {}\n    unexport read\n    method wire {chan} {\n        fileevent $chan readable [namespace code [list my read]]\n    }\n}\n";
         let analysis = analyse(src);
         let items = prepare(src, 1, 11, &analysis);
-        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let incoming = incoming_calls(src, dialect, &items[0], &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
         assert_eq!(incoming[0].from.name, "::C::wire", "{incoming:?}");
@@ -1615,7 +1616,8 @@ mod tests {
     fn hierarchy_follows_one_hop_stored_my_callback() {
         let src = "oo::class create C {\n    method tick {} {}\n    method wire {} {\n        set cb [list my tick]\n        after 0 $cb\n    }\n}\n";
         let analysis = analyse(src);
-        let dialect = tcl_dialect::DialectProfile::by_name("tcl8.6");
+        let dialect =
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile();
         let tick = prepare(src, 1, 11, &analysis);
         let incoming = incoming_calls(src, dialect, &tick[0], &analysis);
         assert_eq!(incoming.len(), 1, "{incoming:?}");
@@ -1635,7 +1637,7 @@ mod tests {
         let analysis = analyse(src);
         let mut incoming = incoming_instance_method_calls_in_class(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &analysis,
             "::Child",
             "read",
@@ -1666,7 +1668,7 @@ mod tests {
         let items = prepare(src, 1, 11, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1708,7 +1710,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::twice");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1732,7 +1734,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::twice");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1755,7 +1757,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::twice");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1776,7 +1778,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::greet");
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1793,7 +1795,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::use");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1813,7 +1815,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::twice");
         let unresolved = unresolved_outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1869,7 +1871,7 @@ mod tests {
         assert_eq!(items.len(), 1, "{items:?}");
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1899,7 +1901,7 @@ mod tests {
         assert!(
             incoming_calls(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
                 &items_ab[0],
                 &analysis
             )
@@ -1911,7 +1913,7 @@ mod tests {
         assert_eq!(items_cd.len(), 1, "{items_cd:?}");
         let incoming_cd = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             &items_cd[0],
             &analysis,
         );
@@ -1942,7 +1944,7 @@ mod tests {
         assert_eq!(items[0].name, "::Factory::make", "{items:?}");
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1969,7 +1971,7 @@ mod tests {
         assert_eq!(items[0].name, "::Factory::build", "{items:?}");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -1993,7 +1995,7 @@ mod tests {
         assert_eq!(items[0].name, "::Factory::make", "{items:?}");
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2015,7 +2017,7 @@ mod tests {
         assert_eq!(items[0].name, "::Factory::build", "{items:?}");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2033,7 +2035,7 @@ mod tests {
         let items = prepare(src, 1, 10, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2051,7 +2053,7 @@ mod tests {
         let items = prepare(src, 1, 16, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2072,7 +2074,7 @@ mod tests {
         assert_eq!(items[0].name, "build", "{items:?}");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2083,7 +2085,7 @@ mod tests {
         let make = prepare(src, 1, 16, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &make[0],
             &analysis,
         );
@@ -2110,7 +2112,7 @@ mod tests {
         assert_eq!(items[0].name, "::C::caller", "{items:?}");
         let outgoing = outgoing_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2139,7 +2141,7 @@ mod tests {
         let items = prepare(src, 1, 16, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2167,7 +2169,7 @@ mod tests {
         let items = prepare(src, 1, 16, &analysis);
         let incoming = incoming_calls(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &items[0],
             &analysis,
         );
@@ -2192,7 +2194,7 @@ mod tests {
         assert!(
             incoming_calls(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &items[0],
                 &analysis
             )
@@ -2213,7 +2215,7 @@ mod tests {
         assert!(
             incoming_calls(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl9.0"),
+                tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
                 &items[0],
                 &analysis
             )

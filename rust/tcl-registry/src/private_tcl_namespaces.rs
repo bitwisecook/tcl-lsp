@@ -219,7 +219,7 @@ mod tests {
     use crate::dialects::DialectSet;
 
     fn classify(cmd: &str) -> Option<PrivateTclNamespaceCall> {
-        let registry = crate::cache::registry_for_dialect("tcl9.0");
+        let registry = crate::model::ingress::static_context_for("tcl9.0").commands();
         classify_private_tcl_namespace_call(cmd, registry, DialectSet::TCL90)
     }
 

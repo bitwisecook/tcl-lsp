@@ -31,8 +31,9 @@ use std::sync::LazyLock;
 
 use rustc_hash::FxHashMap;
 use tcl_lexer::{Span, TokenType};
+use tcl_registry::Traits;
 use tcl_registry::hooks::LoweringHookId;
-use tcl_registry::{Traits, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
 
 use crate::cfg::{Block, BlockId, CfgModule, Function, LoopNode, Terminator};
 use crate::expr_ast::ExprNode;
@@ -763,7 +764,7 @@ impl CfgBuilder {
         // The CFG builder carries no registry handle (see the module note at
         // `registry_derived_cfg_classes`); the write-role answer is core Tcl in
         // every dialect, so the cached default registry is the right source.
-        let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let mut out = crate::ir_helpers::condition_command_out_vars(condition, registry);
         let mut opaque = false;
         let mut cmds = Vec::new();
@@ -860,7 +861,7 @@ impl CfgBuilder {
             // the per-subcommand `VarWrite` role (which includes the
             // body-carrying `update`/`with` — their bodies write the dict
             // back on completion, so the substitution is a kill-site).
-            let registry = tcl_registry::cache::registry_for_dialect("tcl8.6");
+            let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
             if registry.writes_first_arg_variable(cmd) {
                 record(words.get(1), &mut defs);
             } else if words.len() >= 2 {
@@ -1856,7 +1857,7 @@ struct CfgCommandClasses {
 /// dialect, so the plain registry is the right (and dialect-stable)
 /// source — exactly the set the retired hardcoded matches encoded.
 static CFG_COMMAND_CLASSES: LazyLock<CfgCommandClasses> = LazyLock::new(|| {
-    let registry = registry_for_dialect("");
+    let registry = static_context_for("").commands();
     let with = |t: Traits| -> HashSet<&'static str> {
         registry.commands_with_trait(t).into_iter().collect()
     };

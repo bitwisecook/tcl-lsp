@@ -90,7 +90,7 @@ pub fn run(ctx: &mut PassContext<'_>, cu: &CompilationUnit) {
     // present in every dialect's registry.
     let registry: &CommandRegistry = ctx
         .registry
-        .unwrap_or_else(|| tcl_registry::cache::default_registry());
+        .unwrap_or_else(|| tcl_registry::default_registry());
     if !cu.top_level.dynamic_barrier_blocks_value_motion() {
         let top_protected = protected_vars(&cu.top_level, &cross, registry);
         fold_script(ctx, &cu.ir_module.top_level, &top_protected, 0);

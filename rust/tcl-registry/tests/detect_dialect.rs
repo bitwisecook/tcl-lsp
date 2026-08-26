@@ -263,17 +263,22 @@ fn the_speclib_directive_is_a_content_signature() {
 /// to its own bit, and round-trips through the canonical-name inverse.
 #[test]
 fn spectcl_is_a_catalogued_dialect() {
-    use tcl_dialect::{DialectProfile, DialectSet, KNOWN_DIALECTS};
+    use tcl_dialect::{DialectSet, KNOWN_DIALECTS};
 
     assert!(KNOWN_DIALECTS.contains(&"spectcl"));
     assert_eq!(DialectSet::parse("spectcl"), Some(DialectSet::SPECTCL));
     assert_eq!(DialectSet::SPECTCL.canonical_name(), Some("spectcl"));
-    let profile = DialectProfile::by_name("spectcl");
+    let profile = tcl_registry::model::ingress::resolve_environment("spectcl").analyser_profile();
     assert_eq!(profile.name, "spectcl");
     assert_eq!(profile.base_layers, &[DialectSet::SPECTCL]);
     // The editor / MCP spellings canonicalise to it.
     for alias in ["tclspec", "tcl-spec"] {
-        assert_eq!(DialectProfile::by_name(alias).name, "spectcl");
+        assert_eq!(
+            tcl_registry::model::ingress::resolve_environment(alias)
+                .analyser_profile()
+                .name,
+            "spectcl"
+        );
     }
 }
 

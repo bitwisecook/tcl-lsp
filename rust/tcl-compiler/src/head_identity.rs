@@ -692,12 +692,16 @@ mod tests {
     use super::*;
 
     fn map_for(src: &str) -> HeadIdentityMap {
-        let registry = tcl_registry::registry_for_dialect("tcl");
-        command_head_identities(src, tcl_dialect::DialectProfile::by_name("tcl"), registry)
+        let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
+        command_head_identities(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            registry,
+        )
     }
 
     fn irules_map_for(src: &str) -> HeadIdentityMap {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         command_head_identities(src, tcl_dialect::DialectProfile::irules(), registry)
     }
 
@@ -982,7 +986,7 @@ mod tests {
     fn a_rebound_head_resolves_to_no_registry_spec() {
         // The `Rebound` sentinel must be unresolvable, since that is what makes
         // every registry query answer "unknown" without a variant check.
-        let registry = tcl_registry::registry_for_dialect("tcl");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
         assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
     }
 
@@ -1018,7 +1022,7 @@ mod tests {
 
     #[test]
     fn unavailable_irules_mutators_do_not_change_event_identity() {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         let profile = registry.profile().expect("dialect registry has a profile");
         for command in ["interp", "rename", "namespace"] {
             assert!(

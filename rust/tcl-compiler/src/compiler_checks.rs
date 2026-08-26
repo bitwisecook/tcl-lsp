@@ -646,12 +646,12 @@ mod tests {
             "llength {a b}\nllength {a b}",
             &registry(),
             false,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
         );
         let diags = run_all_checks(
             &cu,
             &registry(),
-            Some(tcl_dialect::DialectProfile::by_name("tcl9.0")),
+            Some(tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile()),
         );
         let o105: Vec<_> = diags
             .iter()

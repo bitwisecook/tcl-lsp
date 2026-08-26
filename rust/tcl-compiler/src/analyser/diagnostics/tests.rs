@@ -1251,7 +1251,9 @@ fn w216_upvar_local_name_is_indirect_array_idiom() {
 #[test]
 fn variable_name_positions_are_registry_driven() {
     let mut a = Analyser::new();
-    a.registry = Some(tcl_registry::registry_handle_for_dialect("tcl"));
+    a.registry = Some(std::sync::Arc::clone(
+        tcl_registry::model::ingress::static_context_for("tcl").commands(),
+    ));
     let pos = |cmd: &str, args: &[&str]| {
         a.variable_name_positions(
             cmd,
@@ -1475,7 +1477,8 @@ fn w004_names_the_ensemble_operation_whose_option_table_answered() {
 /// `-namespace` configure-only, so neither is silently accepted on the other.
 #[test]
 fn the_two_ensemble_option_tables_do_not_share_their_distinctive_options() {
-    let reg = tcl_registry::registry_handle_for_dialect("tcl");
+    let reg =
+        std::sync::Arc::clone(tcl_registry::model::ingress::static_context_for("tcl").commands());
     let spec = reg.get("namespace").expect("`namespace` is a core command");
     let ensemble = spec
         .resolve_subcommand("ensemble")
@@ -4297,9 +4300,11 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
     // Tcl 8.5+ core (`docs/design/compiler/dialects-events.md`), so
     // `in`/`ni` (TIP 201, 8.5+) must NOT be flagged for them — the old
     // `DialectSet::TCL85_PLUS` check excluded them entirely and
-    // over-fired.
+    // over-fired. (`f5-iapps` is deliberately NOT here any more: it rides
+    // the `f5-tcl` trunk, a fork of Tcl at 8.4.6, and its measured expr
+    // surface fails every 8.5 discriminator —
+    // bigip-irule-parser-measurements.md §4a.)
     for dialect in [
-        "f5-iapps",
         "xilinx-eda-tcl",
         "intel-quartus-eda-tcl",
         "mentor-eda-tcl",
@@ -4335,6 +4340,13 @@ fn w003_correctly_gates_eda_vendor_dialects_by_documented_base_version() {
         1,
         "cadence-eda-tcl runs an 8.4 core — TIP 201 'in' must gate"
     );
+    // So does the F5 trunk: iApps ride the fork of Tcl at 8.4.6
+    // (measured, bigip-irule-parser-measurements.md §4a).
+    assert_eq!(
+        w003_hits("expr {2 in {1 2 3}}", "f5-iapps").len(),
+        1,
+        "f5-iapps rides the 8.4.6 trunk — TIP 201 'in' must gate"
+    );
     assert_eq!(
         w003_hits("if {$x lt $y} { puts hi }", "cadence-eda-tcl").len(),
         1,
@@ -4352,14 +4364,13 @@ fn w003_f5_irules_stays_gated_on_its_tcl_8_4_runtime() {
 }
 
 #[test]
-fn w003_f5_tmsh_now_gates_tip_461_but_not_tip_201() {
-    // Regression: `f5-tmsh` had no `DialectSet` bit at all, so
-    // `DialectSet::parse` returned `None` and W003 silently never fired
-    // for it — a false negative on its documented Tcl 8.5 base for
-    // `lt`/`le`/`gt`/`ge`. `expr_grammar_base_version` fixes this
-    // without touching `DialectSet::parse`'s existing per-command
-    // dialect-gating semantics.
-    assert!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").is_empty());
+fn w003_f5_tmsh_gates_both_tip_201_and_tip_461() {
+    // `f5-tmsh` rides the `f5-tcl` trunk — a fork of Tcl at 8.4.6
+    // (measured, bigip-irule-parser-measurements.md §4a: a tmsh
+    // `cli script` fails every 8.5 discriminator) — so TIP 201 `in`/`ni`
+    // (8.5+) is out of grammar there exactly as TIP 461's
+    // `lt`/`le`/`gt`/`ge` always were.
+    assert_eq!(w003_hits("expr {2 in {1 2 3}}", "f5-tmsh").len(), 1);
     assert_eq!(w003_hits("if {$x lt $y} { puts hi }", "f5-tmsh").len(), 1);
 }
 
@@ -4426,7 +4437,9 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     registry: &registry,
                     defer_top_level: false,
                     config: tcl_lexer::LexerConfig::default(),
-                    dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
+                    dialect: Some(
+                        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                    ),
                     external_call_sites: None,
                 },
                 &mut |req: &crate::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {
@@ -4476,7 +4489,10 @@ fn memoized_compilation_unit_diagnostics_match_whole_file() {
                     fu
                 },
             )
-            .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")))
+            .with_interprocedural(
+                &registry,
+                Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
+            )
         };
 
         let cold = build_cu(&mut cache);
@@ -4537,7 +4553,9 @@ fn memoized_compilation_unit_shift_correctness() {
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(tcl_dialect::DialectProfile::by_name("tcl")),
+                dialect: Some(
+                    tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                ),
                 external_call_sites: None,
             },
             // Position-independent key: the body is normalised to offset 0
@@ -4571,7 +4589,10 @@ fn memoized_compilation_unit_shift_correctness() {
                 fu
             },
         )
-        .with_interprocedural(&registry, Some(tcl_dialect::DialectProfile::by_name("tcl")));
+        .with_interprocedural(
+            &registry,
+            Some(tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile()),
+        );
         let mut a = Analyser::new();
         a.set_cu_override(Arc::new(cu));
         a.analyse(s, "tcl")
@@ -5883,12 +5904,16 @@ fn w210_uses_registry_owned_startup_lifecycle_facts() {
     // exact fixture guards the audited release-by-release inventory.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::resolve_dialect(dialect),
+            tcl_registry::special_vars::dialect_set_for_profile(Some(
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            )),
         )
         .filter(|spec| {
             tcl_registry::special_vars::is_readable_at_startup(
                 spec.name,
-                tcl_registry::special_vars::resolve_dialect(dialect),
+                tcl_registry::special_vars::dialect_set_for_profile(Some(
+                    tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+                )),
             )
         })
         .filter_map(|spec| match spec.kind {
@@ -6011,7 +6036,7 @@ fn i230_existence_fold_abstains_on_interpreter_globals_at_top_level() {
     // automatically.
     for dialect in ["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"] {
         let source: String = tcl_registry::special_vars::special_vars_for_dialect(
-            tcl_registry::special_vars::resolve_dialect(dialect),
+            tcl_registry::special_vars::dialect_set_for_profile(Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile())),
         )
             .filter_map(|spec| match spec.kind {
                 tcl_registry::special_vars::SpecialVarKind::Scalar => {

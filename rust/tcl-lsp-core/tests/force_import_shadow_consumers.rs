@@ -72,7 +72,7 @@ fn analyse(source: &str) -> AnalysisResult {
 }
 
 fn reg() -> &'static CommandRegistry {
-    tcl_registry::registry_for_dialect("tcl8.6")
+    tcl_registry::model::ingress::static_context_for("tcl8.6").commands()
 }
 
 /// Byte offset of the `helper` call head.
@@ -180,7 +180,7 @@ fn inlay_hints_label_the_reached_proc_not_the_shadowed_local() {
     let (shadowed, unshadowed) = both_directions(|analysis, exports| {
         tcl_lsp_core::inlay_hints::inlay_hints_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(analysis),
             resolution(exports),
@@ -374,7 +374,7 @@ fn without_a_workspace_view_every_provider_keeps_the_document_only_answer() {
 
     let hints: Vec<String> = tcl_lsp_core::inlay_hints::inlay_hints_in_program(
         MAIN,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         WHOLE_FILE,
         Some(&analysis),
         doc_only,
@@ -425,7 +425,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
     assert_eq!(
         tcl_lsp_core::inlay_hints::inlay_hints(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(&analysis),
             Some(reg()),
@@ -434,7 +434,7 @@ fn the_legacy_entry_points_still_equal_the_document_only_program_view() {
         ),
         tcl_lsp_core::inlay_hints::inlay_hints_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             WHOLE_FILE,
             Some(&analysis),
             doc_only,
@@ -499,7 +499,7 @@ fn rename_retargets_with_the_shadow() {
     let (shadowed, unshadowed) = both_directions(|analysis, exports| {
         tcl_lsp_core::rename::rename_in_program(
             MAIN,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             call_line(),
             0,
             "renamed",

@@ -123,8 +123,10 @@ pub fn environment_for_dialect(name: &str) -> tcl_registry::model::DocumentEnvir
 /// unknown-name sink by `tcl_registry::model::ingress`'s
 /// `unit_profile_reproduces_the_old_lsp_ingress`.
 ///
-/// P1-G: the profile itself retires; consumers move to the environment and
-/// its [`ResolvedContext`](tcl_registry::model::ResolvedContext) queries.
+/// Post-P1-G (which deleted the name validators): the profile itself
+/// retires with ledger C1's re-type; consumers then move to the
+/// environment and its
+/// [`ResolvedContext`](tcl_registry::model::ResolvedContext) queries.
 ///
 /// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
 #[must_use]
@@ -190,7 +192,8 @@ pub fn context_for_dialect(dialect: &str) -> &'static tcl_registry::model::Conte
 
 /// [`context_for_dialect`] for a caller that already holds the resolved
 /// profile — transitional plumbing for the providers whose signatures still
-/// take a `&DialectProfile` (retired with the profile itself in P1-G). The
+/// take a `&DialectProfile` (retired with the profile itself under
+/// ledger C1). The
 /// profile's canonical name **is** a canonical environment id, so this is an
 /// id-keyed lookup, not a re-parse of a user string.
 #[must_use]
@@ -224,7 +227,7 @@ pub fn document_context_for_dialect(
 /// [`document_context_for_dialect`] for a caller that already holds the
 /// resolved profile — transitional plumbing for the providers whose
 /// signatures still take a `&DialectProfile` (retired with the profile
-/// itself in P1-G).
+/// itself under ledger C1).
 #[must_use]
 pub fn document_context_for_profile(
     dialect: &tcl_dialect::DialectProfile,
@@ -301,11 +304,13 @@ mod dialect_ingress_tests {
                 .collect::<Vec<_>>()
         );
 
-        // The third leg: the registry must stay the one `by_name` selects,
-        // not the one the Tk profile would build.
+        // The third leg: the registry must stay the plain-store one the
+        // lenient ingress selects, not the one the Tk profile would build.
         assert!(std::ptr::eq(
             super::registry_for_dialect_profile(profile),
-            tcl_registry::cache::registry_for_dialect("tk"),
+            tcl_registry::model::ingress::static_context_for("tk")
+                .commands()
+                .as_ref(),
         ));
     }
 }

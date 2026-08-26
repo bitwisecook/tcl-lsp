@@ -460,7 +460,7 @@ fn completion_of_command_prefix_lists_matching_builtins() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"while"), "expected `while`: {labels:?}");
@@ -484,7 +484,7 @@ fn completion_of_var_prefix_lists_in_scope_variables() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert_eq!(labels, vec!["$apple"], "{items:?}");
@@ -504,7 +504,7 @@ fn completion_of_bare_dollar_lists_all_globals_sorted() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"$apple"), "{labels:?}");
@@ -536,7 +536,7 @@ fn completion_inside_proc_includes_its_params_and_locals() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
@@ -562,7 +562,7 @@ fn completion_lists_user_defined_procs() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"greet"), "{labels:?}");
@@ -590,7 +590,7 @@ fn completion_of_namespace_qualified_command() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"parray"), "expected `parray`: {labels:?}");
@@ -611,7 +611,7 @@ fn completion_merges_user_procs_and_builtins() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"parade"), "user proc: {labels:?}");
@@ -633,7 +633,7 @@ fn completion_subcommand_at_word_index_1() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"length"), "expected `length`: {labels:?}");
@@ -658,7 +658,7 @@ fn completion_string_is_lists_real_character_classes() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"alnum"), "{labels:?}");
@@ -687,7 +687,7 @@ fn completion_switch_completes_command_options() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(!labels.is_empty(), "expected `-n*` switches: {labels:?}");
@@ -709,7 +709,7 @@ fn completion_without_registry_yields_procs_only() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert_eq!(labels, vec!["helper"], "{items:?}");
@@ -729,7 +729,7 @@ fn completion_variable_trigger_suppresses_commands() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     assert!(
         !items.is_empty(),
@@ -751,7 +751,7 @@ fn completion_on_empty_source_does_not_panic() {
         &analysis,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     // No procs, no registry → nothing to suggest at an empty command pos.
     assert!(
@@ -841,7 +841,7 @@ fn completion_offers_scoped_command_heads() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"top"), "offers `top`: {labels:?}");
@@ -864,7 +864,7 @@ fn completion_offers_scoped_operations() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     for op in ["set", "get", "enable", "disable", "enabled"] {
@@ -885,7 +885,7 @@ fn completion_scoped_heads_not_offered_outside_body() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(
@@ -919,7 +919,7 @@ fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
         &a86,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     )
     .into_iter()
     .map(|i| i.label)
@@ -942,7 +942,7 @@ fn completion_ns_scope_global_qualification_follows_the_dialect_m11() {
         &a90,
         None,
         None,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
     )
     .into_iter()
     .map(|i| i.label)
@@ -975,7 +975,7 @@ fn completion_proc_scope_still_qualifies_globals_in_every_dialect_m11() {
             &an,
             None,
             None,
-            tcl_dialect::DialectProfile::by_name(dialect),
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         )
         .into_iter()
         .map(|i| i.label)
@@ -1010,7 +1010,7 @@ fn completion_offers_the_boolean_vocabulary_at_a_boolean_option_value() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     for want in ["true", "false", "yes", "no", "on", "off", "0", "1"] {
@@ -1033,7 +1033,7 @@ fn completion_filters_the_boolean_vocabulary_by_partial() {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     );
     let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
     assert!(labels.contains(&"true"), "{labels:?}");
@@ -1080,7 +1080,7 @@ fn ensemble_option_labels(src: &str, col: u32) -> Vec<String> {
         &analysis,
         Some(&reg),
         None,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
     )
     .into_iter()
     .map(|i| i.label)

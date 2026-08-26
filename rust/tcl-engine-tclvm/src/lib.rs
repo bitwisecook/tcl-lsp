@@ -70,8 +70,9 @@ use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Vm};
 /// `registry_for_profile(profile)` handed back — same statics, so the
 /// bytecode a profile compiles to is unchanged.
 ///
-/// P1-G: the `&'static DialectProfile` argument retires with the profile
-/// itself; `CompileService`'s signature then carries the environment.
+/// Post-P1-G (which deleted the old cache doors): the
+/// `&'static DialectProfile` argument retires with ledger C1's re-type;
+/// `CompileService`'s signature then carries the environment.
 fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
     tcl_registry::model::static_context_for_profile(profile).commands()
 }

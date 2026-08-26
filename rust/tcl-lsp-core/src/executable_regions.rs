@@ -384,7 +384,10 @@ mod tests {
             ("switch $x {a \"format {%d} 1\"}", "tcl8.6", "format"),
             ("expect {-re {ready} \"format {%d} 1\"}", "expect", "format"),
         ] {
-            let heads = visited_format_heads(source, tcl_dialect::DialectProfile::by_name(dialect));
+            let heads = visited_format_heads(
+                source,
+                tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+            );
             assert_eq!(
                 heads,
                 vec![(
@@ -401,7 +404,10 @@ mod tests {
     fn quoted_case_actions_preserve_identity_and_abstain_for_dynamic_or_malformed_lists() {
         let aliased = "interp alias {} fmt {} format\nswitch $x {a \"fmt {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(aliased, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            visited_format_heads(
+                aliased,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec![(
                 "fmt".to_owned(),
                 "format".to_owned(),
@@ -411,7 +417,10 @@ mod tests {
 
         let renamed = "rename format saved\nswitch $x {a \"format {%d} 1\"}";
         assert_eq!(
-            visited_format_heads(renamed, tcl_dialect::DialectProfile::by_name("tcl8.6")),
+            visited_format_heads(
+                renamed,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+            ),
             vec![(
                 "format".to_owned(),
                 String::new(),
@@ -425,8 +434,11 @@ mod tests {
             "switch $x {a \"format {%d} 1\" orphan}",
         ] {
             assert!(
-                visited_format_heads(source, tcl_dialect::DialectProfile::by_name("tcl8.6"))
-                    .is_empty(),
+                visited_format_heads(
+                    source,
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
+                )
+                .is_empty(),
                 "dynamic and malformed lists must not expose nested actions: {source}"
             );
         }

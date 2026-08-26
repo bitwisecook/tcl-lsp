@@ -37,7 +37,7 @@ use tcl_compiler::compiler_checks::DiagCode;
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::references::references;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types};
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 fn analyse(source: &str) -> AnalysisResult {
     Analyser::new().analyse(source, "tcl8.6").clone()
@@ -56,7 +56,7 @@ fn refs_at(src: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = analyse(src);
     ref_lines(&references(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl"),
+        tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
         line,
         col,
         &analysis,
@@ -68,7 +68,7 @@ fn refs_at_dialect(src: &str, dialect: &str, line: u32, col: u32) -> Vec<u32> {
     let analysis = Analyser::new().analyse(src, dialect).clone();
     ref_lines(&references(
         src,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         line,
         col,
         &analysis,
@@ -100,8 +100,12 @@ fn kind_of(src: &str, dialect: &str, needle: &str) -> Option<String> {
     let before = &src[..byte];
     let line = before.matches('\n').count() as u32;
     let col = (byte - before.rfind('\n').map_or(0, |n| n + 1)) as u32;
-    let registry = registry_for_dialect(dialect);
-    let st = full(src, tcl_dialect::DialectProfile::by_name(dialect), registry);
+    let registry = static_context_for(dialect).commands();
+    let st = full(
+        src,
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        registry,
+    );
     let legend = legend_token_types();
     let (mut l, mut c) = (0u32, 0u32);
     for chunk in st.data.chunks(5) {
@@ -503,7 +507,7 @@ mod itcl_class_proc_dispatch {
             assert_eq!(
                 tcl_lsp_core::definition::itcl_class_proc_target_at(
                     src,
-                    tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                    tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                     line,
                     character,
                     &analysis
@@ -525,7 +529,7 @@ mod itcl_class_proc_dispatch {
         assert_eq!(
             tcl_lsp_core::definition::itcl_class_proc_target_at(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 8,
                 2,
                 &analysis

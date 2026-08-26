@@ -594,9 +594,10 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
         // This classifier has no family in hand yet, so it asks for the
         // conservative union; the resolved class and its MRO settle the
         // receiver separately below.
-        if args.first().is_some_and(|method| {
-            tcl_registry::cache::default_registry().is_manufacturer_method(method)
-        }) {
+        if args
+            .first()
+            .is_some_and(|method| tcl_registry::default_registry().is_manufacturer_method(method))
+        {
             // A dynamic head — `[$cls new]` / `[[factory] new]` — is a
             // runtime class value, not a literal constructor.  Treat it as
             // introspection (the class is computed, not named).
@@ -612,7 +613,7 @@ fn classify_rhs<S: std::hash::BuildHasher + Clone>(
         // (issue #1050). Resolved against the dialect-agnostic default
         // registry: this classifier is reached without a dialect in scope,
         // and `TclOO` introspection is core Tcl from 8.6 onwards.
-        if tcl_registry::cache::default_registry().method_dispatch_keyword(&head)
+        if tcl_registry::default_registry().method_dispatch_keyword(&head)
             == Some(tcl_registry::MethodDispatchKind::Introspection)
         {
             return AssignKind::Introspection;
@@ -771,7 +772,7 @@ fn definer_grammar_for_class<S: std::hash::BuildHasher + Clone>(
     index: &HashMap<String, ClassDef, S>,
     ns: &NsContext,
 ) -> Option<&'static tcl_registry::definer::DefinitionBodyGrammar> {
-    let registry = tcl_registry::cache::default_registry();
+    let registry = tcl_registry::default_registry();
     let cd = index.get(class)?;
     if let Some(grammar) = registry
         .get(&cd.metaclass)

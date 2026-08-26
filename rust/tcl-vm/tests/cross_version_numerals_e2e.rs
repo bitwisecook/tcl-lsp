@@ -79,7 +79,9 @@ impl CompileService for CompilerSvc {
             src,
             &self.registry,
             tcl_lexer::LexerConfig::default(),
-            Some(tcl_dialect::DialectProfile::by_name(self.dialect)),
+            Some(
+                tcl_registry::model::ingress::resolve_environment(self.dialect).analyser_profile(),
+            ),
         );
         let cfg = build_cfg_codegen(&ir, false);
         Ok(codegen_module(&cfg, &ir, &self.registry))
@@ -90,7 +92,7 @@ impl CompileService for CompilerSvc {
         src: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(msg) = tcl_compiler::lowering::first_fatal_parse_error_with_config(src, config)
         {
@@ -117,13 +119,13 @@ impl CompileService for CompilerSvc {
 /// interpreter. The dialect is a compile target, not a runtime switch.
 fn vm_output(src: &str, version: TclVersion) -> String {
     let dialect = version.dialect_name();
-    let profile = DialectProfile::by_name(dialect);
-    let registry = tcl_registry::registry_for_profile(profile);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir(
         src,
         registry,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-        Some(tcl_dialect::DialectProfile::by_name(dialect)),
+        Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry);
@@ -400,13 +402,13 @@ fn build_vm(version: TclVersion) -> (Vm, Capture, &'static str) {
 /// Run `src` on an already-configured VM, compiling for its dialect.
 fn run_on(vm: &mut Vm, cap: &Capture, dialect: &str, src: &str) -> String {
     cap.0.borrow_mut().clear();
-    let profile = DialectProfile::by_name(dialect);
-    let registry = tcl_registry::registry_for_profile(profile);
+    let profile = tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile();
+    let registry = tcl_registry::model::ingress::static_context_for_profile(profile).commands();
     let ir = lower_to_ir(
         src,
         registry,
         tcl_lexer::LexerConfig::from_grammar(profile.grammar),
-        Some(tcl_dialect::DialectProfile::by_name(dialect)),
+        Some(tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile()),
     );
     let cfg = build_cfg_codegen(&ir, false);
     let asm = codegen_module(&cfg, &ir, registry);

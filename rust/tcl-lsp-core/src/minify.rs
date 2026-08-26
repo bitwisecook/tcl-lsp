@@ -3626,7 +3626,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         minify_tcl(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         )
     }
@@ -3645,7 +3645,7 @@ mod tests {
         for release in ["tcl9.0", "tcl8.6"] {
             let out = minify_tcl(
                 "set {a b} 1\nputs ${a b}\n",
-                tcl_dialect::DialectProfile::by_name(release),
+                tcl_registry::model::ingress::resolve_environment(release).analyser_profile(),
                 &registry,
             );
             assert!(
@@ -3656,7 +3656,7 @@ mod tests {
         // A plain name still sheds them.
         let out = minify_tcl(
             "set plain 1\nputs ${plain}\n",
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
         );
         assert!(out.contains("$plain"), "{out}");
@@ -3674,12 +3674,12 @@ mod tests {
         let src = "puts \"${a{b}c}\"\n";
         let nine = minify_tcl(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl9.0"),
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
             &registry,
         );
         let eight = minify_tcl(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         assert!(
@@ -3848,7 +3848,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         minify_tcl_compact(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             false,
             &registry,
         )
@@ -3859,7 +3859,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         minify_tcl_compact(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         )
@@ -3996,7 +3996,7 @@ mod tests {
         // Non-isolated: variables compact, procs do not (issue #1193).
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             false,
             &registry,
         );
@@ -4009,7 +4009,7 @@ mod tests {
         // Isolated: the proc is renamed and reported.
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         );
@@ -4021,7 +4021,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let (out, _) = minify_tcl_compact(
             "set globalvar 1\nputs $globalvar\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         );
@@ -4035,7 +4035,7 @@ mod tests {
         // names in the non-isolated tier).
         let (_, sym) = minify_tcl_compact(
             "proc greet {name} {\n    return $name\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         );
@@ -4089,7 +4089,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         minify_tcl_aggressive(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             false,
             &registry,
         )
@@ -4102,7 +4102,7 @@ mod tests {
         // `$x` is a proven integer constant; fold `"n=$x"` -> `n=5`.
         let (out, count, map) = fold_static_substrings(
             "set x 5\nputs \"n=$x\"\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         assert_eq!(out, "set x 5\nputs n=5\n");
@@ -4121,7 +4121,7 @@ mod tests {
         let src = "set x 5\nputs \"a[string toupper \"b\"] $x\"\n";
         let (out, count, _) = fold_static_substrings(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
@@ -4140,7 +4140,7 @@ mod tests {
         let src = "set x 5\nputs \"a[\n# ] comment\nset y \"b\"\n]c $x\"\n";
         let (out, count, _) = fold_static_substrings(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         assert_eq!(count, 0, "a command substitution is not SCCP-foldable");
@@ -4153,7 +4153,7 @@ mod tests {
         // `[HTTP::uri]` is dynamic — nothing folds.
         let (out, count, _) = fold_static_substrings(
             "set u [HTTP::uri]\nputs \"got $u\"\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
         );
         assert_eq!(count, 0);
@@ -4219,7 +4219,7 @@ mod tests {
         let src = "proc greet {name} {\n    set message \"hi $name\"\n    return $message\n}\n";
         let res = minify_tcl_aggressive(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             false,
             &registry,
         );
@@ -4251,7 +4251,7 @@ mod tests {
         for _ in 0..32 {
             let res = minify_tcl_aggressive(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 false,
                 &registry,
             );
@@ -4283,7 +4283,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let (_, sym) = minify_tcl_compact(
             "proc f {} {\n    set config(database) 1\n    puts $config(database)\n}\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             false,
             &registry,
         );
@@ -4329,7 +4329,7 @@ mod tests {
         assert_eq!(
             min_dialect(
                 "string length $x\n",
-                tcl_dialect::DialectProfile::by_name("tcl8.6")
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile()
             ),
             "string length $x"
         );
@@ -4606,10 +4606,10 @@ mod tests {
         use super::*;
 
         fn aggressive(src: &str) -> String {
-            let registry = tcl_registry::registry_for_dialect("tcl8.6");
+            let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
             minify_tcl_aggressive(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 false,
                 registry,
             )
@@ -4617,10 +4617,10 @@ mod tests {
         }
 
         fn aggressive_no_abbrev(src: &str) -> String {
-            let registry = tcl_registry::registry_for_dialect("tcl8.6");
+            let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
             minify_tcl_aggressive_with(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 false,
                 registry,
                 false,
@@ -4688,17 +4688,18 @@ mod tests {
             // `string compare` is `co` in 8.5 but `string cat` (8.6.2) collides
             // at `c`; the emitter checks every later core-Tcl table, so whatever
             // it emits must still resolve to `compare` under 9.0.
-            let registry = tcl_registry::registry_for_dialect("tcl8.5");
+            let registry = tcl_registry::model::ingress::static_context_for("tcl8.5").commands();
             let out = minify_tcl_aggressive(
                 "puts [string compare $a $b]\n",
-                tcl_dialect::DialectProfile::by_name("tcl8.5"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.5").analyser_profile(),
                 false,
                 registry,
             )
             .source;
             let emitted = out.split_whitespace().find(|w| "compare".starts_with(*w));
             if let Some(word) = emitted {
-                let t90 = tcl_registry::registry_for_dialect("tcl9.0")
+                let t90 = tcl_registry::model::ingress::static_context_for("tcl9.0")
+                    .commands()
                     .get("string")
                     .expect("string in 9.0")
                     .subcommand_table(None, None, None);
@@ -4781,7 +4782,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let aliased = minify_tcl_aggressive(
             "interp alias {} str {} string\nstr toupper $::env(HOME)\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         );
@@ -4795,7 +4796,7 @@ mod tests {
         // ordinary data and must survive untouched.
         let unbound = minify_tcl_aggressive(
             "set y 1\nstr toupper $::env(HOME)\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             true,
             &registry,
         );
@@ -4822,7 +4823,7 @@ mod tests {
         let minify = |src: &str| {
             minify_tcl_aggressive(
                 src,
-                tcl_dialect::DialectProfile::by_name("tcl8.6"),
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 true,
                 &registry,
             )

@@ -1295,7 +1295,7 @@ mod tests {
 
     #[test]
     fn coroutine_barrier_uses_registry_identity_for_specific_diagnostic() {
-        let registry = tcl_registry::registry_for_dialect("bpf");
+        let registry = tcl_registry::model::ingress::static_context_for("bpf").commands();
         let mut func = Function::new("::handler", "entry");
         let entry = func.entry;
         func.blocks
@@ -1330,7 +1330,9 @@ mod tests {
     /// and `1_000` were all rejected as bad integers.
     #[test]
     fn integer_literals_follow_the_target_dialects_number_grammar() {
-        let numbers = tcl_registry::registry_for_dialect("bpf").numbers();
+        let numbers = tcl_registry::model::ingress::static_context_for("bpf")
+            .commands()
+            .numbers();
         for (text, want) in [
             ("42", Some(42)),
             ("-42", Some(-42)),

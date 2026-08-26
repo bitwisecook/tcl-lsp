@@ -29,7 +29,7 @@ use tcl_lsp_core::formatting::engine::format_tcl;
 use tcl_registry::prelude::DialectSet;
 
 fn fmt(src: &str, config: &FormatterConfig) -> String {
-    let registry = tcl_registry::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     format_tcl(src, config, registry)
 }
 
@@ -175,7 +175,7 @@ fn formatting_never_changes_a_range_it_was_not_asked_about() {
     // seen. Proven by formatting a one-line slice of a two-line document.
     use tcl_lsp_core::definition::LspRange;
     use tcl_lsp_core::formatting::range_formatting;
-    let registry = tcl_registry::registry_for_dialect("tcl8.6");
+    let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
     let src = "string le $a\nstring le $b\n";
     let edits = range_formatting(
         src,
@@ -299,7 +299,7 @@ fn an_irules_document_gets_the_same_rewrite() {
     // iRule is Tcl: the core boolean options it can call are rewritten under
     // the vendor dialect exactly as under a core one, with no core version
     // range to widen over.
-    let registry = tcl_registry::registry_for_dialect("f5-irules");
+    let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
     let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::irules());
     let out = format_tcl("clock format $t -gmt yes\n", &config, registry);
     assert!(out.contains("-gmt true"), "{out}");
@@ -376,15 +376,17 @@ fn a_dynamic_boolean_option_value_abstains() {
 /// Format `src` against `dialect`'s registry, with the target range set to
 /// that release and every later one.
 fn fmt_over_range(src: &str, dialect: &str) -> String {
-    let registry = tcl_registry::registry_for_dialect(dialect);
-    let config = FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
+    let config = FormatterConfig::for_profile(
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+    );
     format_tcl(src, &config, registry)
 }
 
 /// Format `src` against `dialect`'s registry with no declared range — the
 /// pre-#1257 behaviour, kept as the control.
 fn fmt_no_range(src: &str, dialect: &str) -> String {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
     format_tcl(src, &FormatterConfig::default(), registry)
 }
 
@@ -449,10 +451,12 @@ fn an_option_prefix_is_checked_over_the_range_too() {
 /// Format `src` against `dialect`'s registry with an explicit range — what a
 /// document that must keep working on more than one release declares.
 fn fmt_in_range(src: &str, dialect: &str, range: DialectSet) -> String {
-    let registry = tcl_registry::registry_for_dialect(dialect);
+    let registry = tcl_registry::model::ingress::static_context_for(dialect).commands();
     let config = FormatterConfig {
         target_range_override: Some(range),
-        ..FormatterConfig::for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+        ..FormatterConfig::for_profile(
+            tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
+        )
     };
     format_tcl(src, &config, registry)
 }

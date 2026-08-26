@@ -3349,7 +3349,8 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
             // The shared per-profile registry cache: same contents as a
             // fresh build_default + load_dialect, without rebuilding the
             // whole registry per analysed document.
-            let registry = tcl_registry::registry_for_dialect(self.dialect());
+            let registry =
+                tcl_registry::model::ingress::static_context_for(self.dialect()).commands();
             let commands: std::collections::HashSet<&str> = registry.command_names().collect();
             let hits: Vec<(String, tcl_lexer::Span)> = self
                 .result

@@ -1562,7 +1562,8 @@ fn walk_call(
 /// every dialect-availability query made through it, and every spec's own
 /// `dialects` group decides the rest).
 fn irules_registry() -> &'static CommandRegistry {
-    tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules())
+    tcl_registry::model::ingress::static_context_for_profile(tcl_dialect::DialectProfile::irules())
+        .commands()
 }
 
 /// Translate an iRule to F5 XC configuration. Analyses the iRule source,

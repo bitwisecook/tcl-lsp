@@ -389,7 +389,9 @@ mod tests {
     use tcl_lexer::LexerConfig;
 
     fn texts(source: &str, dialect: Option<&str>) -> Vec<String> {
-        let profile = DialectProfile::by_opt_name(dialect);
+        let profile = dialect
+            .and_then(DialectProfile::find)
+            .unwrap_or_else(DialectProfile::plain_tcl);
         command_substitution_spans(
             source,
             profile,
@@ -402,7 +404,9 @@ mod tests {
     }
 
     fn substitutions(source: &str, dialect: Option<&str>) -> super::LiveExpressionSubstitutions {
-        let profile = DialectProfile::by_opt_name(dialect);
+        let profile = dialect
+            .and_then(DialectProfile::find)
+            .unwrap_or_else(DialectProfile::plain_tcl);
         live_expression_substitutions(
             source,
             profile,
@@ -614,7 +618,7 @@ mod tests {
 
     #[test]
     fn fails_closed_when_the_runtime_surface_rejects_the_expression() {
-        let profile = DialectProfile::by_name("tcl9.0");
+        let profile = DialectProfile::find("tcl9.0").expect("catalogue profile");
         assert!(
             command_substitution_spans(
                 "[live]",
@@ -629,12 +633,16 @@ mod tests {
 
     #[test]
     fn fails_closed_when_the_script_config_is_for_another_profile() {
-        let profile = DialectProfile::by_name("tcl9.0");
+        let profile = DialectProfile::find("tcl9.0").expect("catalogue profile");
         assert!(
             command_substitution_spans(
                 "[live]",
                 profile,
-                LexerConfig::from_grammar(DialectProfile::by_name("tcl8.6").grammar),
+                LexerConfig::from_grammar(
+                    DialectProfile::find("tcl8.6")
+                        .expect("catalogue profile")
+                        .grammar
+                ),
                 |_| true,
             )
             .is_empty(),

@@ -77,7 +77,8 @@ use tcl_compiler::place_bridge::{
 };
 use tcl_compiler::scan_predicate::scan_provably_no_match;
 use tcl_compiler::var_escape::{ProcEscapeSummary, analyse_var_escape};
-use tcl_registry::{CommandRegistry, registry_for_dialect};
+use tcl_registry::CommandRegistry;
+use tcl_registry::model::ingress::static_context_for;
 
 // ===========================================================================
 // Shared harness
@@ -101,9 +102,10 @@ fn codes(src: &str, dialect: &str) -> Vec<String> {
         .iter()
         .map(|d| d.code.to_string())
         .collect();
-    let registry = registry_for_dialect(dialect);
+    let registry = static_context_for(dialect).commands();
     let cu = CompilationUnit::build_for(src, registry, false);
-    let dialect_opt = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let dialect_opt = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     for d in run_all_checks(&cu, registry, dialect_opt) {
         if d.code.is_optimisation() {
             continue;
@@ -123,8 +125,9 @@ fn fires(src: &str, dialect: &str, code: &str) -> bool {
 fn o107_fires(src: &str, dialect: &str) -> bool {
     use tcl_compiler::optimiser::manager::optimise_with_dialect;
     use tcl_core_types::DiagCode;
-    let registry = registry_for_dialect(dialect);
-    let d = (!dialect.is_empty()).then(|| tcl_dialect::DialectProfile::by_name(dialect));
+    let registry = static_context_for(dialect).commands();
+    let d = (!dialect.is_empty())
+        .then(|| tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile());
     optimise_with_dialect(src, registry, d)
         .iter()
         .any(|o| o.code == DiagCode::O107)
@@ -937,7 +940,9 @@ fn rebased_units(base: &str, shifted: &str) -> (CompilationUnit, CompilationUnit
                 registry: &registry,
                 defer_top_level: false,
                 config: tcl_lexer::LexerConfig::default(),
-                dialect: Some(tcl_dialect::DialectProfile::by_name(D)),
+                dialect: Some(
+                    tcl_registry::model::ingress::resolve_environment(D).analyser_profile(),
+                ),
                 external_call_sites: None,
             },
             &mut |req: &tcl_compiler::compilation_unit::LatticeRequest<'_>| -> FunctionUnit {

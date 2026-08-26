@@ -1039,7 +1039,7 @@ mod tests {
     fn empty_hints_when_analysis_is_none() {
         let hints = inlay_hints(
             "set x 1\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range("set x 1\n"),
             None,
             None,
@@ -1055,7 +1055,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1079,7 +1079,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1100,7 +1100,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1118,7 +1118,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1140,7 +1140,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&registry),
@@ -1162,7 +1162,7 @@ mod tests {
         let registry = CommandRegistry::build_default();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&registry),
@@ -1185,7 +1185,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1210,7 +1210,7 @@ mod tests {
         };
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             range,
             Some(&analysis),
             None,
@@ -1250,7 +1250,7 @@ mod tests {
         };
         let full_hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             full,
             Some(&analysis),
             Some(&reg),
@@ -1259,7 +1259,7 @@ mod tests {
         );
         let narrow_hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             narrow,
             Some(&analysis),
             Some(&reg),
@@ -1302,7 +1302,7 @@ mod tests {
         let reg = registry();
         let _ = inlay_hints(
             &src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(&src),
             Some(&analysis),
             Some(&reg),
@@ -1415,7 +1415,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1435,7 +1435,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1455,7 +1455,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1476,7 +1476,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1503,7 +1503,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1524,7 +1524,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1544,7 +1544,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1564,7 +1564,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1587,7 +1587,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1628,7 +1628,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1659,7 +1659,7 @@ mod tests {
         let analysis = analyse(src);
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             None,
@@ -1680,7 +1680,7 @@ mod tests {
         let reg = registry();
         let type_only = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1694,7 +1694,7 @@ mod tests {
         );
         let param_only = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1717,7 +1717,7 @@ mod tests {
         let reg = registry();
         let hints = inlay_hints(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             whole_document_range(src),
             Some(&analysis),
             Some(&reg),
@@ -1730,7 +1730,10 @@ mod tests {
     // format-string specifier hints (InlayHintKind::Type)
 
     fn type_labels(src: &str) -> Vec<(u32, String)> {
-        type_labels_for_dialect(src, tcl_dialect::DialectProfile::by_name("tcl"))
+        type_labels_for_dialect(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+        )
     }
 
     fn type_labels_for_dialect(
@@ -1790,7 +1793,7 @@ mod tests {
     fn binary_q_and_q_hints_are_owned_by_shared_spec_table() {
         let labels = type_labels_for_dialect(
             "binary format \"q Q\" 1 2\n",
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let names: Vec<&str> = labels.iter().map(|(_, l)| l.as_str()).collect();
         assert!(names.contains(&"f64le"), "{labels:?}");

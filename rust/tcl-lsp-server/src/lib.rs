@@ -13316,7 +13316,8 @@ impl Backend {
         // The catalog's labels for the resolved dialect, so a status bar or
         // picker can render it without keeping its own name table. `null` for a
         // name the catalog does not know (an unrecognised configured value).
-        // P1-G (ledger F9): the labels move to the environment's own
+        // Ledger F9 (payload half, still open): the labels move to the
+        // environment's own
         // `display_name` when the environment/targets status surface lands;
         // the model carries no `short_name` yet, so the catalogue projection
         // is held — but reached from the *resolved environment*, not from a
@@ -13512,7 +13513,8 @@ impl Backend {
     /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
     /// for it here, so a dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
-        // P1-G (ledger F9): `listEnvironments` replaces this. Not a
+        // Ledger F9 (payload half, still open): `listEnvironments`
+        // replaces this. Not a
         // refactor — the environment catalogue has different *contents*
         // (it adds `tcl` and `tk`) and no `short_name`, so swapping the
         // source changes this command's payload and the pickers built on
@@ -14811,7 +14813,8 @@ impl Backend {
                 // association; the catalogue's own routing is what the
                 // editors already ship.
                 //
-                // P1-G (ledger F12/T13): the environment model carries the
+                // Ledger F12/T13 (still open): the environment model
+                // carries the
                 // same claim in `DetectionFacts::file_extensions`, but the
                 // two sets are not identical — the lenient `tcl`
                 // environment claims `.tcl`/`.tk`/`.itcl`/`.tm`/`.test`
@@ -21552,7 +21555,8 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 /// dialect the catalog offers so the caller can correct the spelling from the
 /// error alone rather than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
-    // P1-G (ledger F9): the accepted set is now `Environment::resolve`'s
+    // Ledger F9 (payload half, still open): the accepted set is now
+    // `Environment::resolve`'s
     // (canonical ids + aliases + contributed editor identities), which is
     // wider than the canonical list quoted here. The list stays canonical
     // deliberately — it is a "correct your spelling to one of these"
@@ -25516,7 +25520,7 @@ mod tests {
             .analyse(caller_src, "tcl8.6")
             .clone();
         let index = ws_index(others);
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let settled = settle_cross_file_calls(&index, &analysis, registry, caller_uri.as_str());
         (analysis, settled)
     }
@@ -26330,7 +26334,10 @@ mod tests {
     /// registry path must surface it through `lift_compiler_diagnostics`.
     #[test]
     fn lift_compiler_diagnostics_surfaces_irules_taint_flow() {
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
@@ -26359,7 +26366,10 @@ mod tests {
     /// leaving other codes untouched.
     #[test]
     fn lift_compiler_diagnostics_honours_per_check_disable() {
-        let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_dialect::DialectProfile::irules(),
+        )
+        .commands();
         let src = "set u [HTTP::uri]\nHTTP::respond 200 content $u\n";
         let cdiags =
             tcl_lsp_db::compiler_check_diagnostics_uncached(src, registry, "f5-irules", None, None);
@@ -29247,7 +29257,7 @@ mod tests {
             resolver.provides("testpix"),
             "a load-only package is declared, so the database knows it",
         );
-        let registry = tcl_registry::registry_for_dialect("tcl8.6");
+        let registry = tcl_registry::model::ingress::static_context_for("tcl8.6").commands();
         let kept = refine_w120_diagnostics(
             vec![w120_diag("http")],
             &["testpix".to_owned()],
@@ -30571,9 +30581,10 @@ mod tests {
     #[tokio::test]
     async fn recovery_widening_is_reused_across_edits_and_invalidated_by_the_index() {
         let backend = test_backend();
-        let registry = tcl_registry::cache::registry_for_profile(
-            tcl_dialect::DialectProfile::by_name("tcl8.6"),
-        );
+        let registry = tcl_registry::model::ingress::static_context_for_profile(
+            tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+        )
+        .commands();
         let ctx = RecoveryWidenCtx {
             cache: &backend.recovery_names,
             registry,
@@ -33890,7 +33901,7 @@ mod tests {
             );
         }
         // …and the registry that dialect resolves to really carries the pack.
-        let reg = tcl_registry::registry_for_dialect("spectcl");
+        let reg = tcl_registry::model::ingress::static_context_for("spectcl").commands();
         assert!(reg.get("speclib").is_some(), "the SpecTcl pack is loaded");
         assert!(reg.get("set").is_some(), "core Tcl stays underneath it");
     }

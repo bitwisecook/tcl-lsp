@@ -700,7 +700,9 @@ mod tests {
         ] {
             assert_eq!(
                 grammar(Family::Tcl, release),
-                DialectProfile::by_name(name).grammar,
+                DialectProfile::find(name)
+                    .expect("catalogue profile")
+                    .grammar,
                 "{name}"
             );
         }

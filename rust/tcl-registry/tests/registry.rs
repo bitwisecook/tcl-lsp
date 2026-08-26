@@ -25,7 +25,8 @@
 //! on tclsh9.0 (and all exist on tclsh8.6 too).
 
 use tcl_dialect::DialectSet;
-use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::{CommandRegistry, TclType, Traits, VarWriteTyping};
 
 /// Commands present in both tclsh8.6 and tclsh9.0 `info commands`.
 const CORE_COMMANDS: &[&str] = &[
@@ -120,7 +121,7 @@ const CORE_COMMANDS: &[&str] = &[
 
 #[test]
 fn registry_covers_tcl_core_commands() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     let missing: Vec<&str> = CORE_COMMANDS
         .iter()
         .copied()
@@ -147,7 +148,7 @@ fn build_default_is_non_empty_and_iterates() {
 
 #[test]
 fn control_flow_trait_classifies_core_control_commands() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     for cmd in ["if", "for", "while", "foreach", "switch"] {
         let spec = reg.get(cmd).unwrap_or_else(|| panic!("{cmd} registered"));
         assert!(
@@ -167,7 +168,7 @@ fn control_flow_trait_classifies_core_control_commands() {
 
 #[test]
 fn needs_start_cmd_trait() {
-    let reg = registry_for_dialect("tcl8.6");
+    let reg = static_context_for("tcl8.6").commands();
     // `expr`, `break`, `continue` require a start-command context.
     for cmd in ["expr", "break", "continue"] {
         let spec = reg.get(cmd).unwrap_or_else(|| panic!("{cmd} registered"));
@@ -189,8 +190,11 @@ fn needs_start_cmd_trait() {
 fn dialect_registries_share_the_tcl_core() {
     // The 8.6 and 9.0 dialect registries both carry the shared core (`set`).
     for d in ["tcl8.6", "tcl9.0"] {
-        assert!(registry_for_dialect(d).get("set").is_some(), "{d}");
-        assert!(registry_for_dialect(d).get("foreach").is_some(), "{d}");
+        assert!(static_context_for(d).commands().get("set").is_some(), "{d}");
+        assert!(
+            static_context_for(d).commands().get("foreach").is_some(),
+            "{d}"
+        );
     }
 }
 
@@ -198,7 +202,7 @@ fn dialect_registries_share_the_tcl_core() {
 fn nine_oh_only_commands_gated_by_dialect() {
     // `const` is a Tcl 9.0 command (absent from 8.6 `info commands`); the
     // registry should reflect that dialect gate.
-    let nine = registry_for_dialect("tcl9.0");
+    let nine = static_context_for("tcl9.0").commands();
     assert!(nine.get("const").is_some(), "const is a 9.0 builtin");
 }
 
@@ -268,7 +272,8 @@ fn var_write_typing_declares_destructuring_writers() {
         "gets writes a String line"
     );
     assert_eq!(
-        registry_for_dialect("tcl9.0")
+        static_context_for("tcl9.0")
+            .commands()
             .resolve_call("lpop", &["l"], DialectSet::empty())
             .expect("lpop resolves on 9.0")
             .var_write_typing(),

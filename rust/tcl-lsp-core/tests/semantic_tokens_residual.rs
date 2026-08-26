@@ -53,10 +53,11 @@ use std::collections::HashSet;
 
 use tcl_lsp_core::definition::LspRange;
 use tcl_lsp_core::semantic_tokens::{full, legend_token_types, range};
-use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits, registry_for_dialect};
+use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::{ArgRole, Arity, CommandRegistry, CommandSpec, Traits};
 
 fn reg() -> &'static CommandRegistry {
-    registry_for_dialect("tcl8.6")
+    static_context_for("tcl8.6").commands()
 }
 
 /// An iRules-enabled registry (loads the BIG-IP / iRules dialect on top of the
@@ -81,7 +82,7 @@ struct Tok {
 fn decode_with(source: &str, dialect: &str, registry: &CommandRegistry) -> Vec<Tok> {
     let st = full(
         source,
-        tcl_dialect::DialectProfile::by_name(dialect),
+        tcl_registry::model::ingress::resolve_environment(dialect).analyser_profile(),
         registry,
     );
     assert_eq!(st.data.len() % 5, 0, "stream must be 5-int aligned");
@@ -735,7 +736,7 @@ fn st_namespaced_builtin_head_tail_is_function_with_default_library() {
     //   `::set x 7; set x` -> 7
     let st = full(
         "::set x 1\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     let ns_idx = legend_idx("namespace");
@@ -845,7 +846,7 @@ fn st_expr_math_function_carries_default_library() {
     // the modifier via the packed stream.
     let st = full(
         "set y [expr {abs($a)}]\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     let fn_idx = legend_idx("function");
@@ -1183,7 +1184,7 @@ fn st_subcommand_word_is_keyword_with_default_library() {
     // Confirm the defaultLibrary modifier on that (2nd) token in the packed stream.
     let st = full(
         "string length $s\n",
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         reg(),
     );
     assert_eq!(
@@ -1205,7 +1206,7 @@ fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
     let src = "set a 1\nset b 2\nset c 3\n";
     let r = range(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         LspRange {
             start_line: 1,
             start_character: 0,
@@ -1226,9 +1227,13 @@ fn st_range_variant_drops_tokens_outside_window_and_rebases_delta() {
     // Strictly fewer tokens than the whole document.
     assert!(
         r.data.len()
-            < full(src, tcl_dialect::DialectProfile::by_name("tcl8.6"), reg())
-                .data
-                .len(),
+            < full(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
+                reg()
+            )
+            .data
+            .len(),
         "{:?}",
         r.data
     );
@@ -1241,7 +1246,7 @@ fn st_range_empty_window_yields_no_tokens() {
     let src = "set a 1\nset b 2\n";
     let r = range(
         src,
-        tcl_dialect::DialectProfile::by_name("tcl8.6"),
+        tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         LspRange {
             start_line: 0,
             start_character: 0,

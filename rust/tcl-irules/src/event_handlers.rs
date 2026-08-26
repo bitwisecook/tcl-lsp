@@ -104,7 +104,7 @@ mod tests {
     use super::*;
 
     fn extract(source: &str) -> Vec<IrulesEventHandler> {
-        let registry = tcl_registry::registry_for_dialect("f5-irules");
+        let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
         extract_irules_event_handlers(source, registry)
     }
 

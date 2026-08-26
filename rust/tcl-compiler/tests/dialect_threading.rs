@@ -39,7 +39,7 @@ use tcl_compiler::expr_ast::{BinOp, ExprNode};
 use tcl_compiler::ir::Statement;
 use tcl_compiler::lowering::{lower_to_ir_with_config, lower_to_ir_with_dialect};
 use tcl_registry::dialects::DialectSet;
-use tcl_registry::registry_for_dialect;
+use tcl_registry::model::ingress::static_context_for;
 
 const IRULES: &str = "f5-irules";
 const TCL: &str = "tcl8.6";
@@ -85,14 +85,14 @@ fn first_if_condition(module: &tcl_compiler::ir::Module) -> ExprNode {
 /// what stopped the fold.
 #[test]
 fn lowering_parses_a_word_operator_condition_under_the_irules_dialect() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let config = tcl_lexer::LexerConfig::for_dialect(IRULES);
 
     let with_dialect = lower_to_ir_with_dialect(
         CONSTANT_WORD_OP,
         registry,
         config,
-        Some(tcl_dialect::DialectProfile::by_name(IRULES)),
+        Some(tcl_registry::model::ingress::resolve_environment(IRULES).analyser_profile()),
     );
     assert!(
         matches!(
@@ -117,12 +117,12 @@ fn lowering_parses_a_word_operator_condition_under_the_irules_dialect() {
 /// report the unavailable operator.
 #[test]
 fn lowering_leaves_a_word_operator_raw_in_plain_tcl() {
-    let registry = registry_for_dialect(TCL);
+    let registry = static_context_for(TCL).commands();
     let module = lower_to_ir_with_dialect(
         "set x \"abcdef\"\nif {$x contains \"cd\"} { puts hit }\n",
         registry,
         tcl_lexer::LexerConfig::for_dialect(TCL),
-        Some(tcl_dialect::DialectProfile::by_name(TCL)),
+        Some(tcl_registry::model::ingress::resolve_environment(TCL).analyser_profile()),
     );
     let condition = module
         .top_level
@@ -145,7 +145,7 @@ fn lowering_leaves_a_word_operator_raw_in_plain_tcl() {
 /// dialect-blind `build_for` on the same source does not.
 #[test]
 fn build_for_dialect_folds_a_word_operator_branch() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let with_dialect =
         CompilationUnit::build_for_dialect(CONSTANT_WORD_OP, registry, false, IRULES);
     let folded: usize = with_dialect
@@ -174,8 +174,8 @@ fn build_for_dialect_folds_a_word_operator_branch() {
 /// to the plain fallback between registry construction and SCCP.
 #[test]
 fn build_for_profile_folds_a_word_operator_branch() {
-    let registry = registry_for_dialect(IRULES);
-    let profile = tcl_dialect::DialectProfile::by_name(IRULES);
+    let registry = static_context_for(IRULES).commands();
+    let profile = tcl_registry::model::ingress::resolve_environment(IRULES).analyser_profile();
     let unit = CompilationUnit::build_for_profile(CONSTANT_WORD_OP, registry, false, profile);
     assert!(
         unit.functions()
@@ -189,7 +189,7 @@ fn build_for_profile_folds_a_word_operator_branch() {
 /// canonicalising the input to the plain fallback profile's `tcl` name.
 #[test]
 fn build_for_dialect_retains_the_tk_set_only_bit() {
-    let registry = registry_for_dialect("tk");
+    let registry = static_context_for("tk").commands();
     let unit = CompilationUnit::build_for_dialect("button .b\n", registry, false, "tk");
 
     assert_eq!(unit.ir_module.dialect.as_deref(), Some("tk"));
@@ -206,9 +206,10 @@ fn build_for_dialect_retains_the_tk_set_only_bit() {
 /// profile through untouched.
 #[test]
 fn build_for_profile_retains_the_tk_set_only_bit() {
-    let registry = registry_for_dialect("tk");
-    let profile = tcl_dialect::DialectProfile::resolve_known("tk")
-        .expect("`tk` is a recognised additive dialect ingress");
+    let registry = static_context_for("tk").commands();
+    let profile = tcl_registry::model::ingress::resolve_known_environment("tk")
+        .expect("`tk` is a recognised additive dialect ingress")
+        .unit_profile();
     let unit = CompilationUnit::build_for_profile("button .b\n", registry, false, profile);
 
     assert_eq!(
@@ -281,7 +282,7 @@ fn i230_still_fires_on_a_plain_tcl_constant_condition() {
 /// the CFG is correct and no `else` command exists.
 #[test]
 fn n5_else_line_lowers_into_the_if_under_the_f5_grammar() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let module = lower_to_ir_with_config(
         "if {0} {set a 1}\nelse {set a 2}\n",
         registry,
@@ -307,7 +308,7 @@ fn n5_else_line_lowers_into_the_if_under_the_f5_grammar() {
 /// `if` with no else branch, followed by a standalone `else` command.
 #[test]
 fn n5_else_across_a_blank_line_stays_standalone_under_the_f5_grammar() {
-    let registry = registry_for_dialect(IRULES);
+    let registry = static_context_for(IRULES).commands();
     let module = lower_to_ir_with_config(
         "if {0} {set a 1}\n\nelse {set a 2}\n",
         registry,

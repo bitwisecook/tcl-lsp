@@ -236,7 +236,12 @@ fn is_single_op(ch: u8) -> bool {
 /// Internal typed callers should use [`tokenise_expr_for_profile`].
 #[must_use]
 pub fn tokenise_expr(source: &str, dialect: Option<&str>) -> Vec<ExprToken> {
-    let mut lex = Inner::new(source, tcl_dialect::DialectProfile::by_opt_name(dialect));
+    let mut lex = Inner::new(
+        source,
+        dialect
+            .and_then(tcl_dialect::DialectProfile::find)
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+    );
     lex.run()
 }
 
@@ -255,7 +260,12 @@ pub fn tokenise_expr_for_profile(
 /// Internal typed callers should use [`tokenise_expr_checked_for_profile`].
 #[must_use]
 pub fn tokenise_expr_checked(source: &str, dialect: Option<&str>) -> (Vec<ExprToken>, bool) {
-    tokenise_expr_checked_for_profile(source, tcl_dialect::DialectProfile::by_opt_name(dialect))
+    tokenise_expr_checked_for_profile(
+        source,
+        dialect
+            .and_then(tcl_dialect::DialectProfile::find)
+            .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
+    )
 }
 
 /// Tokenise under an already-resolved profile and report skipped characters.

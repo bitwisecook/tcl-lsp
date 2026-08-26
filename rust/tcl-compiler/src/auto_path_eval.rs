@@ -1652,7 +1652,7 @@ mod tests {
                    set sourceDir [file join $dir src]\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/proj/SpiceGenTcl.tcl"),
         );
         assert_eq!(constants.get("dir").map(String::as_str), Some("/proj"));
@@ -1681,7 +1681,11 @@ mod tests {
     fn a_constant_used_before_it_is_assigned_does_not_fold() {
         let src = "set early [file join $late x]\n\
                    set late /opt\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(constants.get("late").map(String::as_str), Some("/opt"));
         assert!(!constants.contains_key("early"), "{constants:?}");
     }
@@ -1695,7 +1699,11 @@ mod tests {
         let src = "set dir /opt/a\n\
                    set sub [file join $dir sub]\n\
                    set dir /opt/b\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(!constants.contains_key("dir"), "{constants:?}");
         assert!(
             !constants.contains_key("sub"),
@@ -1714,7 +1722,11 @@ mod tests {
     #[test]
     fn a_constant_with_spaces_folds_as_one_join_element() {
         let src = "set d {my dir}\nset sub [file join $d x]\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(constants.get("d").map(String::as_str), Some("my dir"));
         assert_eq!(constants.get("sub").map(String::as_str), Some("my dir/x"));
         assert_eq!(
@@ -1776,7 +1788,11 @@ mod tests {
     #[test]
     fn a_set_inside_a_body_is_not_a_top_level_constant() {
         let src = "proc p {} {\n    set inner /opt\n}\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(!constants.contains_key("inner"), "{constants:?}");
     }
 
@@ -1793,7 +1809,7 @@ mod tests {
                    }\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/lib/snit/snit.tcl"),
         );
         assert_eq!(
@@ -1827,7 +1843,7 @@ mod tests {
                    }\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/proj/src/ruff.tcl"),
         );
         assert_eq!(
@@ -1855,7 +1871,7 @@ mod tests {
                    }\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/app/src/alited.tcl"),
         );
         assert_eq!(
@@ -1897,7 +1913,10 @@ mod tests {
                    \x20   variable OsvvmHomeDirectory [file normalize ${OsvvmScriptDirectory}/..]\n\
                    }\n";
         let merged = fold_constant_assignments_with_imports(
-            &constant_path_assignments(src, tcl_dialect::DialectProfile::by_name("tcl")),
+            &constant_path_assignments(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            ),
             Some("/scripts/StartUpShared.tcl"),
             &imported,
         );
@@ -1933,7 +1952,7 @@ mod tests {
         let replaced = fold_constant_assignments_with_imports(
             &constant_path_assignments(
                 "set dir /own\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             ),
             None,
             &imported,
@@ -1942,7 +1961,7 @@ mod tests {
         let removed = fold_constant_assignments_with_imports(
             &constant_path_assignments(
                 "set dir [pwd]\n",
-                tcl_dialect::DialectProfile::by_name("tcl"),
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             ),
             None,
             &imported,
@@ -1968,7 +1987,7 @@ mod tests {
                    }\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/app/alited.tcl"),
         );
         assert_eq!(
@@ -1994,8 +2013,11 @@ mod tests {
             "set dir /a\nlappend dir x\n",
             "set dir /a\nset other [file join $dir y]\nincr dir\n",
         ] {
-            let constants =
-                constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+            let constants = constant_path_vars(
+                src,
+                tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+                None,
+            );
             assert!(
                 !constants.contains_key("dir"),
                 "a mutated name must not fold to its first value: {src:?} -> {constants:?}",
@@ -2004,7 +2026,7 @@ mod tests {
         // And nothing computed *from* it folds either.
         let constants = constant_path_vars(
             "set dir /a\nset sub [file join $dir s]\nappend dir /b\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
         );
         assert!(!constants.contains_key("sub"), "{constants:?}");
@@ -2017,7 +2039,7 @@ mod tests {
     fn a_scope_alias_poisons_every_bound_name() {
         let constants = constant_path_vars(
             "set dir /a\nupvar 1 elsewhere dir\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
         );
         assert!(!constants.contains_key("dir"), "{constants:?}");
@@ -2030,7 +2052,7 @@ mod tests {
     fn a_braced_value_is_literal_data() {
         let constants = constant_path_vars(
             "set root /a\nset dir {$root}\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
         );
         assert_eq!(constants.get("dir").map(String::as_str), Some("$root"));
@@ -2043,7 +2065,7 @@ mod tests {
         // The quoted twin *does* substitute — the distinction is real.
         let quoted = constant_path_vars(
             "set root /a\nset dir \"$root\"\n",
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             None,
         );
         assert_eq!(quoted.get("dir").map(String::as_str), Some("/a"));
@@ -2056,7 +2078,7 @@ mod tests {
         let src = "namespace eval demo {\n    variable dir [file dirname [info script]]\n}\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/ex/config.tcl"),
         );
         assert_eq!(
@@ -2084,7 +2106,7 @@ mod tests {
                    }\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/tk/ttk/ttk.tcl"),
         );
         assert!(!constants.contains_key("::ttk::library"), "{constants:?}");
@@ -2108,7 +2130,11 @@ mod tests {
                    \x20   variable library\n\
                    \x20   variable sub [file join $library themes]\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(
             !constants.contains_key("::ttk::sub"),
             "a bare read of a declared-but-valueless namespace name must \
@@ -2123,7 +2149,11 @@ mod tests {
     fn an_unattributable_body_set_poisons_both_candidates() {
         let src = "namespace eval foo {\n    set dir /opt/foo\n}\n\
                    set dir /opt/global\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(!constants.contains_key("::foo::dir"), "{constants:?}");
         assert!(
             !constants.contains_key("dir"),
@@ -2138,7 +2168,11 @@ mod tests {
     fn a_body_set_of_an_existing_global_counts_as_its_write() {
         let src = "set dir /opt/first\n\
                    namespace eval foo {\n    set dir /opt/second\n}\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert!(!constants.contains_key("dir"), "{constants:?}");
         assert!(!constants.contains_key("::foo::dir"), "{constants:?}");
     }
@@ -2150,7 +2184,11 @@ mod tests {
         let src = "namespace eval cfg {\n\
                    \x20   variable base /opt/app sub lib pending\n\
                    }\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(
             constants.get("::cfg::base").map(String::as_str),
             Some("/opt/app")
@@ -2164,7 +2202,11 @@ mod tests {
     #[test]
     fn an_absolute_qualified_top_level_set_records() {
         let src = "set ::mypkg::dir /opt/mypkg\n";
-        let constants = constant_path_vars(src, tcl_dialect::DialectProfile::by_name("tcl"), None);
+        let constants = constant_path_vars(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
+            None,
+        );
         assert_eq!(
             constants.get("::mypkg::dir").map(String::as_str),
             Some("/opt/mypkg"),
@@ -2215,7 +2257,7 @@ mod tests {
                    lappend auto_path $libDir\n";
         let constants = constant_path_vars(
             src,
-            tcl_dialect::DialectProfile::by_name("tcl"),
+            tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             Some("/proj/SpiceGenTcl.tcl"),
         );
         let entry = AutoPathEntry {
