@@ -3128,7 +3128,9 @@ impl CommandRegistry {
             Some(crate::events::IrulesTopLevelEffect::Priority) => {
                 let [value] = args else { return None };
                 let value = value.parse::<u16>().ok()?;
-                (value <= 1000).then_some(Declaration::Priority { value })
+                crate::events::BIGIP_EVENT_HANDLER_PRIORITY
+                    .accepts(value)
+                    .then_some(Declaration::Priority { value })
             }
             Some(crate::events::IrulesTopLevelEffect::Timing) => {
                 let [value] = args else { return None };
@@ -3171,20 +3173,18 @@ impl CommandRegistry {
         let (body_index, priority) = match args {
             [_, _] => (1, None),
             [_, "priority", value, _] => {
-                let priority = value
-                    .parse::<u16>()
-                    .ok()
-                    .filter(|priority| *priority <= 1000)?;
+                let priority = value.parse::<u16>().ok().filter(|priority| {
+                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
+                })?;
                 (3, Some(priority))
             }
             [_, "timing", value, _] => {
                 matches!(*value, "on" | "off" | "enable" | "disable").then_some((3, None))?
             }
             [_, "priority", priority, "timing", timing, _] => {
-                let priority = priority
-                    .parse::<u16>()
-                    .ok()
-                    .filter(|priority| *priority <= 1000)?;
+                let priority = priority.parse::<u16>().ok().filter(|priority| {
+                    crate::events::BIGIP_EVENT_HANDLER_PRIORITY.accepts(*priority)
+                })?;
                 matches!(*timing, "on" | "off" | "enable" | "disable")
                     .then_some((5, Some(priority)))?
             }

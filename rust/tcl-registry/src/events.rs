@@ -175,14 +175,38 @@ pub struct EventHandlerPriority {
     pub keyword: &'static str,
     /// Priority used by the runtime when the keyword is omitted.
     pub default_priority: u16,
+    /// The smallest valid priority value (inclusive).
+    pub min_priority: u16,
+    /// The largest valid priority value (inclusive).
+    pub max_priority: u16,
+    /// Whether a lower number runs first (ascending execution order).
+    pub lower_runs_first: bool,
     /// Whether an omitted priority is reportable in this dialect.
     pub warn_when_implicit: bool,
 }
 
-/// BIG-IP's `when` priority policy: priority defaults to 500.
+impl EventHandlerPriority {
+    /// Whether `value` is a valid priority under this policy.
+    #[must_use]
+    pub fn accepts(&self, value: u16) -> bool {
+        (self.min_priority..=self.max_priority).contains(&value)
+    }
+}
+
+/// BIG-IP's `when` priority policy, live-measured
+/// (`docs/design/bigip-irule-parser-measurements.md` §6/§8): priority is
+/// **0–1000 inclusive** (`1001` and `-1` are rejected at rule load, albeit
+/// with the misleading `unexpected extra argument` wording), the default
+/// is **500** — the midpoint — and **lower numbers run first** (attached
+/// as `{low default high}`, execution order was priority 100, then the
+/// implicit 500, then 900; an `HTTP::respond` in an earlier rule did not
+/// stop later ones).
 pub const BIGIP_EVENT_HANDLER_PRIORITY: EventHandlerPriority = EventHandlerPriority {
     keyword: "priority",
     default_priority: 500,
+    min_priority: 0,
+    max_priority: 1000,
+    lower_runs_first: true,
     warn_when_implicit: false,
 };
 

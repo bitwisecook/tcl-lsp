@@ -5006,9 +5006,14 @@ mod tests {
 
     #[test]
     fn switch_option_completion_respects_profile_gating() {
-        // Option completion under f5-iapps offers the 8.5+ -nocase (the old
-        // contains rule dropped every version-gated option under a composed
-        // mask) but not the 9.0-only regsub -command.
+        // Option completion under f5-iapps follows the measured fork:
+        // F5 reclassification (measurements §4/§4a,
+        // `docs/design/bigip-irule-parser-measurements.md`) — the iApps
+        // host is the 8.4.6 `f5-tcl` fork, not the falsified 8.5.13
+        // hypothesis, so the 8.5+ `switch -nocase` is no longer offered
+        // there (it was the old expectation), and the 9.0-only `regsub
+        // -command` stays out. The 8.4-real `-exact` is still offered, so
+        // the composed vendor mask keeps working.
         let src = "switch -\n";
         let analysis = analyse(src);
         let registry = tcl_registry::registry_for_dialect("f5-iapps");
@@ -5023,8 +5028,12 @@ mod tests {
         );
         let labels: Vec<&str> = items.iter().map(|i| i.label.as_str()).collect();
         assert!(
-            labels.contains(&"-nocase"),
-            "switch -nocase is 8.5+ core, offered under f5-iapps: {labels:?}"
+            labels.contains(&"-exact"),
+            "switch -exact is 8.4 core, offered under f5-iapps: {labels:?}"
+        );
+        assert!(
+            !labels.contains(&"-nocase"),
+            "switch -nocase is 8.5+ and the iApps host is a measured 8.4.6 fork: {labels:?}"
         );
 
         let src9 = "regsub -\n";

@@ -181,7 +181,17 @@ mod tests {
     #[test]
     fn try_lower_incr_refuses_a_computed_name_under_an_expansionless_grammar() {
         for dialect in ["tcl8.4", "f5-irules"] {
-            for src in ["incr {*}$n", "incr x$n", "incr pre[f]"] {
+            // The welded `{*}$n` shape exists only under tcl8.4: the F5
+            // fork's implicit word break splits it into `*` + `$n`
+            // (measurements §1/§3 row 6,
+            // `docs/design/bigip-irule-parser-measurements.md`), so its
+            // name word is the *literal* `*` there, not a computed name.
+            let sources: &[&str] = if *dialect == *"tcl8.4" {
+                &["incr {*}$n", "incr x$n", "incr pre[f]"]
+            } else {
+                &["incr x$n", "incr pre[f]"]
+            };
+            for src in sources {
                 let stmt =
                     first_stmt_for_dialect(src, tcl_dialect::DialectProfile::by_name(dialect));
                 assert!(

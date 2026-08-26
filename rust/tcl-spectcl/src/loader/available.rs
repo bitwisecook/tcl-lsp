@@ -333,7 +333,9 @@ fn release_bit(release: Release) -> Option<DialectSet> {
     let name = match release.family() {
         Family::Tcl => format!("tcl{}", release.as_str()),
         Family::F5Irules => "f5-irules".to_owned(),
-        Family::Jim => return None,
+        // The `f5-tcl` trunk has no 1.x dialect bit of its own — the 1.x
+        // catalogue never modelled the shared fork (measurements §4a).
+        Family::F5Tcl | Family::Jim => return None,
     };
     crate::catalogue::dialect_bit(&name)
 }

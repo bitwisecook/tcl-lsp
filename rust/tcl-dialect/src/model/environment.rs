@@ -826,7 +826,7 @@ fn irules_environment() -> EnvironmentDefinition {
         editor_identity: EditorLanguageIdentityId::new("tcl-irule"),
         core: Some(CoreProfileSelector {
             family: Family::F5Irules,
-            default_release: Release::F5_IRULES_TMOS,
+            default_release: Release::F5_IRULES_TMM,
             build: BuildProfileId::Canonical,
         }),
         targets: reqs(VersionAxisId::core(Family::F5Irules), &["0-"]),
@@ -856,8 +856,19 @@ fn iapps_environment() -> EnvironmentDefinition {
         aliases: Vec::new(),
         display_name: arc("F5 iApps"),
         editor_identity: EditorLanguageIdentityId::new("tcl-iapp"),
-        core: Some(tcl_core(Release::TCL_8_5)),
-        targets: tcl_line(Release::TCL_8_5),
+        // CORRECTED by measurement
+        // (`docs/design/bigip-irule-parser-measurements.md` §4a): the
+        // 8.5 baseline hypothesis is falsified — `IAppImplementation`
+        // reports patchlevel 8.4.6, fails every 8.5 discriminator, and
+        // carries the full `f5-tcl` trunk grammar. The core rides the
+        // trunk under the 32-bit `scriptd` build profile (`wordSize 4`,
+        // measurements §4 — review B1's build axis).
+        core: Some(CoreProfileSelector {
+            family: Family::F5Tcl,
+            default_release: Release::F5_TCL_TMOS,
+            build: BuildProfileId::F5Scriptd32,
+        }),
+        targets: reqs(VersionAxisId::core(Family::F5Tcl), &["0-"]),
         expected_packages: vec![keyed("f5-iapps-cmds", KeyedAxis::BigipVersion)],
         policy_defaults: EnvironmentPolicy {
             closed_world: WorldPolicy::AmbientPlusRequire,
@@ -865,7 +876,10 @@ fn iapps_environment() -> EnvironmentDefinition {
             // The W108 strict-ASCII rule, formerly keyed on the IAPPS
             // vendor bit.
             strict_ascii: true,
-            version_ceiling: Some(Release::TCL_8_5),
+            // The fork point caps Tcl-versioned surface claims: the
+            // embedded core is 8.4.6, and all sixteen measured 8.4/8.5
+            // discriminators behave as 8.4 (measurements §4).
+            version_ceiling: Some(Release::TCL_8_4),
         },
         server_detection: DetectionFacts {
             file_extensions: vec![
@@ -886,14 +900,28 @@ fn tmsh_environment() -> EnvironmentDefinition {
         aliases: Vec::new(),
         display_name: arc("F5 tmsh Scripts"),
         editor_identity: EditorLanguageIdentityId::new("tcl-tmsh"),
-        core: Some(tcl_core(Release::TCL_8_5)),
-        targets: tcl_line(Release::TCL_8_5),
+        // CORRECTED by measurement
+        // (`docs/design/bigip-irule-parser-measurements.md` §4a): the
+        // 8.5/8.5.13 claims are falsified — `TmshCliScript` reports
+        // 8.4.6 and reproduces the entire trunk grammar (R-rules,
+        // N-rules, inert `{*}`, word operators) identically to TMM. The
+        // core rides the `f5-tcl` trunk at its canonical build; the
+        // environment deltas (working `exec`, empty `tcl_platform`, no
+        // `tcl_patchLevel`, `info vartype`) are host facts, not grammar.
+        core: Some(CoreProfileSelector {
+            family: Family::F5Tcl,
+            default_release: Release::F5_TCL_TMOS,
+            build: BuildProfileId::Canonical,
+        }),
+        targets: reqs(VersionAxisId::core(Family::F5Tcl), &["0-"]),
         expected_packages: vec![keyed("f5-tmsh-cmds", KeyedAxis::BigipVersion)],
         policy_defaults: EnvironmentPolicy {
             closed_world: WorldPolicy::AmbientPlusRequire,
             fixed_ensembles: false,
             strict_ascii: false,
-            version_ceiling: Some(Release::TCL_8_5),
+            // The fork point caps Tcl-versioned surface claims
+            // (measurements §4 — every 8.5 discriminator behaves as 8.4).
+            version_ceiling: Some(Release::TCL_8_4),
         },
         server_detection: DetectionFacts {
             file_extensions: vec![ext("tmsh", "F5 tmsh Script")],
@@ -1281,10 +1309,22 @@ mod tests {
         );
         assert!(iapps.policy_defaults.strict_ascii, "the W108 rule");
         assert!(iapps.policy_defaults.fixed_ensembles);
+        // F5 reclassification (measurements §4a): the iApps core rides
+        // the `f5-tcl` trunk under the 32-bit scriptd build, not
+        // tcl@8.5.
+        let iapps_core = iapps.core.expect("core");
+        assert_eq!(iapps_core.family, Family::F5Tcl);
+        assert_eq!(iapps_core.default_release, Release::F5_TCL_TMOS);
+        assert_eq!(iapps_core.build, BuildProfileId::F5Scriptd32);
 
         let tmsh = registry.resolve("f5-tmsh").expect("tmsh");
         assert!(!tmsh.policy_defaults.fixed_ensembles);
-        assert_eq!(tmsh.core.expect("core").default_release, Release::TCL_8_5);
+        // F5 reclassification (measurements §4a): the tmsh core rides
+        // the `f5-tcl` trunk at its canonical build, not tcl@8.5.
+        let tmsh_core = tmsh.core.expect("core");
+        assert_eq!(tmsh_core.family, Family::F5Tcl);
+        assert_eq!(tmsh_core.default_release, Release::F5_TCL_TMOS);
+        assert_eq!(tmsh_core.build, BuildProfileId::Canonical);
 
         let expect_env = registry.resolve("expect").expect("expect");
         assert!(expect_env.expected_packages.iter().any(

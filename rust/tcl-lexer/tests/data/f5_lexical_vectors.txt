@@ -1,0 +1,125 @@
+# F5 trunk lexical conformance vectors — the measured ground truth for the
+# two `f5-tcl` fork axes, hermetic (no appliance, no tclsh needed).
+#
+# Evidence: docs/design/bigip-irule-parser-measurements.md, measured live on
+# BIG-IP 21.1.0.1 (TMM 21.1.0.1) with same-host stock tclsh8.4/8.5 controls:
+#   §1  the implicit word break (R-rules R1-R7) — the word-formation table
+#   §2  the brace-line continuation (N-rules N1-N5)
+#   §3  the six-row F3 discriminating matrix
+#   §4a four-context parity: the axes are `f5-tcl` TRUNK facts, identical in
+#       TMM iRules, tmsh cli scripts, and iApp implementations
+#
+# Format (pipe-separated; `#` starts a comment line):
+#   source | f5-trunk expectation | tcl8.4 expectation
+#
+# The source field decodes `\n` (newline), `\t` (tab), and `\\` (backslash),
+# in that scan order. Each expectation is either
+#   OK=<commands>   lexes with ZERO warnings (R6: F5 emits no diagnostic)
+#   ERR=<text>      the first lexer warning/error message contains <text>
+# where <commands> are separated by `¶`, the words of a command by `·`, and
+# `∅` is an empty word. A word's text is the concatenation of its tokens'
+# `token_text` values (brace/quote/`$`/`[` delimiters stripped, escapes NOT
+# decoded, no substitution performed) — the lexical analogue of the measured
+# word lists. The consuming test (tests/f5_lexical_conformance.rs) runs every
+# row under the `f5-tcl` trunk grammar (`grammar(Family::F5Tcl, tmos)`) AND
+# under plain tcl8.4 (`grammar(Family::Tcl, 8.4)`), asserting each column.
+# Neither grammar has `{*}` expansion, so the stock column is the exact 8.4
+# control the measurements used.
+
+# -- §1 word formation: the 23 diverging rows (word starts with `{` or `"`)
+{a}{b} | OK=a·b | ERR=extra characters after close-brace
+{a}b | OK=a·b | ERR=extra characters after close-brace
+{a}bc{d} | OK=a·bc{d} | ERR=extra characters after close-brace
+{a}"b" | OK=a·b | ERR=extra characters after close-brace
+{a}$v | OK=a·v | ERR=extra characters after close-brace
+{a}[list b] | OK=a·list b | ERR=extra characters after close-brace
+{a}{b}{c} | OK=a·b·c | ERR=extra characters after close-brace
+{}{} | OK=∅·∅ | ERR=extra characters after close-brace
+{a b}{c d} | OK=a b·c d | ERR=extra characters after close-brace
+{a{b}}{c} | OK=a{b}·c | ERR=extra characters after close-brace
+{a}#b | OK=a·#b | ERR=extra characters after close-brace
+{a}\\ b | OK=a·\\ b | ERR=extra characters after close-brace
+{a}"b"c | OK=a·b·c | ERR=extra characters after close-brace
+{a}} | OK=a·} | ERR=extra characters after close-brace
+{a}] | OK=a·] | ERR=extra characters after close-brace
+# `{a}{` with an unclosed second brace: the separator fires, then the new
+# braced word runs off the end — a missing close-brace, exactly as measured.
+{a}{ | ERR=missing close-brace | ERR=extra characters after close-brace
+"a"{b} | OK=a·b | ERR=extra characters after close-quote
+"a"b | OK=a·b | ERR=extra characters after close-quote
+"a""b" | OK=a·b | ERR=extra characters after close-quote
+"a"$v | OK=a·v | ERR=extra characters after close-quote
+"a"} | OK=a·} | ERR=extra characters after close-quote
+# R4: the break fires in the command-name position too ({set}zz 7 runs).
+{set}zz 7 | OK=set·zz·7 | ERR=extra characters after close-brace
+{$v}$v | OK=$v·v | ERR=extra characters after close-brace
+catch {set x 1}errvar | OK=catch·set x 1·errvar | ERR=extra characters after close-brace
+
+# -- §1 word formation: the 11 byte-identical rows (R5 — the word did NOT
+# -- start with `{` or `"`, so the separator never fires)
+a{b} | OK=a{b} | OK=a{b}
+a{b}c | OK=a{b}c | OK=a{b}c
+$v{b} | OK=v{b} | OK=v{b}
+$v"b" | OK=v"b" | OK=v"b"
+[list a]{b} | OK=list a{b} | OK=list a{b}
+[list a]b | OK=list ab | OK=list ab
+${v}b | OK=vb | OK=vb
+@${v}c | OK=@vc | OK=@vc
+${v}${v} | OK=vv | OK=vv
+${v}{b} | OK=v{b} | OK=v{b}
+${v}"b" | OK=v"b" | OK=v"b"
+# Ordinary whitespace separation is untouched (the table's final row).
+{a}\t{b} | OK=a·b | OK=a·b
+
+# -- §1 the dangerous consequence: `{*}` is inert on the F5 trunk — the
+# -- separator wins, yielding a literal `*` word plus the unexpanded word;
+# -- stock 8.4 (no expansion either) raises the parse error instead.
+list {*}$l | OK=list·*·l | ERR=extra characters after close-brace
+
+# -- §3 the F3 discriminating matrix, all six rows
+if {1} {expr {6*7}} | OK=if·1·expr {6*7} | OK=if·1·expr {6*7}
+if {1}{expr {6*7}} | OK=if·1·expr {6*7} | ERR=extra characters after close-brace
+list {a}{b} | OK=list·a·b | ERR=extra characters after close-brace
+# Parser acceptance plus ordinary arity checking: `set x {a}{b}` lexes to
+# four words; the wrong-#-args rejection is the analyser's, not the lexer's.
+set x {a}{b} | OK=set·x·a·b | ERR=extra characters after close-brace
+# No separator before the FIRST `{`: a bare word glued to a brace stays one
+# word in both dialects (R5 — what stops the rule overclaiming).
+if{1}{q 5} | OK=if{1}{q·5} | OK=if{1}{q·5}
+list {*}{a b} | OK=list·*·a b | ERR=extra characters after close-brace
+
+# -- §1/R3: word parsing restarts from scratch after the break — a stray `}`
+# -- begins a BARE word, so `}else{log` is the single word `else{log`.
+if {0}{log a}else{log b} | OK=if·0·log a·else{log·b} | ERR=extra characters after close-brace
+
+# -- §2 brace-line continuation (N-rules). `¶` separates commands: the F5
+# -- column absorbs the `{` line into the preceding command; stock starts a
+# -- new command at it. Zero warnings on BOTH sides — the divergence is
+# -- silent (§2), and stock's error is the analyser's wrong-#-args /
+# -- invalid-command, not a lexer diagnostic.
+while {$n<30}\n{incr n} | OK=while·$n<30·incr n | OK=while·$n<30¶incr n
+if {1}\n{list a} | OK=if·1·list a | OK=if·1¶list a
+# Even the condition may sit on its own line.
+if\n{1}\n{list a} | OK=if·1·list a | OK=if¶1¶list a
+# N2: unconditional — `list a b` is complete, the `{c}` line still joins.
+list a b\n{c} | OK=list·a·b·c | OK=list·a·b¶c
+set\n{q} 5 | OK=set·q·5 | OK=set¶q·5
+llength\n{a b} | OK=llength·a b | OK=llength¶a b
+foreach i {a b}\n{list $i} | OK=foreach·i·a b·list $i | OK=foreach·i·a b¶list $i
+switch x\n{y {}} | OK=switch·x·y {} | OK=switch·x¶y {}
+proc p {a}\n{return} | OK=proc·p·a·return | OK=proc·p·a¶return
+for\n{set x 0}\n{$x<3}\n{incr x} {incr y} | OK=for·set x 0·$x<3·incr x·incr y | OK=for¶set x 0¶$x<3¶incr x·incr y
+# Leading whitespace on the `{` line is fine — the test is the first
+# NON-whitespace character.
+if {1}\n\t{list a} | OK=if·1·list a | OK=if·1¶list a
+# N4: a blank line terminates the command normally.
+if {1}\n\n{list a} | OK=if·1¶list a | OK=if·1¶list a
+# N4: a whitespace-only line terminates.
+if {1}\n   \n{list a} | OK=if·1¶list a | OK=if·1¶list a
+# N4: a comment line terminates.
+if {1}\n# c\n{list a} | OK=if·1¶list a | OK=if·1¶list a
+# N5: `else` across a newline is `if`'s own consumer-side lookahead, NOT a
+# lexer rule — both dialects lex two commands here.
+if {0} {a}\nelse {b} | OK=if·0·a¶else·b | OK=if·0·a¶else·b
+# Backslash-newline continuation is unchanged from Tcl (measurements §2/§7).
+list a \\\n{c} | OK=list·a·c | OK=list·a·c

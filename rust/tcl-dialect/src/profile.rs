@@ -30,7 +30,10 @@
 //! axis.
 
 use crate::dialect_set::DialectSet;
-use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar, NumberSyntax};
+use crate::grammar::{
+    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
+    NumberSyntax,
+};
 use crate::library::{LibraryPin, LibraryVersion, LibraryVersionOverrides, VersionKey};
 use crate::version::{StringCharacterModel, TclVersion, Ternary};
 
@@ -75,6 +78,7 @@ const LIBS_TCL86_PLUS: &[LibraryPin] = &[
 const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: false,
+    brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
@@ -88,6 +92,7 @@ const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
 const GRAMMAR_TCL85: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
+    brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
@@ -108,6 +113,7 @@ const GRAMMAR_TCL86: LexerGrammar = LexerGrammar {
 const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
+    brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::Tcl9Nesting,
     script_skips_leading_bom: true,
     expr_comments: ExprCommentStyle::Hash,
@@ -116,10 +122,14 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
 };
 
 /// The iRules lexing grammar: a Tcl 8.4 base (no `{*}`, no `expr` comments)
-/// plus the iRules-only `}{` ghost word separator.
+/// plus the two measured `f5-tcl` fork axes — the implicit word break
+/// (R-rules) and the brace-line continuation (N-rules), both live-measured
+/// on TMM 21.1.0.1 with same-host stock controls
+/// (`docs/design/bigip-irule-parser-measurements.md` §1-§3).
 const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: true,
+    brace_line_continuation: BraceLineContinuation::Continues,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,

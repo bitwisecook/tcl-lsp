@@ -95,7 +95,7 @@ pub use substitution::{
 // `tcl_lexer::BracedVarStyle` imports keep working — the enum moved down to
 // `tcl-dialect` (dialect-profile-model.md §3) where the `DialectProfile`
 // grammar axis shares it.
-pub use tcl_dialect::{BracedVarStyle, EscapeSyntax};
+pub use tcl_dialect::{BraceLineContinuation, BracedVarStyle, EscapeSyntax};
 pub use tokens::{ByteCol, SourcePosition, Token, TokenType, Utf16Col, Utf16Position};
 
 /// Return the physical line numbers whose first non-horizontal-whitespace

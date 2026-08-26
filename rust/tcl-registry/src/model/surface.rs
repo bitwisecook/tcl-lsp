@@ -507,8 +507,9 @@ mod tests {
     #[test]
     fn none_dialects_translate_to_every_provider_the_old_mask_admitted() {
         let rows = declarations_for_spec(&spec_with(None));
-        // Three core families + seven vendor packages.
-        assert_eq!(rows.len(), 10);
+        // Four core families (`f5-tcl` joined the tree in the F5
+        // reclassification, measurements §4a) + seven vendor packages.
+        assert_eq!(rows.len(), 11);
         for family in Family::ALL {
             assert!(
                 rows.iter()

@@ -12703,11 +12703,14 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
     // FP-fix (the confirmed bare-bit defect): real embedded-core commands
     // must resolve cleanly — no W123 (unknown) and no W002 (disabled).
     let clean: &[(&str, &str)] = &[
-        // iApps run a Tcl 8.5.13 host interpreter: 8.5 core is real.
-        ("dict get {a 1} a", "f5-iapps"),
-        ("lassign {1 2} a b", "f5-iapps"),
-        ("apply {{x} {return $x}} 1", "f5-iapps"),
-        // ... and the host interpreter is NOT the TMM sandbox: exec is real.
+        // F5 reclassification (measurements §4/§4a,
+        // `docs/design/bigip-irule-parser-measurements.md`): the iApps
+        // host is the 8.4.6 fork, NOT the old 8.5.13 hypothesis — its
+        // real core is the 8.4 line…
+        ("string tolower ABC", "f5-iapps"),
+        ("array exists a", "f5-iapps"),
+        // …and the scriptd host is NOT the TMM sandbox: exec is measured
+        // real there (measurements §4a).
         ("exec /bin/true", "f5-iapps"),
         // Expect embeds Tcl 8.6: 8.5 and 8.6 core are real.
         ("dict get {a 1} a", "expect"),
@@ -12722,6 +12725,21 @@ fn w123_vendor_profiles_admit_their_embedded_tcl_core() {
         assert!(
             !codes.iter().any(|c| c == "W123" || c == "W002"),
             "{dialect}: {snippet:?} is embedded-core and must not flag, got {codes:?}"
+        );
+    }
+    // F5 reclassification (measurements §4, table "No 8.5 features
+    // anywhere"): every 8.4/8.5 discriminator behaves as 8.4 in the iApp
+    // context — `dict`, `lassign`, `apply` measured absent — so the old
+    // 8.5-core rows now correctly flag.
+    for gated in [
+        "dict get {a 1} a",
+        "lassign {1 2} a b",
+        "apply {{x} {return $x}} 1",
+    ] {
+        let codes = codes_for_dialect(gated, "f5-iapps");
+        assert!(
+            codes.iter().any(|c| c == "W123" || c == "W002"),
+            "f5-iapps: {gated:?} is 8.5+ core on a measured 8.4.6 fork and must flag, got {codes:?}"
         );
     }
 }
@@ -12839,24 +12857,30 @@ fn unknown_dialect_strings_stay_permissive() {
 
 #[test]
 fn w001_subcommand_checks_use_the_profile_mask() {
-    // Subcommand-level: once `dict` resolves under f5-iapps, its 8.5-valid
-    // subcommands must not draw the W001/W002 subcommand diagnostics either.
-    let codes = codes_for_dialect("dict keys {a 1}", "f5-iapps");
+    // Subcommand-level: an 8.4-core ensemble's valid subcommands must not
+    // draw the W001/W002 subcommand diagnostics under the vendor mask.
+    // (F5 reclassification, measurements §4/§4a: the iApps host is the
+    // 8.4.6 fork, so the old `dict keys` row — an 8.5 claim — moved to
+    // `string`, which the fork's 8.4 core really has.)
+    let codes = codes_for_dialect("string tolower ABC", "f5-iapps");
     assert!(
         !codes.iter().any(|c| c == "W001" || c == "W002"),
-        "dict keys is 8.5-valid under f5-iapps, got {codes:?}"
+        "string tolower is 8.4-valid under f5-iapps, got {codes:?}"
     );
     // A genuinely unknown subcommand still fires W001 under the vendor mask.
     assert!(
-        has_code("dict zzznotasub {a 1}", "f5-iapps", "W001"),
-        "unknown dict subcommand must still draw W001 under f5-iapps"
+        has_code("string zzznotasub x", "f5-iapps", "W001"),
+        "unknown string subcommand must still draw W001 under f5-iapps"
     );
 }
 
 #[test]
 fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
-    // D8: f5-tmsh = TCL85|TMSH — a Tcl 8.5 host plus the
-    // tmsh:: surface.
+    // F5 reclassification (measurements §4a,
+    // `docs/design/bigip-irule-parser-measurements.md`): the old D8
+    // "TCL85|TMSH" hypothesis is falsified — `TmshCliScript` reports
+    // patchlevel 8.4.6 and fails every 8.5 discriminator — so f5-tmsh is
+    // the `f5-tcl` fork's 8.4 line plus the tmsh:: surface.
     // TP (the fix): the tmsh:: surface stops drawing unknown-command.
     for ok in [
         "tmsh::create ltm pool p1",
@@ -12869,21 +12893,21 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
             "f5-tmsh: {ok:?} is the tmsh surface, got {codes:?}"
         );
     }
-    // TN: the 8.5 core is real.
-    for ok in [
-        "dict get {a 1} a",
-        "lassign {1 2} a b",
-        "apply {{x} {return $x}} 1",
-    ] {
+    // TN: the fork's 8.4 core is real.
+    for ok in ["string tolower ABC", "array exists a", "catch {set x 1} e"] {
         let codes = codes_for_dialect(ok, "f5-tmsh");
         assert!(
             !codes.iter().any(|c| c == "W123" || c == "W002"),
-            "f5-tmsh: {ok:?} is 8.5 core, got {codes:?}"
+            "f5-tmsh: {ok:?} is 8.4 core, got {codes:?}"
         );
     }
-    // Reverse-regression (§7.2, budgeted): 8.6/9.0 core is newly unknown
-    // on the 8.5 base — the old interim ALL_TCL mask hid these.
+    // Reverse-regression, now measurement-backed (measurements §4: all
+    // sixteen 8.4/8.5 discriminators behave as 8.4 in tmsh — `dict`,
+    // `lassign`, `apply` included): 8.5+ core is unknown on the fork.
     for gated in [
+        "dict get {a 1} a",
+        "lassign {1 2} a b",
+        "apply {{x} {return $x}} 1",
         "lmap x {1 2} {set x}",
         "coroutine c ::apply {{} {}}",
         "zipfs root",
@@ -12891,7 +12915,7 @@ fn tmsh_first_class_resolves_its_surface_and_gates_later_core() {
         let codes = codes_for_dialect(gated, "f5-tmsh");
         assert!(
             codes.iter().any(|c| c == "W123" || c == "W002"),
-            "f5-tmsh: {gated:?} is later-than-8.5 core and must flag, got {codes:?}"
+            "f5-tmsh: {gated:?} is later-than-8.4 core and must flag, got {codes:?}"
         );
     }
     // FP-guard: the iApp-only surface is NOT part of the tmsh shell — it
@@ -13068,12 +13092,19 @@ fn w004_version_gated_options_follow_the_profile_ceiling() {
     );
     // FP-fix: it is clean at/above 8.5 — the composed vendor profiles
     // included (the old contains rule could never satisfy a composed mask).
-    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "f5-iapps", "expect"] {
+    for dialect in ["tcl8.5", "tcl8.6", "tcl9.0", "expect"] {
         assert!(
             !has_code("switch -nocase a {a {} default {}}", dialect, "W004"),
             "{dialect}: switch -nocase is real 8.5+ core"
         );
     }
+    // F5 reclassification (measurements §4/§4a): f5-iapps left this list —
+    // its host is the 8.4.6 fork, so the 8.5+ option now correctly flags
+    // there, exactly as it does under f5-irules.
+    assert!(
+        has_code("switch -nocase a {a {} default {}}", "f5-iapps", "W004"),
+        "f5-iapps: switch -nocase is 8.5+ on a measured 8.4.6 fork"
+    );
 }
 
 #[test]

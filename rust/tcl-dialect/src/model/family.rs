@@ -35,7 +35,9 @@
 //! reads.
 
 use crate::LexerGrammar;
-use crate::grammar::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax};
+use crate::grammar::{
+    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, NumberSyntax,
+};
 use crate::model::expr_grammar::{self, ExprGrammar};
 use crate::version::StringCharacterModel;
 
@@ -50,15 +52,32 @@ use crate::version::StringCharacterModel;
 pub enum Family {
     /// Plain Tcl — the 8.4 … 9.1 release ladder.
     Tcl,
-    /// F5 iRules — a **fork of Tcl 8.4.6 that evolved independently from
-    /// that point** (owner-attested, 2026-08-26), with its own
-    /// lexical/expr fingerprint (the `}{` ghost separator, nine expr word
-    /// operators). The fork point is [`Family::IRULES_FORK_POINT`]; the
-    /// family's own evolution ladder is keyed by TMOS release, and every
-    /// post-fork delta is evidence-corpus data, never inherited from the
-    /// Tcl ladder (F5 evidence review F2). The K36322151 bans and
-    /// closed-world guarantee are environment policy, not part of this
-    /// identity (review B12).
+    /// F5's shared Tcl fork — the **trunk** of the two-level F5 tree
+    /// (owner rulings 2026-08-26, measured in
+    /// `docs/design/bigip-irule-parser-measurements.md` §4a/§4b): a fork
+    /// of Tcl at patchlevel 8.4.6 ([`Family::F5_FORK_POINT`]) that
+    /// evolved independently, with a ladder keyed by TMOS release. Every
+    /// BIG-IP-hosted Tcl context — TMM iRules, tmsh cli scripts, iApp
+    /// implementations — carries this one parser: the implicit word
+    /// break (R-rules), the brace-line continuation (N-rules), the inert
+    /// `{*}` (the separator wins; expansion does not exist), 8.4
+    /// numerals, and the nine word-form `expr` operators, all measured
+    /// byte-identical across the three contexts. `f5-tmsh` and
+    /// `f5-iapps` are environments riding this trunk directly, differing
+    /// only in ambient packages and host facts.
+    F5Tcl,
+    /// F5 iRules — a dialect **offshoot of [`Family::F5Tcl`]** (a fork of
+    /// a fork, owner ruling 2026-08-26). It inherits the trunk grammar
+    /// whole — grammar/axis resolution walks the fork edge
+    /// ([`Family::fork_parent`]), so an axis the offshoot does not
+    /// override answers from the trunk, and the trunk from Tcl at the
+    /// fork point. What the offshoot adds is not lexical grammar but the
+    /// rule compiler's load-time language rules: the declaration-only top
+    /// level, closed-world command resolution at rule load, the event
+    /// model, and `expr` math-function validation at load (measurements
+    /// §4a/§4b/§6). The K36322151 command bans and the closed-world
+    /// guarantee are environment policy, not part of this identity
+    /// (review B12).
     F5Irules,
     /// Jim Tcl — the 0.76 … 0.84 release ladder measured on the jim
     /// branch; its per-release grammar axis values land with P6.
@@ -67,19 +86,23 @@ pub enum Family {
 
 impl Family {
     /// Every admitted family, in declaration order.
-    pub const ALL: [Self; 3] = [Self::Tcl, Self::F5Irules, Self::Jim];
+    pub const ALL: [Self; 4] = [Self::Tcl, Self::F5Tcl, Self::F5Irules, Self::Jim];
 
-    /// The Tcl patchlevel iRules forked from, after which it evolved
-    /// independently (owner-attested, 2026-08-26). This is fork
-    /// *provenance*: it seeds the family's baseline grammar and surface,
-    /// and nothing later on the Tcl ladder applies to iRules through it.
-    pub const IRULES_FORK_POINT: &'static str = "8.4.6";
+    /// The Tcl patchlevel the F5 trunk forked from, after which it
+    /// evolved independently (owner-attested, 2026-08-26; measured — all
+    /// three BIG-IP contexts report `info patchlevel` 8.4.6 and fail
+    /// every 8.4/8.5 discriminator as 8.4, measurements §4/§4a). This is
+    /// fork *provenance*: it seeds the trunk's baseline grammar and
+    /// surface, and nothing later on the Tcl ladder applies to the F5
+    /// tree through it.
+    pub const F5_FORK_POINT: &'static str = "8.4.6";
 
     /// The family's stable lower-case name.
     #[must_use]
     pub const fn name(self) -> &'static str {
         match self {
             Self::Tcl => "tcl",
+            Self::F5Tcl => "f5-tcl",
             Self::F5Irules => "f5-irules",
             Self::Jim => "jim",
         }
@@ -90,9 +113,61 @@ impl Family {
     pub const fn releases(self) -> &'static [Release] {
         match self {
             Self::Tcl => TCL_LADDER,
+            Self::F5Tcl => F5_TCL_LADDER,
             Self::F5Irules => IRULES_LADDER,
             Self::Jim => JIM_LADDER,
         }
+    }
+
+    /// The fork edge this family's grammar/axis resolution walks up when
+    /// it does not override an axis itself: the parent family and the
+    /// release on the parent's ladder the fork branched from (§3.1).
+    /// `None` for a root family.
+    ///
+    /// [`Family::F5Tcl`] forks from Tcl at 8.4 (patchlevel
+    /// [`Family::F5_FORK_POINT`]); [`Family::F5Irules`] forks from the
+    /// `f5-tcl` trunk — a fork of a fork. The compiled grammar and expr
+    /// tables below are *derived along these edges* (the trunk values are
+    /// struct updates over the 8.4 values; the offshoot overrides
+    /// nothing, so its values are the trunk's), and the tests pin that
+    /// derivation so the edge and the data cannot drift apart.
+    #[must_use]
+    pub const fn fork_parent(self) -> Option<(Family, Release)> {
+        match self {
+            Self::Tcl | Self::Jim => None,
+            Self::F5Tcl => Some((Family::Tcl, Release::TCL_8_4)),
+            Self::F5Irules => Some((Family::F5Tcl, Release::F5_TCL_TMOS)),
+        }
+    }
+
+    /// Whether the family's compiler resolves literal command heads at
+    /// **load time** against a closed, explicit surface — the `f5-irules`
+    /// offshoot marker (measurements §4a: a literal reference to a
+    /// command TMM does not have is rejected when the rule is loaded,
+    /// regardless of `catch`, where the other F5 contexts resolve at
+    /// runtime; §4b: the surface itself splits into interpreter-absent
+    /// and compiler-refused halves).
+    ///
+    /// Consumers use this to keep the offshoot's embedded ancestor core
+    /// surface **explicit per spec** rather than implicitly admitted
+    /// along the fork edge, and to grade "unknown command" as a hard
+    /// error rather than a hint.
+    #[must_use]
+    pub const fn closed_load_time_resolution(self) -> bool {
+        matches!(self, Self::F5Irules)
+    }
+
+    /// Whether the family's file top level is **declaration-only** — the
+    /// second `f5-irules` offshoot marker (measurements §4b/§6): only
+    /// `when`, `proc`, `priority`, `timing` are legal at the root of a
+    /// rule (a bare `set` is `"set" unknown property` from the config
+    /// layer), and a top-level `proc` is reachable only through the
+    /// iRules-only `call` command. The enforcement machinery
+    /// (`IrulesExecutionContext`, IRULE5006/5007) is consumer-side; the
+    /// family carries the flag that gates it.
+    #[must_use]
+    pub const fn declaration_only_top_level(self) -> bool {
+        matches!(self, Self::F5Irules)
     }
 }
 
@@ -125,8 +200,14 @@ const TCL_LADDER: &[Release] = &[
     Release::TCL_9_1,
 ];
 
-/// The iRules ladder: a single TMOS-keyed release line for now (§3.1).
-const IRULES_LADDER: &[Release] = &[Release::F5_IRULES_TMOS];
+/// The F5 trunk ladder: a single TMOS-keyed release line for now (§3.1);
+/// post-fork deltas per TMOS release come from the evidence corpus
+/// (F5 evidence review F2).
+const F5_TCL_LADDER: &[Release] = &[Release::F5_TCL_TMOS];
+
+/// The iRules offshoot ladder: the single TMM-hosted release line riding
+/// the trunk's TMOS train (§3.1).
+const IRULES_LADDER: &[Release] = &[Release::F5_IRULES_TMM];
 
 /// The Jim ladder measured on the jim branch.
 const JIM_LADDER: &[Release] = &[
@@ -152,8 +233,11 @@ impl Release {
     pub const TCL_9_0: Self = Self::new(Family::Tcl, 3);
     /// Tcl 9.1.
     pub const TCL_9_1: Self = Self::new(Family::Tcl, 4);
-    /// The iRules single TMOS-keyed release line (spelled `tmos`).
-    pub const F5_IRULES_TMOS: Self = Self::new(Family::F5Irules, 0);
+    /// The F5 trunk's single TMOS-keyed release line (spelled `tmos`).
+    pub const F5_TCL_TMOS: Self = Self::new(Family::F5Tcl, 0);
+    /// The iRules offshoot's single release line (spelled `tmm` — the
+    /// TMM-hosted rule engine riding the trunk's TMOS train).
+    pub const F5_IRULES_TMM: Self = Self::new(Family::F5Irules, 0);
     /// Jim 0.76.
     pub const JIM_0_76: Self = Self::new(Family::Jim, 0);
     /// Jim 0.77.
@@ -200,7 +284,8 @@ impl Release {
             (Family::Tcl, 2) => "8.6",
             (Family::Tcl, 3) => "9.0",
             (Family::Tcl, _) => "9.1",
-            (Family::F5Irules, _) => "tmos",
+            (Family::F5Tcl, _) => "tmos",
+            (Family::F5Irules, _) => "tmm",
             (Family::Jim, 0) => "0.76",
             (Family::Jim, 1) => "0.77",
             (Family::Jim, 2) => "0.78",
@@ -260,6 +345,7 @@ impl std::str::FromStr for Release {
 const GRAMMAR_TCL84: LexerGrammar = LexerGrammar {
     expand_syntax: false,
     irules_brace_separator: false,
+    brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::FirstClose,
     script_skips_leading_bom: false,
     expr_comments: ExprCommentStyle::None,
@@ -281,6 +367,7 @@ const GRAMMAR_TCL86: LexerGrammar = LexerGrammar {
 const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     expand_syntax: true,
     irules_brace_separator: false,
+    brace_line_continuation: BraceLineContinuation::Terminates,
     braced_var: BracedVarStyle::Tcl9Nesting,
     script_skips_leading_bom: true,
     expr_comments: ExprCommentStyle::Hash,
@@ -288,10 +375,27 @@ const GRAMMAR_TCL9X: LexerGrammar = LexerGrammar {
     escapes: EscapeSyntax::Tcl90,
 };
 
-const GRAMMAR_IRULES: LexerGrammar = LexerGrammar {
+/// The `f5-tcl` **trunk** grammar: everything unoverridden answers from
+/// the fork point (`tcl@8.4.6` — the `..GRAMMAR_TCL84` update *is* the
+/// [`Family::fork_parent`] edge, stated as const derivation), plus the two
+/// measured fork axes (`docs/design/bigip-irule-parser-measurements.md`
+/// §1–§3, §4a): the implicit word break (R-rules) and the brace-line
+/// continuation (N-rules). `expand_syntax` stays false from the 8.4 base,
+/// which together with the separator makes `{*}` **inert** — a literal
+/// `*` word plus the following word, never expansion, never an error
+/// (measurements §1, §3 row 6).
+const GRAMMAR_F5_TCL: LexerGrammar = LexerGrammar {
     irules_brace_separator: true,
+    brace_line_continuation: BraceLineContinuation::Continues,
     ..GRAMMAR_TCL84
 };
+
+/// The `f5-irules` **offshoot** grammar: the offshoot overrides no
+/// lexical axis, so every value answers from the trunk along the fork
+/// edge (measurements §4a — the three F5 contexts are one parser). Its
+/// deltas are load-time language rules and environment policy, not lexer
+/// grammar.
+const GRAMMAR_IRULES: LexerGrammar = GRAMMAR_F5_TCL;
 
 /// Interim Jim grammar: the permissive modern default, exactly as the old
 /// model treats a dialect it has no measured values for. Jim's five
@@ -312,6 +416,7 @@ const GRAMMAR_JIM_INTERIM: LexerGrammar = GRAMMAR_TCL9X;
 pub const fn grammar(family: Family, release: Release) -> LexerGrammar {
     match (family, release.family) {
         (Family::Tcl, Family::Tcl)
+        | (Family::F5Tcl, Family::F5Tcl)
         | (Family::F5Irules, Family::F5Irules)
         | (Family::Jim, Family::Jim) => {}
         _ => panic!("release is not on this family's ladder"),
@@ -323,6 +428,7 @@ pub const fn grammar(family: Family, release: Release) -> LexerGrammar {
             2 => GRAMMAR_TCL86,
             _ => GRAMMAR_TCL9X,
         },
+        Family::F5Tcl => GRAMMAR_F5_TCL,
         Family::F5Irules => GRAMMAR_IRULES,
         Family::Jim => GRAMMAR_JIM_INTERIM,
     }
@@ -343,6 +449,12 @@ pub enum BuildProfileId {
     /// The family's measured canonical build for the release.
     #[default]
     Canonical,
+    /// The 32-bit `scriptd` build of the F5 trunk hosting iApp
+    /// implementations: measured `tcl_platform(wordSize) == 4` against
+    /// TMM's 8 (`docs/design/bigip-irule-parser-measurements.md` §4/§4a)
+    /// — the same fork grammar and surface, a different word size. The
+    /// build axis earning its place again (review B1).
+    F5Scriptd32,
     /// An unmeasured build: every capability query answers
     /// [`CapabilityAnswer::Unknown`], never the canonical default (B1).
     Unknown,
@@ -372,6 +484,12 @@ pub struct CapabilitySet {
     /// math extension is a configure choice; a `--minimal` build rejects
     /// `sqrt(4)` outright — §3.1).
     pub math_extension: CapabilityAnswer,
+    /// Whether the build is a 64-bit word-size build
+    /// (`tcl_platform(wordSize) == 8`). Measured to vary within one F5
+    /// release: TMM reports 8, the iApp `scriptd` host reports **4** — a
+    /// 32-bit build of the same trunk
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4).
+    pub word_size_64: CapabilityAnswer,
 }
 
 impl CapabilitySet {
@@ -382,24 +500,39 @@ impl CapabilitySet {
         Self {
             utf8_character_model: CapabilityAnswer::Unknown,
             math_extension: CapabilityAnswer::Unknown,
+            word_size_64: CapabilityAnswer::Unknown,
         }
     }
 
     /// The measured canonical-build capabilities of `family`.
     ///
-    /// Tcl and iRules canonical builds ship full character handling and
-    /// the math functions on every modelled release. Jim's canonical
-    /// column is deliberately [`CapabilityAnswer::Unknown`] until the P6
-    /// probe matrix lands in this tree — the jim branch's measurements are
-    /// not yet data here, and guessing is what B1 forbids.
+    /// The Tcl and F5 canonical builds ship full character handling, the
+    /// math functions, and a 64-bit word size on every modelled release
+    /// (TMM's fabricated `tcl_platform` reports `wordSize 8` —
+    /// measurements §4). Jim's canonical column is deliberately
+    /// [`CapabilityAnswer::Unknown`] until the P6 probe matrix lands in
+    /// this tree — the jim branch's measurements are not yet data here,
+    /// and guessing is what B1 forbids.
     #[must_use]
     pub const fn canonical(family: Family) -> Self {
         match family {
-            Family::Tcl | Family::F5Irules => Self {
+            Family::Tcl | Family::F5Tcl | Family::F5Irules => Self {
                 utf8_character_model: CapabilityAnswer::Yes,
                 math_extension: CapabilityAnswer::Yes,
+                word_size_64: CapabilityAnswer::Yes,
             },
             Family::Jim => Self::unknown(),
+        }
+    }
+
+    /// The measured capabilities of the F5 trunk's 32-bit `scriptd`
+    /// build ([`BuildProfileId::F5Scriptd32`]): the canonical column with
+    /// the word size measured **No** (`wordSize 4`, measurements §4).
+    #[must_use]
+    pub const fn f5_scriptd32(family: Family) -> Self {
+        Self {
+            word_size_64: CapabilityAnswer::No,
+            ..Self::canonical(family)
         }
     }
 }
@@ -438,6 +571,7 @@ impl CoreProfileId {
         let family = self.family();
         let capabilities = match self.build {
             BuildProfileId::Canonical => CapabilitySet::canonical(family),
+            BuildProfileId::F5Scriptd32 => CapabilitySet::f5_scriptd32(family),
             BuildProfileId::Unknown => CapabilitySet::unknown(),
         };
         CoreProfile {
@@ -461,8 +595,10 @@ impl CoreProfileId {
             } else {
                 StringCharacterModel::Utf16CodeUnits
             }),
-            // iRules embeds a real Tcl 8.4.6.
-            Family::F5Irules => Some(StringCharacterModel::Utf16CodeUnits),
+            // The F5 tree forks from a real Tcl 8.4.6 — both the trunk
+            // and the iRules offshoot keep the 8.x model (measurements
+            // §4: every context reports patchlevel 8.4.6).
+            Family::F5Tcl | Family::F5Irules => Some(StringCharacterModel::Utf16CodeUnits),
             // Unmeasured here until the P6 probe matrix lands.
             Family::Jim => None,
         }
@@ -515,6 +651,7 @@ mod tests {
     #[test]
     fn ladders_are_ordered_and_complete() {
         assert_eq!(Family::Tcl.releases().len(), 5);
+        assert_eq!(Family::F5Tcl.releases().len(), 1);
         assert_eq!(Family::F5Irules.releases().len(), 1);
         assert_eq!(Family::Jim.releases().len(), 9);
         for family in Family::ALL {
@@ -568,7 +705,7 @@ mod tests {
             );
         }
         assert_eq!(
-            grammar(Family::F5Irules, Release::F5_IRULES_TMOS),
+            grammar(Family::F5Irules, Release::F5_IRULES_TMM),
             DialectProfile::irules().grammar
         );
         // The interim Jim value is the same permissive default the old
@@ -612,20 +749,90 @@ mod tests {
         assert_eq!(tcl86.mathfunc("isnan"), CapabilityAnswer::No);
         assert_eq!(tcl86.mathfunc("min"), CapabilityAnswer::Yes);
 
-        // iRules embeds a real 8.4: no TIP 232 additions.
-        let irules =
-            CoreProfileId::new(Release::F5_IRULES_TMOS, BuildProfileId::Canonical).resolve();
+        // The F5 tree forks from a real 8.4.6: no TIP 232 additions, on
+        // the trunk or the offshoot.
+        for release in [Release::F5_TCL_TMOS, Release::F5_IRULES_TMM] {
+            let core = CoreProfileId::new(release, BuildProfileId::Canonical).resolve();
+            assert_eq!(
+                core.character_model,
+                Some(StringCharacterModel::Utf16CodeUnits),
+                "{release}"
+            );
+            assert_eq!(core.mathfunc("sqrt"), CapabilityAnswer::Yes, "{release}");
+            assert_eq!(core.mathfunc("min"), CapabilityAnswer::No, "{release}");
+            assert_eq!(
+                core.capabilities.word_size_64,
+                CapabilityAnswer::Yes,
+                "{release}: TMM wordSize 8 (measurements §4)"
+            );
+        }
+
+        // The iApp scriptd host is a 32-bit build of the trunk —
+        // measured `tcl_platform(wordSize) == 4` (measurements §4) —
+        // with every other capability the canonical column's.
+        let scriptd =
+            CoreProfileId::new(Release::F5_TCL_TMOS, BuildProfileId::F5Scriptd32).resolve();
+        assert_eq!(scriptd.capabilities.word_size_64, CapabilityAnswer::No);
+        assert_eq!(scriptd.capabilities.math_extension, CapabilityAnswer::Yes);
         assert_eq!(
-            irules.character_model,
+            scriptd.character_model,
             Some(StringCharacterModel::Utf16CodeUnits)
         );
-        assert_eq!(irules.mathfunc("sqrt"), CapabilityAnswer::Yes);
-        assert_eq!(irules.mathfunc("min"), CapabilityAnswer::No);
+        assert_eq!(scriptd.mathfunc("sqrt"), CapabilityAnswer::Yes);
 
         // Jim's canonical column is unmeasured in this tree (P6).
         let jim = CoreProfileId::new(Release::JIM_0_84, BuildProfileId::Canonical).resolve();
         assert_eq!(jim.mathfunc("sqrt"), CapabilityAnswer::Unknown);
         assert_eq!(jim.character_model, None);
+    }
+
+    /// The two-level F5 tree (§0.2/§2, owner rulings 2026-08-26): grammar
+    /// resolution walks the fork edges, so an axis the offshoot does not
+    /// override answers from the trunk, and the trunk from `tcl@8.4.6`
+    /// (`docs/design/bigip-irule-parser-measurements.md` §1–§4a).
+    #[test]
+    fn f5_grammar_resolution_walks_the_fork_edges() {
+        assert_eq!(Family::Tcl.fork_parent(), None);
+        assert_eq!(Family::Jim.fork_parent(), None);
+        assert_eq!(
+            Family::F5Tcl.fork_parent(),
+            Some((Family::Tcl, Release::TCL_8_4)),
+            "the trunk forks from Tcl at patchlevel {}",
+            Family::F5_FORK_POINT
+        );
+        assert_eq!(
+            Family::F5Irules.fork_parent(),
+            Some((Family::F5Tcl, Release::F5_TCL_TMOS)),
+            "the offshoot is a fork of a fork"
+        );
+
+        // The offshoot overrides no lexical axis: its grammar IS the
+        // trunk's (measurements §4a — one parser in all three contexts).
+        let trunk = grammar(Family::F5Tcl, Release::F5_TCL_TMOS);
+        let offshoot = grammar(Family::F5Irules, Release::F5_IRULES_TMM);
+        assert_eq!(trunk, offshoot);
+
+        // The trunk overrides exactly the two measured fork axes; every
+        // other axis answers from the fork point tcl@8.4.6.
+        let fork_point = grammar(Family::Tcl, Release::TCL_8_4);
+        assert!(trunk.irules_brace_separator, "R-rules (measurements §1)");
+        assert!(
+            trunk.brace_line_continuation.continues(),
+            "N-rules (measurements §2)"
+        );
+        assert_eq!(
+            LexerGrammar {
+                irules_brace_separator: false,
+                brace_line_continuation: BraceLineContinuation::Terminates,
+                ..trunk
+            },
+            fork_point,
+            "unoverridden axes answer from tcl@8.4.6"
+        );
+        // `{*}` is inert on the whole tree: no expansion axis anywhere
+        // (measurements §1 `{*}`, §3 row 6 — the separator wins).
+        assert!(!trunk.expand_syntax);
+        assert!(!offshoot.expand_syntax);
     }
 
     #[test]

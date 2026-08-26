@@ -225,23 +225,29 @@ const TCL_WORDS_90: &[WordOperator] = &[
     word("ge", Release::TCL_9_0),
 ];
 
-/// iRules: the embedded 8.4.6 core's word operators plus the nine TMM
-/// extension operators (`and`/`or`/`not`/`contains`/`starts_with`/
-/// `ends_with`/`equals`/`matches_glob`/`matches_regex` — the set the expr
-/// lexer's `irules_ops` recognises). `not` is unary and therefore absent
-/// from the precedence table.
-const IRULES_WORDS: &[WordOperator] = &[
+/// The F5 **trunk**: the fork point's word operators (`eq`/`ne` from the
+/// embedded Tcl 8.4.6 core) plus the nine word-form extension operators
+/// (`and`/`or`/`not`/`contains`/`starts_with`/`ends_with`/`equals`/
+/// `matches_glob`/`matches_regex` — the set the expr lexer's `irules_ops`
+/// recognises). Measured **byte-identical in tmsh and iApp contexts, not
+/// iRules-only** (`docs/design/bigip-irule-parser-measurements.md` §4a:
+/// `expr {"abc" starts_with "a"}` and `expr {1 and 1}` answer `1` in all
+/// three F5 contexts), so the nine carry the trunk's own release as
+/// their provenance. `not` is unary and therefore absent from the
+/// precedence table. The iRules offshoot overrides nothing here — it
+/// answers with this same slice along the fork edge.
+const F5_TCL_WORDS: &[WordOperator] = &[
     word("eq", Release::TCL_8_4),
     word("ne", Release::TCL_8_4),
-    word("and", Release::F5_IRULES_TMOS),
-    word("or", Release::F5_IRULES_TMOS),
-    word("not", Release::F5_IRULES_TMOS),
-    word("contains", Release::F5_IRULES_TMOS),
-    word("starts_with", Release::F5_IRULES_TMOS),
-    word("ends_with", Release::F5_IRULES_TMOS),
-    word("equals", Release::F5_IRULES_TMOS),
-    word("matches_glob", Release::F5_IRULES_TMOS),
-    word("matches_regex", Release::F5_IRULES_TMOS),
+    word("and", Release::F5_TCL_TMOS),
+    word("or", Release::F5_TCL_TMOS),
+    word("not", Release::F5_TCL_TMOS),
+    word("contains", Release::F5_TCL_TMOS),
+    word("starts_with", Release::F5_TCL_TMOS),
+    word("ends_with", Release::F5_TCL_TMOS),
+    word("equals", Release::F5_TCL_TMOS),
+    word("matches_glob", Release::F5_TCL_TMOS),
+    word("matches_regex", Release::F5_TCL_TMOS),
 ];
 
 /// Jim shares `eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge` across every
@@ -293,10 +299,11 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     ("**", 23, 23),
 ];
 
-// iRules: the Tcl rows plus the word forms `binary_bp` binds — `or` with
-// `||`, `and` with `&&`, and the six binary comparison extensions at the
-// equality level.
-const IRULES_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
+// The F5 trunk: the Tcl rows plus the word forms `binary_bp` binds —
+// `or` with `||`, `and` with `&&`, and the six binary comparison
+// extensions at the equality level. A trunk fact: tmsh and iApp accept
+// the identical operator set (measurements §4a).
+const F5_TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     ("||", 4, 5),
     ("or", 4, 5),
     ("&&", 6, 7),
@@ -358,8 +365,8 @@ const TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
     rows: TCL_PRECEDENCE_ROWS,
 };
 
-const IRULES_PRECEDENCE: PrecedenceTable = PrecedenceTable {
-    rows: IRULES_PRECEDENCE_ROWS,
+const F5_TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
+    rows: F5_TCL_PRECEDENCE_ROWS,
 };
 
 const JIM_PRECEDENCE: PrecedenceTable = PrecedenceTable {
@@ -494,19 +501,28 @@ const EXPR_TCL91: ExprGrammar = ExprGrammar {
     ..EXPR_TCL90
 };
 
-/// iRules: the nine word operators over an embedded Tcl 8.4 base — 8.4
-/// numerals, no expr comments, the 8.4 mathfunc set (expressed on the
-/// embedded core's ladder), concatenating arity.
-const EXPR_IRULES: ExprGrammar = ExprGrammar {
+/// The F5 trunk: the nine word operators over the fork point's 8.4 base
+/// — 8.4 numerals (`0b101` fails in every F5 context, measurements §4a),
+/// no expr comments, the 8.4 mathfunc set (expressed on the fork
+/// parent's ladder), concatenating arity. The `expr` sub-parser is
+/// otherwise **unmodified** from stock 8.4 (measurements R7/§7).
+const EXPR_F5_TCL: ExprGrammar = ExprGrammar {
     numbers: NumberSyntax::Tcl84,
     comments: ExprCommentStyle::None,
-    word_operators: IRULES_WORDS,
-    precedence: IRULES_PRECEDENCE,
+    word_operators: F5_TCL_WORDS,
+    precedence: F5_TCL_PRECEDENCE,
     symbolic_operators: &[],
     mathfuncs: tcl_set(Release::TCL_8_4),
     arity: ExprArity::Concatenating,
     substitution: ExprSubstitution::Interpolating,
 };
+
+/// The iRules offshoot overrides no expr axis: its grammar answers from
+/// the trunk along the fork edge (measurements §4a — the word operators
+/// are present in tmsh and iApps too). What iRules adds to `expr` is
+/// load-time math-function *validation*, a compiler strictness rule, not
+/// grammar.
+const EXPR_IRULES: ExprGrammar = EXPR_F5_TCL;
 
 /// Jim through 0.80: `expr 1 + 2` still concatenates, no expr comments.
 /// Numbers are an interim stand-in (the Jim numeral grammar variants land
@@ -554,6 +570,7 @@ pub fn expr(family: Family, release: Release) -> &'static ExprGrammar {
             3 => &EXPR_TCL90,
             _ => &EXPR_TCL91,
         },
+        Family::F5Tcl => &EXPR_F5_TCL,
         Family::F5Irules => &EXPR_IRULES,
         Family::Jim => {
             if release.ordinal() <= Release::JIM_0_80.ordinal() {
@@ -591,8 +608,8 @@ mod tests {
     }
 
     #[test]
-    fn irules_precedence_extends_tcl_with_the_word_forms() {
-        let i = &IRULES_PRECEDENCE;
+    fn f5_trunk_precedence_extends_tcl_with_the_word_forms() {
+        let i = &F5_TCL_PRECEDENCE;
         for op in [
             "contains",
             "starts_with",
@@ -607,11 +624,11 @@ mod tests {
         assert_eq!(i.lookup("and"), Some((6, 7)));
         assert_eq!(i.lookup("not"), None, "not is unary");
         // The shared C-Tcl rows are unchanged — except the TIP 201/461
-        // word operators, which the embedded 8.4.6 core never binds and
-        // the family table therefore never lists.
+        // word operators, which the fork point's 8.4.6 core never binds
+        // and the family table therefore never lists.
         for &(op, l, r) in TCL_PRECEDENCE_ROWS {
             if matches!(op, "in" | "ni" | "lt" | "le" | "gt" | "ge") {
-                assert_eq!(i.lookup(op), None, "{op} is not an iRules operator");
+                assert_eq!(i.lookup(op), None, "{op} is not an F5 operator");
                 continue;
             }
             assert_eq!(i.lookup(op), Some((l, r)), "{op}");
@@ -668,30 +685,48 @@ mod tests {
         assert_eq!(EXPR_TCL91.word_operators.len(), 8);
     }
 
+    /// The word operators are an `f5-tcl` **trunk** fact — measured in
+    /// tmsh and iApp contexts too, not iRules-only (measurements §4a) —
+    /// and the offshoot answers with the trunk's grammar along the fork
+    /// edge.
     #[test]
-    fn irules_words_are_the_nine_plus_the_embedded_core() {
-        let g = expr(Family::F5Irules, Release::F5_IRULES_TMOS);
-        for op in [
-            "and",
-            "or",
-            "not",
-            "contains",
-            "starts_with",
-            "ends_with",
-            "equals",
-            "matches_glob",
-            "matches_regex",
-        ] {
-            assert!(g.has_word_operator(op), "{op}");
+    fn f5_trunk_words_are_the_nine_plus_the_fork_point_core() {
+        let trunk = expr(Family::F5Tcl, Release::F5_TCL_TMOS);
+        let offshoot = expr(Family::F5Irules, Release::F5_IRULES_TMM);
+        assert_eq!(trunk, offshoot, "the offshoot overrides no expr axis");
+        for g in [trunk, offshoot] {
+            for op in [
+                "and",
+                "or",
+                "not",
+                "contains",
+                "starts_with",
+                "ends_with",
+                "equals",
+                "matches_glob",
+                "matches_regex",
+            ] {
+                assert!(g.has_word_operator(op), "{op}");
+            }
+            assert!(g.has_word_operator("eq"));
+            // The fork point is 8.4: no TIP 201/461 operators.
+            assert!(!g.has_word_operator("in"));
+            assert!(!g.has_word_operator("lt"));
+            assert_eq!(g.word_operators.len(), 11);
+            assert_eq!(g.arity, ExprArity::Concatenating);
+            assert_eq!(g.numbers, NumberSyntax::Tcl84);
+            assert_eq!(g.comments, ExprCommentStyle::None);
         }
-        assert!(g.has_word_operator("eq"));
-        // The embedded core is 8.4: no TIP 201/461 operators.
-        assert!(!g.has_word_operator("in"));
-        assert!(!g.has_word_operator("lt"));
-        assert_eq!(g.word_operators.len(), 11);
-        assert_eq!(g.arity, ExprArity::Concatenating);
-        assert_eq!(g.numbers, NumberSyntax::Tcl84);
-        assert_eq!(g.comments, ExprCommentStyle::None);
+        // The nine extension operators carry the trunk's own release as
+        // provenance; `eq`/`ne` carry the fork parent's.
+        for w in trunk.word_operators {
+            let expected = if matches!(w.spelling, "eq" | "ne") {
+                Release::TCL_8_4
+            } else {
+                Release::F5_TCL_TMOS
+            };
+            assert_eq!(w.since, expected, "{}", w.spelling);
+        }
     }
 
     #[test]
@@ -715,9 +750,9 @@ mod tests {
         assert_eq!(tcl_set(Release::TCL_8_6).names().count(), 31);
         assert_eq!(s90.names().count(), 37);
         assert_eq!(s91.names().count(), 58);
-        // iRules carries the embedded 8.4 set.
-        assert_eq!(EXPR_IRULES.mathfuncs.names().count(), 26);
-        assert!(!EXPR_IRULES.mathfuncs.contains("min"));
+        // The F5 tree carries the fork point's 8.4 set.
+        assert_eq!(EXPR_F5_TCL.mathfuncs.names().count(), 26);
+        assert!(!EXPR_F5_TCL.mathfuncs.contains("min"));
     }
 
     #[test]
@@ -726,14 +761,14 @@ mod tests {
         assert!(g.symbolic_operators.contains(&("<<<", Release::JIM_0_76)));
         assert!(g.symbolic_operators.contains(&("=*", Release::JIM_0_84)));
         assert!(g.symbolic_operators.contains(&("=~", Release::JIM_0_84)));
-        // Tcl and iRules have no symbolic extensions beyond the shared
-        // C-Tcl set.
+        // Tcl and the F5 tree have no symbolic extensions beyond the
+        // shared C-Tcl set.
         assert!(
             expr(Family::Tcl, Release::TCL_9_1)
                 .symbolic_operators
                 .is_empty()
         );
-        assert!(EXPR_IRULES.symbolic_operators.is_empty());
+        assert!(EXPR_F5_TCL.symbolic_operators.is_empty());
     }
 
     #[test]

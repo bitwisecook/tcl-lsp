@@ -1737,12 +1737,14 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
-    /// The two dialect-varying [`tcl_lexer::LexerConfig`] fields (see
+    /// The dialect-varying [`tcl_lexer::LexerConfig`] fields (see
     /// [`LexerCfgKey`]); the rest are the invariant defaults both consumers use.
     #[returns(copy)]
     pub expand_syntax: bool,
     #[returns(copy)]
     pub irules_brace_separator: bool,
+    #[returns(copy)]
+    pub brace_line_continuation: tcl_lexer::BraceLineContinuation,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body
@@ -1758,6 +1760,7 @@ pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Sc
     let config = tcl_lexer::LexerConfig {
         expand_syntax: key.expand_syntax(db),
         irules_brace_separator: key.irules_brace_separator(db),
+        brace_line_continuation: key.brace_line_continuation(db),
         ..tcl_lexer::LexerConfig::default()
     };
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
@@ -1923,6 +1926,7 @@ fn build_unit_with_keys<'db>(
                 dialect_key.to_owned(),
                 config.expand_syntax,
                 config.irules_brace_separator,
+                config.brace_line_continuation,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -3032,15 +3036,18 @@ pub struct LexerCfgKey<'db> {
     pub expand_syntax: bool,
     #[returns(copy)]
     pub irules_brace_separator: bool,
+    #[returns(copy)]
+    pub brace_line_continuation: tcl_lexer::BraceLineContinuation,
 }
 
 impl LexerCfgKey<'_> {
-    /// The full [`tcl_lexer::LexerConfig`] this key represents (the two
+    /// The full [`tcl_lexer::LexerConfig`] this key represents (the
     /// interned fields + the invariant defaults both diagnostics paths use).
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
         tcl_lexer::LexerConfig {
             expand_syntax: self.expand_syntax(db),
             irules_brace_separator: self.irules_brace_separator(db),
+            brace_line_continuation: self.brace_line_continuation(db),
             ..tcl_lexer::LexerConfig::default()
         }
     }
@@ -3048,7 +3055,12 @@ impl LexerCfgKey<'_> {
 
 /// Intern a [`LexerCfgKey`] from a concrete [`tcl_lexer::LexerConfig`].
 fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<'_> {
-    LexerCfgKey::new(db, config.expand_syntax, config.irules_brace_separator)
+    LexerCfgKey::new(
+        db,
+        config.expand_syntax,
+        config.irules_brace_separator,
+        config.brace_line_continuation,
+    )
 }
 
 /// The shared, memoised [`CompilationUnit`] for a document under a given lexer

@@ -273,6 +273,7 @@ fn lexer_config_matches_profile(config: LexerConfig, profile: &DialectProfile) -
     let expected = LexerConfig::from_grammar(profile.grammar);
     config.expand_syntax == expected.expand_syntax
         && config.irules_brace_separator == expected.irules_brace_separator
+        && config.brace_line_continuation == expected.brace_line_continuation
         && config.braced_var == expected.braced_var
         && config.escapes == expected.escapes
 }

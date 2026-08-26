@@ -1157,16 +1157,25 @@ computed; got {b:?}"
             vec![vec!["cmd", "${args}", "x"]],
             "8.5+ reads `{{*}}` as the expansion marker",
         );
-        for dialect in ["tcl8.4", "f5-irules"] {
-            assert_eq!(
-                words(
-                    "cmd {*}$args x",
-                    tcl_dialect::DialectProfile::by_name(dialect)
-                ),
-                vec![vec!["cmd", "*${args}", "x"]],
-                "{dialect} has no `{{*}}` expansion",
-            );
-        }
+        assert_eq!(
+            words(
+                "cmd {*}$args x",
+                tcl_dialect::DialectProfile::by_name("tcl8.4")
+            ),
+            vec![vec!["cmd", "*${args}", "x"]],
+            "tcl8.4 has no `{{*}}` expansion",
+        );
+        // F5 reclassification (measurements §1/§3 row 6,
+        // `docs/design/bigip-irule-parser-measurements.md`): on the F5
+        // fork the implicit word break wins over everything — `{*}` is
+        // the literal `*` word plus the *separate* unexpanded word
+        // (measured `list {*}{a b}` → `* {a b}` on TMM), never the old
+        // welded `*${args}` single word and never an expansion.
+        assert_eq!(
+            words("cmd {*}$args x", tcl_dialect::DialectProfile::irules()),
+            vec![vec!["cmd", "*", "${args}", "x"]],
+            "the F5 word break splits after the literal `*`",
+        );
     }
 
     /// The per-word facts `scan_command` reads, as the segmenter now supplies
@@ -1296,16 +1305,26 @@ computed; got {b:?}"
     /// free to move stores across a write that can land on any name.
     #[test]
     fn an_expansionless_computed_name_statement_raises_the_write_barrier() {
-        for dialect in ["tcl8.4", "f5-irules"] {
-            let b = barrier_for_dialect(
-                "proc f {n} { set {*}$n 1; return ok }\n",
-                tcl_dialect::DialectProfile::by_name(dialect),
-            );
-            assert!(
-                b.writes,
-                "{dialect}: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
-            );
-        }
+        let b = barrier_for_dialect(
+            "proc f {n} { set {*}$n 1; return ok }\n",
+            tcl_dialect::DialectProfile::by_name("tcl8.4"),
+        );
+        assert!(
+            b.writes,
+            "tcl8.4: `set {{*}}$n 1` names `*$n` — a computed name; got {b:?}",
+        );
+        // F5 reclassification (measurements §1/§3 row 6): under the fork's
+        // implicit word break `{*}$n` is TWO words — the literal `*` and
+        // `$n` — so there is no welded computed name here any more; the
+        // genuinely computed spelling still raises the barrier.
+        let b = barrier_for_dialect(
+            "proc f {n} { set x$n 1; return ok }\n",
+            tcl_dialect::DialectProfile::irules(),
+        );
+        assert!(
+            b.writes,
+            "f5-irules: `set x$n 1` is a computed name; got {b:?}",
+        );
     }
 
     /// The 9.0 grammar reaches the same answer by the path it always did:

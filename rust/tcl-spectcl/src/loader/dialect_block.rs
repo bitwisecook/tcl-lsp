@@ -55,7 +55,10 @@
 //! catalogue.
 
 use tcl_dialect::model::{BuildProfileId, Family, Release, grammar};
-use tcl_dialect::{BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar, NumberSyntax};
+use tcl_dialect::{
+    BraceLineContinuation, BracedVarStyle, EscapeSyntax, ExprCommentStyle, LexerGrammar,
+    NumberSyntax,
+};
 
 use super::{Log, Stmt, block, next_text};
 
@@ -92,6 +95,10 @@ const AXES: &[Axis] = &[
     },
     Axis {
         name: "irules_brace_separator",
+        values: &["on", "off"],
+    },
+    Axis {
+        name: "brace_line_continuation",
         values: &["on", "off"],
     },
     Axis {
@@ -187,6 +194,11 @@ impl PackDialect {
         Some(LexerGrammar {
             expand_syntax: flag("expand_syntax", true)?,
             irules_brace_separator: flag("irules_brace_separator", false)?,
+            brace_line_continuation: if flag("brace_line_continuation", false)? {
+                BraceLineContinuation::Continues
+            } else {
+                BraceLineContinuation::Terminates
+            },
             braced_var,
             script_skips_leading_bom: flag("bom_skip", true)?,
             expr_comments,

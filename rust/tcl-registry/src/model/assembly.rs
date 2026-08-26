@@ -496,10 +496,14 @@ mod tests {
                 .collect();
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
+            // F5 reclassification (measurements §4a): the iapps/tmsh
+            // rows compare against the documented reclassified twin —
+            // see `crate::model::f5_reclassified_oracle`.
+            let oracle = crate::model::f5_reclassified_oracle(profile);
             let definition = environments.resolve(profile.name).expect(profile.name);
             let context = ResolvedContext::resolve(definition, &keyed);
             for (name, spec, declarations) in &translated {
-                let old = profile.is_available(spec);
+                let old = oracle.is_available(spec);
                 let new = context.is_available(declarations);
                 assert_eq!(
                     old, new,
@@ -525,10 +529,14 @@ mod tests {
     fn per_environment_visibility_reproduces_the_old_registries() {
         let mut names_checked = 0usize;
         for profile in DialectProfile::all() {
+            // F5 reclassification (measurements §4a): compare against
+            // the reclassified twin for iapps/tmsh — see
+            // `crate::model::f5_reclassified_oracle`.
+            let oracle = crate::model::f5_reclassified_oracle(profile);
             let old_registry = registry_for_profile(profile);
             let old_visible: BTreeSet<&str> = old_registry
                 .command_names()
-                .filter(|name| profile.resolve_command(old_registry, name).is_some())
+                .filter(|name| oracle.resolve_command(old_registry, name).is_some())
                 .collect();
             let new_registry = new_registry_for(profile.name);
             let new_visible: BTreeSet<&str> =
@@ -541,7 +549,7 @@ mod tests {
                 profile.name
             );
             for name in &old_visible {
-                let old = profile
+                let old = oracle
                     .resolve_command(old_registry, name)
                     .expect("visible name resolves");
                 let new = new_registry
@@ -623,6 +631,10 @@ mod tests {
 
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
+            // F5 reclassification (measurements §4a): the hand-rolled
+            // rule runs on the reclassified twin for iapps/tmsh.
+            let oracle = crate::model::f5_reclassified_oracle(profile);
+            let profile: &DialectProfile = &oracle;
             let generation = new_registry_for(profile.name);
             let store = generation.commands();
             for name in store.command_names() {

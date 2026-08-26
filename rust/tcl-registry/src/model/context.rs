@@ -273,6 +273,35 @@ impl ResolvedContext {
                 primary: single_line.then(|| core_release.clone()).flatten(),
                 targets,
             });
+            // Fork lineage (measurements §4/§4a): a fork-of-Tcl core
+            // embeds its fork parent's core, so each ancestor axis gets a
+            // point primary — the Tcl root at the measured fork
+            // patchlevel (8.4.6), an intermediate hop at its own
+            // release's spelling where that spelling is a version. The
+            // `f5-irules` offshoot's closed load-time resolution keeps
+            // its ancestor surface explicit per spec instead
+            // (`provider_active`), so it takes no lineage floors either.
+            if !core.family.closed_load_time_resolution() {
+                let mut parent = core.family.fork_parent();
+                while let Some((ancestor, release)) = parent {
+                    let axis = VersionAxisId::core(ancestor);
+                    if floors.floor(&axis).is_none() {
+                        let point = if ancestor == tcl_dialect::model::Family::Tcl {
+                            Version::parse(tcl_dialect::model::Family::F5_FORK_POINT).ok()
+                        } else {
+                            Version::parse(release.as_str()).ok()
+                        };
+                        if let Some(point) = point {
+                            floors.set(AxisFloor {
+                                axis: axis.clone(),
+                                targets: point_set(&axis, &point),
+                                primary: Some(point),
+                            });
+                        }
+                    }
+                    parent = ancestor.fork_parent();
+                }
+            }
         }
         for placement in &environment.expected_packages {
             let axis = VersionAxisId::package(&placement.package);
@@ -383,15 +412,38 @@ impl ResolvedContext {
     }
 
     /// Whether `provider` is active here: a core provider iff it is the
-    /// environment's core family, a package provider per
+    /// environment's core family **or a fork ancestor of it** (a
+    /// fork-of-Tcl core embeds the fork point's Tcl core, measurements
+    /// §4/§4a — so a `Core(Tcl)` declaration reaches an `f5-tcl`-core
+    /// environment through the fork edge, admitted at the fork-point
+    /// release by [`Self::primary_admits`]); a package provider per
     /// [`Self::package_active`].
+    ///
+    /// The one exception is a core family with **closed load-time
+    /// resolution** (`f5-irules`, measurements §4a/§4b): its embedded
+    /// ancestor surface is explicit per spec — a command exists there iff
+    /// its own declaration says so — so the fork-lineage channel is
+    /// deliberately not open, exactly as the old bare-`IRULES` mask never
+    /// admitted a plain Tcl-version gate.
     #[must_use]
     pub fn provider_active(&self, provider: &Provider) -> bool {
         match provider {
-            Provider::Core(family) => self
-                .environment
-                .core
-                .is_some_and(|core| core.family == *family),
+            Provider::Core(family) => self.environment.core.is_some_and(|core| {
+                if core.family == *family {
+                    return true;
+                }
+                if core.family.closed_load_time_resolution() {
+                    return false;
+                }
+                let mut parent = core.family.fork_parent();
+                while let Some((ancestor, _)) = parent {
+                    if ancestor == *family {
+                        return true;
+                    }
+                    parent = ancestor.fork_parent();
+                }
+                false
+            }),
             Provider::Package(package) => self.package_active(package.as_str()),
         }
     }
@@ -921,6 +973,15 @@ fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
                     }
                 }
             }
+            Family::F5Tcl => {
+                // measurements §4a (F5 reclassification,
+                // `docs/design/bigip-irule-parser-measurements.md`): the
+                // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed
+                // the fork of Tcl at 8.4.6 — every 8.4/8.5 discriminator
+                // behaves as 8.4 — so the embedded core admits the 8.4
+                // line, not the falsified 8.5 one the old profiles claim.
+                mask = mask.union(DialectSet::TCL84);
+            }
             Family::F5Irules => {
                 mask = mask.union(DialectSet::IRULES);
             }
@@ -1287,8 +1348,11 @@ mod tests {
             assert_eq!(expected, bits.bits().count_ones(), "{bits:?} popcount");
         }
         // The universal translation is strictly wider than any explicit
-        // gate (old rule: a catch-all loses to every scoped spec).
-        assert_eq!(specificity_breadth(&rows(None)), 22);
+        // gate (old rule: a catch-all loses to every scoped spec). 23 =
+        // 5 Tcl releases + 1 f5-tcl + 1 f5-irules + 9 jim + 7 vendor
+        // packages — the `f5-tcl` trunk family (measurements §4a) added
+        // its row in the F5 reclassification.
+        assert_eq!(specificity_breadth(&rows(None)), 23);
         // A hosted attribution row adds no specificity, mirroring the old
         // popcount which never counted `required_package`.
         let hosted = declarations_for_spec(&CommandSpec {
@@ -1311,6 +1375,12 @@ mod tests {
         use tcl_dialect::DialectProfile;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
+            // F5 reclassification (measurements §4a): the iapps/tmsh
+            // rows compare against the reclassified twin — see
+            // `crate::model::f5_reclassified_oracle` for the three
+            // documented deltas (mask, ceiling, operator heads).
+            let oracle = crate::model::f5_reclassified_oracle(profile);
+            let profile: &DialectProfile = &oracle;
             assert_eq!(
                 ctx.authoring_mask(),
                 profile.availability_mask,
@@ -1399,6 +1469,11 @@ mod tests {
         let mut checks = 0usize;
         for profile in DialectProfile::all() {
             let ctx = context(profile.name);
+            // F5 reclassification (measurements §4a): iapps/tmsh compare
+            // against the reclassified twin — see
+            // `crate::model::f5_reclassified_oracle`.
+            let oracle = crate::model::f5_reclassified_oracle(profile);
+            let profile: &DialectProfile = &oracle;
             for name in universe.command_names() {
                 for spec in universe.specs(name) {
                     assert_eq!(

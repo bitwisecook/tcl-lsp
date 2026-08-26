@@ -79,6 +79,7 @@ pub mod hooks;
 pub mod hover;
 pub mod intrinsic;
 pub mod invocation_words;
+pub mod irules_policy;
 pub mod lifecycle;
 pub mod literal_validation;
 pub mod mathfunc;

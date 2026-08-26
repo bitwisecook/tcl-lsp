@@ -204,7 +204,12 @@ fn main() {
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
         file.set_text(&mut db).to(edited.clone());
         let _ = compiler_check_diagnostics(&db, file, cfg);
-        let cfg_key = LexerCfgKey::new(&db, cfg_d.expand_syntax, cfg_d.irules_brace_separator);
+        let cfg_key = LexerCfgKey::new(
+            &db,
+            cfg_d.expand_syntax,
+            cfg_d.irules_brace_separator,
+            cfg_d.brace_line_continuation,
+        );
         let mut dup_files = (0..DUP_ITERS)
             .map(|_| SourceFile::new(&db, edited.clone(), dialect.to_owned(), None))
             .collect::<Vec<_>>()

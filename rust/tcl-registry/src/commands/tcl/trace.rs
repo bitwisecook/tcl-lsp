@@ -1086,6 +1086,14 @@ static SUBCOMMANDS: &[SubCommand] = &[
         world_effects: Some(TRACE_ADD_EFFECTS),
         state_transitions: Some(TRACE_ADD_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
+        // measurements §5 (`docs/design/bigip-irule-parser-measurements.md`,
+        // BIG-IP 21.1.0.1): TMM's `trace` is the 8.3-era form ONLY —
+        // `trace add variable …` fails with `wrong # args` — so the modern
+        // ensemble subcommands carry `ALL_TCL` (every real Tcl core, no
+        // `IRULES` bit) and never intersect the bare iRules mask. This is
+        // an arity/form gate on the embedded fork, not a command removal:
+        // `trace` itself stays present in iRules.
+        dialects: Some(DialectSet::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1111,6 +1119,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         }],
         world_effects: Some(TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
+        // measurements §5: 8.3-form-only on TMM — see `add` above.
+        dialects: Some(DialectSet::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1140,6 +1150,8 @@ static SUBCOMMANDS: &[SubCommand] = &[
         world_effects: Some(TRACE_REMOVE_EFFECTS),
         state_transitions: Some(TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_modern_trace_operations),
+        // measurements §5: 8.3-form-only on TMM — see `add` above.
+        dialects: Some(DialectSet::ALL_TCL),
         ..SubCommand::DEFAULT
     },
     SubCommand {
@@ -1171,8 +1183,11 @@ static SUBCOMMANDS: &[SubCommand] = &[
         // boundaries as ordered releases on the Tcl core axis, so a file
         // targeting 8.x is told the form is deprecated (W144) and a
         // `package require Tcl` range spanning 9.0 is told it does not hold
-        // across the whole range.
-        dialects: Some(DialectSet::TCL8X),
+        // across the whole range. The `IRULES` bit is measured
+        // (measurements §5, BIG-IP 21.1.0.1): TMM's `trace` accepts the
+        // 8.3-era forms ONLY — this one works where `trace add` is
+        // `wrong # args` — an arity/form gate, not a removal.
+        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1198,8 +1213,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         state_transitions: Some(LEGACY_TRACE_REMOVE_TRANSITIONS),
         literal_argument_validator: Some(validate_legacy_trace_operations),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
-        // `variable` above for why both `dialects` and `lifecycle` state it.
-        dialects: Some(DialectSet::TCL8X),
+        // `variable` above for why both `dialects` and `lifecycle` state
+        // it, and for the measured iRules 8.3-form-only gate.
+        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1222,8 +1238,9 @@ static SUBCOMMANDS: &[SubCommand] = &[
         world_effects: Some(LEGACY_TRACE_INFO_EFFECTS),
         state_transitions: Some(StateTransitionDescriptor::EMPTY),
         // Deprecated legacy form; removed in Tcl 9.0 (8.4-8.6 only) — see
-        // `variable` above for why both `dialects` and `lifecycle` state it.
-        dialects: Some(DialectSet::TCL8X),
+        // `variable` above for why both `dialects` and `lifecycle` state
+        // it, and for the measured iRules 8.3-form-only gate.
+        dialects: Some(DialectSet::TCL8X.union(DialectSet::IRULES)),
         lifecycle: Lifecycle::deprecated_in("8.4").retired_from("9.0"),
         ..SubCommand::DEFAULT
     },
@@ -1263,25 +1280,22 @@ pub fn spec() -> CommandSpec {
         // explicitly (`ALL_TCL.union(IRULES)`), so it resolves under the
         // bare `IRULES` mask, and every dialect that hosts a real Tcl core
         // (irules, iapps, tmsh, the EDA shells, expect, tk, itcl) carries
-        // it unmodified. Its legal *subcommand* set still narrows per Tcl
-        // version through each SubCommand's own `dialects` gate below. That
-        // `TCL8X` gate on `variable`/`vdelete`/`vinfo` is a bare
-        // Tcl-version mask, so per
-        // `ProfileQueries::is_subcommand_available` it correctly extends to
-        // every OTHER dialect whose `availability_mask` composes a real
-        // embedded Tcl-version bit with its own vendor bit (f5-iapps and
-        // f5-tmsh at `TCL85`, the EDA shells at `TCL85`/`TCL86`, Expect at
-        // `TCL86`) — but NOT to f5-irules, whose mask is the bare `IRULES`
-        // bit with no Tcl-version bit unioned in (iRules availability is
-        // fully explicit per spec — a command carries the `IRULES` bit iff
-        // iRules enables it, so the mask needs no Tcl-version bit). A pure
-        // Tcl-version gate never intersects that bare mask regardless of
-        // iRules' embedded-8.4 runtime — the same intersects-only
-        // membership rule `tests/dialect_profile.rs`'s
-        // `option_gating_honours_the_version_ceiling` documents for option
-        // gating applies identically to subcommand gating — so whether real
-        // F5 iRules exposes these three legacy forms is left unmodelled
-        // here rather than guessed.
+        // it. Its legal *subcommand* set narrows per Tcl version through
+        // each SubCommand's own `dialects` gate below — and, now
+        // MEASURED (`docs/design/bigip-irule-parser-measurements.md` §5,
+        // BIG-IP 21.1.0.1), per iRules too: TMM's `trace` is the 8.3-era
+        // form ONLY. `trace add variable …` fails with `wrong # args`, so
+        // the modern `add`/`info`/`remove` subcommands carry `ALL_TCL`
+        // (never intersecting the bare `IRULES` mask) while the legacy
+        // `variable`/`vdelete`/`vinfo` forms carry
+        // `TCL8X.union(IRULES)` — an arity/form gate on the embedded
+        // 8.4.6 fork, not a command removal. The `TCL8X` half still
+        // extends to every dialect whose `availability_mask` composes a
+        // real embedded Tcl-version bit with its vendor bit (f5-iapps and
+        // f5-tmsh on the fork's 8.4 line, the EDA shells at
+        // `TCL85`/`TCL86`, Expect at `TCL86`), per the same
+        // intersects-only membership rule `tests/dialect_profile.rs`'s
+        // `option_gating_honours_the_version_ceiling` documents.
         dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)),
         traits: Traits::CREATES_BARRIER | Traits::CREATES_DYNAMIC_BARRIER | Traits::BYTE_COMPILED,
         arity: Arity::at_least(1),
