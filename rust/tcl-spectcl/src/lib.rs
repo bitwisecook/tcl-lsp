@@ -67,6 +67,7 @@ pub mod bundled;
 pub mod cache;
 pub mod catalogue;
 pub mod discovery;
+pub mod export;
 pub mod hooks;
 pub mod install;
 pub mod loader;
@@ -74,14 +75,15 @@ pub mod pack;
 pub mod upgrade;
 
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
+pub use export::{ExportLoss, Registration, export_pack, export_pack_reporting};
 pub use install::registry_with_packs;
 pub use loader::{
     AmbientPackage, ClauseGrammar, EvalOptions, EvalSnapshotKey, HookDecl, HookFamily, HookOwner,
     HookSource, KNOWN_VOCABULARY_VERSIONS, LOADER_EVAL_VERSION, LoadError,
     NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, PackDialect, PackDialectAxis,
     PackEnvironment, PackEnvironmentTier, VocabularyClass, eval_snapshot_key, evaluate_pack,
-    evaluate_pack_cached, evaluate_pack_with, load_pack, roles_from_manufacturers,
-    speclib_version_span,
+    evaluate_pack_cached, evaluate_pack_with, load_pack, provenance_violation,
+    roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
 pub use upgrade::{

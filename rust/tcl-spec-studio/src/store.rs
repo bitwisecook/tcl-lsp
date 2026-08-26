@@ -27,6 +27,11 @@
 //!   the `.tclspec` text**. Drafts are *derived* from that text by the real
 //!   loader, never held alongside it, so the DSL pane and the form are two
 //!   projections of one document rather than two stores to keep in sync.
+//!   The derivation runs the **evaluation loader** (design E §15.2): a pack
+//!   may be a program, so what the store browses is the *snapshot* it
+//!   registered. A canonical pack — every pack shipped today — is unchanged
+//!   by that, and [`PackStore::declaration_site`] says which declarations
+//!   are literal text and which a loop produced.
 //! - **[`Resolution`]** — one facade over the pair, applying the shipped
 //!   collision policy (`shipped wins unless the pack says -override`, the rule
 //!   `tcl_spectcl::pack::installs_over` encodes) so every surface queries the
@@ -73,7 +78,7 @@
 //!
 //! ## A note on cost
 //!
-//! `tcl_spectcl::loader::load_pack` leaks its specs (`Box::leak`), because a
+//! The loader leaks its specs (`Box::leak`), because a
 //! loaded pack is meant to live as long as the server process. In a long-lived
 //! browser page that makes every reload a small permanent allocation, so
 //! callers should debounce keystrokes and reuse a [`PackStore`] rather than
@@ -90,6 +95,7 @@ use tcl_dialect::DialectProfile;
 use tcl_lexer::{LexerConfig, SourceMap};
 use tcl_registry::CommandRegistry;
 use tcl_registry::cache::registry_for_dialect;
+use tcl_spectcl::Tier;
 use tcl_spectcl::loader::{self, FileExtension, HookOwner, HookSource, Notice, Pack};
 use tcl_spectcl::pack::{MergedPack, PackSet};
 
@@ -197,28 +203,86 @@ pub struct Write {
     pub upgraded_from: Option<String>,
 }
 
+/// Where one browsable command was declared, and how it got there.
+///
+/// The data plumbing behind an "expanded from" label: design E lets a pack
+/// register commands from a loop, and a surface that shows the *snapshot*
+/// has to be able to say which declarations are literal text the author can
+/// edit and which are a program's output that they cannot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclarationSite {
+    /// The line the `command` statement was made on. For an expanded
+    /// command that is the line **inside the program** that registered it.
+    pub line: u32,
+    /// The file, when the pack came through a merge that knows one. Always
+    /// `None` for a document open in the studio, which has no file.
+    pub file: Option<std::path::PathBuf>,
+    /// Whether the declaration is a program's output rather than a statement
+    /// in this document.
+    pub expanded: bool,
+}
+
 /// The user's definitions, backed by one `.tclspec` document.
 ///
 /// The text is the store. Everything else on this struct is derived from it by
-/// [`loader::load_pack`] and recomputed whenever the text changes, so there is
-/// no second copy of the truth to drift.
+/// [`loader::evaluate_pack_with`] and recomputed whenever the text changes, so
+/// there is no second copy of the truth to drift.
 pub struct PackStore {
     source: String,
     pack: Pack,
+    /// The provenance tier the document is *evaluated* under (E-R2).
+    tier: Tier,
     /// One draft per declared command, in declaration order — derived, and the
     /// only thing the form is ever handed.
     drafts: Vec<(String, Draft)>,
 }
 
+/// The tier a document open in the studio evaluates under.
+///
+/// **Trusted, deliberately.** E-R2 gates what a pack loaded *from* an
+/// untrusted tier may register — it is a question about where a file was
+/// discovered, and the answer for the document under the author's own cursor
+/// is "they wrote it". Gating the editing buffer would make the studio unable
+/// to author the one thing E-R2 is about: a `-override` on a compiled name is
+/// a first-class studio operation ([`PackStore::set_command`] takes it as an
+/// argument), and evaluating the buffer as untrusted would discard the whole
+/// pack the moment the author ticked that box.
+///
+/// The gate is not lost, only moved to where it belongs: [`PackStore::pack_set`]
+/// still installs at [`Tier::Workspace`], and
+/// [`PackStore::untrusted_tier_refusal`] reports — without failing anything —
+/// what a workspace or Spec Studio load would refuse, so a surface can warn
+/// before the pack silently fails to load in an editor.
+const AUTHORING_TIER: Tier = Tier::Bundled;
+
 impl PackStore {
-    /// Load `source` as the store's document.
+    /// Load `source` as the store's document, at the authoring tier.
     ///
     /// Never fails: an unparsable or empty document loads as a pack with no
     /// commands and the loader's notices explaining why.
     #[must_use]
     pub fn from_source(source: impl Into<String>) -> Self {
+        Self::from_source_at_tier(source, AUTHORING_TIER)
+    }
+
+    /// [`PackStore::from_source`] at an explicit provenance tier.
+    ///
+    /// The document is **evaluated** (design E §1), not walked: a pack may be
+    /// a program, and the studio browses the *snapshot* it registered rather
+    /// than the text that registered it. For a canonical pack — every pack
+    /// shipped today — nothing observable changes, which is what the
+    /// equivalence gate (`tcl-spectcl/tests/eval_loader.rs`) and the studio's
+    /// own round-trip suite hold this to.
+    #[must_use]
+    pub fn from_source_at_tier(source: impl Into<String>, tier: Tier) -> Self {
         let source = source.into();
-        let pack = loader::load_pack(&source);
+        let pack = loader::evaluate_pack_with(
+            &source,
+            &loader::EvalOptions {
+                tier,
+                ..loader::EvalOptions::default()
+            },
+        );
         let drafts = pack
             .commands
             .iter()
@@ -227,8 +291,56 @@ impl PackStore {
         Self {
             source,
             pack,
+            tier,
             drafts,
         }
+    }
+
+    /// The provenance tier this document evaluates under.
+    #[must_use]
+    pub const fn tier(&self) -> Tier {
+        self.tier
+    }
+
+    /// Whether the document queried `available?` while it registered (E-R1).
+    ///
+    /// A target-dependent pack's snapshot is one *target's* answer rather
+    /// than the pack's: the commands below are what this analysis target
+    /// would see, and another would see a different set. The store surfaces
+    /// it so a surface can say so; nothing here changes because of it.
+    #[must_use]
+    pub const fn target_dependent(&self) -> bool {
+        self.pack.target_dependent
+    }
+
+    /// What an untrusted tier would refuse this document for, as
+    /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
+    ///
+    /// `None` for every pack that touches nothing reserved, which is nearly
+    /// all of them.
+    #[must_use]
+    pub fn untrusted_tier_refusal(&self) -> Option<(u32, String)> {
+        tcl_spectcl::provenance_violation(&self.pack, Tier::Workspace)
+    }
+
+    /// Where a command was declared: the line of its `command` statement, the
+    /// file when one is known, and whether it was **expanded** from a program
+    /// rather than written out.
+    ///
+    /// The expansion flag is derived, not stored: a literal declaration has a
+    /// `command NAME { … }` statement in this very document, and one a loop
+    /// registered does not. That is the fact a surface needs to label a
+    /// browsable command "expanded from `bench-command`, line 12" — and the
+    /// reason such a command must not be edited in place (E-R12: a programmed
+    /// pack is never rewritten by the studio).
+    #[must_use]
+    pub fn declaration_site(&self, name: &str) -> Option<DeclarationSite> {
+        let command = self.pack.command(name)?;
+        Some(DeclarationSite {
+            line: command.line,
+            file: (!command.file.as_os_str().is_empty()).then(|| command.file.clone()),
+            expanded: command_span(&self.source, name).is_none(),
+        })
     }
 
     /// An empty pack document named `pack_name` — the "start a new library"
@@ -344,7 +456,7 @@ impl PackStore {
             packs: vec![MergedPack {
                 name: name.clone(),
                 dsl_version: self.pack.dsl_version.clone(),
-                tier: tcl_spectcl::Tier::Workspace,
+                tier: Tier::Workspace,
                 files: vec![std::path::PathBuf::from(format!("{name}.tclspec"))],
                 display_name: self.pack.display_name.clone(),
                 file_extensions: self.pack.file_extensions.clone(),
@@ -549,7 +661,17 @@ impl PackStore {
     /// put inside its `speclib` braces, which is the command block plus any
     /// value tables it needs.
     fn render_block(&self, draft: &Draft, overrides: bool) -> String {
-        let one = render_spectcl::render_pack(std::slice::from_ref(draft), self.name());
+        // In the *document's* vocabulary, not the renderer's newest: a block
+        // spliced into a pack that declares 1.1 must be a 1.1 block, or the
+        // document ends up with words newer than its own header — the
+        // inconsistency the loader reports per site (#1627). A draft that
+        // genuinely needs newer vocabulary has already raised the header by
+        // the time this runs (`draft_requires_vocabulary_upgrade`).
+        let one = render_spectcl::render_pack_with_version(
+            std::slice::from_ref(draft),
+            self.name(),
+            self.render_version(),
+        );
         let name = draft
             .get("name")
             .and_then(Value::as_str)
@@ -965,10 +1087,20 @@ impl<'a> Resolution<'a> {
             .map(|(name, d)| {
                 let origin = self.origin(name).unwrap_or(Origin::Pack);
                 let notices = self.store.notices_for(name);
+                let site = self.store.declaration_site(name);
                 json!({
                     "name": name,
                     "origin": origin.key(),
                     "override": self.store.overrides_shipped(name),
+                    // Where the declaration is, and whether the author can
+                    // edit it at all: an expanded command is a program's
+                    // output (E-R12 — the studio never rewrites a programmed
+                    // pack), so a surface labels it rather than opening it.
+                    "declared_at": site.as_ref().map(|site| json!({
+                        "line": site.line,
+                        "file": site.file.as_ref().map(|f| f.display().to_string()),
+                        "expanded": site.expanded,
+                    })),
                     "summary": summary_of(d),
                     "fields_set": fields_set(d, &defaults).len(),
                     "subcommands": count_of(d, "subcommands"),
@@ -1029,6 +1161,14 @@ impl<'a> Resolution<'a> {
             "file_extensions": file_extensions_json(self.store.file_extensions()),
             "dsl_version": self.store.dsl_version(),
             "dialect": self.builtins.dialect(),
+            // Two facts only the evaluation loader can report: whether this
+            // surface is one analysis target's answer (E-R1), and what an
+            // untrusted tier would refuse the document for (E-R2).
+            "target_dependent": self.store.target_dependent(),
+            "untrusted_tier_refusal": self
+                .store
+                .untrusted_tier_refusal()
+                .map(|(line, why)| json!({ "line": line, "reason": why })),
             "commands": self.pack_index(),
             "notices": notices_json(&self.store.notices().iter().collect::<Vec<_>>()),
             "collisions": collisions,
@@ -1862,5 +2002,89 @@ command add_parameter {\narity 1..\n}\n}\n";
         for (name, d) in store.commands() {
             assert_eq!(canonical.draft(name), Some(d), "{name} changed meaning");
         }
+    }
+
+    // ── The evaluation loader underneath (design E §15.2) ─────────────
+
+    /// A canonical document is observably what it always was: the store
+    /// browses the same commands, in the same order, with the same drafts.
+    #[test]
+    fn a_canonical_document_is_unchanged_by_evaluation() {
+        let store = PackStore::from_source(PACK);
+        assert_eq!(store.name(), "demo");
+        let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, vec!["greet", "farewell"]);
+        assert!(!store.target_dependent());
+        assert_eq!(store.untrusted_tier_refusal(), None);
+        // Every declaration is a statement in this document, so none is an
+        // expansion.
+        for (name, _) in store.commands() {
+            let site = store.declaration_site(name).expect("a declaration site");
+            assert!(!site.expanded, "{name}: {site:?}");
+            assert!(site.line > 0, "{name}: {site:?}");
+            assert_eq!(site.file, None);
+        }
+    }
+
+    /// A *programmed* document browses its snapshot: the loop's output is
+    /// browsable, and each derived command is marked as an expansion with
+    /// the line inside the program that registered it.
+    #[test]
+    fn a_programmed_document_browses_its_expansion_with_provenance() {
+        let store = PackStore::from_source(
+            "speclib fleet 2.0 {\n    \
+             proc fleet-command {name} {\n        \
+             command fleet::$name {\n            arity 1\n        }\n    }\n    \
+             foreach name {alpha beta} { fleet-command $name }\n}\n",
+        );
+        let names: Vec<&str> = store.commands().iter().map(|(n, _)| n.as_str()).collect();
+        assert_eq!(names, vec!["fleet::alpha", "fleet::beta"]);
+        for name in names {
+            let site = store.declaration_site(name).expect("a declaration site");
+            assert!(site.expanded, "{name}: {site:?}");
+            // The line points *into the program* — the registering statement,
+            // not a `command` statement in the file, because there is none.
+            assert!(site.line > 1, "{name}: {site:?}");
+            assert!(
+                crate::store::command_span(store.source(), name).is_none(),
+                "{name}: an expanded command has no statement of its own"
+            );
+        }
+    }
+
+    /// `available?` makes the browsed surface one target's answer, and the
+    /// store says so.
+    #[test]
+    fn a_target_dependent_document_is_flagged() {
+        let store = PackStore::from_source(
+            "speclib trap 2.0 {\n    default available {tcl 8.6-}\n    \
+             command base { arity 1 }\n    if {[available? {tcl 8.6-}]} {\n        \
+             command extra { arity 1 }\n    }\n}\n",
+        );
+        assert!(store.target_dependent());
+        assert_eq!(store.commands().len(), 2);
+    }
+
+    /// The authoring buffer is trusted — a studio author may write an
+    /// `-override` on a compiled name — and the refusal a workspace load
+    /// would raise is reported instead of applied.
+    #[test]
+    fn an_override_is_authorable_and_its_workspace_refusal_is_reported() {
+        let store = PackStore::from_source(
+            "speclib demo 2.0 {\n    command lsort -override {\n        arity 1..\n    }\n}\n",
+        );
+        assert_eq!(store.tier(), Tier::Bundled);
+        assert_eq!(store.commands().len(), 1, "{:#?}", store.notices());
+        assert!(store.overrides_shipped("lsort"));
+        let (line, why) = store
+            .untrusted_tier_refusal()
+            .expect("a workspace tier would refuse this");
+        assert_eq!(line, 2);
+        assert!(why.contains("design E-R2"), "{why}");
+
+        // And loaded *as* a workspace pack it really is refused, which is
+        // what the report is warning about.
+        let workspace = PackStore::from_source_at_tier(store.source(), Tier::Workspace);
+        assert!(workspace.commands().is_empty());
     }
 }

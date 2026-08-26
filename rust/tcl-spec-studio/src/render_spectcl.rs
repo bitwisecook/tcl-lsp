@@ -84,16 +84,34 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 /// inconsistency the loader's per-site notice reports, and pinning this to a
 /// stale literal made the renderer produce it (#1627).
 ///
-/// It tracked [`tcl_spectcl::NEWEST_VOCABULARY_VERSION`] until `SpecTcl` 2.0,
-/// where the two parted company: 2.0's additions are `available`, the
-/// `environment` block, and the `dialect` block, and the renderer emits none
-/// of them yet — it still writes `dialects` and has no pack-level rows at all.
-/// A rendered pack declaring `2.0` over an entirely 1.x body would be the
-/// mirror of #1627 and, by the upgrade tool's own U1 rule, a *failed* upgrade
-/// wearing a 2.0 header. So this is pinned at the newest vocabulary the
-/// renderer can actually reach, and moves to `2.0` when the renderer learns
-/// the 2.0 spellings (the invocation-refinement work, redesign §6.2).
-pub const DSL_VERSION: &str = "1.2";
+/// It parted company with [`tcl_spectcl::NEWEST_VOCABULARY_VERSION`] for one
+/// release, and is back on it. The pin at `1.2` said: 2.0's additions are
+/// `available`, the `environment` block, and the `dialect` block, the
+/// renderer emitted none of them, and a 2.0 header over an entirely 1.x body
+/// would be a failed upgrade wearing a 2.0 header — so the constant sat at
+/// the newest vocabulary the renderer could actually *reach*, and would move
+/// when the renderer learned the 2.0 spellings.
+///
+/// **It has learned the one that applies to it.** [`availability_rows`]
+/// writes every dialect set the algebra can carry as `available` /
+/// `-available` — the 2.0 word — at every scope the loader reads it:
+/// command, subcommand, option, form, side effect, option conflict, and
+/// second-level operation. A rendered body is therefore 2.0 wherever a
+/// draft says anything about availability at all, which is nearly every
+/// command in the registry, and pinning the header at 1.2 would now
+/// reproduce #1627 exactly — the loader's per-site notice on a `available`
+/// row under a 1.2 declaration.
+///
+/// The other two 2.0 additions are **pack-level blocks a draft cannot
+/// hold**: a draft is one command's model, so nothing in it renders as an
+/// `environment` or a `dialect` block, and waiting for those would pin this
+/// constant forever. What remains of the old worry is a draft that says
+/// nothing about availability, whose body is 1.x under a 2.0 header. That is
+/// the harmless direction: over-declaring produces no notice anywhere (the
+/// loader only reports a *site newer than* the declaration), and a pack the
+/// renderer just wrote has no legacy rows left untranslated for U1 to fail
+/// on — it has fields, not rows.
+pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.
@@ -388,6 +406,135 @@ fn list_word<S: AsRef<str>>(items: &[S]) -> Option<String> {
 fn str_list_word(value: &Value) -> Option<String> {
     let items: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
     list_word(&items)
+}
+
+/// The `SpecTcl` 2.0 availability algebra, as the rows of an `available`
+/// word — the canonical spelling of what 1.x said with `dialects`.
+///
+/// `docs/design/dialect-and-package-registry-redesign.md` §6.2 gives every
+/// scope that accepts `dialects` a second spelling, and the loader projects
+/// the two onto exactly the same fields (`tcl_spectcl::loader::available`),
+/// so this is a **rewording, not a re-meaning**: the round trip cannot tell
+/// which word carried the set, and the round-trip gate proves it command by
+/// command.
+///
+/// `None` when the set has no faithful spelling in the algebra, and the
+/// caller keeps `dialects`. Two cases, both real:
+///
+/// - **A bit with no provider.** `f5-iapps`, `expect`, `bpf`, `f5-tmsh`,
+///   `f5-bigip`, and `spectcl` are dialect bits the algebra's closed
+///   provider list (`tcl`, `f5-irules`, `jim`, `package NAME`) does not
+///   name. §6.1 keeps `dialects` loading forever precisely so a set the new
+///   word cannot say is still sayable.
+/// - **The empty set.** `dialects {}` is *declared unavailable*, and
+///   `available` with no rows is an error rather than an empty set.
+fn availability_rows(members: &[&str]) -> Option<Vec<String>> {
+    if members.is_empty() {
+        return None;
+    }
+    let mut rows: Vec<String> = Vec::new();
+    let versions: Vec<usize> = TCL_LADDER
+        .iter()
+        .enumerate()
+        .filter(|(_, version)| members.contains(*version))
+        .map(|(index, _)| index)
+        .collect();
+    // One row per contiguous run of releases, so a set the ladder covers to
+    // its end is written open (`{tcl 8.6-}`) exactly as `tcl8.6+` is.
+    let mut at = 0;
+    while at < versions.len() {
+        let mut end = at;
+        while end + 1 < versions.len() && versions[end + 1] == versions[end] + 1 {
+            end += 1;
+        }
+        let low = release_of(versions[at]);
+        rows.push(if at == end {
+            // A bare `X.Y` names that release line only, which is exactly
+            // what one `tclX.Y` bit means — an open window would claim a
+            // release the set does not hold.
+            format!("tcl {low}")
+        } else if versions[end] + 1 == TCL_LADDER.len() {
+            // A run that reaches the newest release is written open, the way
+            // `tclX.Y+` is: both track the ladder as it grows.
+            format!("tcl {low}-")
+        } else {
+            // **The upper bound is exclusive**, as it is in every Tcl version
+            // requirement (`package require`'s own `min-max` reads
+            // `min <= v < max`), so a closed run names the release *after*
+            // its last one: {8.4, 8.5, 8.6} is `tcl 8.4-9.0`.
+            format!("tcl {low}-{}", release_of(versions[end] + 1))
+        });
+        at = end + 1;
+    }
+    for member in members {
+        if TCL_LADDER.contains(member) {
+            continue;
+        }
+        match *member {
+            "f5-irules" => rows.push("f5-irules".to_owned()),
+            // The exact inverse of `tcl spec upgrade`'s U2 `tk` →
+            // `{package Tk}`, and the loader's `PACKAGE_DIALECT_BITS` maps it
+            // straight back onto the same bit.
+            "tk" => rows.push("package Tk".to_owned()),
+            _ => return None,
+        }
+    }
+    Some(rows)
+}
+
+/// The release word of a ladder index, without its `tcl` prefix.
+fn release_of(index: usize) -> &'static str {
+    TCL_LADDER
+        .get(index)
+        .and_then(|version| version.strip_prefix("tcl"))
+        .unwrap_or_default()
+}
+
+/// The `available …` statement's words, or `None` to keep `dialects`.
+fn available_statement(value: &Value) -> Option<String> {
+    let members: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
+    let rows = availability_rows(&members)?;
+    Some(
+        rows.iter()
+            .map(|row| format!("{{{row}}}"))
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+}
+
+/// The `-available VALUE` flag's value, or `None` to keep `-dialects`.
+///
+/// One row is written bare (`-available {tcl 8.6-}`) and several are wrapped
+/// into one list word, which is exactly how the loader's `from_flag` tells
+/// the two apart.
+fn available_flag(members: &[&str]) -> Option<String> {
+    let rows = availability_rows(members)?;
+    Some(match rows.as_slice() {
+        [only] => format!("{{{only}}}"),
+        many => format!(
+            "{{{}}}",
+            many.iter()
+                .map(|row| format!("{{{row}}}"))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
+    })
+}
+
+/// [`available_flag`] over a JSON member array.
+fn available_flag_of(value: &Value) -> Option<String> {
+    let members: Vec<&str> = as_array(value).iter().filter_map(Value::as_str).collect();
+    available_flag(&members)
+}
+
+/// One availability flag on a row: the 2.0 `-available` spelling when the
+/// algebra carries the set, and the legacy `-dialects` when it does not.
+fn push_availability_flag(row: &mut Vec<String>, lost: &mut bool, value: &Value, algebra: bool) {
+    if let Some(spelling) = algebra.then(|| available_flag_of(value)).flatten() {
+        push_flag(row, lost, "-available", Some(spelling));
+    } else {
+        push_flag(row, lost, "-dialects", dialect_set_word(value));
+    }
 }
 
 /// The five Tcl releases, in ladder order — the members the DSL's dialect-set
@@ -1139,7 +1286,7 @@ fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
 }
 
 /// `option_conflict {…}` rows from a rendered `&[OptionConstraint]`.
-fn option_conflict_rows(expr: &str) -> Option<Vec<Vec<String>>> {
+fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String>>> {
     let mut rows = Vec::new();
     for item in slice_items(expr)? {
         let fields = struct_fields(item)?;
@@ -1149,8 +1296,14 @@ fn option_conflict_rows(expr: &str) -> Option<Vec<Vec<String>>> {
             .collect();
         let mut row = vec!["option_conflict".to_owned(), list_word(&options?)?];
         if let Some(inner) = unwrap_some(fields.get("dialects")?) {
-            row.push("-dialects".to_owned());
-            row.push(dialect_words(&dialect_names(inner)?)?);
+            let members = dialect_names(inner)?;
+            if let Some(spelling) = availability.then(|| available_flag(&members)).flatten() {
+                row.push("-available".to_owned());
+                row.push(spelling);
+            } else {
+                row.push("-dialects".to_owned());
+                row.push(dialect_words(&members)?);
+            }
         }
         push_literal_lifecycle_flags(&mut row, fields.get("lifecycle").copied())?;
         rows.push(row);
@@ -1261,6 +1414,18 @@ struct Ctx<'a> {
     /// The `-native` id prefix — `lsort`, or `string::is` for a subcommand.
     scope: String,
     tables: &'a mut ValueTables,
+    /// Whether the pack being rendered declares `SpecTcl` 2.0, and may
+    /// therefore use the availability algebra.
+    ///
+    /// A renderer that emitted `available` into a pack declaring 1.x would
+    /// produce exactly the header/body inconsistency the loader reports per
+    /// site (#1627), so the *header* decides the spelling: a 2.0 pack — every
+    /// pack the studio creates, since [`DSL_VERSION`] is the newest
+    /// vocabulary — takes `available`, and a document that declares an older
+    /// vocabulary keeps `dialects` and stays a valid pack of its own
+    /// vocabulary. Moving such a document to 2.0 is `tcl spec upgrade`'s job,
+    /// not a side effect of opening it in the studio.
+    availability: bool,
 }
 
 impl Ctx<'_> {
@@ -1389,6 +1554,19 @@ fn enum_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
 
 /// Emit a flag-set property — a trait, taint-colour, or dialect set.
 fn set_word(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft, key: &str) {
+    // Availability is written in the 2.0 algebra wherever it carries the
+    // set; `dialects` stays for the bits it has no provider for, and for
+    // `safe_on_uninit`, which holds a dialect set but is not an
+    // availability question and has no `available` reader.
+    if key == "dialects"
+        && ctx.availability
+        && ctx.set(draft, key)
+        && draft[key].is_array()
+        && let Some(rows) = available_statement(&draft[key])
+    {
+        out.line(&format!("available {rows}"));
+        return;
+    }
     if ctx.set(draft, key) && draft[key].is_array() {
         let spelling = if is_dialect_set(key) {
             dialect_set_word(&draft[key])
@@ -1892,11 +2070,11 @@ fn option_row(out: &mut Out, ctx: &mut Ctx<'_>, option: &Value) {
         );
     }
     if let Some(dialects) = option["dialects"].as_array() {
-        push_flag(
+        push_availability_flag(
             &mut row,
             &mut lost,
-            "-dialects",
-            dialect_set_word(&Value::Array(dialects.clone())),
+            &Value::Array(dialects.clone()),
+            ctx.availability,
         );
     }
     if let Some(n) = option["min_abbrev"].as_u64() {
@@ -2149,7 +2327,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     // --- effects -----------------------------------------------------------
     out.gap();
     enum_word(out, ctx, draft, "command_table_effect");
-    side_effect_rows(out, draft);
+    side_effect_rows(out, draft, ctx.availability);
     gap_todo(out, ctx, draft, "frame_effect");
     gap_todo(out, ctx, draft, "world_effects");
     gap_todo(out, ctx, draft, "state_transitions");
@@ -2243,11 +2421,11 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             let mut lost = false;
             push_word(&mut row, &mut lost, braced(str_of(&form["synopsis"])));
             if let Some(dialects) = form["dialects"].as_array() {
-                push_flag(
+                push_availability_flag(
                     &mut row,
                     &mut lost,
-                    "-dialects",
-                    dialect_set_word(&Value::Array(dialects.clone())),
+                    &Value::Array(dialects.clone()),
+                    ctx.availability,
                 );
             }
             push_lifecycle_flags(&mut row, &mut lost, form);
@@ -2276,7 +2454,7 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     if ctx.set(draft, "option_constraints")
         && let Some(expr) = draft["option_constraints"].as_str()
     {
-        match option_conflict_rows(expr) {
+        match option_conflict_rows(expr, ctx.availability) {
             Some(rows) => {
                 for row in rows {
                     out.row(&row, "");
@@ -2306,7 +2484,7 @@ fn versioned_arg_value_rows_for(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
     }
 }
 
-fn side_effect_rows(out: &mut Out, draft: &Draft) {
+fn side_effect_rows(out: &mut Out, draft: &Draft, availability: bool) {
     for effect in as_array(draft.get("side_effects").unwrap_or(&Value::Null)) {
         let mut row = vec![
             "side_effect".to_owned(),
@@ -2325,11 +2503,11 @@ fn side_effect_rows(out: &mut Out, draft: &Draft) {
         }
         let mut lost = false;
         if let Some(dialects) = effect["dialects"].as_array() {
-            push_flag(
+            push_availability_flag(
                 &mut row,
                 &mut lost,
-                "-dialects",
-                dialect_set_word(&Value::Array(dialects.clone())),
+                &Value::Array(dialects.clone()),
+                availability,
             );
         }
         push_lifecycle_flags(&mut row, &mut lost, effect);
@@ -2410,6 +2588,7 @@ fn object_class_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         defaults: ctx.defaults,
         scope: format!("{}::{}", ctx.scope, str_of(&class["class_name"])),
         tables: ctx.tables,
+        availability: ctx.availability,
     };
     let mut body = Out::at(out.indent + 1);
     for method in methods {
@@ -2439,6 +2618,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         defaults: &defaults,
         scope: format!("{}::{name}", parent.scope),
         tables: parent.tables,
+        availability: parent.availability,
     };
     let ctx = &mut ctx;
 
@@ -2559,7 +2739,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     gap_todo(out_body, ctx, sub, "subcommand_forms");
 
     enum_word(out_body, ctx, sub, "command_table_effect");
-    side_effect_rows(out_body, sub);
+    side_effect_rows(out_body, sub, ctx.availability);
     gap_todo(out_body, ctx, sub, "world_effects");
     gap_todo(out_body, ctx, sub, "state_transitions");
 
@@ -2586,11 +2766,11 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
             push_flag(&mut words, &mut lost, "-synopsis", braced(synopsis));
         }
         if let Some(dialects) = row["dialects"].as_array() {
-            push_flag(
+            push_availability_flag(
                 &mut words,
                 &mut lost,
-                "-dialects",
-                dialect_set_word(&Value::Array(dialects.clone())),
+                &Value::Array(dialects.clone()),
+                ctx.availability,
             );
         }
         push_lifecycle_flags(&mut words, &mut lost, row);
@@ -2710,6 +2890,12 @@ pub fn render_pack_reporting_with_version(
 ) -> (String, Vec<Loss>) {
     let mut tables = ValueTables::default();
     let mut bodies: Vec<(String, Out)> = Vec::new();
+    // The header decides the vocabulary the body may use, never the other way
+    // round: `available` is a 2.0 word, so a pack declaring less keeps the
+    // legacy `dialects` spelling and stays internally consistent.
+    let availability =
+        !tcl_registry::version::compare(dsl_version, tcl_spectcl::NEWEST_VOCABULARY_VERSION)
+            .is_lt();
 
     for draft in drafts {
         let name = str_of(draft.get("name").unwrap_or(&Value::Null)).to_owned();
@@ -2722,6 +2908,7 @@ pub fn render_pack_reporting_with_version(
                 defaults: &defaults,
                 scope: name.clone(),
                 tables: &mut tables,
+                availability,
             };
             command_body(&mut body, &mut ctx, draft);
         }
@@ -2807,6 +2994,140 @@ mod tests {
                 "command mycommand {"
             ],
             "a default draft must emit only what the author actually set:\n{text}"
+        );
+    }
+
+    /// The 2.0 availability algebra, spelled the way the loader reads it
+    /// back — one row per contiguous run of releases, open at the top when
+    /// the run reaches the newest.
+    #[test]
+    fn a_dialect_set_is_written_in_the_availability_algebra() {
+        let rows = |members: &[&str]| availability_rows(members);
+        assert_eq!(
+            rows(&["tcl8.4", "tcl8.5", "tcl8.6", "tcl9.0", "tcl9.1"]),
+            Some(vec!["tcl 8.4-".to_owned()])
+        );
+        assert_eq!(
+            rows(&["tcl8.6", "tcl9.0", "tcl9.1"]),
+            Some(vec!["tcl 8.6-".to_owned()])
+        );
+        // The bound is exclusive, so a run stopping at 8.6 names 9.0.
+        assert_eq!(
+            rows(&["tcl8.4", "tcl8.5", "tcl8.6"]),
+            Some(vec!["tcl 8.4-9.0".to_owned()])
+        );
+        assert_eq!(
+            rows(&["tcl8.4", "tcl8.5"]),
+            Some(vec!["tcl 8.4-8.6".to_owned()])
+        );
+        // A bare `X.Y` names that release line only — exactly one bit.
+        assert_eq!(rows(&["tcl8.5"]), Some(vec!["tcl 8.5".to_owned()]));
+        // A hole in the ladder is two rows, which the loader unions.
+        assert_eq!(
+            rows(&["tcl8.4", "tcl8.6"]),
+            Some(vec!["tcl 8.4".to_owned(), "tcl 8.6".to_owned()])
+        );
+        assert_eq!(
+            rows(&["tcl8.6", "tcl9.0", "tcl9.1", "f5-irules"]),
+            Some(vec!["tcl 8.6-".to_owned(), "f5-irules".to_owned()])
+        );
+        // `tk` is a package pin, and the algebra says so.
+        assert_eq!(rows(&["tk"]), Some(vec!["package Tk".to_owned()]));
+
+        // A bit the closed provider list does not name keeps `dialects`, and
+        // so does the empty (declared-unavailable) set.
+        assert_eq!(rows(&["f5-iapps"]), None);
+        assert_eq!(rows(&["tcl9.0", "bpf"]), None);
+        assert_eq!(rows(&[]), None);
+
+        // The flag form: one row bare, several wrapped into one list word.
+        assert_eq!(
+            available_flag(&["tcl8.6", "tcl9.0", "tcl9.1"]).as_deref(),
+            Some("{tcl 8.6-}")
+        );
+        assert_eq!(
+            available_flag(&["tcl8.6", "tcl9.0", "tcl9.1", "f5-irules"]).as_deref(),
+            Some("{{tcl 8.6-} {f5-irules}}")
+        );
+    }
+
+    /// The rendered rows, end to end, over a real shipped command: the
+    /// command scope takes the statement spelling and an option takes the
+    /// flag, and both load back to the very bits the draft held.
+    #[test]
+    fn availability_rows_reload_to_the_set_they_were_written_from() {
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let seeded = draft::from_command_spec(registry.get("lsort").expect("the lsort spec"));
+        let text = render_pack(std::slice::from_ref(&seeded), "probe");
+        // `{all-tcl f5-irules}` in the algebra, and `-nocase`'s 8.5+ gate.
+        assert!(text.contains("available {tcl 8.4-} {f5-irules}"), "{text}");
+        assert!(text.contains("-available {tcl 8.5-}"), "{text}");
+        // …and not a legacy row anywhere: the prose may say the word
+        // "dialects", so the check is on the row spellings themselves.
+        assert!(!text.contains("dialects {all-tcl f5-irules}"), "{text}");
+        assert!(!text.contains("-dialects tcl8.5+"), "{text}");
+
+        let pack = crate::spectcl::load_pack(&text);
+        let spec = pack.commands.first().expect("the command").spec;
+        let reloaded = draft::from_command_spec(spec);
+        assert_eq!(reloaded["dialects"], seeded["dialects"]);
+        let gate = |draft: &Draft, option: &str| -> Value {
+            as_array(&draft["options"])
+                .iter()
+                .find(|o| str_of(&o["name"]) == option)
+                .map_or(Value::Null, |o| o["dialects"].clone())
+        };
+        for option in ["-nocase", "-indices", "-stride", "-ascii"] {
+            assert_eq!(
+                gate(&reloaded, option),
+                gate(&seeded, option),
+                "{option} lost its availability:\n{text}"
+            );
+        }
+    }
+
+    /// The header decides the spelling, and the two never disagree: a pack
+    /// declaring the newest vocabulary takes `available`, and one rendered
+    /// under an older declared vocabulary keeps the legacy word — so neither
+    /// earns the loader's per-site "newer than this pack declares" notice
+    /// (#1627, in both directions).
+    #[test]
+    fn the_header_and_the_body_agree_on_their_vocabulary() {
+        assert_eq!(DSL_VERSION, tcl_spectcl::NEWEST_VOCABULARY_VERSION);
+        let registry = tcl_registry::CommandRegistry::build_default();
+        let seeded = draft::from_command_spec(registry.get("lsort").expect("the lsort spec"));
+
+        let newest = render_pack(std::slice::from_ref(&seeded), "probe");
+        assert!(
+            newest.contains(&format!("speclib probe {DSL_VERSION} {{")),
+            "{newest}"
+        );
+        assert!(newest.contains("available {tcl 8.4-}"), "{newest}");
+        assert!(
+            !crate::spectcl::load_pack(&newest)
+                .notices
+                .iter()
+                .any(|notice| notice
+                    .message
+                    .contains("vocabulary, but this pack declares")),
+            "{:#?}",
+            crate::spectcl::load_pack(&newest).notices
+        );
+
+        let older = render_pack_with_version(&[seeded], "probe", "1.2");
+        assert!(older.contains("speclib probe 1.2 {"), "{older}");
+        assert!(older.contains("dialects {all-tcl f5-irules}"), "{older}");
+        assert!(!older.contains("available {tcl"), "{older}");
+        assert!(!older.contains("-available "), "{older}");
+        assert!(
+            !crate::spectcl::load_pack(&older)
+                .notices
+                .iter()
+                .any(|notice| notice
+                    .message
+                    .contains("vocabulary, but this pack declares")),
+            "{:#?}",
+            crate::spectcl::load_pack(&older).notices
         );
     }
 
@@ -2937,11 +3258,16 @@ mod tests {
 
     #[test]
     fn an_option_constraint_keeps_its_dialect_gate() {
-        let rows = option_conflict_rows(
-            "&[OptionConstraint { options: &[\"-glob\", \"-regexp\"], \
-             dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)) }]",
-        )
-        .expect("the constraint parses");
+        const EXPR: &str = "&[OptionConstraint { options: &[\"-glob\", \"-regexp\"], \
+                            dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)) }]";
+        // Under 2.0 the gate is written in the availability algebra …
+        let rows = option_conflict_rows(EXPR, true).expect("the constraint parses");
+        assert_eq!(
+            rows[0].join(" "),
+            "option_conflict {-glob -regexp} -available {{tcl 8.4-} {f5-irules}}"
+        );
+        // … and under an older declared vocabulary, in the legacy word.
+        let rows = option_conflict_rows(EXPR, false).expect("the constraint parses");
         assert_eq!(
             rows[0].join(" "),
             "option_conflict {-glob -regexp} -dialects {all-tcl f5-irules}"

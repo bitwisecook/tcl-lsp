@@ -97,6 +97,7 @@ use super::{
     finish_newer_words, pack_statements, parse_dialects, statements, subcommand_from_parts,
 };
 use crate::discovery::Tier;
+use crate::export::{Registration, synth_word};
 
 /// The evaluation loader's own version, part of the snapshot cache key: a
 /// change to how evaluation captures or replays invalidates every cached
@@ -1151,48 +1152,59 @@ fn compiled_command_exists(name: &str) -> bool {
         .is_some()
 }
 
-/// The first E-R2 violation in the staged registrations, when the tier is
-/// untrusted: what was touched, and a notice-ready message naming the
-/// provenance class.
-fn provenance_violation(state: &State, tier: Tier) -> Option<(u32, String)> {
+/// The first E-R2 violation in a pack's registration record, when the tier
+/// is untrusted: the line it was declared on, and a notice-ready message
+/// naming the provenance class.
+///
+/// Reading the **record** rather than the evaluator's own staging is what
+/// lets the same verdict be asked of a snapshot that has already loaded —
+/// which is how an authoring tool (`spectcl_check`) tells its user "this
+/// loads for you, and would be refused from a workspace" without evaluating
+/// the pack a second time.
+#[must_use]
+pub fn provenance_violation(pack: &Pack, tier: Tier) -> Option<(u32, String)> {
+    untrusted(tier)
+        .then(|| provenance_violation_in(&pack.registrations, tier))
+        .flatten()
+}
+
+fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option<(u32, String)> {
     let class = tier.label();
-    for node in &state.pack_nodes {
-        match node {
-            PackNode::Command(command) if command.overrides => {
-                if compiled_command_exists(&command.name) {
-                    return Some((
-                        command.line,
-                        format!(
-                            "command `{}` declares `-override` for a compiled command \
-                             name, but this pack loads from the {class} tier; an \
-                             untrusted pack may not shadow compiled family names, so \
-                             the pack is not loaded (design E-R2)",
-                            command.name
-                        ),
-                    ));
-                }
-            }
-            PackNode::Row(stmt) if stmt.word_text(0) == "dialect" => {
+    for reg in registrations {
+        match reg.word() {
+            "command" if reg.has_flag("-override") && compiled_command_exists(reg.arg(1)) => {
                 return Some((
-                    stmt.line,
+                    reg.line(),
+                    format!(
+                        "command `{}` declares `-override` for a compiled command \
+                         name, but this pack loads from the {class} tier; an \
+                         untrusted pack may not shadow compiled family names, so \
+                         the pack is not loaded (design E-R2)",
+                        reg.arg(1)
+                    ),
+                ));
+            }
+            "dialect" => {
+                return Some((
+                    reg.line(),
                     format!(
                         "`dialect {}` declares compiled dialect axes, but this pack \
                          loads from the {class} tier; an untrusted pack may not alter \
                          dialect axes, so the pack is not loaded (design E-R2)",
-                        stmt.word_text(1)
+                        reg.arg(1)
                     ),
                 ));
             }
-            PackNode::Row(stmt) if stmt.word_text(0) == "environment" => {
-                if let Some(reserved) = environment_block::reserved_name(stmt.word_text(1)) {
+            "environment" => {
+                if let Some(reserved) = environment_block::reserved_name(reg.arg(1)) {
                     return Some((
-                        stmt.line,
+                        reg.line(),
                         format!(
                             "`environment {}` claims `{reserved}`, a compiled \
                              environment name, and this pack loads from the {class} \
                              tier; an untrusted pack may not claim reserved names, so \
                              the pack is not loaded (design E-R2)",
-                            stmt.word_text(1)
+                            reg.arg(1)
                         ),
                     ));
                 }
@@ -1242,10 +1254,18 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
         return pack;
     }
 
+    // The canonical record (design E-R11): what the program registered, in
+    // the order it registered it. For a straight-line pack this is the file's
+    // own statements — which is what makes `export` a byte-stable round trip
+    // there and the *expansion* for a templated pack. Built before the E-R2
+    // gate, which reads it, and published on the pack only if the gate
+    // passes: a discarded pack registered nothing.
+    let registrations = record_nodes(&state.pack_nodes);
+
     // E-R2: provenance gates what the registrations may touch, and a
     // violation is transactional — the whole pack is discarded.
     if untrusted(options.tier)
-        && let Some((line, message)) = provenance_violation(&state, options.tier)
+        && let Some((line, message)) = provenance_violation_in(&registrations, options.tier)
     {
         let error = LoadError::Provenance(message.clone());
         pack.notices.push(Notice {
@@ -1301,10 +1321,55 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
         }
     }
 
+    pack.registrations = registrations;
+
     finish_newer_words(&pack, &mut log);
     pack.notices = log.notices;
     pack.notices.extend(state.eval_notices);
     pack
+}
+
+/// The staged top-level nodes as canonical registrations.
+fn record_nodes(nodes: &[PackNode]) -> Vec<Registration> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            PackNode::Row(stmt) => Registration::row(stmt),
+            PackNode::Command(staged) => {
+                let mut head = vec![
+                    synth_word("command", staged.line),
+                    synth_word(&staged.name, staged.line),
+                ];
+                if staged.overrides {
+                    head.push(synth_word("-override", staged.line));
+                }
+                match &staged.body {
+                    // A `command` whose body word never arrived stays a row,
+                    // so the reload reports the same missing-block notice.
+                    None => Registration::row_words(head, staged.line),
+                    Some(body) => Registration::block(head, record_body(body), staged.line),
+                }
+            }
+        })
+        .collect()
+}
+
+/// One command or subcommand body's staged nodes as registrations.
+fn record_body(nodes: &[Node]) -> Vec<Registration> {
+    nodes
+        .iter()
+        .map(|node| match node {
+            Node::Row(stmt) => Registration::row(stmt),
+            Node::Sub(sub) => Registration::block(
+                vec![
+                    synth_word("subcommand", sub.line),
+                    synth_word(&sub.name, sub.line),
+                ],
+                record_body(&sub.body),
+                sub.line,
+            ),
+        })
+        .collect()
 }
 
 /// Replay one command body's captured nodes into the shared accumulator.

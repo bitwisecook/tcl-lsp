@@ -18,11 +18,17 @@
 
 //! `tcl spec` verb group — authoring `.tclspec` command packs.
 //!
-//! Today one sub-action: `tcl spec import`, which reads *several releases* of
-//! a Tcl package and renders a pack whose `introduced_version` /
-//! `retired_version` fields carry the ranges those releases actually witness.
-//! A single-snapshot import cannot do that — it can only stamp every command
-//! with whatever version the newest sources declare, which is a fabrication.
+//! Three sub-actions:
+//!
+//! - `tcl spec import` reads *several releases* of a Tcl package and renders a
+//!   pack whose `introduced_version` / `retired_version` fields carry the
+//!   ranges those releases actually witness. A single-snapshot import cannot
+//!   do that — it can only stamp every command with whatever version the
+//!   newest sources declare, which is a fabrication.
+//! - `tcl spec upgrade` rewrites a 1.x pack's source into `SpecTcl` 2.0.
+//! - `tcl spec export` renders a pack's loaded snapshot back out as canonical
+//!   2.0 source, which for a pack written as a program is its expansion
+//!   (design E §15.1).
 //!
 //! Two ways to name the releases:
 //!
@@ -70,7 +76,90 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
     match action {
         SpecCommand::Import(args) => run_import(args),
         SpecCommand::Upgrade(args) => run_upgrade(args),
+        SpecCommand::Export(args) => run_export(args),
     }
+}
+
+/// `tcl spec export` — a pack's snapshot as canonical `SpecTcl` source.
+///
+/// The pack is **evaluated** (design E §1), so a programmed pack expands:
+/// the file's loops and helper procedures run in the deterministic sandbox
+/// and what they registered is written back as straight-line declarations.
+/// A canonical pack therefore round-trips, which is the E-R11 bijection the
+/// gates in `tcl-spectcl/tests/export.rs` hold to.
+///
+/// Two deliberate choices, both stated in the pack's own terms:
+///
+/// - **The declared vocabulary is the pack's own.** Export never raises a
+///   1.x header to 2.0 — that is `tcl spec upgrade`'s job and its U1 rule,
+///   and doing it here would change what the reloaded pack means.
+/// - **Evaluation is trusted.** The file is named on the command line by
+///   its author rather than discovered in a workspace, so E-R2's provenance
+///   gate (which asks *where a pack was found*) has nothing to answer here;
+///   `tcl spec check` is where a tier-gated verdict belongs.
+///
+/// The text is run through the shared `SpecTcl` formatter profile — the one
+/// the studio's editors use — so an exported pack lands in the house style
+/// whatever wrote it.
+fn run_export(args: &crate::cli::SpecExportArgs) -> anyhow::Result<u8> {
+    let source = std::fs::read_to_string(&args.file)
+        .map_err(|e| anyhow!("cannot read {}: {e}", args.file.display()))?;
+    let pack = tcl_spectcl::evaluate_pack(&source);
+    let (canonical, losses) = tcl_spectcl::export_pack_reporting(&pack);
+    let canonical = tcl_spec_studio::format_pack(&canonical);
+
+    let target = OutputTarget::from_arg(args.out.as_deref());
+    if args.json {
+        let value = json!({
+            "pack": pack.name,
+            "dsl_version": pack.dsl_version,
+            "commands": pack.commands.len(),
+            "target_dependent": pack.target_dependent,
+            "load_error": pack.load_error.as_ref().map(ToString::to_string),
+            "canonical_source": canonical,
+            "notices": pack.notices.iter().map(|n| json!({
+                "line": n.line,
+                "context": n.context,
+                "class": n.class.name(),
+                "reason": n.message,
+            })).collect::<Vec<_>>(),
+            "unwritable": losses.iter().map(|loss| json!({
+                "word": loss.word,
+                "line": loss.line,
+                "text": loss.text,
+            })).collect::<Vec<_>>(),
+        });
+        write_text_output(&target, &format!("{value:#}\n"))?;
+    } else {
+        write_text_output(&target, &canonical)?;
+    }
+
+    if let Some(error) = &pack.load_error {
+        eprint_status(warn_style(), format!("{}: {error}", args.file.display()));
+        return Ok(1);
+    }
+    for loss in &losses {
+        eprint_status(
+            warn_style(),
+            format!(
+                "{}:{}: `{}` carries text no verbatim word spells; written quoted",
+                args.file.display(),
+                loss.line,
+                loss.word
+            ),
+        );
+    }
+    if pack.target_dependent {
+        eprint_status(
+            warn_style(),
+            format!(
+                "{}: the pack queried `available?`, so this expansion is one \
+                 target's answer rather than the pack (design E-R1)",
+                args.file.display()
+            ),
+        );
+    }
+    Ok(u8::from(!losses.is_empty()))
 }
 
 /// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.

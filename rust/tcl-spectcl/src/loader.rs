@@ -138,7 +138,7 @@ pub use dialect_block::{PackDialect, PackDialectAxis};
 pub use environment_block::{PackEnvironment, PackEnvironmentTier};
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, eval_snapshot_memoised,
-    evaluate_pack, evaluate_pack_cached, evaluate_pack_with,
+    evaluate_pack, evaluate_pack_cached, evaluate_pack_with, provenance_violation,
 };
 pub use vocabulary_class::VocabularyClass;
 
@@ -393,7 +393,7 @@ pub(crate) struct Stmt {
 }
 
 impl Stmt {
-    fn word_text(&self, i: usize) -> &str {
+    pub(crate) fn word_text(&self, i: usize) -> &str {
         self.words.get(i).map_or("", |w| w.text.as_str())
     }
 
@@ -521,7 +521,7 @@ fn segment(source: &str, base_line: u32, bom: FileBom) -> Vec<Stmt> {
 /// [`FileBom::Content`], always: a block is not a file, so a U+FEFF at the head
 /// of a `hover` summary is a character the author typed and must survive into
 /// the string the registry gets.
-fn block(word: &Word) -> Vec<Stmt> {
+pub(crate) fn block(word: &Word) -> Vec<Stmt> {
     statements(&word.text, word.line, FileBom::Content)
 }
 
@@ -854,6 +854,16 @@ pub struct Pack {
     /// be cached per (content, vocabulary) alone. Always `false` from the
     /// CST loader, which never evaluates.
     pub target_dependent: bool,
+    /// Every registration call the load made, in the order it made them —
+    /// the **canonical subset** of the snapshot (design E-R11).
+    ///
+    /// The CST loader records the file's own statements; the evaluation
+    /// loader records what the program registered, which for a straight-line
+    /// pack is the same record. [`crate::export::export_pack`] renders it
+    /// back as canonical source, so an export cannot lose a word the loader
+    /// read — including the ones no `CommandSpec` field holds (a value
+    /// table, an inline descriptor, a hook body).
+    pub registrations: Vec<crate::export::Registration>,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
 }
@@ -1009,7 +1019,13 @@ pub fn load_pack(source: &str) -> Pack {
     let mut declarations: Vec<Stmt> = Vec::new();
     // Two passes: pack-level tables and descriptors first, so a `command`
     // may reference one declared after it.
-    for stmt in block(body) {
+    let body_stmts = block(body);
+    // The canonical record is the statements themselves (design E-R11), taken
+    // before the passes so it holds what the file *says* rather than what
+    // survived reading it — a dropped row is a notice, not a missing
+    // registration call.
+    pack.registrations = crate::export::record(&body_stmts, crate::export::Scope::Pack);
+    for stmt in body_stmts {
         if apply_pack_stmt(&mut pack, &mut tables, &stmt, &mut log) {
             declarations.push(stmt);
         }
@@ -1039,6 +1055,7 @@ fn empty_pack() -> Pack {
         commands: Vec::new(),
         load_error: None,
         target_dependent: false,
+        registrations: Vec::new(),
         notices: Vec::new(),
     }
 }

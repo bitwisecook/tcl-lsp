@@ -1874,7 +1874,7 @@ const TOOLS: &[ToolDef] = &[
     },
     ToolDef {
         name: "spectcl_check",
-        description: "Validate a SpecTcl (.tclspec) spec pack: commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, hooks whose body reads past its own `-inputs` declaration (the one way a pack miscompiles silently), and collisions with the shipped registry for the target dialect.",
+        description: "Validate a SpecTcl (.tclspec) spec pack by EVALUATING it in the deterministic pack sandbox (no clock, no IO, hard budgets, transactional registration — a generated pack is safe to check): commands parsed with the draft fields each sets, loader notices (dropped/unknown words), declared hooks with their family and shape-cacheability, hooks whose body reads past its own `-inputs` declaration (the one way a pack miscompiles silently), and collisions with the shipped registry for the target dialect. Also reports the evaluation-only failures — `load_error` for a determinism denial naming its axis, a blown budget naming its axis, or a Tcl error (all of which load NOTHING, since registration is transactional) — plus `target_dependent` (the pack queried `available?`, so its surface depends on the analysis target) and `untrusted_tier_refusal` (this pack loads for you but a workspace or Spec Studio tier would refuse it). Use spectcl_expand to see what a templated pack registered.",
         params: &[
             (
                 "source",
@@ -1889,6 +1889,17 @@ const TOOLS: &[ToolDef] = &[
         ],
         required: &["source"],
         handler: crate::spectcl::spectcl_check,
+    },
+    ToolDef {
+        name: "spectcl_expand",
+        description: "Expand a SpecTcl (.tclspec) pack into canonical form: evaluate it in the deterministic pack sandbox and return the straight-line source of every registration it actually made — one literal `command`/`option`/`subcommand` declaration per iteration, no proc/foreach/set. Use it whenever a pack is written as a PROGRAM (a loop or helper procedure over a data table): review the expansion, not the loop, before shipping the pack, and after any edit to the template. A pack that is already straight-line comes back as itself, so it is also a cheap way to see the pack exactly as the loader reads it. Also returns whether the pack is target-dependent (it queried `available?`, so the expansion is one target's answer) and every load notice. Hand the pack itself to spectcl_check for field-level validation.",
+        params: &[(
+            "source",
+            "string",
+            "SpecTcl pack source text (the contents of a .tclspec file)",
+        )],
+        required: &["source"],
+        handler: crate::spectcl::spectcl_expand,
     },
     ToolDef {
         name: "spec_import",

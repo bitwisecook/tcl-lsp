@@ -532,6 +532,35 @@ pub enum SpecCommand {
     /// `versioned_arg_value`, an option's `-deprecation-fix`) without the
     /// loader's declares-1.0 notice.
     Upgrade(SpecUpgradeArgs),
+
+    /// Render a pack as canonical `SpecTcl` — its expansion, if it is a
+    /// program.
+    ///
+    /// The pack is evaluated (design E) and the registrations it made are
+    /// written back as straight-line source: literal `command` / `option` /
+    /// `subcommand` declarations, no `proc`, no `foreach`. A pack that is
+    /// already canonical round-trips; a templated one is expanded, which is
+    /// how its author reads what the loop actually registered. Expansion is
+    /// total and contraction is never attempted — a program is not recovered
+    /// from its expansion.
+    Export(SpecExportArgs),
+}
+
+/// Flags of `tcl spec export`.
+#[derive(Debug, Args)]
+pub struct SpecExportArgs {
+    /// The `.tclspec` file to expand.
+    #[arg(value_name = "FILE")]
+    pub file: PathBuf,
+
+    /// Write the canonical pack here instead of stdout.
+    #[arg(long = "out", short = 'o', value_name = "FILE")]
+    pub out: Option<PathBuf>,
+
+    /// Report the expansion as JSON — the canonical source, whether the pack
+    /// is target-dependent, and every load notice.
+    #[arg(long)]
+    pub json: bool,
 }
 
 /// Flags of `tcl spec upgrade`.
