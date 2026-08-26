@@ -4,7 +4,11 @@
     "moduleResolution": "node16",
     "target": "ES2020",
     "outDir": "out",
-    "lib": ["ES2020"],
+    // `DOM` is here for the browser entry (`src/extensionBrowser.ts`): the web
+    // extension host runs extensions in a Web Worker, and `Worker`,
+    // `TextDecoder`, and `btoa`/`atob` are DOM globals there. It is additive —
+    // the node entry keeps `@types/node` and is unaffected.
+    "lib": ["ES2020", "DOM"],
     "types": ["node"],
     "sourceMap": true,
     "rootDir": "src",

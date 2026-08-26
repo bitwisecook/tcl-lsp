@@ -30,6 +30,10 @@ editor) need the `tcl-lsp-server-<target-triple>` binary from
 Windsurf, VSCodium, code-server, Gitpod, Codespaces, Eclipse Theia)
 install the same `.vsix` unchanged.
 
+**[VS Code for the Web](#vs-code-for-the-web)** (vscode.dev, github.dev)
+runs the same extension in the browser, against a WebAssembly build of the
+language server — nothing is installed on the machine and no binary runs.
+
 **[Other LSP-capable editors](#other-lsp-capable-editors)** (Vim,
 Kate, Kakoune, Notepad++, Geany, Lite XL, micro, CudaText,
 JupyterLab) point a generic LSP client at the `tcl-lsp-server` binary.
@@ -85,6 +89,62 @@ is needed — the extension ships a native `tcl-lsp-server` binary for
 your platform and launches it automatically. There is no Python backend:
 to run against a local build, point `tclLsp.rustServerPath` at a
 `tcl-lsp-server` binary or `tclLsp.serverPath` at a checkout.
+
+### VS Code for the Web
+
+The extension also runs in a **browser** extension host — <https://vscode.dev>,
+github.dev (press `.` on any GitHub repository), and any other deployment that
+runs extensions in the browser rather than in Node. Install it from the
+Extensions panel exactly as you would on the desktop; the Marketplace flags web
+support automatically, and no `tcl-lsp-server` binary is downloaded or run.
+
+The language server there is the same analyser, compiled to WebAssembly and
+running in a Web Worker in the page. Nothing leaves the browser: the wasm
+module and its assets are part of the extension, and the extension makes no
+network request of its own.
+
+Sideloading works too, and the **untargeted `-universal` package is the web
+package** — one manifest declares both entry points, so every VSIX flavour
+carries the browser server; the untargeted one is what a host with no platform
+match installs.
+
+What differs from the desktop:
+
+- **Desktop-only features.** Runtime validation (it runs `tclsh`), the compiler
+  explorer, the spec studio, the Tk preview, "Copy file as base64", the package
+  scaffolder, and the `@irule` / `@tcl` / `@tk` chat participants need a process
+  or a filesystem. Invoking one on the web reports which, rather than failing
+  obscurely.
+- **Cross-file analysis is limited on a virtual workspace.** The browser server
+  has no filesystem, so the extension reads the workspace itself and hands the
+  files to the server. That transfer currently only carries files on the `file:`
+  scheme, and github.dev / vscode.dev serve a repository on a virtual one
+  (`vscode-vfs:`) — so on those hosts each open file is analysed in full, while
+  results that depend on *un-opened* files (a definition in a sibling, the
+  package database, workspace symbols) are not available. The
+  `Tcl Language Server` output channel says so explicitly at startup.
+- **A budget on what is read.** `tclLsp.web.workspaceSync.maxFiles` (2000),
+  `.maxTotalBytes` (32 MiB), and `.maxFileBytes` (2 MiB) bound the startup
+  sweep. Nothing is dropped silently — every skipped file is named in the
+  output channel, with the setting to raise.
+- **Trust.** The extension declares `untrustedWorkspaces: limited`: analysis
+  itself is safe, but the settings that choose *which program* the desktop side
+  launches (`tclLsp.serverPath`, `tclLsp.rustServerPath`,
+  `tclLsp.runtimeValidation.*`) and where it reads from (`tclLsp.libraryPaths`,
+  `tclLsp.specPacks`, `tclLsp.packageManager.*`) are ignored until you trust
+  the workspace.
+
+To run the web build from a checkout:
+
+```sh
+make lsp-server-wasm                       # build the browser language server
+cd editors/vscode && npm run test:web      # headless smoke test over testFixture
+```
+
+`npm run test:web` drives [`@vscode/test-web`](https://www.npmjs.com/package/@vscode/test-web),
+which downloads a VS Code web build and a Playwright Chromium. On a machine
+that already has Playwright's browsers elsewhere, point at them with
+`PLAYWRIGHT_BROWSERS_PATH=/path/to/browsers` instead of downloading again.
 
 ### VS Code-compatible editors
 

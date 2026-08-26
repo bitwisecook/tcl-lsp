@@ -481,6 +481,107 @@ jobs:
           TCL_LSP_SERVER_BIN: ${{ github.workspace }}/target/release/tcl-lsp-server
         run: make test-ext
 
+  # The same extension in a BROWSER extension host — vscode.dev / github.dev.
+  #
+  # `test-ext` above cannot cover this: it runs the `main` entry point against
+  # the native binary, while the web host loads the `browser` entry point and
+  # the wasm language server in a Web Worker.  Everything that only exists on
+  # that path — the manifest's `browser` field, the staged `dist/web` worker
+  # assets, the worker's own asset resolution under a cross-origin blob shim,
+  # the JSON-RPC string/object adapter, the document selector's scheme filter —
+  # is invisible to the desktop suite, and each of those failed silently rather
+  # than loudly when it was wrong.
+  #
+  # Gated on BOTH path facts because it consumes both surfaces: the extension
+  # (`ext_changed`) and the browser language server (`lsp_wasm_changed`).  Step-
+  # level like every other skip here, so the job still reports success and the
+  # release `needs:` graph stays intact.
+  test-ext-web:
+    needs: [channel]
+    runs-on: ubuntu-26.04
+    env:
+      RUN_EXT_WEB: ${{ (needs.channel.outputs.ext_changed == 'true' || needs.channel.outputs.lsp_wasm_changed == 'true' || startsWith(github.ref, 'refs/tags/')) && needs.channel.outputs.already_green != 'true' && needs.channel.outputs.prerelease != 'true' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+      # The browser server is built here rather than fetched from the
+      # `lsp-server-wasm` job: that job step-skips on its own narrower path
+      # filter, so depending on its artefact would make this suite skip
+      # whenever only `editors/vscode/**` changed — exactly when it is most
+      # worth running.  Its own cache key keeps the release/LTO link warm.
+      - name: Set up Rust
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions-rust-lang/setup-rust-toolchain@166cdcfd11aee3cb47222f9ddb555ce30ddb9659 # v1.17.0
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+          cache-key: test-ext-web
+          cache-workspaces: rust/tcl-lsp-server-wasm
+
+      - name: Install wasm-bindgen CLI
+        if: env.RUN_EXT_WEB == 'true'
+        uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2.85.12
+        with:
+          tool: wasm-bindgen-cli@0.2.127
+
+      - name: Set up Node.js
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack (pin npm via packageManager)
+        if: env.RUN_EXT_WEB == 'true'
+        env:
+          COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+        run: |
+          corepack enable npm
+          cd editors/vscode
+          active="$(npm --version)"
+          echo "Active npm: $active (pinned via packageManager)"
+          case "$active" in
+            12.*) ;;
+            *) echo "::error::expected npm 12 from packageManager pin, got $active"; exit 1 ;;
+          esac
+
+      - name: Cache npm registry
+        if: env.RUN_EXT_WEB == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles('editors/vscode/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      # `@vscode/test-web` depends on `@playwright/browser-chromium`, so `npm
+      # ci` installs the browser it drives; there is no separate download step.
+      # (A sandbox with Playwright pre-installed elsewhere sets
+      # PLAYWRIGHT_BROWSERS_PATH instead — see INSTALL-editors.md.)
+      - name: Install npm dependencies
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && npm ci
+
+      - name: Build the browser language server
+        if: env.RUN_EXT_WEB == 'true'
+        run: make lsp-server-wasm
+
+      # `npm run compile` stages `dist/web` best-effort, so a build that never
+      # produced the worker assets would reach the browser as a runtime error
+      # instead of a build failure. Here they must exist: `--require` says so.
+      - name: Stage the browser assets (must exist)
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && node scripts/copy-web-assets.cjs --require
+
+      # `pretest:web` runs `npm run compile` (both bundles + the staged
+      # `dist/web` assets) and bundles the web test module for the browser.
+      # Headless Chromium needs no X server, so no xvfb here.
+      - name: Run the web extension-host smoke test
+        if: env.RUN_EXT_WEB == 'true'
+        run: cd editors/vscode && npm run test:web
+
   # Rust product gate.  ci.yml triggers on both `main` and `rust`, so one
   # pipeline covers them.  Runs on every PR and push, because nothing else
   # exercises the Rust product on a PR.
@@ -1250,9 +1351,15 @@ jobs:
   # platform, so the Marketplace serves each client only its own binary.
   build-vsix:
     if: startsWith(github.ref, 'refs/tags/v')
-    # test-ext runs as a no-op-success for pre-release tags (its test step is
-    # step-skipped), so it never skips this job's needs.
-    needs: [create-release, test-ext, build-server-matrix]
+    # test-ext / test-ext-web run as no-op-successes for pre-release tags
+    # (their test steps are step-skipped), so they never skip this job's needs.
+    #
+    # `test-ext-web` is in this list because every VSIX flavour now carries the
+    # browser language server (`dist/web`) and a manifest that declares
+    # `browser` — which is what makes the Marketplace advertise web support. It
+    # is the only job that proves that half works, so a VSIX must not be built
+    # and signed without it.
+    needs: [create-release, test-ext, test-ext-web, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload

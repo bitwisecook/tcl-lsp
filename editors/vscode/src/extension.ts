@@ -42,11 +42,19 @@ import {
   StatusBarItem,
   TextDocument,
   TextEditor,
-  Uri,
   window,
   workspace,
 } from "vscode";
-import { LanguageClient, LanguageClientOptions, ServerOptions } from "vscode-languageclient/node";
+import { LanguageClient, ServerOptions } from "vscode-languageclient/node";
+import {
+  buildClientOptions,
+  DEFAULT_DIALECT,
+  EDITOR_SETTINGS_AFFECTING_FEATURES,
+  LspWorkspaceEdit,
+  resolveAllFeatureToggles,
+  workspaceEditFromLsp,
+} from "./clientCore";
+import { escapeTclText, transformSelection, unescapeTclText } from "./selectionTransforms";
 import { registerIruleParticipant } from "./chat/iruleParticipant";
 import { registerTclParticipant } from "./chat/tclParticipant";
 import { registerTkParticipant } from "./chat/tkParticipant";
@@ -121,8 +129,6 @@ const DIALECT_LABELS: Record<string, string> = {
 };
 // @generated:dialect-labels:end
 
-const DEFAULT_DIALECT = "tcl8.6";
-
 // Sourced from ./languageIds (a vscode-free module) and re-exported so existing
 // importers that pull these from ./extension keep working.
 export { TCL_LANGUAGE_IDS, isTclLanguage };
@@ -166,27 +172,8 @@ const TCL_VERSION_DIALECTS: Record<string, string> = {
   "9.1": "tcl9.1",
 };
 
-// LSP wire types (used by rename partitioning)
-
-interface LspPosition {
-  line: number;
-  character: number;
-}
-
-interface LspRange {
-  start: LspPosition;
-  end: LspPosition;
-}
-
-interface LspTextEdit {
-  range: LspRange;
-  newText?: string;
-  new_text?: string;
-}
-
-interface LspWorkspaceEdit {
-  changes?: Record<string, LspTextEdit[]>;
-}
+// LSP wire types (used by rename partitioning) live in ./clientCore, shared
+// with the browser entry.
 
 interface RenamePartitionResult {
   success: boolean;
@@ -282,82 +269,6 @@ function resolveServerDir(configuredPath: string, extensionPath: string): string
   return extensionPath;
 }
 
-// Map from feature toggle key to the VS Code editor setting it inherits from.
-// Features not listed here default to true when null.
-const FEATURE_EDITOR_DEFAULTS: Record<string, () => boolean> = {
-  hover: () => {
-    const v = workspace.getConfiguration("editor").get<string | boolean>("hover.enabled", true);
-    return v !== "off" && v !== false;
-  },
-  semanticTokens: () => {
-    const v = workspace
-      .getConfiguration("editor")
-      .get<boolean | string>("semanticHighlighting.enabled", true);
-    return v !== false; // "configuredByTheme" and true both resolve to enabled
-  },
-  // Deliberately NOT inherited from `editor.folding` (issue #1122). Vanilla
-  // VS Code's sticky-scroll model provider calls
-  // `FoldingController.getFoldingRangeProviders` unconditionally — it never
-  // reads `EditorOption.folding` — so a user who has switched the folding UI
-  // off in vanilla VS Code still gets provider-based sticky scroll. Our
-  // toggle used to inherit `editor.folding`, so the same user's Tcl files
-  // got NO folding ranges at all; since VS Code >=1.105 treats an empty
-  // folding-range array as a *terminal* sticky model (only null/undefined
-  // falls through to the indentation heuristic), that silently killed
-  // sticky scroll for every Tcl file — a divergence from platform semantics
-  // and the most consistent explanation of the bug report. Folding stays
-  // on unless a user explicitly sets `tclLsp.features.folding: false`.
-  folding: () => true,
-  signatureHelp: () =>
-    workspace.getConfiguration("editor").get<boolean>("parameterHints.enabled", true),
-  // Inlay hints split into two opt-in families, both off unless the user
-  // explicitly enables them (they do not inherit editor.inlayHints.enabled).
-  inlayTypeHints: () => false,
-  inlayParameterHints: () => false,
-  documentHighlight: () => {
-    const v = workspace
-      .getConfiguration("editor")
-      .get<string | boolean>("occurrencesHighlight", "singleFile");
-    return v !== "off" && v !== false;
-  },
-  codeLens: () => workspace.getConfiguration("editor").get<boolean>("codeLens", true),
-  linkedEditingRange: () =>
-    workspace.getConfiguration("editor").get<boolean>("linkedEditing", false),
-  // Opt-in, off unless the user explicitly enables them — same rationale as
-  // the inlay-hint families above. Without an entry here, an unset (null)
-  // value falls through resolveFeatureToggle's "no resolver -> true" default,
-  // which silently turns on workspace-wide cross-file scanning / XC100-301
-  // translatability lints for every user who has never touched the setting.
-  xcDiagnostics: () => false,
-  crossFileResolution: () => false,
-};
-
-/**
- * Resolve a tri-state feature toggle (boolean | null) to a concrete boolean.
- * When the user has not set an explicit value (null), the toggle inherits
- * from the corresponding VS Code editor setting where applicable, or
- * defaults to true.
- */
-function resolveFeatureToggle(key: string, value: boolean | null): boolean {
-  if (typeof value === "boolean") return value;
-  const resolver = FEATURE_EDITOR_DEFAULTS[key];
-  return resolver ? resolver() : true;
-}
-
-/**
- * Read all tclLsp.features.* settings and resolve null values to concrete
- * booleans using VS Code editor globals.
- */
-function resolveAllFeatureToggles(): Record<string, boolean> {
-  const features = workspace.getConfiguration("tclLsp.features");
-  const resolved: Record<string, boolean> = {};
-  for (const key of Object.keys(FEATURE_EDITOR_DEFAULTS)) {
-    const val = features.get<boolean | null>(key, null);
-    resolved[key] = resolveFeatureToggle(key, val);
-  }
-  return resolved;
-}
-
 export async function activate(context: ExtensionContext) {
   setDiagramPanelExtensionUri(context.extensionUri);
   await prepareSpecStudioStorage();
@@ -398,89 +309,12 @@ export async function activate(context: ExtensionContext) {
   // Optional suppression of diagnostics for files viewed only in a diff editor
   // (Git changes, "Compare With…"); gated by
   // `tclLsp.suppressDiagnosticsInDiffEditors` (default off). Installed as the
-  // `handleDiagnostics` middleware below.
+  // `handleDiagnostics` middleware by `buildClientOptions`.
   const diffSuppressor = new DiffDiagnosticsSuppressor();
   context.subscriptions.push(diffSuppressor);
 
-  const clientOptions: LanguageClientOptions = {
-    documentSelector: [
-      ...[...TCL_LANGUAGE_IDS].flatMap((lang) => [
-        { scheme: "file", language: lang },
-        { scheme: "untitled", language: lang },
-      ]),
-    ],
-    synchronize: {
-      configurationSection: "tclLsp",
-      // No `fileEvents` watchers here on purpose. The server registers
-      // `workspace/didChangeWatchedFiles` dynamically at `initialized`, naming
-      // its own extension set (case-folded per character, so `UPPER.TCL` is
-      // watched on Linux too) plus `**/.tcl-lsp.ini` for the layered-settings
-      // live-reload. Duplicating that list here gave us two sources of truth
-      // that had already drifted — the client list was missing `.exp` and
-      // `.apl` — and made every watched change arrive twice (issue #1215).
-    },
-    middleware: {
-      handleDiagnostics: (uri, diagnostics, next) =>
-        diffSuppressor.handleDiagnostics(uri, diagnostics, next),
-      workspace: {
-        // Pull path: server requests configuration via workspace/configuration
-        // for each workspace folder (plus an unscoped fallback request).
-        // The default LanguageClient implementation honours scopeUri and
-        // returns the folder's effective settings; we just resolve null
-        // feature toggles to booleans for each item.
-        configuration: async (params, token, next) => {
-          const result = await next(params, token);
-          if (Array.isArray(result)) {
-            for (let i = 0; i < params.items.length; i++) {
-              const section = params.items[i].section;
-              if (section === "tclLsp" && result[i] && typeof result[i] === "object") {
-                const settings = result[i] as Record<string, unknown>;
-                const features = settings.features;
-                if (features && typeof features === "object") {
-                  const feat = features as Record<string, unknown>;
-                  for (const [key, val] of Object.entries(feat)) {
-                    if (val === null || val === undefined) {
-                      feat[key] = resolveFeatureToggle(key, null);
-                    }
-                  }
-                }
-                // `diagnostics.genericVariablePatterns` defaults to `[]`, but the
-                // server distinguishes "absent → built-in IRULE4002 patterns"
-                // from "explicit empty list → disable the check". Drop the empty
-                // default so an unconfigured workspace keeps the defaults (the
-                // JetBrains client omits it the same way).
-                const diagnostics = settings.diagnostics;
-                if (diagnostics && typeof diagnostics === "object") {
-                  const diag = diagnostics as Record<string, unknown>;
-                  if (
-                    Array.isArray(diag.genericVariablePatterns) &&
-                    diag.genericVariablePatterns.length === 0
-                  ) {
-                    delete diag.genericVariablePatterns;
-                  }
-                  // Same absent-vs-empty distinction for `diagnostics.exclude`
-                  // (#1556): a folder answering with the explicit `[]` default
-                  // would *replace* an exclude list configured at another layer
-                  // (global config file, user settings) with "exclude nothing".
-                  if (Array.isArray(diag.exclude) && diag.exclude.length === 0) {
-                    delete diag.exclude;
-                  }
-                }
-              }
-            }
-          }
-          return result;
-        },
-        // Push path is intentionally NOT overridden.  The default
-        // LanguageClient behaviour sends an empty didChangeConfiguration
-        // notification when settings change, and the server then pulls
-        // per-folder via workspace/configuration — that's what we want for
-        // multi-folder workspaces (issue #230).  A custom push that reads
-        // workspace.getConfiguration("tclLsp") without a scopeUri would
-        // clobber per-folder settings with the workspace-merged value.
-      },
-    },
-  };
+  // Client options are shared with the browser entry — see ./clientCore.
+  const clientOptions = buildClientOptions(diffSuppressor);
 
   client = new LanguageClient("tcl-lsp", "Tcl Language Server", serverOptions, clientOptions);
 
@@ -518,17 +352,8 @@ export async function activate(context: ExtensionContext) {
 
   // Update status bar label when manually changing settings, and re-push
   // resolved feature toggles when the underlying editor globals change.
-  // editor.folding is deliberately absent (issue #1122): `features.folding`
-  // no longer inherits it, so changing it has nothing to re-push here.
-  const editorSettingsAffectingFeatures = [
-    "editor.hover.enabled",
-    "editor.semanticHighlighting.enabled",
-    "editor.parameterHints.enabled",
-    "editor.inlayHints.enabled",
-    "editor.occurrencesHighlight",
-    "editor.codeLens",
-    "editor.linkedEditing",
-  ];
+  // The list of inherited editor settings lives in ./clientCore, shared with
+  // the browser entry.
   context.subscriptions.push(
     workspace.onDidChangeConfiguration((e) => {
       if (e.affectsConfiguration("tclLsp.dialect")) {
@@ -544,7 +369,7 @@ export async function activate(context: ExtensionContext) {
       }
       // When a VS Code editor setting that a feature toggle inherits from
       // changes, re-push resolved feature values so the server stays in sync.
-      if (client && editorSettingsAffectingFeatures.some((s) => e.affectsConfiguration(s))) {
+      if (client && EDITOR_SETTINGS_AFFECTING_FEATURES.some((s) => e.affectsConfiguration(s))) {
         const resolved = resolveAllFeatureToggles();
         void client.sendNotification("workspace/didChangeConfiguration", {
           settings: { tclLsp: { features: resolved } },
@@ -818,30 +643,6 @@ function onActiveEditorChanged(editor: TextEditor | undefined): void {
     dialectStatusBarItem.hide();
     versionStatusBarItem.hide();
   }
-}
-
-function workspaceEditFromLsp(edit: LspWorkspaceEdit): vscode.WorkspaceEdit {
-  const workspaceEdit = new vscode.WorkspaceEdit();
-  for (const [uriString, textEdits] of Object.entries(edit.changes ?? {})) {
-    const uri = Uri.parse(uriString);
-    for (const textEdit of textEdits) {
-      const newText = textEdit.newText ?? textEdit.new_text;
-      if (newText === undefined) {
-        continue;
-      }
-      workspaceEdit.replace(
-        uri,
-        new Range(
-          textEdit.range.start.line,
-          textEdit.range.start.character,
-          textEdit.range.end.line,
-          textEdit.range.end.character,
-        ),
-        newText,
-      );
-    }
-  }
-  return workspaceEdit;
 }
 
 // Command handlers
@@ -2024,79 +1825,6 @@ async function formatDocument(): Promise<void> {
     return;
   }
   await commands.executeCommand("editor.action.formatDocument");
-}
-
-const TCL_ESCAPE_MAP: Record<string, string> = {
-  "\\": "\\\\",
-  "\n": "\\n",
-  "\r": "\\r",
-  "\t": "\\t",
-  "\b": "\\b",
-  "\f": "\\f",
-  "\v": "\\v",
-  '"': '\\"',
-  $: "\\$",
-  "[": "\\[",
-  "]": "\\]",
-};
-
-const TCL_UNESCAPE_MAP: Record<string, string> = {
-  "\\": "\\",
-  n: "\n",
-  r: "\r",
-  t: "\t",
-  b: "\b",
-  f: "\f",
-  v: "\v",
-  '"': '"',
-  $: "$",
-  "[": "[",
-  "]": "]",
-};
-
-function escapeTclText(text: string): string {
-  return text.replace(/[\\\n\r\t\b\f\v"$\[\]]/g, (char) => TCL_ESCAPE_MAP[char]);
-}
-
-function unescapeTclText(text: string): string {
-  return text.replace(
-    /\\([\\nrtbfv"\$\[\]])/g,
-    (_match, escaped: string) => TCL_UNESCAPE_MAP[escaped],
-  );
-}
-
-async function transformSelection(
-  transform: (text: string) => string,
-  pastTenseAction: string,
-  infinitiveAction: string,
-): Promise<void> {
-  const editor = window.activeTextEditor;
-  if (!editor || !isTclLanguage(editor.document.languageId)) {
-    window.showWarningMessage("Open a Tcl file to transform a selection.");
-    return;
-  }
-
-  const selections = editor.selections.filter((selection) => !selection.isEmpty);
-  if (selections.length === 0) {
-    window.showWarningMessage("Select text in a Tcl file first.");
-    return;
-  }
-
-  const applied = await editor.edit((editBuilder) => {
-    for (const selection of selections) {
-      const input = editor.document.getText(selection);
-      editBuilder.replace(selection, transform(input));
-    }
-  });
-
-  if (!applied) {
-    window.showWarningMessage(`Failed to ${infinitiveAction} selection.`);
-    return;
-  }
-
-  window.showInformationMessage(
-    `${pastTenseAction} ${selections.length} selection${selections.length === 1 ? "" : "s"}.`,
-  );
 }
 
 async function escapeSelection(): Promise<void> {

@@ -286,9 +286,34 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 		--exclude='.ruff_cache/' \
 		--exclude='.mypy_cache/' \
 		--exclude='.vscode-test/' \
+		--exclude='.vscode-test-web/' \
 		$(EXT_DIR)/ $(STAGE_DIR)/
 	mkdir -p $(STAGE_DIR)/spec-studio
 	cp -R $(ROOT)rust/tcl-spec-studio-wasm/dist/. $(STAGE_DIR)/spec-studio/
+	@# The browser language server (package.json `browser`), for vscode.dev /
+	@# github.dev and every other web extension host.  Staged from
+	@# `make lsp-server-wasm`'s dist rather than trusting the extension
+	@# directory's own copy, so a VSIX can never ship a stale worker.  The
+	@# `spec-studio-wasm` prerequisite above already builds it.
+	@#
+	@# It ships in EVERY VSIX flavour, targeted or not: one package.json declares
+	@# both entry points, so a targeted package whose `browser` entry had no
+	@# assets would fail on the web while claiming to support it.
+	@echo "==> Staging the browser language server (dist/web)"
+	mkdir -p $(STAGE_DIR)/dist/web/specs
+	cp $(LSP_SERVER_WASM_DIR)/dist/worker.js \
+		$(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm.js \
+		$(LSP_SERVER_WASM_DIR)/dist/tcl_lsp_server_wasm_bg.wasm \
+		$(STAGE_DIR)/dist/web/
+	@# The bundled SpecTcl loadables again: the native server finds them in a
+	@# `specs/` directory beside its executable, and the browser server — which
+	@# has no executable — gets them upserted into the virtual pack mount at
+	@# startup (docs/design/contracts/lsp-source-store.md).
+	cp $(SPEC_PACK_FILES) $(STAGE_DIR)/dist/web/specs/
+	@# …plus a manifest naming them.  An installed web extension's files are
+	@# served over http, where VS Code's filesystem provider answers `readFile`
+	@# only, so the browser entry cannot list this directory to find them.
+	node -e "const fs=require('fs');const d='$(STAGE_DIR)/dist/web/specs';const p=fs.readdirSync(d).filter(f=>f.endsWith('.tclspec')).sort();fs.writeFileSync(d+'/index.json',JSON.stringify(p,null,2)+'\n')"
 	@# Inject version from git describe into staged package.json
 	node -e "const f='$(STAGE_DIR)/package.json';const p=JSON.parse(require('fs').readFileSync(f));p.version='$(SEMVER_VERSION)';require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n')"
 	@echo "==> Bundling native tcl-lsp-server binaries: $(BUNDLED_TARGETS)"
@@ -327,7 +352,7 @@ $(VSIX_FILE): spec-studio-wasm $(OUT_DIR)/extension.js $(EXT_DIR)/package.json $
 verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 	@echo "==> Verifying VSIX contents"
 	@set -euo pipefail; \
-		BAD_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(\.venv/|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|\.vscode-test/|\.stamps/|src/|testFixture/|out/test/|.*__pycache__/|.*\.pyc$$)' || true)"; \
+		BAD_ENTRIES="$$(unzip -Z1 $(VSIX_FILE) | grep -E '^extension/(\.venv/|\.ruff_cache/|\.pytest_cache/|\.mypy_cache/|\.vscode-test/|\.vscode-test-web/|\.stamps/|src/|testFixture/|out/test/|.*__pycache__/|.*\.pyc$$)' || true)"; \
 		if [[ -n "$$BAD_ENTRIES" ]]; then \
 			echo "VSIX contains dev/cache content that should be excluded:"; \
 			echo "$$BAD_ENTRIES"; \
@@ -366,6 +391,29 @@ verify-vsix: $(VSIX_FILE) ## Fail if dev/cache artifacts leaked into the .vsix
 			exit 1; \
 		fi; \
 		echo "==> VSIX bundles $$have/$$want native server binaries, each with the shipped spec packs"
+	@# The browser half.  `package.json` declares `browser`, which is what makes
+	@# the Marketplace flag the extension as web-supported, so a package that
+	@# ships the manifest without the worker assets advertises a language server
+	@# it cannot start.
+	@set -euo pipefail; \
+		entries="$$(unzip -Z1 $(VSIX_FILE))"; \
+		missing=""; \
+		for f in out/extension.browser.js dist/web/worker.js dist/web/tcl_lsp_server_wasm.js \
+			dist/web/tcl_lsp_server_wasm_bg.wasm; do \
+			echo "$$entries" | grep -qx "extension/$$f" || missing="$$missing $$f"; \
+		done; \
+		echo "$$entries" | grep -qx "extension/dist/web/specs/index.json" \
+			|| missing="$$missing dist/web/specs/index.json"; \
+		for pack in $(notdir $(SPEC_PACK_FILES)); do \
+			echo "$$entries" | grep -qx "extension/dist/web/specs/$$pack" \
+				|| missing="$$missing dist/web/specs/$$pack"; \
+		done; \
+		if [ -n "$$missing" ]; then \
+			echo "VSIX missing the browser (web extension host) payload:$$missing"; \
+			echo "Build it first: make lsp-server-wasm"; \
+			exit 1; \
+		fi; \
+		echo "==> VSIX carries the browser language server (dist/web) and its spec packs"
 
 # ---------------------------------------------------------------------------
 # Platform-targeted VSIX packaging — six small, single-binary VSIXes
@@ -1369,6 +1417,11 @@ $(OUT_DIR)/extension.js: $(TS_SRCS) $(EXT_DIR)/tsconfig.json $(NPM_STAMP) $(CANO
 	else \
 		echo "==> tcl-explorer-wasm not built — webview will use host-brokered compile (run 'make explorer-wasm')"; \
 	fi
+	@# Stage the browser language server into editors/vscode/dist/web so a local
+	@# web run (`npm run test:web`, `vscode-test-web`) finds it.  Best-effort:
+	@# `make package-vsix` stages it itself from the same source and
+	@# `verify-vsix` asserts the result, so packaging never depends on this.
+	@cd $(EXT_DIR) && node scripts/copy-web-assets.cjs
 
 # Generated editor catalogs
 #
