@@ -21,3 +21,6 @@ class TextCommand:
 class WindowCommand:
     window: sublime.Window
     def run(self) -> None: ...
+
+class ApplicationCommand:
+    def run(self) -> None: ...

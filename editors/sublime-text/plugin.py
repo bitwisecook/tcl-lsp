@@ -17,36 +17,80 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """
-Tcl Language Support — Sublime Text LSP helper plugin.
+TclLsp — Sublime Text language support for Tcl, iRules, iApps and EDA Tcl.
 
-Provides automatic configuration of the tcl-lsp server for the
-Sublime LSP package.  Standalone features (syntax, snippets, settings)
-work even when the LSP package is not installed.
+Standalone features (syntaxes, snippets, settings, symbol indexing) need
+nothing but Sublime Text.  With the sublimelsp/LSP package installed, this
+plugin also configures the tcl-lsp language server: the matching
+`tcl-lsp-server` build for this platform is downloaded once into LSP's
+package storage, verified against the digest this package was built with,
+and kept beside the `.tclspec` packs shipped in this package.
 
-Constraint: runs in Sublime Text's embedded Python 3.10+ (plugin host 38).
+The digest is what makes the download trustworthy, so where it comes from
+matters.  A released package carries one per platform in
+`server_version.json`, computed by CI from the very artefacts it attached
+to the release; that reaches the user through Package Control rather than
+from the release the binary comes from, so replacing a release asset is
+not enough to have a substituted binary accepted.  A package built
+without those pins (a source checkout) has nothing but the release's own
+SHA256SUMS to go on, which is an integrity check against a corrupted or
+truncated download — not proof of origin — and `_install_server` says so
+on the console when it falls back to it.
+
+Constraint: runs in Sublime Text's plugin_host 3.8 (see `.python-version`).
 """
 
 import functools
+import hashlib
+import json
 import os
-import zipfile
+import re
+import shutil
+import tempfile
+import urllib.request
 
 import sublime  # type: ignore[import-not-found]
 import sublime_plugin  # type: ignore[import-not-found]
 
-PACKAGE_NAME = "Tcl"
+PACKAGE_NAME = "TclLsp"
+
+# The LSP client settings (user-editable, overridable from Packages/User).
 SETTINGS_KEY = "LSP-Tcl.sublime-settings"
-SERVER_DIR = "server"
 
+# Plugin state — first-run flags only.  Kept out of SETTINGS_KEY so a user's
+# settings file stays theirs, and out of `Tcl.sublime-settings`, which
+# Sublime applies to every view using the Tcl syntax.
+STATE_KEY = "TclLsp.sublime-settings"
 
-def _server_entry():
-    # type: () -> str
-    """Return the bundled native server binary name for this platform."""
-    if sublime.platform() == "windows" or os.name == "nt":
-        return "tcl-lsp-server.exe"
-    return "tcl-lsp-server"
+# Where the server binary and its spec packs come from.
+GITHUB_REPO = "bitwisecook/tcl-lsp"
+SERVER_BASENAME = "tcl-lsp-server"
+CHECKSUM_ASSET = "SHA256SUMS"
 
+# `tcl_spectcl::discovery` reads this to find the bundled `.tclspec` packs
+# (the EDA vendor command libraries).  Without them the shipped EDA
+# syntaxes highlight commands the server would report as unknown.
+SPEC_PACK_DIR_ENV = "TCL_LSP_SPEC_PACK_DIR"
+SPEC_PACK_SUBDIR = "specs"
 
-SERVER_ENTRY = _server_entry()
+# Package resource holding the release this package was built for.
+VERSION_RESOURCE = "Packages/{}/server_version.json".format(PACKAGE_NAME)
+
+# Sublime's platform/arch pair -> Rust target triple of the release asset.
+# Keep in sync with SERVER_TARGET_MAP in the repository Makefile.
+SERVER_TRIPLES = {
+    ("linux", "x64"): "x86_64-unknown-linux-gnu",
+    ("linux", "arm64"): "aarch64-unknown-linux-gnu",
+    ("osx", "x64"): "x86_64-apple-darwin",
+    ("osx", "arm64"): "aarch64-apple-darwin",
+    ("windows", "x64"): "x86_64-pc-windows-msvc",
+    ("windows", "arm64"): "aarch64-pc-windows-msvc",
+}
+
+# A release version — three numeric components, as `v<version>` tags carry.
+# Anything else (a `git describe` string, the dev sentinel) has no release
+# to download from.
+_RELEASE_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 # Dialects the server supports, keyed for the quick-panel.
 DIALECTS = [
@@ -105,22 +149,27 @@ _HAS_LSP = False
 
 def _package_dir():
     # type: () -> str
-    """Return the extracted Packages/Tcl directory."""
+    """Return the extracted Packages/TclLsp directory (development installs)."""
     return os.path.join(sublime.packages_path(), PACKAGE_NAME)
 
 
-def _cache_dir():
+def _server_filename():
     # type: () -> str
-    """Return the Cache/Tcl directory for extracted assets."""
-    cache = os.path.join(sublime.cache_path(), PACKAGE_NAME)
-    os.makedirs(cache, exist_ok=True)
-    return cache
+    """Return the server executable name for this platform."""
+    if sublime.platform() == "windows":
+        return SERVER_BASENAME + ".exe"
+    return SERVER_BASENAME
+
+
+def _server_triple():
+    # type: () -> str
+    """Return the release-asset target triple for this platform, or ''."""
+    return SERVER_TRIPLES.get((sublime.platform(), sublime.arch()), "")
 
 
 def _ensure_executable(path):
     # type: (str) -> str
-    """Ensure *path* has the +x bit set (files extracted from a ZIP may
-    lose it) and return the path unchanged."""
+    """Ensure *path* has the +x bit set and return the path unchanged."""
     if not path or os.name == "nt":
         return path
     try:
@@ -132,55 +181,312 @@ def _ensure_executable(path):
     return path
 
 
-def _find_bundled_server():
-    # type: () -> str
-    """Locate the bundled native server binary (server/tcl-lsp-server).
-
-    First checks the extracted Packages/Tcl/server/ directory (normal for
-    development or overridden-package installs).  If not found, checks
-    Cache/Tcl/server/ (previously extracted).  Finally, extracts the
-    server/ tree from the .sublime-package ZIP in Installed Packages/.
-
-    On the way out the binary is marked executable, since files extracted
-    from a package ZIP lose the +x bit.
-    """
-    # 1. Extracted package directory (development / loose install)
-    candidate = os.path.join(_package_dir(), SERVER_DIR, SERVER_ENTRY)
-    if os.path.isfile(candidate):
-        return _ensure_executable(candidate)
-
-    # 2. Cache (previously extracted)
-    cached_dir = os.path.join(_cache_dir(), SERVER_DIR)
-    cached_entry = os.path.join(cached_dir, SERVER_ENTRY)
-    if os.path.isfile(cached_entry):
-        return _ensure_executable(cached_entry)
-
-    # 3. Extract server/ tree from .sublime-package ZIP
-    pkg_zip = os.path.join(
-        sublime.installed_packages_path(),
-        PACKAGE_NAME + ".sublime-package",
-    )
-    if os.path.isfile(pkg_zip):
-        try:
-            with zipfile.ZipFile(pkg_zip, "r") as zf:
-                server_members = [
-                    n for n in zf.namelist() if n.startswith(SERVER_DIR + "/")
-                ]
-                if server_members:
-                    dest = _cache_dir()
-                    for member in server_members:
-                        zf.extract(member, dest)
-                    if os.path.isfile(cached_entry):
-                        return _ensure_executable(cached_entry)
-        except (zipfile.BadZipFile, OSError):
-            pass
-
-    return ""
-
-
 def _load_settings():
     # type: () -> sublime.Settings
     return sublime.load_settings(SETTINGS_KEY)
+
+
+def _state():
+    # type: () -> sublime.Settings
+    return sublime.load_settings(STATE_KEY)
+
+
+def _save_state():
+    # type: () -> None
+    sublime.save_settings(STATE_KEY)
+
+
+def _user_server_path():
+    # type: () -> str
+    """Return the user's `server_path` override when it names a real file."""
+    path = _load_settings().get("server_path") or ""
+    if path and os.path.isfile(path):
+        return _ensure_executable(path)
+    return ""
+
+
+def _development_server_path():
+    # type: () -> str
+    """Return a server staged inside the package directory, if any.
+
+    `make build-editor-sublime` does not bundle a binary, but a development
+    checkout symlinked into Packages/ may have one at `server/`, and that
+    build should win over a download.
+    """
+    candidate = os.path.join(_package_dir(), "server", _server_filename())
+    if os.path.isfile(candidate):
+        return _ensure_executable(candidate)
+    return ""
+
+
+# Managed server install (downloaded on first use)
+
+
+def _version_manifest():
+    # type: () -> dict
+    """Return the parsed `server_version.json`, or an empty mapping."""
+    try:
+        raw = sublime.load_resource(VERSION_RESOURCE)
+    except (OSError, ValueError):
+        return {}
+    try:
+        return json.loads(raw) or {}
+    except ValueError:
+        return {}
+
+
+def _packaged_version():
+    # type: () -> str
+    """Return the release version this package was built for, or ''.
+
+    `server_version.json` is written into the package by
+    `make build-editor-sublime`; a plain source checkout has no stamp, and
+    then the latest published release is resolved at install time instead.
+    """
+    version = _version_manifest().get("version") or ""
+    return version if _RELEASE_VERSION_RE.match(version) else ""
+
+
+def _pinned_digest(triple):
+    # type: (str) -> str
+    """Return the SHA-256 this package was built to expect for *triple*.
+
+    Written into `server_version.json` by `make build-editor-sublime` when
+    it is handed the built server binaries (which is how the tagged CI
+    build runs it).  Empty for a package built without them.
+    """
+    return (_version_manifest().get("servers") or {}).get(triple) or ""
+
+
+def _managed_dir(version):
+    # type: (str) -> str
+    """Return the install directory for *version* inside LSP's storage."""
+    if TclLsp is None:
+        return ""
+    return os.path.join(TclLsp.storage_path(), PACKAGE_NAME, version)
+
+
+def _managed_server_path(version):
+    # type: (str) -> str
+    """Return the managed server path for *version*, or '' when absent."""
+    base = _managed_dir(version)
+    if not base:
+        return ""
+    candidate = os.path.join(base, _server_filename())
+    if os.path.isfile(candidate) and os.path.isdir(
+        os.path.join(base, SPEC_PACK_SUBDIR)
+    ):
+        return _ensure_executable(candidate)
+    return ""
+
+
+def _installed_versions():
+    # type: () -> list
+    """Return every fully-installed managed version, name-sorted.
+
+    Ordering is by directory name, not semver — the pinned version is
+    tried first and `_install_server` prunes the rest, so this list only
+    ever decides between leftovers on an unstamped source install, where
+    any complete install will do.
+    """
+    if TclLsp is None:
+        return []
+    root = os.path.join(TclLsp.storage_path(), PACKAGE_NAME)
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return []
+    return [name for name in names if _managed_server_path(name)]
+
+
+def _fetch(url, timeout=30):
+    # type: (str, int) -> bytes
+    """GET *url* and return its body."""
+    request = urllib.request.Request(url, headers={"User-Agent": _user_agent()})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return response.read()
+
+
+def _user_agent():
+    # type: () -> str
+    return "{}/Sublime-Text (+https://github.com/{})".format(PACKAGE_NAME, GITHUB_REPO)
+
+
+def _latest_release_version():
+    # type: () -> str
+    """Ask GitHub for the newest non-pre-release version."""
+    url = "https://api.github.com/repos/{}/releases/latest".format(GITHUB_REPO)
+    tag = (json.loads(_fetch(url).decode("utf-8")) or {}).get("tag_name") or ""
+    version = tag[1:] if tag.startswith("v") else tag
+    if not _RELEASE_VERSION_RE.match(version):
+        raise RuntimeError(
+            "the latest tcl-lsp release ({}) is not a plain version tag".format(
+                tag or "none"
+            )
+        )
+    return version
+
+
+def _asset_url(version, asset):
+    # type: (str, str) -> str
+    return "https://github.com/{}/releases/download/v{}/{}".format(
+        GITHUB_REPO, version, asset
+    )
+
+
+def _release_checksum(version, asset):
+    # type: (str, str) -> str
+    """Return the SHA256SUMS digest release *version* publishes for *asset*.
+
+    The fallback for a package with no pinned digest.  It travels with the
+    binary it describes, so treat it as an integrity check on the transfer
+    rather than proof of where the binary came from — the pinned digest in
+    `server_version.json` is the one that carries authenticity, and
+    `_install_server` prefers it.
+    """
+    sums = _fetch(_asset_url(version, CHECKSUM_ASSET)).decode("utf-8")
+    for line in sums.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and os.path.basename(parts[1]) == asset:
+            return parts[0]
+    raise RuntimeError(
+        "release v{} has no {} entry for {}".format(version, CHECKSUM_ASSET, asset)
+    )
+
+
+def _download_verified(url, expected_sha256, dest):
+    # type: (str, str, str) -> None
+    """Stream *url* to *dest*, refusing content that fails the checksum."""
+    digest = hashlib.sha256()
+    request = urllib.request.Request(url, headers={"User-Agent": _user_agent()})
+    with urllib.request.urlopen(request, timeout=120) as response:
+        with open(dest, "wb") as handle:
+            while True:
+                chunk = response.read(256 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+                handle.write(chunk)
+    actual = digest.hexdigest()
+    if actual != expected_sha256:
+        os.remove(dest)
+        raise RuntimeError(
+            "checksum mismatch for {}: expected {}, got {}".format(
+                os.path.basename(url), expected_sha256, actual
+            )
+        )
+
+
+def _stage_spec_packs(dest_dir):
+    # type: (str) -> None
+    """Copy this package's `.tclspec` packs into *dest_dir*.
+
+    The packs ship as package resources, so they may live inside the
+    `.sublime-package` ZIP; the server needs real files on disk.
+    """
+    os.makedirs(dest_dir, exist_ok=True)
+    prefix = "Packages/{}/{}/".format(PACKAGE_NAME, SPEC_PACK_SUBDIR)
+    for resource in sublime.find_resources("*.tclspec"):
+        if not resource.startswith(prefix):
+            continue
+        target = os.path.join(dest_dir, os.path.basename(resource))
+        with open(target, "wb") as handle:
+            handle.write(sublime.load_binary_resource(resource))
+
+
+def _prune_managed_versions(keep):
+    # type: (str) -> None
+    """Remove managed installs other than *keep* (best effort)."""
+    if TclLsp is None:
+        return
+    root = os.path.join(TclLsp.storage_path(), PACKAGE_NAME)
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return
+    for name in names:
+        if name == keep:
+            continue
+        shutil.rmtree(os.path.join(root, name), ignore_errors=True)
+
+
+def _install_server():
+    # type: () -> None
+    """Download and verify the server build for this platform."""
+    triple = _server_triple()
+    if not triple:
+        raise RuntimeError(
+            "no tcl-lsp-server build for {}-{}; set 'server_path' in the "
+            "TclLsp LSP settings to a server you built yourself".format(
+                sublime.platform(), sublime.arch()
+            )
+        )
+
+    version = _packaged_version() or _latest_release_version()
+    asset = "{}-{}{}".format(
+        SERVER_BASENAME, triple, ".exe" if sublime.platform() == "windows" else ""
+    )
+    target_dir = _managed_dir(version)
+    if not target_dir:
+        raise RuntimeError("the LSP package is not available")
+
+    expected = _pinned_digest(triple)
+    pinned = bool(expected)
+    if not pinned:
+        expected = _release_checksum(version, asset)
+
+    # Build the install in a sibling directory and move it into place, so an
+    # interrupted download never leaves a half-installed version behind.
+    parent = os.path.dirname(target_dir)
+    os.makedirs(parent, exist_ok=True)
+    staging = tempfile.mkdtemp(prefix=".{}-".format(version), dir=parent)
+    try:
+        binary = os.path.join(staging, _server_filename())
+        _download_verified(_asset_url(version, asset), expected, binary)
+        _ensure_executable(binary)
+        _stage_spec_packs(os.path.join(staging, SPEC_PACK_SUBDIR))
+        shutil.rmtree(target_dir, ignore_errors=True)
+        os.rename(staging, target_dir)
+    except Exception:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+
+    _prune_managed_versions(version)
+    print(
+        "{}: installed tcl-lsp-server {} ({}), digest {}".format(
+            PACKAGE_NAME,
+            version,
+            triple,
+            "pinned by this package"
+            if pinned
+            else "taken from the release's SHA256SUMS — this package carries "
+            "no pinned digest, so the download is integrity-checked but not "
+            "traced to a known build",
+        )
+    )
+
+
+def _resolve_server():
+    # type: () -> tuple
+    """Return `(server_path, spec_pack_dir)` for the LSP client config.
+
+    Resolution order: the user's `server_path`, a server staged in a
+    development checkout, then the managed download.  Only the managed
+    install carries a spec-pack directory — a server the user points at
+    keeps whatever packs sit beside it.
+    """
+    path = _user_server_path() or _development_server_path()
+    if path:
+        return (path, "")
+
+    version = _packaged_version()
+    candidates = [version] if version else []
+    candidates.extend(reversed(_installed_versions()))
+    for candidate in candidates:
+        managed = _managed_server_path(candidate)
+        if managed:
+            return (managed, os.path.join(_managed_dir(candidate), SPEC_PACK_SUBDIR))
+    return ("", "")
 
 
 def _set_dialect(dialect_id):
@@ -258,8 +564,9 @@ else:
             The default AbstractPlugin.configuration() assumes the settings
             file lives at ``Packages/LSP-{name}/LSP-{name}.sublime-settings``,
             which only works when the plugin is its own ``LSP-{name}`` package.
-            Because we bundle the LSP helper inside the ``Tcl`` syntax package
-            the resource is actually at ``Packages/Tcl/LSP-Tcl.sublime-settings``.
+            Because the LSP helper is bundled inside the ``TclLsp`` language
+            package the resource is at
+            ``Packages/TclLsp/LSP-Tcl.sublime-settings``.
             """
             basename = SETTINGS_KEY  # "LSP-Tcl.sublime-settings"
             filepath = "Packages/{}/{}".format(PACKAGE_NAME, basename)
@@ -269,33 +576,48 @@ else:
         @classmethod
         def additional_variables(cls):
             # type: () -> dict
-            settings = _load_settings()
-            # Allow user override of server path, otherwise use the bundled
-            # native binary (marked executable on first run).
-            user_path = settings.get("server_path")
-            if user_path and os.path.isfile(user_path):
-                server = _ensure_executable(user_path)
-            else:
-                server = _find_bundled_server()
-
+            server, spec_dir = _resolve_server()
             return {
                 "server_path": server,
+                "spec_pack_dir": spec_dir,
             }
+
+        @classmethod
+        def needs_update_or_installation(cls):
+            # type: () -> bool
+            """Report whether the managed server has to be fetched.
+
+            Deliberately free of network calls: LSP calls this before it
+            spawns the installation thread.
+            """
+            if _user_server_path() or _development_server_path():
+                return False
+            version = _packaged_version()
+            if version:
+                return not _managed_server_path(version)
+            # An unstamped (source) install has no release to pin to, so any
+            # previously downloaded server is left alone.
+            return not _installed_versions()
+
+        @classmethod
+        def install_or_update(cls):
+            # type: () -> None
+            _install_server()
 
         @classmethod
         def can_start(cls, window, initiating_view, workspace_folders, configuration):
             """Return an error string if the server cannot start."""
-            variables = cls.additional_variables() or {}
-            server = variables.get("server_path", "")
-
+            server, _ = _resolve_server()
             if not server or not os.path.isfile(server):
                 return (
-                    "tcl-lsp server not found.  "
-                    "Download the .sublime-package from the GitHub Releases "
-                    "page and install it as Tcl.sublime-package, or set "
-                    "'server_path' in LSP-Tcl settings."
+                    "tcl-lsp server not available.  TclLsp downloads the "
+                    "matching build from "
+                    "https://github.com/{}/releases on first use; if this "
+                    "machine has no access to it, install the server "
+                    "yourself and set 'server_path' in "
+                    "Preferences > Package Settings > TclLsp > LSP "
+                    "Settings.".format(GITHUB_REPO)
                 )
-
             return None
 
     TclLsp = _TclLspPlugin
@@ -304,54 +626,132 @@ else:
 # Lifecycle
 
 
-def _check_package_name():
-    # type: () -> None
-    """Warn if the .sublime-package file is not named Tcl.sublime-package."""
-    expected = os.path.join(
-        sublime.installed_packages_path(),
-        PACKAGE_NAME + ".sublime-package",
-    )
-    if os.path.isfile(expected):
-        return  # Correctly named
-    ip_dir = sublime.installed_packages_path()
-    if os.path.isdir(ip_dir):
-        for fname in os.listdir(ip_dir):
-            if fname.endswith(".sublime-package") and "tcl-lsp" in fname.lower():
-                sublime.error_message(
-                    "Tcl Language Support\n\n"
-                    "The package file must be named 'Tcl.sublime-package' "
-                    "to work correctly, but it is currently named:\n\n"
-                    "  " + fname + "\n\n"
-                    "Please rename it to 'Tcl.sublime-package' and restart "
-                    "Sublime Text."
-                )
-                return
+def _legacy_package_installed():
+    # type: () -> str
+    """Return the filename of a pre-rename install still on disk, if any.
 
-
-def _disable_builtin_tcl():
-    # type: () -> None
-    """Disable the shipped TCL package to avoid duplicate syntax entries.
-
-    Sublime Text ships a built-in package named 'TCL' (uppercase).
-    Since our package is named 'Tcl' (mixed case), they are treated as
-    separate packages and both syntaxes appear in the language menu.
-    Adding 'TCL' to ignored_packages hides the built-in.
+    Before this package was submitted to Package Control it was installed
+    by hand as `Tcl.sublime-package`.  Left in place beside `TclLsp` it
+    would double up every syntax and LSP client config.
     """
+    directory = sublime.installed_packages_path()
+    for name in ("Tcl.sublime-package",):
+        if os.path.isfile(os.path.join(directory, name)):
+            return name
+    return ""
+
+
+def _warn_about_legacy_package():
+    # type: () -> None
+    legacy = _legacy_package_installed()
+    if not legacy:
+        return
+    state = _state()
+    if state.get("legacy_package_warning_shown"):
+        return
+    state.set("legacy_package_warning_shown", True)
+    _save_state()
+    sublime.message_dialog(
+        "Tcl Language Support (TclLsp)\n\n"
+        "An older hand-installed copy of this package is still present as\n\n"
+        "  " + os.path.join(sublime.installed_packages_path(), legacy) + "\n\n"
+        "Delete it and restart Sublime Text — otherwise every Tcl syntax "
+        "and the language server are registered twice."
+    )
+
+
+def _pending_setup_steps():
+    # type: () -> list
+    """Return the recommended-setup steps that have not been applied."""
+    steps = []
+    ignored = sublime.load_settings("Preferences.sublime-settings").get(
+        "ignored_packages"
+    )
+    if "TCL" not in (ignored or []):
+        steps.append(
+            "disable Sublime Text's built-in TCL package, so each Tcl syntax "
+            "appears once in the language menu"
+        )
+    if _HAS_LSP and not sublime.load_settings("LSP.sublime-settings").get(
+        "semantic_highlighting"
+    ):
+        steps.append(
+            "turn on LSP's semantic_highlighting, so tcl-lsp's semantic "
+            "tokens reach the buffer"
+        )
+    return steps
+
+
+def _apply_setup_steps():
+    # type: () -> None
+    """Apply the recommended setup.  Only ever called with consent."""
     prefs = sublime.load_settings("Preferences.sublime-settings")
     ignored = prefs.get("ignored_packages") or []
     if "TCL" not in ignored:
         ignored.append("TCL")
         prefs.set("ignored_packages", ignored)
         sublime.save_settings("Preferences.sublime-settings")
+    if _HAS_LSP:
+        lsp_settings = sublime.load_settings("LSP.sublime-settings")
+        if not lsp_settings.get("semantic_highlighting"):
+            lsp_settings.set("semantic_highlighting", True)
+            sublime.save_settings("LSP.sublime-settings")
 
 
-def _enable_semantic_highlighting():
+def _offer_recommended_setup(interactive):
+    # type: (bool) -> None
+    """Offer the recommended setup, editing settings only on a yes.
+
+    `interactive` is True for the palette command, which reports "nothing
+    to do" rather than staying silent.
+    """
+    steps = _pending_setup_steps()
+    if not steps:
+        if interactive:
+            sublime.message_dialog(
+                "Tcl Language Support (TclLsp)\n\n"
+                "The recommended setup is already applied."
+            )
+        return
+    prompt = (
+        "Tcl Language Support (TclLsp)\n\n"
+        "Apply the recommended setup?  This will:\n\n"
+        + "".join("  • " + step + "\n" for step in steps)
+        + "\nBoth are ordinary preferences you can change back at any "
+        "time, and nothing else in your settings is touched."
+    )
+    if sublime.ok_cancel_dialog(prompt, "Apply"):
+        _apply_setup_steps()
+
+
+def _first_run_setup():
     # type: () -> None
-    """Enable semantic highlighting in the global LSP settings if not already on."""
-    lsp_settings = sublime.load_settings("LSP.sublime-settings")
-    if not lsp_settings.get("semantic_highlighting"):
-        lsp_settings.set("semantic_highlighting", True)
-        sublime.save_settings("LSP.sublime-settings")
+    """Ask once, on the first load after installation."""
+    state = _state()
+    if state.get("setup_prompt_shown"):
+        return
+    state.set("setup_prompt_shown", True)
+    _save_state()
+    _offer_recommended_setup(interactive=False)
+
+
+def _suggest_lsp_install():
+    # type: () -> None
+    """Show a one-time message suggesting LSP package installation."""
+    state = _state()
+    if state.get("lsp_suggestion_shown"):
+        return
+    state.set("lsp_suggestion_shown", True)
+    _save_state()
+
+    sublime.message_dialog(
+        "Tcl Language Support (TclLsp)\n\n"
+        "For full language server features (diagnostics, completions, "
+        "hover, formatting, code actions, and more), install the LSP "
+        "package from Package Control:\n\n"
+        "  Command Palette > Package Control: Install Package > LSP\n\n"
+        "Syntax highlighting, snippets, and settings work without LSP."
+    )
 
 
 def plugin_loaded():
@@ -360,16 +760,16 @@ def plugin_loaded():
     global _HAS_LSP
 
     # Defer these so they don't interfere with the current load cycle.
-    sublime.set_timeout(_check_package_name, 2000)
-    sublime.set_timeout(_disable_builtin_tcl, 1000)
-    sublime.set_timeout(_enable_semantic_highlighting, 1500)
+    sublime.set_timeout(_warn_about_legacy_package, 2000)
 
     if TclLsp is not None:
         _HAS_LSP = True
         register_plugin(TclLsp)
-        print("Tcl: registered LSP server plugin")
+        print("{}: registered LSP server plugin".format(PACKAGE_NAME))
+        sublime.set_timeout(_first_run_setup, 3000)
     else:
         sublime.set_timeout(_suggest_lsp_install, 3000)
+        sublime.set_timeout(_first_run_setup, 5000)
 
 
 def plugin_unloaded():
@@ -379,26 +779,15 @@ def plugin_unloaded():
         unregister_plugin(TclLsp)
 
 
-def _suggest_lsp_install():
-    # type: () -> None
-    """Show a one-time message suggesting LSP package installation."""
-    settings = sublime.load_settings("Tcl.sublime-settings")
-    if settings.get("_lsp_suggestion_shown"):
-        return
-    settings.set("_lsp_suggestion_shown", True)
-    sublime.save_settings("Tcl.sublime-settings")
-
-    sublime.message_dialog(
-        "Tcl Language Support\n\n"
-        "For full language server features (diagnostics, completions, "
-        "hover, formatting, code actions, and more), install the LSP "
-        "package from Package Control:\n\n"
-        "  Command Palette > Package Control: Install Package > LSP\n\n"
-        "Syntax highlighting, snippets, and settings work without LSP."
-    )
-
-
 # Commands
+
+
+class TclRecommendedSetupCommand(sublime_plugin.ApplicationCommand):
+    """Offer the two settings changes this package recommends."""
+
+    def run(self):
+        # type: () -> None
+        _offer_recommended_setup(interactive=True)
 
 
 class TclSelectDialectCommand(sublime_plugin.WindowCommand):
@@ -554,8 +943,6 @@ class TclUnminifyErrorCommand(sublime_plugin.WindowCommand):
 
     def _on_symbol_map(self, map_path):
         # type: (str) -> None
-        import os
-
         map_path = map_path.strip()
         if not map_path or not os.path.isfile(map_path):
             sublime.error_message("Symbol map file not found: " + map_path)

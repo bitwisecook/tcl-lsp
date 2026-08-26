@@ -28,10 +28,14 @@
         "command": "tcl_optimise_document"
     },
     {
+        "caption": "Tcl: Recommended Setup",
+        "command": "tcl_recommended_setup"
+    },
+    {
         "caption": "Preferences: Tcl LSP Settings",
         "command": "edit_settings",
         "args": {
-            "base_file": "${packages}/Tcl/LSP-Tcl.sublime-settings",
+            "base_file": "${packages}/TclLsp/LSP-Tcl.sublime-settings",
             "default": "// Tcl LSP Settings\n// See the default settings for available options.\n{\n\t$0\n}\n"
         }
     },
@@ -39,7 +43,7 @@
         "caption": "Preferences: Tcl Editor Settings",
         "command": "edit_settings",
         "args": {
-            "base_file": "${packages}/Tcl/Tcl.sublime-settings",
+            "base_file": "${packages}/TclLsp/Tcl.sublime-settings",
             "default": "// Tcl Editor Settings\n{\n\t$0\n}\n"
         }
     }
