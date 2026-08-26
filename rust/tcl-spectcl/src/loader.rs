@@ -118,6 +118,15 @@ use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
 
+mod available;
+mod dialect_block;
+mod environment_block;
+mod vocabulary_class;
+
+pub use dialect_block::{PackDialect, PackDialectAxis};
+pub use environment_block::{PackEnvironment, PackEnvironmentTier};
+pub use vocabulary_class::VocabularyClass;
+
 // ---------------------------------------------------------------------------
 // Notices
 // ---------------------------------------------------------------------------
@@ -136,6 +145,14 @@ pub struct Notice {
     pub line: u32,
     /// What was dropped, and why.
     pub message: String,
+    /// The §6.1 compatibility class of the word this notice is about.
+    ///
+    /// [`Presentation`](VocabularyClass::Presentation) for everything the
+    /// loader has always warned-and-dropped; the stronger classes are only
+    /// ever reached in the forward direction (a pack declaring a vocabulary
+    /// this build postdates) and inside the `dialect` / `environment`
+    /// blocks, where every word is semantic by construction.
+    pub class: VocabularyClass,
 }
 
 impl fmt::Display for Notice {
@@ -163,6 +180,15 @@ struct Log {
     /// the same defect as a 1.1 word under 1.0, and neither is a defect under
     /// a declaration at or above it.
     newer_words: Vec<(String, u32, String, &'static str)>,
+    /// Whether the pack declares a vocabulary this build postdates, which
+    /// is the only direction §6.1's fail-closed classes apply in.
+    forward_vocabulary: bool,
+    /// Whether an assistance-class unknown word was seen in the spec being
+    /// read. Reset by [`Log::begin_spec`].
+    assistance_unknown: bool,
+    /// Whether a semantic-class unknown word was seen in the spec being
+    /// read. Reset by [`Log::begin_spec`].
+    semantic_unknown: bool,
 }
 
 impl Log {
@@ -180,12 +206,76 @@ impl Log {
         self.since(line, word, "1.2");
     }
 
+    fn v20(&mut self, line: u32, word: &str) {
+        self.since(line, word, "2.0");
+    }
+
     fn say(&mut self, line: u32, message: impl Into<String>) {
         self.notices.push(Notice {
             context: self.context.clone(),
             line,
             message: message.into(),
+            class: VocabularyClass::Presentation,
         });
+    }
+
+    /// Say something in a stronger §6.1 class, and remember that the
+    /// current spec was degraded by it.
+    fn say_classified(&mut self, line: u32, class: VocabularyClass, message: impl Into<String>) {
+        self.notices.push(Notice {
+            context: self.context.clone(),
+            line,
+            message: message.into(),
+            class,
+        });
+        match class {
+            VocabularyClass::Presentation => {}
+            VocabularyClass::Assistance => self.assistance_unknown = true,
+            VocabularyClass::Semantic => self.semantic_unknown = true,
+        }
+    }
+
+    /// Classify an unknown `word` and report it.
+    ///
+    /// The escalation past `Presentation` happens **only** when the pack
+    /// declares a vocabulary this build postdates — §6.1's forward
+    /// direction, "an older loader meeting newer vocabulary". An unknown
+    /// word in a pack whose vocabulary this build knows in full is an
+    /// author's typo, not a word with a meaning being dropped, and it keeps
+    /// today's warn-and-drop treatment exactly.
+    fn unknown_word(&mut self, line: u32, word: &str, message: String) {
+        let class = if self.forward_vocabulary {
+            vocabulary_class::classify(word)
+        } else {
+            VocabularyClass::Presentation
+        };
+        match class {
+            VocabularyClass::Presentation => self.say(line, message),
+            VocabularyClass::Assistance => self.say_classified(
+                line,
+                class,
+                format!(
+                    "{message}; it is assistance-class vocabulary this build does not \
+                     speak, so the command loads with the affected capability degraded \
+                     (design §6.1)"
+                ),
+            ),
+            VocabularyClass::Semantic => self.say_classified(
+                line,
+                class,
+                format!(
+                    "{message}; it is semantic-class vocabulary this build does not \
+                     speak, so the command is excluded from strong analysis rather than \
+                     analysed without it (design §6.1)"
+                ),
+            ),
+        }
+    }
+
+    /// Forget the per-spec degradation state before reading a new spec.
+    fn begin_spec(&mut self) {
+        self.assistance_unknown = false;
+        self.semantic_unknown = false;
     }
 
     /// Run `body` with `context` pushed, restoring the previous label after.
@@ -216,15 +306,15 @@ impl Log {
         // `quotable` is the existing helper for exactly this — `unknown_flag`
         // has always used it; `unknown_property` simply never did, which is
         // the whole of the defect.
-        let word = quotable(stmt.word_text(0));
-        self.say(stmt.line, format!("unknown property `{word}` dropped"));
+        let raw = stmt.word_text(0);
+        let word = quotable(raw);
+        let message = format!("unknown property `{word}` dropped");
+        self.unknown_word(stmt.line, raw, message);
     }
 
     fn unknown_flag(&mut self, row: &str, line: u32, flag: &str) {
-        self.say(
-            line,
-            format!("unknown flag `{}` on `{row}` dropped", quotable(flag)),
-        );
+        let message = format!("unknown flag `{}` on `{row}` dropped", quotable(flag));
+        self.unknown_word(line, flag, message);
     }
 }
 
@@ -679,6 +769,14 @@ pub struct PackCommand {
     /// The `clause_grammar` the command declares, when it has one. Both hook
     /// behaviours are derived from it by [`ClauseGrammar::walk`].
     pub clause_grammar: Option<ClauseGrammar>,
+    /// Whether an assistance-class word this build does not speak was
+    /// dropped from the spec (§6.1).
+    ///
+    /// The command is still known — its name completes, its hover shows —
+    /// but the capability the dropped word configures must answer
+    /// `Unknown` rather than confidently, because a shape or value set the
+    /// author stated was not read.
+    pub degraded: bool,
     /// The line the `command` statement was declared on.
     ///
     /// Carried so a collision notice can point at the declaration that lost
@@ -721,10 +819,41 @@ pub struct Pack {
     /// modelled as a pack without having to be compiled into `tcl-dialect`
     /// first (issue #1631).
     pub ambient_packages: Vec<AmbientPackage>,
+    /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
+    /// 2.0, §6.2), in declaration order, with the rejected ones dropped.
+    pub environments: Vec<PackEnvironment>,
+    /// The `dialect NAME { … }` blocks the pack declares (`SpecTcl` 2.0,
+    /// §6.2 owner directive), in declaration order, with the rejected ones
+    /// dropped.
+    pub dialects: Vec<PackDialect>,
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
+    /// Why the whole pack failed closed, when it did (§6.1: an unsupported
+    /// `speclib` **major**). `Some` always comes with an empty `commands`
+    /// and one explaining notice — this is a load error wearing the
+    /// never-panicking shape the rest of the loader has.
+    pub load_error: Option<LoadError>,
     /// Everything dropped on the way in.
     pub notices: Vec<Notice>,
+}
+
+/// Why a pack loaded nothing at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LoadError {
+    /// The `speclib` word named a vocabulary major past this loader
+    /// (§6.1). The string is the declared version, verbatim.
+    UnsupportedMajor(String),
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnsupportedMajor(declared) => write!(
+                f,
+                "SpecTcl vocabulary {declared} is a major this loader does not support"
+            ),
+        }
+    }
 }
 
 /// One `ambient_package NAME VERSION` row: a package the pack's dialect
@@ -793,8 +922,11 @@ pub fn load_pack(source: &str) -> Pack {
         display_name: None,
         file_extensions: Vec::new(),
         ambient_packages: Vec::new(),
+        environments: Vec::new(),
+        dialects: Vec::new(),
         dsl_version: String::new(),
         commands: Vec::new(),
+        load_error: None,
         notices: Vec::new(),
     };
 
@@ -825,7 +957,20 @@ pub fn load_pack(source: &str) -> Pack {
     }
     speclib.word_text(1).clone_into(&mut pack.name);
     speclib.word_text(2).clone_into(&mut pack.dsl_version);
-    check_vocabulary_version(&pack.dsl_version, speclib.line, &mut log);
+    // §6.1's fail-closed classes apply in one direction only: an older
+    // loader meeting newer vocabulary. That is a *well-formed* version word
+    // this build postdates — `speclib probe 2.9`. A word that names no
+    // vocabulary at all (`banana`, the library's own release) says nothing
+    // about vocabulary, so it must not escalate an author's typo into a
+    // dropped command.
+    log.forward_vocabulary = declared_major(&pack.dsl_version).is_some()
+        && !KNOWN_VOCABULARY_VERSIONS.contains(&pack.dsl_version.as_str())
+        && tcl_registry::version::compare(&pack.dsl_version, NEWEST_VOCABULARY_VERSION).is_gt();
+    if check_vocabulary_version(&pack.dsl_version, speclib.line, &mut log) {
+        pack.load_error = Some(LoadError::UnsupportedMajor(pack.dsl_version.clone()));
+        pack.notices = log.notices;
+        return pack;
+    }
     let Some(body) = speclib.arg(3) else {
         log.say(speclib.line, "`speclib` has no body block");
         pack.notices = log.notices;
@@ -875,6 +1020,39 @@ pub fn load_pack(source: &str) -> Pack {
                     pack.ambient_packages.push(row);
                 }
             }
+            "environment" => {
+                log.v20(stmt.line, "environment");
+                if let Some(environment) = environment_block::parse(&stmt, &mut log) {
+                    if pack
+                        .environments
+                        .iter()
+                        .any(|prior| prior.id == environment.id)
+                    {
+                        log.say(
+                            stmt.line,
+                            format!(
+                                "`environment {}` redeclared; the first is kept",
+                                environment.id
+                            ),
+                        );
+                    } else {
+                        pack.environments.push(environment);
+                    }
+                }
+            }
+            "dialect" => {
+                log.v20(stmt.line, "dialect");
+                if let Some(dialect) = dialect_block::parse(&stmt, &mut log) {
+                    if pack.dialects.iter().any(|prior| prior.name == dialect.name) {
+                        log.say(
+                            stmt.line,
+                            format!("`dialect {}` redeclared; the first is kept", dialect.name),
+                        );
+                    } else {
+                        pack.dialects.push(dialect);
+                    }
+                }
+            }
             "command" => declarations.push(stmt),
             _ => log.unknown_property(&stmt),
         }
@@ -905,6 +1083,7 @@ pub fn load_pack(source: &str) -> Pack {
             log.notices.push(Notice {
                 context,
                 line,
+                class: VocabularyClass::Presentation,
                 message: format!(
                     "`{word}` is SpecTcl {since} vocabulary, but this pack declares \
                      vocabulary {declared}; a {declared} loader drops the word — declare \
@@ -951,13 +1130,26 @@ fn report_extra_speclib_blocks(top: &[Stmt], log: &mut Log) {
 ///
 /// Additive words never bump the vocabulary version
 /// (`docs/design/spec-packs.md`, "Compatibility policy"), so `1`, `1.0`, `1.1`
-/// and `1.2` all name a vocabulary this build understands in full. A pack naming
-/// anything else still loads: the words it uses that this build knows are read,
-/// and the rest hit the ordinary unknown-property rule.
-pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2"];
+/// and `1.2` all name a vocabulary this build understands in full. `2.0` joins
+/// them under the same rule: the redesign's §6.1 compatibility contract keeps
+/// one parser for every word ever ratified, so a 1.x pack and a 2.0 pack are
+/// read by the same code and a 1.x pack loads to an identical surface. A pack
+/// naming anything else still loads (unless its *major* is unsupported — see
+/// [`check_vocabulary_version`]): the words it uses that this build knows are
+/// read, and the rest hit the ordinary unknown-property rule.
+pub const KNOWN_VOCABULARY_VERSIONS: &[&str] = &["1", "1.0", "1.1", "1.2", "2", "2.0"];
 
 /// The newest vocabulary this loader speaks, for the notice below.
-pub const NEWEST_VOCABULARY_VERSION: &str = "1.2";
+pub const NEWEST_VOCABULARY_VERSION: &str = "2.0";
+
+/// The newest `speclib` **major** this loader supports.
+///
+/// §6.1: an unsupported major fails the pack closed. An unknown *minor*
+/// within a supported major keeps loading maximally, because a minor is only
+/// ever additive — but a major says the meaning of words this loader thinks it
+/// knows has changed, and reading them anyway is exactly the "stronger,
+/// safer-looking result" the contract forbids.
+const NEWEST_SUPPORTED_MAJOR: u32 = 2;
 
 /// `ambient_package NAME VERSION` — one package the pack's dialect provides
 /// without a `package require`.
@@ -1048,10 +1240,36 @@ fn file_extension_row(stmt: &Stmt, log: &mut Log) -> Option<FileExtension> {
     Some(row)
 }
 
-/// Warn when `speclib`'s version word is not a vocabulary this build knows.
-fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
+/// The major component of a `speclib` version word, when it has one.
+fn declared_major(declared: &str) -> Option<u32> {
+    declared
+        .split('.')
+        .next()
+        .and_then(|major| major.parse().ok())
+}
+
+/// Warn when `speclib`'s version word is not a vocabulary this build knows,
+/// and report whether the pack must fail closed.
+///
+/// `true` means the declaration named a **major** past this loader
+/// (`speclib probe 3.0`). §6.1: that is a load error, not a notice — every
+/// word in the file may have been redefined, so loading the ones this build
+/// recognises would publish confident answers derived from a vocabulary it
+/// does not speak. An unknown *minor* is the additive case and keeps loading.
+fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) -> bool {
     if declared.is_empty() || KNOWN_VOCABULARY_VERSIONS.contains(&declared) {
-        return;
+        return false;
+    }
+    if declared_major(declared).is_some_and(|major| major > NEWEST_SUPPORTED_MAJOR) {
+        log.say(
+            line,
+            format!(
+                "pack declares SpecTcl vocabulary {declared}; this loader supports major \
+                 {NEWEST_SUPPORTED_MAJOR} at most, and a new major may redefine words this \
+                 loader thinks it knows — nothing is loaded (design §6.1)"
+            ),
+        );
+        return true;
     }
     // "Newer words may be dropped" is only true of a vocabulary this loader
     // postdates. Anything else in the slot — most often a pack that wrote its
@@ -1072,6 +1290,7 @@ fn check_vocabulary_version(declared: &str, line: u32, log: &mut Log) {
         )
     };
     log.say(line, msg);
+    false
 }
 
 // ---------------------------------------------------------------------------
@@ -1143,6 +1362,16 @@ impl PackTables {
         let value = stmt.word_text(2);
         match key {
             "dialects" => self.defaults.dialects = parse_dialects(value, stmt.line, log),
+            "available" => {
+                log.v20(stmt.line, "available");
+                let availability = available::from_statement(stmt, 2, log);
+                if availability.dialects.is_some() {
+                    self.defaults.dialects = availability.dialects;
+                }
+                if let Some(package) = availability.required_package {
+                    self.defaults.required_package = Some(package);
+                }
+            }
             "required_package" => self.defaults.required_package = Some(leak_str(value)),
             "tcllib_package" => self.defaults.tcllib_package = Some(leak_str(value)),
             "introduced_version" => self.defaults.introduced_version = Some(leak_str(value)),
@@ -1343,7 +1572,7 @@ fn check_contained(what: &str, child: Lifecycle, parent: Lifecycle, line: u32, l
 
 /// The Tcl list elements of a word, braces stripped, tolerating a malformed
 /// list rather than refusing the whole declaration.
-fn list_words(text: &str) -> Vec<String> {
+pub(crate) fn list_words(text: &str) -> Vec<String> {
     tcl_syntax::list::split_list_lenient(text)
         .into_iter()
         .map(std::borrow::Cow::into_owned)
@@ -1391,6 +1620,35 @@ fn version_and_later(base: TclVersion) -> DialectSet {
         .iter()
         .filter(|(version, _)| *version >= base)
         .fold(DialectSet::empty(), |set, (_, bit)| set | *bit)
+}
+
+/// Apply an [`available::Availability`] at a scope that has no
+/// `required_package` field of its own.
+///
+/// Only `command` and `default` carry one, so a `{package NAME}` row
+/// anywhere else has nowhere to land: it is reported rather than dropped in
+/// silence, because a reader of the pack would otherwise believe the
+/// requirement was in force.
+fn apply_availability(
+    target: &mut Option<DialectSet>,
+    availability: available::Availability,
+    scope: &str,
+    line: u32,
+    log: &mut Log,
+) {
+    if let Some(package) = availability.required_package {
+        log.say(
+            line,
+            format!(
+                "`available {{package {package}}}` on a {scope} has no SpecTcl 1.x field \
+                 (only `command` and `default` carry `required_package`); the requirement \
+                 is dropped"
+            ),
+        );
+    }
+    if availability.dialects.is_some() {
+        *target = availability.dialects;
+    }
 }
 
 /// A dialect set word: members verbatim, plus `tclX.Y+`, `all-tcl`, `tcl8.x`.
@@ -2694,6 +2952,12 @@ fn option_row(
                 let text = next_text(words, &mut i);
                 option.dialects = parse_dialects(&text, stmt.line, log);
             }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(&mut option.dialects, availability, "option", stmt.line, log);
+            }
             "-min-abbrev" => option.min_abbrev = next_text(words, &mut i).parse().ok(),
             // The data form only: `{-replace WORD ?-replace-arg N? …}`, read by
             // the same flag reader the command-level `deprecation_fix`
@@ -3346,6 +3610,26 @@ fn snit_shaped_hint(word: &str) -> bool {
     word == "%AUTO%" || word.starts_with('.')
 }
 
+/// The `(index, role)` pairs of a member row's `-roles` list.
+///
+/// Split out of [`member_row`] because the pairing rule — flat list, two
+/// words per pair, an unreadable pair dropped with a notice rather than
+/// shifting every pair after it — is a self-contained reading of one word.
+fn member_arg_roles(text: &str, line: u32, log: &mut Log) -> Vec<(u8, ArgRole)> {
+    let mut roles = Vec::new();
+    for pair in list_words(text).chunks(2) {
+        let [index, role] = pair else { continue };
+        match (index.parse::<u8>(), by_name(ArgRole::ALL, role)) {
+            (Ok(index), Some(role)) => roles.push((index, role)),
+            _ => log.say(
+                line,
+                format!("unreadable member role pair `{index} {role}` dropped"),
+            ),
+        }
+    }
+    roles
+}
+
 fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
     let mut member = MemberSpec {
         keyword: leak_str(stmt.word_text(1)),
@@ -3368,20 +3652,7 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
         match words[i].text.as_str() {
             "-roles" => {
                 let text = next_text(words, &mut i);
-                let parts = list_words(&text);
-                let mut roles = Vec::new();
-                for pair in parts.chunks(2) {
-                    if let [index, role] = pair {
-                        match (index.parse::<u8>(), by_name(ArgRole::ALL, role)) {
-                            (Ok(index), Some(role)) => roles.push((index, role)),
-                            _ => log.say(
-                                stmt.line,
-                                format!("unreadable member role pair `{index} {role}` dropped"),
-                            ),
-                        }
-                    }
-                }
-                member.arg_roles = leak_slice(roles);
+                member.arg_roles = leak_slice(member_arg_roles(&text, stmt.line, log));
             }
             "-all-vars" => member.all_args_var = true,
             "-all-refs" => {
@@ -3402,6 +3673,18 @@ fn member_row(stmt: &Stmt, log: &mut Log) -> MemberSpec {
             "-dialects" => {
                 let text = next_text(words, &mut i);
                 member.dialects = parse_dialects(&text, stmt.line, log);
+            }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut member.dialects,
+                    availability,
+                    "object-class method",
+                    stmt.line,
+                    log,
+                );
             }
             "-retracts" => {
                 const RETRACTIONS: &[MemberRetraction] = &[
@@ -3608,6 +3891,7 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         return None;
     };
 
+    log.begin_spec();
     log.scoped(format!("command {name}"), |log| {
         let mut spec = CommandSpec {
             name: leak_str(name),
@@ -3701,11 +3985,30 @@ fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackC
         );
         check_command_containment(&spec, stmt.line, log);
 
+        // §6.1's fail-closed rule. A semantic-class word this build cannot
+        // read means the command's security / control-flow / binding facts
+        // are incomplete, and analysing it anyway would publish confident
+        // answers *because* the field was ignored — so the whole spec is
+        // excluded. The weaker class keeps the command and marks it, so the
+        // affected capability answers `Unknown` instead.
+        if log.semantic_unknown {
+            log.say_classified(
+                stmt.line,
+                VocabularyClass::Semantic,
+                format!(
+                    "`command {name}` is excluded from strong analysis: it uses \
+                     semantic-class vocabulary this build does not speak"
+                ),
+            );
+            return None;
+        }
+
         Some(PackCommand {
             spec: leak_one(spec),
             overrides_shipped,
             hooks: acc.hooks,
             clause_grammar: acc.clause_grammar,
+            degraded: log.assistance_unknown,
             line: stmt.line,
             file: std::path::PathBuf::new(),
         })
@@ -3931,6 +4234,24 @@ fn apply_command_stmt(
     match key.as_str() {
         // --- identity and availability -----------------------------------
         "dialects" => spec.dialects = parse_dialects(&value, stmt.line, log),
+        "available" => {
+            log.v20(stmt.line, "available");
+            let availability = available::from_statement(stmt, 1, log);
+            if availability.dialects.is_some() {
+                spec.dialects = availability.dialects;
+            }
+            match (availability.required_package, spec.required_package) {
+                (Some(named), None) => spec.required_package = Some(named),
+                (Some(named), Some(existing)) if named != existing => log.say(
+                    stmt.line,
+                    format!(
+                        "`available {{package {named}}}` disagrees with `required_package \
+                         {existing}`; the declared `required_package` is kept"
+                    ),
+                ),
+                _ => {}
+            }
+        }
         "traits" => spec.traits |= parse_traits(&value, stmt.line, log),
         "arity" => match parse_arity(stmt, log) {
             (arity, None) => spec.arity = arity,
@@ -4392,6 +4713,18 @@ fn form_row(stmt: &Stmt, log: &mut Log) -> FormSpec {
                 let text = next_text(words, &mut i);
                 form.dialects = parse_dialects(&text, stmt.line, log);
             }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut form.dialects,
+                    availability,
+                    "command form",
+                    stmt.line,
+                    log,
+                );
+            }
             other => {
                 if lifecycle_flag(&mut form.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
@@ -4441,6 +4774,18 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
                 let text = next_text(words, &mut i);
                 effect.dialects = parse_dialects(&text, stmt.line, log);
             }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut effect.dialects,
+                    availability,
+                    "side effect",
+                    stmt.line,
+                    log,
+                );
+            }
             other => {
                 if lifecycle_flag(&mut effect.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
@@ -4472,6 +4817,18 @@ fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::Option
             "-dialects" => {
                 let text = next_text(words, &mut i);
                 constraint.dialects = parse_dialects(&text, stmt.line, log);
+            }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut constraint.dialects,
+                    availability,
+                    "option constraint",
+                    stmt.line,
+                    log,
+                );
             }
             other => {
                 if lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
@@ -4789,6 +5146,17 @@ fn apply_subcommand_stmt(
         "credential_arg" => sub.credential_arg = value.parse().ok(),
         "sensitive_headers" => sub.sensitive_headers = leak_strs(&list_words(&value)),
         "dialects" => sub.dialects = parse_dialects(&value, stmt.line, log),
+        "available" => {
+            log.v20(stmt.line, "available");
+            let availability = available::from_statement(stmt, 1, log);
+            apply_availability(
+                &mut sub.dialects,
+                availability,
+                "subcommand",
+                stmt.line,
+                log,
+            );
+        }
         "safe_on_uninit" => sub.safe_on_uninit = parse_dialects(&value, stmt.line, log),
         "introduced_version" => sub.lifecycle.introduced = Some(leak_str(&value)),
         "deprecated_version" => sub.lifecycle.deprecated = Some(leak_str(&value)),
@@ -4983,6 +5351,18 @@ fn sub_subcommand_row(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> SubSub
                 let text = next_text(words, &mut i);
                 row.dialects = parse_dialects(&text, stmt.line, log);
             }
+            "-available" => {
+                log.v20(stmt.line, "-available");
+                let text = next_text(words, &mut i);
+                let availability = available::from_flag(&text, stmt.line, log);
+                apply_availability(
+                    &mut row.dialects,
+                    availability,
+                    "sub_subcommand",
+                    stmt.line,
+                    log,
+                );
+            }
             other if !other.starts_with('-') && words[i].braced => {
                 log.v12(stmt.line, "an option block on `sub_subcommand`");
                 // `Some`, even when the block is empty — that is the whole
@@ -5081,6 +5461,9 @@ fn versioned_arg_value_row(
 
 #[cfg(test)]
 mod tests {
+    use tcl_dialect::BracedVarStyle;
+    use tcl_dialect::model::{BuildProfileId, Provenance, Release, WorldPolicy};
+
     use super::*;
 
     /// A pack can declare `DEFERS_BODY` for its own definer, and — the half
@@ -5549,27 +5932,30 @@ mod tests {
         );
     }
 
-    /// `1`, `1.0`, `1.1` and `1.2` are all this vocabulary; anything else
-    /// loads with a notice rather than being refused.
+    /// `1`, `1.0`, `1.1`, `1.2` and `2.0` are all this vocabulary; an
+    /// unknown *minor* loads with a notice rather than being refused.
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
-        for known in ["1", "1.0", "1.1", "1.2"] {
+        for known in KNOWN_VOCABULARY_VERSIONS {
             let pack = load_pack(&format!(
                 "speclib probe {known} {{\n command demo {{ arity 1 }}\n}}"
             ));
             assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
-            assert_eq!(pack.dsl_version, known);
+            assert_eq!(&pack.dsl_version, known);
         }
-        let pack = load_pack("speclib probe 4.9 {\n command demo { arity 1 }\n}");
+        // An unknown minor within a supported major keeps loading maximally
+        // (§6.1): a minor is only ever additive.
+        let pack = load_pack("speclib probe 2.9 {\n command demo { arity 1 }\n}");
         assert!(pack.command("demo").is_some(), "the pack still loads");
-        assert_eq!(pack.dsl_version, "4.9");
+        assert_eq!(pack.dsl_version, "2.9");
+        assert_eq!(pack.load_error, None);
         assert_eq!(
             pack.notices
                 .iter()
                 .map(|notice| notice.message.as_str())
                 .collect::<Vec<_>>(),
             vec![
-                "pack declares SpecTcl vocabulary 4.9; this loader knows 1.2 — \
+                "pack declares SpecTcl vocabulary 2.9; this loader knows 2.0 — \
                  newer words may be dropped"
             ]
         );
@@ -5586,7 +5972,7 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![
                 "`0.15` is not a SpecTcl vocabulary version (this loader knows \
-                 1.2); if it is the library's own version, it belongs in \
+                 2.0); if it is the library's own version, it belongs in \
                  `introduced_version`, not the `speclib` slot"
             ]
         );
@@ -6353,5 +6739,461 @@ mod tests {
                 .any(|m| m.contains("`file_extension upf` redeclared")),
             "{messages:?}"
         );
+    }
+    /// The 2.0 round trip: the same body spelled `dialects` and spelled
+    /// `available` loads to byte-equal specs.
+    ///
+    /// This is the whole of §6.1's "a new word plus a translation of the
+    /// legacy word": if the two spellings could ever diverge, `dialects`
+    /// would be a second representation rather than a translation, and the
+    /// upgrade tool's U9 byte-identical registry snapshot could not hold.
+    #[test]
+    fn available_and_dialects_load_byte_equal_specs() {
+        // (legacy dialect word, 2.0 available row) — the whole U2 table
+        // this build can express on the 1.x fields.
+        let pairs = [
+            ("tcl8.5", "{tcl 8.5}"),
+            ("tcl8.6+", "{tcl 8.6-}"),
+            ("tcl8.4+", "{tcl 8.4-}"),
+            ("all-tcl", "{tcl 8.4-}"),
+            ("tcl8.x", "{tcl 8.4-9.0}"),
+            ("f5-irules", "{f5-irules}"),
+            ("tk", "{package Tk}"),
+            ("{tcl8.6 tcl9.0}", "{tcl 8.6} {tcl 9.0}"),
+            ("{tcl8.6+ f5-irules}", "{tcl 8.6-} {f5-irules}"),
+        ];
+        for (legacy, modern) in pairs {
+            let old = load_pack(&format!(
+                "speclib probe 1.2 {{\n command demo {{\n arity 1\n dialects {legacy}\n \
+                 subcommand sub {{\n arity 0\n dialects {legacy}\n }}\n \
+                 option -x -dialects {legacy}\n }}\n}}"
+            ));
+            let new = load_pack(&format!(
+                "speclib probe 2.0 {{\n command demo {{\n arity 1\n available {modern}\n \
+                 subcommand sub {{\n arity 0\n available {modern}\n }}\n \
+                 option -x -available {{{modern}}}\n }}\n}}"
+            ));
+            assert!(old.notices.is_empty(), "{legacy}: {:?}", old.notices);
+            assert!(new.notices.is_empty(), "{modern}: {:?}", new.notices);
+            let old_spec = old.command("demo").expect("legacy demo loads").spec;
+            let new_spec = new.command("demo").expect("2.0 demo loads").spec;
+            assert_eq!(old_spec.dialects, new_spec.dialects, "{legacy} vs {modern}");
+            assert_eq!(
+                old_spec.subcommands[0].dialects, new_spec.subcommands[0].dialects,
+                "{legacy} vs {modern}"
+            );
+            assert_eq!(
+                old_spec.options[0].dialects, new_spec.options[0].dialects,
+                "{legacy} vs {modern}"
+            );
+            assert_eq!(
+                format!("{old_spec:?}"),
+                format!("{new_spec:?}"),
+                "{legacy} vs {modern}"
+            );
+        }
+    }
+
+    /// `available` is accepted at every scope the legacy word is, and the
+    /// projection is identical at each.
+    #[test]
+    fn available_lands_at_every_dialects_scope() {
+        let legacy = load_pack(
+            "speclib probe 1.2 {\n default dialects tcl8.6+\n \
+             command demo {\n arity 1..\n \
+             option -x -dialects tcl8.6+\n \
+             form Default {demo word} -dialects tcl8.6+\n \
+             side_effect FileIo -writes -dialects tcl8.6+\n \
+             option_conflict {-x -y} -dialects tcl8.6+\n \
+             subcommand sub {\n arity 0\n dialects tcl8.6+\n \
+             sub_subcommand deep -dialects tcl8.6+\n }\n }\n}",
+        );
+        let modern = load_pack(
+            "speclib probe 2.0 {\n default available {tcl 8.6-}\n \
+             command demo {\n arity 1..\n \
+             option -x -available {tcl 8.6-}\n \
+             form Default {demo word} -available {tcl 8.6-}\n \
+             side_effect FileIo -writes -available {tcl 8.6-}\n \
+             option_conflict {-x -y} -available {tcl 8.6-}\n \
+             subcommand sub {\n arity 0\n available {tcl 8.6-}\n \
+             sub_subcommand deep -available {tcl 8.6-}\n }\n }\n}",
+        );
+        assert!(legacy.notices.is_empty(), "{:?}", legacy.notices);
+        assert!(modern.notices.is_empty(), "{:?}", modern.notices);
+        let legacy_spec = legacy.command("demo").expect("legacy demo loads").spec;
+        let modern_spec = modern.command("demo").expect("2.0 demo loads").spec;
+        assert_eq!(
+            format!("{legacy_spec:?}"),
+            format!("{modern_spec:?}"),
+            "every scope projects alike"
+        );
+        assert_eq!(modern_spec.dialects, Some(DialectSet::TCL86_PLUS));
+    }
+
+    /// `available {package NAME}` fills `required_package` at command
+    /// scope, and must agree with a `required_package` the spec declares.
+    #[test]
+    fn available_carries_a_package_requirement_at_command_scope() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             available {package Tcllib}\n }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert_eq!(
+            pack.command("demo")
+                .expect("demo loads")
+                .spec
+                .required_package,
+            Some("Tcllib")
+        );
+
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             required_package Snit\n available {package Tcllib}\n }\n}",
+        );
+        assert_eq!(
+            pack.command("demo")
+                .expect("demo loads")
+                .spec
+                .required_package,
+            Some("Snit"),
+            "the declared requirement wins"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("disagrees with `required_package Snit`")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// Q3: `f5-bigip` leaves the Tcl axis, so it is never an `available`
+    /// provider — and an unknown provider is reported, not guessed at.
+    #[test]
+    fn available_refuses_f5_bigip_and_unknown_providers() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             available {f5-bigip}\n }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("off the Tcl axis")),
+            "{:?}",
+            pack.notices
+        );
+        assert_eq!(
+            pack.command("demo")
+                .expect("demo still loads")
+                .spec
+                .dialects,
+            None,
+            "a dropped row narrows nothing"
+        );
+
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             available {klingon 1.0}\n }\n}",
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("unknown `available` provider `klingon`")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// Jim has no 1.x dialect bit, so a Jim-only window gates the command
+    /// off rather than reading as "available everywhere".
+    #[test]
+    fn a_jim_only_window_narrows_to_nothing_rather_than_widening() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n command demo {\n arity 1\n \
+             available {jim 0.78-}\n }\n}",
+        );
+        assert_eq!(
+            pack.command("demo").expect("demo loads").spec.dialects,
+            Some(DialectSet::empty())
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("no SpecTcl 1.x dialect bit")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// A 2.0 word under a 1.x declaration draws the same per-site notice
+    /// every newer word does.
+    #[test]
+    fn v20_words_under_an_older_declaration_draw_a_per_site_notice() {
+        let pack = load_pack(
+            "speclib probe 1.2 {\n command demo {\n arity 1\n \
+             available {tcl 8.6-}\n }\n}",
+        );
+        assert!(
+            pack.notices.iter().any(|n| {
+                n.message.contains("`available` is SpecTcl 2.0 vocabulary")
+                    && n.message.contains("declare `speclib probe 2.0`")
+            }),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// An `environment` block parses, validates, and converts.
+    #[test]
+    fn an_environment_block_loads_and_converts_to_a_definition() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n environment vivado-tcl {\n \
+             display_name {Xilinx Vivado}\n core tcl 8.6\n \
+             ambient Vivado keyed ToolVersion\n hosted Tk 8.5-\n \
+             alias vivado\n editor_identity tcl\n \
+             file_extension .XDC -name {Xilinx Design Constraints}\n \
+             filename vivado.jou\n signature {create_project}\n \
+             policy ambient-plus-require\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        assert!(pack.command("demo").is_some(), "the pack's commands load");
+        let environment = &pack.environments[0];
+        assert_eq!(environment.id, "vivado-tcl");
+        assert_eq!(environment.aliases, vec!["vivado".to_owned()]);
+        assert_eq!(environment.world_policy, WorldPolicy::AmbientPlusRequire);
+        assert_eq!(environment.file_extensions[0].extension.as_ref(), "xdc");
+
+        let definition = environment.to_definition(PackEnvironmentTier::Workspace);
+        assert_eq!(definition.id.as_str(), "vivado-tcl");
+        assert_eq!(definition.display_name.as_ref(), "Xilinx Vivado");
+        assert_eq!(definition.provenance, Provenance::WorkspaceTrusted);
+        assert_eq!(
+            definition.core.expect("a core selector").default_release,
+            Release::TCL_8_6
+        );
+        assert_eq!(definition.expected_packages.len(), 2);
+        assert!(definition.expected_packages[0].ambient);
+        assert!(!definition.expected_packages[1].ambient);
+        assert_eq!(definition.server_detection.filenames.len(), 1);
+        assert_eq!(definition.server_detection.content_signatures.len(), 1);
+        assert_eq!(
+            definition
+                .editor_identity
+                .expect("a contributed identity")
+                .as_str(),
+            "tcl"
+        );
+        assert_eq!(
+            environment
+                .to_definition(PackEnvironmentTier::Bundled)
+                .provenance,
+            Provenance::BundledPack
+        );
+    }
+
+    /// §3.3: a compiled canonical name (or alias) is reserved, and a block
+    /// claiming one is rejected rather than merged.
+    #[test]
+    fn an_environment_block_claiming_a_compiled_name_is_rejected() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n environment tcl8.6 {\n core tcl 8.6\n }\n \
+             command demo { arity 1 }\n}",
+        );
+        assert!(pack.environments.is_empty(), "{:?}", pack.environments);
+        assert!(pack.command("demo").is_some(), "the rest still loads");
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("a compiled environment name")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// An unknown row in an `environment` block is semantic-class: the
+    /// block is rejected, and the pack's other content still loads.
+    #[test]
+    fn an_unknown_environment_row_rejects_the_block() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
+             no_such_row yes\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(pack.environments.is_empty());
+        assert!(pack.command("demo").is_some(), "the rest still loads");
+        assert!(
+            pack.notices.iter().any(|n| {
+                n.class == VocabularyClass::Presentation
+                    && n.message.contains("semantic-class vocabulary")
+            }),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// An unknown editor identity keeps the row and drops only the routing
+    /// (review B7: an environment selects from the contributed set).
+    #[test]
+    fn an_unknown_editor_identity_drops_only_the_routing() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
+             editor_identity klingon\n }\n}",
+        );
+        let environment = &pack.environments[0];
+        assert_eq!(environment.editor_identity, None);
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.message.contains("not a contributed editor language id")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// A `dialect` block parses its ladder and its axes against the closed
+    /// vocabulary.
+    #[test]
+    fn a_dialect_block_loads_its_ladder_and_axes() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n dialect picol2 {\n release 2.0\n \
+             release 2.1 -build Unknown\n axis expand_syntax off\n \
+             axis braced_var first-close\n axis numbers tcl90\n \
+             axis escapes tcl90\n axis expr_comments hash\n \
+             axis bom_skip on\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let dialect = &pack.dialects[0];
+        assert_eq!(dialect.name, "picol2");
+        assert_eq!(dialect.releases.len(), 2);
+        assert_eq!(dialect.releases[1].build, BuildProfileId::Unknown);
+        assert_eq!(dialect.axis("expand_syntax"), Some("off"));
+        assert_eq!(dialect.axis("nonesuch"), None);
+        let grammar = dialect.to_grammar().expect("every value has a backing");
+        assert!(!grammar.expand_syntax);
+        assert_eq!(grammar.braced_var, BracedVarStyle::FirstClose);
+    }
+
+    /// An unknown axis, or an unknown value on a known axis, is §6.1's
+    /// semantic class: the whole block is rejected, the notice names the
+    /// axis, and the pack's other content still loads.
+    #[test]
+    fn an_unknown_axis_or_value_rejects_the_dialect_block() {
+        for (body, needle) in [
+            (
+                "axis no_such_axis on",
+                "is not in the closed axis vocabulary",
+            ),
+            ("axis numbers tcl99", "is not a value of `numbers`"),
+        ] {
+            let pack = load_pack(&format!(
+                "speclib probe 2.0 {{\n dialect probe-dialect {{\n {body}\n }}\n \
+                 command demo {{ arity 1 }}\n}}"
+            ));
+            assert!(pack.dialects.is_empty(), "{body}: {:?}", pack.dialects);
+            assert!(pack.command("demo").is_some(), "{body}: the rest loads");
+            assert!(
+                pack.notices.iter().any(|n| n.message.contains(needle)),
+                "{body}: {:?}",
+                pack.notices
+            );
+        }
+    }
+
+    /// §2's classification gate: a `dialect` block whose axes reproduce a
+    /// compiled release is not a dialect at all, and the notice names the
+    /// environment it should have been.
+    #[test]
+    fn a_dialect_block_duplicating_a_compiled_release_is_rejected() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n dialect my-tcl {\n release 1.0\n \
+             axis expand_syntax on\n axis braced_var first-close\n \
+             axis numbers tcl85\n axis escapes tcl86\n \
+             axis expr_comments none\n axis bom_skip off\n \
+             axis irules_brace_separator off\n }\n command demo { arity 1 }\n}",
+        );
+        assert!(pack.dialects.is_empty(), "{:?}", pack.dialects);
+        assert!(
+            pack.notices.iter().any(|n| {
+                n.message.contains("declares the grammar of tcl 8.6")
+                    && n.message.contains("environment my-tcl { core tcl 8.6")
+            }),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// §6.1's three classes, in the forward direction that is the only one
+    /// they apply in.
+    ///
+    /// The downgrade fixture pattern: each body's word is absent from this
+    /// build's vocabulary, and the assertion is that its absence yields
+    /// *abstention* — a dropped label, a degraded capability, or an excluded
+    /// command — never a stronger claim.
+    #[test]
+    fn unknown_words_classify_by_compatibility_effect() {
+        // Presentation: prose. Warn and drop, as ever.
+        let pack = load_pack(
+            "speclib probe 2.9 {\n command demo {\n arity 1\n \
+             marketing_blurb {Buy now.}\n }\n}",
+        );
+        let demo = pack.command("demo").expect("the command loads");
+        assert!(!demo.degraded, "prose costs the command nothing");
+        assert_eq!(pack.notices[0].class, VocabularyClass::Presentation);
+
+        // Assistance: a shape word. The command stays known, marked.
+        let pack = load_pack(
+            "speclib probe 2.9 {\n command demo {\n arity 1\n \
+             arg_cardinality 3\n }\n}",
+        );
+        let demo = pack.command("demo").expect("the command still loads");
+        assert!(demo.degraded, "the affected capability must answer Unknown");
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.class == VocabularyClass::Assistance),
+            "{:?}",
+            pack.notices
+        );
+
+        // Semantic: a security word. The command is excluded outright.
+        let pack = load_pack(
+            "speclib probe 2.9 {\n command demo {\n arity 1\n \
+             taint_launders yes\n }\n command safe_neighbour { arity 0 }\n}",
+        );
+        assert!(
+            pack.command("demo").is_none(),
+            "a command whose security facts cannot be read is excluded"
+        );
+        assert!(
+            pack.notices
+                .iter()
+                .any(|n| n.class == VocabularyClass::Semantic
+                    && n.message.contains("excluded from strong analysis")),
+            "{:?}",
+            pack.notices
+        );
+    }
+
+    /// The classes apply **only** in §6.1's forward direction. An unknown
+    /// word in a pack whose vocabulary this build knows in full is an
+    /// author's typo, and keeps today's warn-and-drop treatment exactly —
+    /// which is what keeps every 1.x pack in the corpus loading unchanged.
+    #[test]
+    fn unknown_words_in_a_known_vocabulary_stay_presentation_class() {
+        for declared in ["1.2", "2.0"] {
+            let pack = load_pack(&format!(
+                "speclib probe {declared} {{\n command demo {{\n arity 1\n \
+                 taint_launders yes\n }}\n}}"
+            ));
+            let demo = pack.command("demo").expect("the command loads");
+            assert!(!demo.degraded, "{declared}");
+            assert!(
+                pack.notices
+                    .iter()
+                    .all(|n| n.class == VocabularyClass::Presentation),
+                "{declared}: {:?}",
+                pack.notices
+            );
+        }
     }
 }

@@ -84,6 +84,7 @@ Additive only, so nothing written against 1.0 has to change.
 | **1.0** | the vocabulary the eleven ports froze |
 | **1.1** | the three lifecycle flags `-introduced` / `-deprecated` / `-retired` at every level the registry can gate — `form`, `side_effect`, `option_conflict`, `sub_subcommand`, and a `values` table's `value` rows — plus `versioned_arg_value` at **command** scope (it was subcommand-only), and the option row's `-deprecation-fix {…}` data form |
 | **1.2** | versioned `arity` and `arg` rows; `ambient_package`; second-level option blocks; option-level `-taints-var-write`, `-variable-scope`, `-script-timing`, and `-callback-taint-inputs`; positional `callback_taint_inputs`; `script_timing_resolver`; `object_class -method-prefix-matching`; and `tk_geometry` |
+| **2.0** | `available {PROVIDER SPEC…}` / `-available` at every scope `dialects` is accepted; the `environment NAME { … }` and `dialect NAME { … }` pack-level blocks |
 
 Every 1.1 word is one the option row already spelled, moved outward: the
 flags are `Lifecycle`'s own three releases, on the entity's own package
@@ -98,6 +99,36 @@ An `arg` row's flags gate the whole row, every column at once. And
 `ambient_package` is how a pack states the version of a package its
 dialect provides without a `package require` — a package that comes with
 the dialect is never required, so nothing else could floor it.
+
+2.0 is the first version whose number moves the **major**, and it moves
+for one reason: a word's *meaning* is now carried by a translation rather
+than by the word alone. `dialects` keeps loading forever and keeps meaning
+exactly what it meant; `available` is the new spelling of the same claim,
+and both are projected onto one internal representation, so a body written
+either way loads to a byte-equal spec. `tcl spec upgrade` rewrites 1.x
+sources mechanically.
+
+Two rules come with the major, and they run the other way — an *older*
+loader meeting a *newer* pack:
+
+- An unsupported **major** fails the whole pack closed. Nothing loads, and
+  one notice says why. A new major may redefine words the loader thinks it
+  knows, so reading the recognised ones would publish confident answers
+  drawn from a vocabulary it does not speak. An unknown *minor* within a
+  supported major keeps loading maximally, because a minor is only ever
+  additive.
+- An unknown word in a pack declaring a vocabulary the loader postdates is
+  classified by what dropping it would do. Prose warns and drops, as ever.
+  A shape or value word leaves the command known but **degraded**, so the
+  affected capability answers `Unknown` rather than confidently. A
+  security, control-flow, binding, lowering, or codegen word — and every
+  unknown word inside a `dialect` or `environment` block — excludes the
+  command or the block outright. No taint verdict is better than one
+  reached by ignoring the field that would have changed it.
+
+An unknown word in a pack whose vocabulary the loader knows in full is an
+author's typo, not a meaning being dropped, and keeps the plain
+warn-and-drop treatment.
 
 **Statement separation is ordinary Tcl.** Statements end at a newline or
 at a `;`, so a short declaration can be written on one line —

@@ -420,9 +420,22 @@ let packs survive releases without rebuilds:
 - Unknown property words, trait names, role names, or hook names are
   dropped with a logged notice; the rest of the spec loads. New server +
   old pack always works; old server + new pack degrades gracefully.
+- **Except where dropping the word would strengthen the answer.** Since
+  `SpecTcl` 2.0 (redesign §6.1, review B13) an unknown word in a pack
+  declaring a vocabulary this build postdates is classified by its
+  compatibility effect: *presentation* words warn and drop as above;
+  *assistance* words (shapes, roles, value sets) leave the command known
+  but degraded, so the affected capability answers `Unknown`; *semantic*
+  words (security, control flow, binding, lowering, codegen — and every
+  unknown word inside a `dialect` or `environment` block) exclude the
+  command or block from strong analysis. An old server that ignored a
+  "this method is a sink" word would otherwise report a *cleaner* result
+  than a new one, purely by not understanding the field.
 - A `speclib` version pragma gates hard breaks only — a word whose
   *meaning* changed, not one that was added. The server refuses a major
-  it does not know and names the fix.
+  it does not know and names the fix: the pack loads nothing at all, and
+  one notice says why. An unknown *minor* within a known major keeps
+  loading maximally.
 - The studio schema-coverage gates already force every new `CommandSpec`
   field to a named key; that key is the DSL property name, so the format
   cannot silently fall behind the registry.

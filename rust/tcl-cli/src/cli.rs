@@ -545,6 +545,20 @@ pub struct SpecUpgradeArgs {
     /// any file is behind the newest vocabulary.
     #[arg(long)]
     pub check: bool,
+
+    /// The vocabulary the files are expected to declare.
+    #[arg(long, value_name = "VERSION", default_value = "1.0")]
+    pub from: String,
+
+    /// The vocabulary to rewrite to. Downgrades are refused.
+    #[arg(long, value_name = "VERSION", default_value = "2.0")]
+    pub to: String,
+
+    /// Prove the upgrade is behaviour-preserving instead of writing it: the
+    /// original and the rewritten pack must produce byte-identical registry
+    /// snapshots (upgrade spec U9). Implies --check.
+    #[arg(long)]
+    pub verify: bool,
 }
 
 /// Flags of `tcl spec import`.

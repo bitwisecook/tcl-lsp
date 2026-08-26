@@ -115,6 +115,18 @@ pub struct MergedPack {
     /// are floors, and [`CommandRegistry::ambient_package_floor`] takes the
     /// highest. Dropping one here would silently lower the floor instead.
     pub ambient_packages: Vec<crate::loader::AmbientPackage>,
+    /// The `environment NAME { … }` blocks the pack declares (`SpecTcl`
+    /// 2.0), merged first-declaration-wins across the pack's files.
+    ///
+    /// Carried, not yet registered: turning these into live
+    /// [`EnvironmentDefinition`](tcl_dialect::model::EnvironmentDefinition)s
+    /// in the runtime registry is P3 wire-up, and
+    /// [`PackEnvironment::to_definition`](crate::PackEnvironment::to_definition)
+    /// is the whole of the conversion it will call.
+    pub environments: Vec<crate::loader::PackEnvironment>,
+    /// The `dialect NAME { … }` blocks the pack declares (`SpecTcl` 2.0),
+    /// merged first-declaration-wins across the pack's files.
+    pub dialects: Vec<crate::loader::PackDialect>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -196,6 +208,14 @@ impl PackSet {
         }
         out
     }
+}
+
+/// [`load_sources`] with the sources already in hand and no prior notices —
+/// the door `tcl spec upgrade --verify` loads a rewritten pack through
+/// without ever putting it on disk.
+#[must_use]
+pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
+    load_sources(sources, Vec::new())
 }
 
 /// Load and merge every discovered file.
@@ -539,6 +559,8 @@ fn merge_group(
         display_name: None,
         file_extensions: Vec::new(),
         ambient_packages: Vec::new(),
+        environments: Vec::new(),
+        dialects: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -582,6 +604,24 @@ fn merge_group(
             }
         }
         merged.ambient_packages.extend(pack.ambient_packages);
+        for environment in pack.environments {
+            if !merged
+                .environments
+                .iter()
+                .any(|prior| prior.id == environment.id)
+            {
+                merged.environments.push(environment);
+            }
+        }
+        for dialect in pack.dialects {
+            if !merged
+                .dialects
+                .iter()
+                .any(|prior| prior.name == dialect.name)
+            {
+                merged.dialects.push(dialect);
+            }
+        }
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded (issues #1637, #1638).

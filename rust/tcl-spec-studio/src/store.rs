@@ -349,6 +349,8 @@ impl PackStore {
                 display_name: self.pack.display_name.clone(),
                 file_extensions: self.pack.file_extensions.clone(),
                 ambient_packages: self.pack.ambient_packages.clone(),
+                environments: self.pack.environments.clone(),
+                dialects: self.pack.dialects.clone(),
                 commands: self.pack.commands.clone(),
             }],
             notices: Vec::new(),

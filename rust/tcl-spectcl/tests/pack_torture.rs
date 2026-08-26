@@ -583,10 +583,11 @@ fn lifecycle_ordering_and_containment_are_checked_at_every_level() {
 }
 
 /// A `speclib` version this build does not know still loads what it can, and
-/// says so once.
+/// says so once — for every spelling except an unsupported **major**, which
+/// design §6.1 makes a load error rather than a notice.
 #[test]
 fn an_unknown_vocabulary_version_loads_what_it_can() {
-    for declared in ["2", "99.99", "banana", "1.1.1", "-1"] {
+    for declared in ["2.9", "banana", "1.1.1", "-1"] {
         let source = format!("speclib demo {declared} {{\n  command demo::cmd {{ arity 1 }}\n}}\n");
         let pack = load_pack(&source);
         assert!(
@@ -597,6 +598,37 @@ fn an_unknown_vocabulary_version_loads_what_it_can() {
         assert!(
             !pack.notices.is_empty(),
             "vocabulary `{declared}` must be reported"
+        );
+        assert_eq!(pack.load_error, None, "{declared}");
+    }
+}
+
+/// A `speclib` **major** past this build fails the whole pack closed
+/// (design §6.1): a new major may redefine words this loader thinks it
+/// knows, so reading the ones it recognises would publish confident answers
+/// derived from a vocabulary it does not speak.
+#[test]
+fn an_unsupported_speclib_major_fails_the_pack_closed() {
+    for declared in ["3.0", "99.99"] {
+        let source = format!("speclib demo {declared} {{\n  command demo::cmd {{ arity 1 }}\n}}\n");
+        let pack = load_pack(&source);
+        assert!(
+            pack.commands.is_empty(),
+            "vocabulary `{declared}` must load nothing: {:#?}",
+            pack.notices
+        );
+        assert_eq!(
+            pack.load_error,
+            Some(tcl_spectcl::LoadError::UnsupportedMajor(
+                declared.to_owned()
+            )),
+            "{declared}"
+        );
+        assert_eq!(pack.notices.len(), 1, "{:#?}", pack.notices);
+        assert!(
+            pack.notices[0].message.contains("nothing is loaded"),
+            "{:#?}",
+            pack.notices
         );
     }
 }

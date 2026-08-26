@@ -71,15 +71,20 @@ pub mod hooks;
 pub mod install;
 pub mod loader;
 pub mod pack;
+pub mod upgrade;
 
 pub use discovery::{DiscoveryOptions, PackFile, Tier, discover};
 pub use install::registry_with_packs;
 pub use loader::{
     AmbientPackage, ClauseGrammar, HookDecl, HookFamily, HookOwner, HookSource,
-    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand, load_pack,
+    KNOWN_VOCABULARY_VERSIONS, LoadError, NEWEST_VOCABULARY_VERSION, Notice, Pack, PackCommand,
+    PackDialect, PackDialectAxis, PackEnvironment, PackEnvironmentTier, VocabularyClass, load_pack,
     roles_from_manufacturers, speclib_version_span,
 };
 pub use pack::{MergedPack, PackNotice, PackSet};
+pub use upgrade::{
+    OLDEST_VOCABULARY_VERSION, UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source,
+};
 
 /// The `.tclspec` file extension, without the dot.
 pub const PACK_EXTENSION: &str = "tclspec";
@@ -90,4 +95,10 @@ pub const PACK_EXTENSION: &str = "tclspec";
 ///
 /// Part of the compiled-cache key, so a vocabulary bump invalidates every
 /// cached pack exactly once.
-pub const VOCABULARY_VERSION: &str = "1";
+///
+/// `2` for `SpecTcl` 2.0. The redesign's §6.1 requires exactly one bump
+/// here for 2.0: the legacy `dialects` word keeps loading forever, but its
+/// *translation output* is now the same internal value the new `available`
+/// word produces, so every cached pack must be rebuilt once against the
+/// translating loader rather than served from a pre-2.0 entry.
+pub const VOCABULARY_VERSION: &str = "2";

@@ -79,12 +79,21 @@ use crate::draft::{self, Draft, OPTION_DEPRECATION_FIX_HOOK_KEY, SOURCE_DIALECT_
 /// The DSL **vocabulary** version a rendered pack declares — the word after
 /// the pack name in `speclib <pack> <version> { … }`.
 ///
-/// Tracks the loader's newest vocabulary rather than being written out
-/// separately, because the renderer emits every word the loader reads: a
-/// header naming an older vocabulary than the body uses is exactly the
+/// The rule is "declare the newest vocabulary the *body* actually uses": a
+/// header naming an older vocabulary than the body needs is exactly the
 /// inconsistency the loader's per-site notice reports, and pinning this to a
-/// literal made the renderer produce it (#1627).
-pub const DSL_VERSION: &str = tcl_spectcl::NEWEST_VOCABULARY_VERSION;
+/// stale literal made the renderer produce it (#1627).
+///
+/// It tracked [`tcl_spectcl::NEWEST_VOCABULARY_VERSION`] until `SpecTcl` 2.0,
+/// where the two parted company: 2.0's additions are `available`, the
+/// `environment` block, and the `dialect` block, and the renderer emits none
+/// of them yet — it still writes `dialects` and has no pack-level rows at all.
+/// A rendered pack declaring `2.0` over an entirely 1.x body would be the
+/// mirror of #1627 and, by the upgrade tool's own U1 rule, a *failed* upgrade
+/// wearing a 2.0 header. So this is pinned at the newest vocabulary the
+/// renderer can actually reach, and moves to `2.0` when the renderer learns
+/// the 2.0 spellings (the invocation-refinement work, redesign §6.2).
+pub const DSL_VERSION: &str = "1.2";
 
 /// Column the renderer tries to keep rows inside before continuing a row with
 /// a `\`, matching the ports' own wrapping.

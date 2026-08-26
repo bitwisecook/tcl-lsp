@@ -350,3 +350,95 @@ fn the_github_flags_require_github() {
         assert!(stderr.contains("--github"), "{args:?}: {stderr}");
     }
 }
+
+/// `tcl spec upgrade` rewrites the 1.x `dialects` vocabulary in place,
+/// moves the `speclib` word, and leaves every other byte alone.
+#[test]
+fn spec_upgrade_translates_dialects_rows_and_moves_the_version_word() {
+    let tree = Tree::new("upgrade");
+    let pack = tree.path().join("demo.tclspec");
+    let source = "# a comment the rewriter must not touch\n\
+                  speclib demo 1.2 {\n\
+                  \x20   command demo::greet {\n\
+                  \x20       arity 1\n\
+                  \x20       dialects {tcl8.6+ tk}\n\
+                  \x20   }\n\
+                  }\n";
+    std::fs::write(&pack, source).expect("write pack");
+
+    let path = pack.to_string_lossy().into_owned();
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", "--check", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(stdout.contains("would translate 1 row(s)"), "{stdout}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        source,
+        "--check writes nothing"
+    );
+
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_eq!(code, 0, "{stdout}");
+    let upgraded = std::fs::read_to_string(&pack).expect("read back");
+    assert_eq!(
+        upgraded,
+        "# a comment the rewriter must not touch\n\
+         speclib demo 2.0 {\n\
+         \x20   command demo::greet {\n\
+         \x20       arity 1\n\
+         \x20       available {tcl 8.6-} {package Tk}\n\
+         \x20   }\n\
+         }\n"
+    );
+}
+
+/// `--verify` proves the rewrite is behaviour-preserving (U9) and never
+/// writes; `--to` older than `--from` is refused (U10).
+#[test]
+fn spec_upgrade_verifies_and_refuses_downgrades() {
+    let tree = Tree::new("upgrade-verify");
+    let pack = tree.path().join("demo.tclspec");
+    let source = "speclib demo 1.2 {\n\
+                  \x20 command demo::greet {\n\
+                  \x20   arity 1\n\
+                  \x20   dialects tcl8.x\n\
+                  \x20 }\n\
+                  }\n";
+    std::fs::write(&pack, source).expect("write pack");
+    let path = pack.to_string_lossy().into_owned();
+
+    let (stdout, stderr, code) = run(&["spec", "upgrade", "--verify", &path]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    assert!(stdout.contains("byte-identical"), "{stdout}");
+    assert_eq!(
+        std::fs::read_to_string(&pack).expect("read back"),
+        source,
+        "--verify writes nothing"
+    );
+
+    let (_stdout, stderr, code) = run(&["spec", "upgrade", "--from", "2.0", "--to", "1.2", &path]);
+    assert_ne!(code, 0, "a downgrade must not succeed");
+    assert!(stderr.contains("refusing to downgrade"), "{stderr}");
+}
+
+/// An environment-membership token needs the P1 environment registry, so
+/// the row is left byte-identical, marked, and the file reports partial.
+#[test]
+fn spec_upgrade_defers_environment_membership_tokens() {
+    let tree = Tree::new("upgrade-partial");
+    let pack = tree.path().join("demo.tclspec");
+    std::fs::write(
+        &pack,
+        "speclib demo 1.2 {\n command demo::greet {\n arity 1\n \
+         dialects {tcl8.6 f5-iapps}\n }\n}\n",
+    )
+    .expect("write pack");
+    let path = pack.to_string_lossy().into_owned();
+
+    let (stdout, _stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_ne!(code, 0, "a partial upgrade exits non-zero: {stdout}");
+    assert!(stdout.contains("partially upgraded"), "{stdout}");
+    let written = std::fs::read_to_string(&pack).expect("read back");
+    assert!(written.contains("# TODO(spectcl 2.0):"), "{written}");
+    assert!(written.contains("speclib demo 1.2"), "{written}");
+    assert!(written.contains("dialects {tcl8.6 f5-iapps}"), "{written}");
+}

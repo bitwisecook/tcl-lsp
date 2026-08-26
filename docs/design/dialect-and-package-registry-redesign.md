@@ -975,7 +975,66 @@ Each newly ratified semantic word ships with a downgrade fixture: an
 old-loader test proving the word's absence yields abstention, never a
 stronger claim.
 
+**Status (P2-H part 1).** `VocabularyClass { Presentation, Assistance,
+Semantic }` classifies the loader's unknown-word path. An unknown word is
+classified by the scope it appears in (every unknown word inside a
+`dialect` or `environment` block is semantic by construction, and rejects
+the block) and otherwise by a closed name-marker table. A presentation
+unknown warns and drops as before; an assistance unknown marks the loaded
+`PackCommand` `degraded`; a semantic unknown excludes the command from the
+pack entirely, with a distinct notice class.
+
+The escalation past `Presentation` applies **only in the forward
+direction** — a pack declaring a vocabulary this build postdates. An
+unknown word in a pack whose vocabulary the build knows in full is an
+author's typo, not a meaning being dropped, and keeps the warn-and-drop
+treatment exactly; that is what keeps every 1.x pack in the frozen corpus
+loading unchanged.
+
+An unsupported **major** now fails the whole pack closed: nothing loads,
+`Pack::load_error` is `Some(LoadError::UnsupportedMajor)`, and one notice
+explains why. An unknown *minor* within a supported major keeps loading
+maximally.
+
 ### 6.2 New vocabulary (the additive core of 2.0)
+
+**Status (P2-H part 1).** The loader speaks vocabulary `2.0`
+(`KNOWN_VOCABULARY_VERSIONS`, `NEWEST_VOCABULARY_VERSION`), and
+`VOCABULARY_VERSION` — the compiled-cache key — bumped once to `2`, per
+§6.1. Landed from the table below:
+
+- **`available {PROVIDER SPEC…}`** at every scope `dialects` / `-dialects`
+  is accepted at today: pack `default`, `command`, `subcommand`,
+  `sub_subcommand`, `option`, object-class method, `form`, `side_effect`,
+  `option_conflict`. Providers are `tcl RANGE`, `f5-irules`, `jim RANGE`,
+  and `package NAME ?RANGE?`, with `RANGE` in Tcl requirement syntax
+  (`8.6-`, `8.4-9.0`, or a bare `8.5` naming that release line only).
+  Translation is **new → old**: a row is projected onto the same
+  `DialectSet` + `required_package` the legacy word feeds, so a body
+  spelled either way loads to a byte-equal `CommandSpec`
+  (`available_and_dialects_load_byte_equal_specs`). `f5-bigip` in an
+  `available` row is an error (Q3). Legacy `dialects` is untouched.
+- **`environment NAME { … }`** — `core`, `ambient`, `hosted`, `alias`,
+  `editor_identity`, `file_extension`, `filename`, `signature`,
+  `display_name`, `policy`. Parsed, validated, and carried on the pack as
+  `PackEnvironment`, with `to_definition` converting to an
+  `EnvironmentDefinition` at the declaring tier's `Provenance`. Compiled
+  canonical names and aliases are reserved (§3.3): a block claiming one is
+  rejected with a notice. Registration into the runtime
+  `EnvironmentRegistry` is later wire-up.
+- **`dialect NAME { … }`** — `release R ?-build P?` ladder rows and
+  `axis NAME VALUE` rows against a closed axis vocabulary
+  (`expand_syntax`, `braced_var`, `expr_comments`, `numbers`, `escapes`,
+  `irules_brace_separator`, `bom_skip`). An unknown axis or value is §6.1's
+  semantic class: the whole block is rejected, naming the axis. The §2
+  classification gate rejects a block whose axes reproduce a compiled
+  family release and names the environment it should have been.
+  Conversion to live `Family` data is P3+.
+
+Not yet landed: `provides`, `co_provides`, `dynamic_surface` /
+`unknown_members`, the invocation-refinement descriptor, the seven
+ratified-but-unimplemented words, and `include`.
+
 
 | Word | Purpose |
 |---|---|

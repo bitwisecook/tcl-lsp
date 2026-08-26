@@ -246,15 +246,42 @@ its replacement.
 
 ### Compiler / analyser
 
+**Status: compiler side ported (P1-F wave 1).** `tcl-compiler` now
+resolves every dialect-name ingress through
+`EnvironmentRegistry::resolve` (one `environment_ingress` module: the
+analyser's `analyse*` entries, the per-item path, incremental
+re-segmentation, and `CompilationUnit::build_for_dialect`), obtains its
+registries as per-environment `ContextRegistry` generations
+(`registry_for_environment_if_built`, pack-overlay key threaded exactly
+as `registry_for_profile_if_built` did — each generation's command store
+is the old cache's `(profile, overlay)` `Arc`, shared by handle), and
+answers command/subcommand/option availability, keyed version ranges,
+and profile-pin/pack-ambient floors through `ResolvedContext`'s query
+surface, whose derived facts (authoring mask, ceiling, operator-head
+rule, placements, floors) are sweep-pinned to the old profile's answers
+for every catalogue environment. `availability_for_name`'s `TK` union
+became the resolved-environment fact (`DocumentEnvironment::is_tk`;
+`package_active("Tk")` takes over in P3 when the Tk placement goes
+ambient and W120's require-nag semantics move with it). The hook-path
+`DialectSet::empty()` bypasses route through the model's
+`resolve_call_in_context` / `resolve_invocation_in_context` primitives
+(context-carrying, selection unchanged — the `// P1a:` seam naming
+invariant I4), and `side_effects.rs`'s hand-rolled selection retired
+onto `side_effect_hints_in_context` (C7) — measured **not** collapsible
+onto single-winner selection without behaviour change (`classvariable`,
+`next` under `bpf`), so the primitive keeps the availability-filtered
+newest-first-with-hints walk until P1a's binding proof. Old APIs remain
+for other crates; deletion is P1-G.
+
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 |
-| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 |
-| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | P1a |
+| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 *(partial: compiler no longer calls `availability_for_name` or synthesises `TK_PROFILE` from names; `DialectSet`-typed plumbing inside spec data and semantic-facts bundles remains until P1-G)* |
+| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 *(compiler ported: every `tcl-compiler` name ingress resolves through the one environment resolver; `special_vars::resolve_dialect` and the non-compiler validators remain)* |
+| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | P1a *(partial: the compiler's analyser-hook, lowering-hook, type-infer, and shimmer callers now go through the context-carrying model primitives with selection unchanged — the documented P1a seam; lsp-db and the remaining `invocation_traits(…, empty)` readers follow in wave 2/P1a)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | P1a |
 | C5 | `KnownPredicateCtx`'s unfiltered `builtin_command_names()` and the settlement-vs-W123 oracle split | the one `exists` oracle (R-c) | P1a |
 | C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a |
-| C7 | `side_effects.rs`'s hand-rolled spec-selection rule | the single selection primitive | P1 |
+| C7 | `side_effects.rs`'s hand-rolled spec-selection rule | the single selection primitive | P1 *(compiler ported: the rule moved into the registry model as `side_effect_hints_in_context`, context-filtered and sweep-pinned to the old walk; the walk itself survives inside the primitive because single-winner selection provably changes hints — see the status note above)* |
 | C8 | `CommandTableEffect` (third transition vocabulary) | `CommandBindingTransition` | P1a |
 | C9 | Whole-file `package_version_floor` as a semantic input; the `DocumentFloor` duplication | one floor engine, two typed views (R-d) | P1a/P1b |
 | C10 | `all_dialect_command_names()`'s hardcoded 11-pack list and its EDA/SpecTcl exclusion policy | the four-tier known-anywhere model, with the exclusion policy restated as explicit tier data | P1 |
@@ -536,6 +563,52 @@ Capabilities (U-numbers are the implementation checklist):
 
 Sequencing: U0–U2, U7–U9 need only the 2.0 word set; U3–U5 additionally
 need the P1 environment registry (and R4's ruling); U6 is independent.
+
+**Status: U0–U2 and U7–U10 implemented** (P2-H part 1). The rewriter is
+`tcl-spectcl/src/upgrade.rs`, driven by `tcl spec upgrade` with
+`--from` / `--to` / `--check` / `--verify`; the 2.0 word set it targets is
+`tcl-spectcl/src/loader/available.rs`. What landed, against the checklist:
+
+- **U0** — `--check`, skip-on-no-`speclib`, refuse-on-non-vocabulary-word
+  (the 1.x table is closed, so a word outside it refuses the *file* rather
+  than being carried through unread), reload-after-write proof, exit 1 on
+  remaining work.
+- **U1** — the version word moves to `2.0` only when the body rewrite
+  completed on that file; a file with any U3 row left keeps its 1.x header
+  and reports *partially upgraded*.
+- **U2** — `dialects` / `-dialects` → `available` at every loader site,
+  through the total table. `tclX.Y` → single point, `tclX.Y+` → open range,
+  `all-tcl` → `{tcl 8.4-}`, `tcl8.x` → `{tcl 8.4-9.0}` (exclusive maximum
+  stated), `f5-irules` → the core family, `tk` → `{package Tk}` on Tk's own
+  axis, `f5-bigip` → error.
+- **U3 (partial)** — role discrimination is *detected*, not performed: the
+  five environment-membership tokens (`f5-iapps`, `f5-tmsh`, `expect`,
+  `spectcl`, `bpf`) leave their row byte-identical, gain a
+  `# TODO(spectcl 2.0):` marker above it, and make the file report
+  partially upgraded. The mapping itself waits on the P1 environment
+  registry.
+- **U7** — post-rewrite proof through the vocabulary log: the rewritten
+  file is re-loaded and every site needing a vocabulary above its own
+  declaration is reported.
+- **U8** — byte preservation: edits are content-range replacements located
+  by the loader's own lexer and applied back-to-front; `hook` bodies are
+  never descended into, because they are arbitrary Tcl rather than pack
+  vocabulary.
+- **U9** — `--verify` compares `command_entry_json` snapshots of the
+  original and the rewritten pack across every dialect a 1.x row can gate
+  on (`tcl8.4`–`tcl9.1`, `f5-irules`).
+- **U10** — explicit `--from` / `--to`, downgrades refused.
+
+Over the eight bundled packs today, `--verify` reports **1,167 rows would
+translate, 0 left as TODO, 8/8 byte-identical registry snapshots**
+(cadence 77, mentor 69, microchip 1, quartus 77, synopsys 68, xilinx 788,
+sdc_base 86, upf 1). No bundled pack was rewritten.
+
+Still open: U3's actual mapping, U4 (`ambient_package` → environment-scoped
+`ambient` placement), U5 (`file_extension … -dialect` → detection rows
+inside the `environment` block), and U6 (`--infer-provides`). U3–U5 all
+need the P1 environment registry to be wired into the loader; U6 is
+independent and unstarted.
 
 ## 7. The name-resolution oracle programme
 

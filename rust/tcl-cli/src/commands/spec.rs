@@ -52,6 +52,9 @@ use tcl_cli_support::spec_import::{
 use tcl_cli_support::{OutputTarget, write_text_output};
 use tcl_spec_studio::versions::VersionedSnapshot;
 
+use tcl_registry::command_snapshot::command_entry_json;
+use tcl_spectcl::{UpgradeOptions, UpgradeOutcome, UpgradeStatus, upgrade_source};
+
 use crate::cli::{SpecCommand, SpecImportArgs, SpecUpgradeArgs};
 
 /// GitHub's maximum page size for `/tags`; fewer requests, same answer.
@@ -70,77 +73,191 @@ pub fn run(action: &SpecCommand) -> anyhow::Result<u8> {
     }
 }
 
-/// `tcl spec upgrade` — rewrite the `speclib` version word to the newest
-/// vocabulary.
+/// `tcl spec upgrade` — rewrite a 1.x pack into `SpecTcl` 2.0.
 ///
-/// The vocabulary is additive (`docs/design/spec-dsl-examples/README.md`,
-/// "Vocabulary changelog"), so the version word is the whole upgrade: every
-/// loader reads all known versions in full, and the declaration only says
-/// which words the pack is entitled to. The rewrite is a single-word edit on
-/// the `speclib` line — nothing else in the file is touched — and the result
-/// is re-loaded through the real loader so a pack that was clean stays
-/// provably clean.
+/// Two halves, per `docs/design/dialect-and-package-registry-centralisation.md`
+/// §6: the loader reads every 1.x pack forever, and this rewrites 1.x sources
+/// to 2.0. It is a **source rewriter**, never a load-render round trip — the
+/// renderer emits no pack-level rows and degrades opaque fields to TODO
+/// comments, so rendering a loaded pack would delete parts of it. Edits are
+/// content-range replacements located by the loader's own lexer and applied
+/// back-to-front, so author layout, comments, and delimiters survive (U8).
+///
+/// The version word moves only when the body rewrite completed on that file
+/// (U1). A row whose tokens name environment *membership* rather than
+/// availability needs the P1 environment registry, so it is left
+/// byte-identical, marked with a `# TODO(spectcl 2.0):` comment, and the file
+/// reports as partially upgraded (U3).
 pub fn run_upgrade(args: &SpecUpgradeArgs) -> anyhow::Result<u8> {
-    use tcl_spectcl::{
-        KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, load_pack, speclib_version_span,
+    let options = UpgradeOptions {
+        from: args.from.clone(),
+        to: args.to.clone(),
     };
+    // `--verify` proves an upgrade rather than performing one, so it never
+    // writes: the whole claim it makes is about bytes that are already on
+    // disk versus bytes that would be.
+    let dry_run = args.check || args.verify;
+    let mut incomplete = 0u32;
 
-    let mut behind = 0u32;
-    let mut skipped = 0u32;
     for file in &args.files {
         let source = std::fs::read_to_string(file)
-            .map_err(|e| anyhow::anyhow!("cannot read {}: {e}", file.display()))?;
-        // The speclib statement is the pack's one loader directive; the
-        // version is its third word, located through the loader's own word
-        // segmentation so `{1.0}` and `"1.0"` decode exactly as `load_pack`
-        // reads them. The rewrite replaces only the word's content — the
-        // author's delimiters and everything else in the file are untouched.
-        let Some((range, version)) = speclib_version_span(&source) else {
-            println!(
-                "{}: no `speclib <name> <version>` line found — skipped",
-                file.display()
-            );
-            skipped += 1;
-            continue;
-        };
-        if version == NEWEST_VOCABULARY_VERSION {
-            println!("{}: already declares vocabulary {version}", file.display());
+            .map_err(|e| anyhow!("cannot read {}: {e}", file.display()))?;
+        let outcome = upgrade_source(&source, &options);
+        let name = file.display();
+
+        match outcome.status {
+            UpgradeStatus::NotAPack => {
+                println!("{name}: no `speclib <name> <version>` line found — skipped");
+                incomplete += 1;
+                continue;
+            }
+            UpgradeStatus::Refused => {
+                for refusal in &outcome.refusals {
+                    eprint_status(
+                        warn_style(),
+                        format!("refused {name}:{}: {}", refusal.line, refusal.message),
+                    );
+                }
+                incomplete += 1;
+                continue;
+            }
+            UpgradeStatus::AlreadyCurrent => {
+                println!(
+                    "{name}: already vocabulary {} with nothing left to translate",
+                    outcome.declared_version.as_deref().unwrap_or("?")
+                );
+                continue;
+            }
+            UpgradeStatus::Upgraded | UpgradeStatus::Partial => {}
+        }
+
+        let partial = outcome.status == UpgradeStatus::Partial;
+        if partial {
+            incomplete += 1;
+        }
+        report_upgrade(&outcome, &format!("{name}"), dry_run);
+
+        if args.verify {
+            match verify_snapshots(file, &source, &outcome.source) {
+                Ok(true) => println!("  verify: registry snapshots are byte-identical (U9)"),
+                Ok(false) => {
+                    incomplete += 1;
+                    eprint_status(
+                        warn_style(),
+                        format!(
+                            "verify {name}: registry snapshots differ — the rewrite is not \
+                             behaviour-preserving"
+                        ),
+                    );
+                }
+                Err(err) => {
+                    incomplete += 1;
+                    eprint_status(warn_style(), format!("verify {name}: {err}"));
+                }
+            }
             continue;
         }
-        if !KNOWN_VOCABULARY_VERSIONS.contains(&version.as_str()) {
-            // `speclib mylib 0.15` never named a vocabulary — most often the
-            // library's own release in the wrong slot. Rewriting it would
-            // destroy that (wrong, but meaningful) word silently.
-            println!(
-                "{}: `{version}` names no SpecTcl vocabulary (the library's own \
-                 version?) — not rewritten; fix the `speclib` line by hand",
-                file.display()
-            );
-            skipped += 1;
+        if dry_run {
             continue;
         }
-        behind += 1;
-        if args.check {
-            println!(
-                "{}: declares vocabulary {version}; would declare {NEWEST_VOCABULARY_VERSION}",
-                file.display()
-            );
-            continue;
-        }
-        let mut upgraded = source.clone();
-        upgraded.replace_range(range, NEWEST_VOCABULARY_VERSION);
-        let pack = load_pack(&upgraded);
-        std::fs::write(file, &upgraded)
-            .map_err(|e| anyhow::anyhow!("cannot write {}: {e}", file.display()))?;
-        println!(
-            "{}: {version} -> {NEWEST_VOCABULARY_VERSION} (pack `{}`, {} commands, {} notices)",
-            file.display(),
-            pack.name,
-            pack.commands.len(),
-            pack.notices.len()
-        );
+        std::fs::write(file, &outcome.source)
+            .map_err(|e| anyhow!("cannot write {}: {e}", file.display()))?;
     }
-    Ok(u8::from(skipped > 0 || (args.check && behind > 0)))
+
+    Ok(u8::from(incomplete > 0))
+}
+
+/// One file's report: what translated, what is left, and U7's proof.
+fn report_upgrade(outcome: &UpgradeOutcome, name: &str, dry_run: bool) {
+    let verb = if dry_run {
+        "would translate"
+    } else {
+        "translated"
+    };
+    println!(
+        "{name}: {verb} {} row(s); {} left for the environment wire-up{}",
+        outcome.translated.len(),
+        outcome.deferred.len(),
+        if outcome.status == UpgradeStatus::Partial {
+            " (partially upgraded — the `speclib` word stays where it is)"
+        } else {
+            ""
+        }
+    );
+    for row in &outcome.translated {
+        println!("  {}: {} -> {}", row.line, row.before, row.after);
+    }
+    for row in &outcome.deferred {
+        println!("  {}: TODO {}", row.line, row.reason);
+    }
+    // U7: the rewritten file must need nothing newer than it declares.
+    for site in &outcome.above_target {
+        eprint_status(warn_style(), format!("above target: {site}"));
+    }
+}
+
+/// The dialects a `--verify` snapshot is taken in.
+///
+/// Every axis a 1.x `dialects` row can gate on, so a translation that
+/// widened or narrowed availability anywhere shows up as a snapshot
+/// difference rather than passing unnoticed.
+const VERIFY_DIALECTS: &[&str] = &[
+    "tcl8.4",
+    "tcl8.5",
+    "tcl8.6",
+    "tcl9.0",
+    "tcl9.1",
+    "f5-irules",
+];
+
+/// U9: load the original and the rewritten pack and compare the registry
+/// entries of every command either one declares.
+///
+/// Entry-by-entry rather than whole-registry, because the shipped commands
+/// are identical on both sides by construction and the pack's own names are
+/// the entire claim.
+fn verify_snapshots(path: &Path, original: &str, upgraded: &str) -> anyhow::Result<bool> {
+    let before = in_memory_pack(path, original);
+    let after = in_memory_pack(path, upgraded);
+    let mut names: Vec<&str> = before
+        .packs
+        .iter()
+        .chain(after.packs.iter())
+        .flat_map(|pack| pack.commands.iter().map(|command| command.spec.name))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    if names.is_empty() {
+        bail!("the pack declares no commands, so there is nothing to compare");
+    }
+    for dialect in VERIFY_DIALECTS {
+        let before_registry =
+            tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &before);
+        let after_registry = tcl_spectcl::install::registry_for_dialect_with_packs(dialect, &after);
+        for name in &names {
+            let left = command_entry_json(&before_registry, dialect, name)
+                .map(|entry| entry.dumps_indent2());
+            let right = command_entry_json(&after_registry, dialect, name)
+                .map(|entry| entry.dumps_indent2());
+            if left != right {
+                eprint_status(warn_style(), format!("differs: {dialect} / {name}"));
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// A one-file [`PackSet`] built from text that may never reach disk.
+fn in_memory_pack(path: &Path, source: &str) -> tcl_spectcl::PackSet {
+    tcl_spectcl::pack::load_in_memory(vec![(
+        tcl_spectcl::PackFile {
+            tier: tcl_spectcl::Tier::Workspace,
+            path: path.to_path_buf(),
+            origin: tcl_spectcl::discovery::Origin::DotDir,
+        },
+        source.to_owned(),
+    )])
 }
 
 /// `tcl spec import` — derive version ranges from several releases.
