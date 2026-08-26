@@ -391,8 +391,15 @@ is not a reviewer on that Environment — report that rather than trying to work
 around it. The laptop targets `make publish-vsix` / `make publish-openvsx` /
 `make publish-jetbrains` remain only as fallbacks if a CI job itself fails.
 
-This step's own remaining work is just **Sublime and Zed** (Open VSX is
-published by CI alongside the VS Code Marketplace — see the note above).
+This step's own remaining work is just **Zed** (Open VSX is published by
+CI alongside the VS Code Marketplace — see the note above).
+
+Sublime Text has no publish step: Package Control's channel entry resolves
+the `TclLsp.sublime-package` asset that the tagged CI run attaches to the
+GitHub Release, so a stable release ships to Package Control users on its
+own. `make publish-verify` checks that the asset is actually on the latest
+stable release. (Registering the package on the channel is a one-time PR
+the user raises — see `editors/sublime-text/SUBMITTING.md`.)
 
 Before asking which editors to publish, run a readiness check so any
 missing token or unclaimed namespace surfaces *before* the user picks
@@ -408,7 +415,7 @@ exits non-zero only on `[fail]` (tool missing or remote unreachable).
 
 Then ask which editors to publish to using `AskUserQuestion`:
 
-> Which editors should be published? (All / None / comma-separated list of: sublime, zed)
+> Which editors should be published? (All / None / comma-separated list of: zed)
 > Default: None
 
 (VS Code, Open VSX, and JetBrains are excluded — CI publishes all three via
@@ -418,10 +425,9 @@ you are deliberately invoking the laptop fallback because a CI job failed.)
 Based on the response:
 
 - **None** (default): Skip publishing entirely.
-- **All**: Run `make publish-sublime publish-zed`. Do **not** run
-  `make publish-all`: it includes `publish-vsix`, `publish-openvsx`, and
-  `publish-jetbrains`, which would try to re-publish the versions CI already
-  shipped.
+- **All**: Run `make publish-zed`. Do **not** run `make publish-all`: it
+  includes `publish-vsix`, `publish-openvsx`, and `publish-jetbrains`,
+  which would try to re-publish the versions CI already shipped.
 - **Specific editors**: Run the corresponding `make publish-<editor>` targets.
 
 Available targets:
@@ -441,19 +447,6 @@ Available targets:
   `JETBRAINS_TOKEN` env var. The first-ever publish must be done
   interactively via the JetBrains web UI; `publishPlugin` only updates an
   already-listed plugin.
-- `make publish-sublime` — Sublime Text / Package Control. Pushes the
-  built `build/sublime-stage/` tree (the same contents that go into the
-  `.sublime-package`) to the dedicated mirror repo
-  `bitwisecook/tcl-lsp-sublime-text` at the current tag. Package Control
-  scrapes the mirror's tags and serves the package source archive
-  directly — no marketplace API call, no per-release channel PR. The
-  mirror exists because Package Control needs the package contents at
-  the root of a git tag, which our monorepo can't satisfy directly.
-  One-time setup: the empty mirror repo must exist on GitHub
-  (`gh repo create bitwisecook/tcl-lsp-sublime-text --public ...`).
-  Override the mirror destination with `TCL_LSP_SUBLIME_MIRROR_REPO`
-  and `TCL_LSP_SUBLIME_MIRROR_DIR`; set `TCL_LSP_SUBLIME_DRY_RUN=1` to
-  stage the commit + tag locally without pushing.
 - `make publish-zed` — Zed extensions registry. Prepares a local
   checkout of `zed-industries/extensions` with the tcl submodule advanced
   to the new tag and the version bumped in `extensions.toml`, then
@@ -466,8 +459,7 @@ PRs that the user raises by hand; there is no per-release publish step
 or `make publish-*` target for them.
 
 The make targets in this repository **only push to repositories owned
-by the maintainer** (the canonical repo, the
-`tcl-lsp-sublime-text` mirror). They never push to or open PRs against
+by the maintainer** (the canonical repo). They never push to or open PRs against
 external repositories — any external-repo PR (JetBrains first-time
 upload, Package Control channel submission, Zed extensions registry,
 nvim-lspconfig, Helix) is raised by the user.

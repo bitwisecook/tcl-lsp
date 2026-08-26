@@ -10,13 +10,13 @@
                 "id": "package-settings",
                 "children": [
                     {
-                        "caption": "Tcl",
+                        "caption": "TclLsp",
                         "children": [
                             {
                                 "caption": "LSP Settings",
                                 "command": "edit_settings",
                                 "args": {
-                                    "base_file": "${packages}/Tcl/LSP-Tcl.sublime-settings",
+                                    "base_file": "${packages}/TclLsp/LSP-Tcl.sublime-settings",
                                     "default": "// Tcl LSP Settings\n// See the default settings for available options.\n{\n\t$0\n}\n"
                                 }
                             },
@@ -24,17 +24,8 @@
                                 "caption": "Editor Settings",
                                 "command": "edit_settings",
                                 "args": {
-                                    "base_file": "${packages}/Tcl/Tcl.sublime-settings",
+                                    "base_file": "${packages}/TclLsp/Tcl.sublime-settings",
                                     "default": "// Tcl Editor Settings\n{\n\t$0\n}\n"
-                                }
-                            },
-                            {
-                                "caption": "Key Bindings",
-                                "command": "edit_settings",
-                                "args": {
-                                    "base_file": "${packages}/Tcl/Example (${platform}).sublime-keymap",
-                                    "user_file": "${packages}/User/Default (${platform}).sublime-keymap",
-                                    "default": "[\n\t$0\n]\n"
                                 }
                             },
                             { "caption": "-" },
@@ -45,6 +36,10 @@
                             {
                                 "caption": "Restart Language Server",
                                 "command": "tcl_restart_server"
+                            },
+                            {
+                                "caption": "Recommended Setup",
+                                "command": "tcl_recommended_setup"
                             }
                         ]
                     }

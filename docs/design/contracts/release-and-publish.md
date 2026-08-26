@@ -10,13 +10,15 @@ rather than plain repository secrets available to every workflow run.
 secret on a protected, manually-approved Environment — never a plain
 repo/org secret available to every workflow run.**
 
-VS Code, Open VSX, and JetBrains publish *from CI*; Package Control
-(Sublime) and Zed publish from the maintainer's laptop (they need no token
-— they push to a maintainer-owned mirror / open a PR).  A marketplace
-token may live in CI only when, stored as an Environment secret, it is
-reachable solely by the one job that targets that Environment — which has
-a required reviewer and a `v*`-tag-only deployment policy, so it pauses
-for human approval and cannot run on a non-tag ref.
+VS Code, Open VSX, and JetBrains publish *from CI*; Zed publishes from
+the maintainer's laptop (no token — it opens a PR).  Sublime Text has no
+publish step at all: Package Control's channel entry resolves the
+`TclLsp.sublime-package` asset attached to each stable GitHub Release,
+so the tagged CI run *is* the publish.  A marketplace token may live
+in CI only when, stored as an Environment secret, it is reachable solely
+by the one job that targets that Environment — which has a required
+reviewer and a `v*`-tag-only deployment policy, so it pauses for human
+approval and cannot run on a non-tag ref.
 
 This is enforced by:
 
@@ -78,8 +80,9 @@ behind the approval gate.
 │   - Open VSX  → secrets.OVSX_PAT      on marketplace-openvsx │
 │   - JetBrains → secrets.JETBRAINS_TOKEN on marketplace-jetbrains │
 │ Laptop (no token needed):                                    │
-│   - make publish-sublime → push to the mirror repo           │
 │   - make publish-zed     → open a PR on zed-industries       │
+│ Nothing to run for Sublime: Package Control reads the        │
+│   release asset (editors/sublime-text/SUBMITTING.md)         │
 │ make publish-vsix / publish-openvsx / publish-jetbrains      │
 │ remain laptop fallbacks                                      │
 └──────────────────────────────────────────────────────────────┘
@@ -97,8 +100,8 @@ Each layer does one job:
 ## The end-to-end flow
 
 A release rolls out from a single annotated tag; VS Code, Open VSX, and
-JetBrains publish from CI behind the approval gate, and only Sublime + Zed
-run from the laptop:
+JetBrains publish from CI behind the approval gate, and only Zed runs
+from the laptop:
 
 ```
 1. make publish-verify          # checks that local credentials + tools are ready
@@ -109,7 +112,8 @@ run from the laptop:
    publish-vsix-openvsx, and publish-jetbrains-marketplace jobs for approval
    — approve the marketplace-vscode, marketplace-openvsx, and
    marketplace-jetbrains deployments when prompted
-4. make publish-sublime publish-zed   # local; Sublime + Zed only (no token)
+4. make publish-zed             # local; Zed only (no token)
+   # Sublime needs nothing: Package Control serves the release asset
 ```
 
 `make publish-flow` prints this cheat-sheet on demand so a tired
@@ -224,15 +228,15 @@ channel automatically.
 ## Marketplace credential table
 
 VS Code, Open VSX, and JetBrains publish from CI using an **Environment**
-secret on a protected, approval-gated Environment.  Sublime and Zed need no
-token.  The laptop publish targets remain as fallbacks.
+secret on a protected, approval-gated Environment.  Sublime and Zed need
+no token.  The laptop publish targets remain as fallbacks.
 
 | Marketplace | Primary path | Credential | Fallback |
 |---|---|---|---|
 | VS Code Marketplace | CI job `publish-vsix-marketplace` | `secrets.VSCE_PAT` (Environment secret on `marketplace-vscode`) | `make publish-vsix` (keyless `az login`, or local `VSCE_PAT`) |
 | Open VSX | CI job `publish-vsix-openvsx` | `secrets.OVSX_PAT` (Environment secret on `marketplace-openvsx`) | `make publish-openvsx` (local `OVSX_PAT` — no keyless path) |
 | JetBrains Marketplace | CI job `publish-jetbrains-marketplace` | `secrets.JETBRAINS_TOKEN` (Environment secret on `marketplace-jetbrains`) | `make publish-jetbrains` (token via Keychain / `jetbrains_token.sh`) |
-| Package Control (Sublime) | `make publish-sublime` (laptop) | none — `git push` to the mirror repo | — |
+| Package Control (Sublime) | the tagged CI run — `build-sublime` attaches `TclLsp.sublime-package` to the Release, which the channel entry resolves | none | — |
 | Zed Extensions | `make publish-zed` (laptop) | none — opens a local PR branch | — |
 
 All three CI publish jobs target a protected Environment (required reviewer +
@@ -279,7 +283,7 @@ the secret is reachable by no other job.
   a protected `environment:` (required reviewer + `v*`-tag-only policy).
 * Store a publish token as a plain **repository** or **organisation**
   secret (available to every workflow), rather than an Environment secret.
-* Publish Sublime or Zed (they push to a mirror / open a PR — laptop-only).
+* Publish Zed (it opens a PR — laptop-only).
 * Replicate logic that lives in `scripts/release/`.  CI is allowed
   to *invoke* `scripts/release/*.sh`, but not duplicate its body.
 
@@ -291,7 +295,7 @@ stored, is a design conversation: it requires updating this contract and
 
 - [`Makefile`](../../../Makefile) — `publish-vsix`, `publish-vsix-targets`,
   `publish-openvsx`, `publish-openvsx-targets`, `publish-jetbrains`,
-  `publish-sublime`, `publish-zed`, `publish-all`, `publish-verify`,
+  `publish-zed`, `publish-all`, `publish-verify`,
   `publish-flow`, `release-tag`, and the pre-release sequence
   `release-perf`, `release-notes-perf`, `release-verify`,
   `release-prepare`, `release-rust-tag`.
@@ -340,9 +344,14 @@ for job in publish-vsix-marketplace publish-vsix-openvsx publish-jetbrains-marke
     || (echo "FAIL: $job has no environment: block" && exit 1)
 done
 
-# Sublime and Zed are never published from CI:
-! grep -rE "publish-sublime|publish-zed" .github/workflows/ \
-  || (echo "FAIL: Sublime/Zed must publish from the laptop" && exit 1)
+# Zed is never published from CI:
+! grep -rE "publish-zed" .github/workflows/ \
+  || (echo "FAIL: Zed must publish from the laptop" && exit 1)
+
+# The Sublime package Package Control resolves must stay binary-free and
+# platform-independent: one asset serves every platform.
+! unzip -Z1 build/TclLsp.sublime-package | grep -q "^server/" \
+  || (echo "FAIL: Sublime package must not bundle a server" && exit 1)
 ```
 
 ## Discoverability

@@ -188,9 +188,10 @@ Add a `[language-server.tcl-lsp]` block naming the `tcl-lsp-server` binary to
 
 ### Sublime Text
 
-Install **Tcl-LSP** from Package Control, or drop `Tcl.sublime-package` into
-`Installed Packages/`. The package bundles the native server. Install the
-**LSP** package first for language-server features.
+Install **TclLsp** from Package Control, or drop `TclLsp.sublime-package`
+into `Installed Packages/`. Install the **LSP** package too for
+language-server features — the matching native server is then downloaded
+on first use.
 
 ### JetBrains
 

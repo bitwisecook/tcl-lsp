@@ -42,7 +42,7 @@ OVSX="$NODE_BIN/ovsx"
 
 VSCE_PUBLISHER="bitwisecook"
 OVSX_NAMESPACE="bitwisecook"
-SUBLIME_MIRROR_REPO="${TCL_LSP_SUBLIME_MIRROR_REPO:-bitwisecook/tcl-lsp-sublime-text}"
+REPO="bitwisecook/tcl-lsp"
 ZED_UPSTREAM="zed-industries/extensions"
 
 RC=0
@@ -175,32 +175,33 @@ ok "plugin page: https://plugins.jetbrains.com/plugin/31801-tcl-language-support
 
 # ---------------------------------------------------------------- Sublime
 
-hdr "Sublime Text (publish-sublime)"
+hdr "Sublime Text (Package Control)"
 
-# gh is used by publish_sublime.sh for the canonical-release asset check;
-# it is best-effort there, but worth flagging here.
-if command -v gh >/dev/null 2>&1; then
-    if gh auth status >/dev/null 2>&1; then
-        ok "gh CLI authenticated"
+# Nothing to publish by hand: Package Control's channel entry points at the
+# `TclLsp.sublime-package` asset on each GitHub Release, so a tagged CI run
+# is the whole publish step.  What is worth checking is that the asset the
+# channel resolves actually exists on the most recent stable release.
+if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
+    LATEST_STABLE="$(gh release list --repo "$REPO" --exclude-drafts --limit 20 \
+        --json tagName,isPrerelease \
+        --jq 'map(select(.isPrerelease | not)) | .[0].tagName' 2>/dev/null || true)"
+    if [ -n "$LATEST_STABLE" ] && [ "$LATEST_STABLE" != "null" ]; then
+        if gh release view "$LATEST_STABLE" --repo "$REPO" --json assets \
+            --jq '.assets[].name' 2>/dev/null | grep -qx "TclLsp.sublime-package"; then
+            ok "release $LATEST_STABLE carries TclLsp.sublime-package (what Package Control fetches)"
+        else
+            warn "release $LATEST_STABLE has no TclLsp.sublime-package asset."
+            warn "  Package Control serves the newest stable release that has one;"
+            warn "  check the build-sublime job on that tag."
+        fi
     else
-        warn "gh CLI installed but not authenticated. Run 'gh auth login'."
+        warn "could not determine the latest stable release from $REPO."
     fi
 else
-    warn "gh CLI not installed. The release-asset sanity check in"
-    warn "  publish_sublime.sh will be skipped; the mirror push still works."
+    warn "gh CLI missing or unauthenticated — skipping the Package Control asset check."
 fi
 
-# Mirror repo must exist (one-time bootstrap step).
-if command -v gh >/dev/null 2>&1; then
-    if gh repo view "$SUBLIME_MIRROR_REPO" >/dev/null 2>&1; then
-        ok "Package Control mirror repo $SUBLIME_MIRROR_REPO is reachable"
-    else
-        warn "Package Control mirror repo $SUBLIME_MIRROR_REPO is not reachable."
-        warn "  Create it once with:"
-        warn "    gh repo create $SUBLIME_MIRROR_REPO --public \\"
-        warn "        --description \"Sublime Text mirror of tcl-lsp for Package Control\""
-    fi
-fi
+ok "channel entry: editors/sublime-text/SUBMITTING.md"
 
 # ----------------------------------------------------------------- Zed
 
