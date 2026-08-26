@@ -81,6 +81,15 @@ rules for the KCS/documentation split live in
   stubs — each on one identical worked example over the same internal
   model, with a rubric, comparison matrix, and hybrid recommendation for
   the owner to weigh.
+- [spectcl-design-e-deep-dive.md](spectcl-design-e-deep-dive.md) —
+  **exploration**: stress-tests design E (executable registration), the
+  owner's provisional lean, against the widest real surfaces — the
+  pinned execution model (frozen snapshots, determinism,
+  target-independence, provenance), literal-driven typing via
+  `format`/`scan`/`binary`, iRules against the profile and event graph,
+  TclOO/Tk, tcllib, the EDA shells, tcl-bpf, SpecTcl self-hosting, and
+  corpus-chosen oddities — collecting numbered `E-R` ruling candidates
+  and the feedback each walk sends into the Rust model.
 - [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
   — **F5 evidence review** of the fixed iRules, tmsh, and iApps Tcl-version
   assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI
