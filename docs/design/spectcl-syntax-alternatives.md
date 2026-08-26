@@ -809,6 +809,171 @@ A+C authoring / D generated hybrid keeps every goal: fast compiled
 packs, tclvm hooks as named compiled bodies, per-window synopses for
 versions, and class members as first-class invocation specs.
 
+## Prose blocks: multi-line text without indentation damage
+
+Braced Tcl strings are byte-verbatim, so today a long `hover` either
+hugs column 0 (breaking the file's visual nesting) or ships its leading
+spaces into every tooltip. The fix is a **prose value class** shared by
+every surface: values declared prose-typed in the schema (`hover`/`doc`,
+sink and effect descriptions, deprecation advice, values `-detail`) are
+**margin-stripped at load** by one deterministic rule:
+
+1. a newline immediately after the opening brace is dropped;
+2. the *margin* is the longest common byte-prefix of whitespace across
+   all non-blank lines (no tab expansion — bytes, so mixed tab/space
+   files stay deterministic);
+3. the margin is stripped from every line; trailing blank lines and
+   per-line trailing whitespace are trimmed;
+4. a blank line is a paragraph break; a single newline is *soft*
+   (renderers may reflow) — **except** inside a fenced block
+   (```` ``` ````), which is preserved verbatim relative to the margin,
+   so worked examples in hovers keep their own indentation;
+5. `doc -verbatim {…}` is the escape hatch for byte-exact needs, and
+   prose values must be braced words (which also makes `#` inside prose
+   a non-issue — the "`arity 2 # not a comment`" trap cannot bite a
+   braced value).
+
+So this indents with the code and renders clean:
+
+```tcl
+command {lsort ?options? list} {
+    hover {
+        Sorts the elements of a list, returning a new list in sorted
+        order. The default comparison is ASCII.
+
+        -integer, -real, and -dictionary select other comparisons:
+
+        ```
+        % lsort -integer {10 9 8}
+        8 9 10
+        ```
+    }
+}
+```
+
+Consequences, per design and for the pipeline:
+
+- **Round-trip becomes canonical rather than byte-exact for prose**: the
+  renderer re-emits at the current nesting depth and `load(render(x))`
+  equals `x` *post-dedent* by construction — which retires the standing
+  "a quoted word is not byte-verbatim" `Loss` class for prose fields
+  entirely. Equality in the studio gate is post-dedent equality for
+  prose-typed values, byte equality everywhere else.
+- **Unbalanced braces in prose** remain the one honest wart (Tcl's, not
+  ours): the rule stays "balance your braces or use `-verbatim` with
+  backslash escapes", and the loader's existing reported-`Loss` path
+  covers the pathological cases.
+- **F is the natural winner for prose** — doc lines are comment lines
+  directly above the stub (`## Sorts the elements…`, Rust-style), so
+  indentation never enters the value at all; **D is the loser** (prose
+  inside nested dict braces indents twice); A/B/C/E share the block rule
+  above unchanged.
+- **1.x compatibility**: existing single-line hovers are unaffected (no
+  margin to strip); existing multi-line 1.x hovers — all currently
+  column-0 — dedent to themselves. The upgrade tool may *re-indent*
+  prose to nesting depth as part of `--restyle`, purely cosmetic under
+  post-dedent equality.
+- The same class covers the other rendering-sensitive shapes the
+  complaint gestures at: per-paragraph deprecation guidance, multi-line
+  `sink` rationales, and KCS-bound long descriptions all become prose
+  values; grammar-bearing strings (synopses, patterns, version sets)
+  are **never** prose-typed and stay byte-exact.
+
+## Typing arguments and options — statically, and dynamically in hooks
+
+### The static vocabulary
+
+One closed, structured type-expression language shared by every
+surface (types are model data; the surfaces only spell them):
+
+```text
+any  string  int  wide  double  boolean  index  version  requirement
+list ?(T)?   dict ?(K V)?   tuple(T1 T2 …)   or(T1 T2 …)
+enum(a b c)  script  command-prefix  varname ?(T)?  namespace  channel
+path  pattern(glob)  pattern(regex)  class(Name)  object(Name)  widget-path
+```
+
+Spelling per design: the annotation form is uniform —
+`type list(int)` on a named parameter, `takes count:int` /
+`option {-stride count:int}` on options — and A/B/F additionally admit
+the **colon shorthand inside signatures** for the simple cases,
+inherited from the existing inline-stub DSL (`foreach_in_collection
+{varName:var collection body:body}` is already shipping syntax):
+
+```tcl
+command {lrepeat count:int element:any ...} { returns list }
+command {lsort ?options? list:list}        { returns list }
+spec proc lappend {varName:varname(list) ?value:any ...?} -returns list
+```
+
+`varname(T)` types the *variable being named*, not the word — which is
+how `-textvariable` and `upvar`-shaped options type the cell they bind.
+Existing bespoke fields (`pattern_type`, `format_string_type`,
+`var_write_typing`, `inferred_storage_type`) become instances of this
+one vocabulary rather than parallel mechanisms — a ledger-style
+retirement inside the format itself.
+
+### Dynamic types: the `types` hook
+
+A type resolver is a hook like the role resolver — tclvm-compiled,
+shape-cached over declared inputs, addressing parameters **by name** —
+whose one soundness rule is: **a hook may narrow a static type, never
+widen it, and abstains by saying nothing** (falling back to the static
+declaration). The sandbox exposes three verbs: `literal NAME` (the
+statically-known literal value of a parameter, or abstention),
+`type NAME TYPE` (repetition tails addressed `type {arg 0} T`), and
+`returns TYPE`.
+
+The canonical case — `format`, whose argument types depend on the
+format-string literal:
+
+```tcl
+command {format formatString:string ?arg:any ...?} {
+    returns string
+    types -inputs {literal formatString} {call} {
+        set fmt [literal formatString]        ;# abstains when not literal
+        set i 0
+        foreach spec [format::specs $fmt] {
+            type [list arg $i] [format::spec-type $spec]   ;# %d→int, %s→string, %f→double
+            incr i
+        }
+    }
+    ;# shipped packs use the hot path:  types -native format-arg-types
+}
+```
+
+`string is`, where one argument's *value* selects another's type:
+
+```tcl
+command {string is class:enum(alpha alnum integer double boolean list dict ...) ?options? value:string} {
+    returns boolean
+    types -inputs {literal class} {call} {
+        switch -- [literal class] {
+            integer  { type value int }
+            double   { type value double }
+            boolean  { type value boolean }
+            list     { type value list }
+            dict     { type value dict }
+        }
+    }
+}
+```
+
+The same contract covers the domain sweep's needs: `dict get`'s return
+type from path depth, `lindex`'s element type, Tk `-validatecommand`'s
+per-widget `%`-substitution types, and SpiceGenTcl's `-model` value
+narrowing to an `enum(...)` computed from a sibling option. In C the
+hook is a scope member (`hook format-types … { … }` referenced by
+`types format-types`); in E it is an ordinary proc
+(`proc types::format {call} {…}; command format … -types types::format`);
+in D the body is a dict value; in F a real `@`-proc in the stub file —
+identical semantics everywhere, compiled once to the VM at pack load.
+
+Downstream, hook-narrowed types feed the type-inference pass as
+spec-grade facts with provenance; a conflict between a hook narrowing
+and an inferred value is a diagnostic, never a silent override — the
+same discipline as every other semantic hook under invariant I4.
+
 ## What the domain sweep shows
 
 - **Hooks separate the designs sharply.** E and F make Tcl-body hooks
