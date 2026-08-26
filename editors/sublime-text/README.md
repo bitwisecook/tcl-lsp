@@ -53,7 +53,7 @@ Install LSP from Package Control:
    Package Control for language-server features
 
 See the
-[Installation Guide](https://github.com/bitwisecook/tcl-lsp/blob/main/INSTALL-editors.md)
+[Installation Guide](https://github.com/bitwisecook/tcl-lsp/blob/rust/INSTALL-editors.md)
 for the full per-editor matrix.
 
 ### Development install (from source)
@@ -244,7 +244,7 @@ The bindable command names are the `command` column of the
 [Command Palette](#command-palette) table below, plus LSP's own commands
 (`lsp_format_document` and friends). For a step-by-step walkthrough,
 including scoping a binding to Tcl buffers only, see
-[How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
+[How do I bind keys to the Tcl commands in Sublime Text?](https://github.com/bitwisecook/tcl-lsp/blob/rust/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md).
 
 ## Command Palette
 
@@ -352,11 +352,11 @@ Use the `tcl-lsp.exportConfig` command via `workspace/executeCommand` to
 write current settings to the config file.
 
 See
-[docs/design/contracts/xdg-config.md](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/design/contracts/xdg-config.md)
+[docs/design/contracts/xdg-config.md](https://github.com/bitwisecook/tcl-lsp/blob/rust/docs/design/contracts/xdg-config.md)
 for the full reference.
 
 ## Licence
 
 AGPL-3.0-or-later — see
-[LICENSE](https://github.com/bitwisecook/tcl-lsp/blob/main/LICENSE) for
+[LICENSE](https://github.com/bitwisecook/tcl-lsp/blob/rust/LICENSE) for
 details.

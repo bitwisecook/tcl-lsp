@@ -59,7 +59,7 @@ check the file, it moves):
 {
 	"name": "TclLsp",
 	"details": "https://github.com/bitwisecook/tcl-lsp",
-	"readme": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/main/editors/sublime-text/README.md",
+	"readme": "https://raw.githubusercontent.com/bitwisecook/tcl-lsp/rust/editors/sublime-text/README.md",
 	"issues": "https://github.com/bitwisecook/tcl-lsp/issues",
 	"labels": ["language syntax", "auto-complete", "linting", "formatting", "code navigation", "snippets"],
 	"releases": [
@@ -78,7 +78,7 @@ Notes on each key:
 |---|---|
 | `name` | The package folder name, and what `plugin.py`, `Main.sublime-menu` and `Default.sublime-commands` hard-code as `${packages}/TclLsp`. CamelCase, no `.`, no "Sublime", and deliberately *not* `Tcl` — Sublime Text ships a default package called `TCL`, which `Tcl` would shadow case-insensitively. |
 | `details` | The monorepo. Package Control reads the description, author and homepage from it. |
-| `readme` | The package README, not the monorepo one. Must be a raw URL. |
+| `readme` | The package README, not the monorepo one. Must be a raw URL, and it must name **`rust`**: `main` is the 1.x line and still serves the pre-rename README, which describes a bundled server and the old package name. Repoint it if the 2.x line ever becomes the default branch. |
 | `labels` | Lower case, spaces not dashes, drawn from the suggested vocabulary in `example-repository.json`. |
 | `asset` | Exact asset name on the GitHub Release. Also the filename a manual install needs, so the two paths agree. |
 | `sublime_text` | `>=4107` — the build that introduced `.python-version` / plugin_host 3.8, which this package requires. |
@@ -142,7 +142,7 @@ the shipped package does not have.
 - **No key bindings.** No `Default (*).sublime-keymap`, and no example
   keymap either — a package that ships bindings competes with the user's
   own. The README and
-  [the KCS note](https://github.com/bitwisecook/tcl-lsp/blob/main/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md)
+  [the KCS note](https://github.com/bitwisecook/tcl-lsp/blob/rust/docs/kcs/kcs-howto-bind-sublime-tcl-commands.md)
   list every bindable command instead.
 - **No silent settings edits.** Disabling the built-in `TCL` package and
   enabling LSP's `semantic_highlighting` are both *offered* — once after
