@@ -757,11 +757,10 @@ separate rule load and distinguishes `command is disabled` from
 `undefined procedure`.
 
 **Recommendation.** Treat §3 and §4a as E4-grade evidence and everything else as
-a strong but non-conforming transcript. One caveat on §4a: the payload needed two
-corrections mid-session (each a finding in its own right — see the provenance
-note in `results/10-context-parity.txt`), so its four context blocks come from
-two consecutive runs rather than one, and the E4.4b command-resolution probe has
-not yet been run standalone. Re-running the suites under the full E4
+a strong but non-conforming transcript. §4a is a single clean run
+covering all four contexts, with zero residual objects and a cleanup proof per
+object; the standalone command-resolution probe (E4.4b) ran in the same pass and
+confirmed `undefined procedure: __no_such_command__` at rule load. Re-running the suites under the full E4
 contract is mechanical — `lib/runner.sh` needs only a prefix change and a
 pre-create absence check — and would upgrade the whole document.
 

@@ -83,7 +83,9 @@ scp irules/context-parity/* lib/e4-context-probe.sh bigip1:/var/tmp/
 ssh bigip1 'bash /var/tmp/e4-context-probe.sh' > results/10-context-parity.txt
 ```
 
-Two traps this probe walked into, both preserved as cases:
+Captured as a single clean run across all four contexts (see
+`results/10-context-parity.txt`). Two traps this probe walked into on the way,
+both preserved as cases:
 
 - `tcl_patchLevel` does not exist in a `cli script`, so an unguarded read aborts
   that context only.
