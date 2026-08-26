@@ -295,8 +295,17 @@ fn ai_context() -> AiContext {
 /// drifting as hand-written prose: total command count plus the largest
 /// `NS::` namespaces.
 fn irules_vendor_surface() -> String {
-    let profile = tcl_dialect::DialectProfile::irules();
-    let registry = tcl_registry::registry_for_profile(profile);
+    // The dialect name and the store both resolve through the one ingress
+    // seam (`crate::environment`).
+    //
+    // P1-G: `vendor_surface` itself stays on `ProfileQueries` — it is the
+    // one query in this crate with no `ResolvedContext` twin (ledger row
+    // F1's assistance half covers availability, not the vendor-bit
+    // summary), and inventing one here would be a model change rather than
+    // a port. The threaded profile is the resolved environment's, so the
+    // summary is keyed off the same environment either way.
+    let profile = crate::environment::profile_for_dialect("f5-irules");
+    let registry = crate::environment::store_for_profile(profile);
     let Some(surface) = profile.vendor_surface(registry) else {
         return String::new();
     };

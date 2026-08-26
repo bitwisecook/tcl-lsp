@@ -20,8 +20,8 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result};
 use tcl_registry::CommandRegistry;
-use tcl_registry::ProfileQueries;
 use tcl_registry::events::{EventRegistry, FlowChain, OrderEntry};
+use tcl_registry::model::ResolvedContext;
 
 use crate::util::{DISABLED_SENTINEL, license_banner, repo_root};
 
@@ -29,6 +29,9 @@ const EVENT_DATA_PATH: &str = "rust/tcl-irule-test/tcl/_event_data.tcl";
 const MOCK_STUBS_PATH: &str = "rust/tcl-irule-test/tcl/_mock_stubs.tcl";
 const HAND_WRITTEN_MOCKS_PATH: &str = "rust/tcl-irule-test/tcl/command_mocks.tcl";
 const GENERATED_BY: &str = "cargo xtask gen-irule-test-data";
+/// The canonical id of the environment the iRules harness simulates — the
+/// one dialect name this generator resolves through the ingress seam.
+const IRULES_DIALECT: &str = "f5-irules";
 
 /// A generic stub-table entry.  The key is exactly the tail returned by the
 /// Tcl framework's `_mock_proc_name`; the values are the decision-log
@@ -150,18 +153,20 @@ fn handwritten_mock_names(source: &str) -> BTreeSet<String> {
 
 fn stub_entries(
     registry: &CommandRegistry,
-    profile: &tcl_dialect::DialectProfile,
+    context: &ResolvedContext,
     handwritten: &BTreeSet<String>,
 ) -> Vec<MockStubEntry> {
     let mut entries = BTreeSet::new();
     for command in registry.command_names() {
-        // `registry_for_profile` intentionally begins with the broad default
-        // registry so package and cross-dialect descriptions remain available
-        // to analysis.  The Tcl harness, however, may only register commands
-        // callable in its F5 iRules profile.  Resolve through the shared
-        // profile-availability owner instead of treating registry membership
-        // as visibility (notably excludes Tcllib, Tk, `file`, and `exec`).
-        if profile.resolve_command(registry, command).is_none() {
+        // The generation's store intentionally begins with the broad
+        // default registry so package and cross-dialect descriptions remain
+        // available to analysis.  The Tcl harness, however, may only
+        // register commands callable in its F5 iRules environment.  Resolve
+        // through the environment's own context — the replacement for
+        // `ProfileQueries::resolve_command` (ledger row F1's assistance
+        // half) — instead of treating registry membership as visibility
+        // (notably excludes Tcllib, Tk, `file`, and `exec`).
+        if context.resolve_spec(registry, command).is_none() {
             continue;
         }
         if command == DISABLED_SENTINEL || command.starts_with("::tcl::mathop::") {
@@ -227,10 +232,14 @@ fn render_mock_stubs(entries: &[MockStubEntry]) -> String {
 fn generated_files() -> Result<Vec<(&'static str, String)>> {
     let root = repo_root();
     let events = EventRegistry::build();
-    // The harness simulates the F5 iRules dialect, not every optional package
-    // that `CommandRegistry::build_default` happens to preload.  The resolved
-    // profile is the same registry surface LiveSession uses.
-    let registry = tcl_registry::registry_for_profile(tcl_dialect::DialectProfile::irules());
+    // The harness simulates the F5 iRules environment, not every optional
+    // package that `CommandRegistry::build_default` happens to preload.  The
+    // resolved environment's registry generation is the same store
+    // LiveSession uses (ledger row B10: this generator is the replacement
+    // for the frozen `_registry_data.tcl` subtraction, so its own ingress
+    // goes through the one seam).
+    let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
+    let irules_context = crate::environment::context_for_dialect(IRULES_DIALECT);
     let mocks = fs::read_to_string(root.join(HAND_WRITTEN_MOCKS_PATH))
         .with_context(|| format!("reading {HAND_WRITTEN_MOCKS_PATH}"))?;
     Ok(vec![
@@ -242,7 +251,7 @@ fn generated_files() -> Result<Vec<(&'static str, String)>> {
             MOCK_STUBS_PATH,
             render_mock_stubs(&stub_entries(
                 registry,
-                tcl_dialect::DialectProfile::irules(),
+                irules_context,
                 &handwritten_mock_names(&mocks),
             )),
         ),
@@ -324,9 +333,9 @@ mod tests {
 
     #[test]
     fn mock_stubs_only_project_commands_visible_to_f5_irules() {
-        let profile = tcl_dialect::DialectProfile::irules();
-        let registry = tcl_registry::registry_for_profile(profile);
-        let entries = stub_entries(registry, profile, &BTreeSet::new());
+        let registry = crate::environment::store_for_dialect(IRULES_DIALECT);
+        let context = crate::environment::context_for_dialect(IRULES_DIALECT);
+        let entries = stub_entries(registry, context, &BTreeSet::new());
         let names: BTreeSet<_> = entries
             .iter()
             .map(|entry| entry.mock_name.as_str())

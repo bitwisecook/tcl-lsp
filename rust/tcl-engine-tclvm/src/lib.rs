@@ -59,6 +59,23 @@ use tcl_engine_api::{Budget, BudgetKind, CompileUnit, Engine, EngineError, HostC
 use tcl_registry::CommandRegistry;
 use tcl_vm::{Code, CompileError, CompileService, Completion, NativeCommand, Vm};
 
+/// The command **store** a compile for `profile` reads — the resolved
+/// environment's registry generation, obtained through the one ingress
+/// seam (`tcl_registry::model::ingress`; centralisation rows C2/F2, the
+/// backend lane of P1-F wave 3).
+///
+/// A `DialectProfile`'s canonical name **is** a canonical environment id,
+/// so this is an id-keyed generation lookup rather than a re-parse of a
+/// user string, and the generation's store is the very `Arc` the old
+/// `registry_for_profile(profile)` handed back — same statics, so the
+/// bytecode a profile compiles to is unchanged.
+///
+/// P1-G: the `&'static DialectProfile` argument retires with the profile
+/// itself; `CompileService`'s signature then carries the environment.
+fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
+    tcl_registry::model::static_context_for_profile(profile).commands()
+}
+
 /// The compile service the VM injects for runtime `eval` and body
 /// compilation — `tcl-vm` itself never links `tcl-compiler`, so the engine
 /// supplies it.
@@ -83,7 +100,7 @@ impl CompileService for VmCompiler {
         source: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = store_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(message) = first_fatal_parse_error_with_config(source, config) {
             return Err(CompileError(message));
@@ -98,7 +115,7 @@ impl CompileService for VmCompiler {
         source: &str,
         profile: &'static DialectProfile,
     ) -> Result<tcl_bytecode::ModuleAsm, CompileError> {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = store_for_profile(profile);
         let config = tcl_lexer::LexerConfig::from_grammar(profile.grammar);
         if let Some(message) = first_fatal_parse_error_with_config(source, config) {
             return Err(CompileError(message));

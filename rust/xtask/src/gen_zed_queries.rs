@@ -104,8 +104,13 @@ const GRAMMAR_LITERAL_OPERATOR_TOKENS: &[&str] = &[
 /// The profile's registry: `build_default` plus its on-demand command
 /// packs, stamped with the profile so mask queries apply its profile-level
 /// exclusion (§9 — the operator-head exclusion).
+///
+/// The environment's registry generation, through the one ingress seam —
+/// the same store (and the same profile stamp, which `classify` reads back
+/// for its ambient-package filter) the retired `registry_for_profile`
+/// published, shared by handle.
 fn registry_for(profile: &'static DialectProfile) -> &'static CommandRegistry {
-    tcl_registry::registry_for_profile(profile)
+    crate::environment::store_for_profile(profile)
 }
 
 /// The languages we generate queries for. iRules/iApps/Expect share the `tcl`
@@ -118,7 +123,7 @@ fn targets() -> Vec<Target> {
             // filtered out by `required_package` (it needs `package
             // require Tk`), so the ambient Tcl core is just ALL_TCL here.
             dir: "tcl",
-            profile: DialectProfile::plain_tcl(),
+            profile: crate::environment::profile_for_dialect("tcl"),
         },
         Target {
             // iRules availability is fully explicit
@@ -138,15 +143,15 @@ fn targets() -> Vec<Target> {
             // `lassign`, `zipfs`), so they are excluded by the mask
             // itself — iRules is the Tcl 8.4 base, not 8.5+.
             dir: "irules",
-            profile: DialectProfile::irules(),
+            profile: crate::environment::profile_for_dialect("f5-irules"),
         },
         Target {
             dir: "iapps",
-            profile: DialectProfile::by_name("f5-iapps"),
+            profile: crate::environment::profile_for_dialect("f5-iapps"),
         },
         Target {
             dir: "expect",
-            profile: DialectProfile::by_name("expect"),
+            profile: crate::environment::profile_for_dialect("expect"),
         },
     ]
 }
@@ -201,6 +206,12 @@ fn classify(reg: &CommandRegistry, dialects: DialectSet) -> Buckets {
         // via `package require`; the LSP handles those. Keep only ambient
         // commands — including packages the profile ships ambiently (§7.1:
         // the F5 surfaces are the profile's own runtime, not a require).
+        // P1-G: the ambient-package question has a context-keyed twin
+        // (`ResolvedContext::ambient_package`) that answers identically over
+        // this generation's own environment; the swap waits for the profile
+        // stamp to retire, because this arm reads the stamp the generation
+        // carries rather than a threaded target — the same hold the LSP's
+        // `completion::command_detail` and `hover` carry from wave 2.
         let Some(spec) = reg.specs(name).iter().find(|spec| {
             reg.spec_visible(spec, dialects)
                 && spec

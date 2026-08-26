@@ -817,11 +817,22 @@ pub struct InterpState {
     /// hides nothing and lexes with the modern grammar;
     /// [`Interp::set_runtime_version`] pins the matching plain-Tcl profile.
     dialect_profile: Cell<&'static tcl_dialect::DialectProfile>,
-    /// The availability registry for `dialect_profile`, resolved once at pin
-    /// time (`registry_for_profile` guards its cache with a lock, and this is
-    /// consulted on every command dispatch). `None` for the permissive
-    /// fallback profile, which gates nothing.
+    /// The availability registry for `dialect_profile` — its environment's
+    /// registry generation, resolved once at pin time through the ingress
+    /// seam ([`crate::environment::store_for_profile`]; the generation
+    /// cache guards itself with a lock, and this is consulted on every
+    /// command dispatch). `None` for the permissive fallback profile,
+    /// which gates nothing.
     profile_registry: Cell<Option<&'static tcl_registry::CommandRegistry>>,
+    /// The availability mask `dialect_profile`'s environment answers the
+    /// builtin-surface gate under — its **document authoring mask**
+    /// ([`crate::environment::surface_mask`]), resolved at pin time for the
+    /// same reason `profile_registry` is: the generation lookup takes a
+    /// lock and this is read on every command dispatch, where the retired
+    /// `profile.availability_mask` was a field read. Equal to that mask for
+    /// every profile an ingress can produce, pinned by the seam's own
+    /// sweep.
+    dialect_mask: Cell<tcl_dialect::DialectSet>,
     /// The `Command::OoObject` entries the engine installs on the registry's
     /// behalf (the TclOO roots `::oo::object`, `::oo::class`,
     /// `::oo::configurable`, `::oo::abstract`, `::oo::singleton`) rather than
@@ -1121,8 +1132,14 @@ impl Interp {
             limit_tick: Cell::new(0),
             debug_frame: Cell::new(false),
             runtime_version: Cell::new(DEFAULT_RUNTIME_VERSION),
-            dialect_profile: Cell::new(tcl_dialect::DialectProfile::plain_tcl()),
+            // The "no dialect pinned" ingress: the lenient environment,
+            // whose unit profile is the permissive fallback that hides
+            // nothing. `set_dialect_profile` replaces all three together.
+            dialect_profile: Cell::new(crate::environment::profile_for_dialect("")),
             profile_registry: Cell::new(None),
+            dialect_mask: Cell::new(crate::environment::surface_mask(
+                crate::environment::profile_for_dialect(""),
+            )),
             registry_object_roots: RefCell::new(std::collections::HashSet::new()),
         }));
         // The numeric grammar is thread-ambient and may have been left on
@@ -1180,8 +1197,12 @@ impl Interp {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying the runtime semantics, the lexing
         // grammar (issue #1462), and the command-surface availability mask
-        // (issue #1463).
-        self.set_dialect_profile(tcl_dialect::DialectProfile::by_name(version.dialect_name()));
+        // (issue #1463). The release name is a dialect *name*, so it
+        // resolves through the one ingress seam (`crate::environment`)
+        // rather than through `by_name`.
+        self.set_dialect_profile(crate::environment::profile_for_dialect(
+            version.dialect_name(),
+        ));
     }
 
     /// Pin the dialect profile this interpreter emulates — the profile form
@@ -1207,7 +1228,10 @@ impl Interp {
         self.0.dialect_profile.set(profile);
         self.0
             .profile_registry
-            .set((!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile)));
+            .set((!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile)));
+        self.0
+            .dialect_mask
+            .set(crate::environment::surface_mask(profile));
         self.0.runtime_version.set(version);
         self.namespaces.borrow_mut().ns_var_global_fallback =
             version.namespace_var_global_fallback();
@@ -1297,7 +1321,7 @@ impl Interp {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.dialect_profile().availability_mask)
+                .get_for_dialect(name, self.0.dialect_mask.get())
                 .is_some()
     }
 

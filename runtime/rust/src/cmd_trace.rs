@@ -209,9 +209,14 @@ pub fn install(interp: &mut Interp) {
 /// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(interp: &Interp) -> Vec<&'static str> {
+    // The emulated release's name is a dialect *name*: one resolution
+    // through the ingress seam yields both the generation whose store the
+    // spec is read from and the document authoring mask the option table
+    // is gated on (ledger row B1).
     let profile =
-        tcl_dialect::DialectProfile::by_name(interp.runtime_version().dialect_profile_name());
-    let Some(spec) = tcl_registry::cache::registry_for_profile(profile).get("trace") else {
+        crate::environment::profile_for_dialect(interp.runtime_version().dialect_profile_name());
+    let dialect = crate::environment::surface_mask(profile);
+    let Some(spec) = crate::environment::store_for_profile(profile).get("trace") else {
         return Vec::new();
     };
     spec.subcommands
@@ -219,7 +224,7 @@ fn visible_options(interp: &Interp) -> Vec<&'static str> {
         .filter(|sub| {
             sub.dialects
                 .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(profile.availability_mask))
+                .is_none_or(|gate| gate.intersects(dialect))
         })
         .map(|sub| sub.name)
         .collect()

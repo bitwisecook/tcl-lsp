@@ -1095,10 +1095,16 @@ pub unsafe extern "C" fn tcl_codegen_guard_prepare(
     }
     // Runtime version is interpreter policy, not a compile-time constant. The
     // Interpreter guard domain makes a later policy change stale this token,
-    // while resolving against the live profile prevents a version-gated form
-    // from entering the fast path in the first place.
+    // while resolving against the live environment prevents a version-gated
+    // form from entering the fast path in the first place. The release name
+    // resolves through the one ingress seam (ledger row C2 — this file held
+    // the backends' last raw `DialectSet::parse` ingresses), fail-closed: an
+    // undeclared name declines rather than entering the guarded path under
+    // the lenient environment's permissive mask.
     let runtime_version = unsafe { (*interp).runtime_version() };
-    let Some(dialect) = DialectSet::parse(runtime_version.dialect_profile_name()) else {
+    let Some(dialect) =
+        crate::environment::known_surface_mask_for_dialect(runtime_version.dialect_profile_name())
+    else {
         return 0;
     };
     let Some(resolved) =
@@ -1155,7 +1161,9 @@ pub unsafe extern "C" fn tcl_codegen_guard_check(
         intrinsic.stable_id(),
         intrinsic.guard_semantics_key(runtime_version),
     );
-    let Some(dialect) = DialectSet::parse(runtime_version.dialect_profile_name()) else {
+    let Some(dialect) =
+        crate::environment::known_surface_mask_for_dialect(runtime_version.dialect_profile_name())
+    else {
         return 0;
     };
     let Some(resolved) =
@@ -1235,9 +1243,9 @@ pub unsafe extern "C" fn tcl_intrinsic_invoke_argv(
     let Some(intrinsic) = IntrinsicId::from_stable_id(intrinsic_id) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
-    let Some(dialect) =
-        DialectSet::parse(unsafe { (*interp).runtime_version().dialect_profile_name() })
-    else {
+    let Some(dialect) = crate::environment::known_surface_mask_for_dialect(unsafe {
+        (*interp).runtime_version().dialect_profile_name()
+    }) else {
         return TCL_INTRINSIC_ABI_DECLINED;
     };
     let Some(resolved) = resolve_intrinsic_argv(words, dialect) else {

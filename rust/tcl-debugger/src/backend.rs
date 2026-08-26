@@ -152,7 +152,11 @@ impl Svc {
     /// A compile service targeting `profile`'s grammar, registry, and dialect.
     fn for_profile(profile: &'static DialectProfile) -> Self {
         Self {
-            registry: tcl_registry::registry_for_profile(profile),
+            // The resolved environment's registry generation, through the
+            // one ingress seam — the same store the retired
+            // `registry_for_profile` published, shared by handle
+            // (centralisation row C2, ledger row B11).
+            registry: tcl_registry::model::static_context_for_profile(profile).commands(),
             config: tcl_lexer::LexerConfig::from_grammar(profile.grammar),
             dialect: Some(profile),
         }
@@ -228,10 +232,16 @@ impl VmBackend {
     /// so [`Self::record`] can run it on a dedicated big-stack thread; see
     /// that function's doc comment.
     fn record_on_this_thread(source: &str) -> Result<Vec<DebugSnapshot>, DebugError> {
-        // The debugger VM runs the plain-Tcl 9.0 profile (dialect-profile
-        // model §5.4); the profile is resolved once and drives both the
-        // runtime release and the compiler's grammar/registry (issue #1462).
-        let profile = DialectProfile::by_name("tcl9.0");
+        // The debugger VM runs the plain-Tcl 9.0 environment (dialect-profile
+        // model §5.4); it is resolved once, through the one ingress seam,
+        // and drives both the runtime release and the compiler's
+        // grammar/registry (issue #1462).
+        //
+        // P1: ledger row B11's other half — letting the debugger record
+        // under a non-plain-Tcl environment — is a payload change (the DAP
+        // surface has no dialect input yet), not a refactor, so the fixed
+        // `tcl9.0` ingress stays and only its resolution moves.
+        let profile = tcl_registry::model::resolve_environment("tcl9.0").unit_profile();
         let module = Svc::for_profile(profile)
             .compile(source)
             .map_err(|e| DebugError::Failed(e.0))?;

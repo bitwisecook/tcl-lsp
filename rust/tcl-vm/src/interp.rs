@@ -519,11 +519,22 @@ pub struct InterpState {
     /// may expose a broader Tcl host surface while retaining a vendor grammar
     /// and bytecode identity (for example, the iRules simulation harness).
     command_surface_profile: &'static tcl_dialect::DialectProfile,
-    /// The availability registry for [`Self::command_surface_profile`], resolved once
-    /// at pin time (`registry_for_profile` guards its cache with a lock, and
-    /// this is consulted on every command resolution). `None` for the
-    /// permissive fallback profile, which gates nothing.
+    /// The availability registry for [`Self::command_surface_profile`] —
+    /// its environment's registry generation, resolved once at pin time
+    /// through the ingress seam ([`crate::environment::store_for_profile`];
+    /// the generation cache guards itself with a lock, and this is
+    /// consulted on every command resolution). `None` for the permissive
+    /// fallback profile, which gates nothing.
     profile_registry: Option<&'static tcl_registry::CommandRegistry>,
+    /// The availability mask [`Self::command_surface_profile`]'s
+    /// environment answers the builtin-surface gate under — its **document
+    /// authoring mask** ([`crate::environment::surface_mask`]), resolved at
+    /// pin time for the same reason [`Self::profile_registry`] is: the
+    /// generation lookup takes a lock and this is read on every command
+    /// resolution, where the retired `profile.availability_mask` was a
+    /// field read. Equal to that mask for every profile an ingress can
+    /// produce, pinned by the seam's own sweep.
+    command_surface_mask: tcl_dialect::DialectSet,
     /// Monotonic invalidation generation for bytecode that depends on the
     /// selected profile's grammar or command surface. It is deliberately
     /// independent of `cmd_epoch`: command resolution can be recomputed from
@@ -1045,8 +1056,12 @@ impl Vm {
     pub fn set_runtime_version(&mut self, version: tcl_dialect::TclVersion) {
         // A bare release pin is the matching plain-Tcl profile: the emulated
         // release is one fact carrying both the runtime semantics and the
-        // command-surface availability mask (issue #1463).
-        self.set_dialect_profile(tcl_dialect::DialectProfile::by_name(version.dialect_name()));
+        // command-surface availability mask (issue #1463). The release name
+        // is a dialect *name*, so it resolves through the one ingress seam
+        // (`crate::environment`) rather than through `by_name`.
+        self.set_dialect_profile(crate::environment::profile_for_dialect(
+            version.dialect_name(),
+        ));
     }
 
     /// Pin the dialect profile this VM emulates — the profile form of
@@ -1073,8 +1088,9 @@ impl Vm {
         }
         self.dialect_profile = profile;
         self.command_surface_profile = profile;
+        self.command_surface_mask = crate::environment::surface_mask(profile);
         self.profile_registry =
-            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+            (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         self.runtime_version = profile.vm_runtime_version;
         // Install the release's numeric grammar for this runtime: `0755` is 493
         // under 8.6 and 755 under 9.0, `0b`/`0o` exist from 8.5 and `0d` / `_`
@@ -1129,8 +1145,9 @@ impl Vm {
         self.eval_cache_traced.clear();
         self.module_procs.clear();
         self.command_surface_profile = profile;
+        self.command_surface_mask = crate::environment::surface_mask(profile);
         self.profile_registry =
-            (!profile.is_fallback()).then(|| tcl_registry::registry_for_profile(profile));
+            (!profile.is_fallback()).then(|| crate::environment::store_for_profile(profile));
         true
     }
 
@@ -1151,16 +1168,21 @@ impl Vm {
         if surface.is_fallback() {
             return true;
         }
-        let compiled_registry = tcl_registry::registry_for_profile(dialect);
-        let surface_registry = tcl_registry::registry_for_profile(surface);
+        // Both halves are per-environment generations now (ledger row B1):
+        // the store is the generation's, and the mask each side is checked
+        // under is its environment's document authoring mask, which the
+        // ingress seam pins equal to the profile mask this read used.
+        let compiled_registry = crate::environment::store_for_profile(dialect);
+        let surface_registry = crate::environment::store_for_profile(surface);
+        let compiled_mask = crate::environment::surface_mask(dialect);
+        let surface_mask = crate::environment::surface_mask(surface);
         compiled_registry.command_names().all(|name| {
-            let Some(spec) = compiled_registry.get_for_dialect(name, dialect.availability_mask)
-            else {
+            let Some(spec) = compiled_registry.get_for_dialect(name, compiled_mask) else {
                 return true;
             };
             !spec.traits.contains(tcl_registry::Traits::BYTE_COMPILED)
                 || surface_registry
-                    .get_for_dialect(name, surface.availability_mask)
+                    .get_for_dialect(name, surface_mask)
                     .is_some()
         })
     }
@@ -1303,7 +1325,7 @@ impl InterpState {
         };
         registry.get(name).is_none()
             || registry
-                .get_for_dialect(name, self.command_surface_profile.availability_mask)
+                .get_for_dialect(name, self.command_surface_mask)
                 .is_some()
     }
 
@@ -1318,10 +1340,16 @@ impl InterpState {
         // advanced must not authorise a speculative path.
         guards.poison(GuardDomain::Interpreter);
         guards.poison(GuardDomain::ObjectDispatch);
+        // The "no dialect pinned" ingress: the lenient environment, whose
+        // unit profile is the permissive fallback that hides nothing. A
+        // pin (`set_runtime_version` / `set_dialect_profile`) replaces all
+        // three fields together.
+        let unpinned = crate::environment::profile_for_dialect("");
         Self {
             runtime_version: tcl_dialect::TclVersion::V9_0,
-            dialect_profile: tcl_dialect::DialectProfile::plain_tcl(),
-            command_surface_profile: tcl_dialect::DialectProfile::plain_tcl(),
+            dialect_profile: unpinned,
+            command_surface_profile: unpinned,
+            command_surface_mask: crate::environment::surface_mask(unpinned),
             profile_registry: None,
             profile_generation: 0,
             frames: vec![CallFrame::new(0, ROOT_NS, None, Vec::new())],
@@ -2495,6 +2523,11 @@ impl Vm {
         child.runtime_version = self.runtime_version;
         child.dialect_profile = self.dialect_profile;
         child.command_surface_profile = self.command_surface_profile;
+        // The pin's three derived facts travel together: the surface
+        // profile, the mask its environment gates under, and the
+        // generation's store. A child that inherited two of the three would
+        // gate the parent's registry under the unpinned permissive mask.
+        child.command_surface_mask = self.command_surface_mask;
         child.profile_registry = self.profile_registry;
         Box::new(child)
     }

@@ -86,14 +86,19 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
         return err("wrong # args: should be \"namespace subcommand ?arg ...?\"");
     };
     let sub_word = sub.to_str();
-    let profile = tcl_dialect::DialectProfile::by_name(vm.runtime_version().dialect_profile_name());
+    // The emulated release's name is a dialect *name*, so it resolves
+    // through the one ingress seam (`crate::environment`) and every
+    // availability question below is answered under that environment's
+    // document authoring mask — one resolution, not a `by_name` here and a
+    // mask read at each use (ledger row B1).
+    let profile =
+        crate::environment::profile_for_dialect(vm.runtime_version().dialect_profile_name());
+    let dialect = crate::environment::surface_mask(profile);
     let registry = tcl_registry::cache::default_registry();
     let spec = registry
-        .get_for_dialect("namespace", profile.availability_mask)
+        .get_for_dialect("namespace", dialect)
         .expect("the core namespace command is registered for every Tcl release");
-    let Some(subcommand) =
-        spec.resolve_subcommand_for_dialect(&sub_word, profile.availability_mask)
-    else {
+    let Some(subcommand) = spec.resolve_subcommand_for_dialect(&sub_word, dialect) else {
         let available: Vec<&str> = spec
             .subcommands
             .iter()
@@ -101,7 +106,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
                 candidate
                     .dialects
                     .or(spec.dialects)
-                    .is_none_or(|gate| gate.intersects(profile.availability_mask))
+                    .is_none_or(|gate| gate.intersects(dialect))
             })
             .map(|candidate| candidate.name)
             .collect();
@@ -284,7 +289,7 @@ fn cmd_namespace(vm: &mut Vm, args: &[Value]) -> Completion<Value> {
             }
             _ => err("wrong # args: should be \"namespace unknown ?script?\""),
         },
-        "upvar" => ns_upvar(vm, rest, subcommand, profile.availability_mask),
+        "upvar" => ns_upvar(vm, rest, subcommand, dialect),
         _ => unreachable!("every registry namespace subcommand has VM dispatch"),
     }
 }

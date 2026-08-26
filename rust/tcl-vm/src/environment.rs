@@ -1,0 +1,108 @@
+// tcl-lsp — a language server and toolchain for Tcl
+// Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+//! The VM's dialect ingress — this engine's face of the one shared seam,
+//! [`tcl_registry::model::ingress`] (centralisation contract R-a,
+//! retirement-ledger rows C2/B1/B11; P1-F wave 3, the backend lane).
+//!
+//! Every dialect **name** the VM accepts (there is exactly one kind: the
+//! release name a [`TclVersion`] pin spells, [`Vm::set_runtime_version`])
+//! resolves here, once, through
+//! [`tcl_registry::model::resolve_environment`], and every registry
+//! access and availability mask the engine reads is derived from the
+//! resolved environment rather than from a second lookup of the string.
+//!
+//! Nothing in this module changes what the VM admits. The names it
+//! resolves are the closed set [`TclVersion::dialect_name`] spells, whose
+//! environments are their same-named catalogue entries, so
+//! [`profile_for_dialect`] returns the very profile `DialectProfile::by_name`
+//! did; the generation's command store is the very `Arc` the old
+//! `(profile, overlay)` cache owns, so [`store_for_profile`] returns the
+//! allocation `registry_for_profile` returned; and the document authoring
+//! mask is test-pinned to the threaded profile's `availability_mask` for
+//! every profile an ingress can produce, so [`surface_mask`] answers the
+//! command-availability gate exactly as the mask read did.
+//!
+//! P1-G: the `&'static DialectProfile` these helpers take and hand back
+//! retires with the profile itself, and the VM's pin carries a
+//! [`tcl_registry::model::DocumentEnvironment`] instead.
+//!
+//! [`Vm::set_runtime_version`]: crate::Vm::set_runtime_version
+//! [`TclVersion`]: tcl_dialect::TclVersion
+//! [`TclVersion::dialect_name`]: tcl_dialect::TclVersion::dialect_name
+
+use tcl_dialect::{DialectProfile, DialectSet};
+use tcl_registry::CommandRegistry;
+
+/// Resolve a dialect **name** to the profile this VM pins.
+///
+/// The environment-model form of the retired
+/// `DialectProfile::by_name(name)`: the resolved environment's
+/// [`unit_profile`], which is its same-named catalogue profile for every
+/// release name the VM pins and the permissive fallback for the lenient
+/// and unknown spellings — exactly `by_name`'s answer at every one of
+/// this engine's ingresses.
+///
+/// [`unit_profile`]: tcl_registry::model::DocumentEnvironment::unit_profile
+pub(crate) fn profile_for_dialect(name: &str) -> &'static DialectProfile {
+    tcl_registry::model::resolve_environment(name).unit_profile()
+}
+
+/// The command **store** for `profile` — the resolved environment's
+/// registry generation, replacing the retired
+/// `tcl_registry::registry_for_profile(profile)`.
+///
+/// A profile's canonical name **is** a canonical environment id, so this
+/// is an id-keyed generation lookup rather than a re-parse, and the
+/// generation's store is the same allocation the old per-profile cache
+/// published (`tcl_registry::model::assembly`'s `command_store`).
+///
+/// The `&'static` promotion is sound on the same terms the old one was:
+/// the un-overlaid generation axis is a closed set and those entries are
+/// retained unconditionally, so the promotion leaks a clone of one `Arc`,
+/// never a second assembly. That matters here — the VM caches this handle
+/// on the pin and consults it on every command resolution.
+pub(crate) fn store_for_profile(profile: &'static DialectProfile) -> &'static CommandRegistry {
+    tcl_registry::model::static_context_for_profile(profile).commands()
+}
+
+/// The availability mask the builtin command-surface gate answers under
+/// for `profile` — the **document authoring mask** of the profile's
+/// environment, replacing the direct `profile.availability_mask` read.
+///
+/// Equal to `profile.availability_mask` for every profile an ingress can
+/// produce, pinned by `tcl_registry::model::ingress`'s
+/// `the_document_mask_is_the_threaded_profiles_mask`, so the gate admits
+/// and hides exactly what it did.
+pub(crate) fn surface_mask(profile: &'static DialectProfile) -> DialectSet {
+    tcl_registry::model::static_document_context_for_profile(profile).authoring_mask()
+}
+
+/// [`surface_mask`] keyed by a dialect **name** — for the native command
+/// handlers that gate a subcommand or option table on the emulated
+/// release ([`TclVersion::dialect_profile_name`]) rather than on a pinned
+/// profile handle.
+///
+/// One resolution of the name, not two: the old form was
+/// `DialectProfile::by_name(name).availability_mask`, and the resolved
+/// environment's document authoring mask is that same mask.
+///
+/// [`TclVersion::dialect_profile_name`]: tcl_dialect::TclVersion::dialect_profile_name
+pub(crate) fn surface_mask_for_dialect(name: &str) -> DialectSet {
+    tcl_registry::model::static_document_context_for(name).authoring_mask()
+}

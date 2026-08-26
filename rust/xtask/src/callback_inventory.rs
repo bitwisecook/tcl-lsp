@@ -116,9 +116,11 @@ fn discover_registry_rows() -> Result<Vec<InventoryRow>> {
     let mut rows: BTreeMap<String, InventoryRow> = BTreeMap::new();
     for profile in tcl_dialect::DialectProfile::all()
         .iter()
-        .chain(std::iter::once(tcl_dialect::DialectProfile::tk()))
+        .chain(std::iter::once(crate::environment::profile_for_dialect(
+            "tk",
+        )))
     {
-        let registry = tcl_registry::registry_for_profile(profile);
+        let registry = crate::environment::store_for_profile(profile);
         let mut names: Vec<_> = registry.command_names().collect();
         names.sort_unstable();
         for name in names {
@@ -643,12 +645,12 @@ fn insert_row(
 }
 
 fn visible_in(dialects: Option<DialectSet>, profile_name: &str) -> bool {
+    // The retired `resolve_known(name).unwrap_or(plain_tcl).availability_mask`
+    // ingress, through the seam: the resolved environment's document
+    // authoring mask, which is that same mask for every name this
+    // projection passes (the catalogue ids plus `tk`).
     dialects.is_none_or(|set| {
-        set.intersects(
-            tcl_dialect::DialectProfile::resolve_known(profile_name)
-                .unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl)
-                .availability_mask,
-        )
+        set.intersects(crate::environment::surface_mask_for_dialect(profile_name))
     })
 }
 
@@ -766,8 +768,10 @@ fn format_lifecycle(value: Lifecycle) -> String {
 fn validate_seed(seed: &[InventoryRow]) -> Result<()> {
     let owners: BTreeSet<&str> = tcl_dialect::DialectProfile::all()
         .iter()
-        .chain(std::iter::once(tcl_dialect::DialectProfile::tk()))
-        .flat_map(|profile| tcl_registry::registry_for_profile(profile).command_names())
+        .chain(std::iter::once(crate::environment::profile_for_dialect(
+            "tk",
+        )))
+        .flat_map(|profile| crate::environment::store_for_profile(profile).command_names())
         .collect();
     for row in seed {
         if row.registry_derived {

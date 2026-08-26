@@ -73,7 +73,6 @@ use tcl_lexer::LineIndex;
 use tcl_lsp_core::source_decode::{DecodeReport, decode_source};
 use tcl_lsp_core::source_style::{DEFAULT_LINE_ENDING, DEFAULT_LINE_LENGTH, style_diagnostics};
 use tcl_registry::dialects::TCL_SOURCE_EXTENSIONS;
-use tcl_registry::registry_for_dialect;
 
 /// Directory names skipped by the corpus walk. Keep this aligned with the
 /// normal CLI input walk: generated/build trees and VCS metadata are neither
@@ -475,12 +474,16 @@ fn shape_key(message: &str) -> String {
 /// 3. [`style_diagnostics`] — the pure-text W111/W112/W115/W118 checks,
 ///    which read raw source and are not part of either compiler pass.
 fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing>) {
+    // The override is a dialect *name*, so it resolves through the one
+    // ingress seam, in the `find`-shaped validator form: an override that
+    // names no environment falls through to the document's own effective
+    // dialect rather than to the lenient sink.
     let profile = doc
         .dialect_override
-        .and_then(tcl_dialect::DialectProfile::find)
+        .and_then(crate::environment::known_profile_for_dialect)
         .unwrap_or_else(|| doc.input.effective_dialect(None));
     let dialect = profile.name;
-    let registry = registry_for_dialect(dialect);
+    let registry = crate::environment::store_for_dialect(dialect);
     let line_index = LineIndex::new(&doc.input.source);
     let dialect_opt = Some(profile);
 

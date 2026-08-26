@@ -51,9 +51,14 @@ pub(crate) fn register(vm: &mut Vm) {
 /// legacy forms are gated to `DialectSet::TCL8X`, so 9.0+ sees only
 /// `add`/`info`/`remove` (C drops them behind `TCL_REMOVE_OBSOLETE_TRACES`).
 fn visible_options(vm: &Vm) -> Vec<&'static str> {
-    let profile = tcl_dialect::DialectProfile::by_name(vm.runtime_version().dialect_profile_name());
+    // The emulated release's name resolves through the one ingress seam;
+    // the option table is gated on the resolved environment's document
+    // authoring mask (ledger row B1), which is the mask the retired
+    // `by_name(name).availability_mask` read handed back.
+    let dialect =
+        crate::environment::surface_mask_for_dialect(vm.runtime_version().dialect_profile_name());
     let registry = tcl_registry::cache::default_registry();
-    let Some(spec) = registry.get_for_dialect("trace", profile.availability_mask) else {
+    let Some(spec) = registry.get_for_dialect("trace", dialect) else {
         return Vec::new();
     };
     spec.subcommands
@@ -61,7 +66,7 @@ fn visible_options(vm: &Vm) -> Vec<&'static str> {
         .filter(|sub| {
             sub.dialects
                 .or(spec.dialects)
-                .is_none_or(|gate| gate.intersects(profile.availability_mask))
+                .is_none_or(|gate| gate.intersects(dialect))
         })
         .map(|sub| sub.name)
         .collect()

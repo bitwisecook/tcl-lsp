@@ -68,6 +68,7 @@ mod command_backing;
 mod diag_emission;
 mod diag_tables;
 mod editor_extensions;
+mod environment;
 mod f5query_builtins_doc;
 mod fp_sweep;
 mod gen_ai;

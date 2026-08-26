@@ -314,19 +314,52 @@ for other crates; deletion is P1-G.
 
 ### Backends
 
+**Status: engine and runtime ingress ported (P1-F wave 3).** Both engines
+(`tcl-vm`, `runtime/rust`), the engine adapter (`tcl-engine-tclvm`), the
+two VM-driving hosts (`tcl-vm-cli`, `tcl-debugger`) and the `xtask` sweeps
+and generators that exercise them now resolve every dialect **name**
+through the one shared seam, `tcl_registry::model::ingress`, and reach
+the registry as per-environment `ContextRegistry` generations. Each crate
+carries one small `environment` module — the backend twin of
+`tcl-lsp-core`'s ingress functions — so a call site names an ingress
+rather than a validator: `profile_for_dialect` (`resolve_environment(…)
+.unit_profile()`, replacing `DialectProfile::by_name` and the named
+constructors), `store_for_profile` / `store_for_dialect` (the generation's
+command store, replacing `registry_for_profile` /
+`registry_for_dialect`), and `surface_mask` (the resolved environment's
+**document authoring mask**, replacing the direct `availability_mask`
+reads). Both engines resolve mask *and* store once per profile pin and
+cache them on the interpreter, because the builtin-surface gate is
+consulted on every command resolution and the generation lookup takes a
+lock where the retired mask read was a field read. `codegen_abi`'s three
+raw `DialectSet::parse` ingresses — the backends' last — become
+`resolve_known_environment`, keeping the fail-closed decline rather than
+falling through to the lenient environment's permissive mask.
+
+Behaviour is unchanged by construction: the only names these crates
+accept are the closed release set `TclVersion::dialect_profile_name`
+spells plus the fixed `f5-irules`/`tk`/`expect`/`f5-iapps` projection
+targets, whose environments are their same-named catalogue entries; the
+generation's store is the very `Arc` the old `(profile, overlay)` cache
+owns (profile stamp included, which the Zed projection reads back); and
+the document authoring mask is test-pinned equal to the threaded
+profile's `availability_mask` for every profile an ingress can produce.
+The generator `--check` modes are the gate. Old APIs remain for other
+crates; deletion is P1-G.
+
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| B1 | Duplicated `builtin_command_visible_for_surface`/`profile_admits_registry_builtin` in both engines | one shared availability query over declarations | P1 |
+| B1 | Duplicated `builtin_command_visible_for_surface`/`profile_admits_registry_builtin` in both engines | one shared availability query over declarations | P1 *(partial: both engines' gates now read a per-environment generation and its document authoring mask, resolved once at pin time through the seam — no `by_name`, `registry_for_profile` or `availability_mask` read left in either engine's dispatch path. The **duplication** is what remains: the two bodies still differ because the two engines carry different command tables and different "unknown to the registry" rules, so collapsing them onto one declaration-level query is an engine-contract change, not an ingress port)* |
 | B2 | Both engines' hardcoded 12-name `UNSAFE` (+ platform) safe-interp lists | `Traits::SAFE_INTERP_HIDDEN` (already 14 specs) queried generically | **done** (command half) — `tcl_registry::safe_interp_hidden_commands()` is the one generic query; both `make_safe`s call it and narrow by what the interpreter carries. The `UNSAFE_PLATFORM` scrub stays a name list under `TODO(ledger B2-platform)`: `special_vars` models `tcl_platform`'s keys but has no "scrubbed when made safe" flag, so driving it needs a `SpecialVarKey` field, not a query. See the measured-evidence subsection below. |
 | B3 | VM's hand-typed 37-name mathfunc registration and 27-op `mathops!` macro | derived tables (as the runtime already does) | **done** — the VM registers `tcl_syntax::expr::mathfunc::all()` and every `mathop_shape` spelling from `expr::operators`, each behind one fn pointer that reads the op off the invoked word. This added the 21-name TIP 745 batch to the VM (listed below); the bodies already existed in `dispatch_with_backend`, only the command bindings were missing. |
 | B4 | `TCL_PATCH_LEVEL`/`"9.0.4"` literals behind `package provide Tcl` and `tcl::build-info` | the pinned core release as provider (§3.2) | **done** — `TclVersion::core_provided_packages()` and `tcl_dialect::build_info` are the single tables; both engines re-derive their pre-provided core packages on every profile pin and compose `::tcl::build-info` from `TclVersion::patchlevel()`. `patchlevel()`'s 9.1 entry is now the measured `9.1b0`. |
 | B5 | VM `package ifneeded\|forget\|unknown\|prefer` silent no-ops | real handling or honest `Unknown`-widening errors; fuzz-paired with the runtime | P1a |
-| B6 | Runtime expr parsing under `dialect = None`; both engines' `for_tcl_version` expr surfaces | core-profile `ExprGrammar` threading | P1 |
+| B6 | Runtime expr parsing under `dialect = None`; both engines' `for_tcl_version` expr surfaces | core-profile `ExprGrammar` threading | P1 *(untouched by wave 3: `RuntimeExprSurface::for_tcl_version` is keyed by `TclVersion`, not by a dialect name, so it is not an ingress this wave reaches — it needs the `ExprGrammar` threading itself)* |
 | B7 | `tcl-engine-api`'s bare `restrict_commands(&[&str])` with no profile pinning; `SANDBOX_COMMANDS`'s out-of-registry closed world | an environment/policy handle on the engine contract; the sandbox surface as a closed-world environment | P1a |
 | B8 | `try_lower_hook`'s proof-free selection; inline/analyser/const-fold hook selection without trust | the `ProofStatus` discipline generalised (I4) | P1a |
 | B9 | Runtime-only, regex-shaped command-backing scan; no VM parity gate | structural registration parity for **both** engines against the catalogue, with per-family exclusions (a `Core(jim)`-only command is not a WASM obligation) | P2 |
-| B10 | `_registry_data.tcl` (orphaned, 2,086 lines, frozen `DialectSet` subtraction) and the misc unsupported-stub name list | `gen-irule-test-data` output; registry capability predicates | P1 |
-| B11 | Debugger's `by_name("tcl9.0")` literal; vm-cli's release-only ingress | `Environment::resolve`, environments incl. non-plain-Tcl | P1 |
+| B10 | `_registry_data.tcl` (orphaned, 2,086 lines, frozen `DialectSet` subtraction) and the misc unsupported-stub name list | `gen-irule-test-data` output; registry capability predicates | P1 *(partial: the replacement generator's own ingress is ported — `gen-irule-test-data` resolves the fixed `f5-irules` name through the seam, reads the environment's registry generation, and filters with `ResolvedContext::resolve_spec` instead of `ProfileQueries::resolve_command`, so the surface it projects is a context answer rather than a profile-mask one. `--check` is the drift gate and passes unchanged. Retiring `_registry_data.tcl` itself is the remaining half)* |
+| B11 | Debugger's `by_name("tcl9.0")` literal; vm-cli's release-only ingress | `Environment::resolve`, environments incl. non-plain-Tcl | P1 *(partial: both literals are now `resolve_environment(…)` through the seam, and both hosts' `CompileService` reads the environment's registry generation. The **other half** — accepting a non-plain-Tcl environment at all — is a payload change in both (a wider `--tcl-version` acceptance set in vm-cli, a dialect input the DAP surface does not have in the debugger), so it stays open and is marked `// P1:` at both sites)* |
 | B12 | Fuzzer's three-value `Engine` enum + generator name lists + persisted `TclVersion` findings field | environment-driven engine pairing against the oracle ledger; a findings-registry migration for the persisted release field | P1b/P2 |
 
 #### Measured evidence for rows B2–B4
@@ -417,8 +450,8 @@ wrongly succeeded before.
 | T7 | Studio's `DIALECT_BITS` editor, dialect-string APIs, `SOURCE_DIALECT_KEY`, dialect-as-language-id client | provider/`VersionSet` editing, environment ids, generic contributed LSP identity (B7) | P2 |
 | T8 | `render_spectcl`'s `is_dialect_set` conflation of availability with `safe_on_uninit`/`two_arg_optionless_dialects` | distinct spellings per gap ruling R4 | P2 |
 | T9 | `spec-author` skill's 1.1 instructions | 2.0 refresh (words, `dialect` blocks, `available`, upgrade workflow) | P2 |
-| T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case) | environment/provider-keyed ids; one-shot regeneration | P1 |
-| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` bit filters | declaration-derived fast paths | P1 |
+| T10 | `callback-surfaces` `name@dialect+dialect` row ids (and the `.chain(tk())` special case) | environment/provider-keyed ids; one-shot regeneration | P1 *(unchanged in substance by wave 3: `callback_inventory`'s ingress and registry access now go through the seam — the `tk` arm is `profile_for_dialect("tk")` and `visible_in` is the resolved environment's document authoring mask, replacing `resolve_known(…).unwrap_or(plain_tcl).availability_mask` — but the row ids and the `.chain(…)` enumeration are the payload this row retires, and re-keying them regenerates the committed JSON, so it stays open)* |
+| T11 | `gen_zed_queries`'s `grammar_union`/`TK_AND_TCL` inputs; `gen_editor_catalogs`/`gen_tmlanguage_keywords`'s `ALL_TCL` bit filters | declaration-derived fast paths | P1 *(unchanged in substance by wave 3: `gen_zed_queries`'s four targets are now `profile_for_dialect(id)` and its store is the environment's generation, but the `grammar_union` mask it projects under is `DialectSet` plumbing (row C1) and stays until P1-G. Its ambient-package filter reads the generation's profile **stamp**, the same `is_ambient_package` hold wave 2 left in the LSP, marked `// P1-G:` at the site)* |
 | T12 | AI manifest's release-keyed Tk fragment; prompt loader's alias-blind `dialects[]` check | environment-keyed manifest; alias-resolved loading | P1 |
 | T13 | Every hand-maintained projection found (Sublime map; the orphaned simulator data) | generated + drift-gated (rule 1.1) | P1 |
 

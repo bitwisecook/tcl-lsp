@@ -116,6 +116,7 @@ pub mod dict;
 #[cfg(feature = "wasm_stdlib")]
 pub mod embedded_stdlib;
 pub mod ensemble;
+mod environment;
 #[cfg(have_tommath)]
 pub mod expr;
 pub mod frame;

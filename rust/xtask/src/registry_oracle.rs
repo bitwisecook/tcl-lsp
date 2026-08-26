@@ -56,7 +56,10 @@ struct ManCoverage {
 /// Run the source-oracle audit, optionally writing or checking a report.
 pub fn run(irules_root: &Path, output: Option<&Path>, check: bool) -> Result<ExitCode> {
     let source = SourceSurface::load(irules_root)?;
-    let registry = tcl_registry::registry_for_dialect(DIALECT);
+    // The one dialect name this audit accepts, through the ingress seam:
+    // the `f5-irules` environment's registry generation, whose store is
+    // the very `Arc` `registry_for_dialect` published.
+    let registry = crate::environment::store_for_dialect(DIALECT);
     let events = tcl_registry::events::EventRegistry::build();
     let profiles = tcl_registry::profiles::ProfileRegistry::build();
     let report = render_report(
