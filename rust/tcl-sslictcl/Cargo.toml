@@ -25,9 +25,13 @@ rsa = "0.10.0-rc.18"
 p256 = "0.14"
 p384 = "0.14"
 
-[target.'cfg(target_family = "wasm")'.dependencies]
-# Enable the entropy backends required by transitive crypto crates when the
-# workspace's browser-facing WASM packages are checked.
+# Entropy backends the transitive crypto crates need when the workspace's
+# browser-facing WASM packages are checked. Keyed on the browser target alone:
+# `js`/`wasm_js` route getrandom through `crypto.getRandomValues`, which exists
+# only where there is a JS host. WASI has `random_get` and getrandom picks that
+# backend by itself, so a `target_family = "wasm"` key here would force the
+# browser backend onto a target that has no JS to call.
+[target.'cfg(all(target_family = "wasm", target_os = "unknown"))'.dependencies]
 getrandom-02 = { package = "getrandom", version = "0.2", features = ["js"] }
 getrandom-04 = { package = "getrandom", version = "0.4", features = ["wasm_js"] }
 
