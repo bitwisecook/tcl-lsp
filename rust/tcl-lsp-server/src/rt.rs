@@ -50,7 +50,7 @@
 //!   task, and hands back an already-finished [`JoinHandle`]. There is no
 //!   worker pool to move it to, and blocking the one thread is what a browser
 //!   worker is for. The return type is still `JoinHandle<R>` awaiting to
-//!   `Result<R, JoinError>`, so the ~95 call sites are unchanged — a browser
+//!   `Result<R, JoinError>`, so every call site is unchanged — a browser
 //!   `spawn_blocking` simply never yields and never fails.
 //! * [`spawn`] becomes `wasm_bindgen_futures::spawn_local`, with the task's
 //!   output routed back through a oneshot channel so the handle still awaits
@@ -523,6 +523,14 @@ mod browser {
 }
 
 /// Wasi arm: Tokio re-exports, minus the thread pool.
+///
+/// A caveat for transport authors beyond the host requirements above: the
+/// server's cancellation machinery leans on unwinding (salsa's `Cancelled`)
+/// and on condvar blocking (`set_text` waiting out live snapshots), and both
+/// are fatal on wasip1 — panics abort the process and an idle condvar wait
+/// traps. It is sound today only because the inline [`spawn_blocking`] means
+/// no analysis snapshot ever survives across an await; a transport that
+/// reintroduces real concurrency there turns cancellations into aborts.
 #[cfg(all(target_family = "wasm", target_os = "wasi"))]
 mod wasi {
     pub use tokio::task::{AbortHandle, JoinError, JoinHandle, JoinSet, spawn, yield_now};
@@ -536,9 +544,14 @@ mod wasi {
     /// then fails at run time (`os error 58`) the first time the pool tries to
     /// grow — the closure has to run here instead, as it does in the browser.
     /// Handing the finished value to `spawn` rather than fabricating a handle
-    /// is what keeps the return type Tokio's own, so the ~95 call sites and
-    /// their `abort`/[`JoinError`] handling are untouched; the task resolves
-    /// on its first poll.
+    /// is what keeps the return type Tokio's own, so every call site and its
+    /// `abort`/[`JoinError`] handling compiles untouched; the task resolves
+    /// on its first poll. Two semantic edges follow from running inline:
+    /// `abort()` cannot cancel work that has already run, and a panicking
+    /// closure is fatal — wasip1 is panic=abort, so the native
+    /// [`JoinError::is_panic`] recovery paths never see it; the process dies
+    /// instead. The browser arm shares the panic property (its hook takes
+    /// over), so neither wasm arm can settle a document after a worker panic.
     ///
     /// Like Tokio's, this must be called from within the runtime.
     pub fn spawn_blocking<F, R>(f: F) -> JoinHandle<R>
