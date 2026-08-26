@@ -201,6 +201,50 @@ The points the walk establishes:
   those iRules must type its written variables when the template
   literal is present.
 
+Worked, because it is the acceptance shape: the `binary scan` spec and
+what it derives at a real call site from that corpus.
+
+```tcl
+namespace eval spec::binfmt {
+    proc fields {fmt} { … }        ;# "cH2SS" -> {{c 1} {H 2} {S 1} {S 1}}
+    proc field-type {f} { … }      ;# c -> int, H -> string, S -> int, a -> bytes
+}
+
+command {binary scan} {string:bytes formatString:string ?varName:varname ...?} {
+    returns int    ;# count of conversions performed
+    byte-array-effect -reads string
+    roles -inputs {literal formatString} {call} {
+        set i 0
+        foreach f [spec::binfmt::fields [literal formatString]] {
+            role [list varName $i] var-write
+            incr i
+        }
+    }
+    types -inputs {literal formatString} {call} {
+        set i 0
+        foreach f [spec::binfmt::fields [literal formatString]] {
+            type [list varName $i] [list varname [spec::binfmt::field-type $f]]
+            incr i
+        }
+    }
+}
+```
+
+At the RADIUS-stack call site
+
+```tcl
+when CLIENT_DATA {
+    binary scan [UDP::payload] cH2SS code ident length attrs
+    if { $code == 1 } { … }
+}
+```
+
+the hook fires (the format string is literal), `code`/`length` type as
+`int` and `ident`/`attrs` as `string`, the `$code == 1` comparison
+type-checks, and all four names are SSA-visible writes — while a
+`binary scan $data $fmt …` site abstains to the static floor: every
+trailing var is `var-write` of `varname(any)`, nothing guessed.
+
 ## 3. iRules against the profile and event graph
 
 The iRules surface is the strongest evidence that the dialect layer is
@@ -315,6 +359,63 @@ more about the odd corners:
   changes handlers that follow it) staying an engine rule keyed by the
   declared `irules_top_level_effect`.
 
+Worked: the full `HTTP::header` entity in E, restyled from the 1.x
+draft (`spec-dsl-examples/irules-http-header.tclspec`), plus the two
+Rust-resident grammars coming out:
+
+```tcl
+family-surface f5-irules {
+    command HTTP::header {subcommand ?arg ...?} {
+        traits {PURE CSE_CANDIDATE DIAGRAM_ACTION}
+        event-requires -transport tcp -profiles {FASTHTTP HTTP} \
+            -also-in {MR_EGRESS MR_INGRESS SERVER_CONNECTED}
+        taint -source tainted
+        taint -output-sink IRULE3002 -subcommands {insert replace}
+        side-effect HttpHeader -reads -writes -side both
+        hover {
+            Inspect or mutate HTTP headers in an iRule event. Use
+            subcommands like `value`, `insert`, `replace`, `remove`.
+        }
+        subcommand value  {name}  { returns string }
+        subcommand exists {name}  { returns boolean }
+        subcommand insert {name value ?name value ...?} {
+            credential-arg 2
+            sensitive-headers {Authorization Proxy-Authorization Cookie}
+        }
+        subcommand sanitize {?header ...?} -available {bigip 11.6.0-}
+    }
+
+    command when {EVENT body} {
+        top-level-only
+        traits {IS_EVENT_HANDLER DEFERS_BODY}
+        param EVENT -role event-name
+        param body  -role event-body -structural
+        defines-symbol EVENT -kind event
+        # The keyword tail hardcoded at registry.rs:3163 becomes forms:
+        form {when EVENT body}
+        form {when EVENT priority N body}   { param N -type int(0-1000) }
+        form {when EVENT timing MODE body}  { param MODE -values {enable disable} }
+        lowering -native When
+    }
+
+    # Bulk trait application, visible instead of a Rust wrapper
+    # (commands/irules/mod.rs:1055): the list is reviewable pack text.
+    proc http-txn-command {name synopsis body} {
+        command $name $synopsis [concat {traits REQUIRES_HTTP_CONTEXT} $body]
+    }
+    http-txn-command HTTP::respond  {status ?content? ?option value ...?} { … }
+    http-txn-command HTTP::redirect {url} { … }
+    # …30 more
+}
+```
+
+Two spellings matter more than they look. `event-requires -none`
+(`FIX::tag map`'s fallback suppression) is a distinct word from an
+absent clause — abstention vs omission, typed (M4). And
+`-also-in`/`-excluded` are separate axes on the same clause, matching
+the shipped model's separation, so `TCP::payload`'s SIP escape hatch
+and `HA::status`'s `RULE_INIT` exclusion read as what they are.
+
 The **fourth BIG-IP version axis** the walk found —
 `profile_defaults/generated.rs`, 2,213 lines of per-TMOS-release profile
 field defaults — slots into the keyed-axis mechanism the EDA
@@ -344,6 +445,39 @@ bracketing joins the world-state axis question (§10, M2). The tmsh
 syntax-version axis and its temporal transition are already ruled in
 the redesign; iApps' `.apl` embedded-Tcl callbacks stay behind the P4
 hold with the rest of the F5 evidence layer.
+
+The whole surface in miniature — entry points, shared tmsh, and the
+transaction bracket as context transitions rather than prose:
+
+```tcl
+package-surface iapp {
+    entry-point script::init -phase template-load
+    entry-point script::run  -phase deployment
+    entry-point script::help -phase help-render
+    entry-point script::tabc -phase tab-completion
+    command iapp::conf {?arg ...?} {
+        hover {Read or write iApp configuration state for the current
+               application instance.}
+    }
+}
+
+package-surface tmsh {
+    # Listed as ambient by BOTH the iapps environment and the
+    # standalone tmsh shell environment — the DialectSet union
+    # (IAPPS ∪ TMSH) disappears into placement.
+    command tmsh::begin_transaction {} \
+        -context-transition {transaction open}
+    command tmsh::commit_transaction {} \
+        -requires-context {transaction open} \
+        -context-transition {transaction closed}
+    command tmsh::create {module component ?property value ...?}
+}
+```
+
+`-requires-context`/`-context-transition` are the M2 context bag
+speaking: `transaction` is one axis in the same typed vocabulary that
+carries iRules' execution contexts and the EDA project state (§10) —
+declared by the engine, referenced by packs, never invented by them.
 
 ## 5. tcl-bpf — the stress limit for "dialect"
 
@@ -393,6 +527,47 @@ What the walk establishes for the spec surface:
   afternoon, and it doubles as the acceptance test that a
   *non-Tcl-semantics* dialect pack round-trips through
   `spec build --emit rust`.
+
+The rewrite, sketched — an event with its typed context struct, and
+the op-referencing command shape:
+
+```tcl
+family-surface bpf {
+    event XDP -elf-section xdp -prog-type xdp -default-verdict pass \
+        -caps {PKT_READ CTX_READ RINGBUF_OUTPUT} \
+        -attach {interface direction} \
+        -kernel {4.8 -btf} {
+        context xdp_md {
+            field data            -offset 0  -width 32 -order host
+            field data_end        -offset 4  -width 32 -order host
+            field ingress_ifindex -offset 12 -width 32 -order host
+        }
+    }
+
+    command load16 {offset:int} -bpf-op load16 -effects {PKT_READ} {
+        returns int
+        hover {Loads a big-endian 16-bit value from the packet at the
+               given byte offset — e.g. the EtherType at offset 12.}
+    }
+    command tx   {} -bpf-op tx   -verdict -prog-types {xdp}
+    command drop {} -bpf-op drop -verdict
+    command next {} -bpf-op next -verdict -non-terminal \
+        { hover {Yield to the next handler in priority order; the
+                 event's default verdict applies if every handler
+                 yields.} }
+    command map {name:name kind spec ?flag ...?} -bpf-op map {
+        param kind -values {hash array}
+        option -shared
+        introduces -command name -class bpf-map
+    }
+}
+```
+
+`-bpf-op` binds a word to a closed Rust descriptor; `-effects` and the
+event `-caps` are the two capability vocabularies of the walk, each on
+its own declaration kind; the map's `introduces` row is M6's unified
+command-creation vocabulary doing what the current BPF specs cannot
+say at all.
 
 ## 6. TclOO, itcl, snit — one class model, currently split in half
 
@@ -471,6 +646,94 @@ special-cases non-empty tables (`oo_self.rs:148-150`) — which is not a
 fact about `self` at all but a consumer contract leaking into a spec,
 and goes on the M14 list.
 
+### 6.1 Resolving the split: one surface, three declaration sources
+
+The split looks like two models of "class", but it is really two
+*declaration sources* for one thing. Tk's instance surface is known
+statically, so it lives in pack rows; TclOO/snit/itcl's instance
+surface is declared by *user script*, so the registry ships a grammar
+for reading those scripts — and then never stores what it read
+anywhere a consumer can query. The fix is not to pick a winner but to
+make the second source feed the first's shape:
+
+**One `ClassSurface`** — identity, superclasses, manufacturers, an
+optional definer grammar, and an *instance surface* (methods, one
+option table, unknown-dispatch policy, prefix matching). **Every
+`MemberSpec` gains a typed projection** stating what one member row
+*contributes* to the instance surface: `method m` contributes a
+method; `property p` contributes an option plus its accessor method;
+`forward f target` contributes a method that resolves through
+`target`; `superclass S` contributes an inheritance edge; `delegate *`
+contributes the surface-level `Unknown` default. The definer grammar
+stops being a sibling model and becomes a **parser producing instance-
+surface increments**, which the realm state accumulates as bindings
+with the same `BindingKnowledge` lattice commands use: a member seen
+in a static `oo::define` body is a `Must` method binding; one behind
+`delegate`/`oo::objdefine` with a computed name is `May`/`Unknown`.
+
+```tcl
+# Source 1 — pack rows (Tk, ticklecharts): the surface is closed data.
+class Button -widget {
+    option -background color -alias -bg
+    method invoke {} -effect {invokes -command}
+}
+
+# Source 2 — the definer grammar, now carrying projections: the pack
+# declares how *user scripts* populate the same surface shape.
+definer oo::define -family tcloo {
+    member method {name:name ?visibility? params:paramlist body:script} \
+        -projects {method $name -params $params}
+    member property -flag-keyed {name:name ?-get body:script? ?-set body:script?} \
+        -available {tcl 9.0-} -implicit-vars {value} \
+        -projects {option -$name -accessor configure}
+    member forward {name:name target:commandname ?arg ...?} \
+        -projects {method $name -forwards-to $target}
+    member superclass -all-refs class -projects {superclass @refs}
+}
+
+# Source 3 — derivation (E-R4): manufacturers yield construction,
+# projections yield the inline form, the option table yields
+# configure/cget. None of these is ever authored.
+```
+
+What falls out, case by case:
+
+- `oo::class create Account { method deposit {amount} {…} }` finally
+  yields a queryable instance surface: `set a [Account new]` binds `a`
+  as an `Account` handle (the existing `binds_handle` machinery),
+  `$a deposit 10` resolves as a `Must` method, and `$a withdraw` is
+  `Absent` — an unknown-method diagnostic with the same evidence
+  discipline as W123, impossible today because the class never gets an
+  `object_class`.
+- The **inline** `oo::define Account method audit {} {…}` form is the
+  same member row arriving through a different projection of the same
+  grammar — the analyser-hook gap closes generically, not per command.
+- itcl and snit gain the construction machinery their grammars already
+  imply: the manufacturer table drives instance creation (B13's
+  `from-manufacturers`, promoted from a DSL spelling to the model
+  rule), so `itcl::class Toaster {…}; Toaster t1` binds `t1` without
+  the currently missing `creates_instance_at`.
+- Tk inheritance becomes real data: `class TtkButton -superclass
+  TtkWidget` replaces the `ttk_widget_class!` macro's textual
+  re-emission, and the registry's existing inherited-method walk —
+  written for `superclasses`, used by nobody — gets its first user.
+- Instance `configure`/`cget`/creation all project the one option
+  table, closing the `.b configure -bogus` validation hole (§7)
+  without a second table to drift.
+- Honesty is preserved where the surface genuinely is open: snit's
+  `delegate * to hull` and G11's computed `oo::objdefine` names
+  project `Unknown`, so unknown-method diagnostics abstain exactly
+  where they must — the lattice, not a boolean
+  (`allow_unknown_methods` retires into it, M9).
+
+The cost is one honest asymmetry, kept visible rather than papered
+over: a pack-declared surface is complete at load time, while a
+script-declared surface is only as complete as the analysis of the
+scripts seen so far — which is precisely what `BindingKnowledge`
+exists to say. The realm state already tracks command bindings this
+way (§4.2 of the redesign); methods become the same machinery scoped
+to a class, and R-c's one `exists` oracle answers both.
+
 ## 7. Tk — options as they are really used
 
 Tk is death by a thousand well-modelled cuts, and the walk mostly found
@@ -522,6 +785,80 @@ the *asymmetries*:
   `namespace ensemble create -command`, and interp paths in the same
   stroke.
 
+The Tk walk in E spellings — the alias fold, the `-textvariable`
+tiers, and the one slot shape that replaces three copy-pasted resolver
+pairs:
+
+```tcl
+package-surface Tk {
+    class Button -widget -superclass Widget {
+        option -background color -alias -bg
+        option -borderwidth screen-distance -alias -bd
+        # A button's -textvariable reads application state but is not
+        # an input source; contrast Entry below (hover.rs:403-432).
+        option -textvariable varname -role var-write -also-role var-read \
+            -scope global
+        option -command script -timing deferred \
+            -taint-inputs widget-environment
+        method invoke {} -effect {invokes -command}
+        # cget/configure/creation derive from this table (E-R4, §6.1).
+    }
+    command button {pathName:widgetpath ?option value ...?} \
+        -creates {pathName class Button}
+
+    class Entry -widget -superclass Widget {
+        option -textvariable varname -role var-write -also-role var-read \
+            -scope global -taints-write        ;# an entry IS an input source
+        option -validate values(validate-modes)
+        values validate-modes {none focus focusin focusout key all}
+        option -validatecommand script -timing deferred -substitutions {
+            %P proposed-value:string -tainted
+            %s current-value:string  -tainted
+            %S edit-text:string      -tainted
+            %W widget:widgetpath
+            %d action:int
+        }
+    }
+
+    # One declarative slot shape; bind, canvas bind, and wm protocol
+    # all reference it — the three verbatim fn-pointer pairs
+    # (bind.rs:40-54, canvas.rs:31-45, wm.rs:32-36) become one row.
+    slot-shape event-bound-script {
+        role body -timing deferred -substitutions {
+            %A event-char:string -tainted
+            %K keysym:string     -tainted
+            %W widget:widgetpath
+            %x x:int  %y y:int
+        }
+    }
+    command bind {tag sequence ?script?} {
+        param script -slot event-bound-script -when-present
+    }
+}
+```
+
+The substitution tables are M15 in action: each `%` letter carries a
+name, a type, and an optional taint marking — semantic tokens,
+completion inside the script, and the taint subset all read one table.
+And the text-index mini-language gets the §2 treatment:
+
+```tcl
+namespace eval spec::tkindex {
+    proc valid {s} { … }   ;# line.char / end / insert / mark ± modifiers
+}
+command {text index} {index:index(text)} {
+    types -inputs {literal index} {call} {
+        if {![spec::tkindex::valid [literal index]]} {
+            invalid index {malformed text index}
+        }
+    }
+}
+```
+
+(`invalid SLOT message` joins the hook verb vocabulary alongside
+`literal`/`type`/`returns` — it is what `OptionValueOutcome::invalid`
+already is in Rust, surfaced to packs.)
+
 The geometry-manager descriptor (`TkGeometryManagerSpec` — container
 policy, direct forms, release subcommands) is already exactly the kind
 of typed, engine-consumed data block E just carries verbatim; the
@@ -564,6 +901,61 @@ M11 gives sub-subcommands full fidelity. `http::geturl`'s entire
 option table — including the two command-prefix callbacks that are
 invisible today — ports from the existing `geturl.tclspec` draft.
 
+Three of those in E, shortest first. The `math::calculus` fleet is a
+loop over data:
+
+```tcl
+foreach {name synopsis} {
+    integral            {begin:double end:double nosteps:int func}
+    romberg             {func begin:double end:double ?-option value?}
+    newtonRaphson       {func deriv initval:double}
+} {
+    command math::calculus::$name $synopsis {
+        foreach p {func deriv} {
+            if {[param-exists $p]} {
+                param $p -role command-prefix -timing deferred -appended {x}
+            }
+        }
+    }
+}
+```
+
+`bibtex::parse`'s cross-option timing flip is a five-line pack proc
+instead of an invisible Rust fn:
+
+```tcl
+command bibtex::parse {?option value ...? ?text?} {
+    option -command       prefix -appended {token}
+    option -recordcommand prefix -appended {token type key recorddict}
+    option -channel channel
+    timing {call} {
+        # SAX callbacks defer when reading a stream; with inline text
+        # they run inside this invocation (misc_pkgs.rs:499-539).
+        set mode [expr {[option-present -channel] ? "deferred"
+                                                  : "same-invocation"}]
+        foreach opt {-command -recordcommand -progress} {
+            timing $opt $mode
+        }
+    }
+}
+```
+
+And `http::geturl` finally declares the options that exist:
+
+```tcl
+command http::geturl {url:string ?option value ...?} {
+    available {package http}
+    returns token
+    taint -network-sink url -code T104
+    option -command prefix -timing deferred -appended {token}
+    option -handler prefix -timing deferred -appended {socket token}
+    option -headers dict -credential
+    option -query string
+    option -timeout int
+    option -validate boolean
+}
+```
+
 The one genuinely hard case stays hard, and gets a ruling candidate
 instead of a shrug: `struct::tree::prune` is `return -code 5`,
 meaningful only inside `walk`'s body — a *library-defined completion
@@ -592,6 +984,58 @@ pack-declared handle classes give `spawnid` the same treatment
 `binds_handle` gives snit's `install`; and `trap`'s first argument is a
 body *or* the literal `SIG_IGN`/`SIG_DFL` — a value-or-body union the
 conditional-row form covers.
+
+The clause grammar and the handle class, spelled:
+
+```tcl
+case-grammar expect-clauses {
+    pair {pattern action}
+    clause-flags {-exact -re -gl -notransfer -nocase -indices}
+    value-flags {-timeout -i}   ;# a braced word AFTER these is a pattern
+    keyword-patterns {timeout eof default full_buffer null} -non-final
+    allow-omitted-final-body
+    force-list-flag -brace -shape first-arg-only-remainder
+    force-inline-flag -nobrace
+}
+command expect        {?arg ...?} -case-grammar expect-clauses
+command expect_before {?arg ...?} -case-grammar expect-clauses \
+    -registers-not-executes    ;# bodies run later: DEFERS_BODY derived
+command expect_background {?arg ...?} -case-grammar expect-clauses \
+    -registers-not-executes
+
+# The second, different pair grammar interact needs and lacks today:
+case-grammar interact-clauses {
+    pair {string body} -input-interception
+    clause-flags {-o -reset -echo -nobuffer}
+    value-flags {-u -i -input -output -timeout}
+}
+command interact {?arg ...?} -case-grammar interact-clauses
+
+handle-class spawnid
+command spawn {program:path ?arg ...?} {
+    returns spawnid
+    introduces -variable spawn_id -class spawnid -scope global
+    side-effect ProcessIo -writes
+    taint -code-sink program
+}
+command close {?-slave? ?-i id?} -available expect {
+    option -i spawnid
+}
+
+command trap {?action? ?signals:list?} {
+    form {trap}                 -query
+    form {trap signals}         -query
+    form {trap action signals} {
+        param action -role body -unless-values {SIG_IGN SIG_DFL}
+    }
+}
+```
+
+`-unless-values` is the value-or-body union `trap` needs (a literal
+`SIG_IGN` is data, anything else is a script); `-registers-not-executes`
+derives the deferred-body facts `expect_before` misses today; and
+`spawnid` flowing `spawn` → `$spawn_id` → `-i` is E-R7's handle class
+doing for expect what `binds_handle` did for snit.
 
 `argparse` is the deepest case in the whole survey. The command's
 *argument is a grammar*: a definition list whose 27 element switches,
@@ -669,6 +1113,55 @@ round-trip gate. The walk's findings are therefore about what the packs
   the alias transition machinery (R-c) matters *more* here than event
   callbacks — a conformance-lattice entry, not a design change.
 
+Assembled, the Vivado shape looks like this:
+
+```tcl
+speclib eda_xilinx 2.0
+
+proc vivado-command {name synopsis body} {
+    command $name $synopsis [concat {
+        option -quiet
+        option -verbose
+    } $body]
+}
+
+type collection -handle -parameter of   ;# E-R7: pack-declared handle type
+
+vivado-command get_cells {?patterns?} {
+    returns collection(cell)
+    option -hierarchical
+    option -filter expr(collection)
+    option -of_objects collection
+}
+vivado-command get_clocks {?patterns?} { returns collection(clock) }
+
+command foreach_in_collection {var:varname coll:collection body:script} {
+    traits {CONTROL_FLOW HAS_LOOP_BODY LOOP_LIST_HEADER}
+    analyser -native Foreach
+    types {call} {
+        # The loop variable narrows to the collection's element type.
+        type var [list varname [collection-element [type-of coll]]]
+    }
+}
+
+vivado-command create_clock {?-name name? -period p:double ?-waveform edges? objects} {
+    requires-context {project open}
+    option -waveform list(double) -available {sdc 1.4-}
+    types -inputs {literal -waveform} {call} {
+        if {[llength [literal -waveform]] % 2} {
+            invalid -waveform {edge list must pair rising and falling edges}
+        }
+    }
+}
+```
+
+One template proc erases roughly a thousand boilerplate rows in the
+Xilinx pack alone; `collection(cell)` gives the query→filter→foreach
+pipeline real types; `requires-context {project open}` is the same M2
+axis tmsh's transactions use; and the `-waveform` check is the §2
+pattern on the SDC grammar, gated on the SDC version axis the
+environments already carry.
+
 ## 11. Corpus oddities — the census gaps, revisited under E
 
 The external census (G1-G16) was run against the declarative 1.x-shaped
@@ -703,6 +1196,54 @@ closed-semantics axis. G8/G9 (apave's nested tuple bodies and
 closed-yet-extensible widget codes) stay the census's most speculative
 rows; nothing in E makes them cheaper to get wrong, so they wait for a
 second corpus witness.
+
+The ticklecharts shapes, since they exercise four census entries at
+once — shared value tables on options (G5), the literal-first-word
+ensemble, the third-party version axis (G3, already landed in 2.0 as
+`-available {echarts …}`), and the method-level sink (G7, legal once
+§6.1 makes methods full invocation specs):
+
+```tcl
+package-surface ticklecharts -available {tcl 8.6-} {
+    values line-types {solid dashed dotted}
+    values series-names {barSeries lineSeries pieSeries funnelSeries …}
+
+    class chart -manufacturers {new create} -allow-unknown-methods {
+        method Add {seriesType:values(series-names) ?option value ...?} {
+            option -lineStyle dict {
+                option -type values(line-types)   ;# one table, many rows
+                option -width double
+            }
+            option -colorBy values(color-by) -available {echarts 5.2.0-}
+            option -alignTicks boolean -available {echarts 5.3.0-}
+        }
+        method Render {?option value ...?} {
+            option -outfile path -taint-file-sink      ;# G7, on a method
+            option -title string
+        }
+    }
+
+    command ticklecharts::jsfunc {body ?-start? ?-end?} {
+        # E-R8: identity is open and namespaced; semantics only via hooks.
+        param body -language ticklecharts::js -taint-colour JS_CODE
+    }
+}
+```
+
+And tarray's per-flag-combination return typing — the known-limits row
+that retires because option presence is a legal `types` input:
+
+```tcl
+command {column search} {?option ...? column value} {
+    types -inputs {options} {call} {
+        if {[option-present -all]} {
+            returns [expr {[option-present -inline] ? "column" : "list(int)"}]
+        } else {
+            returns [expr {[option-present -inline] ? "any" : "int"}]
+        }
+    }
+}
+```
 
 Two corpus workloads become acceptance tests rather than design
 inputs: the KaiWilke RADIUS stacks (heavy `binary scan` on collected
@@ -756,6 +1297,45 @@ a Tcl program, so the DSL surface is an ordinary command surface.**
   specs the same way — they are the `body_scope` of hook bodies,
   spelled once in the self-pack.
 
+An excerpt of the emitted self-pack, to make the bootstrap concrete —
+the DSL speccing its own `command` word and the hook-body vocabulary:
+
+```tcl
+speclib spectcl 2.0
+
+command command {name:name ?-override? synopsis body:script} {
+    introduces -declaration command -named-by name
+    param body -scope command-body
+    hover {
+        Registers one command's surface. The body evaluates with the
+        command-scope vocabulary in scope: `option`, `subcommand`,
+        `hover`, `types`, `roles`, `taint`, `available`, ...
+    }
+}
+
+scope command-body {
+    command option {name ?value-kind? ?flag ...?} { … }
+    command subcommand {name synopsis ?body?} { … }
+    command available {requirement ?requirement ...?} { … }
+    command hover {text} -prose
+}
+
+scope hook-body {
+    # The sandbox whitelist plus the emitter verbs — today invisible
+    # to the editor (strain 10), here just another scope.
+    command literal {slot}        { returns string }
+    command type    {slot type}   { }
+    command returns {type}        { }
+    command invalid {slot message} { }
+    command option-present {name} { returns boolean }
+}
+```
+
+Both `scope` blocks are the generalised `body_scope` of M12; the
+`hover` key shadowing problem (`source` inside `hover` vs the real
+`source`) is what scoping *is* in an evaluated language, no special
+case left.
+
 What survives unchanged from today's loader: vocabulary versioning and
 the fail-closed classes (§1.5 — the class of an unknown *registration
 command* is judged by the same Presentation/Assistance/Semantic rules,
@@ -806,7 +1386,7 @@ the upgrade path and deleted (P1-G extends to cover them).
   `AppendedArity::Unknown` splits from "not stated"; abstention is
   distinguishable from omission everywhere (the `event-requires -none`
   vs absent-clause distinction of §3 is the same rule).
-- **M5 — one class surface.** Merge the disjoint halves
+- **M5 — one class surface** (mechanism in §6.1). Merge the disjoint halves
   (`object_class`+`creates_instance_at` vs
   `definition_body`+`manufacturers`+`defines_command_at`) into one
   `ClassSurface`; methods carry every command-grade fact (taint,
