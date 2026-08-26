@@ -1097,6 +1097,13 @@ check-rust: ensure-rust-deps ## Rust fmt-check + clippy on the workspace and the
 		cd $(ROOT)rust/tcl-lsp-server-wasm; \
 		cargo fmt --all --check; \
 		cargo clippy --target wasm32-unknown-unknown --all-targets -- -D warnings; \
+	fi; \
+	if [ -f "$(ROOT)rust/tcl-lsp-server-wasi/Cargo.toml" ] && \
+			rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1; then \
+		echo "==> Checking tcl-lsp-server-wasi (fmt + clippy --target wasm32-wasip1)"; \
+		cd $(ROOT)rust/tcl-lsp-server-wasi; \
+		cargo fmt --all --check; \
+		cargo clippy --target wasm32-wasip1 --all-targets -- -D warnings; \
 	fi
 
 # Supply-chain audit for the Rust workspace: RustSec advisories, license
@@ -1557,6 +1564,33 @@ lsp-server-wasm-test: lsp-server-wasm ## Drive the wasm LSP server through a scr
 	@command -v node >/dev/null 2>&1 || { \
 		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
 	node $(LSP_SERVER_WASM_DIR)/test/e2e.mjs
+
+LSP_SERVER_WASI_DIR := $(ROOT)rust/tcl-lsp-server-wasi
+
+.PHONY: lsp-server-wasi lsp-server-wasi-test
+# The WASI sibling of `lsp-server-wasm`: the same `LspService<Backend>`, driven
+# over Content-Length-framed stdio inside a wasm32-wasip1 sandbox instead of
+# over `postMessage` in a browser worker.  Unlike the browser build this one
+# DOES run `wasm-opt -Os` — see build-wasi.sh for why that is safe here and not
+# there.
+lsp-server-wasi: ## Build the LSP server as a WASI stdio program (Rust → wasm32-wasip1) into rust/tcl-lsp-server-wasi/dist/
+	@rustup target list --installed 2>/dev/null | grep -q wasm32-wasip1 \
+		|| rustup target add wasm32-wasip1
+	bash $(LSP_SERVER_WASI_DIR)/build-wasi.sh
+
+# The fixture directory is preopened by the harness itself (`wasmtime --dir`),
+# so the multi-file scenario reads a sourced sibling that only ever exists on
+# the host filesystem — the proof that `vfs::NativeStore` works over preopens.
+lsp-server-wasi-test: lsp-server-wasi ## Drive the WASI LSP server through scripted sessions under wasmtime
+	@command -v node >/dev/null 2>&1 || { \
+		echo "node not found — run 'make ensure-test-deps'"; exit 1; }
+	@command -v wasmtime >/dev/null 2>&1 || { \
+		echo "wasmtime not found — install the wasmtime CLI (v47+)"; exit 1; }
+	@echo "==> framing unit tests (wasm32-wasip1, run under wasmtime)"
+	cd $(LSP_SERVER_WASI_DIR) && CARGO_TARGET_DIR=$(LSP_SERVER_WASI_DIR)/target \
+		cargo test --target wasm32-wasip1
+	@echo "==> scripted LSP sessions"
+	node $(LSP_SERVER_WASI_DIR)/test/e2e.mjs
 
 compiler-explorer-gui: explorer-build ## Build the GUI bundle and serve it via the native tcl binary
 	@echo "==> Building tcl (embeds the GUI) and serving at http://localhost:8080"

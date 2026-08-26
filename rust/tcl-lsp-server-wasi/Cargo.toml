@@ -1,0 +1,94 @@
+# tcl-lsp — a language server and toolchain for Tcl
+# Copyright (C) 2026 James Deucker (bitwisecook) <https://github.com/bitwisecook>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+# The WASI stdio transport for the real LSP server.
+#
+# `tcl-lsp-server`'s `LspService<Backend>` is the whole protocol core and is
+# transport-free; this crate is its wasm32-wasip1 transport, the way `main.rs`
+# is the native one and `tcl-lsp-server-wasm` is the browser one. It owns no
+# LSP behaviour — every handler, every diagnostic, every provider is the same
+# code the native binary runs. Unlike the browser crate it speaks *standard*
+# LSP framing (Content-Length headers over stdin/stdout), because that is what
+# `@vscode/wasm-wasi-lsp` and every other stdio client expect.
+#
+# EXCLUDED from the Cargo workspace (see the root Cargo.toml `exclude` list)
+# for the same reasons as `tcl-lsp-server-wasm`: the `poll_oneoff` readiness
+# wait needs one `unsafe` call, which the workspace `unsafe_code = "forbid"`
+# lint bans, and it targets wasm32 with its own lockfile. Built via
+# `make lsp-server-wasi`; see build-wasi.sh.
+#
+# The empty `[workspace]` table below is load-bearing, not decorative: with
+# no workspace table of its own, cargo walks *up* the directory tree looking
+# for an ancestor manifest with `[workspace]` to attach to. That is normally
+# harmless because this crate's path is on the root workspace's `exclude`
+# list — except inside a git worktree checked out under the main checkout's
+# directory (the standard layout for this repo's parallel agent worktrees):
+# cargo keeps walking past the worktree root and finds the *main checkout's*
+# top-level Cargo.toml, whose exclude paths do not match the worktree-relative
+# path, and errors with "current package believes it's in a workspace when
+# it's not" (issue #1136). An empty `[workspace]` table makes this manifest a
+# workspace root in its own right, so the search never looks further up.
+[workspace]
+
+[package]
+name = "tcl-lsp-server-wasi"
+# This crate is `exclude`d from the root workspace, so it cannot inherit
+# `publish` from `[workspace.package]` — `publish.workspace = true` makes
+# `cargo metadata` fail with "failed to find a workspace root".
+publish = false
+description = "wasm32-wasip1 build of the Tcl language server — the real LspService, driven over Content-Length-framed stdio"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/bitwisecook/tcl-lsp"
+authors = ["tcl-lsp contributors"]
+
+[[bin]]
+name = "tcl-lsp-server-wasi"
+path = "src/main.rs"
+
+[dependencies]
+tcl-lsp-server = { path = "../tcl-lsp-server" }
+tower-lsp-server = { version = "0.23", default-features = false, features = ["runtime-agnostic"] }
+tower = { version = "0.5", features = ["util"] }
+futures = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+serde = "1"
+serde_json = "1"
+# `rt` + `time` only: wasip1 has no thread-spawn syscall, so `rt-multi-thread`
+# builds and then fails at run time (os error 58); `io-std`/`io-util` would
+# only give us a *blocking* stdin, which is precisely what the driver exists to
+# avoid. The host runtime contract is in `src/main.rs`.
+tokio = { version = "1", default-features = false, features = ["rt", "time"] }
+# Raw wasi_snapshot_preview1 bindings, for the one syscall Rust's std does not
+# expose: `poll_oneoff`. See `src/wasi_poll.rs`.
+wasi = "0.11"
+
+[profile.release]
+# Size matters here too — a VSIX ships this module — but not at the cost of the
+# analyser's speed, so this matches the browser crate rather than the native
+# binary.
+opt-level = "s"
+lto = true
+codegen-units = 1
+# wasip1 cannot unwind, so make the strategy explicit rather than inherited:
+# every panic is a process abort and no `catch_unwind` in the server graph can
+# intercept one. See the caveats on `tcl_lsp_server::rt`'s wasi arm.
+panic = "abort"
+
+# NOTE: no `[lints] workspace = true` — must not inherit `unsafe_code = "forbid"`.

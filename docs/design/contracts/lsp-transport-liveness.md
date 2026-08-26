@@ -129,3 +129,23 @@ the packaged extension and confirms that ordinary concurrent work remains
 responsive under the new admission layer. VS Code's language-client test API
 does not provide a safe hook for delaying its built-in configuration replies,
 so the Rust end-to-end and paired transport fixtures carry the fault injection.
+
+## Other transports
+
+This contract is about the *native* transport, where the runtime has threads to
+spare and the failures are backpressure cycles between two of them. The browser
+and WASI transports drive the same `LspService<Backend>` with one thread each,
+so their liveness problem is a different one: not "which of my threads blocked
+the other" but "what keeps the single thread turning at all". The WASI driver in
+particular has to manufacture an event loop that the browser gets free from
+JavaScript and the native binary gets free from Tokio's blocking pool.
+
+It reaches the same stdin-independence property this contract requires — a
+handler waiting on a client reply can never stop that reply being routed — by a
+different mechanism: `poll_ready` is probed rather than awaited. Requests that
+the service will not yet admit do still queue, in the driver's own `held` deque
+rather than in the service; what does *not* queue behind initialisation is
+stdin routing and the delivery of client replies, which is exactly the part
+this contract is about. See
+[`rust/lsp-runtime-and-transports.md`](../rust/lsp-runtime-and-transports.md)
+for the runtime seam's three arms, the driver loop, and the WASI host contract.
