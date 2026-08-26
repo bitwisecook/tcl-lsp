@@ -55,6 +55,14 @@ rules for the KCS/documentation split live in
   fail-closed semantic vocabulary and trust-aware provenance, and the
   review-corrected migration plan. Revision 2 accepts all thirteen blocking
   findings of the adversarial review (disposition in §0.1).
+- [dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
+  — **proposal, companion** to the registry redesign: the end-to-end audit of
+  every registration and resolution seam (front end, compiler, analyser,
+  backends, runtimes/VMs, tooling) against the revision-2 model — the single
+  registration pipeline and five-question resolution stack, the complete
+  retirement ledger (no shims; old systems deleted), the gap rulings, the
+  proving gates, and the `tcl spec upgrade` 1.x→2.0 specification that
+  discharges the sole backwards-compatibility exception.
 - [dialect-and-package-registry-redesign-adversarial-review.md](dialect-and-package-registry-redesign-adversarial-review.md)
   — **request-changes review** of the #1631 proposal, grounded in immutable Tcl,
   Tk, JimTcl, picol, tcllib, ticklecharts, pave, and SpiceGenTcl sources plus

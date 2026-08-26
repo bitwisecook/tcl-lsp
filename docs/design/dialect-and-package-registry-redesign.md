@@ -12,8 +12,12 @@
 > disagree, this document describes the *intended* model and that one
 > describes the *shipping* model.
 
-Companions: [spec-packs.md](spec-packs.md) (the SpecTcl format contract this
-extends), [eda-library-packages.md](eda-library-packages.md) (the precedent
+Companions:
+[dialect-and-package-registry-centralisation.md](dialect-and-package-registry-centralisation.md)
+(the end-to-end registration/resolution audit, retirement ledger, and
+`tcl spec upgrade` specification), [spec-packs.md](spec-packs.md) (the
+SpecTcl format contract this extends),
+[eda-library-packages.md](eda-library-packages.md) (the precedent
 this generalises), [contracts/dialect-detection.md](contracts/dialect-detection.md),
 [contracts/package-loading.md](contracts/package-loading.md),
 [contracts/shared-utility-contracts-rust.md](contracts/shared-utility-contracts-rust.md)
@@ -804,8 +808,14 @@ provider):
    behaviour, and the feature is off for single targets).
 2. Workspace/folder/user configuration (`tclLsp.targets`, e.g.
    `{ "tcl": "8.5-9.0", "Tk": "8.5-9.0", "struct": "1.5-2.2" }`).
-3. `tclpkg.tcl` manifests — `tcl >=8.5 <9.1` and `require json 1.0.0`
-   rows are already interval declarations.
+3. `tclpkg.tcl` manifests. *Corrected by the centralisation audit*: the
+   shipping manifest grammar accepts one operator + one version
+   (`tcl >=8.5 <9.1` is rejected today, and the stored constraint is
+   never evaluated), and the resolver is deliberately upper-bound-free
+   MVS — so manifests become a target source only via the companion's
+   ruling R6: a multi-clause range grammar for the `tcl` constraint plus
+   a resolver-invisible `supports NAME RANGE` directive, with `require`
+   staying a bare MVS floor.
 4. The document's own `package require` facts: a requirement is already
    an interval under the `vsatisfies` algebra (`package require foo 1.2`
    means 1.2 ≤ v < 2; `8.5 9` is a union). Today floor resolution keeps
@@ -1343,3 +1353,26 @@ Recommendations marked ▸. Answers gate P0.
     (already sound for the vast majority of scripts), with
     `interp create`/`interp eval` widening everything they touch to
     `Unknown` until the multi-realm map lands (P1a completes it).
+22. **Stub fate** (centralisation audit, ruling R1). Confirm inline
+    `# tcl-lsp: stub` and sidecar stubs ingest as provenance-tagged
+    `SurfaceDeclaration`s (`Document`/`Workspace` trust) with the
+    separate `StubOverlay` type retired — the authoring syntax is
+    unchanged. ▸ Yes.
+23. **The variable axis** (ruling R2). Confirm special variables become
+    declarations authorable in SpecTcl `dialect`/package blocks
+    (family/build-sensitive: Jim's `env`, picol 2's capital-initial
+    globals), retiring `special_vars.rs`'s private dialect-name ingress
+    and folding `dynamic_names` into realm variable-domain widening.
+    ▸ Yes.
+24. **`tclpkg.tcl` targets vs MVS** (ruling R6). The manifest's `tcl`
+    constraint gains a multi-clause range grammar and a new
+    resolver-invisible `supports NAME RANGE` directive declares analysis
+    targets, while `require` stays a bare MVS floor and the three
+    version comparators collapse onto the oracle-pinned algebra —
+    confirm, or prefer giving the MVS resolver real upper bounds?
+    ▸ The `supports` directive: it keeps the resolver's design intact
+    and cleanly separates "what I install" from "what I claim to
+    support".
+25. **Hook `ctx` vocabulary** (ruling R5). Pack hook bodies read
+    `dict get $ctx dialect`; 2.0 adds an `environment` key and keeps
+    `dialect` as a documented legacy alias forever. ▸ Yes.
