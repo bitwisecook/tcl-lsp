@@ -46,6 +46,7 @@ mod dialect_set;
 mod expr_number;
 mod grammar;
 mod library;
+pub mod model;
 mod profile;
 mod version;
 
