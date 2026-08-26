@@ -1241,7 +1241,7 @@ fn case_list_body_index(
                 .dialect_bits()
                 .unwrap_or(tcl_dialect::DialectSet::ALL_TCL)
         },
-        |profile| profile.availability_mask,
+        |profile| crate::document_context_for_profile(profile).authoring_mask(),
     );
     if let Some(index) = registry
         .case_invocation(&cmd.resolved_name, &args, dialect)

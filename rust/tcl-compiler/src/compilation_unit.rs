@@ -1100,7 +1100,15 @@ fn resolve_unit_scope(
 /// not the wider set of releases whose commands that dialect can reach
 /// (`f5-iapps` parses to `IAPPS` while its mask composes `TCL85|IAPPS`).
 /// `None` — the build named no dialect — selects nothing.
-fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
+///
+/// P1-G (ledger C1): this is the last name→`DialectSet` projection in the
+/// unit build, kept because the semantic-facts bundle is still
+/// `DialectSet`-typed. It is `pub` so `tcl-lsp-db`'s per-item unit build
+/// reads the **same** projection instead of re-parsing the dialect name
+/// itself (P1-F wave 2); both retire when the bundle becomes
+/// declaration-keyed.
+#[must_use]
+pub fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
     dialect
         .and_then(|profile| DialectSet::parse(profile.name))
         .unwrap_or_else(DialectSet::empty)

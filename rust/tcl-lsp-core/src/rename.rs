@@ -243,14 +243,14 @@ pub fn prepare_rename_in_program(
     let byte_offset = crate::definition::byte_offset_at(&line_index, source, line, character);
     if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        tcl_dialect::DialectProfile::by_name(""),
+        crate::profile_for_dialect(""),
         line,
         character,
         byte_offset,
     ) && let Some(var_def) = crate::definition::lookup_var_read_at(
         &analysis.global_scope,
         source,
-        tcl_dialect::DialectProfile::by_name(""),
+        crate::profile_for_dialect(""),
         byte_offset,
         &var_name,
         analysis.ns_var_global_fallback(),
@@ -897,7 +897,7 @@ fn rename_variable_at(
     // resolving it correctly here keeps the two from disagreeing.
     let name = if let Some(var_name) = crate::definition::substituting_var_at_position(
         source,
-        tcl_dialect::DialectProfile::by_name(""),
+        crate::profile_for_dialect(""),
         line,
         character,
         def_byte,

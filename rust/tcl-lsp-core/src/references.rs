@@ -2137,9 +2137,11 @@ fn collect_stored_callback_writes(
         // value immediately follows the VarWrite name.  Other VarWrite
         // commands (lassign, scan, array set, …) deliberately do not enter
         // this callback-value path.
-        let resolved_call =
-            ctx.registry
-                .resolve_call(resolved, &args, ctx.dialect.availability_mask);
+        let resolved_call = ctx.registry.resolve_call(
+            resolved,
+            &args,
+            crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+        );
         has_scope_alias |= resolved_call.is_some_and(|call| {
             matches!(
                 call.lowering_hook,
@@ -2454,10 +2456,11 @@ fn command_prefix_targets_from_word(
         .head_words(builder_written, builder_head.span.start())
         .resolved;
     let args: Vec<&str> = builder.texts.iter().skip(1).map(String::as_str).collect();
-    let Some(invocation) =
-        ctx.registry
-            .resolve_invocation(builder_resolved, &args, ctx.dialect.availability_mask)
-    else {
+    let Some(invocation) = ctx.registry.resolve_invocation(
+        builder_resolved,
+        &args,
+        crate::document_context_for_profile(ctx.dialect).authoring_mask(),
+    ) else {
         return Vec::new();
     };
     let traits = invocation.semantics.traits;
@@ -4061,7 +4064,11 @@ fn case_list_clause_body_regions(
 ) -> Option<Vec<(usize, usize)>> {
     // Locating and validating the form is the registry's typed case invocation.
     let profile = registry.profile()?;
-    let (_, invocation) = registry.case_invocation(name, args, profile.availability_mask)?;
+    let (_, invocation) = registry.case_invocation(
+        name,
+        args,
+        crate::document_context_for_profile(profile).authoring_mask(),
+    )?;
     if let Some(start) = invocation.inline_clause_start {
         let clauses = case_list.inline_clauses(args, start)?;
         let mut out = Vec::new();

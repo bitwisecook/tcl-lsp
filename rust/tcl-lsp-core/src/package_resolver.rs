@@ -429,7 +429,7 @@ pub fn parse_pkg_index(
     // interpreter — so the guard vocabulary (`package`, `if`, `return`) comes
     // from the core registry, not the document's.  The lookup is cached and
     // returns a `&'static`, so this costs nothing per file.
-    let registry = tcl_registry::registry_for_dialect("tcl");
+    let registry = crate::registry_for_dialect("tcl");
     let mut out = Vec::new();
     reachability::scan(content, registry, &mut |reached| {
         let reachability::Reached {

@@ -151,7 +151,9 @@ pub fn hover(
         character,
         analysis,
         registry,
-        tcl_dialect::DialectProfile::plain_tcl(),
+        // The "no dialect stated" ingress: the lenient environment, which
+        // resolves to the permissive fallback profile.
+        crate::profile_for_dialect(""),
     )
 }
 
@@ -412,7 +414,7 @@ fn variable_hover(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
     let registry = ctx.registry;
-    let dialect = profile.availability_mask;
+    let dialect = crate::document_context_for_profile(profile).authoring_mask();
     // `$var` resolution sits at a position where `find_word_span_at_position`
     // would also match the unqualified name, but a `$`-led ref should
     // surface the `VarDef` not the (typically absent) proc of the same name.
@@ -574,7 +576,7 @@ fn registry_pattern_format_hover(
         source,
         config,
         registry,
-        profile.availability_mask,
+        crate::document_context_for_profile(profile).authoring_mask(),
         &identities,
         &mut |command, identity, _context| {
             answer = pattern_format_hover_for_command(&context, command, identity);
@@ -629,15 +631,17 @@ fn pattern_format_hover_for_command(
     }
     let head = (!identity.resolved.is_empty()).then_some(identity.resolved)?;
     let args: Vec<&str> = command.texts.iter().skip(1).map(String::as_str).collect();
-    context
-        .registry
-        .resolve_call(head, &args, context.profile.availability_mask)?;
+    context.registry.resolve_call(
+        head,
+        &args,
+        crate::document_context_for_profile(context.profile).authoring_mask(),
+    )?;
 
     let source_args = segmented_command_arguments(command);
     for pattern in context.registry.pattern_args_words_for_dialect(
         head,
         InvocationArguments::structured(&source_args),
-        context.profile.availability_mask,
+        crate::document_context_for_profile(context.profile).authoring_mask(),
     ) {
         let Some(&token) = command.argv.get(usize::from(pattern.index) + 1) else {
             continue;
@@ -659,7 +663,7 @@ fn pattern_format_hover_for_command(
     for format in context.registry.format_string_args_words_for_dialect(
         head,
         InvocationArguments::structured(&source_args),
-        context.profile.availability_mask,
+        crate::document_context_for_profile(context.profile).authoring_mask(),
     ) {
         let Some(&token) = command.argv.get(format.index + 1) else {
             continue;
@@ -789,7 +793,7 @@ fn hover_impl(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<Hover> {
     let registry = ctx.registry;
-    let dialect = profile.availability_mask;
+    let dialect = crate::document_context_for_profile(profile).authoring_mask();
     // One index shared by the position conversions below.
     let line_index = tcl_lexer::LineIndex::new(source);
 
@@ -1040,6 +1044,9 @@ fn builtin_command_hover_text(
     // command must exist — e.g. iRules bans it), and never shown for a
     // package the profile ships ambiently (an F5 surface is part of the
     // runtime, §7.1 axis C — there is nothing to require).
+    // P1-G: as in `completion::command_detail` — the context-keyed twin
+    // (`ResolvedContext::ambient_package`) answers identically over this
+    // document's own generation; the swap waits for the profile stamp.
     if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -1320,7 +1327,7 @@ fn option_hover_text(
     profile: &'static tcl_dialect::DialectProfile,
 ) -> Option<String> {
     use std::fmt::Write;
-    let dialect = profile.availability_mask;
+    let dialect = crate::document_context_for_profile(profile).authoring_mask();
     let line_text = source.split('\n').nth(line as usize)?;
     let chars: Vec<char> = line_text.chars().collect();
     let col = utf16_col_to_char_col(line_text, character).min(chars.len());
@@ -1394,10 +1401,7 @@ fn option_hover_text(
     // §5.2 profile gating: intersects membership + the version ceiling —
     // an inherited option on a vendor command counts as available under
     // that vendor's composed profile.
-    if !{
-        use tcl_registry::ProfileQueries;
-        profile.is_option_available(opt, parent_dialects)
-    } {
+    if !crate::document_context_for_profile(profile).option_available(opt, parent_dialects) {
         let _ = write!(out, "\n_Not available in the active dialect._\n");
     }
     Some(out)
@@ -3802,7 +3806,7 @@ fn obj_method_hover_text(
         class_q,
         method,
         package_version,
-        Some(profile.availability_mask),
+        Some(crate::document_context_for_profile(profile).authoring_mask()),
     )?;
     Some(format!(
         "**method** `{class_q} {method}`  \n{detail}\n\n`{synopsis}`",

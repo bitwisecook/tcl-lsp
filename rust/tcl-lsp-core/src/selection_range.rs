@@ -95,7 +95,7 @@ pub fn selection_range(
         line,
         character,
         analysis,
-        tcl_dialect::DialectProfile::by_name("tcl9.0"),
+        crate::profile_for_dialect("tcl9.0"),
     )
 }
 
@@ -345,7 +345,7 @@ fn command_span_at(
                 written: command.name(),
                 resolved: &semantic_head,
             };
-            let availability = profile.availability_mask;
+            let availability = crate::document_context_for_profile(profile).authoring_mask();
             let body_indices = definition_grammar
                 .filter(|grammar| grammar.is_member(head.written))
                 .map_or_else(

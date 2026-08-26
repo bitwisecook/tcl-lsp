@@ -330,8 +330,8 @@ pub fn analyse_tk_ui(
 ) -> TkUiModel {
     let identities = command_head_identities(source, dialect, registry);
     let config = LexerConfig::for_file_grammar(dialect.grammar);
-    let tk_active = dialect
-        .availability_mask
+    let tk_active = crate::document_context_for_profile(dialect)
+        .authoring_mask()
         .contains(tcl_dialect::DialectSet::TK)
         || source_requires_tk(source, config, dialect, registry, &identities);
     if !tk_active {
@@ -351,20 +351,22 @@ pub fn analyse_tk_ui(
         };
     }
     let mut analysis = TkAnalysis::default();
-    let tk_version = dialect.library_floor_default("Tk");
+    let tk_version = crate::document_context_for_profile(dialect)
+        .placement_floor("Tk")
+        .map(tcl_dialect::model::Version::as_str);
 
     visit_executable_commands(
         source,
         config,
         registry,
-        dialect.availability_mask,
+        crate::document_context_for_profile(dialect).authoring_mask(),
         &identities,
         &mut |command, heads, context| {
             collect_tk_command(
                 command,
                 heads.resolved,
                 registry,
-                dialect.availability_mask,
+                crate::document_context_for_profile(dialect).authoring_mask(),
                 tk_version,
                 &mut analysis,
                 context,
@@ -542,12 +544,14 @@ fn source_requires_tk(
     identities: &tcl_compiler::head_identity::HeadIdentityMap,
 ) -> bool {
     let mut active = false;
-    let available_tk = dialect.library_floor_default("Tk");
+    let available_tk = crate::document_context_for_profile(dialect)
+        .placement_floor("Tk")
+        .map(tcl_dialect::model::Version::as_str);
     visit_executable_commands(
         source,
         config,
         registry,
-        dialect.availability_mask,
+        crate::document_context_for_profile(dialect).authoring_mask(),
         identities,
         &mut |command, heads, context| {
             if context != ExecutableContext::Direct {
@@ -557,7 +561,11 @@ fn source_requires_tk(
             let exact = literal_word(command, 2).is_some_and(|(word, _)| word == "-exact");
             let package_index = if exact { 3 } else { 2 };
             active = registry
-                .resolve_call(heads.resolved, &args, dialect.availability_mask)
+                .resolve_call(
+                    heads.resolved,
+                    &args,
+                    crate::document_context_for_profile(dialect).authoring_mask(),
+                )
                 .is_some_and(|call| call.analyser_hook == Some(AnalyserHookId::PackageRequire))
                 && literal_word(command, package_index).is_some_and(|(word, _)| word == "Tk")
                 && tk_requirement_is_satisfied(command, package_index + 1, exact, available_tk);

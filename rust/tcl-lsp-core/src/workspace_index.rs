@@ -2608,9 +2608,7 @@ impl WorkspaceIndex {
     fn registry_for(&self, uri: &str) -> Option<&'static tcl_registry::CommandRegistry> {
         let slot = *self.slots.get(uri)?;
         let dialect = self.docs[slot].dialect.as_str();
-        (!dialect.is_empty()).then(|| {
-            tcl_registry::cache::registry_for_profile(tcl_dialect::DialectProfile::by_name(dialect))
-        })
+        (!dialect.is_empty()).then(|| crate::registry_for_dialect(dialect))
     }
 
     /// Deliberately *not* [`Self::workspace_command_exists`], which also

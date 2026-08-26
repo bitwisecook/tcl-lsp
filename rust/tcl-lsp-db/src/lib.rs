@@ -298,22 +298,33 @@ impl TclDatabase {
 #[salsa::db]
 impl TclDb for TclDatabase {
     fn registry(&self, dialect: &str) -> &'static CommandRegistry {
-        // The shared per-profile cache, not a locally-assembled registry: it
-        // resolves the name through the dialect catalogue (so an alias or a
-        // typo lands on the right entry), loads the profile's base layers and
-        // EDA packs, and — the part a hand-rolled `build_default +
-        // load_dialect` silently dropped — *stamps the profile* on the
+        // The environment's **registry generation**, not a locally-assembled
+        // registry: the name resolves through the one ingress seam (so an
+        // alias, an editor language id, or a typo lands on the right
+        // environment), and the generation's command store is the shared
+        // per-`(environment, overlay)` `Arc` — the profile's base layers and
+        // EDA packs loaded, and — the part a hand-rolled `build_default +
+        // load_dialect` silently dropped — the *profile stamped* on the
         // registry. Every registry-derived behaviour query keys off that
         // stamp, so without it `FoldPolicy::from_registry` read the LSP's
         // iRules documents as plain Tcl and declined every word-operator fold
         // (issue #1048).
-        tcl_registry::registry_for_dialect(dialect)
+        tcl_lsp_core::registry_for_dialect(dialect)
     }
 
     fn registry_with_overlay(&self, dialect: &str, overlay: u64) -> Arc<CommandRegistry> {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        tcl_registry::cache::registry_for_profile_if_built(profile, overlay)
-            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(profile))
+        // Ledger F7 (P2) holds here unchanged: an overlay generation that has
+        // not been installed yet falls back to the un-overlaid one rather
+        // than failing closed. `DocumentEnvironment::context_registry`
+        // threads exactly the old `registry_for_profile_if_built(profile,
+        // overlay)` door, so this keeps the shipped behaviour while the
+        // ingress moves to the environment model.
+        let environment = tcl_lsp_core::environment_for_dialect(dialect);
+        Arc::clone(
+            environment
+                .context_registry(&tcl_registry::model::KeyedVersions::default(), overlay)
+                .commands(),
+        )
     }
 }
 
@@ -1687,8 +1698,9 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         )
         .with_semantic_analysis(
             registry,
-            tcl_registry::dialects::DialectSet::parse(key.dialect(db))
-                .unwrap_or_else(tcl_registry::dialects::DialectSet::empty),
+            tcl_compiler::compilation_unit::semantic_dialect_set(
+                tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
+            ),
             Some(key.body(db)),
             // A procedure body runs only after arbitrary interposed history,
             // so its dispatch proofs start from an unknown world.
@@ -1825,7 +1837,7 @@ fn build_unit_with_keys<'db>(
     // the analysis they produce was already identical.
     let dialect_key = dialect.map_or("", |profile| profile.name);
     let dialect_opt =
-        dialect.and_then(|profile| tcl_dialect::DialectProfile::resolve_known(profile.name));
+        dialect.and_then(|profile| tcl_lsp_core::stated_profile_for_dialect(profile.name));
     // The module CFG context is the same for every procedure in this build;
     // intern it once on the first request and reuse the id (O(procs), not
     // O(procs²)).
@@ -2049,7 +2061,7 @@ pub fn taint_cascade<'db>(
 ) -> Arc<HashMap<ValueKey, TaintLattice>> {
     let baseline = function_lattice(db, lattice_key);
     let dialect = summary_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal summary: a stub per known name (resolution
@@ -2226,7 +2238,7 @@ pub fn proc_summary_cascade<'db>(
     let qname = lattice_key.qname(db);
     let params = lattice_key.params(db);
     let dialect = deps_key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
 
     // Reconstruct the minimal interproc summary (stub per known name + real
@@ -2286,7 +2298,7 @@ pub fn proc_summary_cascade<'db>(
 pub fn function_checks<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<Vec<CompilerCheck>> {
     let fu = function_lattice(db, key);
     let dialect = key.dialect(db);
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let registry = db.registry(dialect);
     // Per-procedure memo — procs have no implicit instance variables.
     Arc::new(tcl_compiler::compiler_checks::function_nontaint_checks(
@@ -2369,7 +2381,7 @@ pub fn proc_taint_solve<'db>(
     cfg: LexerCfgKey<'db>,
 ) -> Arc<CheckSolve> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     let external = file.external_call_sites(db).clone();
     let (cu, lattice_keys) = build_unit_with_keys(
@@ -2501,7 +2513,7 @@ pub fn proc_taint_solve<'db>(
         &cu,
         &lattice_keys,
         registry,
-        tcl_dialect::DialectProfile::resolve_known(&dialect),
+        tcl_lsp_core::stated_profile_for_dialect(&dialect),
     );
     Arc::new(CheckSolve {
         taints,
@@ -2712,7 +2724,7 @@ pub fn function_optimisations<'db>(
     let params = key.params(db).clone();
     let body = key.body(db).clone();
     let dialect = key.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     let body_source = deps.body_source(db).clone();
 
@@ -3198,7 +3210,7 @@ pub fn compiler_check_diagnostics(
     config: AnalyserConfig,
 ) -> Arc<CompilerDiagnostics> {
     let dialect = file.dialect(db).clone();
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
     let registry = db.registry(&dialect);
     // Share the analyser tail's build via the [`compilation_unit`] query when the
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
@@ -3244,7 +3256,7 @@ pub fn compiler_check_diagnostics_uncached(
     generic_patterns: Option<&[String]>,
     external_call_sites: Option<&CallSiteEvidence>,
 ) -> CompilerDiagnostics {
-    let dialect_opt = tcl_dialect::DialectProfile::resolve_known(dialect);
+    let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(dialect);
     let cu = CompilationUnit::build_with_options(
         text,
         UnitBuildOptions {
@@ -3259,7 +3271,7 @@ pub fn compiler_check_diagnostics_uncached(
     compiler_diagnostics_from_unit(
         &cu,
         registry,
-        tcl_dialect::DialectProfile::resolve_known(dialect),
+        tcl_lsp_core::stated_profile_for_dialect(dialect),
         generic_patterns,
     )
 }

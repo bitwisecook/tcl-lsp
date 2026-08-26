@@ -75,7 +75,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_compiler::analyser::{AnalysisResult, ProcDef, Scope};
-use tcl_registry::{CommandRegistry, ProfileQueries};
+use tcl_registry::CommandRegistry;
 
 use crate::definition::utf16_col_to_char_col;
 
@@ -324,7 +324,10 @@ fn switch_completion_items(
         .then(|| nth_word_on_line(source, line, 1))
         .flatten()
         .and_then(|sub_name| {
-            spec.resolve_subcommand_for_dialect(&sub_name, profile.availability_mask)
+            spec.resolve_subcommand_for_dialect(
+                &sub_name,
+                crate::document_context_for_profile(profile).authoring_mask(),
+            )
         });
     let floor = package_version_floor(analysis, spec, profile);
     let (options, parent_dialects) = match sub {
@@ -338,7 +341,7 @@ fn switch_completion_items(
                 .flatten();
             let scope = sub.option_scope(
                 next.as_deref(),
-                Some(profile.availability_mask),
+                Some(crate::document_context_for_profile(profile).authoring_mask()),
                 floor,
                 spec.dialects,
             );
@@ -527,7 +530,8 @@ fn context_aware_completions(
     {
         let floor = package_version_floor(analysis, spec, profile);
         return Some(sub_subcommand_completions(
-            profile.available_sub_subcommands(spec, sub, floor),
+            crate::document_context_for_profile(profile)
+                .available_sub_subcommands(spec, sub, floor),
             partial,
         ));
     }
@@ -739,8 +743,11 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        let tk_loaded = tcl_dialect::DialectSet::parse(dialect.name)
-            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+        // P3 (ledger F4): the `tk` half is the resolved environment's own
+        // identity, not a re-parsed `DialectSet` bit — the placement form
+        // (`ResolvedContext::package_active("Tk")`) takes over when the Tk
+        // pilot makes the placement ambient under `wish`.
+        let tk_loaded = crate::environment_for_dialect(dialect.name).is_tk()
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
         items.extend(builtin_completions(
@@ -1562,8 +1569,11 @@ fn registry_method_items(
     let package_version = registry.get(class_q).and_then(|spec| {
         crate::document_floor::DocumentFloor::new(analysis, profile).for_spec(spec)
     });
-    let methods =
-        registry.instance_methods_at(class_q, package_version, Some(profile.availability_mask));
+    let methods = registry.instance_methods_at(
+        class_q,
+        package_version,
+        Some(crate::document_context_for_profile(profile).authoring_mask()),
+    );
     let mut items: Vec<CompletionItem> = methods
         .into_iter()
         .map(|m| CompletionItem {
@@ -1637,7 +1647,8 @@ fn switch_completions(
         .iter()
         .filter(|opt| {
             opt.available_for_version(package_version)
-                && profile.is_option_available(opt, parent_dialects)
+                && crate::document_context_for_profile(profile)
+                    .option_available(opt, parent_dialects)
         })
         .collect();
     opts.sort_unstable_by_key(|opt| opt.name);
@@ -1751,7 +1762,7 @@ fn subcommand_completions(
     // must not be offered in an 8.6 buffer, and an iRules-only subcommand
     // must not surface in plain Tcl.
     let floor = package_version_floor(analysis, spec, profile);
-    let mut subs: Vec<&tcl_registry::SubCommand> = profile
+    let mut subs: Vec<&tcl_registry::SubCommand> = crate::document_context_for_profile(profile)
         .available_subcommands(spec)
         .into_iter()
         .filter(|sub| sub.available_for_version(floor))
@@ -2036,8 +2047,9 @@ fn builtin_completions(
     // never removes a version-gated core command, so `command_names()`
     // still lists `try` under `tcl8.4`/`tcl8.5` — filter here via the same
     // profile resolution the analyser's W123 uses. An unknown dialect
-    // (custom / non-Tcl) resolves to the permissive fallback profile.
+    // (custom / non-Tcl) resolves to the permissive fallback environment.
     let profile = dialect;
+    let context = crate::document_context_for_profile(profile);
     let mut names: Vec<&str> = registry
         .command_names()
         .filter(|n| partial.is_empty() || n.starts_with(partial))
@@ -2047,7 +2059,7 @@ fn builtin_completions(
                     .contains(tcl_registry::prelude::Traits::OPERATOR_COMMAND)
             })
         })
-        .filter(|n| profile.resolve_command(registry, n).is_some())
+        .filter(|n| context.resolve_spec(registry, n).is_some())
         // A command whose *bare* spelling only works inside a `TclOO`
         // method context (`link` / `my` / `next` / `nextto` / `self` /
         // `classvariable` — issue #1026) is offered only there: completing
@@ -2065,12 +2077,12 @@ fn builtin_completions(
         // is loaded — see the `tk_loaded` computation in `completions` — and
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
         // world where a desktop library cannot be `package require`d, even if
-        // the source says so. A profile can host Tk iff it carries a Tk library
-        // pin (dialect-profile-model.md §7.2); the EDA shells are packaged
-        // vendors with no vendor_bit, so this keys off the pin, not the bit
-        // (eda-library-packages.md).
+        // the source says so. An environment can host Tk iff it declares a Tk
+        // placement (dialect-profile-model.md §7.2, ledger F4); the EDA
+        // shells are packaged vendors with no vendor_bit, so this keys off
+        // the placement, not the bit (eda-library-packages.md).
         .filter(|n| {
-            (tk_loaded && profile.hosts_tk())
+            (tk_loaded && crate::environment_for_dialect(profile.name).can_host_package("Tk"))
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
@@ -2086,7 +2098,7 @@ fn builtin_completions(
                 // On a keyed ambient axis (the F5 surfaces) the declared
                 // range applies: explicit introduction or the 15.0
                 // baseline, plus any removal release.
-                match (profile.keyed_version_range(spec), floor) {
+                match (context.keyed_version_range(spec), floor) {
                     (Some((min, max)), Some(floor)) => {
                         tcl_registry::version::within_range(floor, min, max)
                     }
@@ -2108,7 +2120,7 @@ fn builtin_completions(
             // This is the same resolution the availability filter above
             // already applies, so the item and the decision to offer it
             // cannot disagree.
-            let spec = profile.resolve_command(registry, name);
+            let spec = context.resolve_spec(registry, name);
             CompletionItem {
                 label: name.to_owned(),
                 insert_text: name.to_owned(),
@@ -2180,6 +2192,10 @@ fn command_detail(
 ) -> String {
     if let Some(pkg) = spec.tcllib_package {
         format!("tcllib ({pkg})")
+    // P1-G: `ResolvedContext::ambient_package` is the context-keyed twin of
+    // this registry query, and answers identically here because the store
+    // *is* this document's generation. Threading a context through the
+    // detail formatter waits for the profile stamp's retirement.
     } else if let Some(pkg) = spec.required_package
         && !registry.is_ambient_package(pkg)
     {
@@ -2336,8 +2352,11 @@ fn fuzzy_command_fallback(
     }
     universe.extend(proc_completions(analysis, "", &usage));
     if let Some(registry) = registry {
-        let tk_loaded = tcl_dialect::DialectSet::parse(dialect.name)
-            .is_some_and(|set| set.contains(tcl_dialect::DialectSet::TK))
+        // P3 (ledger F4): the `tk` half is the resolved environment's own
+        // identity, not a re-parsed `DialectSet` bit — the placement form
+        // (`ResolvedContext::package_active("Tk")`) takes over when the Tk
+        // pilot makes the placement ambient under `wish`.
+        let tk_loaded = crate::environment_for_dialect(dialect.name).is_tk()
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
         universe.extend(builtin_completions(

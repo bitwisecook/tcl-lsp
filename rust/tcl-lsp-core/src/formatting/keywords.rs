@@ -198,7 +198,7 @@ enum RangeTable<'a> {
 /// such named subcommand), which can never vouch for any word.
 ///
 /// Takes the release's registry as a parameter rather than reaching for
-/// [`tcl_registry::registry_for_dialect`] itself, so the range machinery can
+/// [`crate::context_for_dialect`] itself, so the range machinery can
 /// be exercised against a synthetic spec in tests — the process-wide cache
 /// only ever holds the real registry data, never a fixture (issue #1268).
 fn release_table(
@@ -207,7 +207,11 @@ fn release_table(
     cmd_name: &str,
     scope: RangeTable<'_>,
 ) -> tcl_registry::abbrev::KeywordTable<'static> {
-    let bits = DialectSet::parse(release);
+    // The release's own authoring bits, derived from its environment
+    // rather than re-parsed from the name (ledger C1/C2): for the five
+    // core ladder names this is exactly the single release bit
+    // `DialectSet::parse` produced, sweep-pinned in the registry model.
+    let bits = Some(crate::document_context_for_dialect(release).authoring_mask());
     let empty =
         || tcl_registry::abbrev::KeywordTable::new(std::iter::empty(), PrefixMatching::Enabled);
     // Each release's table is filtered by *its own* dialect bit — a keyword
@@ -312,7 +316,7 @@ fn boolean_site_across_range(
     target: BooleanSite,
 ) -> BooleanSite {
     releases.iter().fold(target, |site, &(release, registry)| {
-        let bits = DialectSet::parse(release);
+        let bits = Some(crate::document_context_for_dialect(release).authoring_mask());
         let found = registry.get(cmd_name).and_then(|spec| {
             options_for_scope(spec, scope)
                 .iter()
@@ -681,7 +685,7 @@ pub(crate) fn rewrites_for_command(
     let release_names = tcl_registry::version_range::core_releases_in(config.target_range());
     let releases: Vec<(&str, &CommandRegistry)> = release_names
         .iter()
-        .map(|&release| (release, tcl_registry::registry_for_dialect(release)))
+        .map(|&release| (release, crate::registry_for_dialect(release)))
         .collect();
 
     let mut out: Vec<KeywordRewrite> = Vec::new();

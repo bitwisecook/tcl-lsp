@@ -1029,7 +1029,10 @@ pub fn memory_alias_graph(
     let profile = dialect;
     let cu = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(registry, profile.availability_mask);
+        .with_memory_ssa(
+            registry,
+            crate::document_context_for_profile(profile).authoring_mask(),
+        );
 
     let mut functions: Vec<Value> = vec![memory_function_json(
         "::top",

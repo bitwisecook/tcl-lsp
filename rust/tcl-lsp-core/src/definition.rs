@@ -332,7 +332,7 @@ pub fn definition_with(
                 "::",
                 target,
                 cursor_offset,
-                view.with_registry(tcl_registry::registry_for_dialect(&analysis.dialect)),
+                view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
             )
         {
             return vec![span_to_range(source, &line_index, proc_def.name_span)];
@@ -421,7 +421,7 @@ pub fn definition_with(
             &namespace,
             &word,
             cursor_offset,
-            view.with_registry(tcl_registry::registry_for_dialect(&analysis.dialect)),
+            view.with_registry(crate::registry_for_dialect(&analysis.dialect)),
         )
     {
         // A proc redefined later in the document is two definitions sharing
@@ -512,7 +512,7 @@ fn indirect_definition_target(
     word: &str,
 ) -> Option<tcl_lexer::Span> {
     let hop = command_indirection(analysis, word, cursor_off)?;
-    let registry = tcl_registry::registry_for_dialect(&analysis.dialect);
+    let registry = crate::registry_for_dialect(&analysis.dialect);
     if let Some(proc_def) = resolve_called_proc(
         analysis,
         source,
@@ -587,7 +587,7 @@ fn position_definition(
     // so it answers the *literal* cell (PR #1106 review, P2).
     if let Some(var_name) = substituting_var_at_position(
         source,
-        tcl_dialect::DialectProfile::by_name(""),
+        crate::profile_for_dialect(""),
         line,
         character,
         cursor_off,
@@ -595,7 +595,7 @@ fn position_definition(
         if let Some(var_def) = lookup_var_read_at(
             &analysis.global_scope,
             source,
-            tcl_dialect::DialectProfile::by_name(""),
+            crate::profile_for_dialect(""),
             cursor_off,
             &var_name,
             analysis.ns_var_global_fallback(),
@@ -683,8 +683,8 @@ fn caller_frame_definition(
     let bindings = crate::caller_frame::caller_frame_bindings(
         analysis,
         source,
-        tcl_dialect::DialectProfile::by_name(""),
-        resolution.with_registry(tcl_registry::registry_for_dialect("")),
+        crate::profile_for_dialect(""),
+        resolution.with_registry(crate::registry_for_dialect("")),
         cursor_off,
         name,
     );
@@ -1124,7 +1124,7 @@ pub(crate) fn method_dispatch_keyword_in(
 /// after it names a method on the *enclosing* class, reaching non-exported
 /// methods a `$obj` dispatch cannot.
 pub(crate) fn is_self_dispatch_keyword(word: &str) -> bool {
-    method_dispatch_keyword_in(tcl_dialect::DialectProfile::by_name(""), word)
+    method_dispatch_keyword_in(crate::profile_for_dialect(""), word)
         == Some(tcl_registry::MethodDispatchKind::SelfDispatch)
 }
 
@@ -1142,8 +1142,7 @@ pub(crate) fn is_self_receiver_call(receiver: &str) -> bool {
     let Some((cmd, args)) = tcl_compiler::value_shapes::parse_command_substitution(receiver) else {
         return false;
     };
-    tcl_registry::registry_for_dialect("")
-        .is_self_receiver_call(&cmd, args.first().map(String::as_str))
+    crate::registry_for_dialect("").is_self_receiver_call(&cmd, args.first().map(String::as_str))
 }
 
 /// Whether `word` is a `TclOO` next-chain keyword (`next` / `nextto`) under
@@ -1170,7 +1169,7 @@ pub(crate) fn next_chain_names_a_target_in(
 /// [`next_chain_names_a_target_in`] against the dialect-less plain-Tcl
 /// profile.
 fn next_chain_names_a_target(word: &str) -> bool {
-    next_chain_names_a_target_in(tcl_dialect::DialectProfile::by_name(""), word)
+    next_chain_names_a_target_in(crate::profile_for_dialect(""), word)
 }
 
 /// enclosing class + method are found from the cursor's byte offset.
@@ -2980,12 +2979,8 @@ fn itcl_class_proc_declaration(
     namespace: &str,
     word: &str,
 ) -> Option<tcl_lexer::Span> {
-    let (class_q, member) = itcl_class_proc_target(
-        analysis,
-        tcl_dialect::DialectProfile::by_name(""),
-        namespace,
-        word,
-    )?;
+    let (class_q, member) =
+        itcl_class_proc_target(analysis, crate::profile_for_dialect(""), namespace, word)?;
     analysis
         .all_classes
         .get(class_q)

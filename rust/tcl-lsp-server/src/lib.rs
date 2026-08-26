@@ -5938,33 +5938,27 @@ pub struct Backend {
     store: Arc<dyn vfs::SourceStore>,
 }
 
-/// A known editor language ID after its ingress spelling has been resolved.
+/// A known editor language ID after its ingress spelling has been resolved
+/// through the one environment seam.
 ///
-/// Most IDs map to a full catalog profile; `tk` is a library-shell dialect
-/// represented directly by its singleton [`DialectSet`] bit until the catalog
-/// grows a dedicated profile. Keeping both cases typed prevents the language
-/// ID table from leaking a raw dialect string into server routing.
+/// **Ledger row F3, retired here**: this used to be a two-armed enum because
+/// `tk` was a bare [`DialectSet`] bit rather than a catalogue profile. `tk`
+/// is now an environment like any other, so the ingress has one arm — the
+/// resolved environment's
+/// [`unit_profile`](tcl_registry::model::DocumentEnvironment::unit_profile),
+/// which is its catalogue profile for a catalogue environment and the typed
+/// additive Tk profile for `tk`. The newtype still keeps the language-id
+/// table from leaking a raw dialect string into server routing.
 #[derive(Clone, Copy)]
-enum LanguageDialect {
-    Profile(&'static tcl_dialect::DialectProfile),
-    Set(DialectSet),
-}
+struct LanguageDialect(&'static tcl_dialect::DialectProfile);
 
 impl LanguageDialect {
     fn name(self) -> &'static str {
-        match self {
-            Self::Profile(profile) => profile.name,
-            Self::Set(set) => set
-                .canonical_name()
-                .expect("language-id dialect sets are singleton bits"),
-        }
+        self.0.name
     }
 
     fn is_explicit_non_tcl(self) -> bool {
-        match self {
-            Self::Profile(profile) => !profile.name.starts_with("tcl"),
-            Self::Set(_) => true,
-        }
+        !self.0.name.starts_with("tcl")
     }
 }
 
@@ -7895,8 +7889,14 @@ impl Backend {
     /// signal every BIG-IP-specific branch (analysis suppression,
     /// config outline) keys on.
     fn is_bigip_dialect(dialect: &str) -> bool {
-        tcl_dialect::DialectProfile::find(dialect)
-            .is_some_and(|profile| profile.availability_mask.contains(DialectSet::BIGIP))
+        // The resolved environment's authoring mask, not a second name
+        // validator: sweep-pinned to the old profile's `availability_mask`
+        // for every catalogue environment, and the lenient sink (every
+        // unknown name) carries no vendor bit, exactly as `find` answering
+        // `None` did.
+        tcl_lsp_core::document_context_for_dialect(dialect)
+            .authoring_mask()
+            .contains(DialectSet::BIGIP)
     }
 
     /// Look up the per-folder dialect override for `uri`,
@@ -7916,50 +7916,47 @@ impl Backend {
     /// language id does not name a known dialect — the caller falls
     /// back to the session default.
     fn dialect_from_language_id(language_id: &str) -> Option<LanguageDialect> {
-        // The catalog already carries both spellings a profile answers to: its
-        // canonical name (`tcl9.0`, `synopsys-eda-tcl` — what the MCP bridge
-        // and direct callers pass) and its `editor_language_id` (`tcl90`,
-        // `tcl-synopsys` — what the editor integrations contribute; the
-        // version-pinned ids are undotted there because a language id
-        // containing a `.` cannot carry a `configurationDefaults` override,
-        // issue #1122). Reading them from the catalog keeps a new profile
-        // resolvable here the day it is added.
-        if let Some(profile) = tcl_dialect::DialectProfile::all().iter().find(|profile| {
-            profile.name == language_id
-                || profile
-                    .editor_language_id
-                    .is_some_and(|id| id == language_id)
-        }) {
-            return Some(LanguageDialect::Profile(profile));
-        }
-        // The remaining spellings are *not* catalog data: ids the catalog has
-        // no field for, kept because editors and older configurations still
-        // send them.
+        // Ids that must **not** reach the environment resolver as written,
+        // because the resolver answers them differently or not at all. Every
+        // other spelling — a canonical id, an alias, or a contributed editor
+        // identity (`tcl90`, `tcl-synopsys`; the version-pinned ones are
+        // undotted because a language id containing a `.` cannot carry a
+        // `configurationDefaults` override, issue #1122) — is declared by the
+        // environment catalogue and resolves below, which keeps a new
+        // environment resolvable here the day it is added.
         let mapped = match language_id {
             // Every editor sends the bare `tcl` id for a plain `.tcl` buffer;
             // it names no version, and 8.6 is the fallback the rest of the
-            // resolution chain is written against.
+            // resolution chain is written against. (The `tcl` *environment*
+            // is the lenient whole-ladder one, which is a different answer.)
             "tcl" => "tcl8.6",
             // `tcl-apl` is the APL (iApp presentation language) editor id — an
             // iApp sublanguage, so it analyses as `f5-iapps` rather than
             // falling through to the default Tcl dialect.
             "tcl-apl" => "f5-iapps",
+            // Editor ids the environment catalogue does not declare (its own
+            // identities are `bpf`-less, `tcl-microchip`, `tclspec`), kept
+            // because editors and older configurations still send them.
             "tcl-bpf" => "bpf",
             "tcl-libero" => "microchip-libero-eda-tcl",
             // `tcl-spec` matches the `tcl-…` shape the other integration ids
-            // use; the catalog's own id for SpecTcl packs is `tclspec`.
+            // use; the catalogue's own id for SpecTcl packs is `tclspec`.
             "tcl-spec" => "spectcl",
-            // Tk is a library surface, not a selectable profile, so it has no
-            // catalog entry — it resolves to its bare `DialectSet` bit below.
-            "tk" => "tk",
-            _ => return None,
+            other => other,
         };
-        // This is an editor-ID ingress boundary. It resolves straight to the
-        // interned profile so aliases and command consumers cannot retain a
-        // free-text dialect spelling after this point.
-        tcl_dialect::DialectProfile::find(mapped)
-            .map(LanguageDialect::Profile)
-            .or_else(|| DialectSet::parse(mapped).map(LanguageDialect::Set))
+        // This is an editor-ID ingress boundary, and it goes through the one
+        // environment seam: aliases and command consumers cannot retain a
+        // free-text dialect spelling after this point, and an id that names
+        // no environment answers `None` so the caller falls back to the
+        // session default.
+        tcl_registry::model::resolve_known_environment(mapped)
+            // A language id names a *contributed identity*, never a legacy
+            // alias: `irules` resolves to `f5-irules` wherever a dialect
+            // name is configured, but no editor contributes it as a language
+            // id, and taking it as one would select an environment through a
+            // spelling the contribution manifest never declares (review B7).
+            .filter(|environment| environment.is_contributed_identity(mapped))
+            .map(|environment| LanguageDialect(environment.unit_profile()))
     }
 
     /// Barrier: block until every document-sync notification the client sent
@@ -12944,7 +12941,7 @@ impl Backend {
         let dialect = doc.dialect.clone();
         let value = crate::rt::spawn_blocking(move || {
             tcl_spectcl::hooks::ensure_thread_host();
-            let dialect_opt = tcl_dialect::DialectProfile::resolve_known(&dialect);
+            let dialect_opt = tcl_lsp_core::stated_profile_for_dialect(&dialect);
             let (source, opts) = if profile == "full" {
                 tcl_compiler::optimiser::optimise_source_multipass(&text, &registry, dialect_opt, 5)
             } else {
@@ -13319,7 +13316,13 @@ impl Backend {
         // The catalog's labels for the resolved dialect, so a status bar or
         // picker can render it without keeping its own name table. `null` for a
         // name the catalog does not know (an unrecognised configured value).
-        let dialect_profile = tcl_dialect::DialectProfile::find(&dialect);
+        // P1-G (ledger F9): the labels move to the environment's own
+        // `display_name` when the environment/targets status surface lands;
+        // the model carries no `short_name` yet, so the catalogue projection
+        // is held — but reached from the *resolved environment*, not from a
+        // second name validator, and still `null` for a name that names no
+        // catalogue entry (`tk`, the lenient `tcl`, an unknown value).
+        let dialect_profile = tcl_lsp_core::environment_for_dialect(&dialect).catalogue_profile();
         // Whether a `tclLsp.dialect` was actually configured for this URI — by
         // the folder it sits under, or session-wide — as opposed to the
         // built-in fallback that a never-configured session reports.  A
@@ -13450,7 +13453,7 @@ impl Backend {
                 "error": "setDialect requires a dialect-name argument",
             })));
         };
-        if !tcl_dialect::available_dialects().contains(&dialect) {
+        if !is_known_dialect_name(dialect) {
             return Ok(Some(serde_json::json!({
                 "success": false,
                 "error": unknown_dialect_error(dialect),
@@ -13485,7 +13488,7 @@ impl Backend {
     ) -> jsonrpc::Result<Option<serde_json::Value>> {
         let requested = args.first().and_then(serde_json::Value::as_str);
         if let Some(dialect) = requested
-            && !tcl_dialect::available_dialects().contains(&dialect)
+            && !is_known_dialect_name(dialect)
         {
             return Ok(Some(serde_json::json!({
                 "success": false,
@@ -13509,6 +13512,11 @@ impl Backend {
     /// build time (`cargo xtask gen-editor-dialects`); every other editor asks
     /// for it here, so a dialect picker or status bar never has to hardcode one.
     fn list_dialects_command() -> serde_json::Value {
+        // P1-G (ledger F9): `listEnvironments` replaces this. Not a
+        // refactor — the environment catalogue has different *contents*
+        // (it adds `tcl` and `tk`) and no `short_name`, so swapping the
+        // source changes this command's payload and the pickers built on
+        // it. Held until the status surface lands with the new shape.
         serde_json::Value::Array(
             tcl_dialect::DialectProfile::all()
                 .iter()
@@ -14285,30 +14293,27 @@ impl Backend {
         // either resolution, since they come from the name-keyed registry
         // above. Resolving through the ingress keeps the profile and that
         // registry describing the same dialect.
-        let profile = tcl_lsp_core::profile_for_dialect(&dialect);
-        let mut subs: Vec<serde_json::Value> = {
-            use tcl_registry::ProfileQueries;
-            profile.resolve_command(&registry, &name)
-        }
-        .map(|spec| {
-            spec.subcommands
-                .iter()
-                .map(|sub| {
-                    serde_json::json!({
-                        "name": sub.name,
-                        "detail": sub.detail,
-                        "synopsis": sub.synopsis,
-                        "pure": sub.pure,
-                        "mutator": sub.mutator,
-                        // The registry tracks deprecation at command level,
-                        // not per subcommand — report the shape with a
-                        // conservative default.
-                        "deprecated": false,
+        let mut subs: Vec<serde_json::Value> = tcl_lsp_core::document_context_for_dialect(&dialect)
+            .resolve_spec(&registry, &name)
+            .map(|spec| {
+                spec.subcommands
+                    .iter()
+                    .map(|sub| {
+                        serde_json::json!({
+                            "name": sub.name,
+                            "detail": sub.detail,
+                            "synopsis": sub.synopsis,
+                            "pure": sub.pure,
+                            "mutator": sub.mutator,
+                            // The registry tracks deprecation at command level,
+                            // not per subcommand — report the shape with a
+                            // conservative default.
+                            "deprecated": false,
+                        })
                     })
-                })
-                .collect()
-        })
-        .unwrap_or_default();
+                    .collect()
+            })
+            .unwrap_or_default();
         subs.sort_by(|a, b| {
             a.get("name")
                 .and_then(serde_json::Value::as_str)
@@ -14718,9 +14723,11 @@ impl Backend {
         // handle so this function has one return type.  Reaching the cache
         // directly also spares the db mutex a lock on a path that only ever
         // forwarded.
-        tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
-            dialect,
-        ))
+        Arc::clone(
+            tcl_lsp_core::environment_for_dialect(dialect)
+                .default_context_registry()
+                .commands(),
+        )
     }
 
     /// `tclLsp.specPacks` and what discovery made of it, for
@@ -14803,6 +14810,14 @@ impl Backend {
                 // A statically-registered extension needs no dynamic
                 // association; the catalogue's own routing is what the
                 // editors already ship.
+                //
+                // P1-G (ledger F12/T13): the environment model carries the
+                // same claim in `DetectionFacts::file_extensions`, but the
+                // two sets are not identical — the lenient `tcl`
+                // environment claims `.tcl`/`.tk`/`.itcl`/`.tm`/`.test`
+                // where the fallback profile claims none — so switching
+                // source would silently suppress dynamic associations a
+                // pack registers today.
                 if tcl_dialect::DialectProfile::all().iter().any(|p| {
                     p.file_extensions
                         .iter()
@@ -14811,11 +14826,15 @@ impl Backend {
                     continue;
                 }
                 seen.push(row.extension.clone());
+                // The environment's own contributed editor identity (ledger
+                // F12/T12): the same value the profile's `editor_language_id`
+                // carried for every catalogue entry, reached through the one
+                // name seam instead of a second `find`.
                 let language_id = row
                     .dialect
-                    .and_then(tcl_dialect::DialectProfile::find)
-                    .and_then(|p| p.editor_language_id)
-                    .unwrap_or("tcl");
+                    .and_then(tcl_registry::model::resolve_known_environment)
+                    .and_then(|environment| environment.definition.editor_identity)
+                    .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
                 out.push(serde_json::json!({
                     "extension": row.extension,
                     "dialect": row.dialect,
@@ -15164,7 +15183,7 @@ impl Backend {
 
         // XC100-301 translatability lints — independent toggle, f5-irules only.
         let xc_on = self.xc_diagnostics_enabled(uri).await;
-        let xc_for_irules = tcl_dialect::DialectProfile::by_name(&dialect).is_irules() && xc_on;
+        let xc_for_irules = tcl_lsp_core::profile_for_dialect(&dialect).is_irules() && xc_on;
         // Cross-file resolution + the workspace W120 / W123 refinements,
         // matching the push path — and shared verbatim with
         // `textDocument/codeAction`, which lifts its quick-fixes from this
@@ -15824,7 +15843,7 @@ impl Backend {
         let collisions = crate::rt::spawn_blocking(move || {
             tcl_spectcl::pack::collision_notices(
                 &for_collisions,
-                tcl_registry::registry_for_dialect(&dialect),
+                tcl_lsp_core::registry_for_dialect(&dialect),
             )
         })
         .await
@@ -21533,6 +21552,12 @@ fn non_ascii_mode_str(mode: NonAsciiMode) -> serde_json::Value {
 /// dialect the catalog offers so the caller can correct the spelling from the
 /// error alone rather than having to ask for the list separately.
 fn unknown_dialect_error(dialect: &str) -> String {
+    // P1-G (ledger F9): the accepted set is now `Environment::resolve`'s
+    // (canonical ids + aliases + contributed editor identities), which is
+    // wider than the canonical list quoted here. The list stays canonical
+    // deliberately — it is a "correct your spelling to one of these"
+    // message, not the acceptance set — and moves to the environment
+    // enumeration with `listEnvironments`.
     let valid = tcl_dialect::DialectProfile::all()
         .iter()
         .map(|profile| profile.name)
@@ -22237,7 +22262,7 @@ fn apl_presentation_diagnostics(
     tcl_bigip::apl::validate_iapp_presentation(
         &model,
         impl_var_refs,
-        tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+        tcl_lsp_core::profile_for_dialect(IAPPS_DIALECT),
     )
     .into_iter()
     .filter(|d| !disabled.contains(&d.code))
@@ -24006,15 +24031,21 @@ fn empty_diagnostic_report() -> DocumentDiagnosticReportResult {
 }
 
 /// Whether `name` is a dialect the server accepts wherever a dialect *name* is
-/// configured — `initializationOptions.folderDialects` and the per-folder
-/// `tclLsp.dialect` pulled by `workspace/configuration`.
+/// configured — `initializationOptions.folderDialects`, the per-folder
+/// `tclLsp.dialect` pulled by `workspace/configuration`, and the
+/// `setDialect` / `setSessionDialectOverride` commands.
 ///
-/// Valid names: any catalog profile (including the config-only f5-tmsh /
-/// f5-bigip / bpf, which a bare `DialectSet::parse` check wrongly rejects) plus
-/// `tk` (a parseable library shell, not a profile — §7.2).  One predicate so
-/// the two configuration paths cannot drift apart on what they accept.
+/// **Ledger row F9**: the validators this replaced (`DialectProfile::find` ∪
+/// `DialectSet::parse` here, and `available_dialects()`'s
+/// canonical-names-only membership in the two commands) are now one
+/// `Environment::resolve` — so every configuration path accepts exactly the
+/// declared names: canonical environment ids, their aliases, and the
+/// contributed editor identities. That is a superset of what the old
+/// predicates took (an alias or editor id no longer depends on which of the
+/// two tables a name happened to be in), and an unknown name is still
+/// rejected.
 fn is_known_dialect_name(name: &str) -> bool {
-    tcl_dialect::DialectProfile::find(name).is_some() || DialectSet::parse(name).is_some()
+    tcl_registry::model::is_known_environment_name(name)
 }
 
 /// Resolve the per-folder dialect override for the given URI. The

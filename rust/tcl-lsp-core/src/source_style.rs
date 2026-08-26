@@ -296,7 +296,7 @@ pub fn check_line_endings(source: &str, expected: &str) -> Vec<StyleDiagnostic> 
 /// comments.
 #[must_use]
 pub fn check_comment_continuation(source: &str) -> Vec<StyleDiagnostic> {
-    check_comment_continuation_for_dialect(source, tcl_dialect::DialectProfile::by_name("tcl9.0"))
+    check_comment_continuation_for_dialect(source, crate::profile_for_dialect("tcl9.0"))
 }
 
 /// Dialect-aware W115 detector. Comment position is a lexer/registry fact,

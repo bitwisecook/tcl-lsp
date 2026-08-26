@@ -33,6 +33,11 @@
 //! - [`assembly`] — [`ContextRegistry`]: per-environment registry
 //!   generations assembled by provider filtering instead of bit loading,
 //!   cached by `(environment identity, keyed-versions hash)`.
+//! - [`ingress`] — the one dialect-**name** ingress seam
+//!   ([`resolve_environment`]): every user-written dialect string in the
+//!   toolchain resolves to a [`DocumentEnvironment`] here, and derives its
+//!   registry generation and interop profile from the resolved
+//!   environment (centralisation R-a, ledger C2/F2/F3/F9).
 //! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
 //!   (I3–I5) plus the package realm vocabulary
 //!   ([`PackageStateMap`], [`PackageTransition`]); realm integration
@@ -46,6 +51,7 @@
 pub mod assembly;
 pub mod binding;
 pub mod context;
+pub mod ingress;
 pub mod surface;
 
 pub use assembly::{
@@ -54,6 +60,11 @@ pub use assembly::{
 };
 pub use binding::{BindingKnowledge, PackageState, PackageStateMap, PackageTransition, SpecKey};
 pub use context::{ContextQueries, FloorMap, KeyedVersions, ResolvedContext, specificity_breadth};
+pub use ingress::{
+    DocumentEnvironment, context_for_profile, environments, irules_context,
+    is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
+    static_context_for_profile, static_document_context_for, static_document_context_for_profile,
+};
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,
     declarations_for_spec,

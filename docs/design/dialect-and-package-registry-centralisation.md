@@ -229,17 +229,40 @@ its replacement.
 
 ### Front end
 
+**Status: LSP side ported (P1-F wave 2).** `tcl-lsp-core`, `tcl-lsp-db`
+and `tcl-lsp-server` now resolve every dialect-name ingress through the
+**one shared seam**, `tcl_registry::model::ingress` — the wave-1
+implementation moved out of `tcl-compiler`'s `environment_ingress`
+(which now delegates to it) into the registry model, the only crate that
+can express both halves of a resolved document environment (the
+`tcl-dialect` definition *and* its `ContextRegistry` generation).
+`tcl-lsp-core`'s `profile_for_dialect` / `optional_profile_for_dialect` /
+`registry_for_dialect_profile` are re-expressed on it and joined by
+`environment_for_dialect`, `stated_profile_for_dialect`,
+`context_for_dialect` (the generation) and `document_context_for_dialect`
+(the assistance view); the salsa `registry` / `registry_with_overlay`
+doors, the server's `Backend::registry_for_dialect`, the editor
+language-id ingress, and both configuration validators go through it too.
+Availability, option, subcommand, keyed-range and placement-floor
+questions are answered by `ResolvedContext`, not `ProfileQueries` — under
+the **document authoring mask**
+(`DocumentEnvironment::document_authoring_mask`), which equals the
+threaded profile's `availability_mask` for every profile an ingress can
+produce and is test-pinned to it, so the `tk` ingress keeps the additive
+`TK` bit its environment's own derivation deliberately lacks. Old APIs
+remain for other crates; deletion is P1-G.
+
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| F1 | The four mixed lookup APIs as provider-facing surface (`get`, `get_for_dialect`/`best_visible`, `ProfileQueries::resolve_command`, `DocumentFloor`) | two typed views: assistance `(environment, floors)` and semantic realm `BindingKnowledge`; `get` becomes registry-internal | P1a |
-| F2 | `profile_for_dialect` + `registry_for_dialect_profile` (ruling B's hop) and their pin tests | environment registry ingress | P1 |
-| F3 | `LanguageDialect::{Profile,Set}` (Set exists only for `tk`) | environment handle | P1 |
-| F4 | `tk_loaded` computations, `tk_preview`'s `profile_for_dialect("tk")`, `hosts_tk()` consumers, `TK_PACKAGE` substring activation | "provider `Tk` active" placement query | P1/P3 |
-| F5 | Semantic-token's process-wide `f5-irules` registry `OnceLock`; `bigip.rs`'s hardcoded dialect strings | environment-keyed, generation-aware handles | P1 |
+| F1 | The four mixed lookup APIs as provider-facing surface (`get`, `get_for_dialect`/`best_visible`, `ProfileQueries::resolve_command`, `DocumentFloor`) | two typed views: assistance `(environment, floors)` and semantic realm `BindingKnowledge`; `get` becomes registry-internal | P1a *(partial: the assistance half is ported — no LSP crate calls `ProfileQueries`, and `DocumentFloor` now reads placements/floors off the resolved context; `get`/`get_for_dialect` stay provider-facing until the realm view lands)* |
+| F2 | `profile_for_dialect` + `registry_for_dialect_profile` (ruling B's hop) and their pin tests | environment registry ingress | P1 **done** *(both are now thin faces of `resolve_environment`; the `tk` triangle the hop existed to reproduce is gone — `tk` is an environment, its store is the same plain-Tcl `Arc`, and the `TK` fact is `is_tk`)* |
+| F3 | `LanguageDialect::{Profile,Set}` (Set exists only for `tk`) | environment handle | P1 **done** *(one arm: the resolved environment's `unit_profile`; the language-id ingress accepts a contributed identity, never a legacy alias — review B7)* |
+| F4 | `tk_loaded` computations, `tk_preview`'s `profile_for_dialect("tk")`, `hosts_tk()` consumers, `TK_PACKAGE` substring activation | "provider `Tk` active" placement query | P1/P3 *(partial: `tk_loaded` is the resolved-environment identity and `hosts_tk` is `can_host_package("Tk")` — a placement query; `package_active("Tk")` proper waits for the P3 pilot to make the placement ambient, and with it the document mask's `TK` bit)* |
+| F5 | Semantic-token's process-wide `f5-irules` registry `OnceLock`; `bigip.rs`'s hardcoded dialect strings | environment-keyed, generation-aware handles | P1 **done** *(both resolve through the seam; the `OnceLock` memoises the generation's store rather than a name-keyed cache entry)* |
 | F6 | Environment-blind workspace index symbols | realm/environment-keyed index rows feeding the four-tier known-anywhere model | P1a |
-| F7 | `registry_with_overlay`'s silent un-overlaid fallback | fail-closed rebuild-or-error on generation miss | P2 |
-| F8 | Salsa `dialect: String` inputs and interned keys; `LexerCfgKey`/`ProcBodyKey` two-field truncation | `(environment id, generation, overlay hash, targets)` keys; grammar-id lexer keys | P1 |
-| F9 | `getEffectiveConfig`'s dialect fields, `listDialects`, `setDialect` validators | environment/targets/realm status surface, `listEnvironments`, `Environment::resolve` | P1 |
+| F7 | `registry_with_overlay`'s silent un-overlaid fallback | fail-closed rebuild-or-error on generation miss | P2 *(unchanged by wave 2: the door is now `DocumentEnvironment::context_registry`, which threads the overlay key exactly as `registry_for_profile_if_built` did — including the silent fallback)* |
+| F8 | Salsa `dialect: String` inputs and interned keys; `LexerCfgKey`/`ProcBodyKey` two-field truncation | `(environment id, generation, overlay hash, targets)` keys; grammar-id lexer keys | P1 *(partial: every read of a salsa `dialect` string now resolves through the seam; the key types themselves are still `String`-shaped)* |
+| F9 | `getEffectiveConfig`'s dialect fields, `listDialects`, `setDialect` validators | environment/targets/realm status surface, `listEnvironments`, `Environment::resolve` | P1 *(partial: all four validators — `folderDialects`, folder `tclLsp.dialect`, `setDialect`, `setSessionDialectOverride` — are one `Environment::resolve`, and `getEffectiveConfig`'s labels are reached from the resolved environment; `listDialects` still enumerates `DialectProfile::all()` because the environment list has different contents and no `short_name`, so it is a payload change, not a refactor)* |
 | F10 | W120 fix-from-whole-file, the package-require code action's name-matching gate | assistance-labelled diagnostics; edits gated on `Must`/`May` declarations and the `PackageResolver` | P1a |
 | F11 | `TclVersion::from_dialect` in W123 refinement | target `VersionSet` evaluation with honest `Unknown` on guard straddles | P1b |
 | F12 | Hand-written Sublime `_SYNTAX_DIALECT_MAP` (missing `tcl8.6`/`tcl9.1` rows today) | generated projection + drift gate | P1 |
@@ -276,8 +299,8 @@ for other crates; deletion is P1-G.
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
 | C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 *(partial: compiler no longer calls `availability_for_name` or synthesises `TK_PROFILE` from names; `DialectSet`-typed plumbing inside spec data and semantic-facts bundles remains until P1-G)* |
-| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 *(compiler ported: every `tcl-compiler` name ingress resolves through the one environment resolver; `special_vars::resolve_dialect` and the non-compiler validators remain)* |
-| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | P1a *(partial: the compiler's analyser-hook, lowering-hook, type-infer, and shimmer callers now go through the context-carrying model primitives with selection unchanged — the documented P1a seam; lsp-db and the remaining `invocation_traits(…, empty)` readers follow in wave 2/P1a)* |
+| C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 *(compiler and LSP ported: the resolver lives in `tcl_registry::model::ingress` and every `tcl-compiler`, `tcl-lsp-core`, `tcl-lsp-db` and `tcl-lsp-server` name ingress goes through it — `by_name`, `by_opt_name`, `resolve_known`, `availability_for_name`, `available_dialects` membership and raw `DialectSet::parse` have no non-test caller left in those four crates; `special_vars::resolve_dialect` and the tooling/editor validators remain)* |
+| C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | P1a *(partial: the compiler's analyser-hook, lowering-hook, type-infer, and shimmer callers now go through the context-carrying model primitives with selection unchanged — the documented P1a seam; `lsp-db` holds no such bypass of its own, and the remaining `invocation_traits(…, empty)` readers follow in P1a)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | P1a |
 | C5 | `KnownPredicateCtx`'s unfiltered `builtin_command_names()` and the settlement-vs-W123 oracle split | the one `exists` oracle (R-c) | P1a |
 | C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a |

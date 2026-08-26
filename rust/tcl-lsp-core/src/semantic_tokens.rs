@@ -826,7 +826,7 @@ fn bigip_conf_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in collect_entries(
             body,
-            tcl_dialect::DialectProfile::irules(),
+            crate::profile_for_dialect("f5-irules"),
             registry,
             None,
             WorkspaceTokenFacts::default(),
@@ -912,7 +912,7 @@ fn apl_entries(source: &str, registry: &CommandRegistry) -> Vec<Entry> {
         let origin = line_index.position_at_utf16(u32::try_from(bstart).unwrap_or(0), source);
         for (line, col, len, kind, mods) in collect_entries(
             body,
-            tcl_dialect::DialectProfile::by_name(IAPPS_DIALECT),
+            crate::profile_for_dialect(IAPPS_DIALECT),
             registry,
             None,
             WorkspaceTokenFacts::default(),
@@ -1200,12 +1200,15 @@ pub fn range_with_cu_and_facts(
 /// [`legend_token_modifiers`]).
 type Entry = (u32, u32, u32, TokenKind, u32);
 
-/// The process-wide iRules registry, for the dialect-independent
-/// `when EVENT` overlay ([`special_arg_kinds`]) — resolved once so the
-/// per-command fallback lookup skips `registry_for_dialect`'s cache mutex.
+/// The process-wide iRules command store, for the dialect-independent
+/// `when EVENT` overlay ([`special_arg_kinds`]) — the `f5-irules`
+/// environment's registry generation (ledger row F5: the handle is now
+/// environment-keyed and generation-aware, resolved through the one
+/// ingress seam), memoised so the per-command fallback lookup skips the
+/// generation cache's mutex.
 fn irules_registry() -> &'static CommandRegistry {
     static IRULES: std::sync::OnceLock<&'static CommandRegistry> = std::sync::OnceLock::new();
-    IRULES.get_or_init(|| tcl_registry::registry_for_dialect("f5-irules"))
+    IRULES.get_or_init(|| crate::registry_for_dialect("f5-irules"))
 }
 
 /// Return the source offsets whose commands are admitted by the shared
@@ -5000,7 +5003,7 @@ fn collect_script(
             ctx.classes,
             ctx.analysis
                 .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-            ctx.dialect.availability_mask,
+            crate::document_context_for_profile(ctx.dialect).authoring_mask(),
             ctx.extra_var_write,
             ctx.extra_var_read,
             ctx.extra_command,
@@ -5154,7 +5157,7 @@ fn merge_list_quoted_command_overrides(
         ctx.classes,
         ctx.analysis
             .map(|analysis| crate::document_floor::DocumentFloor::new(analysis, ctx.dialect)),
-        ctx.dialect.availability_mask,
+        crate::document_context_for_profile(ctx.dialect).authoring_mask(),
         ctx.extra_var_write,
         ctx.extra_var_read,
         ctx.extra_command,

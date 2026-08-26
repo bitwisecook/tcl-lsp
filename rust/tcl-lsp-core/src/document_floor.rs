@@ -33,7 +33,7 @@
 //! (issue #1627) rather than asking mid-walk.
 
 use tcl_compiler::analyser::AnalysisResult;
-use tcl_registry::profile_queries::ProfileQueries as _;
+use tcl_registry::model::KeyedVersions;
 
 /// One document's resolved-floor context, as a request-time provider sees it.
 ///
@@ -73,10 +73,15 @@ impl<'a> DocumentFloor<'a> {
     /// lifecycle query.
     #[must_use]
     pub fn for_spec(&self, spec: &tcl_registry::CommandSpec) -> Option<&'a str> {
-        let package = self
-            .profile
-            .keyed_pin_for(spec)
-            .map(|pin| pin.package)
+        // The environment's resolved context owns the placements the old
+        // profile's `libraries` table did; the session's keyed override is
+        // applied over it below, so this reads the *default-keyed*
+        // (process-lifetime) generation and keeps every borrow static —
+        // exactly the split `library_floor` / `library_floor_default` drew.
+        let context = crate::document_context_for_profile(self.profile);
+        let package = context
+            .keyed_ambient_placement(spec)
+            .map(|placement| placement.package.as_ref())
             .or_else(|| spec.owning_package())?;
         let require_floor = self
             .analysis
@@ -86,9 +91,16 @@ impl<'a> DocumentFloor<'a> {
             .filter_map(|req| req.version.as_deref())
             .map(tcl_registry::version::requirement_lower_bound)
             .max_by(|a, b| tcl_registry::version::compare(a, b));
-        let pin_floor = self
-            .profile
-            .library_floor(package, &self.analysis.library_versions);
+        let pin_floor = context
+            .placement_keyed_axis(package)
+            .and_then(|axis| {
+                KeyedVersions::override_spelling(&self.analysis.library_versions, axis)
+            })
+            .or_else(|| {
+                context
+                    .placement_floor(package)
+                    .map(tcl_dialect::model::Version::as_str)
+            });
         match (pin_floor, require_floor) {
             (Some(pin), Some(required)) => {
                 if tcl_registry::version::compare(required, pin).is_gt() {

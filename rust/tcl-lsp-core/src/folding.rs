@@ -132,7 +132,7 @@ pub fn folding_ranges(
         tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
-        availability: dialect.availability_mask,
+        availability: crate::document_context_for_profile(dialect).authoring_mask(),
         identities: &identities,
         line_index: &line_index,
         original_source: source,

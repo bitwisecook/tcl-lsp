@@ -264,9 +264,9 @@ pub struct FormatterConfig {
     /// profile and are derived from it here, so a caller can no longer set a
     /// strict subset and format an iRule with the Tcl 9 lexer.
     ///
-    /// Defaults to [`DialectProfile::plain_tcl`] — the permissive modern-Tcl
-    /// profile: the 9.x lexing grammar, no candidate filter, and no forward
-    /// range. Resolve a real one with [`Self::for_profile`] or
+    /// Defaults to the lenient environment's profile — the permissive
+    /// modern-Tcl one: the 9.x lexing grammar, no candidate filter, and no
+    /// forward range. Resolve a real one with [`Self::for_profile`] or
     /// [`Self::for_dialect`] (which alias-normalises, so both iRules
     /// spellings land on the same profile).
     pub profile: &'static DialectProfile,
@@ -313,7 +313,8 @@ impl Default for FormatterConfig {
             docstring_decoration_width: 70,
             expand_abbreviations: true,
             boolean_form: BooleanForm::TrueFalse,
-            profile: DialectProfile::plain_tcl(),
+            // The "no dialect stated" ingress, through the one seam.
+            profile: crate::profile_for_dialect(""),
             target_range_override: None,
         }
     }
@@ -355,14 +356,15 @@ impl FormatterConfig {
         }
     }
 
-    /// [`Self::for_profile`] from a dialect *name*, resolved through
-    /// [`DialectProfile::by_name`] — so an alias spelling (`irules`,
-    /// `tcl-irule`) selects the same `f5-irules` profile as the canonical
-    /// name, and an unknown name lands on the permissive modern-Tcl
-    /// fallback rather than a mismatched default.
+    /// [`Self::for_profile`] from a dialect *name*, resolved through the
+    /// one environment ingress ([`crate::profile_for_dialect`]) — so an
+    /// alias spelling (`irules`, `tcl-irule`), an editor language id, and
+    /// the canonical name all select the same environment, and an unknown
+    /// name lands on the permissive modern-Tcl fallback rather than a
+    /// mismatched default.
     #[must_use]
     pub fn for_dialect(dialect: &str) -> Self {
-        Self::for_profile(tcl_dialect::DialectProfile::by_name(dialect))
+        Self::for_profile(crate::profile_for_dialect(dialect))
     }
 
     /// The lexer preset the formatter tokenises with, from the profile's
@@ -387,7 +389,7 @@ impl FormatterConfig {
         if self.profile.is_fallback() {
             None
         } else {
-            Some(self.profile.availability_mask)
+            Some(crate::document_context_for_profile(self.profile).authoring_mask())
         }
     }
 

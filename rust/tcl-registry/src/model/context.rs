@@ -112,6 +112,21 @@ impl KeyedVersions {
         })
     }
 
+    /// The raw override *spelling* for `axis`, if the session pinned one —
+    /// the borrow-preserving half of [`Self::from_overrides`], for the
+    /// floor readers whose answer must keep the caller's lifetime rather
+    /// than borrow from a resolved context (the LSP's `DocumentFloor`;
+    /// the old `DialectProfile::library_floor`'s keyed arm).
+    #[must_use]
+    pub fn override_spelling(overrides: &LibraryVersionOverrides, axis: KeyedAxis) -> Option<&str> {
+        match axis {
+            KeyedAxis::BigipVersion => overrides.bigip_version.as_deref(),
+            KeyedAxis::ToolVersion => overrides.tool_version.as_deref(),
+            KeyedAxis::SdcVersion => overrides.sdc_version.as_deref(),
+            KeyedAxis::UpfVersion => overrides.upf_version.as_deref(),
+        }
+    }
+
     /// A stable content hash for registry-generation cache keys. Hashes the
     /// pins' spellings, so comparator-equal spellings (`1.2` / `1.2.0`)
     /// conservatively miss rather than alias.
@@ -454,6 +469,29 @@ impl ResolvedContext {
         self.authoring_mask
     }
 
+    /// This context with its **transitional** authoring mask replaced —
+    /// the P1-F interop door, and the only way that field is ever anything
+    /// but [`compute_authoring_mask`]'s derivation.
+    ///
+    /// The one sanctioned user is the document ingress's `tk` promotion
+    /// ([`crate::model::DocumentEnvironment::document_context`]): `tk` is an
+    /// environment whose *derived* mask is the permissive fallback's — the
+    /// parity sweep pins that, because the analyser has always resolved the
+    /// `tk` name to the fallback profile — while the profile a `tk`
+    /// document threads carries the additive `TK` bit, and every consumer
+    /// asking a mask-shaped availability question about a `tk` document has
+    /// always been answered under that wider mask. P3 deletes this along
+    /// with the mask itself: once the Tk pilot makes the placement ambient,
+    /// `package_active("Tk")` puts Tk in the world for real and the
+    /// declaration rows answer without a bit.
+    #[must_use]
+    pub fn with_authoring_mask(&self, authoring_mask: DialectSet) -> Self {
+        Self {
+            authoring_mask,
+            ..self.clone()
+        }
+    }
+
     /// The environment's option-gating version ceiling — the old
     /// `version_ceiling` (§5.2 upper bound), from environment policy.
     #[must_use]
@@ -517,6 +555,20 @@ impl ResolvedContext {
     pub fn placement_floor(&self, package: &str) -> Option<&Version> {
         self.placement(package)?;
         self.floors.primary(&VersionAxisId::package(package))
+    }
+
+    /// The externally-keyed axis `package`'s placement sits on, if any —
+    /// the old `LibraryVersion::Keyed(key)` arm of
+    /// `DialectProfile::library_floor`, exposed so a floor reader can apply
+    /// its own session override spelling
+    /// ([`KeyedVersions::override_spelling`]) without rebuilding the
+    /// context for every distinct pin.
+    #[must_use]
+    pub fn placement_keyed_axis(&self, package: &str) -> Option<KeyedAxis> {
+        match self.placement(package)?.version {
+            Placement::Keyed(axis) => Some(axis),
+            _ => None,
+        }
     }
 
     /// The highest floor loaded packs declared for `package` as ambient —

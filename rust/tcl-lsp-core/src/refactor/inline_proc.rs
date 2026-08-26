@@ -146,7 +146,7 @@ pub fn inline_proc_in_program(
     // 9.0).  `AnalysisResult::dialect` carries the name the host passed to
     // `Analyser::analyse`; an empty (default-constructed) one resolves to the
     // permissive `plain_tcl` profile, i.e. modern rules.
-    let numbers = tcl_dialect::DialectProfile::by_name(&analysis.dialect)
+    let numbers = crate::profile_for_dialect(&analysis.dialect)
         .grammar
         .numbers;
     // …and its `${…}` close rule, for the same reason: which bytes are the
