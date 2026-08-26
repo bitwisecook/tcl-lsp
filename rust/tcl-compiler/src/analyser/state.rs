@@ -377,6 +377,20 @@ pub struct Analyser {
     /// answer — availability masks, behaviour policies, the lexer grammar —
     /// from this; the original string round-trips as [`Self::dialect`].
     pub profile: &'static tcl_dialect::DialectProfile,
+    /// The resolved document environment (centralisation R-a): set beside
+    /// [`Self::profile`] at each `analyse*` ingress by
+    /// [`crate::environment_ingress::resolve_environment`]. The profile
+    /// above is now *derived from* this resolution (wave-1 interop, gone
+    /// in P1-G); availability queries go through
+    /// [`Self::analysis_context`] instead of the profile.
+    pub(super) environment: Option<crate::environment_ingress::DocumentEnvironment>,
+    /// The registry generation this walk reads — the per-context
+    /// [`tcl_registry::model::ContextRegistry`] carrying both the
+    /// availability context and the (possibly pack-overlaid) command
+    /// store [`Self::registry`] aliases. Stashed by the `analyse*`
+    /// entries; [`Self::analysis_context`] supplies the bare-harness
+    /// fallback.
+    pub(super) context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     /// The identity of the `SpecTcl` pack set layered onto this dialect's
     /// registry — the `PackSet::key` its owner installed under, or `0` for
     /// "no packs".
@@ -1404,6 +1418,8 @@ impl Analyser {
             current_scope_path: Vec::new(),
             source: String::new(),
             profile: tcl_dialect::DialectProfile::plain_tcl(),
+            environment: None,
+            context: None,
             pack_overlay: 0,
             disabled_diagnostics: disabled,
             extra_commands: Arc::new(HashSet::new()),
@@ -1516,18 +1532,53 @@ impl Analyser {
         self
     }
 
-    /// The registry this analysis reads: the cached per-profile one, carrying
-    /// [`Self::pack_overlay`]'s packs when that entry exists.
+    /// The registry this analysis reads: the walk's generation's command
+    /// store, carrying [`Self::pack_overlay`]'s packs when that entry
+    /// exists.
     ///
-    /// **Look-up only.** Building the entry needs the pack *contents*, which
-    /// only the loader has, so a miss falls back to the un-overlaid registry
-    /// rather than caching a pack-less one under the pack's key forever. A miss
-    /// means the packs are not installed yet — the state the process was in a
-    /// moment ago — so the fallback is the honest answer, not a wrong one.
+    /// **Look-up only.** Building an overlay entry needs the pack
+    /// *contents*, which only the loader has, so a miss falls back to the
+    /// un-overlaid generation rather than caching a pack-less one under
+    /// the pack's key forever. A miss means the packs are not installed
+    /// yet — the state the process was in a moment ago — so the fallback
+    /// is the honest answer, not a wrong one.
     #[must_use]
     pub fn profile_registry(&self) -> std::sync::Arc<tcl_registry::registry::CommandRegistry> {
-        tcl_registry::cache::registry_for_profile_if_built(self.profile, self.pack_overlay)
-            .unwrap_or_else(|| tcl_registry::cache::registry_handle_for_profile(self.profile))
+        std::sync::Arc::clone(self.analysis_context().commands())
+    }
+
+    /// The registry generation this analysis answers under — the
+    /// [`tcl_registry::model::ContextRegistry`] stashed at the `analyse*`
+    /// ingress ([`Self::resolve_walk_environment`]), or — for a bare
+    /// harness driving handlers without an ingress — the generation of
+    /// the stashed profile's environment at this walk's overlay key.
+    /// Availability queries read `.context()`; raw spec content reads
+    /// `.commands()`.
+    #[must_use]
+    pub(crate) fn analysis_context(&self) -> std::sync::Arc<tcl_registry::model::ContextRegistry> {
+        if let Some(context) = &self.context {
+            return std::sync::Arc::clone(context);
+        }
+        let environment = crate::environment_ingress::resolve_environment(self.profile.name);
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        environment.context_registry(&keyed, self.pack_overlay)
+    }
+
+    /// Resolve `dialect` at a walk ingress (centralisation R-a): stash
+    /// the environment and this walk's registry generation, derive the
+    /// interop [`Self::profile`], and return whether the document runs
+    /// the `tk` environment (the fact `availability_for_name`'s `TK`-bit
+    /// union used to carry).
+    pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        self.profile = environment.analyser_profile();
+        let tk_environment = environment.is_tk();
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        self.context = Some(environment.context_registry(&keyed, self.pack_overlay));
+        self.environment = Some(environment);
+        tk_environment
     }
 
     /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
@@ -1700,7 +1751,7 @@ impl Analyser {
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_environment = self.resolve_walk_environment(dialect);
         // Tell pack hooks which dialect they are running under, for the
         // length of this walk. A hook's `ctx.dialect` used to be derived from
         // the call's `TclVersion`, which can only spell a release — so an
@@ -1711,10 +1762,9 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
         self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+            super::tk_checks::tk_checks_could_apply(source, tk_environment);
+        self.tk_dialect = tk_environment;
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -1753,10 +1803,7 @@ impl Analyser {
         // runs per segmented command in the dispatch loop below.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
         // Inline ``# tcl-lsp: stub …`` block scan.  After
         // capturing the parsed records, build the per-document
@@ -2116,13 +2163,12 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_environment = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
         self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+            super::tk_checks::tk_checks_could_apply(source, tk_environment);
+        self.tk_dialect = tk_environment;
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2142,10 +2188,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
 
         // Build + stash the dialect-aware registry so
@@ -2213,13 +2256,12 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_environment = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
         self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, availability);
-        self.tk_dialect = availability.contains(tcl_dialect::DialectSet::TK);
+            super::tk_checks::tk_checks_could_apply(source, tk_environment);
+        self.tk_dialect = tk_environment;
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2237,10 +2279,7 @@ impl Analyser {
         // rationale.
         merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
 
         // Same registry + line-index prelude as
@@ -2334,20 +2373,16 @@ impl Analyser {
         // path would walk, or leaves any partial command.  (This also subsumes
         // the plain-segmentation-metadata check: the recovery segmenter is the
         // authority on the command stream + its attached comments.)
-        let registry = tcl_registry::cache::registry_for_profile_if_built(
-            tcl_dialect::DialectProfile::by_name(dialect),
-            self.pack_overlay,
-        )
-        .unwrap_or_else(|| {
-            tcl_registry::cache::registry_handle_for_profile(tcl_dialect::DialectProfile::by_name(
-                dialect,
-            ))
-        });
-        let known: std::collections::HashSet<&str> = registry.command_names().collect();
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        let keyed =
+            crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
+        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let known: std::collections::HashSet<&str> =
+            generation.commands().command_names().collect();
         let recovery_cmds = crate::segmenter::segment_commands_with_recovery_and_config(
             new_text,
             &known,
-            tcl_lexer::LexerConfig::for_dialect(dialect),
+            tcl_lexer::LexerConfig::from_grammar(environment.analyser_profile().grammar),
         );
         if recovery_cmds != cmds || recovery_cmds.iter().any(|c| c.is_partial) {
             return self.fresh_full_analyse(new_text, dialect);
@@ -2729,6 +2764,8 @@ impl Analyser {
 
     pub(super) fn clear_run_state(&mut self) {
         self.registry = None;
+        self.context = None;
+        self.environment = None;
         self.command_trust = None;
         self.objdefine_bindings.clear();
         self.objdefine_abort_candidates.clear();

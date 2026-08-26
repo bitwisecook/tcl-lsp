@@ -43,7 +43,7 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-use tcl_dialect::{DialectSet, NumberSyntax};
+use tcl_dialect::NumberSyntax;
 use tcl_registry::{CommandRegistry, ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_syntax::number::{Number, ParseFlags, parse_whole_with};
 
@@ -951,8 +951,7 @@ fn value_word_type<S: std::hash::BuildHasher>(
         // (subsuming the old object-only collection retrieval — an
         // `Object(class)` element shape IS the `OBJECT(class)` result).
         if let Some(resolved) =
-            ctx.registry
-                .resolve_invocation(&cmd, &arg_refs, DialectSet::empty())
+            tcl_registry::model::resolve_invocation_in_context(ctx.registry, None, &cmd, &arg_refs)
             && let Some(fact) = resolved.semantics.return_elements
         {
             // The fact's indices are relative to after the subcommand word
@@ -1056,9 +1055,12 @@ fn evaluate_type_def<S: std::hash::BuildHasher>(
                 return DefTyping::Uniform(value_word_type(ctx, arg_refs[1]));
             }
 
-            let resolved = ctx
-                .registry
-                .resolve_invocation(canon, &arg_refs, DialectSet::empty());
+            let resolved = tcl_registry::model::resolve_invocation_in_context(
+                ctx.registry,
+                None,
+                canon,
+                &arg_refs,
+            );
 
             // An in-place element write (`lappend VAR v…`, `dict set VAR … v`)
             // evolves the target's container elements — the registry's

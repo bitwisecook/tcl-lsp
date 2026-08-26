@@ -31,7 +31,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::{Arity, ProfileQueries};
+use tcl_registry::Arity;
 
 use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
@@ -826,7 +826,7 @@ impl Analyser {
                     tcl_registry::InvocationWord::Literal(cmd_name),
                     &words,
                 ),
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             )
             .resolved()
             .and_then(|invocation| invocation.validate_literal_arguments())
@@ -927,17 +927,18 @@ impl Analyser {
         if bare.is_empty() {
             return;
         }
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
-        // EXISTS in the active dialect profile → fine.  UNKNOWN everywhere →
+        let generation = self.analysis_context();
+        // EXISTS in the active dialect's context → fine.  UNKNOWN everywhere →
         // W123's concern.  Only DISALLOWED (exists in some dialect, not this
-        // one) fires.  Resolution goes through the profile so the composed
-        // (version|vendor) mask admits the dialect's embedded Tcl core and
-        // the subtractive iRules disable list stays applied after the mask
-        // query.  Existence must be checked *dialect-agnostically*: the
-        // analyser registry only loads the active dialect, so `get(bare)`
-        // misses an iRules command like `when`/`log`/`session` under
-        // tcl8.6, so use the dialect-independent `known_in_any_dialect`.
-        if profile.resolve_command(registry, bare).is_some() || !registry.known_in_any_dialect(bare)
+        // one) fires.  Resolution goes through the resolved context so the
+        // composed (version|vendor) authoring mask admits the dialect's
+        // embedded Tcl core.  Existence must be checked
+        // *dialect-agnostically*: the analyser registry only loads the
+        // active dialect, so `get(bare)` misses an iRules command like
+        // `when`/`log`/`session` under tcl8.6, so use the
+        // dialect-independent `known_in_any_dialect`.
+        if generation.context().resolve_spec(registry, bare).is_some()
+            || !registry.known_in_any_dialect(bare)
         {
             return;
         }
@@ -992,7 +993,8 @@ impl Analyser {
             return Some(super::dispatch::signature_for_scoped_command(scoped));
         }
         let registry = self.registry.as_deref()?;
-        super::dispatch::signature_for_command(registry, cmd_name, self.profile)
+        let generation = self.analysis_context();
+        super::dispatch::signature_for_command(registry, cmd_name, generation.context())
     }
 
     /// **W001.** Emit "Unknown subcommand" warning for commands
@@ -2029,16 +2031,19 @@ impl Analyser {
     /// require argparse` has proven the identity, W120 does not fire, and a
     /// bad-arity call to it is still an error.
     fn spec_is_an_unloaded_package_command(&self, name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
-        let Some(pkg) = self
-            .profile
-            .resolve_command(registry, name)
+        // Resolution reads the un-overlaid generation's store (as the old
+        // `registry_for_profile` call did); the ambient answer reads this
+        // walk's own — possibly pack-overlaid — context, exactly the old
+        // `profile_registry().is_ambient_package` split.
+        let base = crate::environment_ingress::context_for_profile(self.profile);
+        let Some(pkg) = base
+            .context()
+            .resolve_spec(base.commands(), name)
             .and_then(tcl_registry::CommandSpec::owning_package)
         else {
             return false;
         };
-        if self.profile_registry().is_ambient_package(pkg) {
+        if self.analysis_context().context().ambient_package(pkg) {
             return false;
         }
         !self
@@ -3459,7 +3464,7 @@ options. To unset a variable whose name begins with `-`, put `--` before it \
         let Some(call) = tcl_registry::private_tcl_namespaces::classify_private_tcl_namespace_call(
             cmd_name,
             registry,
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
         ) else {
             return;
         };
@@ -3796,8 +3801,10 @@ before this value so it is treated as data, not an option."
             {
                 return None;
             }
-            let sub =
-                spec.resolve_subcommand_for_dialect(&args[0], self.profile.availability_mask)?;
+            let sub = spec.resolve_subcommand_for_dialect(
+                &args[0],
+                self.analysis_context().context().authoring_mask(),
+            )?;
             // A two-level ensemble dispatches once more on the next word, and
             // its operations can carry genuinely different option tables
             // (`namespace ensemble create` vs `configure`, issue #1610). Read
@@ -3813,7 +3820,7 @@ before this value so it is treated as data, not an option."
             });
             let scope = sub.option_scope(
                 dispatch.map(String::as_str),
-                Some(self.profile.availability_mask),
+                Some(self.analysis_context().context().authoring_mask()),
                 None,
                 spec.dialects,
             );
@@ -3926,7 +3933,12 @@ before this value so it is treated as data, not an option."
                 // version ceiling — an inherited option on a vendor command
                 // resolves under that vendor's composed profile, and a
                 // later-version option never leaks below its ceiling.
-                if !self.profile.is_option_available(opt, parent_dialects) && i < arg_tokens.len() {
+                if !self
+                    .analysis_context()
+                    .context()
+                    .option_available(opt, parent_dialects)
+                    && i < arg_tokens.len()
+                {
                     let span = arg_tokens[i].span;
                     // Message exactly: `Option 'X' on 'cmd'[ sub] is not
                     // available in the active dialect (D).`
@@ -3958,9 +3970,10 @@ in the active dialect ({}).",
             // abbreviation. A unique prefix is legal and is left to the
             // canonical-option handling above once resolved; an ambiguous one
             // is a guaranteed runtime error (W145, issue #1234).
+            let generation = self.analysis_context();
             let table = option_keyword_table(
                 options,
-                |opt| self.profile.is_option_available(opt, parent_dialects),
+                |opt| generation.context().option_available(opt, parent_dialects),
                 prefix_matching,
             );
             match table.resolve(arg) {
@@ -4302,7 +4315,7 @@ Vec::new()));
     /// version (nothing for W003 to check — see [`gated_operator_name`],
     /// which does the real per-operator gate comparison against this).
     fn w003_gates(&self) -> Option<(tcl_dialect::TclVersion, bool)> {
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
+        let profile = self.profile;
         profile
             .expr_grammar_base
             .map(|base| (base, profile.is_irules()))

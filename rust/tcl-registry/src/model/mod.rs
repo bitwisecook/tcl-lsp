@@ -48,7 +48,10 @@ pub mod binding;
 pub mod context;
 pub mod surface;
 
-pub use assembly::{ContextRegistry, registry_for_environment};
+pub use assembly::{
+    ContextRegistry, registry_for_environment, registry_for_environment_if_built,
+    resolve_call_in_context, resolve_invocation_in_context, side_effect_hints_in_context,
+};
 pub use binding::{BindingKnowledge, PackageState, PackageStateMap, PackageTransition, SpecKey};
 pub use context::{ContextQueries, FloorMap, KeyedVersions, ResolvedContext, specificity_breadth};
 pub use surface::{

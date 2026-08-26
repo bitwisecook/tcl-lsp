@@ -105,6 +105,7 @@ mod depth_guard;
 pub mod dispatch_proof;
 pub mod dynamic_names;
 pub mod effect_ssa;
+pub(crate) mod environment_ingress;
 pub mod executable_ir;
 // The `expr` AST + Pratt parser now live in the shared `tcl-syntax` crate
 // (consumed by both the compiler and the runtime port). Re-exported under the

@@ -1025,6 +1025,18 @@ impl CommandRegistry {
             .max_by(|a, b| crate::version::compare(a, b))
     }
 
+    /// Every `(package, declared floor)` row loaded packs registered with
+    /// `ambient_package`, in registration order. The enumeration face of
+    /// [`Self::is_ambient_package`] / [`Self::ambient_package_floor`], for
+    /// the model layer's context assembly
+    /// ([`crate::model::assembly::ContextRegistry`]) — the resolved context
+    /// carries these rows so pack-ambient floors answer from the context
+    /// rather than from a live registry borrow.
+    #[must_use]
+    pub fn ambient_package_rows(&self) -> &[(&'static str, &'static str)] {
+        &self.ambient_packages
+    }
+
     /// Whether `name` exists as a command in *any* dialect, independent of
     /// which dialects this registry instance loaded.
     ///

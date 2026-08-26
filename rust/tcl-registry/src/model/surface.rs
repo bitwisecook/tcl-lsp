@@ -199,7 +199,10 @@ pub fn vendor_surface_package(environment_id: &str) -> Option<&'static str> {
 
 /// Every package some compiled environment ships **ambient** — its keyed
 /// catalogue packs (`f5-irules-cmds`, the EDA tool surfaces, `Expect`).
-fn ambient_placement_packages() -> &'static HashSet<String> {
+/// `pub(crate)`: also the context layer's mirror of the old model's
+/// `vendor_ambient_packages` set (the profile-pin-derived closed-world
+/// vocabulary its `package_available` rule subtracts).
+pub(crate) fn ambient_placement_packages() -> &'static HashSet<String> {
     static CELL: OnceLock<HashSet<String>> = OnceLock::new();
     CELL.get_or_init(|| {
         compiled_definitions()
@@ -230,8 +233,10 @@ pub fn is_closed_world_package(package: &str) -> bool {
 
 /// The five Tcl ladder release lines, in ladder order: the bit, the line's
 /// inclusive start, and its exclusive end — the same `[R·a0, next-minor·a0)`
-/// lines the compiled environments target.
-const TCL_LINES: [(DialectSet, &str, &str); 5] = [
+/// lines the compiled environments target. `pub(crate)`: the context layer
+/// derives its authoring-mask facts from the same lines the translation
+/// uses, so the two can never disagree about where a line starts.
+pub(crate) const TCL_LINES: [(DialectSet, &str, &str); 5] = [
     (DialectSet::TCL84, "8.4", "8.5"),
     (DialectSet::TCL85, "8.5", "8.6"),
     (DialectSet::TCL86, "8.6", "8.7"),
@@ -239,8 +244,10 @@ const TCL_LINES: [(DialectSet, &str, &str); 5] = [
     (DialectSet::TCL91, "9.1", "9.2"),
 ];
 
-/// The seven vendor bits and the package each translates to.
-const VENDOR_BITS: [(DialectSet, &str); 7] = [
+/// The seven vendor bits and the package each translates to. `pub(crate)`
+/// for the same reason as [`TCL_LINES`]: the context layer's authoring-mask
+/// derivation reads the identical bit ↔ package vocabulary.
+pub(crate) const VENDOR_BITS: [(DialectSet, &str); 7] = [
     (DialectSet::IAPPS, "iapps"),
     (DialectSet::TMSH, "tmsh"),
     (DialectSet::TK, "Tk"),

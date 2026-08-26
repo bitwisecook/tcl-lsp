@@ -139,7 +139,7 @@ pub(in crate::analyser) mod widget_command;
 /// head.  No command name appears here.
 struct UnitCommandResolver<'a> {
     registry: &'a tcl_registry::CommandRegistry,
-    profile: &'static tcl_dialect::DialectProfile,
+    generation: std::sync::Arc<tcl_registry::model::ContextRegistry>,
     /// Every spelling under which this document's own definitions —
     /// procedures, classes, `interp alias` / `rename` targets, declared
     /// stubs, and created object-instance commands — can be called.
@@ -155,7 +155,9 @@ impl UnitCommandResolver<'_> {
         if self.defined.contains(bare) {
             return true;
         }
-        tcl_registry::ProfileQueries::resolve_command(self.profile, self.registry, command)
+        self.generation
+            .context()
+            .resolve_spec(self.registry, command)
             .is_some()
     }
 }
@@ -203,7 +205,7 @@ impl Analyser {
         }
         UnitCommandResolver {
             registry,
-            profile: tcl_dialect::DialectProfile::by_name(self.dialect()),
+            generation: self.analysis_context(),
             defined,
         }
     }
@@ -341,7 +343,8 @@ impl Analyser {
     /// then walks the top-level + every procedure, dispatching
     /// per-function emitters.
     pub fn emit_cfg_ssa_diagnostics(&mut self, source: &str) {
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
+        let generation = self.analysis_context();
+        let registry = generation.commands().as_ref();
         // Seed each proc's SCCP with caller-side parameter constants so a
         // branch on a param every caller passes the same literal folds (the
         // `if {$x}` body is provably taken under uniform `q 1` callers, so a
@@ -488,7 +491,7 @@ impl Analyser {
             let ia = crate::interprocedural::build_interprocedural_analysis(
                 &cu.ir_module,
                 registry,
-                Some(tcl_dialect::DialectProfile::by_name(self.dialect())),
+                Some(self.profile),
                 crate::interprocedural::ObjectTypeMap::none(),
                 &self.head_identities,
             );
@@ -924,7 +927,7 @@ impl Analyser {
             &considered,
             initial_global,
             &global_aliases,
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
         );
         let exists_guards = collect_existence_guards(function_unit);
         let rbs_params: HashSet<&str> = ir_proc
@@ -947,7 +950,7 @@ impl Analyser {
             &dataflow::ReturnUndefCtx {
                 initial_global,
                 global_aliases: &global_aliases,
-                dialect: self.profile.availability_mask,
+                dialect: self.analysis_context().context().authoring_mask(),
                 params: &rbs_params,
                 exists_guards: &exists_guards,
                 scope_aliases: &scope_aliases,

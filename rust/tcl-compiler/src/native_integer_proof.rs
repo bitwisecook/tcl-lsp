@@ -274,7 +274,7 @@ pub fn prove_native_integer_adds(
         unit.ir_module
             .dialect
             .as_deref()
-            .map(tcl_dialect::DialectProfile::by_name),
+            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
     );
     let intervals = compute_intervals_with(
         &function_unit.cfg,
@@ -496,12 +496,9 @@ fn collect_caller_ranges(
             &caller.cfg,
             &caller.ssa,
             &caller.sccp.values,
-            numbers_for_dialect(
-                unit.ir_module
-                    .dialect
-                    .as_deref()
-                    .map(tcl_dialect::DialectProfile::by_name),
-            ),
+            numbers_for_dialect(unit.ir_module.dialect.as_deref().map(|name| {
+                crate::environment_ingress::resolve_environment(name).analyser_profile()
+            })),
         );
         let caller_observability = analyse_var_observability(&caller.cfg, registry);
         for (param, argument) in params.iter().zip(args.iter()) {

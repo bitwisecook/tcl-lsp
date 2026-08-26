@@ -498,7 +498,8 @@ fn collect_writes(
     base_offset: u32,
     out: &mut Vec<PathConstantWrite>,
 ) {
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let generation = crate::environment_ingress::context_for_profile(dialect);
+    let registry = generation.commands();
     for seg in commands {
         let words = &seg.texts;
         if words.is_empty() {
@@ -820,7 +821,8 @@ fn poison_mutated_variables(
     if head.contains('$') || head.contains('[') {
         return;
     }
-    let registry = tcl_registry::cache::registry_for_profile(dialect);
+    let generation = crate::environment_ingress::context_for_profile(dialect);
+    let registry = generation.commands();
     let args: Vec<&str> = words[1..].iter().map(String::as_str).collect();
     let mut written: Vec<&str> = registry
         .arg_indices_for_role(head, &args, tcl_registry::ArgRole::VarWrite)

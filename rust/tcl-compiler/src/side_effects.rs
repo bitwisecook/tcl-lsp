@@ -51,7 +51,7 @@ use tcl_registry::side_effects::{
     ConnectionSide as RegistryConnectionSide, SideEffect as RegistrySideEffect,
     SideEffectTarget as RegistryTarget,
 };
-use tcl_registry::{CommandRegistry, CommandSpec, Traits};
+use tcl_registry::{CommandRegistry, Traits};
 
 // StorageType — data shape of a target
 
@@ -1030,65 +1030,36 @@ fn lift_registry_effect(
     effect
 }
 
-/// Whether `spec` is available in the (already `irules`→`f5-irules`
-/// normalised) `filter` dialect, gating on `spec.supports_dialect`.
-/// When no dialect is requested every spec qualifies; when the
-/// dialect string fails to parse to a known [`DialectSet`] (e.g. the
-/// bare `"tcl"` family alias) only universal (`dialects = None`) specs
-/// qualify — an unknown name intersects no explicit dialect set.
-fn spec_in_dialect(spec: &CommandSpec, filter: Option<&tcl_dialect::DialectProfile>) -> bool {
-    match filter {
-        None => true,
-        // Profile availability: composed mask + the iRules disable list
-        // (§9 — a banned command's hints never fire under f5-irules). A
-        // name with no catalog profile (`tk`) keeps the conservative
-        // universal-spec-only rule.
-        Some(profile) => {
-            use tcl_registry::ProfileQueries;
-            profile.is_available(spec)
-        }
-    }
-}
-
 /// Resolve the dialect-gated structured side-effect hints for a
-/// command invocation.
-///
-/// Iterates the command's specs newest-first, skipping specs that don't
-/// support the active
-/// dialect. Subcommand-level hints take precedence over command-level
-/// hints. Returns `None` when no qualifying spec declares any hint
-/// (so the caller falls back to the conservative UNKNOWN write).
+/// command invocation, through the registry model's one hint-selection
+/// primitive (centralisation C7 —
+/// [`tcl_registry::model::side_effect_hints_in_context`]): specs
+/// newest-first, filtered by the resolved context's availability,
+/// subcommand-level hints before command-level ones. `None` when no
+/// qualifying spec declares any hint (so the caller falls back to the
+/// conservative UNKNOWN write). A `None` dialect selects with no
+/// availability filter, as before.
 fn dialect_side_effect_hints(
     registry: &CommandRegistry,
     command: &str,
     subcommand: Option<&str>,
     dialect: Option<&tcl_dialect::DialectProfile>,
 ) -> Option<Vec<SideEffect>> {
-    for spec in registry.specs(command).iter().rev() {
-        if !spec_in_dialect(spec, dialect) {
-            continue;
-        }
-        if let Some(sub_name) = subcommand
-            && let Some(sub) = spec.resolve_subcommand(sub_name)
-            && !sub.side_effects.is_empty()
-        {
-            return Some(
-                sub.side_effects
-                    .iter()
-                    .map(|e| lift_registry_effect(*e, dialect))
-                    .collect(),
-            );
-        }
-        if !spec.side_effects.is_empty() {
-            return Some(
-                spec.side_effects
-                    .iter()
-                    .map(|e| lift_registry_effect(*e, dialect))
-                    .collect(),
-            );
-        }
-    }
-    None
+    let generation = dialect.map(crate::environment_ingress::context_for_profile);
+    let hints = tcl_registry::model::side_effect_hints_in_context(
+        registry,
+        generation
+            .as_deref()
+            .map(tcl_registry::model::ContextRegistry::context),
+        command,
+        subcommand,
+    )?;
+    Some(
+        hints
+            .iter()
+            .map(|e| lift_registry_effect(*e, dialect))
+            .collect(),
+    )
 }
 
 fn fallback_unknown_write(dialect: Option<&tcl_dialect::DialectProfile>) -> CommandSideEffects {

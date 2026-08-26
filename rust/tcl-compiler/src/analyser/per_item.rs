@@ -312,14 +312,14 @@ impl Analyser {
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
         // order, so the split costs nothing.
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        let availability = tcl_dialect::DialectProfile::availability_for_name(dialect);
+        let environment = crate::environment_ingress::resolve_environment(dialect);
+        let profile = environment.analyser_profile();
         let entry_gate = if tcl_lexer::script_is_complete(source) {
             if source.contains("tcl-lsp: stub") {
                 Some(PerItemFallback::StubDirective)
             } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), profile) {
                 Some(PerItemFallback::SidecarStub)
-            } else if availability.contains(tcl_dialect::DialectSet::TK) {
+            } else if environment.is_tk() {
                 Some(PerItemFallback::TkActive)
             } else {
                 None
@@ -456,11 +456,10 @@ impl Analyser {
         use std::collections::HashSet;
 
         self.source = source.to_string();
-        self.profile = tcl_dialect::DialectProfile::by_name(dialect);
+        let tk_environment = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_dialect = tcl_dialect::DialectProfile::availability_for_name(dialect)
-            .contains(tcl_dialect::DialectSet::TK);
+        self.tk_dialect = tk_environment;
         // The per-item path deliberately accumulates **no** Tk state, unlike
         // `analyse` / `analyse_chunked` / `analyse_commands`.  Everything the
         // accumulation feeds is discarded unless Tk turns out to be active, and
@@ -482,18 +481,29 @@ impl Analyser {
         }
         super::state::merge_noqa_line_suppressions(
             &mut self.result.suppressed_lines,
-            super::utils::parse_noqa_line_suppressions_for_dialect(
-                source,
-                tcl_dialect::DialectProfile::by_name(dialect),
-            ),
+            super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
         self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
-        self.registry = Some(tcl_registry::cache::registry_handle_for_profile(
-            self.profile,
+        // The per-item walk deliberately reads the **un-overlaid**
+        // generation's store here, as it always has
+        // (`registry_handle_for_profile`, not `profile_registry`);
+        // [`super::state::Analyser::analysis_context`] keeps carrying the
+        // pack overlay for the queries that thread it.
+        self.registry = Some(std::sync::Arc::clone(
+            self.environment
+                .as_ref()
+                .expect("resolved at the top of per_item_setup")
+                .context_registry(
+                    &crate::environment_ingress::DocumentEnvironment::keyed_versions(
+                        &self.library_versions,
+                    ),
+                    0,
+                )
+                .commands(),
         ));
         self.line_offsets = Some(super::state::compute_line_offsets(source));
         // Same recovery known-command universe as `Analyser::analyse` — see
@@ -1341,7 +1351,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     let mut a = Analyser::with_disabled_diagnostics(disabled)
         .with_non_ascii_mode(non_ascii)
         .with_workspace_class_factories(workspace_class_factories);
-    a.profile = tcl_dialect::DialectProfile::by_name(dialect);
+    a.profile = crate::environment_ingress::resolve_environment(dialect).analyser_profile();
     a.stub_overlay = stub_overlay;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).

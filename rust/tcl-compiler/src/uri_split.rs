@@ -89,10 +89,10 @@ pub type UriFamilies = HashMap<String, (Option<String>, Option<String>)>;
 #[must_use]
 pub fn uri_families(registry: &CommandRegistry) -> UriFamilies {
     let mut all_names: HashSet<String> = HashSet::new();
+    let irules = crate::environment_ingress::irules_context();
     for name in registry.command_names() {
-        use tcl_registry::ProfileQueries;
         if let Some(spec) = registry.get(name)
-            && tcl_dialect::DialectProfile::irules().is_available(spec)
+            && irules.context().spec_available(spec)
         {
             all_names.insert(name.to_owned());
         }

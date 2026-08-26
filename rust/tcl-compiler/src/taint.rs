@@ -4111,12 +4111,17 @@ fn emit_isolated_script_warnings<S: std::hash::BuildHasher, H: std::hash::BuildH
         context.dialect.map_or_else(
             || crate::compilation_unit::CompilationUnit::build_for(source, context.registry, true),
             |profile| {
+                // Re-intern the borrowed profile through its canonical
+                // name (centralisation R-a): for every catalogue
+                // profile, the permissive fallback, and the additive
+                // `tk` ingress profile alike, this is the identity the
+                // old `resolve_known(name)`/`by_name(name)` round-trip
+                // computed.
                 crate::compilation_unit::CompilationUnit::build_for_profile(
                     source,
                     context.registry,
                     true,
-                    tcl_dialect::DialectProfile::resolve_known(profile.name)
-                        .unwrap_or_else(|| tcl_dialect::DialectProfile::by_name(profile.name)),
+                    crate::environment_ingress::resolve_environment(profile.name).unit_profile(),
                 )
             },
         )

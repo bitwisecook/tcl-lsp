@@ -159,7 +159,7 @@ fn line_of(source: &str, off: u32) -> u32 {
 /// like `010`. `None` here must mean "this compile named no dialect", nothing
 /// else. This reproduces the pre-refactor `parse_expr(&str)` boundary.
 fn emit_profile(dialect: Option<&str>) -> Option<&'static tcl_dialect::DialectProfile> {
-    dialect.map(tcl_dialect::DialectProfile::by_name)
+    dialect.map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile())
 }
 
 /// Generate bytecode assembly for an entire module.
@@ -213,7 +213,7 @@ pub fn codegen_module(
         );
     }
     ModuleAsm {
-        profile: tcl_dialect::DialectProfile::by_opt_name(dialect),
+        profile: emit_profile(dialect).unwrap_or_else(tcl_dialect::DialectProfile::plain_tcl),
         top_level: top,
         procedures: procs,
     }

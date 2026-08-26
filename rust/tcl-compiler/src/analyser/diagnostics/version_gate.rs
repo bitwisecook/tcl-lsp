@@ -61,7 +61,6 @@
 
 use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
-use tcl_registry::ProfileQueries as _;
 use tcl_registry::deprecation::{
     DeprecationFixContext, DeprecationFixSafety, DeprecationFixTarget, DeprecationFixWord,
 };
@@ -446,9 +445,10 @@ impl Analyser {
         &self,
         spec: &tcl_registry::CommandSpec,
     ) -> Option<VersionGateAxis> {
-        self.profile
-            .keyed_pin_for(spec)
-            .map(|pin| pin.package)
+        self.analysis_context()
+            .context()
+            .keyed_ambient_placement(spec)
+            .map(|placement| crate::environment_ingress::interned_package_name(&placement.package))
             .or_else(|| spec.owning_package())
             .map(VersionGateAxis::Package)
             .or_else(|| {
@@ -487,7 +487,11 @@ impl Analyser {
         // A subcommand the active profile does not have at all is W002's,
         // exactly as a missing `package require` is W120's: one word, one
         // diagnostic. Its inner gates are moot for the same reason.
-        if !self.profile.is_subcommand_available(spec, sub) {
+        if !self
+            .analysis_context()
+            .context()
+            .subcommand_available(spec, sub)
+        {
             return;
         }
         let sub_is_literal = invocation
@@ -717,7 +721,7 @@ impl Analyser {
         // or the declared 15.0 baseline, plus any removal release (W139) —
         // and a vendor-own spec needs no `required_package` to sit on the
         // axis (its pin resolves through the profile's vendor bit).
-        let keyed = self.profile.keyed_version_range(spec);
+        let keyed = self.analysis_context().context().keyed_version_range(spec);
         let Some(axis) = self.lifecycle_axis(spec) else {
             return;
         };
@@ -1213,17 +1217,25 @@ impl Analyser {
             .filter_map(|r| r.version.as_deref())
             .map(tcl_registry::version::requirement_lower_bound)
             .max_by(|a, b| tcl_registry::version::compare(a, b));
-        // An **ambient** pin (the F5 surfaces) is part of the runtime — its
-        // floor always applies. A **hosted** pin (Tk / Itcl on plain Tcl)
-        // floors only once the package is actually in play via a require:
-        // the missing-require case stays W120's alone, never double-flagged
-        // with a version diagnostic.
-        let pin_applies = self
-            .profile
-            .library_pin(pkg)
-            .is_some_and(|pin| pin.ambient || has_unconditional_require);
+        // An **ambient** placement (the F5 surfaces) is part of the
+        // runtime — its floor always applies. A **hosted** placement
+        // (Tk / Itcl on plain Tcl) floors only once the package is
+        // actually in play via a require: the missing-require case stays
+        // W120's alone, never double-flagged with a version diagnostic.
+        // Both read the resolved context's floor map, whose keyed axes
+        // already carry the session pins (`--bigip-version`) or their D5
+        // oldest-supported defaults.
+        let generation = self.analysis_context();
+        let context = generation.context();
+        let pin_applies = context
+            .placement(pkg)
+            .is_some_and(|placement| placement.ambient || has_unconditional_require);
         let pin_floor = pin_applies
-            .then(|| self.profile.library_floor(pkg, &self.library_versions))
+            .then(|| {
+                context
+                    .placement_floor(pkg)
+                    .map(|floor| floor.as_str().to_owned())
+            })
             .flatten();
         // A pack's `ambient_package` row is ambient by construction — the
         // package comes with the dialect, so like an ambient profile pin its
@@ -1233,7 +1245,7 @@ impl Analyser {
         let candidates = [
             require_floor.map(|floor| (floor.to_owned(), FloorSource::Require)),
             pack_floor.map(|floor| (floor.to_owned(), FloorSource::PackAmbient)),
-            pin_floor.map(|floor| (floor.to_owned(), FloorSource::ProfilePin)),
+            pin_floor.map(|floor| (floor, FloorSource::ProfilePin)),
         ];
         // Highest floor wins; at equal versions the earliest `FloorSource`
         // wins, since the variants are declared in reporting precedence.
@@ -1259,7 +1271,7 @@ impl Analyser {
         if self.pack_overlay == 0 {
             return None;
         }
-        self.profile_registry().ambient_package_floor(pkg)
+        self.analysis_context().context().pack_ambient_floor(pkg)
     }
 }
 

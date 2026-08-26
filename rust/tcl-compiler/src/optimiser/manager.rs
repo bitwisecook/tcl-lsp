@@ -832,7 +832,8 @@ pub fn optimise_raw(
     optimise_raw_for_profile(
         source,
         registry,
-        dialect.map(tcl_dialect::DialectProfile::by_name),
+        dialect
+            .map(|name| crate::environment_ingress::resolve_environment(name).analyser_profile()),
     )
 }
 

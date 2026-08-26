@@ -1209,10 +1209,17 @@ impl Analyser {
         }
         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let resolved = registry.resolve_call(
+        // The C3 selection primitive: the walk's resolved context rides
+        // along for P1a's binding proof; selection stays the dialect-blind
+        // store lookup it always was (the registry is already
+        // per-profile).
+        let resolved = tcl_registry::model::resolve_call_in_context(
+            &registry,
+            self.context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
             cmd_name,
             &arg_strs,
-            tcl_registry::prelude::DialectSet::empty(),
         )?;
         Some(ResolvedAnalyserHook {
             hook: resolved.analyser_hook?,
@@ -2092,10 +2099,13 @@ impl Analyser {
             return true;
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let registry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let generation;
+        let registry = if let Some(stashed) = self.registry.as_deref() {
+            stashed
+        } else {
+            generation = self.analysis_context();
+            generation.commands()
+        };
         let closed = tcl_registry::events::closed_braced_argument_words(
             &self.source,
             arg_tokens,

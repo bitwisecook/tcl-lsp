@@ -116,10 +116,11 @@ pub fn parse_noqa_line_suppressions_for_dialect(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
 ) -> std::collections::HashMap<i32, HashSet<String>> {
+    let generation = crate::environment_ingress::context_for_profile(dialect);
     parse_noqa_line_suppressions_with_registry(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
-        tcl_registry::cache::registry_for_profile(dialect),
+        generation.commands(),
     )
 }
 

@@ -367,7 +367,7 @@ file; this call falls through to the 'unknown' handler."
             // #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             ) {
                 continue;
             }
@@ -669,7 +669,7 @@ file; this call falls through to the 'unknown' handler."
             // Dialect-aware via the special-variable registry (issue #831).
             if tcl_registry::special_vars::is_externally_read(
                 crate::naming::normalise_var_name(var),
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             ) {
                 continue;
             }
@@ -1158,7 +1158,7 @@ file; this call falls through to the 'unknown' handler."
                 ctx.supp.killed.contains(&chain.key),
                 ctx.initial_global,
                 ctx.global_aliases,
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             );
             if startup.lazy_read && ctx.supp.killed.contains(&chain.key) {
                 continue;
@@ -2153,9 +2153,7 @@ file; this call falls through to the 'unknown' handler."
             // The document's own numeral grammar: a divisor literal means what
             // this dialect says it means (`0755` is 493 up to 8.6, 755 from
             // 9.0), and this process analyses documents of several dialects.
-            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
-                self.dialect(),
-            ))),
+            crate::intervals::numbers_for_dialect(Some(self.profile)),
         ) {
             let span = fu.abs_span(finding.span);
             if span.is_empty() {
@@ -2201,12 +2199,10 @@ file; this call falls through to the 'unknown' handler."
             &fu.ssa,
             &fu.sccp.values,
             &executable,
-            tcl_dialect::DialectProfile::by_name(self.dialect()).character_model(),
+            self.profile.character_model(),
             // The document's own numeral grammar, alongside the character model
             // — both dialect-derived facts, both threaded rather than ambient.
-            crate::intervals::numbers_for_dialect(Some(tcl_dialect::DialectProfile::by_name(
-                self.dialect(),
-            ))),
+            crate::intervals::numbers_for_dialect(Some(self.profile)),
         );
         for f in findings {
             if f.span.is_empty() {

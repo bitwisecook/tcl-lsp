@@ -1091,9 +1091,7 @@ impl Analyser {
             return None;
         }
         let version = (!self.result.dialect.is_empty())
-            .then(|| {
-                tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
-            })
+            .then(|| self.profile.const_fold_version())
             .flatten();
         let trusts = |name: &str| trust.trusts(name);
         let lookup = |name: &str| {
@@ -1366,7 +1364,7 @@ impl Analyser {
         cmd_name: &str,
         scope_path: &[usize],
     ) -> Option<tcl_registry::SymbolDef> {
-        let dialect = self.profile.availability_mask;
+        let dialect = self.analysis_context().context().authoring_mask();
         // Which namespace's imports are in effect is the *command-resolution*
         // namespace: a proc body resolves unqualified commands (and so the
         // imports covering them) in the proc's defining namespace, which the
@@ -1613,13 +1611,15 @@ impl Analyser {
     /// no per-package entry to remember to add here. The registry is asked
     /// rather than the profile so a pack's `ambient_package` row counts too.
     fn is_package_gated_non_ambient(&self, name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
-        let registry = tcl_registry::cache::registry_for_profile(self.profile);
-        let overlaid = self.profile_registry();
-        self.profile
-            .resolve_command(registry, name)
+        // Resolution reads the un-overlaid generation's store (as the old
+        // `registry_for_profile` call did); the ambient answer reads this
+        // walk's own — possibly pack-overlaid — context, the same split
+        // W120 uses.
+        let base = crate::environment_ingress::context_for_profile(self.profile);
+        base.context()
+            .resolve_spec(base.commands(), name)
             .and_then(tcl_registry::CommandSpec::owning_package)
-            .is_some_and(|pkg| !overlaid.is_ambient_package(pkg))
+            .is_some_and(|pkg| !self.analysis_context().context().ambient_package(pkg))
     }
 
     /// **W314.** The definition's name has no absolute (fully-qualified)
@@ -1959,10 +1959,13 @@ impl Analyser {
             return false;
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        let registry = self
-            .registry
-            .as_deref()
-            .unwrap_or_else(|| tcl_registry::registry_for_profile(self.profile));
+        let generation;
+        let registry = if let Some(stashed) = self.registry.as_deref() {
+            stashed
+        } else {
+            generation = self.analysis_context();
+            generation.commands()
+        };
         let closed = tcl_registry::events::closed_braced_argument_words(
             &self.source,
             arg_tokens,
@@ -3465,8 +3468,9 @@ impl Analyser {
         // so skip it, matching the `namespace path` subcommand's own dialect
         // gate (which already flags the command W002 there).
         if !self
-            .profile
-            .availability_mask
+            .analysis_context()
+            .context()
+            .authoring_mask()
             .intersects(tcl_dialect::DialectSet::TCL85_PLUS)
         {
             return;
@@ -3727,8 +3731,9 @@ impl Analyser {
             .and_then(|r| r.get("namespace"))
             .and_then(|spec| spec.subcommand("ensemble").map(|sub| (spec, sub)))
             .map(|(spec, sub)| {
-                use tcl_registry::ProfileQueries;
-                self.profile.available_sub_option_specs(spec, sub)
+                self.analysis_context()
+                    .context()
+                    .available_sub_option_specs(spec, sub)
             })
             .unwrap_or_default();
 
@@ -4438,9 +4443,11 @@ impl Analyser {
             return true;
         };
         let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((case, invocation)) =
-            registry.case_invocation(cmd_name, &arg_refs, self.profile.availability_mask)
-        else {
+        let Some((case, invocation)) = registry.case_invocation(
+            cmd_name,
+            &arg_refs,
+            self.analysis_context().context().authoring_mask(),
+        ) else {
             // Preserve malformed-switch handling while allowing valid
             // subjectless Expect clause lists through the registry resolver.
             return args.len() >= 2;
@@ -5608,7 +5615,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     object_class,
-                    self.profile.availability_mask,
+                    self.analysis_context().context().authoring_mask(),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -6242,10 +6249,16 @@ impl Analyser {
     ) -> Option<(Vec<Span>, bool)> {
         let registry = self.registry.as_deref()?;
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        if registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            != tcl_registry::registry::InvocationCompletion::FallsThrough
-            || registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
-                != Some(true)
+        if registry.invocation_completion(
+            seg.name(),
+            &args,
+            self.analysis_context().context().authoring_mask(),
+        ) != tcl_registry::registry::InvocationCompletion::FallsThrough
+            || registry.control_invocation_valid(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            ) != Some(true)
         {
             return None;
         }
@@ -6377,8 +6390,11 @@ impl Analyser {
         let registry = self.registry.as_deref()?;
         for seg in self.direct_statements_in_span(method.body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            {
+            match registry.invocation_completion(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            ) {
                 tcl_registry::registry::InvocationCompletion::FallsThrough => {
                     let controls = self.control_arms_for_segment(&seg);
                     if !controls.complete || !controls.arms.is_empty() {
@@ -6434,8 +6450,11 @@ impl Analyser {
                 UnknownBodyEvidence::Nothing
             };
         }
-        let completion =
-            registry.invocation_completion(seg.name(), &args, self.profile.availability_mask);
+        let completion = registry.invocation_completion(
+            seg.name(),
+            &args,
+            self.analysis_context().context().authoring_mask(),
+        );
         if registry.method_dispatch_keyword(seg.name())
             == Some(tcl_registry::registry::MethodDispatchKind::NextChain)
         {
@@ -6882,8 +6901,11 @@ impl Analyser {
         let registry = self.registry.clone()?;
         for seg in self.direct_statements_in_span(body_span)? {
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-            match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask)
-            {
+            match registry.invocation_completion(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(_) => {
                     return Some(true);
                 }
@@ -6945,7 +6967,11 @@ impl Analyser {
             return false;
         };
         let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
-        match registry.invocation_completion(seg.name(), &args, self.profile.availability_mask) {
+        match registry.invocation_completion(
+            seg.name(),
+            &args,
+            self.analysis_context().context().authoring_mask(),
+        ) {
             tcl_registry::registry::InvocationCompletion::FallsThrough => {}
             tcl_registry::registry::InvocationCompletion::Unknown
                 if registry.get(seg.name()).is_none() =>
@@ -6960,11 +6986,18 @@ impl Analyser {
             _ => return false,
         }
         let is_control = registry
-            .invocation_traits(seg.name(), &args, self.profile.availability_mask)
+            .invocation_traits(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            )
             .contains(tcl_registry::Traits::CONTROL_FLOW);
         if is_control
-            && registry.control_invocation_valid(seg.name(), &args, self.profile.availability_mask)
-                != Some(true)
+            && registry.control_invocation_valid(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            ) != Some(true)
         {
             return false;
         }
@@ -7281,7 +7314,7 @@ impl Analyser {
                 let (_, invocation) = registry.case_invocation(
                     arm.controller.name(),
                     &args,
-                    self.profile.availability_mask,
+                    self.analysis_context().context().authoring_mask(),
                 )?;
                 let index = invocation.clause_list_index?;
                 let container = arm.controller.arg_tokens().get(index)?.span;
@@ -7398,7 +7431,7 @@ impl Analyser {
                 seg.name(),
                 &args,
                 body_index,
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             )
             .is_none_or(|timing| timing == tcl_registry::ScriptTiming::SameInvocation)
     }
@@ -7455,7 +7488,11 @@ impl Analyser {
             };
             let args: Vec<&str> = seg.args().iter().map(String::as_str).collect();
             return matches!(
-                registry.invocation_completion(seg.name(), &args, self.profile.availability_mask),
+                registry.invocation_completion(
+                    seg.name(),
+                    &args,
+                    self.analysis_context().context().authoring_mask()
+                ),
                 tcl_registry::registry::InvocationCompletion::Terminates
                     | tcl_registry::registry::InvocationCompletion::ReturnsResult(_)
             );
@@ -7473,7 +7510,11 @@ impl Analyser {
         indices.sort_unstable();
         indices.dedup();
         let case_call = registry
-            .case_invocation(seg.name(), &args, self.profile.availability_mask)
+            .case_invocation(
+                seg.name(),
+                &args,
+                self.analysis_context().context().authoring_mask(),
+            )
             .and_then(|(_, invocation)| invocation.clause_list_index);
         let mut arms = Vec::new();
         let mut complete = true;
@@ -7485,9 +7526,11 @@ impl Analyser {
                 continue;
             };
             if case_call == Some(idx) {
-                let Some((case, _)) =
-                    registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                else {
+                let Some((case, _)) = registry.case_invocation(
+                    seg.name(),
+                    &args,
+                    self.analysis_context().context().authoring_mask(),
+                ) else {
                     complete = false;
                     continue;
                 };
@@ -7632,7 +7675,7 @@ impl Analyser {
         let (case, invocation) = registry.case_invocation(
             arm.controller.name(),
             &args,
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
         )?;
         if usize::from(case.subject_args) != 1 {
             return None;
@@ -7980,9 +8023,7 @@ impl Analyser {
                 .map(|value| value.as_deref())
                 .collect::<Option<_>>()?;
             let version = (!self.result.dialect.is_empty())
-                .then(|| {
-                    tcl_dialect::DialectProfile::by_name(&self.result.dialect).const_fold_version()
-                })
+                .then(|| self.profile.const_fold_version())
                 .flatten();
             if spec.subcommands.is_empty() {
                 return spec.run_const_fold(&values, version);
@@ -8152,7 +8193,7 @@ impl Analyser {
             match registry.invocation_completion(
                 seg.name(),
                 &raw_args,
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             ) {
                 tcl_registry::registry::InvocationCompletion::ReturnsResult(Some(idx)) => {
                     let value =
@@ -8174,7 +8215,7 @@ impl Analyser {
                 if registry.control_invocation_valid(
                     seg.name(),
                     &raw_args,
-                    self.profile.availability_mask,
+                    self.analysis_context().context().authoring_mask(),
                 ) != Some(true)
                 {
                     return None;
@@ -8401,7 +8442,11 @@ impl Analyser {
             }
 
             let case_call = registry
-                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .case_invocation(
+                    seg.name(),
+                    &args,
+                    self.analysis_context().context().authoring_mask(),
+                )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             let mut body_indices =
                 registry.arg_indices_for_role(seg.name(), &args, tcl_registry::ArgRole::Body);
@@ -8415,9 +8460,11 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let Some((case, _)) =
-                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                    else {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        self.analysis_context().context().authoring_mask(),
+                    ) else {
                         continue;
                     };
                     for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
@@ -8526,7 +8573,11 @@ impl Analyser {
             body_indices.sort_unstable();
             body_indices.dedup();
             let case_call = registry
-                .case_invocation(seg.name(), &args, self.profile.availability_mask)
+                .case_invocation(
+                    seg.name(),
+                    &args,
+                    self.analysis_context().context().authoring_mask(),
+                )
                 .and_then(|(_, invocation)| invocation.clause_list_index);
             for body_idx in body_indices {
                 let (Some(word), Some(token)) = (
@@ -8536,9 +8587,11 @@ impl Analyser {
                     continue;
                 };
                 if case_call == Some(body_idx) {
-                    let Some((case, _)) =
-                        registry.case_invocation(seg.name(), &args, self.profile.availability_mask)
-                    else {
+                    let Some((case, _)) = registry.case_invocation(
+                        seg.name(),
+                        &args,
+                        self.analysis_context().context().authoring_mask(),
+                    ) else {
                         continue;
                     };
                     for (_, (_, body_token)) in crate::segmenter::flatten_case_list_clauses(
@@ -9168,7 +9221,7 @@ impl Analyser {
                     &injected.texts,
                     &injected.argv,
                     &mut class,
-                    self.profile.availability_mask,
+                    self.analysis_context().context().authoring_mask(),
                 );
             }
         }
@@ -9387,11 +9440,13 @@ impl Analyser {
     /// read then treats every word as positional, which is the pre-registry
     /// behaviour.
     fn leading_option_words(&self, cmd_name: &str, args: &[String]) -> usize {
-        use tcl_registry::ProfileQueries;
         let Some(spec) = self.registry.as_deref().and_then(|r| r.get(cmd_name)) else {
             return 0;
         };
-        let options = self.profile.available_option_specs(spec);
+        let options = self
+            .analysis_context()
+            .context()
+            .available_option_specs(spec);
         if options.is_empty() {
             return 0;
         }
@@ -9499,7 +9554,7 @@ impl Analyser {
                     &inline_args,
                     &inline_tokens,
                     class_def,
-                    self.profile.availability_mask,
+                    self.analysis_context().context().authoring_mask(),
                 );
                 self.record_member_command_references(
                     grammar,
@@ -9873,7 +9928,6 @@ impl Analyser {
     /// some unit tests): a flagless read then treats `-clear` as an ordinary
     /// pattern, which is inert — nothing else records a command by that name.
     fn namespace_leading_flag_words(&self, sub: &str, args: &[String]) -> usize {
-        use tcl_registry::ProfileQueries;
         let Some((spec, sub_spec)) = self
             .registry
             .as_deref()
@@ -9882,7 +9936,10 @@ impl Analyser {
         else {
             return 0;
         };
-        let options = self.profile.available_sub_option_specs(spec, sub_spec);
+        let options = self
+            .analysis_context()
+            .context()
+            .available_sub_option_specs(spec, sub_spec);
         let cap = sub_spec
             .max_leading_option_words
             .map_or(usize::MAX, usize::from);

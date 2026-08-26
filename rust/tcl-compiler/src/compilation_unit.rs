@@ -1349,21 +1349,13 @@ impl CompilationUnit {
         defer_top_level: bool,
         dialect: &str,
     ) -> Self {
-        let profile = tcl_dialect::DialectProfile::by_name(dialect);
-        // Most names canonicalise through the profile catalogue.  Additive
-        // set-only names (currently `tk`) intentionally resolve to the plain
-        // fallback profile, though, so retain the recognized ingress spelling
-        // long enough for `build_with` to parse its semantic dialect bit.
+        // One environment resolution (centralisation R-a); the unit
+        // profile is derived from the resolved canonical id — the `tk`
+        // environment keeps its typed additive ingress profile (the old
+        // `resolve_known` promotion), everything else its same-named
+        // catalogue profile, unknown names the permissive fallback.
         let effective_dialect =
-            if profile.is_fallback() && tcl_dialect::DialectSet::parse(dialect).is_some() {
-                // `resolve_known`, not `by_name`: an additive set-only ingress
-                // (`tk`) has no catalogue entry, so `by_name` would canonicalise
-                // it to the plain fallback and drop both the recorded spelling
-                // and the semantic bit the unit is built for.
-                tcl_dialect::DialectProfile::resolve_known(dialect).unwrap_or(profile)
-            } else {
-                tcl_dialect::DialectProfile::by_name(profile.name)
-            };
+            crate::environment_ingress::resolve_environment(dialect).unit_profile();
         Self::build_with(
             source,
             UnitBuildOptions {

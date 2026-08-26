@@ -276,10 +276,10 @@ impl Analyser {
         let Some(registry) = self.registry.as_deref() else {
             return;
         };
-        let Some(spec) = ({
-            use tcl_registry::ProfileQueries;
-            tcl_dialect::DialectProfile::irules().resolve_command(registry, cmd_name)
-        }) else {
+        let Some(spec) = crate::environment_ingress::irules_context()
+            .context()
+            .resolve_spec(registry, cmd_name)
+        else {
             return;
         };
         let events = event_registry();

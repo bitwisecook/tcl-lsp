@@ -45,16 +45,22 @@
 
 use std::sync::Arc;
 
-use tcl_dialect::LibraryVersionOverrides;
+use tcl_dialect::model::Family;
 use tcl_dialect::model::{
     CapabilityAnswer, CoreProfileId, EnvironmentDefinition, KeyedAxis, PackagePlacement, Placement,
     Version, VersionAxisId, VersionSet, VersionSetError, WorldPolicy,
 };
+use tcl_dialect::{DialectSet, LibraryVersionOverrides, TclVersion};
 
+use crate::hover::OptionSpec;
 use crate::model::surface::{
-    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, VENDOR_BIT_PACKAGES,
-    is_closed_world_package, vendor_surface_package,
+    BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, TCL_LINES,
+    VENDOR_BIT_PACKAGES, VENDOR_BITS, ambient_placement_packages, is_closed_world_package,
+    vendor_surface_package,
 };
+use crate::registry::CommandRegistry;
+use crate::spec::{CommandSpec, SubCommand, SubSubCommand};
+use crate::traits::Traits;
 
 /// The resolved externally-keyed axis versions — the new-model mirror of
 /// today's `LibraryVersionOverrides`. An unset key falls back to the D5
@@ -189,6 +195,18 @@ pub struct ResolvedContext {
     /// Empty for a bare environment context; the §5.2 `package require`
     /// scan feeds it in P2.
     required_packages: Vec<Arc<str>>,
+    /// Packages a loaded `SpecTcl` pack declared ambient for this context's
+    /// generation, with each declared floor verbatim — recorded by the
+    /// assembly layer from the generation's command store
+    /// ([`crate::model::assembly::ContextRegistry`]), mirroring the old
+    /// overlay registry's `ambient_packages` rows.
+    pack_ambient: Vec<(Arc<str>, &'static str)>,
+    /// The **authoring mask** this context admits — the old model's
+    /// `availability_mask`, re-derived from the environment (core primary ×
+    /// ladder lines, active vendor surfaces). Cached at resolution; the
+    /// parity sweep pins it to the old profile's mask for every catalogue
+    /// environment.
+    authoring_mask: DialectSet,
 }
 
 impl ResolvedContext {
@@ -221,11 +239,23 @@ impl ResolvedContext {
                 // has a core: give it the full axis rather than nothing.
                 full_axis(&axis)
             };
+            // The default release is the axis's *point primary* only when
+            // the environment genuinely targets that single release line
+            // (`tcl8.6` → primary 8.6). An environment whose targets span
+            // more of the ladder — the lenient `tcl` fallback and the `tk`
+            // environment target the whole of it — answers under the
+            // permissive no-point rule instead (§5.4's "no primary" case),
+            // which is exactly the old model's `ALL_TCL`-permissive
+            // fallback behaviour. The primary also stays permissive for a
+            // ladder whose spellings are not versions (the iRules `tmos`
+            // line).
+            let single_line = core_release.as_ref().is_some_and(|release| {
+                release_line(core.family, core.default_release, release)
+                    .is_some_and(|line| targets.subset(&line).unwrap_or(false))
+            });
             floors.set(AxisFloor {
                 axis,
-                // The primary stays permissive for a ladder whose
-                // spellings are not versions (the iRules `tmos` line).
-                primary: core_release.clone(),
+                primary: single_line.then(|| core_release.clone()).flatten(),
                 targets,
             });
         }
@@ -249,11 +279,15 @@ impl ResolvedContext {
                 primary,
             });
         }
-        Self {
+        let mut context = Self {
             environment,
             floors,
             required_packages: Vec::new(),
-        }
+            pack_ambient: Vec::new(),
+            authoring_mask: DialectSet::empty(),
+        };
+        context.authoring_mask = compute_authoring_mask(&context);
+        context
     }
 
     /// Record an explicit `package require` fact: the package joins the
@@ -397,6 +431,456 @@ impl ResolvedContext {
                 predicate => self.predicate_passes(predicate),
             }
     }
+
+    // --- the transitional spec-query surface (P1-F, compiler port) -----
+    //
+    // The methods below are the context-keyed replacements for the old
+    // `ProfileQueries` availability surface: same registry data types, the
+    // context's derived facts (authoring mask, ceiling, placements) in
+    // place of the `DialectProfile` fields. Each derived fact is pinned to
+    // the old profile's value by the parity sweeps in this module's tests,
+    // so the bodies can mirror the old rules verbatim — behaviour is held
+    // exactly while the *inputs* come from the centralised environment
+    // model. The `DialectSet`-typed vocabulary they still speak retires
+    // with the rest of the mask model in P1-G.
+
+    /// The authoring mask this context admits — the environment-derived
+    /// mirror of the old `availability_mask` (sweep-pinned per catalogue
+    /// environment). The lenient `tcl` fallback and `tk` environments
+    /// derive the permissive full-ladder mask, exactly as the old
+    /// fallback profile answered.
+    #[must_use]
+    pub fn authoring_mask(&self) -> DialectSet {
+        self.authoring_mask
+    }
+
+    /// The environment's option-gating version ceiling — the old
+    /// `version_ceiling` (§5.2 upper bound), from environment policy.
+    #[must_use]
+    pub fn tcl_version_ceiling(&self) -> Option<TclVersion> {
+        tcl_version_of_release(self.environment.policy_defaults.version_ceiling?)
+    }
+
+    /// Whether the math-operator command heads exist as callable commands
+    /// here — the old `operators_as_commands`, derived: TIP 174 heads
+    /// exist exactly on a Tcl core at 8.5 or newer (sweep-pinned).
+    #[must_use]
+    pub fn operator_heads_are_commands(&self) -> bool {
+        self.environment.core.is_some_and(|core| {
+            core.family == Family::Tcl
+                && core.default_release.ordinal() >= tcl_dialect::model::Release::TCL_8_5.ordinal()
+        })
+    }
+
+    /// Whether a `required_package` gate is satisfied here — the old
+    /// `ProfileQueries::package_available` rule with context-derived
+    /// inputs: a hosted library (never ambient in any environment) is
+    /// always satisfied (W120 owns the nag), a closed-world vendor
+    /// package only where this context ships it ambient.
+    #[must_use]
+    pub fn required_package_available(&self, required: Option<&str>) -> bool {
+        match required {
+            None => true,
+            Some(package) => {
+                self.placement_is_ambient(package)
+                    || !ambient_placement_packages().contains(package)
+            }
+        }
+    }
+
+    /// Whether the environment ships `package` ambient (a placement or a
+    /// pack's `ambient_package` row) — the old
+    /// `CommandRegistry::is_ambient_package` union, context-keyed.
+    #[must_use]
+    pub fn ambient_package(&self, package: &str) -> bool {
+        self.placement_is_ambient(package)
+            || self
+                .pack_ambient
+                .iter()
+                .any(|(name, _)| name.as_ref() == package)
+    }
+
+    /// Whether the environment's own placements ship `package` ambient —
+    /// the old `DialectProfile::is_ambient_package`.
+    #[must_use]
+    pub fn placement_is_ambient(&self, package: &str) -> bool {
+        self.placement(package)
+            .is_some_and(|placement| placement.ambient)
+    }
+
+    /// The version floor the environment guarantees for `package` before
+    /// any `package require` — the old `DialectProfile::library_floor`
+    /// with the keyed axes already resolved into the context's floor map
+    /// (pinned → the pin, tracks-base → the core release, keyed → the
+    /// session pin or the D5 oldest-supported default).
+    #[must_use]
+    pub fn placement_floor(&self, package: &str) -> Option<&Version> {
+        self.placement(package)?;
+        self.floors.primary(&VersionAxisId::package(package))
+    }
+
+    /// The highest floor loaded packs declared for `package` as ambient —
+    /// the old `CommandRegistry::ambient_package_floor`.
+    #[must_use]
+    pub fn pack_ambient_floor(&self, package: &str) -> Option<&'static str> {
+        self.pack_ambient
+            .iter()
+            .filter(|(name, _)| name.as_ref() == package)
+            .map(|&(_, version)| version)
+            .max_by(|a, b| crate::version::compare(a, b))
+    }
+
+    /// Record one pack-declared ambient package row (assembly-layer use;
+    /// see [`Self::pack_ambient_floor`]).
+    pub(crate) fn record_pack_ambient(&mut self, package: &str, version: &'static str) {
+        self.pack_ambient.push((Arc::from(package), version));
+    }
+
+    /// Whether `spec` is available in this context — the old
+    /// `ProfileQueries::is_available` trio (mask membership, operator-head
+    /// exclusion, required-package gate) over context-derived facts.
+    #[must_use]
+    pub fn spec_available(&self, spec: &CommandSpec) -> bool {
+        spec.supports_dialect(self.authoring_mask)
+            && (self.operator_heads_are_commands()
+                || !spec.traits.contains(Traits::OPERATOR_COMMAND))
+            && self.required_package_available(spec.required_package)
+    }
+
+    /// Resolve `name` to its command spec in this context over `registry`
+    /// — the old `ProfileQueries::resolve_command` (mask query + the full
+    /// availability filter), for call sites holding a command store that
+    /// is not this context's own generation.
+    #[must_use]
+    pub fn resolve_spec<'r>(
+        &self,
+        registry: &'r CommandRegistry,
+        name: &str,
+    ) -> Option<&'r CommandSpec> {
+        registry
+            .get_for_dialect(name, self.authoring_mask)
+            .filter(|spec| self.spec_available(spec))
+    }
+
+    /// Whether `sub` (of `spec`) is available here — the old
+    /// `is_subcommand_available` gate-inheritance rule.
+    #[must_use]
+    pub fn subcommand_available(&self, spec: &CommandSpec, sub: &SubCommand) -> bool {
+        sub.dialects
+            .or(spec.dialects)
+            .is_none_or(|gate| gate.intersects(self.authoring_mask))
+    }
+
+    /// The subcommands of `spec` available here, in declaration order.
+    #[must_use]
+    pub fn available_subcommands<'r>(&self, spec: &'r CommandSpec) -> Vec<&'r SubCommand> {
+        spec.subcommands
+            .iter()
+            .filter(|sub| self.subcommand_available(spec, sub))
+            .collect()
+    }
+
+    /// Whether `sub_sub` is available here at `package_version` — the old
+    /// `is_sub_subcommand_available` (two-level gate inheritance plus the
+    /// owning package's lifecycle window).
+    #[must_use]
+    pub fn sub_subcommand_available(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        sub_sub: &SubSubCommand,
+        package_version: Option<&str>,
+    ) -> bool {
+        sub_sub
+            .dialects
+            .or(sub.dialects)
+            .or(spec.dialects)
+            .is_none_or(|gate| gate.intersects(self.authoring_mask))
+            && sub_sub.available_for_version(package_version)
+    }
+
+    /// The second-level operations of `sub` available here at
+    /// `package_version`, in declaration order.
+    #[must_use]
+    pub fn available_sub_subcommands(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+        package_version: Option<&str>,
+    ) -> Vec<&'static SubSubCommand> {
+        sub.sub_subcommands
+            .iter()
+            .filter(|sub_sub| self.sub_subcommand_available(spec, sub, sub_sub, package_version))
+            .collect()
+    }
+
+    /// Whether `opt` is available here given its inherited `parent_gate` —
+    /// the old `is_option_available` §5.2 semantics: mask membership plus
+    /// the gate's version floor against the environment's ceiling.
+    #[must_use]
+    pub fn option_available(&self, opt: &OptionSpec, parent_gate: Option<DialectSet>) -> bool {
+        let Some(gate) = opt.dialects.or(parent_gate) else {
+            // No restriction on the option or its parent.
+            return true;
+        };
+        if !gate.intersects(self.authoring_mask) {
+            return false;
+        }
+        match (gate.min_version(), self.tcl_version_ceiling()) {
+            (Some(min), Some(ceiling)) => min <= ceiling,
+            // A pure vendor gate has no version floor; an environment
+            // without a ceiling accepts every version.
+            _ => true,
+        }
+    }
+
+    /// Declared option / switch names of `spec` available here, in
+    /// declaration order with duplicates removed.
+    #[must_use]
+    pub fn available_option_names(&self, spec: &CommandSpec) -> Vec<&'static str> {
+        let mut names: Vec<&'static str> = Vec::new();
+        let mut consider = |opt: &OptionSpec| {
+            if self.option_available(opt, spec.dialects) && !names.contains(&opt.name) {
+                names.push(opt.name);
+            }
+        };
+        for opt in spec.options {
+            consider(opt);
+        }
+        for form in spec.command_forms {
+            for opt in form.options {
+                consider(opt);
+            }
+        }
+        names
+    }
+
+    /// The [`OptionSpec`]s of `spec` available here, in declaration order.
+    #[must_use]
+    pub fn available_option_specs(&self, spec: &CommandSpec) -> Vec<&'static OptionSpec> {
+        let mut out: Vec<&'static OptionSpec> = Vec::new();
+        let mut consider = |opt: &'static OptionSpec| {
+            if self.option_available(opt, spec.dialects) && !out.iter().any(|o| o.name == opt.name)
+            {
+                out.push(opt);
+            }
+        };
+        for opt in spec.options {
+            consider(opt);
+        }
+        for form in spec.command_forms {
+            for opt in form.options {
+                consider(opt);
+            }
+        }
+        out
+    }
+
+    /// Option / switch names of subcommand `sub` (inheriting
+    /// `sub.dialects.or(spec.dialects)` as the parent gate).
+    #[must_use]
+    pub fn available_sub_option_names(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+    ) -> Vec<&'static str> {
+        let parent = sub.dialects.or(spec.dialects);
+        let mut names: Vec<&'static str> = Vec::new();
+        for opt in sub.options {
+            if self.option_available(opt, parent) && !names.contains(&opt.name) {
+                names.push(opt.name);
+            }
+        }
+        names
+    }
+
+    /// The [`OptionSpec`]s of subcommand `sub` available here (same
+    /// inheritance as [`Self::available_sub_option_names`]).
+    #[must_use]
+    pub fn available_sub_option_specs(
+        &self,
+        spec: &CommandSpec,
+        sub: &SubCommand,
+    ) -> Vec<&'static OptionSpec> {
+        let parent = sub.dialects.or(spec.dialects);
+        sub.options
+            .iter()
+            .filter(|opt| self.option_available(opt, parent))
+            .collect()
+    }
+
+    /// Look up an option of `spec` by canonical name or alias, honouring
+    /// this context's gate and the resolved `package_version` — the old
+    /// `find_option`.
+    #[must_use]
+    pub fn find_option<'r>(
+        &self,
+        spec: &'r CommandSpec,
+        option_name: &str,
+        package_version: Option<&str>,
+    ) -> Option<&'r OptionSpec> {
+        let matches = |opt: &&'r OptionSpec| {
+            opt.matches(option_name)
+                && self.option_available(opt, spec.dialects)
+                && opt.available_for_version(package_version)
+        };
+        spec.options.iter().find(matches).or_else(|| {
+            spec.command_forms
+                .iter()
+                .flat_map(|f| f.options.iter())
+                .find(matches)
+        })
+    }
+
+    /// The environment's own vendor **authoring bit**, when its surface is
+    /// authored under one (the F5/expect/spectcl/bpf vendor vocabularies) —
+    /// the old `DialectProfile::vendor_bit`, derived from the environment:
+    /// the iRules core family authors under `IRULES`; the bridge surfaces
+    /// author under their bridge package's bit.
+    #[must_use]
+    pub fn vendor_authoring_bit(&self) -> Option<DialectSet> {
+        if self
+            .environment
+            .core
+            .is_some_and(|core| core.family == Family::F5Irules)
+        {
+            return Some(DialectSet::IRULES);
+        }
+        let surface = vendor_surface_package(self.environment.id.as_str())?;
+        VENDOR_BITS
+            .iter()
+            .find(|&&(_, package)| package == surface)
+            .map(|&(bit, _)| bit)
+    }
+
+    /// The ambient **keyed** placement `spec` sits on here, if any — the
+    /// old `keyed_pin_for`: the owning package's placement (only when
+    /// keyed and ambient), or — for a vendor-own spec (gate carries the
+    /// vendor authoring bit and no plain-Tcl version) — the environment's
+    /// single ambient keyed placement.
+    #[must_use]
+    pub fn keyed_ambient_placement(&self, spec: &CommandSpec) -> Option<&PackagePlacement> {
+        let keyed_ambient = |placement: &&PackagePlacement| {
+            placement.ambient && matches!(placement.version, Placement::Keyed(_))
+        };
+        if let Some(package) = spec.owning_package()
+            && let Some(placement) = self.placement(package)
+        {
+            return keyed_ambient(&placement).then_some(placement);
+        }
+        let vendor = self.vendor_authoring_bit()?;
+        let vendor_own = spec
+            .dialects
+            .is_some_and(|d| d.intersects(vendor) && !d.intersects(DialectSet::ALL_TCL));
+        if !vendor_own {
+            return None;
+        }
+        self.environment
+            .expected_packages
+            .iter()
+            .find(keyed_ambient)
+    }
+
+    /// The declared version range of `spec` on this context's keyed
+    /// library axis — the old `keyed_version_range`: the explicit
+    /// introduction release or the axis baseline, plus the removal
+    /// release.
+    #[must_use]
+    pub fn keyed_version_range(
+        &self,
+        spec: &CommandSpec,
+    ) -> Option<(Option<&'static str>, Option<&'static str>)> {
+        let placement = self.keyed_ambient_placement(spec)?;
+        let Placement::Keyed(axis) = placement.version else {
+            return None;
+        };
+        let lifecycle = spec.lifecycle.with_baseline(keyed_axis_baseline(axis));
+        Some((lifecycle.introduced, lifecycle.retired))
+    }
+}
+
+/// The declared data baseline of a keyed axis — the modelled F5 surfaces
+/// are declared against BIG-IP 15.0 (`VersionKey::baseline_version`,
+/// restated for the model's [`KeyedAxis`]); the tool/SDC/UPF axes carry no
+/// baseline until their first data backfill.
+fn keyed_axis_baseline(axis: KeyedAxis) -> Option<&'static str> {
+    match axis {
+        KeyedAxis::BigipVersion => Some("15.0.0"),
+        KeyedAxis::ToolVersion | KeyedAxis::SdcVersion | KeyedAxis::UpfVersion => None,
+    }
+}
+
+/// The old `TclVersion` a ladder [`tcl_dialect::model::Release`] names,
+/// `None` off the Tcl family ladder — transitional plumbing for the
+/// ceiling comparison, retired with `TclVersion` itself.
+fn tcl_version_of_release(release: tcl_dialect::model::Release) -> Option<TclVersion> {
+    use tcl_dialect::model::Release;
+    match release {
+        Release::TCL_8_4 => Some(TclVersion::V8_4),
+        Release::TCL_8_5 => Some(TclVersion::V8_5),
+        Release::TCL_8_6 => Some(TclVersion::V8_6),
+        Release::TCL_9_0 => Some(TclVersion::V9_0),
+        Release::TCL_9_1 => Some(TclVersion::V9_1),
+        _ => None,
+    }
+}
+
+/// The release **line** of `release` on `family`'s ladder as a version
+/// set: `[release, next-ladder-release)`, unbounded for the newest. `None`
+/// when the ladder's spellings are not versions (the iRules `tmos` line).
+fn release_line(
+    family: Family,
+    release: tcl_dialect::model::Release,
+    start: &Version,
+) -> Option<VersionSet> {
+    let ladder = family.releases();
+    let position = ladder.iter().position(|step| *step == release)?;
+    let end = ladder
+        .get(position + 1)
+        .and_then(|next| Version::parse(next.as_str()).ok());
+    let requirement = match end {
+        Some(end) => format!("{}-{}", start.as_str(), end.as_str()),
+        None => format!("{}-", start.as_str()),
+    };
+    VersionSet::from_requirements(VersionAxisId::core(family), &[requirement]).ok()
+}
+
+/// Derive the context's authoring mask (see
+/// [`ResolvedContext::authoring_mask`]): each Tcl ladder line bit is
+/// admitted exactly when the core axis's point primary sits inside the
+/// line (no point primary — the lenient environments — admits the whole
+/// ladder); the iRules core admits the bare `IRULES` bit; each vendor bit
+/// is admitted when its surface package is active in this context.
+fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
+    let mut mask = DialectSet::empty();
+    if let Some(core) = context.environment.core {
+        match core.family {
+            Family::Tcl => {
+                let axis = VersionAxisId::core(Family::Tcl);
+                let primary = context.floors.primary(&axis);
+                for (bit, start, end) in TCL_LINES {
+                    let admitted = primary.is_none_or(|point| {
+                        let start = Version::parse(start).expect("compiled line start parses");
+                        let end = Version::parse(end).expect("compiled line end parses");
+                        *point >= start && *point < end
+                    });
+                    if admitted {
+                        mask = mask.union(bit);
+                    }
+                }
+            }
+            Family::F5Irules => {
+                mask = mask.union(DialectSet::IRULES);
+            }
+            Family::Jim => {}
+        }
+    }
+    for (bit, package) in VENDOR_BITS {
+        if context.package_active(package) {
+            mask = mask.union(bit);
+        }
+    }
+    mask
 }
 
 /// The whole of `axis`.
@@ -762,6 +1246,186 @@ mod tests {
             ..CommandSpec::DEFAULT
         });
         assert_eq!(specificity_breadth(&hosted), 5);
+    }
+
+    /// **P1-F parity sweep 1**: every context-derived authoring fact —
+    /// the mask, the option ceiling, the operator-head rule, the vendor
+    /// authoring bit, and every placement's ambience and static floor —
+    /// reproduces the old profile's value for every catalogue profile,
+    /// and the lenient `tcl`/`tk` environments reproduce the permissive
+    /// fallback profile the analyser resolved those names to.
+    #[test]
+    fn authoring_facts_reproduce_every_catalogue_profile() {
+        use tcl_dialect::DialectProfile;
+        for profile in DialectProfile::all() {
+            let ctx = context(profile.name);
+            assert_eq!(
+                ctx.authoring_mask(),
+                profile.availability_mask,
+                "{} mask",
+                profile.name
+            );
+            assert_eq!(
+                ctx.tcl_version_ceiling(),
+                profile.version_ceiling,
+                "{} ceiling",
+                profile.name
+            );
+            assert_eq!(
+                ctx.operator_heads_are_commands(),
+                profile.operators_as_commands,
+                "{} operator heads",
+                profile.name
+            );
+            assert_eq!(
+                ctx.vendor_authoring_bit(),
+                profile.vendor_bit,
+                "{} vendor bit",
+                profile.name
+            );
+            for pin in profile.libraries {
+                assert_eq!(
+                    ctx.placement_is_ambient(pin.package),
+                    profile.is_ambient_package(pin.package),
+                    "{} ambience of {}",
+                    profile.name,
+                    pin.package
+                );
+                assert_eq!(
+                    ctx.placement_floor(pin.package).map(Version::as_str),
+                    profile.library_floor_default(pin.package),
+                    "{} floor of {}",
+                    profile.name,
+                    pin.package
+                );
+            }
+            // The keyed axes honour a session pin exactly as
+            // `library_floor` with overrides does.
+            let overrides = LibraryVersionOverrides {
+                bigip_version: Some("17.1.0".to_owned()),
+                ..LibraryVersionOverrides::default()
+            };
+            let keyed = KeyedVersions::from_overrides(&overrides).expect("valid overrides");
+            let registry = EnvironmentRegistry::compiled();
+            let pinned = ResolvedContext::resolve(
+                registry.resolve(profile.name).expect(profile.name),
+                &keyed,
+            );
+            for pin in profile.libraries {
+                assert_eq!(
+                    pinned.placement_floor(pin.package).map(Version::as_str),
+                    profile.library_floor(pin.package, &overrides),
+                    "{} pinned floor of {}",
+                    profile.name,
+                    pin.package
+                );
+            }
+        }
+        // The analyser resolved both `tcl` (and every unknown name) and
+        // the set-only `tk` ingress to the permissive fallback profile;
+        // their environments derive the same permissive facts.
+        let plain = DialectProfile::plain_tcl();
+        for lenient in ["tcl", "tk"] {
+            let ctx = context(lenient);
+            assert_eq!(ctx.authoring_mask(), plain.availability_mask, "{lenient}");
+            assert_eq!(ctx.tcl_version_ceiling(), None, "{lenient}");
+            assert!(ctx.operator_heads_are_commands(), "{lenient}");
+            assert_eq!(ctx.vendor_authoring_bit(), None, "{lenient}");
+        }
+    }
+
+    /// **P1-F parity sweep 2**: the spec/subcommand/option availability
+    /// queries answer exactly as the old `ProfileQueries` for every spec
+    /// in the compiled universe under every catalogue profile — commands,
+    /// each subcommand, each sub-subcommand (at no version and at a pinned
+    /// one), and every option at its inherited parent gate.
+    #[test]
+    fn spec_queries_reproduce_profile_queries_for_every_profile() {
+        use crate::profile_queries::ProfileQueries;
+        use tcl_dialect::DialectProfile;
+        let universe = crate::model::assembly::universe();
+        let mut checks = 0usize;
+        for profile in DialectProfile::all() {
+            let ctx = context(profile.name);
+            for name in universe.command_names() {
+                for spec in universe.specs(name) {
+                    assert_eq!(
+                        ctx.spec_available(spec),
+                        profile.is_available(spec),
+                        "`{name}` under `{}`",
+                        profile.name
+                    );
+                    assert_eq!(
+                        ctx.keyed_ambient_placement(spec)
+                            .map(|placement| placement.package.as_ref().to_owned()),
+                        profile
+                            .keyed_pin_for(spec)
+                            .map(|pin| pin.package.to_owned()),
+                        "`{name}` keyed pin under `{}`",
+                        profile.name
+                    );
+                    assert_eq!(
+                        ctx.keyed_version_range(spec),
+                        profile.keyed_version_range(spec),
+                        "`{name}` keyed range under `{}`",
+                        profile.name
+                    );
+                    for sub in spec.subcommands {
+                        assert_eq!(
+                            ctx.subcommand_available(spec, sub),
+                            profile.is_subcommand_available(spec, sub),
+                            "`{name} {}` under `{}`",
+                            sub.name,
+                            profile.name
+                        );
+                        for sub_sub in sub.sub_subcommands {
+                            for version in [None, Some("1.0"), Some("99.0")] {
+                                assert_eq!(
+                                    ctx.sub_subcommand_available(spec, sub, sub_sub, version),
+                                    profile
+                                        .is_sub_subcommand_available(spec, sub, sub_sub, version),
+                                    "`{name} {} {}` under `{}` at {version:?}",
+                                    sub.name,
+                                    sub_sub.name,
+                                    profile.name
+                                );
+                            }
+                        }
+                        assert_eq!(
+                            ctx.available_sub_option_names(spec, sub),
+                            profile.available_sub_option_names(spec, sub),
+                            "`{name} {}` options under `{}`",
+                            sub.name,
+                            profile.name
+                        );
+                        checks += 1;
+                    }
+                    let parent = spec.dialects;
+                    for opt in spec
+                        .options
+                        .iter()
+                        .chain(spec.command_forms.iter().flat_map(|form| form.options))
+                    {
+                        assert_eq!(
+                            ctx.option_available(opt, parent),
+                            profile.is_option_available(opt, parent),
+                            "`{name} {}` under `{}`",
+                            opt.name,
+                            profile.name
+                        );
+                        checks += 1;
+                    }
+                    assert_eq!(
+                        ctx.available_option_names(spec),
+                        profile.available_option_names(spec),
+                        "`{name}` option names under `{}`",
+                        profile.name
+                    );
+                    checks += 1;
+                }
+            }
+        }
+        println!("profile-query parity sweep: {checks} item checks, 0 divergences");
     }
 
     #[test]

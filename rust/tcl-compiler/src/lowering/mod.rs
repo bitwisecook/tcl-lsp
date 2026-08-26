@@ -820,6 +820,11 @@ pub struct Lowerer<'r> {
     /// dialect's *word* tokenisation, this carries its *expression* grammar.
     /// Set by [`Lowerer::with_dialect`] / [`lower_to_ir_with_dialect`].
     dialect: Option<&'static tcl_dialect::DialectProfile>,
+    /// The dialect's resolved registry generation, derived beside
+    /// [`Self::dialect`] — the context [`try_lower_hook`]'s selection
+    /// primitive carries (P1a threads it into binding proof; unread until
+    /// then).
+    dialect_context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)
     /// into one three-state enum (`clippy::struct_excessive_bools`); see
@@ -908,6 +913,7 @@ impl<'r> Lowerer<'r> {
             suppress_proc_register: false,
             config,
             dialect: None,
+            dialect_context: None,
             target: CompileTarget::Analysis,
             body_cache: None,
             nest_depth: 0,
@@ -927,6 +933,7 @@ impl<'r> Lowerer<'r> {
     #[must_use]
     pub fn with_dialect(mut self, dialect: Option<&'static tcl_dialect::DialectProfile>) -> Self {
         self.dialect = dialect;
+        self.dialect_context = dialect.map(crate::environment_ingress::context_for_profile);
         self
     }
 
@@ -1738,6 +1745,9 @@ impl<'r> Lowerer<'r> {
             &hook_cmd,
             &self.aliases,
             self.registry,
+            self.dialect_context
+                .as_deref()
+                .map(tcl_registry::model::ContextRegistry::context),
             self.safe_on_uninit(cmd_name, args),
         ) {
             return Some(stmt);

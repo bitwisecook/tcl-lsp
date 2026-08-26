@@ -28,7 +28,6 @@
 
 use std::collections::{HashMap, HashSet};
 use tcl_core_types::DiagCode;
-use tcl_registry::ProfileQueries;
 
 use rustc_hash::FxHashSet;
 
@@ -348,7 +347,7 @@ impl Analyser {
         // should also fire — and a vendor profile's embedded Tcl core (8.5
         // `dict` under f5-iapps, 8.6 `coroutine` under expect) would be
         // wrongly unknown, the confirmed bare-bit defect the profile fixes.
-        let profile = tcl_dialect::DialectProfile::by_name(self.dialect());
+        let generation = self.analysis_context();
         // A registry command is "known" for W123 whenever the active dialect
         // enables it — including package-gated commands such as ``argparse`` or
         // the Tk widgets, which resolve under a Tcl version and are ambient in a
@@ -358,7 +357,7 @@ impl Analyser {
         // would double-report and would false-positive on ambient Tk widgets.
         let registry_names: HashSet<String> = registry
             .command_names()
-            .filter(|name| profile.resolve_command(registry, name).is_some())
+            .filter(|name| generation.context().resolve_spec(registry, name).is_some())
             .map(str::to_string)
             .collect();
         let stub_names = self.stub_command_names();
@@ -967,6 +966,7 @@ impl Analyser {
         if self.result.has_dynamic_providers {
             return;
         }
+        let generation = self.analysis_context();
 
         // This is the **single-file** W120: it knows only the packages
         // required / provided *in this document*.  Workspace-level
@@ -1021,7 +1021,7 @@ impl Analyser {
             // the primitive `build_w123_known_names` already resolves
             // `registry_names` through, so a command's package-gating is
             // read from the one spec this dialect actually sees.
-            let Some(spec) = self.profile.resolve_command(registry, &inv.name) else {
+            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
                 continue;
             };
             if spec.required_package.is_none() {
@@ -1065,9 +1065,9 @@ impl Analyser {
         }
         let mut new_diags: Vec<super::types::Diagnostic> = Vec::new();
         for inv in best.values() {
-            let spec = self
-                .profile
-                .resolve_command(registry, &inv.name)
+            let spec = generation
+                .context()
+                .resolve_spec(registry, &inv.name)
                 .expect("invocation selected only when registry-known");
             let pkg = spec
                 .required_package
@@ -1079,7 +1079,7 @@ impl Analyser {
             // shell's own tool commands, or a package a loaded pack declared
             // with `ambient_package`) is part of the runtime — no
             // `package require` exists for it (§7.1 axis C).
-            if self.profile_registry().is_ambient_package(pkg) {
+            if generation.context().ambient_package(pkg) {
                 continue;
             }
             let fix = super::types::CodeFix {

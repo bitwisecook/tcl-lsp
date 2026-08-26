@@ -726,9 +726,11 @@ Use braces: {{ \u{2026} }}"
             return;
         };
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-        let Some((case, invocation)) =
-            registry.case_invocation(cmd_name, &refs, self.profile.availability_mask)
-        else {
+        let Some((case, invocation)) = registry.case_invocation(
+            cmd_name,
+            &refs,
+            self.analysis_context().context().authoring_mask(),
+        ) else {
             return;
         };
         if !case.warn_unbraced_bodies {

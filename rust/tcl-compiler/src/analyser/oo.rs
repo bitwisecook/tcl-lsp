@@ -409,11 +409,10 @@ impl Analyser {
     /// when the enclosing definer (`oo::configurable`, itself 9.0+) is already
     /// flagged: one diagnostic for the version-only construct, not a cascade.
     pub(super) fn command_dialect_disabled(&self, cmd_name: &str) -> bool {
-        use tcl_registry::ProfileQueries;
         self.registry
             .as_deref()
             .and_then(|r| r.get(cmd_name))
-            .is_some_and(|spec| !self.profile.is_available(spec))
+            .is_some_and(|spec| !self.analysis_context().context().spec_available(spec))
     }
 
     /// Whether the definition-body member `subcmd` is available in the active
@@ -429,7 +428,7 @@ impl Analyser {
         };
         match member.dialects {
             None => true,
-            Some(allowed) => allowed.intersects(self.profile.availability_mask),
+            Some(allowed) => allowed.intersects(self.analysis_context().context().authoring_mask()),
         }
     }
 
@@ -496,7 +495,8 @@ impl Analyser {
         if definer_disabled {
             return false;
         }
-        let Some(option) = member.unavailable_option_for(args, self.profile.availability_mask)
+        let Some(option) =
+            member.unavailable_option_for(args, self.analysis_context().context().authoring_mask())
         else {
             return false;
         };
@@ -616,7 +616,11 @@ impl Analyser {
         // $x }` is entirely readable); the `{*}` test above is what catches
         // the genuinely reflected signature.
         member
-            .indices_for_call_in(&texts[1..], self.profile.availability_mask, ArgRole::Name)
+            .indices_for_call_in(
+                &texts[1..],
+                self.analysis_context().context().authoring_mask(),
+                ArgRole::Name,
+            )
             .any(|idx| {
                 texts
                     .get(idx + 1)
@@ -722,7 +726,7 @@ impl Analyser {
             body_word,
             body_content_start,
             self.lexer_config(),
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
             var_name,
         ) else {
             return;
@@ -798,7 +802,7 @@ impl Analyser {
         }
         for idx in spec.indices_for_call_in(
             arg_texts,
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
             ArgRole::CommandName,
         ) {
             if let (Some(name), Some(tok)) = (arg_texts.get(idx), arg_toks.get(idx)) {
@@ -968,7 +972,11 @@ impl Analyser {
             {
                 let tokens = argv.get(1..).unwrap_or(&[]);
                 let parameter_indices: Vec<usize> = member
-                    .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+                    .indices_for_call_in(
+                        args,
+                        self.analysis_context().context().authoring_mask(),
+                        ArgRole::ParamList,
+                    )
                     .collect();
                 super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
                     self,
@@ -982,12 +990,15 @@ impl Analyser {
                 texts,
                 argv,
                 class_def,
-                self.profile.availability_mask,
+                self.analysis_context().context().authoring_mask(),
             );
             self.record_member_command_references(grammar, texts, argv, scope_path);
-            if let Some(method) =
-                collect_method_body(grammar, texts, argv, self.profile.availability_mask)
-            {
+            if let Some(method) = collect_method_body(
+                grammar,
+                texts,
+                argv,
+                self.analysis_context().context().authoring_mask(),
+            ) {
                 bodies.methods.push(method);
             }
         }
@@ -995,7 +1006,7 @@ impl Analyser {
             grammar,
             texts,
             argv,
-            self.profile.availability_mask,
+            self.analysis_context().context().authoring_mask(),
             &mut bodies.accessors,
             &mut bodies.initialisers,
         );
@@ -1441,7 +1452,11 @@ impl Analyser {
                 continue;
             }
             let Some(name) = member
-                .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::VarWrite)
+                .indices_for_call_in(
+                    sub_args,
+                    self.analysis_context().context().authoring_mask(),
+                    ArgRole::VarWrite,
+                )
                 .next()
                 .and_then(|i| sub_args.get(i))
             else {
@@ -1521,7 +1536,11 @@ impl Analyser {
             return;
         };
         let parameter_indices: Vec<usize> = member
-            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::ParamList)
+            .indices_for_call_in(
+                sub_args,
+                self.analysis_context().context().authoring_mask(),
+                ArgRole::ParamList,
+            )
             .collect();
         super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
             self,
@@ -1544,7 +1563,11 @@ impl Analyser {
         // Only body-bearing members define a walkable method scope; pure
         // declarations (`variable` …) and option/delegate members carry none.
         if member
-            .indices_for_call_in(sub_args, self.profile.availability_mask, ArgRole::Body)
+            .indices_for_call_in(
+                sub_args,
+                self.analysis_context().context().authoring_mask(),
+                ArgRole::Body,
+            )
             .next()
             .is_none()
         {
@@ -1593,21 +1616,17 @@ impl Analyser {
             label,
             visibility,
         } = *form;
-        let Some(body_idx) = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Body)
-            .next()
-        else {
+        let mask = self.analysis_context().context().authoring_mask();
+        let Some(body_idx) = member.indices_for_call_in(args, mask, ArgRole::Body).next() else {
             return;
         };
         let Some(body_text) = args.get(body_idx).cloned() else {
             return;
         };
         let body_tok = arg_tokens.get(body_idx).copied();
-        let name_idx = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::Name)
-            .next();
+        let name_idx = member.indices_for_call_in(args, mask, ArgRole::Name).next();
         let params_idx = member
-            .indices_for_call_in(args, self.profile.availability_mask, ArgRole::ParamList)
+            .indices_for_call_in(args, mask, ArgRole::ParamList)
             .next();
 
         // A named member (`method NAME …`) uses its name word; the nameless
@@ -1628,8 +1647,11 @@ impl Analyser {
         let mut params: Vec<ParamDef> = params_idx
             .and_then(|i| args.get(i))
             .map_or_else(Vec::new, |p| parse_param_list(p));
-        for i in member.indices_for_call_in(args, self.profile.availability_mask, ArgRole::VarWrite)
-        {
+        for i in member.indices_for_call_in(
+            args,
+            self.analysis_context().context().authoring_mask(),
+            ArgRole::VarWrite,
+        ) {
             if let Some(v) = args.get(i) {
                 params.push(ParamDef {
                     name: v.clone(),
@@ -1839,7 +1861,11 @@ impl Analyser {
                 continue;
             };
             let parameter_indices: Vec<usize> = member
-                .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::ParamList)
+                .indices_for_call_in(
+                    kw_args,
+                    self.analysis_context().context().authoring_mask(),
+                    ArgRole::ParamList,
+                )
                 .collect();
             super::diagnostics::emit_invalid_formal_parameter_list_diagnostics(
                 self,
@@ -1853,7 +1879,11 @@ impl Analyser {
             // recorded as a method here).  `inherit` and the like carry no body.
             if matches!(kw, "variable" | "common")
                 || member
-                    .indices_for_call_in(kw_args, self.profile.availability_mask, ArgRole::Body)
+                    .indices_for_call_in(
+                        kw_args,
+                        self.analysis_context().context().authoring_mask(),
+                        ArgRole::Body,
+                    )
                     .next()
                     .is_none()
             {

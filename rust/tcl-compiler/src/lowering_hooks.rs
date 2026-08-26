@@ -29,7 +29,6 @@
 
 use std::collections::HashSet;
 
-use tcl_dialect::DialectSet;
 use tcl_lexer::Span;
 use tcl_registry::CommandRegistry;
 use tcl_registry::hooks::LoweringHookId;
@@ -133,10 +132,12 @@ pub fn try_lower_hook(
     cmd: &LoweringCommand<'_>,
     aliases: &CommandAliasMap,
     registry: &CommandRegistry,
+    context: Option<&tcl_registry::model::ResolvedContext>,
     safe_on_uninit: bool,
 ) -> Option<Statement> {
     let arg_refs: Vec<&str> = cmd.args.iter().map(String::as_str).collect();
-    let resolved = registry.resolve_invocation(cmd.name, &arg_refs, DialectSet::empty())?;
+    let resolved =
+        tcl_registry::model::resolve_invocation_in_context(registry, context, cmd.name, &arg_refs)?;
     let hook = resolved.semantics.lowering_hook?;
     dispatch_lowering_hook(hook, cmd, aliases, safe_on_uninit)
 }
@@ -1108,7 +1109,7 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        let result = try_lower_hook(&cmd, &aliases, &registry, false);
+        let result = try_lower_hook(&cmd, &aliases, &registry, None, false);
         assert!(
             matches!(result, Some(Statement::AssignConst { .. })),
             "expected AssignConst from registry-driven dispatch; got {result:?}",
@@ -1135,6 +1136,6 @@ mod tests {
             arg_kinds: &kinds,
             dialect: None,
         };
-        assert!(try_lower_hook(&cmd, &aliases, &registry, false).is_none());
+        assert!(try_lower_hook(&cmd, &aliases, &registry, None, false).is_none());
     }
 }
