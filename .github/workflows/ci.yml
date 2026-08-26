@@ -1403,7 +1403,12 @@ jobs:
   # Build: Sublime Text package
   build-sublime:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [create-release]
+    # build-server-matrix is needed for its *digests*, not its binaries: the
+    # package ships no server, but it pins the SHA-256 of each one this
+    # release will carry so plugin.py verifies its download against a digest
+    # that travelled inside the package rather than one served from the same
+    # release as the binary.
+    needs: [create-release, build-server-matrix]
     runs-on: ubuntu-24.04
     permissions:
       contents: write        # gh release upload
@@ -1418,13 +1423,23 @@ jobs:
           fetch-depth: 1
           fetch-tags: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
+      # Restores `<triple>/release/tcl-lsp-server[.exe]` — the same bytes
+      # publish-native-binaries attaches to the release, so hashing them here
+      # pins exactly what the plugin will later download.
+      - name: Download server-matrix binaries (for their digests)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: server-bins-*
+          path: server-bins
+          merge-multiple: true
+
       # The Sublime package is pure resources — no Rust toolchain, no Python
       # beyond the runner's preinstalled stdlib for the zip smoke-test.  It
       # ships one artefact for every platform and `plugin.py` downloads the
       # `tcl-lsp-server-<triple>` asset published by publish-native-binaries
       # for the host, so the server MUST stay out of this package.
       - name: Build Sublime Text package
-        run: make build-editor-sublime
+        run: make build-editor-sublime SERVER_BINS_DIR=server-bins
 
       - name: Smoke-test Sublime package
         run: |
@@ -1439,10 +1454,19 @@ jobs:
           assert 'LSP-Tcl.sublime-settings' in names, 'missing LSP settings'
           assert '.python-version' in names, 'missing plugin_host selector'
           assert any(n.startswith('specs/') for n in names), 'missing spec packs'
-          version = json.loads(zf.read('server_version.json'))['version']
+          manifest = json.loads(zf.read('server_version.json'))
+          version = manifest['version']
           tag = '${{ github.ref_name }}'
           assert version == tag[1:], f'server_version {version} != tag {tag}'
-          print(f'OK: {len(names)} entries, server version {version}')
+          # A released package must pin the digest of every server it can
+          # download; without the pins plugin.py silently degrades to the
+          # release's own SHA256SUMS, which is integrity only.
+          pins = manifest.get('servers') or {}
+          for triple in ('x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu',
+                         'x86_64-apple-darwin', 'aarch64-apple-darwin',
+                         'x86_64-pc-windows-msvc', 'aarch64-pc-windows-msvc'):
+              assert len(pins.get(triple, '')) == 64, f'no server pin for {triple}'
+          print(f'OK: {len(names)} entries, server version {version}, {len(pins)} pins')
           "
 
       # Package Control has no pre-release channel, and — unlike the VS Code

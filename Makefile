@@ -1687,8 +1687,8 @@ publish-jetbrains: build-editor-jetbrains ## Publish JetBrains plugin to JetBrai
 # Package Control serves one artefact to every platform, so a bundled
 # server would be right for one platform and wrong for the other five.
 # `plugin.py` instead downloads the `tcl-lsp-server-<triple>` asset for the
-# host from the release named in `server_version.json`, checksum-verified
-# against that release's SHA256SUMS, into LSP's package storage.
+# host from the release named in `server_version.json`, verified against the
+# digest pinned in that same file, into LSP's package storage.
 #
 # The SpecTcl loadables (`docs/design/spec-packs.md`) still ship *in* the
 # package: they are plain data, identical on every platform, and the plugin
@@ -1719,10 +1719,45 @@ $(ST_PACKAGE):
 	@mkdir -p $(BUILD_DIR)/sublime-stage/specs
 	cp $(SPEC_PACK_SRC)/*.tclspec $(BUILD_DIR)/sublime-stage/specs/
 	cp $(LICENSE_SRC) $(BUILD_DIR)/sublime-stage/LICENSE.txt
-	@# The release the plugin downloads its server from.  A non-release
-	@# checkout stamps a `git describe` string, which plugin.py rejects and
-	@# falls back to resolving the latest published release.
-	printf '{\n    "version": "$(VERSION)"\n}\n' > $(BUILD_DIR)/sublime-stage/server_version.json
+	@# The release the plugin downloads its server from, plus the SHA-256 of
+	@# each server binary that release will carry.  Pinning the digests here
+	@# is what makes the download trustworthy: the plugin then verifies
+	@# against a digest that reached the user inside the package (via Package
+	@# Control), not against the SHA256SUMS served from the same release as
+	@# the binary — replacing a release asset does not also replace this.
+	@# Verifying SHA256SUMS.cosign.bundle instead is not open to us: Sublime
+	@# Text's plugin host is stdlib-only, with no X.509 or ECDSA to verify a
+	@# sigstore bundle with, and vendoring a crypto stack into a Package
+	@# Control submission trades one risk for a worse one.
+	@#
+	@# SERVER_BINS_DIR is where CI's build-server-matrix artefacts land
+	@# (`<triple>/release/tcl-lsp-server[.exe]`) — the same bytes
+	@# publish-native-binaries attaches to the release.  A local build leaves
+	@# it unset and ships no pins; plugin.py then falls back to the release
+	@# SHA256SUMS and says so on the console.
+	@set -eu; \
+	pins=""; \
+	if [ -n "$(SERVER_BINS_DIR)" ]; then \
+		for bin in $(SERVER_BINS_DIR)/*/release/tcl-lsp-server $(SERVER_BINS_DIR)/*/release/tcl-lsp-server.exe; do \
+			[ -f "$$bin" ] || continue; \
+			triple="$$(printf '%s\n' "$$bin" | sed -E 's#.*/([^/]+)/release/.*#\1#')"; \
+			sum="$$(sha256sum "$$bin" | cut -d' ' -f1)"; \
+			pins="$$pins        \"$$triple\": \"$$sum\",\n"; \
+		done; \
+		[ -n "$$pins" ] || { echo "SERVER_BINS_DIR=$(SERVER_BINS_DIR) holds no tcl-lsp-server binaries"; exit 1; }; \
+	fi; \
+	{ \
+		printf '{\n    "version": "$(VERSION)"'; \
+		if [ -n "$$pins" ]; then \
+			printf ',\n    "servers": {\n'; \
+			printf "$$pins" | sed '$$ s/,$$//'; \
+			printf '    }'; \
+		fi; \
+		printf '\n}\n'; \
+	} > $(BUILD_DIR)/sublime-stage/server_version.json
+	@python3 -c "import json,sys; d=json.load(open('$(BUILD_DIR)/sublime-stage/server_version.json')); \
+		print('==> Server pins: %d platform(s)' % len(d.get('servers') or {}) if d.get('servers') \
+		      else '==> No server pins (local build) — plugin.py will fall back to the release SHA256SUMS')"
 	@echo "==> Packaging .sublime-package"
 	@rm -f $(ST_PACKAGE)
 	cd $(BUILD_DIR)/sublime-stage && zip -qr $(ST_PACKAGE) . -x '__pycache__/*'

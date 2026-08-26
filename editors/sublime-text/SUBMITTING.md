@@ -13,21 +13,29 @@ rather than a git tag's source tarball. That is what this package uses:
 
 - `build-sublime` in `.github/workflows/ci.yml` builds
   `TclLsp.sublime-package` on every `v*` tag and attaches it to the
-  GitHub Release, signed and covered by the release's `SHA256SUMS`.
+  GitHub Release, signed and covered by the release's `SHA256SUMS`. It
+  also pins the SHA-256 of every `tcl-lsp-server` binary that release
+  carries into the package, hashing the build-server-matrix artefacts the
+  release is assembled from.
 - The channel entry names that asset. Package Control serves the newest
   release carrying it — no mirror repo, no per-release channel PR, no
   marketplace token.
 - The package is **platform-independent** (no bundled binary), so one
   asset serves every platform. `plugin.py` downloads the
-  `tcl-lsp-server-<triple>` asset for the host on first use and verifies
-  it against `SHA256SUMS`.
+  `tcl-lsp-server-<triple>` asset for the host on first use and accepts it
+  only against the pinned digest — which arrives via Package Control, not
+  from the release serving the binary. Verifying `SHA256SUMS.cosign.bundle`
+  in the plugin is not an option: Sublime Text's plugin host is
+  stdlib-only, with no X.509 or ECDSA to verify a sigstore bundle, and
+  vendoring a crypto stack into a channel submission trades one risk for a
+  worse one.
 
 ### Where this stands today
 
 The current stable release is **v2.2.0** — the release that took the 2.x
 line out of preview. It carries every `tcl-lsp-server-<triple>` asset and
-the cosign-signed `SHA256SUMS` the plugin downloads and verifies against,
-but its Sublime asset still uses the pre-submission name
+the cosign-signed `SHA256SUMS`, but its Sublime asset still uses the
+pre-submission name
 (`tcl-lsp-sublime-2.2.0.sublime-package`, with a Linux binary inside).
 
 So the channel PR waits for **the first stable release built from this
@@ -150,7 +158,7 @@ the shipped package does not have.
   applied behind the user's back.
 - **No bundled executable**, so no `.no-sublime-package` and no
   platform-specific package. The server is downloaded per platform and
-  checksum-verified.
+  checked against a digest pinned in the package at build time.
 - **`.python-version` = 3.8**, matching the `python_versions` in the
   channel entry and the LSP package's plugin host.
 - **A top-level `LICENSE.txt`**, copied into the staged tree from the

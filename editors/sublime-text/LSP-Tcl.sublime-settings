@@ -99,7 +99,7 @@
     // Path to a tcl-lsp-server you manage yourself.  Leave it unset and
     // the package downloads the build matching this release from
     // https://github.com/bitwisecook/tcl-lsp/releases on first use,
-    // verifying it against the release's SHA256SUMS.
+    // accepting it only if it matches the digest pinned in this package.
     //
     // "server_path": "/path/to/tcl-lsp-server",
 

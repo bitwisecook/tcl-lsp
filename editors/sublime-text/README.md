@@ -87,9 +87,17 @@ platform, so a bundled server would be right for one platform and wrong
 for the rest. Instead, the first time you open a Tcl file with the LSP
 package installed, the plugin downloads
 `tcl-lsp-server-<target-triple>` for your platform from the tcl-lsp
-release matching this package, verifies it against that release's
-`SHA256SUMS`, and stores it under LSP's package storage. Older versions
-are pruned on upgrade.
+release matching this package, and stores it under LSP's package storage.
+Older versions are pruned on upgrade.
+
+The download is accepted only if it matches the SHA-256 **pinned inside
+this package**, which CI computed from the very binaries it attached to
+that release. That digest reaches you through Package Control rather than
+from the release the binary comes from, so a swapped release asset is
+rejected even though an attacker could publish a matching `SHA256SUMS`
+beside it. A package built from a source checkout has no pins and falls
+back to the release's `SHA256SUMS` — an integrity check on the transfer,
+not proof of origin — and says so in the console when it does.
 
 The `.tclspec` packs for the EDA dialects ship *inside* the package (they
 are plain data, identical everywhere) and are staged beside the server.

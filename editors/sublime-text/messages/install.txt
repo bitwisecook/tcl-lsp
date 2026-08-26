@@ -21,9 +21,10 @@ Quick start
 
 3.  The first time a Tcl file is opened with LSP installed, the matching
     tcl-lsp-server build for your platform is downloaded from the
-    project's GitHub releases into LSP's package storage and verified
-    against that release's SHA256SUMS.  To use a server you manage
-    yourself instead, set "server_path" in:
+    project's GitHub releases into LSP's package storage, and accepted
+    only if it matches the SHA-256 pinned inside this package when it was
+    built.  To use a server you manage yourself instead, set
+    "server_path" in:
 
         Preferences > Package Settings > TclLsp > LSP Settings
 

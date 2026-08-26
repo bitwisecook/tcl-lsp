@@ -23,8 +23,19 @@ Standalone features (syntaxes, snippets, settings, symbol indexing) need
 nothing but Sublime Text.  With the sublimelsp/LSP package installed, this
 plugin also configures the tcl-lsp language server: the matching
 `tcl-lsp-server` build for this platform is downloaded once into LSP's
-package storage, checksum-verified against the release's signed
-SHA256SUMS, and kept beside the `.tclspec` packs shipped in this package.
+package storage, verified against the digest this package was built with,
+and kept beside the `.tclspec` packs shipped in this package.
+
+The digest is what makes the download trustworthy, so where it comes from
+matters.  A released package carries one per platform in
+`server_version.json`, computed by CI from the very artefacts it attached
+to the release; that reaches the user through Package Control rather than
+from the release the binary comes from, so replacing a release asset is
+not enough to have a substituted binary accepted.  A package built
+without those pins (a source checkout) has nothing but the release's own
+SHA256SUMS to go on, which is an integrity check against a corrupted or
+truncated download — not proof of origin — and `_install_server` says so
+on the console when it falls back to it.
 
 Constraint: runs in Sublime Text's plugin_host 3.8 (see `.python-version`).
 """
@@ -211,6 +222,19 @@ def _development_server_path():
 # Managed server install (downloaded on first use)
 
 
+def _version_manifest():
+    # type: () -> dict
+    """Return the parsed `server_version.json`, or an empty mapping."""
+    try:
+        raw = sublime.load_resource(VERSION_RESOURCE)
+    except (OSError, ValueError):
+        return {}
+    try:
+        return json.loads(raw) or {}
+    except ValueError:
+        return {}
+
+
 def _packaged_version():
     # type: () -> str
     """Return the release version this package was built for, or ''.
@@ -219,15 +243,19 @@ def _packaged_version():
     `make build-editor-sublime`; a plain source checkout has no stamp, and
     then the latest published release is resolved at install time instead.
     """
-    try:
-        raw = sublime.load_resource(VERSION_RESOURCE)
-    except (OSError, ValueError):
-        return ""
-    try:
-        version = (json.loads(raw) or {}).get("version") or ""
-    except ValueError:
-        return ""
+    version = _version_manifest().get("version") or ""
     return version if _RELEASE_VERSION_RE.match(version) else ""
+
+
+def _pinned_digest(triple):
+    # type: (str) -> str
+    """Return the SHA-256 this package was built to expect for *triple*.
+
+    Written into `server_version.json` by `make build-editor-sublime` when
+    it is handed the built server binaries (which is how the tagged CI
+    build runs it).  Empty for a package built without them.
+    """
+    return (_version_manifest().get("servers") or {}).get(triple) or ""
 
 
 def _managed_dir(version):
@@ -306,13 +334,15 @@ def _asset_url(version, asset):
     )
 
 
-def _expected_checksum(version, asset):
+def _release_checksum(version, asset):
     # type: (str, str) -> str
-    """Return the SHA256SUMS digest for *asset* in release *version*.
+    """Return the SHA256SUMS digest release *version* publishes for *asset*.
 
-    Every release carries a SHA256SUMS covering each attached artefact
-    (signed with cosign alongside it), so a download is never trusted on
-    the strength of the transport alone.
+    The fallback for a package with no pinned digest.  It travels with the
+    binary it describes, so treat it as an integrity check on the transfer
+    rather than proof of where the binary came from — the pinned digest in
+    `server_version.json` is the one that carries authenticity, and
+    `_install_server` prefers it.
     """
     sums = _fetch(_asset_url(version, CHECKSUM_ASSET)).decode("utf-8")
     for line in sums.splitlines():
@@ -400,7 +430,10 @@ def _install_server():
     if not target_dir:
         raise RuntimeError("the LSP package is not available")
 
-    expected = _expected_checksum(version, asset)
+    expected = _pinned_digest(triple)
+    pinned = bool(expected)
+    if not pinned:
+        expected = _release_checksum(version, asset)
 
     # Build the install in a sibling directory and move it into place, so an
     # interrupted download never leaves a half-installed version behind.
@@ -419,7 +452,18 @@ def _install_server():
         raise
 
     _prune_managed_versions(version)
-    print("{}: installed tcl-lsp-server {} ({})".format(PACKAGE_NAME, version, triple))
+    print(
+        "{}: installed tcl-lsp-server {} ({}), digest {}".format(
+            PACKAGE_NAME,
+            version,
+            triple,
+            "pinned by this package"
+            if pinned
+            else "taken from the release's SHA256SUMS — this package carries "
+            "no pinned digest, so the download is integrity-checked but not "
+            "traced to a known build",
+        )
+    )
 
 
 def _resolve_server():
