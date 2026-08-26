@@ -231,7 +231,15 @@ change its classification, and picol — a mutable per-interpreter command
 table over a tiny built-in set — is the negative control the model must
 either represent honestly (embedder/build capabilities plus dynamic
 bindings) or reject explicitly, never misdescribe with an invented
-catalogue.
+catalogue. Picol 2 (antirez's February 2026 rewrite) sharpens that
+control from a second direction: the *same project name* now carries
+different core-evaluation semantics — capital-initial variables are
+global by name shape, replacing `global` entirely, and its new `expr`
+performs no interpolation, so Tcl's recommended braced form cannot work —
+proving that a bare name identifies neither grammar nor semantics across
+its own releases, just as Jim's build matrix proves it within one
+release. Both picol revisions belong in the oracle ledger as
+negative-control columns.
 
 Applying it to today's 18 catalogue entries plus the two off-catalogue
 profiles and the jim branch:
@@ -319,6 +327,13 @@ pub struct ExprGrammar {
     pub mathfuncs: &'static [MathFunc],
 
     pub arity: ExprArity,               // Concatenating | ExactlyOne
+
+    /// Whether `$var` / `[cmd]` interpolate INSIDE the expr engine.
+    /// Invisible while every modelled family substitutes (tcl, jim,
+    /// irules) — picol 2 proves the axis varies in the wild: its expr
+    /// performs no interpolation, `expr $a+$b` works only via ordinary
+    /// word substitution, and the braced form cannot work at all.
+    pub substitution: ExprSubstitution,
 }
 ```
 
