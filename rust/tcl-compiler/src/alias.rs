@@ -42,8 +42,7 @@
 use std::collections::{HashMap, HashSet};
 
 use tcl_registry::{
-    CommandBindingTransition, CommandRegistry, InvocationWord, InvocationWords, StateTransitions,
-    TransitionSubject,
+    CommandRegistry, InvocationWord, InvocationWords, StateTransitions, TransitionSubject,
 };
 
 use crate::naming::{is_dynamic_word, normalise_qualified_name};
@@ -116,34 +115,6 @@ pub fn subject_word<'a>(subject: &'a TransitionSubject, args: &'a [String]) -> O
     }
 }
 
-/// Every command name a binding transition names, as written.
-///
-/// A consumer that must distrust *both* ends of a rebinding — the source
-/// and the destination — reads this rather than re-walking the argument
-/// list. Dynamic subjects contribute nothing; a consumer that must widen
-/// on them reads the transition itself.
-#[must_use]
-pub fn transition_names(transition: &CommandBindingTransition) -> Vec<&str> {
-    match transition {
-        CommandBindingTransition::Define { name, .. } => name.literal().into_iter().collect(),
-        CommandBindingTransition::Move { from, to } => [from.literal(), to.literal()]
-            .into_iter()
-            .flatten()
-            .collect(),
-        CommandBindingTransition::Delete { name, .. } => name.literal().into_iter().collect(),
-        CommandBindingTransition::Alias { alias, target, .. } => {
-            [alias.literal(), target.literal()]
-                .into_iter()
-                .flatten()
-                .collect()
-        }
-        CommandBindingTransition::Unknown { operands } => operands
-            .iter()
-            .filter_map(TransitionSubject::literal)
-            .collect(),
-    }
-}
-
 /// Alias store: qualified name → (target command, prepended args).
 pub type CommandAliasMap = HashMap<String, (String, Vec<String>)>;
 
@@ -206,6 +177,7 @@ pub fn expr_alias_names(aliases: &CommandAliasMap) -> HashSet<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tcl_registry::CommandBindingTransition;
 
     /// Test helper: the transitions a `head args…` source call establishes.
     fn transitions(head: &str, args: &[&str]) -> Vec<CommandBindingTransition> {

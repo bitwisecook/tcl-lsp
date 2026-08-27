@@ -2672,7 +2672,7 @@ impl Analyser {
     /// proc / class registrations to consult without rebuilding.
     /// The dialect resolves through the profile catalog; unknown dialect
     /// names sink to the permissive fallback profile's registry.
-    pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
+    pub(crate) fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {
             let generation = self.analysis_context();
             let registry = generation.commands();

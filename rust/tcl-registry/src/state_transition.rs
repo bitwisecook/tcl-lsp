@@ -1159,7 +1159,8 @@ pub mod command_binding {
         transitions
     }
 
-    /// Whether this invocation is `interp alias`-shaped.
+    /// Whether this invocation is `interp alias`-shaped — a literal
+    /// `alias` subcommand word at position 0.
     ///
     /// The shipped registry stamps the alias effect on `interp`'s `alias`
     /// subcommand, so the word is guaranteed there. A `SpecTcl` pack may
@@ -1171,13 +1172,13 @@ pub mod command_binding {
     /// command's own arguments. Registry data must not be able to do that,
     /// so the shape check is a **fact**: a call that is not `interp
     /// alias`-shaped states no alias.
-    fn is_interp_alias_shape(arguments: InvocationArguments<'_>) -> bool {
+    fn is_alias_subcommand_shape(arguments: InvocationArguments<'_>) -> bool {
         arguments.literal_at(0) == Some("alias")
     }
 
     fn creates_aliases(arguments: InvocationArguments<'_>) -> StateTransitions {
         let mut transitions = StateTransitions::default();
-        if !is_interp_alias_shape(arguments) {
+        if !is_alias_subcommand_shape(arguments) {
             return transitions;
         }
         let (Some(source_interpreter), Some(alias)) = (

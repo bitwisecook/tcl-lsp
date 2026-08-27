@@ -539,6 +539,7 @@ fn static_subject(subject: &TransitionSubject) -> Option<&str> {
 
 /// One `interp alias` fact's operands, bundled so [`record_alias`] stays at
 /// or under the argument limit.
+#[derive(Clone, Copy)]
 struct AliasFact<'a> {
     source_interpreter: &'a TransitionSubject,
     alias: &'a TransitionSubject,

@@ -519,6 +519,10 @@ Distilled from the trickiest scars in the WASM runtime history
   agent lane: goal, decisions taken and why, site inventory, behavioural
   deltas, and open uncertainties. A file there means a lane is either in
   flight or was interrupted; each is removed when its lane lands.
+- [lanes/one-loader.md](lanes/one-loader.md) — the `SpecTcl` pack loader
+  unification (ledger row L1).
+- [lanes/one-vocabulary.md](lanes/one-vocabulary.md) — redesign §11.2 rows
+  D9 and D18 (R1, R10) and ledger rows C6, C8, R1, R10.
 
 ## Templates
 

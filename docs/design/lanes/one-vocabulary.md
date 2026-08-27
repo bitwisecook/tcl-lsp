@@ -24,7 +24,11 @@ thing, and no shims*. The P8 audit left two survivors.
 - [x] **R1 — landed.** `stub_overlay.rs` (423 lines) deleted.
 - [x] **C8 / D9 — landed.** `CommandTableEffect` is no longer a consumer
       vocabulary, and the per-consumer argument destructuring is gone.
-- [ ] R10
+      Ledger C6's *typing* tail stays open (see "Open uncertainties").
+- [x] **R10 — landed.** The one-oracle gate: visibility narrowing where
+      that is enough, plus an owned-spelling call-site sweep in
+      `retired-api-gate` with a `// one-oracle-ok:` escape hatch and
+      self-tests.
 
 ## Decisions
 
@@ -131,6 +135,67 @@ tables. The walk itself is a walk, not a vocabulary, so it is not a fourth
 one — but the tables are still `AnalysisResult`-shaped rather than
 `state_transition.rs`-shaped values, which is the residue C6's target
 column names. See "Open uncertainties".
+
+### R10 — the gate's shape, and what it prevents
+
+Two halves, exactly as the ruling asks.
+
+**Visibility, where that is enough.** `Analyser::builtin_command_names`
+(the one oracle's registry tier — no caller outside
+`tcl-compiler/src/analyser/`) and
+`model::declaration::DeclaredSurface::get` (R1's raw per-document table —
+the door is `DocumentCommandSurface`) are now `pub(crate)`, beside P1-G's
+already-narrowed cache doors and `ProfileQueries`.
+
+**The call-site sweep, for the doors that cannot be narrowed.** A second
+pattern family in `rust/xtask/src/retired_api_gate.rs`, `OWNED`, names each
+centralised *answer* and the repository-relative path prefixes whose files
+may write it. Writing one elsewhere fails the gate; the escape hatch is a
+`// one-oracle-ok: <reason>` waiver **plus** a row in the centralisation
+ledger's §3 table — a marker deliberately distinct from `retired-api-ok:`,
+so neither waiver licenses the other kind of exception.
+
+| Answer | Owned by |
+|---|---|
+| `CommandExistenceOracle`, `command_existence_oracle`, `builtin_command_names`, `w123_registry_known_names` | `rust/tcl-compiler/src/analyser/` |
+| `has_command_in_this_dialect`, `all_dialect_command_names` | `rust/tcl-registry/src/`, plus `rust/tcl-compiler/src/codegen/` (issue #1427: a constant fold skips the runtime availability gate, so it must ask) |
+| `command_binding_transitions`, `command_table_transitions` | `rust/tcl-registry/`, `rust/tcl-compiler/src/`, `rust/tcl-lsp-core/src/tk_preview.rs` |
+| `DeclaredSurface` | `rust/tcl-registry/src/`, `rust/tcl-compiler/src/analyser/`, `rust/tcl-lsp-db/src/` |
+
+The retired family additionally gained this lane's deletions —
+`StubOverlay`, `stub_overlay`, `StubSig`, `StubSigFlags`,
+`build_stub_overlay`, `to_stub_sig`, `command_table_effect(`,
+`command_table_effects`, `detect_rename`, `detect_interp_alias`,
+`detect_interp_alias_delete`, `is_interp_alias_shape`.
+
+**What it now prevents.** A consumer cannot grow a second existence oracle
+by assembling its own known-name set beside `builtin_command_names`; a
+second availability rule by asking `has_command_in_this_dialect` outside
+the registry and the folder; a fourth command-table vocabulary by building
+its own source-word bridge beside `tcl_compiler::alias`; or a second
+per-document command table beside `DocumentCommandSurface` — without either
+a reviewed, written-down waiver or a red gate.
+
+**A matcher fix the new needles forced.** The boundary rule now applies
+only at an end the needle itself spells with an identifier character. A
+needle carrying its own punctuation (`command_table_effect(`,
+`availability_for_name(`) previously matched nothing at all, because the
+gate demanded an identifier boundary *outside* punctuation that already is
+one. Both required properties survive: an identifier boundary is still
+enforced on both sides wherever the needle spells one (so `arg_rows` still
+does not match inside `project_arg_rows`), and the seeded-violation test
+still asserts an exact finding count per row — the
+`DialectProfile::availability_for_name(name)` row now honestly says 2,
+because that line really does carry two retired spellings.
+
+**What was not attempted, and why.** Full `pub(crate)` on
+`CommandRegistry::command_names` / `get_for_dialect` — the literal reading
+of "the only callers of the raw lookup layer are the two typed views" — is
+not achievable as the tree stands: about 45 production call sites read them
+for spec *content* (hover text, argument roles, formatter presentation),
+which is not an existence answer. The sweep carries that half, keyed on the
+answers rather than the doors, and the redesign's D18 row records the
+divergence.
 
 ## Behavioural deltas
 

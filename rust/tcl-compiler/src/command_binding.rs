@@ -843,7 +843,6 @@ fn collect_proc_rebindings(
                 | StateTransition::Widen(_) => {}
             }
         }
-        return;
     }
 }
 

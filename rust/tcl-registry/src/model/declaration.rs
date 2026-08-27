@@ -187,8 +187,14 @@ impl DeclaredSurface {
     }
 
     /// The declaration for `name`, if this document declares it.
+    ///
+    /// Crate-internal on purpose (ruling R10's visibility half): the door
+    /// onto a document's command surface is
+    /// [`DocumentCommandSurface`], which answers the catalogue and the
+    /// document together. A consumer that could reach the raw per-document
+    /// table would be building the second lookup R1 just retired.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&DeclaredCommand> {
+    pub(crate) fn get(&self, name: &str) -> Option<&DeclaredCommand> {
         self.commands.get(name)
     }
 

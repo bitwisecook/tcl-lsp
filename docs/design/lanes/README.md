@@ -22,8 +22,9 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-- [c1-executable-ir-rekey.md](c1-executable-ir-rekey.md) — centralisation
-  ledger row C1 / redesign §11.2 D1 (the executable-IR re-key onto the
-  resolved context) and §11.4 E1 (the salsa lexer-config truncation).
-- [o1-o2-option-relations.md](o1-o2-option-relations.md) — redesign §11.1
-  rows O1 (the typed option-relation model, E-R14) and O2 (the M9 dead axes).
+- [one-loader.md](one-loader.md) — the `SpecTcl` pack loader unification
+  (redesign §11, ledger row L1): one loader, one cache identity.
+- [one-vocabulary.md](one-vocabulary.md) — redesign §11.2 rows D9 and D18
+  (clauses R1 and R10) and centralisation ledger rows C6, C8, R1, R10:
+  stubs as provenance-tagged declarations, one command-table transition
+  vocabulary, and the one-oracle gate.

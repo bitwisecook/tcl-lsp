@@ -68,7 +68,9 @@ Rules:
   §6.4). Inline/sidecar stubs are not a separate overlay type consulted
   ad hoc: they ingest as `SurfaceDeclaration`s with `Document`/`Workspace`
   provenance (gap ruling R1, §4), so one query path serves all three of
-  today's spec sources.
+  today's spec sources. *(Landed in the one-vocabulary lane:
+  `tcl_registry::model::declaration`, read through the one
+  `DocumentCommandSurface` door.)*
 - **Dynamic data is generation-owned** (review B8): loaded packs, stubs,
   and config-declared environments live in `Arc<RegistryGeneration>`;
   nothing dynamic is leaked `&'static`. Compiled built-ins stay true
@@ -179,9 +181,10 @@ retirement rows.
   (`command_aliases`, `renamed_commands`, `deleted_commands`, offsets)
   plus `head_identity.rs` — a second, weaker, top-level-only binding
   table with 20+ consumers. *(P1a retired `head_identity.rs` onto the
-  realm command-binding state — ledger C4; the ad-hoc tables now feed
-  the one oracle but their `state_transition.rs` re-homing is C6's open
-  tail.)*
+  realm command-binding state — ledger C4; the one-vocabulary lane made
+  the ad-hoc tables indexes over `CommandBindingTransition` facts rather
+  than a second destructuring, and their `state_transition.rs` **typing**
+  is C6's open tail.)*
 - `command_binding.rs` (flow-sensitive `BindingKind` lattice with
   `trusts()`) is the in-tree prefiguration of `BindingKnowledge`; it
   lacks the realm and package axes. `RealmState` ≈ `command_binding` ×
@@ -444,9 +447,9 @@ as widening **zero** hint selections.
 | C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | **done (P1a)** *(the primitives enforce the proof: with a context, the head resolves through `ResolvedContext::resolve_spec` and sub/form gating runs under the authoring mask; the analyser-hook, lowering-hook, and type-infer callers thread real contexts, `lsp-db` holds no bypass of its own, and each remaining `invocation_traits(…, empty)` reader is a documented conservative **widening** query, never hook selection)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | **done (P1a)** *(module deleted; the scan and its offset-keyed facts are the realm command-binding state — `tcl_compiler::realm::CommandBindingRealm`, spec-keyed `Spec`/`TakenOver`/`Deleted` facts with a `knowledge_at` `BindingKnowledge` view composing document facts over the environment under the world policy; all 35 consumer files ported; the `retired-api-gate` holds `head_identity`/`HeadIdentityMap`/`HeadIdentity`/`command_head_identities` at zero)* |
 | C5 | `KnownPredicateCtx`'s unfiltered `builtin_command_names()` and the settlement-vs-W123 oracle split | the one `exists` oracle (R-c) | **done (P1a)** *(`builtin_command_names` is the oracle's registry tier — context-resolved names plus the §4b iRules extension — and W123's `w123_registry_known_names` reads the same cached set, so settlement, const-dispatch, W113 and W123 share one answer; the enumerated delta: settlement no longer believes in environment-disabled commands, pinned by `builtin_command_names_caches_per_dialect`)* |
-| C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a *(partial: the tables now feed the one oracle — `command_binding_knowledge` is their sole W123-class reader, and the realm module owns the top-level scan — but the tables themselves (`command_aliases`, `renamed_commands`, `deleted_commands`, the offset maps) are not yet re-homed onto `state_transition.rs`-fed realm state; that re-homing and `indirection.rs` remain)* |
+| C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a/one-vocabulary *(partial: the tables now feed the one oracle — `command_binding_knowledge` is their sole W123-class reader, and the realm module owns the top-level scan — and since the one-vocabulary lane they are **populated from** `CommandBindingTransition` facts rather than from a second destructuring of their own (`alias.rs`'s `detect_rename` / `detect_interp_alias` / `detect_interp_alias_delete` are deleted), so they are indexes over the one vocabulary, not a parallel derivation. What remains is the **typing**: `command_aliases`, `renamed_commands`, `deleted_commands` and the offset maps are still `AnalysisResult`-shaped values rather than `state_transition.rs`-shaped ones, and `indirection.rs` walks them in that form. Re-typing them reaches ~30 files across `tcl-lsp-core`'s navigation providers — definition, references, rename, hover, minify, workspace-index — which is a lane of its own)* |
 | C7 | `side_effects.rs`'s hand-rolled spec-selection rule | the single selection primitive | P1 *(compiler ported: the rule lives in the model as `side_effect_hints_in_context`, now behind the I4 head proof (measured: the proof gate widens zero selections catalogue-wide); the walk itself survives inside the primitive because proved-single-winner selection is **measured non-equivalent** at 9 points — `next` under `bpf`, `exit`/`send`/`close` under `expect`, `option`(+4 subcommands) under `spectcl` — pinned by `c7_hint_walk_counterexamples`, which fails the day the catalogue moves those hints onto the winning specs and the collapse can complete)* |
-| C8 | `CommandTableEffect` (third transition vocabulary) | `CommandBindingTransition` | P1a *(open: the realm scan still dispatches on `CommandTableEffect`; folding it into `CommandBindingTransition` is a coordinated registry+SpecTcl vocabulary change untouched by the P1a realm landing)* |
+| C8 | `CommandTableEffect` (third transition vocabulary) | `CommandBindingTransition` | **done (one-vocabulary lane)** *(`state_transition::command_binding` holds the three stock descriptors — `DEFINES_PROCEDURE`, `RENAMES_COMMANDS`, `CREATES_ALIASES` — lifted out of `proc_.rs` / `rename_.rs` / `interp.rs` together with the `interp alias` shape guard `tcl_compiler::alias` used to carry. Every shipped mutator (`proc`, `rename`, `interp alias`, `tcl::OptProc`, iRules `proc`) names its stock descriptor and no longer stamps `command_table_effect` beside it, so the fact is declared once. `CommandTableEffect` survives **only** as the pack-authoring selector — a `SpecTcl` pack cannot supply a Rust resolver, and `CommandTableEffect::transitions` resolves its one word to the same stock descriptor, pinned by `the_pack_selector_resolves_to_the_stock_transitions`. `CommandRegistry::command_table_effect` is deleted; the one consumer door is `command_binding_transitions`, which resolves through the ordinary `resolve_structured_invocation` under the registry's own profile mask, so no second selection rule appears beside C7/I4's. `LegacyEffectBridge::command_table_effects` — a fourth place the same fact was said — became a `command_table_mutation` bool fed from the resolved transitions. `CommandBindingTransition::Alias` gained `arguments`, the baked leading arguments `interp alias {} Cat {} Dog extra` installs, without which the fact could not carry what the retired detector's third return value did. Consumers ported: `realm`, `command_binding`, `lowering`, `taint`, `unit_scope`, `interprocedural`, the analyser's `static_provenance_command_is_trusted` and `handle_interp_alias`, `gvn`, `bpf-tcl-ir::semantic_bridge`, `tcl-lsp-core::tk_preview`)* |
 | C9 | Whole-file `package_version_floor` as a semantic input; the `DocumentFloor` duplication | one floor engine, two typed views (R-d) | P1a/P1b *(P1b lands the §5.4 range verdicts **beside** the floor engine, not as a second one: the version-gate flush asks the same `axis_floor` for the primary (semantic-floor) verdict and, only when that is satisfied, the document context's declared-target sets — `ResolvedContext::targets_outside_window` / `targets_uncovered_by_gate` — for the W150 range remainder, so a primary failure always outranks a range warning at the same word. `package_version_floor` and `DocumentFloor` themselves remain the two copies this row retires)* |
 | C10 | `all_dialect_command_names()`'s hardcoded 11-pack list and its EDA/SpecTcl exclusion policy | the four-tier known-anywhere model, with the exclusion policy restated as explicit tier data | P1 |
 | C11 | The ~20 hardcoded command-name match sites (terminal-action sets, `global\|variable\|upvar\|trace`, `set\|incr\|append\|lappend`, oo keywords, `on\|trap`, …) and the hardcoded `tcl8.5\|tcl8.6` profile-name match in the optimiser | registry descriptor data (traits, roles, clause grammars, definer grammars) and core-profile predicates | P1, gated |
@@ -674,23 +677,45 @@ drives W150/W151; the `tclpkg.tcl` multi-clause `tcl` grammar is not
 ingested and the three version comparators have not collapsed), **R8
 partly landed** (per-family scoping is respected wherever a gate exists;
 B9's structural parity gate does not), and **R11 substantially landed**
-(its own status note has the detail). **R1, R2, R3, R4, R5, R7, R9 and
-R10 did not land as code**: the `StubOverlay` type still exists, special
-variables are still a compiled Rust table, `FILE_SCOPED_ENVS` is still a
-hardcoded Rust table, `render_spectcl` still conflates `safe_on_uninit`
-with availability, the hook `ctx` dict still has only a `dialect` key,
-`tcl spec check` and `tcl spec build --emit rust` are unbuilt, the KCS
-Applies-to vocabulary is unregenerated, and the one-oracle *gate* is not
-written (the one *oracle* is — R-c landed in P1a; what is missing is the
-mechanical enforcement that no consumer builds a second one). Each is in
-the redesign's §11.
+(its own status note has the detail). **R1 and R10 landed in the one-vocabulary
+lane** (2026-08-27): `StubOverlay` is deleted and stubs ingest as
+provenance-tagged `SurfaceDeclaration`s, and the one-oracle *gate* is
+written — visibility narrowing where that is enough plus an owned-spelling
+call-site sweep with a ledger-entry escape hatch. **R2, R3, R4, R5, R7 and
+R9 did not land as code**: special variables are still a compiled Rust
+table, `FILE_SCOPED_ENVS` is still a hardcoded Rust table,
+`render_spectcl` still conflates `safe_on_uninit` with availability, the
+hook `ctx` dict still has only a `dialect` key, `tcl spec check` and `tcl
+spec build --emit rust` are unbuilt, and the KCS Applies-to vocabulary is
+unregenerated. Each is in the redesign's §11.
 
-- **R1 — stubs are declarations.** Inline `# tcl-lsp: stub` and sidecar
-  `.stubs` ingest as `SurfaceDeclaration`s with `Document`/`Workspace`
-  provenance and the lowest trust class; the separate
-  `StubOverlay` type and its per-consumer consultation retire. The stub
-  fingerprint's role in cache keys is subsumed by the generation/overlay
-  hash. (Q22)
+- **R1 — stubs are declarations. Landed (one-vocabulary lane).** Inline
+  `# tcl-lsp: stub` and sidecar `.stubs` ingest as `SurfaceDeclaration`s
+  with `Document`/`Workspace` provenance and the lowest trust class; the
+  separate `StubOverlay` type and its per-consumer consultation retire.
+  The stub fingerprint's role in cache keys is subsumed by the
+  generation/overlay hash. (Q22)
+
+  *Shipped:* `tcl_registry::model::declaration` — `DeclaredCommand`
+  (registry `ArgRole` arguments plus an ordinary `SurfaceDeclaration`
+  whose provider is the new `Provider::Document`, applicable over the new
+  `VersionAxisId::document()` axis, with `Provenance::Document` for a
+  buffer and `Provenance::WorkspaceUntrusted` for a sidecar — the two
+  lowest tiers of §6.4's lattice), `DeclaredSurface` (the per-document
+  generation) and `DocumentCommandSurface` (the one door: catalogue
+  generation plus the document's declarations, asked once).
+  `stub_overlay.rs` and its 423 lines are deleted, `TraitScanEnv`'s
+  `registry` + `stub_overlay` pair collapsed onto one `surface` field, and
+  `Analyser::stub_overlay` became `Analyser::declared_commands`. Two
+  surfaces went with it because they had no reader at all: the
+  registry-side `StubSigFlags` copy of the directive's trailing flag set,
+  and `StubOverlay::fingerprint` — cache invalidation already rides the
+  document's own text and lsp-db's `sidecar_stubs_epoch` salsa input,
+  which is precisely what "subsumed by the generation/overlay hash" means.
+  The surface's role lookup **unions** the catalogue's answer with the
+  document's, which is this ruling's trust clause read literally: an
+  untrusted addition may improve assistance and can never weaken a
+  shipped analysis fact.
 - **R2 — the variable axis is part of the model.** Special variables are
   family/build-sensitive (Jim's `env`, picol 2's capital-initial
   globals); `special_vars.rs`'s table becomes declarations authorable in
@@ -734,13 +759,50 @@ the redesign's §11.
 - **R9 — docs vocabulary follows.** The KCS "Applies-to" controlled
   vocabulary and the docs link gate consume environment names; P8's
   sweep regenerates the tagged pages.
-- **R10 — one-oracle gate.** A new invariant gate (extending
-  `resolution_drift`'s spirit beyond a grep window) asserts: no consumer
-  constructs its own command-existence oracle, availability rule, or
-  binding table — mechanically, the only callers of the registry's raw
-  lookup layer are the two typed views, enforced by visibility
-  (`pub(crate)`) plus a call-site sweep, with the escape hatch requiring
-  a ledger entry here.
+- **R10 — one-oracle gate. Landed (one-vocabulary lane).** A new
+  invariant gate (extending `resolution_drift`'s spirit beyond a grep
+  window) asserts: no consumer constructs its own command-existence
+  oracle, availability rule, or binding table — mechanically, the only
+  callers of the registry's raw lookup layer are the two typed views,
+  enforced by visibility (`pub(crate)`) plus a call-site sweep, with the
+  escape hatch requiring a ledger entry here.
+
+  *Shipped, in `rust/xtask/src/retired_api_gate.rs`:*
+
+  - **Visibility, where that is enough.** `Analyser::builtin_command_names`
+    (the oracle's registry tier) and
+    `model::declaration::DeclaredSurface::get` (R1's raw per-document
+    table) are `pub(crate)`, beside P1-G's already-narrowed cache doors and
+    `ProfileQueries`.
+  - **The call-site sweep** for the doors that cannot be narrowed. A second
+    pattern family, `OWNED`, names each centralised **answer** and the
+    repository-relative path prefixes whose files may write it:
+    `CommandExistenceOracle` / `command_existence_oracle` /
+    `builtin_command_names` / `w123_registry_known_names` (the one oracle,
+    owned by `rust/tcl-compiler/src/analyser/`),
+    `has_command_in_this_dialect` / `all_dialect_command_names` (the
+    availability answer, owned by `rust/tcl-registry/src/` and — issue
+    #1427 — the compiler's constant folder),
+    `command_binding_transitions` / `command_table_transitions` (ledger
+    C8's vocabulary and its one source-word bridge), and `DeclaredSurface`
+    (R1's per-document set). A use elsewhere fails the gate; the escape
+    hatch is a `// one-oracle-ok: <reason>` waiver **plus** a row in §3's
+    table — a marker deliberately distinct from `retired-api-ok:`, so
+    neither waiver licenses the other kind of exception.
+  - **Self-tests.** `seeded_second_oracles_are_flagged` asserts an exact
+    finding count per row (an over-broad needle fails rather than being
+    blessed), `owned_answers_are_free_in_their_owner` pins the prefix rule
+    and multi-owner answers, `owned_answer_citations_are_exempt` keeps
+    prose free, and `the_two_waivers_do_not_substitute_for_each_other`
+    pins the marker split.
+  - **What was not attempted, and why.** Full `pub(crate)` on
+    `CommandRegistry::command_names` / `get_for_dialect` — the literal
+    reading of "the only callers of the raw lookup layer are the two typed
+    views" — is not achievable as the tree stands: ~45 production call
+    sites read them for spec *content* (hover text, argument roles,
+    formatter presentation), which is not an existence answer. The sweep
+    carries that half instead, keyed on the answers rather than the
+    doors.
 - **R11 — F5 rows are evidence-generated** (the
   [BIG-IP evidence review](dialect-and-package-registry-redesign-bigip-evidence-review.md),
   accepted in full — redesign §0.2). Every F5 grammar/command/variable/

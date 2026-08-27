@@ -38,6 +38,13 @@
 //! import, a copy-pasted call — anywhere in the Rust tree, so the retired
 //! spelling cannot come back under a fresh definition either.
 //!
+//! It also holds the `one-vocabulary` lane's two retirements: the
+//! `StubOverlay` per-document command overlay (gap ruling R1 — stubs are
+//! provenance-tagged `SurfaceDeclaration`s now) and the second command-table
+//! transition vocabulary (ledger C8 — `CommandRegistry::command_table_effect`
+//! and `tcl_compiler::alias`'s argument destructuring, both replaced by
+//! `CommandBindingTransition` facts).
+//!
 //! Comment lines are exempt (the ledger and the seam docs cite the retired
 //! names as history), as are the crate-internal survivors inside
 //! `rust/tcl-registry/src/` (`ProfileQueries` and the cache doors live on
@@ -45,6 +52,26 @@
 //! deliberate, reviewed exception carries a `// retired-api-ok: <reason>`
 //! waiver on the flagged line or one of the four lines above it, and must
 //! be recorded in the centralisation ledger.
+//!
+//! # The one-oracle gate (gap ruling R10)
+//!
+//! The second family this file carries is not about *deleted* spellings but
+//! about **owned** ones: the answers the #1631 programme centralised — does
+//! this command exist here, is it available here, what did this call do to
+//! the command table — each of which a consumer could quietly grow a second
+//! copy of. R10's answer is visibility narrowing where that is enough
+//! (`Analyser::builtin_command_names` and
+//! `model::declaration::DeclaredSurface::get` are `pub(crate)`;
+//! `tcl-registry`'s cache doors and `ProfileQueries` were narrowed in P1-G)
+//! **plus** this call-site sweep for the doors that cannot be narrowed
+//! because legitimate spec-content readers share them.
+//!
+//! Each [`OwnedPattern`] names one such answer and the file prefixes that
+//! own it. Writing it anywhere else fails the gate, and the escape hatch is
+//! a `// one-oracle-ok: <reason>` waiver **plus** a row in the
+//! centralisation ledger's §3 table — the same discipline the retired
+//! family uses, for the same reason: an exception that nobody wrote down is
+//! how a second oracle comes back.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -245,6 +272,143 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "eval_snapshot_memoised",
         outside_registry_only: false,
     },
+    // The `one-vocabulary` lane, gap ruling R1 (redesign §11.2 D18): the
+    // per-document `# tcl-lsp: stub` overlay and its parallel vocabulary.
+    // Stubs ingest as provenance-tagged `SurfaceDeclaration`s now
+    // (`tcl_registry::model::declaration`), read through the one
+    // `DocumentCommandSurface` door.
+    RetiredPattern {
+        needle: "StubOverlay",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "stub_overlay",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "StubSig",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "StubSigFlags",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "build_stub_overlay",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "to_stub_sig",
+        outside_registry_only: false,
+    },
+    // The `one-vocabulary` lane, ledger C8 (redesign §11.2 D9): the second
+    // command-table transition vocabulary. `CommandTableEffect` survives as
+    // the pack-authoring **selector** — `CommandSpec::command_table_effect`
+    // is still a field a `SpecTcl` pack writes — but the consumer-facing
+    // resolver is gone: the needle carries its call parenthesis so the
+    // surviving field reads do not match it.
+    RetiredPattern {
+        needle: "command_table_effect(",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "command_table_effects",
+        outside_registry_only: false,
+    },
+    // …and the per-consumer argument destructuring it forced. The layout
+    // lives in `tcl_registry::state_transition::command_binding` now, once.
+    RetiredPattern {
+        needle: "detect_rename",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "detect_interp_alias",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "detect_interp_alias_delete",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "is_interp_alias_shape",
+        outside_registry_only: false,
+    },
+];
+
+/// One **owned** spelling: an answer the programme centralised, and the
+/// repository-relative path prefixes whose files may write it (ruling R10).
+///
+/// Unlike a [`RetiredPattern`] the spelling is alive and correct — in its
+/// owner. What the gate forbids is a *second* home for it, which is how a
+/// consumer grows its own existence oracle, availability rule, or binding
+/// table without ever reintroducing a retired name.
+struct OwnedPattern {
+    needle: &'static str,
+    owners: &'static [&'static str],
+}
+
+/// The owned answers (ruling R10). Each row is one question the
+/// centralisation programme gave a single answer to.
+const OWNED: &[OwnedPattern] = &[
+    // **Does this command exist at this program point?** — the one oracle
+    // (R-c, P1a). Its registry tier and its typed verdict live with it in
+    // the analyser; nothing else may assemble either.
+    OwnedPattern {
+        needle: "CommandExistenceOracle",
+        owners: &["rust/tcl-compiler/src/analyser/"],
+    },
+    OwnedPattern {
+        needle: "command_existence_oracle",
+        owners: &["rust/tcl-compiler/src/analyser/"],
+    },
+    OwnedPattern {
+        needle: "builtin_command_names",
+        owners: &["rust/tcl-compiler/src/analyser/"],
+    },
+    OwnedPattern {
+        needle: "w123_registry_known_names",
+        owners: &["rust/tcl-compiler/src/analyser/"],
+    },
+    // **Is this command available in this dialect?** — the registry's own
+    // profile-visible surface. The compiler's constant folder is the one
+    // consumer outside the registry that legitimately asks (issue #1427: a
+    // fold skips the runtime availability gate, so it must); anything else
+    // asking is a second availability rule.
+    OwnedPattern {
+        needle: "has_command_in_this_dialect",
+        owners: &["rust/tcl-registry/src/", "rust/tcl-compiler/src/codegen/"],
+    },
+    OwnedPattern {
+        needle: "all_dialect_command_names",
+        owners: &["rust/tcl-registry/src/"],
+    },
+    // **What did this call do to the command table?** — ledger C8's one
+    // vocabulary. The registry resolves the facts; `tcl_compiler::alias` is
+    // the single bridge from reconstructed source words to that resolution.
+    // A consumer building its own bridge is a second vocabulary.
+    OwnedPattern {
+        needle: "command_binding_transitions",
+        owners: &["rust/tcl-registry/", "rust/tcl-compiler/src/alias.rs"],
+    },
+    OwnedPattern {
+        needle: "command_table_transitions",
+        owners: &[
+            "rust/tcl-compiler/src/",
+            "rust/tcl-lsp-core/src/tk_preview.rs",
+        ],
+    },
+    // **Which command surface does this document analyse against?** — gap
+    // ruling R1's one door. The per-document declaration set is assembled in
+    // the analyser and read through `DocumentCommandSurface`; a consumer
+    // holding the raw set would be rebuilding the overlay R1 retired.
+    OwnedPattern {
+        needle: "DeclaredSurface",
+        owners: &[
+            "rust/tcl-registry/src/",
+            "rust/tcl-compiler/src/analyser/",
+            "rust/tcl-lsp-db/src/",
+        ],
+    },
 ];
 
 /// Live seam names a retired needle is a prefix of — a hit whose
@@ -282,6 +446,8 @@ pub fn run(_check: bool) -> ExitCode {
 
     let mut report = String::new();
     let mut hits = 0usize;
+    let mut owned_report = String::new();
+    let mut owned_hits = 0usize;
     for path in files {
         let rel = path
             .strip_prefix(&root)
@@ -297,25 +463,49 @@ pub fn run(_check: bool) -> ExitCode {
             continue;
         };
         for (line_no, needle) in scan(&text, inside_registry) {
-            if is_waived(&text, line_no) {
+            if is_waived(&text, line_no, RETIRED_WAIVER) {
                 continue;
             }
             hits += 1;
             let _ = writeln!(report, "  {rel}:{line_no}: `{needle}`");
         }
+        for (line_no, needle) in scan_owned(&text, &rel) {
+            if is_waived(&text, line_no, OWNED_WAIVER) {
+                continue;
+            }
+            owned_hits += 1;
+            let _ = writeln!(owned_report, "  {rel}:{line_no}: `{needle}`");
+        }
     }
 
-    if hits == 0 {
-        println!("retired-api-gate: OK (no retired dialect/registry API spellings in code)");
+    if hits > 0 {
+        eprintln!(
+            "retired-api-gate: {hits} use(s) of retired P1-G API spellings — resolve \
+             through `tcl_registry::model::ingress` (the one dialect-name seam) or \
+             `ResolvedContext`'s queries instead, or mark a reviewed exception with \
+             `// {RETIRED_WAIVER} <reason>` and a ledger entry \
+             (docs/design/dialect-and-package-registry-centralisation.md §3):\n{report}"
+        );
+    }
+    if owned_hits > 0 {
+        eprintln!(
+            "retired-api-gate (one-oracle, ruling R10): {owned_hits} use(s) of a \
+             centralised answer outside the module that owns it — a second \
+             existence oracle, availability rule, or binding table starts here. \
+             Ask the owner instead, or mark a reviewed exception with \
+             `// {OWNED_WAIVER} <reason>` **and** a row in the centralisation \
+             ledger's §3 table \
+             (docs/design/dialect-and-package-registry-centralisation.md §3):\n\
+             {owned_report}"
+        );
+    }
+    if hits == 0 && owned_hits == 0 {
+        println!(
+            "retired-api-gate: OK (no retired dialect/registry API spellings, and \
+             every centralised answer stays with its owner)"
+        );
         return ExitCode::SUCCESS;
     }
-    eprintln!(
-        "retired-api-gate: {hits} use(s) of retired P1-G API spellings — resolve \
-         through `tcl_registry::model::ingress` (the one dialect-name seam) or \
-         `ResolvedContext`'s queries instead, or mark a reviewed exception with \
-         `// retired-api-ok: <reason>` and a ledger entry \
-         (docs/design/dialect-and-package-registry-centralisation.md §3):\n{report}"
-    );
     ExitCode::FAILURE
 }
 
@@ -351,30 +541,83 @@ fn scan(text: &str, inside_registry: bool) -> Vec<(usize, &'static str)> {
             if pattern.outside_registry_only && inside_registry {
                 continue;
             }
-            let mut from = 0;
-            while let Some(off) = line[from..].find(pattern.needle) {
-                let start = from + off;
-                let end = start + pattern.needle.len();
-                from = end;
-                if identifier_precedes(line, start) || identifier_continues(line, end) {
-                    continue;
-                }
+            if find_needle(line, pattern.needle) {
                 out.push((idx + 1, pattern.needle));
-                break;
             }
         }
     }
     out
 }
 
+/// The waiver marker for a retired spelling.
+const RETIRED_WAIVER: &str = "retired-api-ok:";
+
+/// The waiver marker for an owned answer written outside its owner.
+const OWNED_WAIVER: &str = "one-oracle-ok:";
+
 /// Whether the flagged line (or one of the four lines above it — room for
-/// a multi-line justification comment) carries a `retired-api-ok:` waiver.
-fn is_waived(text: &str, line_no: usize) -> bool {
+/// a multi-line justification comment) carries a `marker` waiver.
+fn is_waived(text: &str, line_no: usize, marker: &str) -> bool {
     let lines: Vec<&str> = text.lines().collect();
     let idx = line_no.saturating_sub(1);
     (idx.saturating_sub(4)..=idx)
         .filter_map(|i| lines.get(i))
-        .any(|l| l.contains("retired-api-ok:"))
+        .any(|l| l.contains(marker))
+}
+
+/// Yield `(1-based line, matched needle)` for every **owned** spelling
+/// written in a file that does not own it (ruling R10). Comment lines are
+/// exempt for the same reason the retired family exempts them: the ledger
+/// and the module docs name the owned answers as prose.
+fn scan_owned(text: &str, rel: &str) -> Vec<(usize, &'static str)> {
+    let mut out = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        if line.trim_start().starts_with("//") {
+            continue;
+        }
+        for pattern in OWNED {
+            if pattern.owners.iter().any(|owner| rel.starts_with(owner)) {
+                continue;
+            }
+            if find_needle(line, pattern.needle) {
+                out.push((idx + 1, pattern.needle));
+            }
+        }
+    }
+    out
+}
+
+/// Whether `line` writes `needle` as a name of its own — an identifier
+/// boundary on **both** sides, the property that keeps `arg_rows` from
+/// matching inside `project_arg_rows`.
+///
+/// The boundary is only required at an end the needle *spells* with an
+/// identifier character. A needle that already carries its own punctuation
+/// — `availability_for_name(`, `command_table_effect(` — has its boundary
+/// in the needle, and demanding another one outside it would make the
+/// needle match nothing at all.
+fn find_needle(line: &str, needle: &str) -> bool {
+    let leading_boundary = needle
+        .bytes()
+        .next()
+        .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_');
+    let trailing_boundary = needle
+        .bytes()
+        .next_back()
+        .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_');
+    let mut from = 0;
+    while let Some(off) = line[from..].find(needle) {
+        let start = from + off;
+        let end = start + needle.len();
+        from = end;
+        if (leading_boundary && identifier_precedes(line, start))
+            || (trailing_boundary && identifier_continues(line, end))
+        {
+            continue;
+        }
+        return true;
+    }
+    false
 }
 
 #[cfg(test)]
@@ -398,7 +641,10 @@ mod tests {
             ),
             ("let p = DialectProfile::by_opt_name(dialect);", 1),
             ("let p = DialectProfile::resolve_known(name);", 1),
-            ("let mask = DialectProfile::availability_for_name(name);", 1),
+            // Two retired spellings on one line: the qualified path and the
+            // bare call. The row says so rather than the assertion being
+            // relaxed.
+            ("let mask = DialectProfile::availability_for_name(name);", 2),
             ("let r = tcl_registry::registry_for_dialect(\"tcl8.6\");", 1),
             (
                 "let r = tcl_registry::cache::registry_for_dialect(dialect);",
@@ -448,6 +694,21 @@ mod tests {
             ("requires.init_only = parse_flag(stmt.tail());", 1),
             ("if let Some(want) = requires.capability { }", 1),
             ("let c: &[OptionConstraint] = &[];", 1),
+            // The `one-vocabulary` lane — gap ruling R1.
+            ("use tcl_registry::stub_overlay::StubOverlay;", 2),
+            ("let mut o = StubOverlay::new();", 1),
+            ("let s: StubSig = def.to_stub_sig();", 2),
+            ("flags: StubSigFlags::empty(),", 1),
+            ("let o = build_stub_overlay(&defs);", 1),
+            // …and ledger C8. The surviving pack-authoring **field** read is
+            // not a hit — only the retired resolver call is, which is what
+            // the needle's own parenthesis buys.
+            ("let e = registry.command_table_effect(name, sub);", 1),
+            ("footprint.legacy().command_table_effects.is_empty()", 1),
+            ("if let Some((old, new)) = detect_rename(&args) { }", 1),
+            ("let a = detect_interp_alias(&args);", 1),
+            ("let d = detect_interp_alias_delete(&args);", 1),
+            ("if !is_interp_alias_shape(args) { return; }", 1),
         ] {
             assert_eq!(scan(seeded, false).len(), findings, "{seeded}");
         }
@@ -487,6 +748,91 @@ mod tests {
         assert_eq!(scan(line, false).len(), 1);
     }
 
+    /// The one-oracle gate (ruling R10) fails on a seeded second copy of
+    /// every owned answer, exactly once per row.
+    ///
+    /// Asserting the exact count is what catches a needle that has grown
+    /// broad enough to match its own neighbours — the same property the
+    /// retired family's seeded test pins.
+    #[test]
+    fn seeded_second_oracles_are_flagged() {
+        // A file that owns nothing: every owned answer is a violation there.
+        let outsider = "rust/tcl-lsp-server/src/lib.rs";
+        for (seeded, findings) in [
+            ("let oracle = CommandExistenceOracle::default();", 1),
+            ("let o = self.command_existence_oracle(registry);", 1),
+            ("let names = self.builtin_command_names();", 1),
+            ("let names = self.w123_registry_known_names(registry);", 1),
+            ("if registry.has_command_in_this_dialect(head) { }", 1),
+            ("let all = all_dialect_command_names();", 1),
+            ("let t = registry.command_binding_transitions(words);", 1),
+            (
+                "let t = command_table_transitions(registry, head, args);",
+                1,
+            ),
+            ("let declared = DeclaredSurface::new();", 1),
+        ] {
+            assert_eq!(scan_owned(seeded, outsider).len(), findings, "{seeded}");
+        }
+    }
+
+    /// An owned answer is not a violation in the module that owns it, and
+    /// the ownership test is a path **prefix** so a whole directory can own
+    /// one.
+    #[test]
+    fn owned_answers_are_free_in_their_owner() {
+        let line = "let names = self.builtin_command_names();\n";
+        assert!(
+            scan_owned(
+                line,
+                "rust/tcl-compiler/src/analyser/diagnostics/unresolved.rs"
+            )
+            .is_empty()
+        );
+        assert_eq!(
+            scan_owned(line, "rust/tcl-lsp-core/src/completion.rs").len(),
+            1
+        );
+
+        // One answer may have several owners — the constant folder asks the
+        // registry's availability question legitimately (issue #1427).
+        let fold = "if registry.has_command_in_this_dialect(head) { }\n";
+        assert!(scan_owned(fold, "rust/tcl-compiler/src/codegen/values.rs").is_empty());
+        assert!(scan_owned(fold, "rust/tcl-registry/src/registry.rs").is_empty());
+        assert_eq!(scan_owned(fold, "rust/tcl-vm/src/interp.rs").len(), 1);
+    }
+
+    /// A comment citing an owned answer is exempt; the same spelling in code
+    /// is not.
+    #[test]
+    fn owned_answer_citations_are_exempt() {
+        let prose = "/// Answered by `builtin_command_names`, the one oracle.\n";
+        assert!(scan_owned(prose, "rust/tcl-lsp-core/src/completion.rs").is_empty());
+        let code = "let names = self.builtin_command_names();\n";
+        assert_eq!(
+            scan_owned(code, "rust/tcl-lsp-core/src/completion.rs").len(),
+            1
+        );
+    }
+
+    /// The one-oracle waiver is its own marker: a `retired-api-ok:` comment
+    /// does not license a second oracle, and vice versa.
+    #[test]
+    fn the_two_waivers_do_not_substitute_for_each_other() {
+        let owned =
+            "// one-oracle-ok: ledger §3 row, reviewed\nlet n = self.builtin_command_names();\n";
+        let hits = scan_owned(owned, "rust/tcl-lsp-core/src/completion.rs");
+        assert_eq!(hits.len(), 1);
+        assert!(is_waived(owned, hits[0].0, OWNED_WAIVER));
+        assert!(!is_waived(owned, hits[0].0, RETIRED_WAIVER));
+
+        let wrong =
+            "// retired-api-ok: not the right hatch\nlet n = self.builtin_command_names();\n";
+        let hits = scan_owned(wrong, "rust/tcl-lsp-core/src/completion.rs");
+        assert_eq!(hits.len(), 1);
+        assert!(!is_waived(wrong, hits[0].0, OWNED_WAIVER));
+    }
+
     /// The documented waiver suppresses a hit; an unwaived hit stands.
     #[test]
     fn waiver_comment_suppresses() {
@@ -494,10 +840,10 @@ mod tests {
             "// retired-api-ok: ledger §3 entry, reviewed\nlet p = DialectProfile::by_name(n);\n";
         let hits = scan(src, false);
         assert_eq!(hits.len(), 1);
-        assert!(is_waived(src, hits[0].0));
+        assert!(is_waived(src, hits[0].0, RETIRED_WAIVER));
         let bare = "let p = DialectProfile::by_name(n);\n";
         let hits = scan(bare, false);
         assert_eq!(hits.len(), 1);
-        assert!(!is_waived(bare, hits[0].0));
+        assert!(!is_waived(bare, hits[0].0, RETIRED_WAIVER));
     }
 }

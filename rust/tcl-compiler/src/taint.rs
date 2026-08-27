@@ -622,15 +622,11 @@ pub(crate) fn transfer_instance_lifecycle(
                 tcl_registry::CommandBindingTransition::Delete { name, .. } => {
                     // The moved-away half of `rename OLD {}`: the receiver
                     // identity at that name is gone.
-                    match name.literal().and_then(literal_receiver) {
-                        Some(old) => {
-                            state.remove(old);
-                        }
-                        None => {
-                            state.clear();
-                            return;
-                        }
-                    }
+                    let Some(old) = name.literal().and_then(literal_receiver) else {
+                        state.clear();
+                        return;
+                    };
+                    state.remove(old);
                 }
                 tcl_registry::CommandBindingTransition::Alias { .. }
                 | tcl_registry::CommandBindingTransition::Unknown { .. } => {
