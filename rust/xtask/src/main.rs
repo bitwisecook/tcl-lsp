@@ -83,6 +83,7 @@ mod gen_zed_queries;
 mod kcs_index_links;
 mod number_drift;
 mod owner_resolution;
+mod pack_goldens;
 mod registry_oracle;
 mod resolution_drift;
 mod retired_api_gate;
@@ -312,6 +313,17 @@ enum Command {
     #[command(name = "owner-resolution")]
     OwnerResolution,
 
+    /// Regenerate — or, with `--check`, verify — the golden snapshots of
+    /// every shipped `.tclspec`. The gate that a loader change cannot
+    /// silently alter what a shipped pack means.
+    #[command(name = "pack-goldens")]
+    PackGoldens {
+        /// Verify instead of rewriting: fail listing every pack whose
+        /// snapshot moved.
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Update or verify the embedded `SslicTcl` source-data bundle.
     SslictclData {
         /// Operation to perform: update (network-capable) or check (offline).
@@ -407,6 +419,7 @@ fn main() -> anyhow::Result<ExitCode> {
         Command::ResolutionDrift { check } => Ok(resolution_drift::run(check)),
         Command::RetiredApiGate { check } => Ok(retired_api_gate::run(check)),
         Command::OwnerResolution => owner_resolution::run(),
+        Command::PackGoldens { check } => Ok(pack_goldens::run(check)),
         Command::SslictclData {
             operation,
             max_age_days,

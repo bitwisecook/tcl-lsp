@@ -427,9 +427,10 @@ impl PackStore {
     /// The document is **evaluated** (design E §1), not walked: a pack may be
     /// a program, and the studio browses the *snapshot* it registered rather
     /// than the text that registered it. For a canonical pack — every pack
-    /// shipped today — nothing observable changes, which is what the
-    /// equivalence gate (`tcl-spectcl/tests/eval_loader.rs`) and the studio's
-    /// own round-trip suite hold this to.
+    /// shipped today — nothing observable changes, which is what the golden
+    /// gate (`tcl-spectcl/tests/golden_packs.rs`), the fast-path gate
+    /// (`tcl-spectcl/tests/eval_loader.rs`) and the studio's own round-trip
+    /// suite hold this to.
     #[must_use]
     pub fn from_source_at_tier(source: impl Into<String>, tier: Tier) -> Self {
         let source = source.into();
@@ -557,7 +558,7 @@ impl PackStore {
     /// Whether every top-level statement of the `speclib` body is one of the
     /// registration calls the snapshot recorded, in the same order.
     ///
-    /// True for every canonical pack — the two loaders record the file's own
+    /// True for every canonical pack — the loader records the file's own
     /// statements — and false the moment a statement runs rather than
     /// registers.
     fn straight_line(&self) -> bool {
@@ -727,7 +728,7 @@ impl PackStore {
             &render_spectcl::render_pack_with_version(&drafts, &name, self.render_version()),
             &flags,
         );
-        let mut seeded = loader::load_pack(&seed);
+        let mut seeded = loader::evaluate_pack(&seed);
         // The minimal available context: the base pack's own `default` rows,
         // verbatim from its registration record. Without them the patch's
         // commands would inherit a different availability from the ones they
@@ -1089,7 +1090,7 @@ impl PackStore {
             "vocabulary-probe",
             previous,
         );
-        loader::load_pack(&probe).notices.iter().any(|notice| {
+        loader::evaluate_pack(&probe).notices.iter().any(|notice| {
             notice.message.contains(" is SpecTcl ")
                 && notice
                     .message
@@ -1347,7 +1348,7 @@ impl PackStore {
             render_spectcl::header_word(pack_name),
             render_spectcl::DSL_VERSION
         );
-        let pack = loader::load_pack(&wrapped);
+        let pack = loader::evaluate_pack(&wrapped);
         let command = pack.commands.first()?;
         Some((
             command.spec.name.to_owned(),

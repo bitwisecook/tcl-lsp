@@ -55,7 +55,7 @@
 //! use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
 //!
 //! let host = Rc::new(tclvm_host());
-//! let installed = host.load_pack(
+//! let installed = host.install_pack_hooks(
 //!     PackPrograms::new("mylib").with(HookProgram::new(
 //!         "mylib::strlen",
 //!         HookFamily::ConstFold,

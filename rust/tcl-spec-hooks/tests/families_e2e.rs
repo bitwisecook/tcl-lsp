@@ -40,7 +40,7 @@ use tcl_spec_hooks::{HookProgram, PackPrograms, tclvm_host};
 /// Install a one-hook pack and return its slot.
 fn one_hook(program: HookProgram) -> pack_hooks::HookSlot {
     let host = Rc::new(tclvm_host());
-    let installed = host.load_pack(PackPrograms::new("mylib").with(program));
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(program));
     assert!(
         installed[0].declined.is_none(),
         "{:?}",

@@ -152,14 +152,14 @@ pub fn to_dynamic_core(environment: &PackEnvironment, pack: &str) -> Option<Dyna
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::load_pack;
+    use crate::evaluate_pack;
 
     /// A `dialect` block converts to a namespaced family whose releases
     /// carry the block's grammar, and the environment riding it converts
     /// to the matching core binding.
     #[test]
     fn a_dialect_block_converts_to_a_namespaced_family_and_its_core() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib picolpack 2.0 {\n\
              dialect picol2 {\n\
              \x20   release 2.0\n\
@@ -199,7 +199,7 @@ mod tests {
     /// environment has no release to place a core on.
     #[test]
     fn a_ladderless_dialect_does_not_convert() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib picolpack 2.0 {\n\
              dialect axesonly {\n\
              \x20   axis expand_syntax off\n\
@@ -219,7 +219,7 @@ mod tests {
     /// resolved after the whole file is read so a forward reference works.
     #[test]
     fn a_core_row_naming_no_declared_dialect_rejects_the_environment() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib picolpack 2.0 {\n\
              environment picol-shell {\n\
              \x20   core nosuchdialect 2.0\n\
@@ -236,7 +236,7 @@ mod tests {
         );
 
         // …and a release the ladder does not carry is refused the same way.
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib picolpack 2.0 {\n\
              environment picol-shell {\n\
              \x20   core picol2 9.9\n\

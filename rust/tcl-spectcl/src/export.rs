@@ -153,78 +153,6 @@ impl Registration {
     }
 }
 
-/// The scope a statement is being recorded at — which declaration word, if
-/// any, this level descends into. Exactly the two nestings both loaders
-/// descend, so the record cannot invent a block the loader does not read.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Scope {
-    /// The `speclib` body: `command NAME … { … }` opens a block.
-    Pack,
-    /// A `command` body: `subcommand NAME { … }` opens a block.
-    Command,
-    /// A `subcommand` body: nothing opens a block.
-    Subcommand,
-}
-
-impl Scope {
-    /// The scope a block opened at this scope records its body in.
-    const fn inner(self) -> Self {
-        match self {
-            Self::Pack => Self::Command,
-            Self::Command | Self::Subcommand => Self::Subcommand,
-        }
-    }
-}
-
-/// Record a run of statements as registrations, descending into the blocks
-/// `scope` reads as declarations.
-///
-/// The descent conditions mirror the CST loader's own word reading exactly:
-/// `command` takes the **first braced word after the name** as its body
-/// (`load_command`), `subcommand` takes **the third word** whether braced or
-/// not (`load_subcommand`). A statement that does not meet its condition is
-/// recorded as a plain row, which is what the loader makes of it too.
-pub(crate) fn record(stmts: &[Stmt], scope: Scope) -> Vec<Registration> {
-    stmts
-        .iter()
-        .map(|stmt| match (scope, stmt.word_text(0)) {
-            (Scope::Pack, "command") => record_command(stmt, scope),
-            (Scope::Command, "subcommand") => record_subcommand(stmt, scope),
-            _ => Registration::row(stmt),
-        })
-        .collect()
-}
-
-fn record_command(stmt: &Stmt, scope: Scope) -> Registration {
-    let Some(at) = stmt
-        .words
-        .iter()
-        .skip(2)
-        .position(|word| word.braced)
-        .map(|index| index + 2)
-    else {
-        return Registration::row(stmt);
-    };
-    let head: Vec<Word> = stmt
-        .words
-        .iter()
-        .enumerate()
-        .filter(|(index, _)| *index != at)
-        .map(|(_, word)| word.clone())
-        .collect();
-    let body = record(&crate::loader::block(&stmt.words[at]), scope.inner());
-    Registration::block(head, body, stmt.line)
-}
-
-fn record_subcommand(stmt: &Stmt, scope: Scope) -> Registration {
-    let Some(word) = stmt.words.get(2) else {
-        return Registration::row(stmt);
-    };
-    let head: Vec<Word> = stmt.words[..2].to_vec();
-    let body = record(&crate::loader::block(word), scope.inner());
-    Registration::block(head, body, stmt.line)
-}
-
 /// A word the evaluation captured rather than read from the file.
 ///
 /// Evaluation delivers argument *values*, so the per-word braced-ness the
@@ -458,11 +386,11 @@ pub fn export_pack_reporting(pack: &Pack) -> (String, Vec<ExportLoss>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::loader::load_pack;
+    use crate::loader::evaluate_pack;
 
     #[test]
     fn a_row_and_a_block_render_at_the_ports_margins() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib demo 2.0 {\ncommand greet {\narity 1\nsubcommand loud {\narity 0\n}\n}\n}\n",
         );
         assert_eq!(
@@ -483,14 +411,14 @@ mod tests {
     #[test]
     fn a_multi_line_braced_word_keeps_every_byte_between_its_braces() {
         let source = "speclib demo 2.0 {\ncommand greet {\n    hover {\n        summary {Say hi.}\n    }\n}\n}\n";
-        let pack = load_pack(source);
+        let pack = evaluate_pack(source);
         let exported = export_pack(&pack);
         assert!(
             exported.contains("hover {\n        summary {Say hi.}\n    }"),
             "{exported}"
         );
         assert_eq!(
-            load_pack(&exported).commands[0]
+            evaluate_pack(&exported).commands[0]
                 .spec
                 .hover
                 .map(|h| h.summary),

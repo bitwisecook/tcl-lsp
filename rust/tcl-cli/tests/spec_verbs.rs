@@ -520,9 +520,9 @@ fn spec_export_expands_a_programmed_pack_into_canonical_source() {
     // The pack's own vocabulary word survives: raising it is `spec upgrade`.
     assert!(stdout.contains("speclib fleet 2.0 {"), "{stdout}");
 
-    // And the expansion is a pack: it reloads to the same snapshot, through
-    // the CST loader, which cannot evaluate anything.
-    let reloaded = tcl_spectcl::load_pack(&stdout);
+    // And the expansion is a pack: it reloads to the same snapshot with no
+    // templating left to run.
+    let reloaded = tcl_spectcl::evaluate_pack(&stdout);
     assert!(reloaded.load_error.is_none(), "{:#?}", reloaded.notices);
     let names: Vec<&str> = reloaded.commands.iter().map(|c| c.spec.name).collect();
     assert_eq!(
@@ -551,8 +551,8 @@ fn spec_export_round_trips_a_canonical_pack_through_the_shared_formatter() {
         let (stdout, stderr, code) = run(&["spec", "export", &path.to_string_lossy()]);
         assert_eq!(code, 0, "{}: {stderr}", path.display());
 
-        let before = tcl_spectcl::load_pack(&source);
-        let after = tcl_spectcl::load_pack(&stdout);
+        let before = tcl_spectcl::evaluate_pack(&source);
+        let after = tcl_spectcl::evaluate_pack(&stdout);
         let render = |pack: &tcl_spectcl::Pack| {
             pack.commands
                 .iter()

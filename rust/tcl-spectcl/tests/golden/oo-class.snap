@@ -1,0 +1,35 @@
+# spectcl golden snapshot v1
+# regenerate with `cargo xtask pack-goldens`; do not edit by hand
+pack tcl dsl 1.1 display None load_error None
+target_dependent false
+file_extensions []
+provides []
+co_provides []
+ambient_packages []
+environments []
+dialects []
+registrations 3
+notices 21
+notice command oo::class / subcommand create 25 presentation `world_effects` row `callback` is not yet loadable; dropped
+notice command oo::class / subcommand create 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
+notice command oo::class / subcommand create 118 presentation `state_transitions` row `argument_shape` is not yet loadable; dropped
+notice command oo::class / subcommand create 122 presentation `state_transitions` row `resolver` is not yet loadable; dropped
+notice command oo::class / subcommand create 123 presentation `state_transitions` row `widen` is not yet loadable; dropped
+notice command oo::class / subcommand create 124 presentation `state_transitions` row `covers` is not yet loadable; dropped
+notice command oo::class / subcommand create 125 presentation `state_transitions` row `commit` is not yet loadable; dropped
+notice command oo::class / subcommand new 25 presentation `world_effects` row `callback` is not yet loadable; dropped
+notice command oo::class / subcommand new 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
+notice command oo::class / subcommand new 139 presentation `state_transitions` row `argument_shape` is not yet loadable; dropped
+notice command oo::class / subcommand new 140 presentation `state_transitions` row `resolver` is not yet loadable; dropped
+notice command oo::class / subcommand new 141 presentation `state_transitions` row `covers` is not yet loadable; dropped
+notice command oo::class / subcommand new 142 presentation `state_transitions` row `commit` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 25 presentation `world_effects` row `callback` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 26 presentation `world_effects` row `dynamic_fallback` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 159 presentation `state_transitions` row `argument_shape` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 160 presentation `state_transitions` row `resolver` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 161 presentation `state_transitions` row `widen` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 162 presentation `state_transitions` row `widen` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 163 presentation `state_transitions` row `covers` is not yet loadable; dropped
+notice command oo::class / subcommand createWithNamespace 164 presentation `state_transitions` row `commit` is not yet loadable; dropped
+commands 1
+command oo::class line 29 overrides false degraded false spec 9b3f6420599e6f91 hooks c568c098585ed341 grammar 715ea0deb6f6f5f9

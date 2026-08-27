@@ -234,8 +234,10 @@ pub fn load_in_memory(sources: Vec<(PackFile, String)>) -> PackSet {
 
 /// Load and merge every discovered file.
 ///
-/// Reads each file, parses it through [`crate::cache::load_pack_cached`] (so
-/// an unchanged pack costs a hash check), then groups by `speclib` name.
+/// Reads each file, loads it through [`crate::cache::evaluate_pack_cached`]
+/// at the file's own provenance tier (so an unchanged pack costs a hash check,
+/// and design E-R2 gates what an untrusted tier may register), then groups by
+/// `speclib` name.
 #[must_use]
 pub fn load(files: &[PackFile]) -> PackSet {
     let (sources, notices) = read_sources(files);
@@ -299,16 +301,17 @@ pub(crate) fn load_sources(
     let mut by_name: BTreeMap<String, Vec<(PackFile, Pack)>> = BTreeMap::new();
     for (file, source) in sources {
         // A pack carrying `include` rows loads through a file-system
-        // include context scoped to its own directory, and bypasses the
-        // compiled cache — whose key hashes only this file's bytes and so
-        // cannot see an included file change under it.
+        // include context scoped to its own directory, and bypasses both
+        // cache tiers — the key hashes only this file's bytes and so cannot
+        // see an included file change under it.
         let pack = if crate::loader::uses_include(&source) {
-            crate::loader::load_pack_with(
+            crate::cache::evaluate_pack_including(
                 &source,
-                Some(&crate::loader::IncludeContext::for_file(&file.path)),
+                file.tier,
+                &std::rc::Rc::new(crate::loader::IncludeContext::for_file(&file.path)),
             )
         } else {
-            crate::cache::load_pack_cached(&source)
+            crate::cache::evaluate_pack_cached(&source, file.tier)
         };
         if pack.name.is_empty() {
             // No `speclib` wrapper: nothing to merge, but the loader's

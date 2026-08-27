@@ -131,7 +131,7 @@ impl<E: Engine> HookHost<E> {
     /// Per-pack isolation is structural: the engine is built here and never
     /// shared, so no interpreter state crosses packs.
     #[must_use]
-    pub fn load_pack(&self, programs: PackPrograms) -> Vec<HookInstallation> {
+    pub fn install_pack_hooks(&self, programs: PackPrograms) -> Vec<HookInstallation> {
         let mut engine = (self.engine_factory)();
         let sink = Rc::new(Sink::default());
         let reading = Rc::new(Reading::default());

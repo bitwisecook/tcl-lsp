@@ -21,6 +21,12 @@
 //! the P1a ledger-C4 retirement (the `head_identity` binding table, now
 //! the realm command-binding state in `tcl_compiler::realm`).
 //!
+//! It also holds the `one-loader` retirements: the CST pack-loader front
+//! end (`load_pack`, `load_pack_cached`, `expand_includes`,
+//! `report_extra_speclib_blocks`) and the second cache identity
+//! (`LOADER_BUILD`, `eval_snapshot_memoised`), all replaced by design E's
+//! evaluation loader behind one cache door.
+//!
 //! P1-G deleted the old dialect-name validators
 //! (`DialectProfile::by_name` / `by_opt_name` / `resolve_known` /
 //! `availability_for_name`) and the string-keyed registry doors
@@ -206,6 +212,37 @@ const RETIRED: &[RetiredPattern] = &[
     },
     RetiredPattern {
         needle: "OptionConstraint",
+        outside_registry_only: false,
+    },
+    // The `one-loader` lane (redesign §11, ledger row L1): `SpecTcl` had two
+    // live implementations of "load a pack" — design E's evaluation loader
+    // and the CST front end it was proved byte-identical to. The CST front
+    // end is deleted; `tcl_spectcl::loader::evaluate_pack` (uncached) and
+    // `tcl_spectcl::cache::evaluate_pack_cached` (the one production door)
+    // are what remain. `PackTables`, `apply_pack_stmt` and the row readers
+    // are deliberately NOT here: they are the one `SpecTcl` vocabulary, not
+    // a second loader, and the evaluation loader replays through them.
+    RetiredPattern {
+        needle: "load_pack",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "expand_includes",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "report_extra_speclib_blocks",
+        outside_registry_only: false,
+    },
+    // The parse-memo half of the two caching layers: one key
+    // (`EvalSnapshotKey` stamped with the build) now serves both the
+    // in-memory snapshot tier and the on-disk segmentation tier.
+    RetiredPattern {
+        needle: "LOADER_BUILD",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "eval_snapshot_memoised",
         outside_registry_only: false,
     },
 ];

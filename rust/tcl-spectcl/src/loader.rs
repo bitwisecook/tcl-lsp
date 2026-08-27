@@ -18,24 +18,36 @@
 
 //! `SpecTcl` — the `.tclspec` spec-pack loader.
 //!
-//! Two front ends share one set of row readers:
+//! **One loader**, in two halves that are not two ways of doing the same
+//! thing:
 //!
-//! - **This module's [`load_pack`]** — the CST loader: the pack is **one Tcl
-//!   script, read from the CST and never executed**, the reference
-//!   behaviour every other loader is measured against.
-//! - **[`evaluate_pack`]** — design E's evaluation loader
-//!   (`SpecTcl` 2.0): the pack runs as a sandboxed, deterministic Tcl
-//!   program whose registration words capture the same [`Stmt`] shapes and
-//!   replay them through the readers below, behind its own explicit entry
-//!   points. `load_pack`'s behaviour is unchanged by its existence.
+//! - **[`evaluate_pack`]** (in [`eval`]) — design E's evaluation loader: the
+//!   pack runs as a sandboxed, deterministic, budgeted Tcl program whose
+//!   registration words *capture* [`Stmt`]s rather than interpreting them.
+//!   It is the only door from `.tclspec` text to a [`Pack`], for every
+//!   consumer — the LSP's discovery and reload path (through
+//!   [`crate::cache::evaluate_pack_cached`]), the Spec Studio, the `tcl` CLI
+//!   and the MCP server.
+//! - **The row readers in this module** — [`apply_pack_stmt`],
+//!   [`apply_command_stmt`], [`apply_subcommand_stmt`],
+//!   [`command_from_parts`], [`subcommand_from_parts`] and the property
+//!   readers under them. They are the `SpecTcl` *vocabulary*: what a word
+//!   means once a registration has been captured. Every registration reaches
+//!   them, whether the file spelled it literally or a `foreach` computed it.
 //!
-//! The CST walk uses the same
+//! There is no second front end. A pack whose statements are all static
+//! vocabulary never reaches the interpreter at all — the evaluation loader's
+//! static fast path captures them straight from the CST — but that is one
+//! loader taking a shortcut through its own capture layer, not a parse-only
+//! twin: the same staging, the same replay, the same readers.
+//!
+//! Segmentation uses the same
 //! [`build_document`](tcl_compiler::parsing::syntax::build::build_document) /
 //! [`segments_from_document`](tcl_compiler::parsing::syntax::segment::segments_from_document)
-//! pair every static scan in the toolchain uses — and turns the declarations
-//! into live [`CommandSpec`]s, which the Spec Studio then seeds a draft from
-//! through the ordinary `draft::from_command_spec`. Loading a pack and
-//! browsing a shipped command therefore produce drafts by the *same* code,
+//! pair every static scan in the toolchain uses — and the readers turn the
+//! declarations into live [`CommandSpec`]s, which the Spec Studio then seeds a
+//! draft from through the ordinary `draft::from_command_spec`. Loading a pack
+//! and browsing a shipped command therefore produce drafts by the *same* code,
 //! which is what makes the per-port equivalence gate in
 //! `tcl-spec-studio/tests/spectcl_ports.rs` meaningful.
 //!
@@ -44,8 +56,8 @@
 //!
 //! ## What the loader does, and does not, do
 //!
-//! - **Never evaluates.** Only the CST is read. Hook bodies are carried as
-//!   text ([`HookDecl`]) together with their family and that family's declared
+//! - **Never evaluates a hook body.** Registration runs; hook bodies do not.
+//!   They are carried as text ([`HookDecl`]) together with their family and that family's declared
 //!   metadata — emitter verbs, what silence means, and whether the family may
 //!   only run on an all-literal call. Running them in the `tcl-vm` sandbox is
 //!   later work, so every pack-declared hook is installed as an **abstaining**
@@ -145,9 +157,8 @@ pub use dialect_block::{PackDialect, PackDialectAxis};
 pub(crate) use environment_block::reserved_name as reserved_environment_name;
 pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub use eval::{
-    EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, eval_snapshot_memoised,
-    evaluate_pack, evaluate_pack_cached, evaluate_pack_in, evaluate_pack_with,
-    provenance_violation,
+    EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, evaluate_pack,
+    evaluate_pack_in, evaluate_pack_with, provenance_violation,
 };
 pub use vocabulary_class::VocabularyClass;
 
@@ -193,7 +204,7 @@ struct Log {
     /// Sites that used vocabulary newer than 1.0, as
     /// `(context, line, word, first vocabulary that has it)`.
     ///
-    /// Drained by [`load_pack`] into per-site notices for every site whose
+    /// Drained by the loader into per-site notices for every site whose
     /// word is newer than the pack's declared vocabulary — the words still
     /// load (additions never gate), but a loader speaking only the declared
     /// vocabulary drops them silently, and the declaration is the pack's only
@@ -551,14 +562,14 @@ pub(crate) fn pack_statements(source: &str) -> Vec<Stmt> {
 /// the author's delimiters) and its decoded text.
 ///
 /// This is the hook `tcl spec upgrade` rewrites through. It must read words
-/// exactly the way [`load_pack`] does — same lexer, same segmentation — so
+/// exactly the way the loader does — same lexer, same segmentation — so
 /// `speclib demo {1.0} { … }` and `speclib demo "1.0" { … }` decode to
 /// `1.0` here just as they do at load.
 ///
 /// Same [`FileBom::Skip`] as [`pack_statements`], and for the same reason: this
 /// reads a whole file. If it disagreed with the loader about whether a leading
 /// mark is a prologue, `tcl spec upgrade` would compute its byte range against
-/// a different tokenisation than the one `load_pack` used, and rewrite the
+/// a different tokenisation than the one the loader used, and rewrite the
 /// wrong span.
 #[must_use]
 pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, String)> {
@@ -879,15 +890,15 @@ pub struct Pack {
     pub load_error: Option<LoadError>,
     /// Whether the pack used `available?` during evaluation (design E-R1):
     /// its surface depends on the analysis target, so its snapshot must not
-    /// be cached per (content, vocabulary) alone. Always `false` from the
-    /// CST loader, which never evaluates.
+    /// be cached per (content, vocabulary) alone. `false` for every pack
+    /// that does not ask — which is every pack shipped today.
     pub target_dependent: bool,
     /// Every registration call the load made, in the order it made them —
     /// the **canonical subset** of the snapshot (design E-R11).
     ///
-    /// The CST loader records the file's own statements; the evaluation
-    /// loader records what the program registered, which for a straight-line
-    /// pack is the same record. [`crate::export::export_pack`] renders it
+    /// What the *program* registered — which for a straight-line declarative
+    /// pack is the file's own statements, and for a templated one is the
+    /// expansion. [`crate::export::export_pack`] renders it
     /// back as canonical source, so an export cannot lose a word the loader
     /// read — including the ones no `CommandSpec` field holds (a value
     /// table, an inline descriptor, a hook body).
@@ -1017,116 +1028,7 @@ impl Pack {
     }
 }
 
-/// Load a `.tclspec` source with no include context: an `include` row is
-/// reported and dropped, everything else loads as [`load_pack_with`].
-///
-/// Never fails: a pack with no `speclib` wrapper, or with declarations this
-/// server does not know, loads as much as it can and reports the rest through
-/// [`Pack::notices`].
-#[must_use]
-pub fn load_pack(source: &str) -> Pack {
-    load_pack_with(source, None)
-}
-
-/// [`load_pack`] with an [`IncludeContext`] resolving `include NAME` rows
-/// (`SpecTcl` 2.0, Q6) under the determinism contract: literal names
-/// only, no IO beyond what the context's resolver reaches (the pack
-/// search path), content-hash-keyed cycle rejection, bounded depth, and
-/// provenance inherited — the included statements load as part of this
-/// pack, at its tier, exactly as if written in place. The registration
-/// record carries the **included statements** rather than the `include`
-/// row, so an export writes the expansion (design E's rule for every
-/// computed registration).
-#[must_use]
-pub fn load_pack_with(source: &str, include: Option<&IncludeContext>) -> Pack {
-    let mut log = Log {
-        context: "pack".to_owned(),
-        ..Log::default()
-    };
-    let mut pack = empty_pack();
-
-    let top = pack_statements(source);
-    let Some(speclib) = top.iter().find(|s| s.word_text(0) == "speclib") else {
-        log.say(1, "no `speclib` declaration; nothing loaded");
-        pack.notices = log.notices;
-        return pack;
-    };
-    for stray in top.iter().filter(|s| s.word_text(0) != "speclib") {
-        log.unknown_property(stray);
-    }
-    report_extra_speclib_blocks(&top, &mut log);
-    // `speclib NAME VERSION { … }`. A file that omits the version puts the body
-    // block in the name's slot, and before issue #1638 that whole multi-line
-    // blob became `pack.name` — which is the merge key, is interpolated into
-    // every notice, and is reported to every editor as the `name` field of
-    // `spec_packs_loaded`. Refuse it instead: a braced word cannot be a pack
-    // name.
-    if speclib.arg(1).is_some_and(|w| w.braced) {
-        log.say(
-            speclib.line,
-            "`speclib` needs a name and a vocabulary version before its body \
-             block (`speclib NAME 1.1 { … }`); nothing loaded",
-        );
-        pack.notices = log.notices;
-        return pack;
-    }
-    speclib.word_text(1).clone_into(&mut pack.name);
-    speclib.word_text(2).clone_into(&mut pack.dsl_version);
-    // §6.1's fail-closed classes apply in one direction only: an older
-    // loader meeting newer vocabulary. That is a *well-formed* version word
-    // this build postdates — `speclib probe 2.9`. A word that names no
-    // vocabulary at all (`banana`, the library's own release) says nothing
-    // about vocabulary, so it must not escalate an author's typo into a
-    // dropped command.
-    log.forward_vocabulary = declared_major(&pack.dsl_version).is_some()
-        && !KNOWN_VOCABULARY_VERSIONS.contains(&pack.dsl_version.as_str())
-        && tcl_registry::version::compare(&pack.dsl_version, NEWEST_VOCABULARY_VERSION).is_gt();
-    if check_vocabulary_version(&pack.dsl_version, speclib.line, &mut log) {
-        pack.load_error = Some(LoadError::UnsupportedMajor(pack.dsl_version.clone()));
-        pack.notices = log.notices;
-        return pack;
-    }
-    let Some(body) = speclib.arg(3) else {
-        log.say(speclib.line, "`speclib` has no body block");
-        pack.notices = log.notices;
-        return pack;
-    };
-
-    let mut tables = PackTables::default();
-    let mut declarations: Vec<Stmt> = Vec::new();
-    // Two passes: pack-level tables and descriptors first, so a `command`
-    // may reference one declared after it.
-    let body_stmts = block(body);
-    // `include` rows expand here — before the record and both passes —
-    // so the two passes and the canonical record all see the same
-    // statement stream, and neither loader front end re-implements the
-    // splice.
-    let mut include_chain = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
-    let body_stmts = expand_includes(body_stmts, include, &mut include_chain, &mut log);
-    // The canonical record is the statements themselves (design E-R11), taken
-    // before the passes so it holds what the file *says* rather than what
-    // survived reading it — a dropped row is a notice, not a missing
-    // registration call.
-    pack.registrations = crate::export::record(&body_stmts, crate::export::Scope::Pack);
-    for stmt in body_stmts {
-        if apply_pack_stmt(&mut pack, &mut tables, &stmt, &mut log) {
-            declarations.push(stmt);
-        }
-    }
-
-    for stmt in declarations {
-        if let Some(command) = load_command(&stmt, &tables, &mut log) {
-            pack.commands.push(command);
-        }
-    }
-
-    finish_pack_cores(&mut pack, &mut log);
-    finish_newer_words(&pack, &mut log);
-    pack.notices = log.notices;
-    pack
-}
-
-/// A pack with nothing in it yet — the starting point of both loaders.
+/// A pack with nothing in it yet — where every load starts.
 fn empty_pack() -> Pack {
     Pack {
         name: String::new(),
@@ -1150,8 +1052,8 @@ fn empty_pack() -> Pack {
 /// `command`, which the caller collects for the second pass. Returns `true`
 /// exactly when the statement is a `command` declaration.
 ///
-/// Shared by [`load_pack`] and the evaluation loader's replay, so the two
-/// front ends cannot drift on what a pack-level word means.
+/// The one reader for a pack-level word: the evaluation loader's replay is
+/// its only caller, whether the row was written literally or computed.
 fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &mut Log) -> bool {
     match stmt.word_text(0) {
         "values" => tables.add_values(stmt, log),
@@ -1211,10 +1113,11 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
             }
         }
         "include" => {
-            // The CST walk consumes `include` rows before this reader runs
-            // (`expand_includes`), so the only way here is the evaluation
-            // loader's interpreter-path replay — a templated pack computing
-            // an include, which the determinism contract does not follow.
+            // A literal pack-scope `include` is consumed by the capture layer
+            // (`stage_include`) before any row reaches this reader, so the
+            // only way here is a *computed* include — a templated pack
+            // building the row, which the determinism contract does not
+            // follow.
             log.v20(stmt.line, "include");
             log.say_classified(
                 stmt.line,
@@ -1350,35 +1253,6 @@ fn finish_pack_cores(pack: &mut Pack, log: &mut Log) {
     }
     pack.environments
         .retain(|environment| !rejected.contains(&environment.id));
-}
-
-/// Report every `speclib` block after the first — none of them is loaded.
-///
-/// Only the first pack in a file is read, and before issue #1634 the rest went
-/// in total silence: `load_pack`'s `find` takes the first, and the stray-word
-/// loop beside it filters every `speclib` back out, so
-/// `cat a.tclspec b.tclspec > merged.tclspec` lost half its commands with
-/// nothing said. One notice per extra block, carrying the count it would have
-/// declared, because that number is what tells the author whether they have a
-/// problem.
-fn report_extra_speclib_blocks(top: &[Stmt], log: &mut Log) {
-    for extra in top.iter().filter(|s| s.word_text(0) == "speclib").skip(1) {
-        let extra_name = extra.word_text(1);
-        let commands = extra.arg(3).map_or(0, |body| {
-            block(body)
-                .iter()
-                .filter(|s| s.word_text(0) == "command")
-                .count()
-        });
-        log.say(
-            extra.line,
-            format!(
-                "a second `speclib` block (`{extra_name}`) in one file is not loaded; \
-                 only the first pack in a file is read, so its {commands} command(s) \
-                 are dropped — move it to its own `.tclspec`"
-            ),
-        );
-    }
 }
 
 /// The `SpecTcl` **vocabulary** versions this loader reads, newest last.
@@ -1639,10 +1513,9 @@ pub(crate) fn uses_include(source: &str) -> bool {
 
 /// Why one `include NAME` word is unusable, or `Ok` with the name.
 ///
-/// Shared by both loader front ends so the CST walk and the evaluator
-/// cannot drift on what a valid include row is: exactly two words, a
-/// non-empty literal name, and no path structure — the resolver decides
-/// what a name means, but a name is never a path.
+/// The one rule for what a valid include row is, whichever route captured
+/// it: exactly two words, a non-empty literal name, and no path structure —
+/// the resolver decides what a name means, but a name is never a path.
 pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> {
     let reject = |message: String| Notice {
         context: "pack".to_owned(),
@@ -1665,94 +1538,6 @@ pub(crate) fn include_name(words: &[&str], line: u32) -> Result<String, Notice> 
         )));
     }
     Ok(name.to_owned())
-}
-
-/// Splice every pack-scope `include` row's resolved statements in place.
-///
-/// `chain` carries the content hashes of every file on the current
-/// inclusion path, the including pack first — the content-hash key the
-/// determinism contract names, and what rejects a cycle regardless of
-/// how the files spell each other's names.
-fn expand_includes(
-    stmts: Vec<Stmt>,
-    include: Option<&IncludeContext>,
-    chain: &mut Vec<u64>,
-    log: &mut Log,
-) -> Vec<Stmt> {
-    let mut out = Vec::with_capacity(stmts.len());
-    for stmt in stmts {
-        if stmt.word_text(0) != "include" {
-            out.push(stmt);
-            continue;
-        }
-        log.v20(stmt.line, "include");
-        let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
-        let name = match include_name(&words, stmt.line) {
-            Ok(name) => name,
-            Err(notice) => {
-                log.notices.push(notice);
-                continue;
-            }
-        };
-        let Some(context) = include else {
-            log.say_classified(
-                stmt.line,
-                VocabularyClass::Semantic,
-                format!(
-                    "`include {name}` needs a pack search path and this load was given \
-                     none; the row is dropped and its declarations are not loaded"
-                ),
-            );
-            continue;
-        };
-        let text = match context.resolve(&name) {
-            Ok(text) => text,
-            Err(error) => {
-                log.say_classified(
-                    stmt.line,
-                    VocabularyClass::Semantic,
-                    format!(
-                        "`include {name}` did not resolve ({error}); the row is dropped \
-                         and its declarations are not loaded"
-                    ),
-                );
-                continue;
-            }
-        };
-        let hash = xxhash_rust::xxh3::xxh3_64(text.as_bytes());
-        if chain.contains(&hash) {
-            log.say_classified(
-                stmt.line,
-                VocabularyClass::Semantic,
-                format!(
-                    "`include {name}` closes an include cycle (its content is already \
-                     on the inclusion path); the row is dropped"
-                ),
-            );
-            continue;
-        }
-        if chain.len() >= INCLUDE_DEPTH_LIMIT {
-            log.say_classified(
-                stmt.line,
-                VocabularyClass::Semantic,
-                format!(
-                    "`include {name}` exceeds the include depth limit \
-                     ({INCLUDE_DEPTH_LIMIT}); the row is dropped"
-                ),
-            );
-            continue;
-        }
-        chain.push(hash);
-        // A fragment is a run of pack-scope statements; `pack_statements`
-        // gives it the same BOM prologue treatment a pack file gets. A
-        // `speclib` wrapper inside a fragment is not honoured — the word
-        // falls through to the ordinary unknown-property rule, exactly as
-        // it does under evaluation.
-        let spliced = expand_includes(pack_statements(&text), include, chain, log);
-        out.extend(spliced);
-        chain.pop();
-    }
-    out
 }
 
 /// The major component of a `speclib` version word, when it has one.
@@ -4750,64 +4535,13 @@ struct CommandAcc {
     clause_grammar: Option<ClauseGrammar>,
 }
 
-// Loading is a single tolerant transaction: defaults, hooks, projected rows,
-// lifecycle containment, and degradation notices must seal together.
-#[allow(clippy::too_many_lines)]
-fn load_command(stmt: &Stmt, tables: &PackTables, log: &mut Log) -> Option<PackCommand> {
-    // A name carrying whitespace is deliberately *not* rejected here. A Tcl
-    // command name is an arbitrary string key in the namespace's command table
-    // — `Tcl_CreateObjCommand` hashes it without inspecting a character — so
-    // `proc {evil name}` is a real command and a braced or quoted call site
-    // invokes it. Verified against tclsh 8.6 and 9.0: created, listed by
-    // `info commands`, and successfully invoked, for names carrying a space, a
-    // tab, and a newline, and for a name that is only a space. Our own pipeline
-    // agrees — a braced command word lowers to `WordExpr::BracedLiteral`, whose
-    // `legacy_text` is the brace-stripped content, so the call site resolves to
-    // the same key the spec declares. Issue #1638 dropped such names with a
-    // notice; that was wrong and the drop was removed after review. See
-    // `a_whitespace_bearing_command_name_loads_and_is_installable`.
-    let name = stmt.word_text(1);
-    if name.is_empty() {
-        log.say(stmt.line, "`command` with no name dropped");
-        return None;
-    }
-    let overrides_shipped = stmt.words.iter().any(|w| w.text == "-override");
-    // Naming the command matters more here than anywhere else in the loader:
-    // the shape that reaches this branch is almost always the brace-on-the-
-    // next-line mistake, where the author's `{ … }` became a separate
-    // statement. Before issue #1634 this was a bare `?` — the command vanished
-    // and nothing in the Problems panel mentioned it, so the only clue was the
-    // orphaned block's own notice, which does not name the command at all.
-    let Some(body) = stmt.words.iter().skip(2).find(|w| w.braced) else {
-        log.say(
-            stmt.line,
-            format!(
-                "`command {name}` has no `{{ … }}` body block; dropped \
-                 (an opening brace must be on the same line as the command name)"
-            ),
-        );
-        return None;
-    };
-
-    command_from_parts(
-        name,
-        overrides_shipped,
-        stmt.line,
-        tables,
-        log,
-        |spec, acc, log| {
-            for stmt in block(body) {
-                apply_command_stmt(spec, acc, &stmt, tables, log);
-            }
-        },
-    )
-}
-
-/// Everything [`load_command`] does past reading the `command` statement's
-/// own words: defaults, the body (delivered by `fill`, however the front end
-/// gets its statements — the CST walk or the evaluator's capture), sealing,
-/// containment, and §6.1 degradation. Shared so the two loaders build a
-/// command through one code path.
+/// Build one command: defaults, the body (delivered by `fill` from the
+/// evaluation loader's staged nodes), sealing, containment, and §6.1
+/// degradation.
+///
+/// Reads no statement of its own, so a command registered by a `foreach` and
+/// one written out literally are built by exactly the same code from exactly
+/// the same parts.
 // Loading is a single tolerant transaction: defaults, hooks, projected rows,
 // lifecycle containment, and degradation notices must seal together.
 #[allow(clippy::too_many_lines)]
@@ -6596,7 +6330,7 @@ mod tests {
     /// stopping a future edit from inventing one, which is what this pins.
     #[test]
     fn a_pack_declares_defers_body_and_omitting_it_stays_abstaining() {
-        let declared = load_pack(
+        let declared = evaluate_pack(
             "speclib probe 1.1 { command mydefiner { \
              arity 3; traits {DEFERS_BODY} } }",
         );
@@ -6612,7 +6346,7 @@ mod tests {
         );
         assert!(declared.notices.is_empty(), "{:?}", declared.notices);
 
-        let silent = load_pack("speclib probe 1.1 { command mydefiner { arity 3 } }");
+        let silent = evaluate_pack("speclib probe 1.1 { command mydefiner { arity 3 } }");
         assert!(
             !silent
                 .command("mydefiner")
@@ -6626,7 +6360,7 @@ mod tests {
 
     #[test]
     fn case_list_loader_preserves_every_clause_shape_field() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
              two_arg_optionless_dialects tcl8.5+; \
              clause_end_options_flag --; clause_force_inline_flag -nobrace; \
@@ -6650,7 +6384,7 @@ mod tests {
         assert!(case.warn_unbraced_bodies);
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
 
-        let disabled = load_pack(
+        let disabled = evaluate_pack(
             "speclib probe 1.1 { command demo { case_list { \
              allow_omitted_final_body no; warn_unbraced_bodies false } } }",
         );
@@ -6733,7 +6467,7 @@ mod tests {
 
     #[test]
     fn a_pack_with_no_speclib_wrapper_loads_nothing_and_says_so() {
-        let pack = load_pack("command lonely { arity 1 }");
+        let pack = evaluate_pack("command lonely { arity 1 }");
         assert!(pack.commands.is_empty());
         assert_eq!(pack.notices.len(), 1);
         assert!(pack.notices[0].message.contains("no `speclib`"));
@@ -6743,7 +6477,7 @@ mod tests {
     fn statement_separation_is_ordinary_tcl() {
         // `;` separates, `;#` is a trailing comment, and a bare `#` mid-line is
         // NOT one — it becomes flags on the row, all dropped with a notice.
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.0 {\n\
              command demo { arity 2 # not a comment ; return_type String }\n\
              }",
@@ -6782,7 +6516,7 @@ mod tests {
 
     #[test]
     fn an_argument_index_above_the_table_width_drops() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.0 {\n\
              command demo { arg 300 -role Body\n arg 2 -role Body }\n\
              }",
@@ -6798,7 +6532,7 @@ mod tests {
     /// `subcommand` body grammar.
     #[test]
     fn an_object_class_carries_its_name_flags_and_method_table() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n\
              command factory {\n\
                arity 1..\n\
@@ -6843,7 +6577,7 @@ mod tests {
     /// short form — a class known by name whose methods are not enumerated.
     #[test]
     fn an_object_class_may_be_a_bare_name() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.0 {\n\
              command factory { object_class ::probe::Opaque }\n\
              }",
@@ -6866,7 +6600,7 @@ mod tests {
     /// each a degradation with a notice, never a failure.
     #[test]
     fn a_malformed_object_class_degrades_with_a_notice() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.0 {\n\
              command nameless { object_class }\n\
              command odd { object_class ::probe::C -mixin {::X} { subcommand s { arity 1 } } }\n\
@@ -6898,7 +6632,7 @@ mod tests {
     /// pack exercises the whole 1.1 vocabulary at once.
     #[test]
     fn every_gateable_row_reads_the_three_lifecycle_flags() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.1 {\n\
              values probe-codes {\n\
                value fast -detail {Quick path.} -min-tcl tcl8.6 -introduced 1.2 \
@@ -6957,7 +6691,7 @@ mod tests {
     /// reader as the command-level `deprecation_fix` statement.
     #[test]
     fn an_option_row_reads_a_deprecation_fix_block() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.1 {\n\
              command demo {\n\
                option -old -deprecated 1.4 -deprecation-fix {-replace -new \
@@ -6986,7 +6720,7 @@ mod tests {
     /// is never refused for a fact it got wrong.
     #[test]
     fn an_impossible_lifecycle_is_dropped_with_a_notice() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.1 {\n\
              command demo {\n\
                option -x -introduced 2.0 -retired 1.0\n\
@@ -7021,7 +6755,7 @@ mod tests {
     /// told it claims availability its parent does not have.
     #[test]
     fn a_child_reaching_outside_its_parent_is_a_notice_not_a_drop() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.1 {\n\
              command demo {\n\
                introduced_version 1.5\n\
@@ -7056,7 +6790,7 @@ mod tests {
     #[test]
     fn the_speclib_version_word_names_a_vocabulary_this_loader_knows() {
         for known in KNOWN_VOCABULARY_VERSIONS {
-            let pack = load_pack(&format!(
+            let pack = evaluate_pack(&format!(
                 "speclib probe {known} {{\n command demo {{ arity 1 }}\n}}"
             ));
             assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
@@ -7064,7 +6798,7 @@ mod tests {
         }
         // An unknown minor within a supported major keeps loading maximally
         // (§6.1): a minor is only ever additive.
-        let pack = load_pack("speclib probe 2.9 {\n command demo { arity 1 }\n}");
+        let pack = evaluate_pack("speclib probe 2.9 {\n command demo { arity 1 }\n}");
         assert!(pack.command("demo").is_some(), "the pack still loads");
         assert_eq!(pack.dsl_version, "2.9");
         assert_eq!(pack.load_error, None);
@@ -7082,7 +6816,7 @@ mod tests {
         // vocabulary at all — the classic slip is writing the library's own
         // release in the slot — so the notice points at `introduced_version`
         // instead of claiming the loader is behind.
-        let pack = load_pack("speclib probe 0.15 {\n command demo { arity 1 }\n}");
+        let pack = evaluate_pack("speclib probe 0.15 {\n command demo { arity 1 }\n}");
         assert!(pack.command("demo").is_some(), "the pack still loads");
         assert_eq!(
             pack.notices
@@ -7106,7 +6840,7 @@ mod tests {
     fn v11_words_under_a_10_declaration_draw_a_per_site_notice() {
         let body = "\n command demo {\n                        arity 1\n                        option -x -introduced 1.2\n                        form Default {demo word} -introduced 1.2\n                        side_effect FileIo -writes -deprecated 2.0\n                        versioned_arg_value 0 utf-8 -introduced 1.2\n                    }\n}";
 
-        let pack = load_pack(&format!("speclib probe 1.0 {{{body}"));
+        let pack = evaluate_pack(&format!("speclib probe 1.0 {{{body}"));
         let v11_notices: Vec<&str> = pack
             .notices
             .iter()
@@ -7128,7 +6862,7 @@ mod tests {
             "option-row lifecycle is 1.0 vocabulary: {v11_notices:?}"
         );
 
-        let pack = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        let pack = evaluate_pack(&format!("speclib probe 1.1 {{{body}"));
         assert!(
             pack.notices.is_empty(),
             "declaring 1.1 clears it: {:?}",
@@ -7142,10 +6876,10 @@ mod tests {
     #[test]
     fn every_known_vocabulary_loads_the_same_command_surface() {
         let body = "{\n command demo {\n                        arity 1..\n                        option -mode -takes mode -values {a b} -closed\n                        form Default {demo ?-mode mode? word}\n                        hover { summary {Demo.} synopsis {demo word} }\n                    }\n command other { arity 0 }\n}";
-        let baseline = load_pack(&format!("speclib probe 1.2 {body}"));
+        let baseline = evaluate_pack(&format!("speclib probe 1.2 {body}"));
         let baseline_names: Vec<&str> = baseline.commands.iter().map(|c| c.spec.name).collect();
         for known in ["1", "1.0", "1.1"] {
-            let pack = load_pack(&format!("speclib probe {known} {body}"));
+            let pack = evaluate_pack(&format!("speclib probe {known} {body}"));
             let names: Vec<&str> = pack.commands.iter().map(|c| c.spec.name).collect();
             assert_eq!(names, baseline_names, "{known}");
             assert!(pack.notices.is_empty(), "{known}: {:?}", pack.notices);
@@ -7156,7 +6890,7 @@ mod tests {
 
     #[test]
     fn option_external_input_link_round_trips_as_taint_metadata() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command widget {\n \
              arity 1..\n \
              option -textvariable -takes variable -role VarWrite \
@@ -7176,7 +6910,7 @@ mod tests {
 
     #[test]
     fn option_script_timing_is_loaded_independently_of_body_scope() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command widget {\n \
              option -command -takes script -role Body -body-kind Structural \
                  -script-timing Deferred\n \
@@ -7222,7 +6956,7 @@ mod tests {
 
     #[test]
     fn callback_taint_inputs_are_authorable_but_reject_bookkeeping_markers() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command widget {\n \
              traits DEFERS_BODY\n \
              arity 2\n \
@@ -7267,7 +7001,7 @@ mod tests {
 
     #[test]
     fn contradictory_option_and_callback_properties_are_not_installed() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             r"speclib probe 1.2 {
  command bad {
    arg 0 -role Value
@@ -7323,7 +7057,7 @@ mod tests {
 
     #[test]
     fn tk_geometry_form_and_release_metadata_loads() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command layout {\n \
              tk_geometry Exclusive -container-option -inside -direct-form \
                  -placement-subcommand arrange \
@@ -7367,7 +7101,7 @@ mod tests {
 
         // Under 1.1, only the 1.2 words are noticed — the option row's
         // lifecycle flags have been 1.0 vocabulary all along.
-        let pack = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        let pack = evaluate_pack(&format!("speclib probe 1.1 {{{body}"));
         let messages: Vec<&str> = pack.notices.iter().map(|n| n.message.as_str()).collect();
         assert_eq!(
             messages.len(),
@@ -7384,7 +7118,7 @@ mod tests {
 
         // Under 1.0 the same two sites are still the only 1.2 ones, and the
         // older mechanism keeps working beside it.
-        let older = load_pack(&format!("speclib probe 1.0 {{{body}"));
+        let older = evaluate_pack(&format!("speclib probe 1.0 {{{body}"));
         assert_eq!(
             older
                 .notices
@@ -7397,7 +7131,7 @@ mod tests {
         );
 
         // Declaring 1.2 clears them.
-        let declared = load_pack(&format!("speclib probe 1.2 {{{body}"));
+        let declared = evaluate_pack(&format!("speclib probe 1.2 {{{body}"));
         assert!(
             declared.notices.is_empty(),
             "declaring 1.2 clears it: {:?}",
@@ -7426,7 +7160,7 @@ mod tests {
  }
 }";
 
-        let older = load_pack(&format!("speclib probe 1.1 {{{body}"));
+        let older = evaluate_pack(&format!("speclib probe 1.1 {{{body}"));
         let vocabulary: Vec<&str> = older
             .notices
             .iter()
@@ -7456,7 +7190,7 @@ mod tests {
             older.notices
         );
 
-        let declared = load_pack(&format!("speclib probe 1.2 {{{body}"));
+        let declared = evaluate_pack(&format!("speclib probe 1.2 {{{body}"));
         assert!(
             declared
                 .notices
@@ -7480,7 +7214,7 @@ mod tests {
     /// covers.
     #[test]
     fn a_gated_arity_row_becomes_a_window_and_leaves_the_plain_arity_alone() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command demo {\n \
              arity 1\n \
              arity 2 -introduced 3.0 -retired 5.0\n \
@@ -7515,7 +7249,7 @@ mod tests {
     /// depend on declaration order. The pack keeps the first and is told.
     #[test]
     fn overlapping_arity_windows_draw_a_notice_and_the_later_one_is_dropped() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command demo {\n \
              arity 1\n \
              arity 2 -introduced 3.0\n \
@@ -7539,7 +7273,7 @@ mod tests {
     /// declaring it is a pack defect the author can only find if told.
     #[test]
     fn a_window_reaching_outside_the_command_lifecycle_is_noticed() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command demo {\n \
              introduced_version 2.0\n \
              retired_version 4.0\n \
@@ -7557,7 +7291,7 @@ mod tests {
     /// every other rejected lifecycle takes.
     #[test]
     fn an_arity_window_with_an_impossible_lifecycle_falls_back_to_the_plain_arity() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command demo {\n \
              arity 7 -introduced 5.0 -retired 2.0\n \
              }\n}",
@@ -7584,7 +7318,7 @@ mod tests {
     /// exists to end.
     #[test]
     fn ambient_package_rows_load_and_an_incomplete_one_is_dropped() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n \
              ambient_package Tk 8.6\n \
              ambient_package Itcl 4.0\n \
@@ -7598,7 +7332,7 @@ mod tests {
             .collect();
         assert_eq!(named, vec![("Tk", "8.6"), ("Itcl", "4.0")]);
 
-        let missing = load_pack(
+        let missing = evaluate_pack(
             "speclib probe 1.2 {\n \
              ambient_package Tk\n \
              command demo { arity 1 }\n}",
@@ -7618,7 +7352,7 @@ mod tests {
         );
 
         // 1.2 vocabulary: the same per-site notice every other new word gets.
-        let older = load_pack(
+        let older = evaluate_pack(
             "speclib probe 1.1 {\n \
              ambient_package Tk 8.6\n \
              command demo { arity 1 }\n}",
@@ -7643,7 +7377,7 @@ mod tests {
     /// the routing, with a notice.
     #[test]
     fn display_name_and_file_extension_rows_load() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib upfdemo 1.1 {\n             display_name {IEEE 1801 UPF}\n             file_extension .UPF -name {Unified Power Format} -dialect synopsys-eda-tcl\n             file_extension pwr -dialect no-such-dialect\n             file_extension upf -name {duplicate}\n             command demo { arity 1 }\n}",
         );
         assert_eq!(pack.display_name.as_deref(), Some("IEEE 1801 UPF"));
@@ -7692,12 +7426,12 @@ mod tests {
             ("{tcl8.6+ f5-irules}", "{tcl 8.6-} {f5-irules}"),
         ];
         for (legacy, modern) in pairs {
-            let old = load_pack(&format!(
+            let old = evaluate_pack(&format!(
                 "speclib probe 1.2 {{\n command demo {{\n arity 1\n dialects {legacy}\n \
                  subcommand sub {{\n arity 0\n dialects {legacy}\n }}\n \
                  option -x -dialects {legacy}\n }}\n}}"
             ));
-            let new = load_pack(&format!(
+            let new = evaluate_pack(&format!(
                 "speclib probe 2.0 {{\n command demo {{\n arity 1\n available {modern}\n \
                  subcommand sub {{\n arity 0\n available {modern}\n }}\n \
                  option -x -available {{{modern}}}\n }}\n}}"
@@ -7727,7 +7461,7 @@ mod tests {
     /// projection is identical at each.
     #[test]
     fn available_lands_at_every_dialects_scope() {
-        let legacy = load_pack(
+        let legacy = evaluate_pack(
             "speclib probe 1.2 {\n default dialects tcl8.6+\n \
              command demo {\n arity 1..\n \
              option -x -dialects tcl8.6+\n \
@@ -7737,7 +7471,7 @@ mod tests {
              subcommand sub {\n arity 0\n dialects tcl8.6+\n \
              sub_subcommand deep -dialects tcl8.6+\n }\n }\n}",
         );
-        let modern = load_pack(
+        let modern = evaluate_pack(
             "speclib probe 2.0 {\n default available {tcl 8.6-}\n \
              command demo {\n arity 1..\n \
              option -x -available {tcl 8.6-}\n \
@@ -7763,7 +7497,7 @@ mod tests {
     /// scope, and must agree with a `required_package` the spec declares.
     #[test]
     fn available_carries_a_package_requirement_at_command_scope() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              available {package Tcllib}\n }\n}",
         );
@@ -7776,7 +7510,7 @@ mod tests {
             Some("Tcllib")
         );
 
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              required_package Snit\n available {package Tcllib}\n }\n}",
         );
@@ -7801,7 +7535,7 @@ mod tests {
     /// provider — and an unknown provider is reported, not guessed at.
     #[test]
     fn available_refuses_f5_bigip_and_unknown_providers() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              available {f5-bigip}\n }\n}",
         );
@@ -7821,7 +7555,7 @@ mod tests {
             "a dropped row narrows nothing"
         );
 
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              available {klingon 1.0}\n }\n}",
         );
@@ -7838,7 +7572,7 @@ mod tests {
     /// off rather than reading as "available everywhere".
     #[test]
     fn a_jim_only_window_narrows_to_nothing_rather_than_widening() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              available {jim 0.78-}\n }\n}",
         );
@@ -7859,7 +7593,7 @@ mod tests {
     /// every newer word does.
     #[test]
     fn v20_words_under_an_older_declaration_draw_a_per_site_notice() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 1.2 {\n command demo {\n arity 1\n \
              available {tcl 8.6-}\n }\n}",
         );
@@ -7878,7 +7612,7 @@ mod tests {
     /// `CommandSpec` field the design memo's coverage matrix names for it.
     #[test]
     fn the_ratified_words_reach_their_model_fields() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n\
              command probe::collect {\n\
              \x20  arity 0\n\
@@ -7979,7 +7713,7 @@ mod tests {
     /// `descriptor`, exactly as `definition_body` and `case_list` do.
     #[test]
     fn a_body_scope_resolves_a_shipped_name_and_a_descriptor() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n\
              descriptor body_scope probe-style {\n\
              \x20  name {probe style}\n\
@@ -8011,7 +7745,7 @@ mod tests {
     /// dependency set, and a priority outside its own range is not a range.
     #[test]
     fn a_malformed_ratified_row_is_dropped_with_a_notice() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n\
              command probe::bad {\n\
              \x20  arity 0\n\
@@ -8035,7 +7769,7 @@ mod tests {
     /// An `environment` block parses, validates, and converts.
     #[test]
     fn an_environment_block_loads_and_converts_to_a_definition() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n environment vivado-tcl {\n \
              display_name {Xilinx Vivado}\n core tcl 8.6\n \
              ambient Vivado keyed ToolVersion\n hosted Tk 8.5-\n \
@@ -8084,7 +7818,7 @@ mod tests {
     /// claiming one is rejected rather than merged.
     #[test]
     fn an_environment_block_claiming_a_compiled_name_is_rejected() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n environment tcl8.6 {\n core tcl 8.6\n }\n \
              command demo { arity 1 }\n}",
         );
@@ -8103,7 +7837,7 @@ mod tests {
     /// block is rejected, and the pack's other content still loads.
     #[test]
     fn an_unknown_environment_row_rejects_the_block() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
              no_such_row yes\n }\n command demo { arity 1 }\n}",
         );
@@ -8124,7 +7858,7 @@ mod tests {
     /// and refuses identity rows.
     #[test]
     fn an_environment_extend_block_is_additive() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n environment synopsys-eda-tcl -extend {\n \
              file_extension upf -name {Unified Power Format}\n \
              ambient upf_extras 1.0\n }\n command demo { arity 1 }\n}",
@@ -8142,7 +7876,7 @@ mod tests {
         assert_eq!(extension.placements.len(), 1);
 
         // An identity row inside an extend block rejects the block.
-        let rejected = load_pack(
+        let rejected = evaluate_pack(
             "speclib probe 2.0 {\n environment synopsys-eda-tcl -extend {\n \
              core tcl 8.6\n }\n command demo { arity 1 }\n}",
         );
@@ -8161,7 +7895,7 @@ mod tests {
     /// providers; an explicit `default required_package` still wins.
     #[test]
     fn provides_defaults_the_command_provider() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n provides upf 1.0 2.1\n \
              command demo { arity 1 }\n}",
         );
@@ -8174,7 +7908,7 @@ mod tests {
             Some("upf")
         );
 
-        let explicit = load_pack(
+        let explicit = evaluate_pack(
             "speclib probe 2.0 {\n provides upf\n \
              default required_package sdc\n command demo { arity 1 }\n}",
         );
@@ -8192,7 +7926,7 @@ mod tests {
     /// `co_provides` parses its predicated relation and carries it as data.
     #[test]
     fn co_provides_carries_the_predicated_relation() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n provides tk\n \
              co_provides Tk -requires-exact tk -when {without TK_NO_DEPRECATED}\n \
              command demo { arity 1 }\n}",
@@ -8208,7 +7942,7 @@ mod tests {
     /// command, and the object-class flags set it on a class.
     #[test]
     fn dynamic_surface_opens_a_commands_member_set() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n command demo {\n arity 1\n \
              dynamic_surface\n }\n command duo {\n arity 1\n \
              unknown_members\n }\n command trio { arity 1 }\n \
@@ -8251,10 +7985,17 @@ mod tests {
             "self.tclspec-frag" => Ok("include self.tclspec-frag\n".to_owned()),
             other => Err(format!("no such fragment `{other}`")),
         });
-        let pack = load_pack_with(
+        let context = std::rc::Rc::new(context);
+        let including = |source: &str| {
+            evaluate_pack_in(
+                source,
+                &EvalOptions::default(),
+                Some(std::rc::Rc::clone(&context)),
+            )
+        };
+        let pack = including(
             "speclib probe 2.0 {\n include extra.tclspec-frag\n \
              command demo { arity 1 }\n}",
-            Some(&context),
         );
         assert!(pack.notices.is_empty(), "{:?}", pack.notices);
         assert!(
@@ -8272,7 +8013,7 @@ mod tests {
         );
 
         // No context: the row drops with a semantic notice.
-        let dropped = load_pack("speclib probe 2.0 {\n include extra.tclspec-frag\n}");
+        let dropped = evaluate_pack("speclib probe 2.0 {\n include extra.tclspec-frag\n}");
         assert!(
             dropped.notices.iter().any(|n| {
                 n.class == VocabularyClass::Semantic
@@ -8283,10 +8024,7 @@ mod tests {
         );
 
         // A cycle is rejected by content hash.
-        let cyclic = load_pack_with(
-            "speclib probe 2.0 {\n include self.tclspec-frag\n}",
-            Some(&context),
-        );
+        let cyclic = including("speclib probe 2.0 {\n include self.tclspec-frag\n}");
         assert!(
             cyclic
                 .notices
@@ -8297,10 +8035,7 @@ mod tests {
         );
 
         // A path-shaped name never reaches the resolver.
-        let hostile = load_pack_with(
-            "speclib probe 2.0 {\n include ../outside\n}",
-            Some(&context),
-        );
+        let hostile = including("speclib probe 2.0 {\n include ../outside\n}");
         assert!(
             hostile
                 .notices
@@ -8311,10 +8046,7 @@ mod tests {
         );
 
         // An unresolvable name reports the resolver's reason.
-        let missing = load_pack_with(
-            "speclib probe 2.0 {\n include nowhere.tclspec-frag\n}",
-            Some(&context),
-        );
+        let missing = including("speclib probe 2.0 {\n include nowhere.tclspec-frag\n}");
         assert!(
             missing
                 .notices
@@ -8329,7 +8061,7 @@ mod tests {
     /// (review B7: an environment selects from the contributed set).
     #[test]
     fn an_unknown_editor_identity_drops_only_the_routing() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n environment probe-env {\n core tcl 8.6\n \
              editor_identity klingon\n }\n}",
         );
@@ -8348,7 +8080,7 @@ mod tests {
     /// vocabulary.
     #[test]
     fn a_dialect_block_loads_its_ladder_and_axes() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n dialect picol2 {\n release 2.0\n \
              release 2.1 -build Unknown\n axis expand_syntax off\n \
              axis braced_var first-close\n axis numbers tcl90\n \
@@ -8379,7 +8111,7 @@ mod tests {
             ),
             ("axis numbers tcl99", "is not a value of `numbers`"),
         ] {
-            let pack = load_pack(&format!(
+            let pack = evaluate_pack(&format!(
                 "speclib probe 2.0 {{\n dialect probe-dialect {{\n {body}\n }}\n \
                  command demo {{ arity 1 }}\n}}"
             ));
@@ -8398,7 +8130,7 @@ mod tests {
     /// environment it should have been.
     #[test]
     fn a_dialect_block_duplicating_a_compiled_release_is_rejected() {
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.0 {\n dialect my-tcl {\n release 1.0\n \
              axis expand_syntax on\n axis braced_var first-close\n \
              axis numbers tcl85\n axis escapes tcl86\n \
@@ -8426,7 +8158,7 @@ mod tests {
     #[test]
     fn unknown_words_classify_by_compatibility_effect() {
         // Presentation: prose. Warn and drop, as ever.
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.9 {\n command demo {\n arity 1\n \
              marketing_blurb {Buy now.}\n }\n}",
         );
@@ -8435,7 +8167,7 @@ mod tests {
         assert_eq!(pack.notices[0].class, VocabularyClass::Presentation);
 
         // Assistance: a shape word. The command stays known, marked.
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.9 {\n command demo {\n arity 1\n \
              arg_cardinality 3\n }\n}",
         );
@@ -8450,7 +8182,7 @@ mod tests {
         );
 
         // Semantic: a security word. The command is excluded outright.
-        let pack = load_pack(
+        let pack = evaluate_pack(
             "speclib probe 2.9 {\n command demo {\n arity 1\n \
              taint_launders yes\n }\n command safe_neighbour { arity 0 }\n}",
         );
@@ -8475,7 +8207,7 @@ mod tests {
     #[test]
     fn unknown_words_in_a_known_vocabulary_stay_presentation_class() {
         for declared in ["1.2", "2.0"] {
-            let pack = load_pack(&format!(
+            let pack = evaluate_pack(&format!(
                 "speclib probe {declared} {{\n command demo {{\n arity 1\n \
                  taint_launders yes\n }}\n}}"
             ));

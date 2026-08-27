@@ -146,7 +146,7 @@ fn literal(value: &str) -> HookWord<'_> {
 fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(PackPrograms {
+    let installed = host.install_pack_hooks(PackPrograms {
         pack: "badlib".to_owned(),
         content_hash: "deadbeef".to_owned(),
         dsl_version: "1".to_owned(),
@@ -191,7 +191,7 @@ fn a_panicking_hook_abstains_and_is_quarantined_with_a_record() {
 fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(PackPrograms::new("slowlib").with(HookProgram::new(
+    let installed = host.install_pack_hooks(PackPrograms::new("slowlib").with(HookProgram::new(
         "slowlib::spin",
         HookFamily::ConstFold,
         "burn",
@@ -210,7 +210,7 @@ fn a_budget_blowout_is_recorded_and_quarantined_but_named_differently() {
 fn an_erroring_hook_abstains_forever_but_is_logged_once() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(PackPrograms::new("mylib").with(HookProgram::new(
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
         "mylib::wrong",
         HookFamily::ConstFold,
         "error",
@@ -234,12 +234,12 @@ fn an_erroring_hook_abstains_forever_but_is_logged_once() {
 fn a_crash_in_one_pack_leaves_another_pack_working() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let bad = host.load_pack(PackPrograms::new("badlib").with(HookProgram::new(
+    let bad = host.install_pack_hooks(PackPrograms::new("badlib").with(HookProgram::new(
         "badlib::boom",
         HookFamily::ConstFold,
         "panic",
     )));
-    let good = host.load_pack(PackPrograms::new("goodlib").with(HookProgram::new(
+    let good = host.install_pack_hooks(PackPrograms::new("goodlib").with(HookProgram::new(
         "goodlib::ok",
         HookFamily::ConstFold,
         "fold",
@@ -262,7 +262,7 @@ fn a_crash_in_one_pack_leaves_another_pack_working() {
 fn a_panic_costs_the_pack_its_other_hooks_and_nothing_more() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(
+    let installed = host.install_pack_hooks(
         PackPrograms::new("badlib")
             .with(HookProgram::new(
                 "badlib::boom",
@@ -298,7 +298,7 @@ fn a_panic_costs_the_pack_its_other_hooks_and_nothing_more() {
 fn a_fold_never_runs_on_a_call_carrying_a_dynamic_word() {
     let invocations = Rc::new(Cell::new(0));
     let host = host(&invocations);
-    let installed = host.load_pack(PackPrograms::new("mylib").with(HookProgram::new(
+    let installed = host.install_pack_hooks(PackPrograms::new("mylib").with(HookProgram::new(
         "mylib::fold",
         HookFamily::ConstFold,
         "fold",

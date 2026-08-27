@@ -46,7 +46,7 @@
 use std::path::{Path, PathBuf};
 
 use tcl_spectcl::export::export_pack_reporting;
-use tcl_spectcl::loader::{Notice, Pack, evaluate_pack, load_pack};
+use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_in};
 
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -182,7 +182,7 @@ fn first_diff(a: &str, b: &str) -> String {
     )
 }
 
-/// Gate A: `load_pack(export(load_pack(src)))` is `load_pack(src)`.
+/// Gate A: `evaluate_pack(export(evaluate_pack(src)))` is `evaluate_pack(src)`.
 #[test]
 fn round_trip_gate_a_every_shipped_pack_exports_and_reloads_to_the_same_snapshot() {
     let files = inventory();
@@ -196,14 +196,14 @@ fn round_trip_gate_a_every_shipped_pack_exports_and_reloads_to_the_same_snapshot
     let mut registrations = 0_usize;
     for path in files {
         let source = std::fs::read_to_string(&path).expect("readable pack");
-        let pack = load_pack(&source);
+        let pack = evaluate_pack(&source);
         let (exported, losses) = export_pack_reporting(&pack);
         assert!(
             losses.is_empty(),
             "{}: canonical export lost {losses:#?}",
             path.display()
         );
-        let reloaded = load_pack(&exported);
+        let reloaded = evaluate_pack(&exported);
 
         let before = snapshot(&pack);
         let after = snapshot(&reloaded);
@@ -298,7 +298,7 @@ fn round_trip_gate_b_a_templated_pack_exports_as_its_expansion() {
             );
         }
 
-        let reloaded = load_pack(&exported);
+        let reloaded = evaluate_pack(&exported);
         let before = snapshot(&evaluated);
         let after = snapshot(&reloaded);
         assert!(
@@ -370,11 +370,11 @@ fn the_new_two_point_oh_words_round_trip_through_gate_a() {
                   \x20   unknown_members\n\
                   }\n\
                   }\n";
-    let pack = load_pack(source);
+    let pack = evaluate_pack(source);
     assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
     let (exported, losses) = export_pack_reporting(&pack);
     assert!(losses.is_empty(), "{losses:#?}");
-    let reloaded = load_pack(&exported);
+    let reloaded = evaluate_pack(&exported);
     assert_eq!(snapshot(&pack), snapshot(&reloaded));
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
     assert_eq!(reloaded.provides.len(), 1);
@@ -394,9 +394,10 @@ fn an_included_fragment_exports_as_its_expansion() {
         "extra.frag" => Ok("command extra {\n arity 2\n}\n".to_owned()),
         other => Err(format!("no such fragment `{other}`")),
     });
-    let pack = tcl_spectcl::load_pack_with(
+    let pack = evaluate_pack_in(
         "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n",
-        Some(&context),
+        &EvalOptions::default(),
+        Some(std::rc::Rc::new(context)),
     );
     assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
     let (exported, losses) = export_pack_reporting(&pack);
@@ -404,7 +405,7 @@ fn an_included_fragment_exports_as_its_expansion() {
     assert!(!exported.contains("include"), "{exported}");
     assert!(exported.contains("command extra {"), "{exported}");
     // Context-free reload: the expansion needs no resolver.
-    let reloaded = load_pack(&exported);
+    let reloaded = evaluate_pack(&exported);
     assert_eq!(snapshot(&pack), snapshot(&reloaded));
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
 }
@@ -440,11 +441,11 @@ speclib probe 2.0 {
     }
 }
 ";
-    let pack = load_pack(source);
+    let pack = evaluate_pack(source);
     assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
     let (exported, losses) = export_pack_reporting(&pack);
     assert!(losses.is_empty(), "{losses:#?}");
-    let reloaded = load_pack(&exported);
+    let reloaded = evaluate_pack(&exported);
     assert_eq!(snapshot(&pack), snapshot(&reloaded));
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
     assert!(reloaded.commands[0].spec.body_scope.is_some());

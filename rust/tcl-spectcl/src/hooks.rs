@@ -442,7 +442,7 @@ pub fn ensure_thread_host() {
         for programs in plan.packs() {
             // Crash containment is the host's default: budgets on, quarantine
             // on first crash, abstention on anything unexpected.
-            let _installed = host.load_pack(programs.clone());
+            let _installed = host.install_pack_hooks(programs.clone());
         }
         pack_hooks::install_host(host);
     }

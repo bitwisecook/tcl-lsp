@@ -16,24 +16,28 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! **The evaluation-loader gates** — design E (`SpecTcl` 2.0) against the
-//! CST loader it must not diverge from.
+//! **The evaluation-loader gates** — design E (`SpecTcl` 2.0), now the one
+//! loader.
 //!
-//! 1. **The equivalence gate**: every `.tclspec` the repository ships — the
+//! 1. **The fast-path gate**: every `.tclspec` the repository ships — the
 //!    bundled packs under `specs/` and every file the corpus baseline
-//!    covers — loads through BOTH loaders to byte-identical snapshots
-//!    (`CommandSpec` debug form, the same exhaustive rendering
-//!    `upgrade.rs`'s U9 round-trip compares) and identical notices modulo
-//!    the allowed wording map below.
+//!    covers — loads to byte-identical snapshots (`CommandSpec` debug form,
+//!    the same exhaustive rendering `upgrade.rs`'s U9 round-trip compares)
+//!    and identical notices with the static fast path on and off. The fast
+//!    path is the loader's shortcut past the interpreter for a body of
+//!    purely static vocabulary; this is what keeps it provably an
+//!    *optimisation* rather than a second reading of the file.
+//!    Cross-*build* stability — that a change to the loader cannot silently
+//!    alter what a shipped pack means — is the golden-snapshot gate in
+//!    `golden_packs.rs`, which replaced the two-loader equivalence gate when
+//!    the CST loader was deleted.
 //! 2. **The contract tests**: templating equivalence, the determinism
 //!    denial, the budget axes, E-R1 target-dependence, and E-R2 provenance
 //!    gating.
 
 use std::path::{Path, PathBuf};
 
-use tcl_spectcl::loader::{
-    EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with, load_pack,
-};
+use tcl_spectcl::loader::{EvalOptions, Notice, Pack, evaluate_pack, evaluate_pack_with};
 use tcl_spectcl::{LoadError, Tier};
 
 fn repo_root() -> PathBuf {
@@ -44,33 +48,12 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
-/// Every `.tclspec` the repository ships: the same three directories the
-/// corpus harness (`spec_corpus.rs`) scans, so the two inventories cannot
-/// drift.
+/// Every `.tclspec` the repository ships — the one inventory
+/// [`tcl_spectcl::golden::shipped_packs`] owns, shared with the golden gate
+/// and its regeneration verb so no two of them can disagree about what
+/// "every shipped pack" means.
 fn inventory() -> Vec<PathBuf> {
-    let root = repo_root();
-    let mut files = Vec::new();
-    for dir in [
-        root.join("specs"),
-        root.join("docs/design/spec-dsl-examples"),
-        root.join("docs/design/spec-dsl-examples/external"),
-    ] {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            continue;
-        };
-        let mut here: Vec<PathBuf> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .filter(|path| {
-                path.extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext == tcl_spectcl::PACK_EXTENSION)
-            })
-            .collect();
-        here.sort();
-        files.extend(here);
-    }
-    files
+    tcl_spectcl::golden::shipped_packs(&repo_root())
 }
 
 /// One notice as the comparison sees it. The line is compared too: the
@@ -84,15 +67,6 @@ fn notice_key(notice: &Notice) -> (String, u32, String, String) {
         notice.class.name().to_owned(),
         notice.message.clone(),
     )
-}
-
-/// Notices the evaluation loader adds or words differently, allowed by the
-/// gate. Kept deliberately tiny: an entry here must name a structural
-/// difference between "read from the CST" and "evaluated", never paper over
-/// a divergent row.
-fn allowed_eval_only(notice: &Notice) -> bool {
-    // E-R1's cacheability notice exists only under evaluation.
-    notice.message.contains("target-dependent registration")
 }
 
 /// The exhaustive snapshot rendering of one pack: every command's complete
@@ -147,7 +121,7 @@ fn first_diff(a: &str, b: &str) -> String {
                 s.get(from..to).unwrap_or("").to_owned()
             };
             return format!(
-                "line {} (byte {at}):\n  cst : …{}…\n  eval: …{}…",
+                "line {} (byte {at}):\n  a: …{}…\n  b: …{}…",
                 index + 1,
                 window(left),
                 window(right)
@@ -155,7 +129,7 @@ fn first_diff(a: &str, b: &str) -> String {
         }
     }
     format!(
-        "line counts differ: cst {} vs eval {}",
+        "line counts differ: {} vs {}",
         a.lines().count(),
         b.lines().count()
     )
@@ -177,8 +151,33 @@ fn dialect_for(stem: &str) -> &'static str {
     }
 }
 
+/// Load with the static fast path disabled: every body goes through the
+/// interpreter, including a 20k-line declarative one.
+///
+/// The budget is raised well past the production default because the point
+/// of the fast path is that the interpreter route on a large declarative
+/// pack is *slow* — `eda_xilinx` compiles and runs 20k statements of pure
+/// vocabulary, which blows the production wall clock by design. The gate
+/// wants the comparison, not the budget behaviour (which
+/// `a_budget_blowing_loop_fails_closed_naming_the_axis` covers), so it buys
+/// the time.
+fn evaluate_through_the_interpreter(source: &str) -> Pack {
+    evaluate_pack_with(
+        source,
+        &EvalOptions {
+            static_fast_path: false,
+            config: tcl_spec_hooks::pack_eval::PackEvalConfig {
+                budget: tcl_engine_api::Budget::of_commands(2_000_000_000)
+                    .with_wall_clock(std::time::Duration::from_secs(1_800))
+                    .with_max_value_bytes(512 * 1024 * 1024),
+            },
+            ..EvalOptions::default()
+        },
+    )
+}
+
 #[test]
-fn equivalence_gate_every_shipped_pack_loads_identically_through_both_loaders() {
+fn every_shipped_pack_loads_identically_with_and_without_the_static_fast_path() {
     use tcl_registry::CommandRegistry;
     use tcl_registry::command_snapshot::command_entry_json;
 
@@ -188,10 +187,10 @@ fn equivalence_gate_every_shipped_pack_loads_identically_through_both_loaders() 
         "the inventory must cover the shipped packs; found {files:?}"
     );
 
-    // The `--verify` machinery's own view: each loader's specs installed
+    // The `--verify` machinery's own view: each route's specs installed
     // into a registry, compared entry by entry as `command_entry_json`.
-    let mut cst_registry = CommandRegistry::build_default();
-    let mut eval_registry = CommandRegistry::build_default();
+    let mut fast_registry = CommandRegistry::build_default();
+    let mut slow_registry = CommandRegistry::build_default();
 
     let mut packs = 0_usize;
     let mut commands = 0_usize;
@@ -199,16 +198,16 @@ fn equivalence_gate_every_shipped_pack_loads_identically_through_both_loaders() 
     let mut notices = 0_usize;
     for path in files {
         let source = std::fs::read_to_string(&path).expect("readable pack");
-        let cst = load_pack(&source);
-        let eval = evaluate_pack(&source);
+        let fast = evaluate_pack(&source);
+        let slow = evaluate_through_the_interpreter(&source);
 
-        let cst_snapshot = snapshot(&cst);
-        let eval_snapshot = snapshot(&eval);
+        let fast_snapshot = snapshot(&fast);
+        let slow_snapshot = snapshot(&slow);
         assert!(
-            cst_snapshot == eval_snapshot,
+            fast_snapshot == slow_snapshot,
             "{}: snapshots diverge at {}",
             path.display(),
-            first_diff(&cst_snapshot, &eval_snapshot)
+            first_diff(&fast_snapshot, &slow_snapshot)
         );
 
         // Byte-identical `command_entry_json` per declared command, through
@@ -219,21 +218,21 @@ fn equivalence_gate_every_shipped_pack_loads_identically_through_both_loaders() 
             .unwrap_or_default();
         let dialect = dialect_for(stem);
         assert_eq!(
-            cst.commands.len(),
-            eval.commands.len(),
+            fast.commands.len(),
+            slow.commands.len(),
             "{}",
             path.display()
         );
-        for (cst_command, eval_command) in cst.commands.iter().zip(&eval.commands) {
-            cst_registry.insert_static(cst_command.spec);
-            eval_registry.insert_static(eval_command.spec);
-            let name = cst_command.spec.name;
-            let left = command_entry_json(&cst_registry, dialect, name).map(|j| j.dumps_indent2());
+        for (fast_command, slow_command) in fast.commands.iter().zip(&slow.commands) {
+            fast_registry.insert_static(fast_command.spec);
+            slow_registry.insert_static(slow_command.spec);
+            let name = fast_command.spec.name;
+            let left = command_entry_json(&fast_registry, dialect, name).map(|j| j.dumps_indent2());
             let right =
-                command_entry_json(&eval_registry, dialect, name).map(|j| j.dumps_indent2());
+                command_entry_json(&slow_registry, dialect, name).map(|j| j.dumps_indent2());
             assert!(
                 left == right,
-                "{}: command_entry_json diverges for `{name}`\n  cst : {left:?}\n  eval: {right:?}",
+                "{}: command_entry_json diverges for `{name}`\n  fast: {left:?}\n  slow: {right:?}",
                 path.display()
             );
             if left.is_some() {
@@ -241,35 +240,30 @@ fn equivalence_gate_every_shipped_pack_loads_identically_through_both_loaders() 
             }
         }
 
-        let mut cst_notices: Vec<_> = cst.notices.iter().map(notice_key).collect();
-        let mut eval_notices: Vec<_> = eval
-            .notices
-            .iter()
-            .filter(|notice| !allowed_eval_only(notice))
-            .map(notice_key)
-            .collect();
-        cst_notices.sort();
-        eval_notices.sort();
+        let mut fast_notices: Vec<_> = fast.notices.iter().map(notice_key).collect();
+        let mut slow_notices: Vec<_> = slow.notices.iter().map(notice_key).collect();
+        fast_notices.sort();
+        slow_notices.sort();
         assert!(
-            cst_notices == eval_notices,
-            "{}: notices diverge\n  cst : {cst_notices:#?}\n  eval: {eval_notices:#?}",
+            fast_notices == slow_notices,
+            "{}: notices diverge\n  fast: {fast_notices:#?}\n  slow: {slow_notices:#?}",
             path.display()
         );
 
         assert!(
-            !eval.target_dependent,
+            !fast.target_dependent,
             "{}: shipped packs are target-independent",
             path.display()
         );
         packs += 1;
-        commands += cst.commands.len();
-        notices += cst.notices.len();
+        commands += fast.commands.len();
+        notices += fast.notices.len();
     }
 
     // The corpus ships 24 packs today, 776 bundled EDA commands among them;
     // the floors keep the gate meaningful if the scan ever goes blind.
     println!(
-        "equivalence gate: {packs} packs, {commands} commands \
+        "fast-path gate: {packs} packs, {commands} commands \
          ({entries} registry entries), {notices} notices compared"
     );
     assert!(packs >= 24, "only {packs} packs compared");
@@ -334,10 +328,13 @@ fn a_templated_pack_equals_its_hand_unrolled_twin() {
     };
     assert_eq!(render(&templated_pack), render(&unrolled_pack));
 
-    // And the unrolled twin agrees with the CST loader, so the template's
-    // output is exactly what the declarative pack would have said.
-    let cst = load_pack(&unrolled);
-    assert_eq!(render(&cst), render(&templated_pack));
+    // And the unrolled twin says the same thing through the interpreter
+    // route, so the template's output is exactly what the declarative pack
+    // would have said however it was read.
+    assert_eq!(
+        render(&evaluate_through_the_interpreter(&unrolled)),
+        render(&templated_pack)
+    );
 }
 
 #[test]
@@ -387,12 +384,12 @@ fn a_budget_blowing_loop_fails_closed_naming_the_axis() {
     let source = "speclib hungry 2.0 {\n    command fine { arity 1 }\n    \
                   set i 0\n    while {1} { set x [llength [list a b $i]]\n incr i }\n}\n";
     let options = EvalOptions {
-        tier: Tier::Bundled,
         config: tcl_spec_hooks::pack_eval::PackEvalConfig {
             budget: tcl_engine_api::Budget::of_commands(2_000)
                 .with_wall_clock(std::time::Duration::from_secs(5))
                 .with_max_value_bytes(64 * 1024 * 1024),
         },
+        ..EvalOptions::default()
     };
     let pack = evaluate_pack_with(source, &options);
     assert_eq!(
@@ -413,12 +410,12 @@ fn a_budget_blowing_loop_fails_closed_naming_the_axis() {
 fn a_wall_clock_blowing_loop_names_its_own_axis() {
     let source = "speclib spinny 2.0 {\n    set i 0\n    while {1} { incr i }\n}\n";
     let options = EvalOptions {
-        tier: Tier::Bundled,
         config: tcl_spec_hooks::pack_eval::PackEvalConfig {
             budget: tcl_engine_api::Budget::of_commands(50_000_000)
                 .with_wall_clock(std::time::Duration::from_millis(100))
                 .with_max_value_bytes(64 * 1024 * 1024),
         },
+        ..EvalOptions::default()
     };
     let pack = evaluate_pack_with(source, &options);
     assert_eq!(
@@ -453,12 +450,12 @@ fn available_query_marks_the_pack_target_dependent_and_uncacheable() {
     assert!(pack.command("base").is_some());
     assert!(pack.command("extra").is_some());
 
-    // And the snapshot memo refuses it.
+    // And the cache refuses it.
     let tier = Tier::Bundled;
     let cached = tcl_spectcl::evaluate_pack_cached(source, tier);
     assert!(cached.target_dependent);
     assert!(
-        !tcl_spectcl::loader::eval_snapshot_memoised(source, &EvalOptions::default()),
+        !tcl_spectcl::snapshot_memoised(source, tier),
         "a target-dependent pack must not be memoised (E-R1)"
     );
 
@@ -466,10 +463,7 @@ fn available_query_marks_the_pack_target_dependent_and_uncacheable() {
     // meaningful.
     let independent = "speclib cacheable 2.0 {\n    command base { arity 1 }\n}\n";
     let _ = tcl_spectcl::evaluate_pack_cached(independent, tier);
-    assert!(tcl_spectcl::loader::eval_snapshot_memoised(
-        independent,
-        &EvalOptions::default()
-    ));
+    assert!(tcl_spectcl::snapshot_memoised(independent, tier));
 }
 
 #[test]
@@ -501,13 +495,13 @@ fn an_untrusted_pack_touching_a_reserved_name_fails_with_the_provenance_error() 
     let pack = evaluate_pack_with(
         source,
         &EvalOptions {
-            tier: Tier::Workspace,
+            tier: Tier::StudioOverride,
             ..EvalOptions::default()
         },
     );
     assert!(
         matches!(&pack.load_error, Some(LoadError::Provenance(message))
-            if message.contains("workspace") && message.contains("lsort")),
+            if message.contains("Spec Studio override") && message.contains("lsort")),
         "{:?}",
         pack.load_error
     );
@@ -517,6 +511,29 @@ fn an_untrusted_pack_touching_a_reserved_name_fails_with_the_provenance_error() 
     let trusted = evaluate_pack(source);
     assert!(trusted.load_error.is_none(), "{:?}", trusted.load_error);
     assert!(trusted.command("lsort").is_some());
+}
+
+/// A **workspace** pack is `Provenance::WorkspaceTrusted` — §6.4 keys the
+/// untrusted class on the editor's Workspace Trust state, not on where the
+/// file was found — so it may still `-override` a shipped command, which is
+/// the collision policy `install.rs` implements. The refusal an untrusted
+/// tier *would* give is still available to an authoring tool, asked of the
+/// snapshot.
+#[test]
+fn a_workspace_pack_may_still_override_a_shipped_command() {
+    let source = "speclib bold 2.0 {\n    command lsort -override { arity 1.. }\n}\n";
+    let pack = evaluate_pack_with(
+        source,
+        &EvalOptions {
+            tier: Tier::Workspace,
+            ..EvalOptions::default()
+        },
+    );
+    assert!(pack.load_error.is_none(), "{:?}", pack.load_error);
+    assert!(pack.command("lsort").is_some());
+    let (_, why) = tcl_spectcl::provenance_violation(&pack, Tier::StudioOverride)
+        .expect("the hypothetical refusal is still reportable");
+    assert!(why.contains("lsort"), "{why}");
 }
 
 #[test]
@@ -548,49 +565,49 @@ fn an_unknown_registration_word_classifies_instead_of_erroring() {
     // semantic-class word, which excludes the command rather than the pack.
     let forward = "speclib future 2.9 {\n    command risky {\n        arity 1\n        \
                    taint_gizmo colour\n    }\n    command safe { arity 1 }\n}\n";
-    let cst = load_pack(forward);
-    let eval = evaluate_pack(forward);
+    let fast = evaluate_pack(forward);
+    let slow = evaluate_through_the_interpreter(forward);
     assert!(
-        eval.load_error.is_none(),
+        fast.load_error.is_none(),
         "not a Tcl error: {:?}",
-        eval.load_error
+        fast.load_error
     );
-    assert!(eval.command("risky").is_none(), "semantic-class exclusion");
-    assert!(eval.command("safe").is_some());
+    assert!(fast.command("risky").is_none(), "semantic-class exclusion");
+    assert!(fast.command("safe").is_some());
     let render = |pack: &Pack| {
-        pack.notices
+        let mut rows = pack
+            .notices
             .iter()
             .map(|n| (n.context.clone(), n.line, n.class, n.message.clone()))
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        rows.sort();
+        rows
     };
-    let mut cst_notices = render(&cst);
-    let mut eval_notices = render(&eval);
-    cst_notices.sort();
-    eval_notices.sort();
-    assert_eq!(cst_notices, eval_notices);
+    assert_eq!(render(&fast), render(&slow));
 
     // Backward direction: an unknown word under a known vocabulary is an
     // author's typo — presentation-class, warn and drop, command kept.
     let typo = "speclib typo 2.0 {\n    command fine {\n        arity 1\n        \
                 hoverr {oops}\n    }\n}\n";
-    let eval = evaluate_pack(typo);
-    assert!(eval.load_error.is_none());
-    assert!(eval.command("fine").is_some());
+    let typo_pack = evaluate_pack(typo);
+    assert!(typo_pack.load_error.is_none());
+    assert!(typo_pack.command("fine").is_some());
     assert!(
-        eval.notices
+        typo_pack
+            .notices
             .iter()
             .any(|n| n.message.contains("unknown property `hoverr` dropped")),
         "{:#?}",
-        eval.notices
+        typo_pack.notices
     );
 }
 
-/// The 2.0 word batch loads identically through both loaders — the shared
-/// row-reader seam means neither front end can drift on `provides`,
+/// The 2.0 word batch loads identically on both routes — the row-reader seam
+/// means the capture layer's shortcut cannot drift on `provides`,
 /// `co_provides`, `dynamic_surface`/`unknown_members`, or the
 /// `environment -extend` block.
 #[test]
-fn the_new_two_point_oh_words_load_identically_through_both_loaders() {
+fn the_new_two_point_oh_words_load_identically_on_both_routes() {
     let source = "speclib probe 2.0 {\n\
                   provides upf 1.0\n\
                   co_provides Tk -requires-exact tk\n\
@@ -602,46 +619,50 @@ fn the_new_two_point_oh_words_load_identically_through_both_loaders() {
                   \x20   dynamic_surface\n\
                   }\n\
                   }\n";
-    let cst = load_pack(source);
-    let eval = evaluate_pack(source);
-    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
+    let fast = evaluate_pack(source);
+    let slow = evaluate_through_the_interpreter(source);
+    assert!(fast.notices.is_empty(), "{:#?}", fast.notices);
     assert_eq!(
-        snapshot(&cst),
-        snapshot(&eval),
+        snapshot(&fast),
+        snapshot(&slow),
         "{}",
-        first_diff(&snapshot(&cst), &snapshot(&eval))
+        first_diff(&snapshot(&fast), &snapshot(&slow))
     );
-    assert_eq!(cst.provides, eval.provides);
-    assert_eq!(cst.co_provides, eval.co_provides);
-    assert!(eval.environments[0].extends);
+    assert_eq!(fast.provides, slow.provides);
+    assert_eq!(fast.co_provides, slow.co_provides);
+    assert!(slow.environments[0].extends);
 }
 
-/// A straight-line `include` pack loads identically through both loaders:
-/// the CST expansion and the evaluation-side static driver splice the same
-/// fragment under the same content-hash keyed determinism rules.
+/// A straight-line `include` pack splices the same fragment whichever route
+/// the loader takes, under the same content-hash keyed determinism rules.
 #[test]
-fn an_included_fragment_loads_identically_through_both_loaders() {
+fn an_included_fragment_loads_identically_on_both_routes() {
     let resolver = |name: &str| match name {
         "extra.frag" => Ok("command extra {\n arity 2\n}\n".to_owned()),
         other => Err(format!("no such fragment `{other}`")),
     };
     let source = "speclib probe 2.0 {\n include extra.frag\n command demo { arity 1 }\n}\n";
-    let cst_context = tcl_spectcl::IncludeContext::new(resolver);
-    let cst = tcl_spectcl::load_pack_with(source, Some(&cst_context));
-    let eval = tcl_spectcl::loader::evaluate_pack_in(
-        source,
-        &EvalOptions::default(),
-        Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(resolver))),
-    );
-    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
-    assert!(eval.notices.is_empty(), "{:#?}", eval.notices);
+    let including = |source: &str, fast_path: bool| {
+        tcl_spectcl::loader::evaluate_pack_in(
+            source,
+            &EvalOptions {
+                static_fast_path: fast_path,
+                ..EvalOptions::default()
+            },
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(resolver))),
+        )
+    };
+    let fast = including(source, true);
+    let slow = including(source, false);
+    assert!(fast.notices.is_empty(), "{:#?}", fast.notices);
+    assert!(slow.notices.is_empty(), "{:#?}", slow.notices);
     assert_eq!(
-        snapshot(&cst),
-        snapshot(&eval),
+        snapshot(&fast),
+        snapshot(&slow),
         "{}",
-        first_diff(&snapshot(&cst), &snapshot(&eval))
+        first_diff(&snapshot(&fast), &snapshot(&slow))
     );
-    assert!(cst.command("extra").is_some());
+    assert!(fast.command("extra").is_some());
 
     // Both loaders refuse the same cycle, with the same notice.
     let cyclic_source = "speclib probe 2.0 {\n include self.frag\n}\n";
@@ -649,15 +670,18 @@ fn an_included_fragment_loads_identically_through_both_loaders() {
         "self.frag" => Ok("include self.frag\n".to_owned()),
         other => Err(format!("no such fragment `{other}`")),
     };
-    let cst_cycle = tcl_spectcl::load_pack_with(
-        cyclic_source,
-        Some(&tcl_spectcl::IncludeContext::new(cycle)),
-    );
-    let eval_cycle = tcl_spectcl::loader::evaluate_pack_in(
-        cyclic_source,
-        &EvalOptions::default(),
-        Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(cycle))),
-    );
+    let cycling = |fast_path: bool| {
+        tcl_spectcl::loader::evaluate_pack_in(
+            cyclic_source,
+            &EvalOptions {
+                static_fast_path: fast_path,
+                ..EvalOptions::default()
+            },
+            Some(std::rc::Rc::new(tcl_spectcl::IncludeContext::new(cycle))),
+        )
+    };
+    let fast_cycle = cycling(true);
+    let slow_cycle = cycling(false);
     let keys = |pack: &Pack| {
         let mut keys: Vec<_> = pack
             .notices
@@ -667,21 +691,21 @@ fn an_included_fragment_loads_identically_through_both_loaders() {
         keys.sort();
         keys
     };
-    assert_eq!(keys(&cst_cycle), keys(&eval_cycle));
+    assert_eq!(keys(&fast_cycle), keys(&slow_cycle));
     assert!(
-        cst_cycle
+        fast_cycle
             .notices
             .iter()
             .any(|n| n.message.contains("include cycle")),
         "{:#?}",
-        cst_cycle.notices
+        fast_cycle.notices
     );
 }
 
-/// The ratified words load identically through both loaders: they are read
-/// at the one shared row seam, so neither front end can drift on them.
+/// The ratified words load identically on both routes: they are read at the
+/// one row seam, so the capture layer's shortcut cannot drift on them.
 #[test]
-fn the_ratified_words_load_identically_through_both_loaders() {
+fn the_ratified_words_load_identically_on_both_routes() {
     let source = r"
 speclib probe 2.0 {
     command probe::collect {
@@ -707,14 +731,14 @@ speclib probe 2.0 {
     }
 }
 ";
-    let cst = load_pack(source);
-    let eval = evaluate_pack(source);
-    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
-    assert!(eval.notices.is_empty(), "{:#?}", eval.notices);
+    let fast = evaluate_pack(source);
+    let slow = evaluate_through_the_interpreter(source);
+    assert!(fast.notices.is_empty(), "{:#?}", fast.notices);
+    assert!(slow.notices.is_empty(), "{:#?}", slow.notices);
     assert_eq!(
-        snapshot(&cst),
-        snapshot(&eval),
+        snapshot(&fast),
+        snapshot(&slow),
         "{}",
-        first_diff(&snapshot(&cst), &snapshot(&eval))
+        first_diff(&snapshot(&fast), &snapshot(&slow))
     );
 }

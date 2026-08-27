@@ -50,7 +50,7 @@
 //!
 //! `tests/spectcl_roundtrip.rs` is the gate: every command of every browsable
 //! dialect is drafted, rendered here, loaded back through
-//! [`crate::spectcl::load_pack`], and the two drafts are compared field by
+//! [`crate::spectcl::evaluate_pack`], and the two drafts are compared field by
 //! field. Every field that legitimately differs is one of the [`GAPS`] below,
 //! or a [`Loss`] this render reported for itself, and the test fails on
 //! anything else.
@@ -3117,7 +3117,7 @@ mod tests {
         assert!(!text.contains("dialects {all-tcl f5-irules}"), "{text}");
         assert!(!text.contains("-dialects tcl8.5+"), "{text}");
 
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         let spec = pack.commands.first().expect("the command").spec;
         let reloaded = draft::from_command_spec(spec);
         assert_eq!(reloaded["dialects"], seeded["dialects"]);
@@ -3154,14 +3154,14 @@ mod tests {
         );
         assert!(newest.contains("available {tcl 8.4-}"), "{newest}");
         assert!(
-            !crate::spectcl::load_pack(&newest)
+            !crate::spectcl::evaluate_pack(&newest)
                 .notices
                 .iter()
                 .any(|notice| notice
                     .message
                     .contains("vocabulary, but this pack declares")),
             "{:#?}",
-            crate::spectcl::load_pack(&newest).notices
+            crate::spectcl::evaluate_pack(&newest).notices
         );
 
         let older = render_pack_with_version(&[seeded], "probe", "1.2");
@@ -3170,14 +3170,14 @@ mod tests {
         assert!(!older.contains("available {tcl"), "{older}");
         assert!(!older.contains("-available "), "{older}");
         assert!(
-            !crate::spectcl::load_pack(&older)
+            !crate::spectcl::evaluate_pack(&older)
                 .notices
                 .iter()
                 .any(|notice| notice
                     .message
                     .contains("vocabulary, but this pack declares")),
             "{:#?}",
-            crate::spectcl::load_pack(&older).notices
+            crate::spectcl::evaluate_pack(&older).notices
         );
     }
 
@@ -3474,7 +3474,7 @@ mod tests {
         let before = draft::from_command_spec(&spec);
         let text = render_pack(std::slice::from_ref(&before), "probe");
         assert!(text.contains("-method-prefix-matching Enabled"), "{text}");
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let reloaded = pack.command("probe::chart").expect("the command reloads");
         let after = draft::from_command_spec(reloaded.spec);
@@ -3525,7 +3525,7 @@ mod tests {
         let text = render_pack(std::slice::from_ref(&before), "probe");
         assert!(text.contains("-script-timing Deferred"), "{text}");
         assert!(text.contains("-script-timing ReferenceOnly"), "{text}");
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let reloaded = pack.command("probe::button").expect("the command reloads");
         let after = draft::from_command_spec(reloaded.spec);
@@ -3565,7 +3565,7 @@ mod tests {
             text.contains("callback_taint_inputs {{2 {%A %K}}}"),
             "{text}"
         );
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let after = draft::from_command_spec(
             pack.command("probe::callback")
@@ -3597,7 +3597,7 @@ mod tests {
         let before = draft::from_command_spec(&spec);
         let text = render_pack(std::slice::from_ref(&before), "probe");
         assert!(text.contains("-variable-scope Global"), "{text}");
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let reloaded = pack.command("probe::entry").expect("the command reloads");
         let after = draft::from_command_spec(reloaded.spec);
@@ -3629,7 +3629,7 @@ mod tests {
         );
         assert!(!text.contains("-container-option -in\n"), "{text}");
 
-        let pack = crate::spectcl::load_pack(&text);
+        let pack = crate::spectcl::evaluate_pack(&text);
         assert!(pack.notices.is_empty(), "{:?}\n{text}", pack.notices);
         let reloaded = pack.command("probe::layout").expect("command reloads");
         assert_eq!(

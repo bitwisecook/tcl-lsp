@@ -766,7 +766,7 @@ fn start_host(
     let host = Rc::new(counting_host(stats));
     let mut slots = Vec::new();
     for programs in plan.packs() {
-        for installation in host.load_pack(programs.clone()) {
+        for installation in host.install_pack_hooks(programs.clone()) {
             if let Some(slot) = installation.slot {
                 slots.push(slot);
             }
@@ -1231,7 +1231,7 @@ fn drive_hostile_pack() -> Containment {
     let host = Rc::new(counting_host(&stats));
     let mut slots = BTreeMap::new();
     for programs in plan.packs() {
-        for installation in host.load_pack(programs.clone()) {
+        for installation in host.install_pack_hooks(programs.clone()) {
             assert!(
                 installation.declined.is_none(),
                 "{} declined: {:?}",

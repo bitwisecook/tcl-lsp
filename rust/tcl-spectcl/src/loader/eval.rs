@@ -17,34 +17,35 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The **evaluation loader** — design E's executable registration
-//! (`docs/design/spectcl-design-e-deep-dive.md` §1), living beside the CST
-//! loader rather than replacing it.
+//! (`docs/design/spectcl-design-e-deep-dive.md` §1), and since the
+//! `one-loader` lane the *only* way a `.tclspec` source becomes a [`Pack`].
 //!
 //! A pack file is evaluated as a Tcl program in the sandboxed, budgeted,
 //! deterministic `tcl-vm` (`tcl_spec_hooks::pack_eval`). The registration
 //! vocabulary — `speclib`, `command`, `subcommand`, `option`, `available`,
-//! and every other statement word the CST loader reads — is installed as
+//! and every other statement word the vocabulary defines — is installed as
 //! host commands, so general Tcl (`proc`, `foreach`, `set`, `if`, string and
 //! list operations) works between them and a pack can template its
 //! registrations.
 //!
-//! ## Capture, then replay through the CST loader's own readers
+//! ## Capture, then replay through the vocabulary's own readers
 //!
 //! The host commands do **not** interpret their arguments. Each invocation
-//! is captured as the same [`Stmt`] shape the CST walk produces, staged in
-//! evaluation order, and — once the program has run to completion — replayed
-//! through the *identical* row readers ([`apply_pack_stmt`],
+//! is captured as a [`Stmt`] — the shape a segmented source statement has —
+//! staged in evaluation order, and, once the program has run to completion,
+//! replayed through the row readers ([`apply_pack_stmt`],
 //! [`apply_command_stmt`], [`apply_subcommand_stmt`],
-//! [`command_from_parts`], [`subcommand_from_parts`]). A straight-line
-//! declarative pack therefore produces a byte-identical snapshot through
-//! either loader, which is the equivalence gate `tests/eval_loader.rs`
-//! enforces; a templated pack produces exactly what its unrolled twin
-//! would.
+//! [`command_from_parts`], [`subcommand_from_parts`]). Those readers are the
+//! `SpecTcl` vocabulary itself, not a second front end: they are what
+//! *every* registration passes through, whether it was written literally in
+//! the file or computed by a `foreach`. A templated pack therefore produces
+//! exactly what its hand-unrolled twin would, which is the equivalence the
+//! gate in `tests/eval_loader.rs` enforces.
 //!
-//! Replaying after evaluation (rather than during) also preserves the CST
-//! loader's two-pass rule: pack-level `values`/`descriptor`/`hook`/`default`
-//! tables are all read before any `command` is built, so a command may
-//! reference a table declared after it.
+//! Replaying after evaluation (rather than during) preserves the two-pass
+//! rule: pack-level `values`/`descriptor`/`hook`/`default` tables are all
+//! read before any `command` is built, so a command may reference a table
+//! declared after it.
 //!
 //! ## The contracts this module enforces
 //!
@@ -57,18 +58,18 @@
 //! - **Transactional registration** (§1.2): registrations accumulate in the
 //!   staging structure; any hard error — a Tcl error, a denial, a blown
 //!   budget, a provenance violation — discards the whole pack
-//!   ([`Pack::load_error`]), matching the CST loader's pack-level atomicity.
+//!   ([`Pack::load_error`]): a pack registers wholly or not at all.
 //!   Vocabulary-*class* degradation still applies to unknown registration
 //!   words: an unresolved word that is not a sandbox denial is captured and
 //!   replayed through the ordinary unknown-word path, so it classifies
-//!   under §6.1 (forward direction only) exactly as in the CST loader
-//!   instead of raising a Tcl `invalid command name` error.
+//!   under §6.1 (forward direction only) instead of raising a Tcl
+//!   `invalid command name` error.
 //! - **E-R1**: `available?` answers against the **union of the pack's
 //!   declared support** (its `default available`/`default dialects` rows as
 //!   evaluated so far); any use marks the pack
 //!   [`Pack::target_dependent`], adds a `target-dependent registration`
-//!   notice, and excludes the snapshot from [`evaluate_pack_cached`]'s
-//!   memoisation.
+//!   notice, and excludes the snapshot from
+//!   [`crate::cache::evaluate_pack_cached`]'s memoisation.
 //! - **E-R2**: provenance gates what a registration call may touch. For an
 //!   untrusted tier (workspace or Spec Studio override), a `command`
 //!   claiming a compiled name with `-override`, a `dialect` block (compiled
@@ -76,16 +77,17 @@
 //!   name fails the load with an error naming the provenance class —
 //!   reusing the same reserved-name check `environment_block` performs.
 //! - **Snapshot caching seam**: [`EvalSnapshotKey`] = (content hash,
-//!   [`crate::VOCABULARY_VERSION`], [`LOADER_EVAL_VERSION`], tier), with an
-//!   in-memory memo analogous to the compiled-pack cache; target-dependent
-//!   packs are never memoised.
+//!   [`crate::VOCABULARY_VERSION`], [`LOADER_EVAL_VERSION`], tier). This
+//!   module computes the identity and nothing more: both storage tiers live
+//!   in [`crate::cache`], which is the one door production code loads a pack
+//!   through. Target-dependent packs (E-R1) are never stored.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::sync::{LazyLock, Mutex};
 
 use tcl_dialect::DialectSet;
+use tcl_dialect::model::environment::Provenance;
 use tcl_spec_hooks::pack_eval::{
     self, PackEvalConfig, PackEvalCtx, PackEvalFailure, UnknownHandler, WordHandler,
 };
@@ -115,6 +117,16 @@ pub struct EvalOptions {
     pub tier: Tier,
     /// The budgets evaluation runs under.
     pub config: PackEvalConfig,
+    /// Whether the static fast path may short-circuit the interpreter for a
+    /// body whose statements are all static vocabulary (see [`run_body`]).
+    ///
+    /// `true` in production, always. It is switchable only so the gate in
+    /// `tests/eval_loader.rs` can load every shipped pack **both** ways and
+    /// assert the snapshots are byte-identical — which is what makes the
+    /// shortcut provably an optimisation rather than a second reading of the
+    /// file. It is not part of the snapshot identity for exactly that reason:
+    /// the two routes cannot produce different answers.
+    pub static_fast_path: bool,
 }
 
 impl Default for EvalOptions {
@@ -122,6 +134,7 @@ impl Default for EvalOptions {
         Self {
             tier: Tier::Bundled,
             config: PackEvalConfig::default(),
+            static_fast_path: true,
         }
     }
 }
@@ -153,48 +166,6 @@ pub fn eval_snapshot_key(source: &str, options: &EvalOptions) -> EvalSnapshotKey
     }
 }
 
-/// The in-memory snapshot memo — the seam a persistent cache would sit
-/// behind, mirroring the compiled-pack cache's shape. Target-dependent
-/// packs (E-R1) are never stored.
-static SNAPSHOT_MEMO: LazyLock<Mutex<HashMap<EvalSnapshotKey, Pack>>> =
-    LazyLock::new(|| Mutex::new(HashMap::new()));
-
-/// [`evaluate_pack_with`] behind the snapshot memo. Uses the default
-/// budget, since the budget is not part of the snapshot identity.
-#[must_use]
-pub fn evaluate_pack_cached(source: &str, tier: Tier) -> Pack {
-    let options = EvalOptions {
-        tier,
-        config: PackEvalConfig::default(),
-    };
-    let key = eval_snapshot_key(source, &options);
-    if let Some(hit) = SNAPSHOT_MEMO
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .get(&key)
-    {
-        return hit.clone();
-    }
-    let pack = evaluate_pack_with(source, &options);
-    if !pack.target_dependent {
-        SNAPSHOT_MEMO
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .insert(key, pack.clone());
-    }
-    pack
-}
-
-/// Whether one source's snapshot is currently memoised — the observable
-/// face of the E-R1 cacheability downgrade, for tests.
-#[must_use]
-pub fn eval_snapshot_memoised(source: &str, options: &EvalOptions) -> bool {
-    SNAPSHOT_MEMO
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .contains_key(&eval_snapshot_key(source, options))
-}
-
 /// Evaluate a `.tclspec` source as a Tcl program (design E) with default
 /// options: bundled-tier trust, default budgets.
 #[must_use]
@@ -209,7 +180,7 @@ pub fn evaluate_pack(source: &str) -> Pack {
 /// Every statement word that is a plain **row** at some scope: captured
 /// verbatim and replayed through the scope's own reader, which is also what
 /// sorts a word used at the wrong scope into the same unknown-property
-/// notice the CST loader gives it.
+/// unknown-property notice.
 ///
 /// `speclib`, `command`, `subcommand`, and `available?` are not here — each
 /// has its own handler with body evaluation or an answer.
@@ -351,6 +322,21 @@ const ROW_WORDS: &[&str] = &[
     "sub_subcommand",
 ];
 
+/// The interpreter, when there is one.
+///
+/// `None` is the **file-level fast path**: a pack whose every statement, at
+/// every level, is static vocabulary is captured straight from the CST and
+/// never builds a `tcl-vm` interpreter at all. The moment a body needs real
+/// evaluation the drive gives up with [`NEEDS_INTERPRETER`] and the whole
+/// load restarts on the interpreter path — one attempt, no partial state,
+/// and the segmentations the attempt did are memoised for the retry.
+type Ctx<'a, 'b> = Option<&'a mut PackEvalCtx<'b>>;
+
+/// The sentinel [`run_body`] returns when a body must really evaluate and no
+/// interpreter was built. Never surfaces to a caller: [`evaluate_pack_in`]
+/// turns it into the interpreter run.
+const NEEDS_INTERPRETER: &str = "\u{0}spectcl: this pack needs the interpreter";
+
 /// One captured statement inside a `command` or `subcommand` body.
 #[derive(Debug)]
 enum Node {
@@ -373,8 +359,8 @@ struct StagedCommand {
     name: String,
     overrides: bool,
     line: u32,
-    /// `None` when no `{ … }` body word was found (the CST loader's
-    /// brace-on-the-next-line notice is replayed for it).
+    /// `None` when no `{ … }` body word was found — the
+    /// brace-on-the-next-line mistake, whose notice the replay raises.
     body: Option<Vec<Node>>,
 }
 
@@ -409,7 +395,7 @@ struct VerbatimBody {
     /// Every byte between the body word's braces.
     text: String,
     /// The body word's own line — the base line of the nested unit,
-    /// exactly what the CST loader's `block` uses.
+    /// exactly what [`block`] numbers a nested body from.
     body_line: u32,
 }
 
@@ -419,9 +405,45 @@ struct VerbatimBody {
 /// whose invocation corresponds to a source statement is staged with the
 /// CST's own words (verbatim text, real per-word braced-ness and lines)
 /// rather than the evaluated values.
-#[derive(Default)]
+///
+/// ## Built in two layers, the second on demand
+///
+/// The `speclib` body is needed by every load: the file's top level always
+/// runs through the interpreter (that is where the `speclib` command is
+/// dispatched from), and its body must be handed on verbatim so the static
+/// fast path can take it.
+///
+/// The rest — the per-declaration bodies and the line-keyed statement
+/// table — is needed **only when a body actually reaches the interpreter**.
+/// A body the fast path drives captures its statements straight from the
+/// CST and never asks this index anything. Building the full skeleton
+/// eagerly therefore cost every declarative pack a second and third walk of
+/// its own statements plus a clone of each into a hash table, which on a
+/// 20k-line pack is most of the load: it is built lazily instead, so the
+/// pack that does not template pays nothing for the machinery that makes
+/// templating line-exact.
 struct VerbatimIndex {
+    /// The file's own text, to build [`Skeleton`] from if it is ever asked
+    /// for.
+    source: Rc<str>,
     speclib: Option<VerbatimBody>,
+    /// The declaration skeleton, built on first use.
+    skeleton: Option<Skeleton>,
+}
+
+impl Default for VerbatimIndex {
+    fn default() -> Self {
+        Self {
+            source: Rc::from(""),
+            speclib: None,
+            skeleton: None,
+        }
+    }
+}
+
+/// The on-demand half of [`VerbatimIndex`].
+#[derive(Default)]
+struct Skeleton {
     /// Keyed by (statement word, declared name).
     bodies: HashMap<(&'static str, String), Vec<VerbatimBody>>,
     /// Every declarative-skeleton statement, keyed by its line.
@@ -429,6 +451,61 @@ struct VerbatimIndex {
 }
 
 impl VerbatimIndex {
+    /// The cheap layer: the first `speclib` block's body.
+    fn of(source: &str) -> Self {
+        let mut index = Self {
+            source: Rc::from(source),
+            ..Self::default()
+        };
+        let top = pack_statements(source);
+        let Some(speclib) = top.into_iter().find(|stmt| stmt.word_text(0) == "speclib") else {
+            return index;
+        };
+        let Some(body) = speclib.arg(3).filter(|word| word.braced) else {
+            return index;
+        };
+        index.speclib = Some(VerbatimBody {
+            stmt_line: speclib.line,
+            text: body.text.clone(),
+            body_line: body.line,
+        });
+        index
+    }
+
+    /// The declaration skeleton, built on first ask.
+    fn skeleton(&mut self) -> &mut Skeleton {
+        if self.skeleton.is_none() {
+            self.skeleton = Some(Skeleton::of(&self.source));
+        }
+        self.skeleton
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("just built"))
+    }
+
+    /// Take the verbatim body for a `word NAME …` invocation captured at
+    /// `line`, when the file has exactly that statement there.
+    fn take(&mut self, word: &'static str, name: &str, line: u32) -> Option<VerbatimBody> {
+        let entries = self.skeleton().bodies.get_mut(&(word, name.to_owned()))?;
+        let at = entries.iter().position(|body| body.stmt_line == line)?;
+        Some(entries.remove(at))
+    }
+
+    /// The verbatim statement matching a captured `word arg…` invocation at
+    /// `line`, when the file has one of the same shape there. A templated
+    /// invocation (a loop body, a helper proc) attributes to a line whose
+    /// source statement has a different head word or width, so it misses
+    /// and keeps its evaluated capture.
+    fn row(&mut self, word: &str, arg_count: usize, line: u32) -> Option<Stmt> {
+        self.skeleton()
+            .rows
+            .get(&line)?
+            .iter()
+            .find(|stmt| stmt.word_text(0) == word && stmt.words.len() == arg_count + 1)
+            .cloned()
+    }
+}
+
+impl Skeleton {
     fn of(source: &str) -> Self {
         let mut index = Self::default();
         let top = pack_statements(source);
@@ -462,11 +539,6 @@ impl VerbatimIndex {
             }
             index.record("command", stmt.word_text(1), stmt, command_body);
         }
-        index.speclib = Some(VerbatimBody {
-            stmt_line: speclib.line,
-            text: body.text.clone(),
-            body_line: body.line,
-        });
         index
     }
 
@@ -485,27 +557,6 @@ impl VerbatimIndex {
                 text: body.text.clone(),
                 body_line: body.line,
             });
-    }
-
-    /// Take the verbatim body for a `word NAME …` invocation captured at
-    /// `line`, when the file has exactly that statement there.
-    fn take(&mut self, word: &'static str, name: &str, line: u32) -> Option<VerbatimBody> {
-        let entries = self.bodies.get_mut(&(word, name.to_owned()))?;
-        let at = entries.iter().position(|body| body.stmt_line == line)?;
-        Some(entries.remove(at))
-    }
-
-    /// The verbatim statement matching a captured `word arg…` invocation at
-    /// `line`, when the file has one of the same shape there. A templated
-    /// invocation (a loop body, a helper proc) attributes to a line whose
-    /// source statement has a different head word or width, so it misses
-    /// and keeps its evaluated capture.
-    fn row(&self, word: &str, arg_count: usize, line: u32) -> Option<Stmt> {
-        self.rows
-            .get(&line)?
-            .iter()
-            .find(|stmt| stmt.word_text(0) == word && stmt.words.len() == arg_count + 1)
-            .cloned()
     }
 }
 
@@ -541,22 +592,26 @@ struct State {
     /// against. `None` = nothing declared = everything.
     declared_dialects: Option<DialectSet>,
     /// The file's declarative skeleton, verbatim, for line-exact body
-    /// evaluation.
+    /// evaluation. Its second layer builds only if a body reaches the
+    /// interpreter.
     verbatim: VerbatimIndex,
     /// The include context this evaluation resolves `include` rows
     /// through, when the caller gave one (`evaluate_pack_in`).
     include: Option<Rc<super::IncludeContext>>,
     /// Content hashes on the current inclusion path, the root source
-    /// first — the CST loader's cycle key, shared spelling.
+    /// first — the determinism contract's cycle key.
     include_stack: Vec<u64>,
     /// Whether an included fragment is currently being evaluated: the
     /// verbatim index describes the *root* file, so line-keyed lookups
     /// must not fire inside an included one.
     in_include: bool,
+    /// Whether the static fast path is enabled for this evaluation
+    /// ([`EvalOptions::static_fast_path`]).
+    fast_path: bool,
     /// Sites that used vocabulary the capture layer (not the replay's
     /// readers) consumed — today only `include` — replayed into the
-    /// vocabulary-consistency log so the per-site "newer than declared"
-    /// notices match the CST loader's.
+    /// vocabulary-consistency log so a word the capture layer ate still
+    /// gets its per-site "newer than declared" notice.
     newer_word_sites: Vec<(u32, &'static str)>,
 }
 
@@ -582,7 +637,7 @@ impl State {
     /// otherwise. Inside an included fragment the verbatim index (which
     /// describes the root file) is not consulted, so a line-number
     /// coincidence cannot substitute the wrong statement.
-    fn captured(&self, word: &str, args: &[String], line: u32) -> Stmt {
+    fn captured(&mut self, word: &str, args: &[String], line: u32) -> Stmt {
         if self.in_include {
             return capture_stmt(word, args, line);
         }
@@ -600,7 +655,8 @@ fn blockish(text: &str) -> bool {
     text.is_empty() || text.contains(char::is_whitespace)
 }
 
-/// Rebuild the CST loader's [`Stmt`] shape from a captured invocation.
+/// Rebuild a [`Stmt`] — the shape a segmented source statement has — from
+/// a captured invocation.
 fn capture_stmt(word: &str, args: &[String], line: u32) -> Stmt {
     let mut words = Vec::with_capacity(args.len() + 1);
     words.push(Word {
@@ -662,103 +718,119 @@ fn track_declared_support(state: &mut State, args: &[String], line: u32) {
 }
 
 /// The `speclib` handler: header capture, extra-block reporting, and body
-/// evaluation.
+/// evaluation. A thin adapter over [`stage_speclib`], which the static
+/// driver reaches with the file's own words instead of evaluated values.
 fn speclib_handler(state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
-        // Only a top-level `speclib` is the pack header; one inside any
-        // evaluated body is an ordinary (unknown) row, as in the CST walk.
-        let nested = {
-            let st = state.borrow();
-            !st.scopes.is_empty() || !st.base_lines.is_empty()
-        };
-        if nested {
-            let mut st = state.borrow_mut();
-            let stmt = st.captured("speclib", args, line);
-            st.push_node(Node::Row(stmt));
-            return Ok(None);
-        }
-        if state.borrow().speclib.is_some() || state.borrow().refused_braced_name {
-            let extra_name = args.first().cloned().unwrap_or_default();
-            let commands = args.get(2).map_or(0, |body| {
-                statements(body, 1, FileBom::Content)
-                    .iter()
-                    .filter(|s| s.word_text(0) == "command")
-                    .count()
-            });
-            state.borrow_mut().eval_notices.push(eval_notice(
-                "pack",
-                line,
-                VocabularyClass::Presentation,
-                format!(
-                    "a second `speclib` block (`{extra_name}`) in one file is not loaded; \
-                     only the first pack in a file is read, so its {commands} command(s) \
-                     are dropped — move it to its own `.tclspec`"
-                ),
-            ));
-            return Ok(None);
-        }
-        let name = args.first().cloned().unwrap_or_default();
-        if blockish(&name) && !name.is_empty() {
-            let mut st = state.borrow_mut();
-            st.refused_braced_name = true;
-            st.eval_notices.push(eval_notice(
-                "pack",
-                line,
-                VocabularyClass::Presentation,
-                "`speclib` needs a name and a vocabulary version before its body \
-                 block (`speclib NAME 1.1 { … }`); nothing loaded"
-                    .to_owned(),
-            ));
-            return Ok(None);
-        }
-        let version = args.get(1).cloned().unwrap_or_default();
-        let body = args.get(2).cloned();
-        {
-            let mut st = state.borrow_mut();
-            st.speclib = Some(SpeclibDecl {
-                name,
-                version: version.clone(),
-                line,
-                had_body: body.is_some(),
-            });
-        }
-        // An unsupported major fails the pack closed (§6.1): the body is
-        // not even evaluated, matching "nothing is loaded". The replay
-        // re-runs the check to produce the notice.
-        let mut scratch = Log::default();
-        if check_vocabulary_version(&version, line, &mut scratch) {
-            return Ok(None);
-        }
-        if let Some(body) = body {
-            // Prefer the file's verbatim body so continuation collapse
-            // cannot shift line attribution (see `VerbatimBody`).
-            let verbatim = {
-                let mut st = state.borrow_mut();
-                st.verbatim
-                    .speclib
-                    .take_if(|candidate| candidate.stmt_line == line)
-            };
-            let block = match verbatim {
-                Some(vb) => BodyText {
-                    text: vb.text,
-                    base: vb.body_line,
-                    verbatim: true,
-                },
-                None => BodyText {
-                    text: body,
-                    base: line,
-                    verbatim: false,
-                },
-            };
-            state.borrow_mut().base_lines.push(block.base);
-            let outcome = run_body(ctx, &state, &block);
-            state.borrow_mut().base_lines.pop();
-            outcome?;
-        }
+        stage_speclib(Some(ctx), &state, args, line)?;
         Ok(None)
     })
+}
+
+/// Stage one `speclib NAME VERSION { … }` declaration and run its body.
+///
+/// Shared by the host command and the static driver, so the file-level
+/// shortcut and the interpreter cannot drift on what a `speclib` header
+/// means. `args` are the statement's words after `speclib`, as values.
+fn stage_speclib(
+    mut ctx: Ctx<'_, '_>,
+    state: &Rc<RefCell<State>>,
+    args: &[String],
+    line: u32,
+) -> Result<(), String> {
+    // Only a top-level `speclib` is the pack header; one inside any
+    // evaluated body is an ordinary (unknown) row.
+    let nested = {
+        let st = state.borrow();
+        !st.scopes.is_empty() || !st.base_lines.is_empty()
+    };
+    if nested {
+        let mut st = state.borrow_mut();
+        let stmt = st.captured("speclib", args, line);
+        st.push_node(Node::Row(stmt));
+        return Ok(());
+    }
+    if state.borrow().speclib.is_some() || state.borrow().refused_braced_name {
+        let extra_name = args.first().cloned().unwrap_or_default();
+        let commands = args.get(2).map_or(0, |body| {
+            statements(body, 1, FileBom::Content)
+                .iter()
+                .filter(|s| s.word_text(0) == "command")
+                .count()
+        });
+        state.borrow_mut().eval_notices.push(eval_notice(
+            "pack",
+            line,
+            VocabularyClass::Presentation,
+            format!(
+                "a second `speclib` block (`{extra_name}`) in one file is not loaded; \
+                 only the first pack in a file is read, so its {commands} command(s) \
+                 are dropped — move it to its own `.tclspec`"
+            ),
+        ));
+        return Ok(());
+    }
+    let name = args.first().cloned().unwrap_or_default();
+    if blockish(&name) && !name.is_empty() {
+        let mut st = state.borrow_mut();
+        st.refused_braced_name = true;
+        st.eval_notices.push(eval_notice(
+            "pack",
+            line,
+            VocabularyClass::Presentation,
+            "`speclib` needs a name and a vocabulary version before its body \
+             block (`speclib NAME 1.1 { … }`); nothing loaded"
+                .to_owned(),
+        ));
+        return Ok(());
+    }
+    let version = args.get(1).cloned().unwrap_or_default();
+    let body = args.get(2).cloned();
+    {
+        let mut st = state.borrow_mut();
+        st.speclib = Some(SpeclibDecl {
+            name,
+            version: version.clone(),
+            line,
+            had_body: body.is_some(),
+        });
+    }
+    // An unsupported major fails the pack closed (§6.1): the body is
+    // not even evaluated, matching "nothing is loaded". The replay
+    // re-runs the check to produce the notice.
+    let mut scratch = Log::default();
+    if check_vocabulary_version(&version, line, &mut scratch) {
+        return Ok(());
+    }
+    if let Some(body) = body {
+        // Prefer the file's verbatim body so continuation collapse
+        // cannot shift line attribution (see `VerbatimBody`).
+        let verbatim = {
+            let mut st = state.borrow_mut();
+            st.verbatim
+                .speclib
+                .take_if(|candidate| candidate.stmt_line == line)
+        };
+        let block = match verbatim {
+            Some(vb) => BodyText {
+                text: vb.text,
+                base: vb.body_line,
+                verbatim: true,
+            },
+            None => BodyText {
+                text: body,
+                base: line,
+                verbatim: false,
+            },
+        };
+        state.borrow_mut().base_lines.push(block.base);
+        let outcome = run_body(ctx.as_deref_mut(), state, &block);
+        state.borrow_mut().base_lines.pop();
+        outcome?;
+    }
+    Ok(())
 }
 
 /// The `command` handler: head capture plus body evaluation in a fresh
@@ -775,8 +847,9 @@ fn command_handler(state: &Rc<RefCell<State>>) -> WordHandler {
         }
         let name = args.first().cloned().unwrap_or_default();
         let overrides = args.iter().any(|arg| arg == "-override");
-        // The CST loader takes the first braced word after the name as the
-        // body; the captured equivalent is the first blockish argument.
+        // The body is the first braced word after the name; evaluation
+        // loses per-word braced-ness, so the captured equivalent is the
+        // first blockish argument.
         let body = args.iter().skip(1).find(|arg| blockish(arg)).cloned();
         let Some(body) = body else {
             state
@@ -805,7 +878,7 @@ fn command_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_command(ctx, &state, name, overrides, line, &body)?;
+        stage_command(Some(ctx), &state, name, overrides, line, &body)?;
         Ok(None)
     })
 }
@@ -822,7 +895,7 @@ struct BodyText {
 /// Evaluate one `command` body in a fresh command scope and stage the
 /// declaration. Shared by the host command and the static driver.
 fn stage_command(
-    ctx: &mut PackEvalCtx<'_>,
+    ctx: Ctx<'_, '_>,
     state: &Rc<RefCell<State>>,
     name: String,
     overrides: bool,
@@ -855,7 +928,7 @@ fn stage_command(
 
 /// The `subcommand` handler: valid only directly inside a `command` body,
 /// where its own body evaluates in a subcommand scope; anywhere else it is
-/// a plain row, which replays to the CST loader's unknown-property notice.
+/// a plain row, which replays to the ordinary unknown-property notice.
 fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -868,8 +941,8 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
             return Ok(None);
         }
         let name = args.first().cloned().unwrap_or_default();
-        // The CST loader reads the body from exactly the third word and
-        // silently drops a `subcommand` without one.
+        // The body is exactly the third word; a `subcommand` without one
+        // is silently dropped.
         let Some(body) = args.get(1).cloned() else {
             return Ok(None);
         };
@@ -888,7 +961,7 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_subcommand(ctx, &state, name, line, &body)?;
+        stage_subcommand(Some(ctx), &state, name, line, &body)?;
         Ok(None)
     })
 }
@@ -897,7 +970,7 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// declaration into the owning command. Shared by the host command and the
 /// static driver.
 fn stage_subcommand(
-    ctx: &mut PackEvalCtx<'_>,
+    ctx: Ctx<'_, '_>,
     state: &Rc<RefCell<State>>,
     name: String,
     line: u32,
@@ -925,7 +998,7 @@ fn stage_subcommand(
 
 /// The `include` handler (2.0, Q6): valid only as a literal pack-scope
 /// row; the resolved fragment evaluates in place with provenance
-/// inherited, under the same content-hash cycle key the CST loader uses.
+/// inherited, under the determinism contract's content-hash cycle key.
 fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
@@ -934,14 +1007,14 @@ fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
         if !at_pack {
             // Inside a command/subcommand body `include` is not pack
             // vocabulary; captured as a row, it replays to the unknown
-            // word path exactly as in the CST loader.
+            // word path.
             let mut st = state.borrow_mut();
             let stmt = st.captured("include", args, line);
             st.push_node(Node::Row(stmt));
             return Ok(None);
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        stage_include(ctx, &state, &words, line)?;
+        stage_include(Some(ctx), &state, &words, line)?;
         Ok(None)
     })
 }
@@ -949,14 +1022,14 @@ fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// Resolve and evaluate one `include` row. Shared by the host command and
 /// the static driver, so the two evaluation paths cannot drift.
 fn stage_include(
-    ctx: &mut PackEvalCtx<'_>,
+    ctx: Ctx<'_, '_>,
     state: &Rc<RefCell<State>>,
     words: &[&str],
     line: u32,
 ) -> Result<(), String> {
     // The vocabulary-consistency log's eval-side record: `include` is 2.0
     // vocabulary, and the replay turns this into the same per-site notice
-    // the CST loader's `expand_includes` logs.
+    // the replay's readers log for a row they read themselves.
     state.borrow_mut().newer_word_sites.push((line, "include"));
     let name = match super::include_name(words, line) {
         Ok(name) => name,
@@ -1057,18 +1130,17 @@ fn stage_include(
 /// anything else to the interpreter whole. The fast path is what keeps a
 /// 20k-line declarative pack from paying a 20k-line bytecode compilation
 /// for an evaluation that could only ever capture rows.
-fn run_body(
-    ctx: &mut PackEvalCtx<'_>,
-    state: &Rc<RefCell<State>>,
-    body: &BodyText,
-) -> Result<(), String> {
-    if body.verbatim {
+fn run_body(ctx: Ctx<'_, '_>, state: &Rc<RefCell<State>>, body: &BodyText) -> Result<(), String> {
+    if body.verbatim && state.borrow().fast_path {
         let stmts = statements(&body.text, body.base, FileBom::Content);
         if stmts.iter().all(static_stmt) {
             return drive_static(ctx, state, &stmts);
         }
     }
-    ctx.eval_body(&body.text)
+    match ctx {
+        Some(ctx) => ctx.eval_body(&body.text),
+        None => Err(NEEDS_INTERPRETER.to_owned()),
+    }
 }
 
 /// General Tcl whose dispatch reads or writes interpreter state — a
@@ -1103,7 +1175,7 @@ fn static_stmt(stmt: &Stmt) -> bool {
 /// into `command`/`subcommand` bodies through the same fast-or-evaluate
 /// decision.
 fn drive_static(
-    ctx: &mut PackEvalCtx<'_>,
+    mut ctx: Ctx<'_, '_>,
     state: &Rc<RefCell<State>>,
     stmts: &[Stmt],
 ) -> Result<(), String> {
@@ -1111,6 +1183,10 @@ fn drive_static(
         let at_pack = state.borrow().scopes.is_empty();
         let in_command = matches!(state.borrow().scopes.last(), Some((ScopeKind::Command, _)));
         match stmt.word_text(0) {
+            "speclib" => {
+                let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
+                stage_speclib(ctx.as_deref_mut(), state, &args, stmt.line)?;
+            }
             "command" if at_pack => {
                 let name = stmt.word_text(1).to_owned();
                 let overrides = stmt.words.iter().any(|w| w.text == "-override");
@@ -1131,13 +1207,20 @@ fn drive_static(
                     base: body.line,
                     verbatim: true,
                 };
-                stage_command(ctx, state, name, overrides, stmt.line, &block)?;
+                stage_command(
+                    ctx.as_deref_mut(),
+                    state,
+                    name,
+                    overrides,
+                    stmt.line,
+                    &block,
+                )?;
             }
             "subcommand" if in_command => {
                 let name = stmt.word_text(1).to_owned();
                 let Some(body) = stmt.arg(2) else {
-                    // The CST loader silently drops a `subcommand` with no
-                    // body word; so does the evaluated path.
+                    // A `subcommand` with no body word is silently
+                    // dropped, on this route as on the interpreter's.
                     continue;
                 };
                 let block = BodyText {
@@ -1145,7 +1228,7 @@ fn drive_static(
                     base: body.line,
                     verbatim: true,
                 };
-                stage_subcommand(ctx, state, name, stmt.line, &block)?;
+                stage_subcommand(ctx.as_deref_mut(), state, name, stmt.line, &block)?;
             }
             "default" => {
                 let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
@@ -1155,7 +1238,7 @@ fn drive_static(
             }
             "include" if at_pack => {
                 let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
-                stage_include(ctx, state, &words, stmt.line)?;
+                stage_include(ctx.as_deref_mut(), state, &words, stmt.line)?;
             }
             _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
         }
@@ -1196,7 +1279,7 @@ fn available_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 
 /// The unresolved-dispatch handler: a sandbox denial is a hard determinism
 /// error; anything else is unknown vocabulary, captured so the replay
-/// classifies it under §6.1 exactly as the CST loader would.
+/// classifies it under §6.1.
 fn unknown_handler(state: &Rc<RefCell<State>>) -> UnknownHandler {
     let state = Rc::clone(state);
     Rc::new(
@@ -1233,27 +1316,33 @@ pub fn evaluate_pack_with(source: &str, options: &EvalOptions) -> Pack {
 }
 
 /// [`evaluate_pack_with`] with an [`super::IncludeContext`] resolving
-/// literal pack-scope `include` rows — the evaluation twin of
-/// [`super::load_pack_with`]. A computed include (an interpreter-path
-/// invocation inside a scope, or a substituted name) stays refused under
-/// the determinism contract.
+/// literal pack-scope `include` rows. A computed include (an
+/// interpreter-path invocation inside a scope, or a substituted name) stays
+/// refused under the determinism contract.
 #[must_use]
 pub fn evaluate_pack_in(
     source: &str,
     options: &EvalOptions,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Pack {
-    // The file entry point treats a leading byte-order mark as a prologue,
-    // exactly as the CST loader's `pack_statements` does (issue #1635).
+    // The file entry point treats a leading byte-order mark as a prologue
+    // (issue #1635), exactly as `pack_statements` does.
     let source = source.strip_prefix('\u{feff}').unwrap_or(source);
 
-    let state = Rc::new(RefCell::new(State::default()));
+    // The file-level fast path: a wholly declarative pack — which is what
+    // every shipped pack is — captures its registrations straight from the
+    // CST and never builds an interpreter. Handing a 1.2 MB `.tclspec` to
+    // the VM costs a lex and a bytecode compilation of the whole file before
+    // the first registration word is even dispatched, and that is most of a
+    // large pack's load time. Nothing about the answer changes: the same
+    // staging, through the same `drive_static`, into the same replay.
+    if options.static_fast_path
+        && let Some(state) = drive_file_statically(source, include.clone())
     {
-        let mut st = state.borrow_mut();
-        st.verbatim = VerbatimIndex::of(source);
-        st.include = include;
-        st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+        return replay(state, options);
     }
+
+    let state = new_state(source, options, include);
     let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 5);
     for &word in ROW_WORDS {
         vocabulary.push((word, row_handler(word, &state)));
@@ -1276,6 +1365,48 @@ pub fn evaluate_pack_in(
         Ok(()) => replay(state, options),
         Err(failure) => failed_pack(&state, &failure),
     }
+}
+
+/// The staging state one load starts from.
+fn new_state(
+    source: &str,
+    options: &EvalOptions,
+    include: Option<Rc<super::IncludeContext>>,
+) -> Rc<RefCell<State>> {
+    let state = Rc::new(RefCell::new(State::default()));
+    {
+        let mut st = state.borrow_mut();
+        st.fast_path = options.static_fast_path;
+        st.verbatim = VerbatimIndex::of(source);
+        st.include = include;
+        st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
+    }
+    state
+}
+
+/// Drive the whole file through the static capture layer, with no
+/// interpreter behind it.
+///
+/// `None` means some body — at any depth — was not static vocabulary, so the
+/// load must run for real. The attempt is abandoned whole: the partially
+/// built state is dropped and [`evaluate_pack_in`] starts again on the
+/// interpreter path, which is why this cannot leave half a pack behind. The
+/// cost of a failed attempt is one `static_stmt` pass over statements the
+/// segmentation memo then hands straight back to the retry.
+fn drive_file_statically(
+    source: &str,
+    include: Option<Rc<super::IncludeContext>>,
+) -> Option<State> {
+    let options = EvalOptions::default();
+    let state = new_state(source, &options, include);
+    // `FileBom::Skip`: this is the file entry point, so a leading mark is a
+    // prologue rather than part of the first word.
+    let top = pack_statements(source);
+    if !top.iter().all(static_stmt) {
+        return None;
+    }
+    drive_static(None, &state, &top).ok()?;
+    Rc::try_unwrap(state).ok().map(RefCell::into_inner)
 }
 
 /// A pack whose evaluation broke: transactional discard, one explaining
@@ -1328,8 +1459,29 @@ fn failed_pack(state: &State, failure: &PackEvalFailure) -> Pack {
 // ---------------------------------------------------------------------------
 
 /// Whether this tier's registrations are gated by E-R2's untrusted rules.
+///
+/// The class is the one [`super::PackEnvironmentTier::provenance`] already
+/// maps a tier to, so the loader and the registration layer cannot disagree
+/// about what a tier means — before this was derived, the loader called
+/// `Tier::Workspace` untrusted while the environment model called the same
+/// tier [`Provenance::WorkspaceTrusted`].
+///
+/// Redesign §6.4 keys the workspace half on the **editor's Workspace Trust
+/// state**, not on where the file was discovered: a *trusted* workspace pack
+/// may `-override` a shipped command — that is the collision policy
+/// [`crate::install`] implements, tests, and reports through
+/// [`crate::pack::collision_notices`] — and only an *untrusted* workspace
+/// needs "explicit trusted opt-in". Nothing on the discovery path is told
+/// the trust state yet (redesign open item 19), so the untrusted class is
+/// reachable today through the live Spec Studio override tier; the day the
+/// editor's trust state is plumbed, it arrives as a tier whose provenance is
+/// [`Provenance::WorkspaceUntrusted`] and this predicate already answers for
+/// it.
 fn untrusted(tier: Tier) -> bool {
-    matches!(tier, Tier::Workspace | Tier::StudioOverride)
+    matches!(
+        super::PackEnvironmentTier::of(tier).provenance(),
+        Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
+    )
 }
 
 /// The compiled command surface a workspace pack may not shadow: the
@@ -1339,20 +1491,21 @@ fn compiled_command_exists(name: &str) -> bool {
     crate::environment::lenient_store().get(name).is_some()
 }
 
-/// The first E-R2 violation in a pack's registration record, when the tier
-/// is untrusted: the line it was declared on, and a notice-ready message
-/// naming the provenance class.
+/// The first E-R2 violation in a pack's registration record **as if** the
+/// pack were untrusted at `tier`: the line it was declared on, and a
+/// notice-ready message naming the provenance class.
 ///
-/// Reading the **record** rather than the evaluator's own staging is what
-/// lets the same verdict be asked of a snapshot that has already loaded —
-/// which is how an authoring tool (`spectcl_check`) tells its user "this
-/// loads for you, and would be refused from a workspace" without evaluating
-/// the pack a second time.
+/// Deliberately unconditional — it answers the hypothetical, so `tier` only
+/// supplies the class the message names. That is what the caller wants:
+/// reading the **record** rather than the evaluator's own staging lets the
+/// verdict be asked of a snapshot that has already loaded, which is how an
+/// authoring tool (`spectcl_check`, the Spec Studio's
+/// `untrusted_tier_refusal`) tells its user "this loads for you, and would
+/// be refused from an untrusted workspace" without evaluating the pack a
+/// second time. The load's own gate is in [`replay`], under [`untrusted`].
 #[must_use]
 pub fn provenance_violation(pack: &Pack, tier: Tier) -> Option<(u32, String)> {
-    untrusted(tier)
-        .then(|| provenance_violation_in(&pack.registrations, tier))
-        .flatten()
+    provenance_violation_in(&pack.registrations, tier)
 }
 
 fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option<(u32, String)> {
@@ -1410,8 +1563,8 @@ fn provenance_violation_in(registrations: &[Registration], tier: Tier) -> Option
     None
 }
 
-/// Turn a completed evaluation's staging into a [`Pack`] through the CST
-/// loader's own readers.
+/// Turn a completed evaluation's staging into a [`Pack`] through the
+/// vocabulary's row readers.
 fn replay(state: State, options: &EvalOptions) -> Pack {
     let mut log = Log {
         context: "pack".to_owned(),
@@ -1473,8 +1626,8 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
         return pack;
     }
 
-    // Pass 1: pack-level rows, in evaluation order — tables first exactly
-    // as the CST loader's first pass, since commands are staged separately.
+    // Pass 1: pack-level rows, in evaluation order — tables first, since
+    // commands are staged separately and built in pass 2.
     let mut tables = PackTables::default();
     for node in &state.pack_nodes {
         if let PackNode::Row(stmt) = node {
@@ -1519,7 +1672,8 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     pack.registrations = registrations;
 
     // Sites the capture layer consumed itself (`include`): logged here so
-    // the per-site vocabulary-consistency notices match the CST loader's.
+    // they get the same per-site vocabulary-consistency notices a row the
+    // readers saw would.
     for (line, word) in &state.newer_word_sites {
         log.since(*line, word, "2.0");
     }

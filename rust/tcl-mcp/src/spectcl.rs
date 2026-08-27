@@ -27,12 +27,15 @@
 //! validate a pack it has just written, and to read what its own loop
 //! actually registered.
 //!
-//! **There is exactly one loader.** Every fact below comes from
-//! [`tcl_spectcl::evaluate_pack`] — the same loader the LSP, the studio, and
-//! the equivalence gate use — and from the [`Draft`] the studio seeds from its
-//! result through the ordinary [`draft::from_command_spec`], so a field this
-//! report calls "set" is set in exactly the sense the Spec Studio's form
-//! means. This module reads that result and renders it;
+//! **There is exactly one loader** — and since the `one-loader` lane that is
+//! true of the tree, not just of this module. Every fact below comes from
+//! [`tcl_spectcl::evaluate_pack`], which is now the only door from `.tclspec`
+//! text to a `Pack`: the LSP's discovery and reload path reaches the same
+//! function through `tcl_spectcl::evaluate_pack_cached` (the cache, not a
+//! second reading), and so do the Spec Studio and the `tcl` CLI. Facts also
+//! come from the [`Draft`] the studio seeds from that result through the
+//! ordinary [`draft::from_command_spec`], so a field this report calls "set"
+//! is set in exactly the sense the Spec Studio's form means. This module reads that result and renders it;
 //! it never looks at the pack text itself, with the single, documented
 //! exception of the hook-body `ctx` scan under
 //! [`declaration_conflict`](fn@declaration_conflict), which inspects body text
@@ -126,10 +129,10 @@ fn ctx_key_in_shape(key: &str) -> bool {
 /// generated pack is safe by construction, and a runaway `foreach` comes
 /// back as a budget notice rather than a hung tool.
 ///
-/// Everything the CST walk reported is still reported, unchanged: the
-/// equivalence gate holds the two loaders to the same snapshot and the same
-/// notices for a straight-line pack. What is new is what only evaluation can
-/// see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
+/// A straight-line declarative pack reports exactly what it always did: the
+/// golden gate (`tcl-spectcl/tests/golden_packs.rs`) holds every shipped pack
+/// to its checked-in snapshot and notices. What evaluation adds is what only
+/// evaluation can see — [`load_error`](tcl_spectcl::LoadError) for the four transactional
 /// failures (a determinism denial naming its axis, a blown budget naming its
 /// axis, a Tcl error, a provenance refusal), the target-dependence flag, and
 /// the workspace-tier provenance verdict below.

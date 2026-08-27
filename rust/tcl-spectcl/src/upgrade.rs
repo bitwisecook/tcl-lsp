@@ -70,7 +70,7 @@ use tcl_compiler::parsing::syntax::segment::segments_from_document;
 use tcl_lexer::{LexerConfig, SourceMap, TokenType};
 
 use crate::loader::{
-    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, list_words, load_pack,
+    KNOWN_VOCABULARY_VERSIONS, NEWEST_VOCABULARY_VERSION, evaluate_pack, list_words,
     speclib_version_span,
 };
 
@@ -1073,7 +1073,7 @@ fn pack_owner(
 /// U7: every site in `source` whose word is newer than the file's own
 /// `speclib` declaration, as the loader reports them.
 fn words_above_declaration(source: &str) -> Vec<String> {
-    load_pack(source)
+    evaluate_pack(source)
         .notices
         .into_iter()
         .filter(|notice| notice.message.contains("but this pack declares vocabulary"))
@@ -1182,7 +1182,7 @@ fn locate_lines(source: &str, sites: &mut [Site]) {
 #[cfg(test)]
 mod tests {
     use super::{UpgradeOptions, UpgradeStatus, upgrade_source};
-    use crate::loader::load_pack;
+    use crate::loader::evaluate_pack;
 
     /// A pack with a `dialects` row at each of the three written shapes —
     /// property, flag, multi-token — comes out spelling `available`, with
@@ -1241,8 +1241,8 @@ mod tests {
                       }\n";
         let outcome = upgrade_source(source, &UpgradeOptions::default());
         assert_eq!(outcome.status, UpgradeStatus::Upgraded, "{outcome:#?}");
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         assert!(after.notices.is_empty(), "{:?}", after.notices);
         assert_eq!(
             format!("{:?}", before.command("demo").expect("demo").spec),
@@ -1289,8 +1289,8 @@ mod tests {
             "{}",
             outcome.source
         );
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         for name in ["demo", "duo", "trio"] {
             assert_eq!(
                 format!("{:?}", before.command(name).expect(name).spec),
@@ -1365,8 +1365,8 @@ mod tests {
             "{}",
             outcome.source
         );
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         assert!(
             after.ambient_packages.is_empty(),
             "{:#?}",
@@ -1436,8 +1436,8 @@ mod tests {
             "{}",
             outcome.source
         );
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         assert!(after.file_extensions.is_empty());
         assert_eq!(
             super::environment_effect_snapshot(&before),
@@ -1477,8 +1477,8 @@ mod tests {
             "{}",
             outcome.source
         );
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         assert_eq!(after.provides.len(), 1);
         assert_eq!(
             before.command("demo").expect("demo").spec.required_package,
@@ -1517,8 +1517,8 @@ mod tests {
             "{}",
             outcome.source
         );
-        let before = load_pack(source);
-        let after = load_pack(&outcome.source);
+        let before = evaluate_pack(source);
+        let after = evaluate_pack(&outcome.source);
         for name in ["demo", "duo"] {
             assert_eq!(
                 before.command(name).expect(name).spec.required_package,

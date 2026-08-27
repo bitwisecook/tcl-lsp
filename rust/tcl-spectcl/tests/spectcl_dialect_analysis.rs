@@ -97,7 +97,7 @@ fn a_hover_key_written_outside_the_block_is_still_unknown() {
         diagnostics(source)
     );
     // …and the loader agrees, which is what makes the diagnostic true.
-    let pack = tcl_spectcl::load_pack(source);
+    let pack = tcl_spectcl::evaluate_pack(source);
     assert!(
         pack.notices.iter().any(|notice| notice
             .message

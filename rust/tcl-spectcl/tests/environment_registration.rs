@@ -27,13 +27,13 @@
 use tcl_dialect::model::Placement;
 use tcl_registry::model::{EnvironmentRegistrationError, resolve_environment};
 use tcl_spectcl::registration::register_pack_environments;
-use tcl_spectcl::{Tier, load_pack};
+use tcl_spectcl::{Tier, evaluate_pack};
 
 /// The full path: load a pack with an `environment` block, register it,
 /// resolve it through the ingress, and read its facts back.
 #[test]
 fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib probe 2.0 {\n\
          environment vivaldi-shell-tcl {\n\
          \x20   display_name {Vivaldi Shell}\n\
@@ -142,7 +142,7 @@ fn a_pack_declared_environment_becomes_resolvable_with_its_facts() {
 fn reserved_and_untrusted_claims_fail_with_the_provenance_error() {
     // The loader itself rejects a *declaration* claiming a compiled name,
     // so the workspace pack carries only an extend block…
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib probe 2.0 {\n\
          environment expect -extend {\n\
          \x20   file_extension expx -name {Probe Expect}\n\
@@ -199,7 +199,7 @@ fn reserved_and_untrusted_claims_fail_with_the_provenance_error() {
 /// the generation moves so downstream caches re-key.
 #[test]
 fn a_trusted_extension_of_a_compiled_environment_is_additive() {
-    let pack = load_pack(
+    let pack = evaluate_pack(
         "speclib probe 2.0 {\n\
          environment synopsys-eda-tcl -extend {\n\
          \x20   file_extension upfx -name {Probe UPF Extension}\n\
