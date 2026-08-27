@@ -676,7 +676,15 @@ mirrored as Q22–Q25 in the main document):
   role/policy visibility overlays, `tcl_platform`'s CMP effect overlay,
   and iApp action metadata overlays all land here — before P4's F5
   migration, which holds until the review's acceptance matrix is
-  covered.
+  covered. **Status (evidence lane, #15)**: the typed layer is in —
+  `BigIpExecutionContext`, `EmbeddedRuntimeEvidence` with its
+  semantic/assistance door split, the typed BIG-IP and tmsh-syntax axes
+  with the `cli version active` transition, the iApp action overlays, and
+  the hermetic corpus. Outstanding under R11: rows are *asserted* from
+  the corpus but not yet *generated* from it, the transcript-schema
+  validator is unwritten, the F4 role-visibility and F5 `tcl_platform`
+  CMP overlays are recorded as evidence but not wired as overlays, and
+  the corpus covers one build and four contexts.
 
 ## 5. Gates that prove the centralisation
 
@@ -1230,6 +1238,23 @@ private implementation of that domain.
   surfaced the N-rules — is the adoption candidate for regression
   fixtures (licence check before vendoring, per the corpus hygiene
   rules).
+
+  **The hermetic half of this tier has landed** (evidence lane, #15):
+  `rust/tcl-registry/src/f5/corpus.rs` holds 205 vectors derived from
+  those transcripts — the §4a four-context parity cases, the §4a
+  environment-difference table, the sixteen 8.4-vs-8.5 discriminators,
+  §4b's 31-command two-class split, the 120-cell event-context matrix,
+  and the §6/§8 priority facts — every row citing its measurements
+  section and asserted against the model in ordinary `cargo test`. The
+  boundary between the two tiers is now explicit: the **appliance tier
+  produces transcripts** (owner-run, prefixed, cleanup-proved) and the
+  **hermetic tier consumes them**; no test in this repository talks to an
+  appliance, and no appliance result reaches the model except through a
+  cited corpus row or an `EmbeddedRuntimeEvidence` record. What the
+  appliance tier still owes the model is coverage, not machinery: a
+  second and third build for the acceptance matrix, a restricted-role
+  tmsh column, and the two APL contexts, which the E4 driver records as
+  `Unknown` rather than inferring.
 
 ### 7.7 Phase placement
 

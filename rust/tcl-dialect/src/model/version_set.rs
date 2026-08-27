@@ -53,6 +53,8 @@ pub struct VersionAxisId(AxisInner);
 enum AxisInner {
     Core(Family),
     Package(Arc<str>),
+    BigIp,
+    TmshSyntax,
 }
 
 impl VersionAxisId {
@@ -75,7 +77,7 @@ impl VersionAxisId {
     pub fn core_family(&self) -> Option<Family> {
         match &self.0 {
             AxisInner::Core(family) => Some(*family),
-            AxisInner::Package(_) => None,
+            AxisInner::Package(_) | AxisInner::BigIp | AxisInner::TmshSyntax => None,
         }
     }
 
@@ -83,9 +85,50 @@ impl VersionAxisId {
     #[must_use]
     pub fn package_name(&self) -> Option<&str> {
         match &self.0 {
-            AxisInner::Core(_) => None,
             AxisInner::Package(name) => Some(name),
+            AxisInner::Core(_) | AxisInner::BigIp | AxisInner::TmshSyntax => None,
         }
+    }
+
+    /// The **BIG-IP software release** axis (`13.1.0`, `17.1.1`,
+    /// `21.1.0.1`): the appliance train an F5 fact was measured on, an
+    /// iApp template's `requires-bigip-version-min`/`-max` interval, and
+    /// the workspace's configured BIG-IP targets all live here.
+    ///
+    /// It is deliberately **not** a core-family axis: BIG-IP releases and
+    /// Tcl releases are unrelated trains that merely share dotted-number
+    /// spelling (F5 evidence review F6), so every binary operation
+    /// between them is [`VersionSetError::AxisMismatch`] rather than a
+    /// silent coercion (invariant I2).
+    #[must_use]
+    pub const fn big_ip() -> Self {
+        Self(AxisInner::BigIp)
+    }
+
+    /// The **tmsh command-syntax** axis: the grammar version a `cli
+    /// script` selects with `tmsh::modify cli version active <V>`
+    /// (available since BIG-IP 11.5.0).
+    ///
+    /// F6's third axis. It is independent of both the installed BIG-IP
+    /// build and the embedded Tcl runtime — one script can ask for 11.5.0
+    /// syntax on a 21.1.0.1 appliance running an 8.4.6-derived
+    /// interpreter — so it must never be compared with, intersected with,
+    /// or substituted for either.
+    #[must_use]
+    pub const fn tmsh_syntax() -> Self {
+        Self(AxisInner::TmshSyntax)
+    }
+
+    /// Whether this is the BIG-IP software-release axis.
+    #[must_use]
+    pub const fn is_big_ip(&self) -> bool {
+        matches!(self.0, AxisInner::BigIp)
+    }
+
+    /// Whether this is the tmsh command-syntax axis.
+    #[must_use]
+    pub const fn is_tmsh_syntax(&self) -> bool {
+        matches!(self.0, AxisInner::TmshSyntax)
     }
 }
 
@@ -94,6 +137,8 @@ impl std::fmt::Display for VersionAxisId {
         match &self.0 {
             AxisInner::Core(family) => write!(f, "core:{family}"),
             AxisInner::Package(name) => write!(f, "package:{name}"),
+            AxisInner::BigIp => f.write_str("bigip"),
+            AxisInner::TmshSyntax => f.write_str("tmsh-syntax"),
         }
     }
 }
@@ -923,6 +968,56 @@ mod tests {
         assert!(package.intersect(&other).is_err());
         // Same axis by content, not pointer.
         assert!(package.union(&set(&["9"])).is_ok());
+    }
+
+    /// F5 evidence review F6: the BIG-IP software release and the tmsh
+    /// command-syntax version are their **own** axes. All three trains —
+    /// Tcl core, BIG-IP build, tmsh syntax — spell versions with dotted
+    /// numbers and none of them may be compared with, intersected with,
+    /// or substituted for another.
+    #[test]
+    fn the_f5_axes_never_compare_with_tcl_or_with_each_other() {
+        let bigip = VersionSet::from_requirements(VersionAxisId::big_ip(), &["17.1.0-22.0"])
+            .expect("bigip requirement");
+        let tmsh = VersionSet::from_requirements(VersionAxisId::tmsh_syntax(), &["11.5.0-"])
+            .expect("tmsh requirement");
+        let core = VersionSet::from_requirements(VersionAxisId::core(Family::F5Tcl), &["0-"])
+            .expect("core requirement");
+
+        for (left, right) in [(&bigip, &tmsh), (&bigip, &core), (&tmsh, &core)] {
+            for result in [
+                left.intersect(right).err(),
+                left.union(right).err(),
+                left.subset(right).err(),
+                right.intersect(left).err(),
+            ] {
+                assert!(
+                    matches!(result, Some(VersionSetError::AxisMismatch { .. })),
+                    "{result:?}"
+                );
+            }
+        }
+
+        // Each axis still works normally against itself: an iApp
+        // template's declared interval intersects the configured BIG-IP
+        // targets (F7).
+        let template = VersionSet::from_requirements(VersionAxisId::big_ip(), &["13.1.0-18.0"])
+            .expect("template interval");
+        let overlap = bigip.intersect(&template).expect("same axis");
+        assert!(overlap.contains(&v("17.1.0")));
+        assert!(!overlap.contains(&v("13.1.0")), "outside the target set");
+        assert!(
+            !overlap.contains(&v("18.0")),
+            "outside the template range (the max bound is exclusive)"
+        );
+
+        assert_eq!(VersionAxisId::big_ip().to_string(), "bigip");
+        assert_eq!(VersionAxisId::tmsh_syntax().to_string(), "tmsh-syntax");
+        assert!(VersionAxisId::big_ip().is_big_ip());
+        assert!(VersionAxisId::tmsh_syntax().is_tmsh_syntax());
+        assert!(!VersionAxisId::big_ip().is_tmsh_syntax());
+        assert_eq!(VersionAxisId::big_ip().core_family(), None);
+        assert_eq!(VersionAxisId::tmsh_syntax().package_name(), None);
     }
 
     #[test]

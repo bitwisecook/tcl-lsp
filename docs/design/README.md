@@ -102,7 +102,10 @@ rules for the KCS/documentation split live in
   the N-rules), measures the 31-disabled command surface, 16
   discriminating 8.4-vs-8.5 features, four Tcl contexts on one
   appliance, event-context compile-time validity, and rule priority
-  order. Probe corpus in `scripts/dev/bigip-probes/`.
+  order. Probe corpus in `scripts/dev/bigip-probes/`; the model consumes
+  it through the evidence layer in `rust/tcl-registry/src/f5/`
+  (`BigIpExecutionContext`, `EmbeddedRuntimeEvidence`, and 205 hermetic
+  conformance vectors).
 - [dialect-and-package-registry-redesign-bigip-evidence-review.md](dialect-and-package-registry-redesign-bigip-evidence-review.md)
   — **F5 evidence review** of the fixed iRules, tmsh, and iApps Tcl-version
   assumptions left in #1631 revision 2, separating TMM iRules, tmsh CLI
