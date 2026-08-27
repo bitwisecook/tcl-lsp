@@ -97,6 +97,48 @@ bits survive, not as shims but as the interned catalogue the lexer and the
 executable-IR bundle are still keyed on; that is retirement-ledger row
 **C1**, §11's D1, the largest remaining item of the programme.
 
+## 0.05 Standing design principles (owner, 2026-08-27)
+
+These govern every lane of this programme and every lane after it. They
+were stated by the owner while ruling on the §11 ledger and are recorded
+here because they decide questions the ledger rows only ask.
+
+**P-A — SpecTcl declares; Rust executes.** SpecTcl is an extension that
+declares command specs, and those declarations are **compiled to a
+structure Rust uses very efficiently**. The tclvm is entered *only* to
+execute small hooks, and only where a hook is genuinely needed (option
+constraints that no declarative relation can express, literal-driven
+typing, and their kin). This is the frozen-snapshot model of §6 stated as
+a principle: the snapshot is the artefact, evaluation is a build step,
+and analysis reads the compiled structure.
+
+**P-B — performance in the general case, and hooks are the exception.**
+The design must minimise how often a hook actually executes. Scripts must
+not run on every edit: every relation the declarative vocabulary can
+express must be checked natively with no VM entry, hooks must declare
+their inputs so results are shape-cached, and an edit that does not change
+a hook's inputs must reuse the cached verdict. When a declarative
+vocabulary and a hook can both express something, the declarative form
+wins — coverage of the common patterns is worth more than hook
+expressiveness.
+
+**P-C — retire unused surface.** Declared-and-unpopulated model surface is
+deleted rather than carried, because a word no data uses invites packs to
+guess at semantics the engine never implements (§11.1 O2, ruled
+2026-08-27: delete). Anything genuinely needed later returns *with* its
+consumer.
+
+**P-D — prove it with an experiment.** Where a question is empirical,
+answer it by measuring rather than by reasoning: build the interpreter,
+run the probe, record the transcript, and turn it into a hermetic vector.
+The F5 conformance corpus and the five `jimsh` builds are the pattern —
+both found real model defects on their first run.
+
+**P-E — follow ordinary Tcl design and patterns.** Where a surface needs
+expressive power, reach for the shapes a Tcl programmer already knows
+(`if`, `switch`, `foreach`, ordinary command syntax) before inventing a
+mini-language.
+
 ## 0.1 Review disposition (revision 2)
 
 Every blocking finding of the
@@ -2394,10 +2436,10 @@ would re-cut.
 
 | # | What it is | What it blocks | What would resolve it |
 |---|---|---|---|
-| O1 | **The option *requires* relation vocabulary.** `OptionConstraint` says only "these options may not occur together" — never "`-command` requires `-channel`" (`bibtex::parse`, proved by P5), and never between an option and a positional argument. Flagged by the deep dive as E-R10's best-value candidate and re-raised by P5 as census gap G2's directional half | Honest specs for `bibtex::parse`, `http::geturl`'s conditional pairs, and the argparse-class option tables; every "you gave `-x` but not `-y`" diagnostic | An owner ruling on the spelling (a directional `-requires` row on `OptionSpec`, versus generalising `OptionConstraint` to a typed relation), then a consumer in the option-table checker |
-| O2 | **The M9 dead axes.** Registry surface that is declared and never populated: `ProfileSpec::capabilities` and `::conflicts` (empty for every profile, and no command sets `EventRequires::capability`), `EventRequires::init_only` (set by no spec — the four commands that need exclusion use `excluded_events`), plus `Traits::PASSWORD_OPTION`, `Traits::IRULES_DATA_GETTER`, `xc_operation` and the unused `arg_rows` machinery. All were still present at the P8 sweep. The deep dive deliberately declined to decide unilaterally | Nothing functionally, but the reasoning is sharp: dead surface must not get 2.0 vocabulary, because carrying a word no data uses invites packs to guess at semantics the engine never implements. It also makes P7 larger than it needs to be | An owner ruling per axis: delete now, or name a consumer that lands within the programme |
-| O3 | **Formal ratification of E-R11, E-R12, E-R13.** All three were written "(proposed)" in §15 of the deep dive and all three were then **implemented as proposed** — the canonical form and `tcl spec export` (E-R11), never rewriting a programmed pack and routing form edits into a `StudioOverride` patch pack (E-R12), and the `spectcl_expand` verb (E-R13). They remain marked as proposals | Nothing is blocked; the risk is the reverse — three shipped contracts carry a status word that says they are not decided | An owner ratification, at which point §14's table absorbs them beside E-R1–E-R10 |
-| O4 | **The trusted-tier choice for the studio buffer and `spectcl_check`.** P2-J recorded, explicitly for review, that the studio's authoring buffer and `spectcl_check` evaluate packs at the **trusted** tier. E-R2's gate was not lost — it moved to `pack_set` installation plus an explicit untrusted-tier-refusal report — but the decision that an author's own unsaved buffer is trusted was made by the lane, not the owner | If reversed: what an author can execute from the editing surface, and what `spectcl_check` will run for a model-authored pack | An owner ruling. The determinism sandbox runs unconditionally either way (E-R2), so the question is narrowly about which registration calls the tier permits |
+| O1 | ~~The option *requires* relation vocabulary.~~ **RESOLVED (owner, 2026-08-27): generalise `OptionConstraint` into a typed relation, authored through centralised utilities for the common patterns, with an escape hatch that is native Tcl** — `if`/`switch`/etc, able to read the rest of the invocation. Ratified as **E-R14** in the deep dive. Bound by principle P-B: every relation the declarative vocabulary can express is checked natively with no VM entry, the hook is a rare escape hatch, and hook results are shape-cached on declared inputs so an edit that does not change them reuses the verdict | — | Done as a ruling; the relation type, the vocabulary, the hook and the option-table consumer are the work |
+| O2 | ~~The M9 dead axes.~~ **RESOLVED (owner, 2026-08-27): delete them all now.** `ProfileSpec::capabilities`/`::conflicts`, `EventRequires::init_only`/`::capability`, `Traits::PASSWORD_OPTION`, `Traits::IRULES_DATA_GETTER`, `xc_operation` and the unused `arg_rows` machinery are deleted, with the names added to the retired-api gate so they cannot return. Principle P-C: anything genuinely needed later comes back with its consumer | — | Done |
+| O3 | ~~Formal ratification of E-R11, E-R12, E-R13.~~ **RESOLVED (owner, 2026-08-27): all three ratified.** E-R11 (the canonical form and `tcl spec export`) and E-R13 (the `spectcl_expand` verb) were ratified as shipped. E-R12 (never rewriting a programmed pack; form edits become `StudioOverride` patch packs) was ratified **with an amendment**: standing overrides must be *visible* — a studio indicator, and a `spec check` warning once a patch has outlived a threshold, so an override reads as a staging area rather than a home. Contraction stays ruled out | — | Done; §14 absorbs all three. The E-R12 visibility amendment is the work item |
+| O4 | ~~The trusted-tier choice for the studio buffer and `spectcl_check`.~~ **RESOLVED (owner, 2026-08-27), differently for each surface.** The **studio authoring buffer stays trusted**: it is the author's own unsaved file in their own editor, `-override` on a compiled name is a first-class studio operation, and the gate still bites at `pack_set` install with an explicit untrusted-refusal report. **`spectcl_check` gains an explicit tier defaulting to the tier the pack would actually install at** (workspace for a workspace pack), so the check predicts reality instead of answering a different question; the trusted view stays available on request. The determinism sandbox runs unconditionally either way (E-R2) | — | Done; the `spectcl_check` tier parameter and its default are the work item |
 | O5 | **P7 — the iRules surface as a pack.** Q5 ruled ▸ deferred, and six of the seven prerequisite words have since landed, so the deferral is now a standing choice rather than a blocked one | The iRules command surface stays compiled Rust. The dialect (grammar, structure) and the closed-world policy stay compiled either way, so nothing about correctness rides on it | An owner decision to schedule it, plus the M9 ruling (O2) and the invocation-refinement descriptor (D2) |
 | O6 | **The assistance-view ordering hint** (Q8's residual). Should the assistance view surface "used before its `package require`" by default, or leave ordering to the semantic diagnostics? ▸ recommended surfacing it; nothing was built | One diagnostic's default. The scan already records the ranges, so the cost is a message and a severity | An owner answer |
 | O7 | **`primary` for a multi-target project** (Q15's residual). What the UI defaults `primary` to when a user declares targets without one, and how visibly. P1b shipped ranges without an explicit `primary` selector: the primary is the environment's, always | Multi-target projects cannot choose which release assistance answers under. Compatibility checking is unaffected — it evaluates the whole set — so this is an assistance-quality gap, not a soundness one | An owner answer plus the settings/directive surface to carry it |
@@ -2422,7 +2464,7 @@ declined to make and named precisely rather than working around.
 | D10 | **Registry generations** (review B8, invariant I7). The loader still leaks per load (`Box::leak` in `tcl-spectcl/src/loader.rs`); no `RegistryGeneration` type exists | A Spec Studio session editing a mass-migrated surface leaks hundreds of MB — ~3.1 MB per generation of ~2,400 specs. It is a **P2 prerequisite** for any mass migration, so it also blocks P3's and P5's conversion halves | Move dynamic pack specs into an arena/`Arc<RegistryGeneration>`, return generation-bound handles, key salsa on the generation id — gated by the 1,000-reload allocator test |
 | D11 | **Shared `InvocationSpec`** (review B6). Taint sinks, forms, deprecation replacements and effects are copied field by field into `SubCommand` instead of living in one invocation capability model | Honest specs for method-level sinks (ticklecharts' file write, SpiceGenTcl's `runAndRead`) — census gaps G7/G15 | The refactor, behind the four-surface parity rule |
 | D12 | **`tcl spec build --emit rust`** (ruling R7) and the pack-level, `dialect`-block-aware renderer it needs — the current renderer is WASM-only and per-command. R7's sibling deliverable, promoting the MCP checker to a `tcl spec check` verb, is D18's | Q1's endgame: shipped cores as SpecTcl sources with the compiled catalogue and a loadable pack as two backends of one description | The renderer, then the build step |
-| D13 | **`--restyle`.** `tcl spec upgrade` grows a `--restyle` step translating 1.x rows into canonical 2.0 — promised in three documents, implemented in none (no `restyle` token exists in `rust/`) | Nothing: U2 already rewrites `dialects` → `available`, so `--restyle` is a formatting affordance on top of a landed translation | The flag plus the renderer's shorthand logic, which `export_pack` already has |
+| D13 | **`--restyle`** — **owner ruling 2026-08-27: build it.** `tcl spec upgrade` grows the flag; it is mostly wiring `export_pack`'s existing shorthand logic into the upgrade path | Nothing — U2 already rewrites `dialects` → `available`, so this is a formatting affordance over a landed translation | Scheduled |
 | D14 | **Ledger T9 — the `spec-author` skill.** `ai/claude/skills/spec-author/SKILL.md` still instructs authors to declare `speclib <name> 1.1` and describes 1.1 as the newest vocabulary | Every pack a model or a human authors from the skill is two majors stale, and will not carry `available`, `environment`, `dialect`, `provides` or `include` | Refresh the skill for 2.0: the new words, `dialect` blocks, the `available` algebra, and the upgrade workflow |
 | D15 | **The tooling payload rows** (ledger T1, T3, T4, T6, T7, F9, F12/T13, B10, B11, T10, T12). Every *ingress* moved onto the seam; the *user-visible* payloads did not — the CLI's `--dialect` possible values, the MCP `dialect_schema` enum, the studio picker, `registry-dump --all-dialects`, `listDialects`, `callback-surfaces` row ids, the hand-written Sublime `_SYNTAX_DIALECT_MAP`, `_registry_data.tcl`, and the hardcoded `tcl8.6` defaults | Environment names becoming the user-facing vocabulary — which is also what ruling R9's KCS "Applies-to" regeneration waits on, and what defect §9.5 (`# tcl-dialect: tk`) needs | Each is a deliberate user-visible surface change: re-key the payload, regenerate the artefact, and accept the diff. They were held because a name change is not a refactor |
 | D16 | **The per-distinct-profile reference evaluator** (§5.4, review B10). P1b shipped two token-local detectors (lifecycle windows, numerals) — the only pair §5.4 licenses without the reference. The reference itself was not built | Every other range axis: escapes, `${a{b}c}`, expr comments and operators, `{*}`, the leading-BOM rule, differential constant folding at the endpoints, `package require` satisfiability per target, numerals *inside* compound `expr` bodies, and the W151 fix-its | Build the multi-profile evaluation, then admit each per-pair detector only after the differential corpus/fuzz gate proves it equivalent |

@@ -1555,7 +1555,12 @@ the upgrade path and deleted (P1-G extends to cover them).
 ## 14. Collected ruling candidates
 
 **Status column added 2026-08-27.** E-R1–E-R9 are ratified (owner,
-2026-08-26); E-R10 is a standing statement of limits, not a proposal;
+2026-08-26); **E-R11, E-R12 and E-R13 are ratified (owner, 2026-08-27)**,
+E-R12 with a visibility amendment (standing overrides must be surfaced —
+a studio indicator plus a `spec check` warning once a patch outlives a
+threshold — so an override reads as a staging area, not a home);
+**E-R14 is ratified (owner, 2026-08-27)** and recorded below;
+E-R10 is a standing statement of limits, not a proposal;
 E-R11–E-R13 were written "(proposed)" in §15, implemented as written, and
 **never formally ratified** — see O3 in the redesign's §11.
 
@@ -1571,6 +1576,7 @@ E-R11–E-R13 were written "(proposed)" in §15, implemented as written, and
 | E-R8 | Embedded-language identity is open and pack-namespaced (`ticklecharts::js`); embedded-language *semantics* come only from hooks | §11 (G6) | ratified; implemented |
 | E-R9 | The DSL vocabulary is single-sourced from the evaluator's command table; the editing-surface pack is emitted, never hand-kept | §12 | ratified; **partly implemented** — the SpecTcl self-spec gained `available`, `environment` and `dialect` so authoring a pack gets completion and hover, but the vocabulary is not yet single-sourced from the evaluator's command table |
 | E-R10 | Known limits that stand: option *requires* relations (pending owner ruling — best-value candidate), apave's nested tuples (G8/G9), position-dependent callback arity (`Unknown` is honest) | §11 | a statement of limits, not a proposal. Its first item (option *requires* relations) is O1 in the redesign's §11; P5 confirmed it independently from `bibtex::parse` |
+| E-R14 | **Option relations are a typed model with a native-Tcl escape hatch.** `OptionConstraint` generalises into a typed relation covering mutual exclusion, directional requires, requires-one-of, and relations reaching positional arguments and option *values*. Authors reach it through centralised utilities for the common patterns; anything else is a `constraints` hook whose body is ordinary Tcl (`if`, `switch`, `foreach`) able to read the whole invocation. Bound by principle P-B: the declarative forms compile to a structure checked natively with **no VM entry**, the hook is the rare exception, and hook results are shape-cached on declared inputs so an edit that does not change them never re-runs the script | owner ruling 2026-08-27; P5's `bibtex::parse` evidence (`-command` requires `-channel`); census gap G2's directional half and the cross-option value-legality row | ratified — the relation type, the vocabulary, the hook contract and the option-table consumer are the work |
 | E-R11 | SpecTcl 2.0 has a **canonical form** — the straight-line subset of E; every generator emits it, `tcl spec export` expands any snapshot into it, contraction is never attempted | §15.1 | **proposed → implemented, unratified.** `tcl_spectcl::export` renders `Pack::registrations`; round-trip gate A holds over all 24 shipped packs (1,515 commands, 14,770 registration calls) snapshot-identical and text-idempotent; gate B proves three templated fixtures expand, reload and are fixed points. Wired as `tcl spec export`. See O3 |
 | E-R12 | The studio never rewrites a **programmed** pack: its source opens read-only beside its expansion and a form edit lands as a canonical patch pack in the `StudioOverride` tier | §15.2 | **proposed → implemented, unratified.** `PackStore::programmed` is a three-tiered predicate (target-dependent, expanded, or statements the snapshot did not record), `WriteBack::Patched` routes the edit, `PackStore::standing_overrides` is the queryable report, and a guard test holds the predicate over all twelve hand-written packs. See O3 |
 | E-R13 | The `spectcl_expand` MCP verb — pack source in, canonical form out — so a programmed pack is reviewable as its expansion rather than simulated in the reader's head | §15.3 | **proposed → implemented, unratified.** `spectcl_expand` ships; `spectcl_check` evaluates packs and surfaces `load_error`, `target_dependent`, per-notice classes and what an untrusted tier would refuse. See O3 |
