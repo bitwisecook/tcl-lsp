@@ -173,9 +173,10 @@ pub fn stated_profile_for_dialect(name: &str) -> Option<&'static tcl_dialect::Di
 /// registry is the generation assembled for it (whose store is the same
 /// plain-Tcl `Arc` a `wish` document has always been analysed against —
 /// `store_profile("tk")` is the fallback profile), and the `TK` fact is the
-/// resolved environment's own
-/// [`is_tk`](tcl_registry::model::DocumentEnvironment::is_tk) rather than a
-/// re-parsed bit.
+/// environment's own **ambient `Tk` placement** (P3) — read as
+/// [`ambient_package`](tcl_registry::model::ResolvedContext::ambient_package)
+/// on the generation's context — rather than a re-parsed bit or an
+/// environment name.
 ///
 /// The generation is promoted to `&'static` exactly as the old per-profile
 /// registry was: the un-overlaid axis is a closed set and is retained

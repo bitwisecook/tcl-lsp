@@ -743,11 +743,10 @@ pub fn completions(
         // only *present* once the Tk package is loaded — the `tk` dialect (a
         // `wish` document) or a `package require Tk` in this file.  Without
         // that, a plain `.tcl` script must not be offered `button`/`pack`/… .
-        // P3 (ledger F4): the `tk` half is the resolved environment's own
-        // identity, not a re-parsed `DialectSet` bit — the placement form
-        // (`ResolvedContext::package_active("Tk")`) takes over when the Tk
-        // pilot makes the placement ambient under `wish`.
-        let tk_loaded = crate::environment_for_dialect(dialect.name).is_tk()
+        // P3 (ledger F4): both halves are placement facts now — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `DialectSet` bit and no environment *name* is consulted.
+        let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, &line_index);
         items.extend(builtin_completions(
@@ -2078,11 +2077,13 @@ fn builtin_completions(
         // never inside a vendor shell: an F5 / EDA / bpf profile is a closed
         // world where a desktop library cannot be `package require`d, even if
         // the source says so. An environment can host Tk iff it declares a Tk
-        // placement (dialect-profile-model.md §7.2, ledger F4); the EDA
+        // placement (redesign §3.2's placement claims, ledger F4); the EDA
         // shells are packaged vendors with no vendor_bit, so this keys off
-        // the placement, not the bit (eda-library-packages.md).
+        // the placement, not the bit (eda-library-packages.md). P3 moved the
+        // query onto the resolved context, where hosting is one predicate
+        // over the environment's own placements.
         .filter(|n| {
-            (tk_loaded && crate::environment_for_dialect(profile.name).can_host_package("Tk"))
+            (tk_loaded && context.can_host_package("Tk"))
                 || registry
                     .get(n)
                     .is_none_or(|spec| spec.required_package != Some("Tk"))
@@ -2353,11 +2354,10 @@ fn fuzzy_command_fallback(
     }
     universe.extend(proc_completions(analysis, "", &usage));
     if let Some(registry) = registry {
-        // P3 (ledger F4): the `tk` half is the resolved environment's own
-        // identity, not a re-parsed `DialectSet` bit — the placement form
-        // (`ResolvedContext::package_active("Tk")`) takes over when the Tk
-        // pilot makes the placement ambient under `wish`.
-        let tk_loaded = crate::environment_for_dialect(dialect.name).is_tk()
+        // P3 (ledger F4): both halves are placement facts now — the
+        // environment ships Tk ambient (`wish`), or this document required
+        // it. No `DialectSet` bit and no environment *name* is consulted.
+        let tk_loaded = crate::document_context_for_dialect(dialect.name).ambient_package("Tk")
             || analysis.package_requires.iter().any(|req| req.name == "Tk");
         let oo_frame = oo_frame_at(analysis, source, line, character, line_index);
         universe.extend(builtin_completions(
@@ -4276,6 +4276,49 @@ mod tests {
             labels.contains(&"button"),
             "Tk `button` should surface in the `tk` dialect: {labels:?}",
         );
+    }
+
+    /// **P3.** The completion gate is now two placement queries, not an
+    /// environment name plus a hosting table: Tk names are offered where
+    /// Tk is in the world (ambient, or required here) **and** the
+    /// environment declares a Tk placement at all. The `wish` alias must
+    /// answer identically to `tk` — it is the same environment row — and a
+    /// vendor shell must refuse even with an explicit require.
+    #[test]
+    fn tk_completion_follows_the_placement_not_the_environment_name() {
+        let registry = CommandRegistry::build_default();
+        let offers = |src: &str, line: u32, character: u32, dialect: &str| {
+            let analysis = analyse(src);
+            completions(
+                src,
+                line,
+                character,
+                &analysis,
+                Some(&registry),
+                None,
+                crate::profile_for_dialect(dialect),
+            )
+            .iter()
+            .any(|item| item.label == "button")
+        };
+        // Ambient: `wish` under either spelling of its identity.
+        assert!(offers("butt\n", 0, 4, "tk"), "tk");
+        assert!(offers("butt\n", 0, 4, "wish"), "wish");
+        // Hosted: offered only once this document requires it.
+        assert!(!offers("butt\n", 0, 4, "tcl8.6"), "tcl8.6 bare");
+        assert!(!offers("butt\n", 0, 4, "tcl"), "lenient sink bare");
+        assert!(
+            offers("package require Tk\nbutt\n", 1, 4, "tcl8.6"),
+            "tcl8.6 with a require"
+        );
+        // Unhostable: a vendor shell declares no Tk placement, so a stray
+        // require changes nothing.
+        for shell in ["f5-iapps", "xilinx-eda-tcl", "bpf"] {
+            assert!(
+                !offers("package require Tk\nbutt\n", 1, 4, shell),
+                "{shell}"
+            );
+        }
     }
 
     #[test]

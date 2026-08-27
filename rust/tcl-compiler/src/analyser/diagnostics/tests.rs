@@ -10503,6 +10503,78 @@ fn w120_emitted_once_per_command_name() {
     assert_eq!(w120.len(), 1, "expected one W120 per name; got {w120:?}");
 }
 
+/// **The P3 W120 ruling.** `Tk` is a package with a placement, and W120's
+/// existing suppression rule is "the package is ambient here" — so the
+/// ruling falls out of the placement rather than being written into the
+/// diagnostic: under the `tk` environment (a `wish` script, whose
+/// interpreter has already loaded Tk before the first byte runs) there is
+/// no `package require Tk` to write and W120 must stay silent, while under
+/// every plain-Tcl environment Tk is *hosted* and the nag is right.
+///
+/// This is the wave-2 note's "flips `is_ambient_package("Tk")`", decided
+/// explicitly: the flip is the whole ruling, and both environments'
+/// behaviour is pinned here.
+#[test]
+fn w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl() {
+    let src = "button .b -text hi\npack .b\n";
+    let fires = |dialect: &str| {
+        let mut a = Analyser::new();
+        a.analyse(src, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W120 && d.message.contains("package require Tk"))
+            .count()
+    };
+    // Hosted: `tclsh` needs the require, so the nag is right — once per
+    // gated command name (`button`, `pack`), as W120 always emits.
+    assert_eq!(fires("tcl8.6"), 2, "tcl8.6");
+    assert_eq!(fires("tcl9.0"), 2, "tcl9.0");
+    assert_eq!(fires("tcl"), 2, "the lenient sink hosts Tk too");
+    // Ambient: `wish` ships Tk. Nothing to require, nothing to nag about.
+    assert_eq!(fires("tk"), 0, "tk");
+    assert_eq!(
+        fires("wish"),
+        0,
+        "the `wish` alias resolves to the same row"
+    );
+    // …and the nag stops on a plain-Tcl document that does require it.
+    let mut a = Analyser::new();
+    let required = a.analyse(&format!("package require Tk\n{src}"), "tcl8.6");
+    assert!(
+        !required
+            .diagnostics
+            .iter()
+            .any(|d| d.code == DiagCode::W120),
+        "{:?}",
+        required.diagnostics
+    );
+}
+
+/// The other half of the same placement: the Tk geometry/widget checks
+/// (`TK100x`) activate without a `package require` under the `tk`
+/// environment and only *with* one under plain Tcl. Before P3 the first
+/// half was `is_tk()` — the environment's *name*; it is now
+/// `ResolvedContext::ambient_package("Tk")`, so the two facts W120 and the
+/// TK checks read are the same fact.
+#[test]
+fn tk_checks_activate_on_the_ambient_placement_not_the_environment_name() {
+    let src = "frame .top\npack .top.a\ngrid .top.b\n";
+    let tk_codes = |dialect: &str, source: &str| {
+        let mut a = Analyser::new();
+        a.analyse(source, dialect)
+            .diagnostics
+            .iter()
+            .filter(|d| d.code.to_string().starts_with("TK"))
+            .count()
+    };
+    assert!(tk_codes("tk", src) > 0, "wish: ambient Tk activates");
+    assert_eq!(tk_codes("tcl8.6", src), 0, "plain Tcl without a require");
+    assert!(
+        tk_codes("tcl8.6", &format!("package require Tk\n{src}")) > 0,
+        "plain Tcl with a require"
+    );
+}
+
 #[test]
 fn w120_disabled_via_directive() {
     let mut a = Analyser::new();

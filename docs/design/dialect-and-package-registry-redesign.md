@@ -311,7 +311,7 @@ profiles and the jim branch:
 | `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
 | `f5-iapps` | environment `f5-iapps` = **dialect `f5-tcl`** (32-bit build profile) + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | **CORRECTED by measurement** ([measurements](bigip-irule-parser-measurements.md) §4a): the 8.5 baseline hypothesis is falsified. `IAppImplementation` reports `info patchlevel` **8.4.6**, fails every 8.5 discriminator (`dict`, `lassign`, `apply`, `0b101`), and its grammar is **not** `GRAMMAR_TCL85` verbatim — it carries the full `f5-tcl` trunk grammar: R-rules, N-rules, inert `{*}`, and the expr word operators, all byte-identical to TMM. Environment deltas are real but *non-grammatical*: `exec` works here and not in TMM, `package names` is large, `tcl_platform` is real-Linux with `wordSize 4` — a 32-bit build of the family, the CoreProfile build-profile axis earning its place again. APL container routing remains a language-id fact; the two APL contexts are still `Unknown`. **Catalogue corrected (P1-G)**: the shipping `f5-iapps` row now selects `GRAMMAR_F5_TCL` with the 8.4 base fields and `operators_as_commands: false` |
 | `f5-tmsh` | environment `f5-tmsh` = **dialect `f5-tcl`** + tmsh pack (ambient, BIG-IP-keyed) + tmsh syntax-version axis | **CORRECTED by measurement** ([measurements](bigip-irule-parser-measurements.md) §4a): both claims in the previous cell are falsified. `TmshCliScript` reports **8.4.6**, not 8.5.13, and a tmsh lexing mode **is** required — a `cli script` reproduces the entire trunk grammar (R-rules, N-rules, inert `{*}`, expr word operators) identically to TMM. The `AGENTS.md` owner-map claim was right after all: the mode selects the `f5-tcl` trunk grammar. Environment deltas: `exec` works, `tcl_platform` is **empty**, `tcl_patchLevel` does not exist at all, and a non-standard `info vartype` subcommand exists. The `IAPPS\|TMSH` spec files still split into two packs sharing sources. **Catalogue corrected (P1-G)**: the shipping `f5-tmsh` row now selects `GRAMMAR_F5_TCL` with the 8.4 base fields and `operators_as_commands: false` |
-| `tk` (off-catalogue) | package `Tk` + environment `tk` (alias: "wish") = tcl@base + Tk ambient | erases the tk triangle |
+| `tk` (off-catalogue) | package `Tk` + environment `tk` (alias: "wish") = tcl@base + Tk ambient | erases the tk triangle. **Landed (P3)**: the `tk` environment places `Tk` ambient on Tk's own axis and every plain-Tcl environment places it hosted, so one package answers both — see §8's P3 status |
 | `expect` | environment `expect` = tcl@8.6 + expect pack (ambient) | `expect`'s clause grammar is registry `CaseListSpec` descriptor data shared with `switch` |
 | 6 × EDA (`synopsys-eda-tcl`, …) | pack-declared environments | already packages; their catalogue shells (identity, extensions, keyed tool pins) move into their packs |
 | `spectcl` | environment (recommended) or dialect — **Q3** | grammar is `GRAMMAR_TCL9X` verbatim; the DSL words are a command surface (`rust/tcl-registry/src/commands/spectcl/`) |
@@ -540,6 +540,14 @@ W135/W139/W149). The redesign adds (§6):
   version tracks or floats — Tk under tclsh, tcllib), or absent. Today
   only profile pins can say `hosted`/`Keyed`; packs can only say
   unconditional `ambient` — that asymmetry is exactly blockers 6–8.
+  **Landed for the compiled environments (P3)**: `Tk` is placed both ways
+  at once — ambient under `tk`, hosted under every plain-Tcl environment
+  — and that pairing is what forces the model to distinguish a *library
+  with an ambient host* from a *closed-world vendor runtime*. The
+  distinction is derived from the placement data itself (ambient
+  somewhere ∧ hosted nowhere ⇒ closed-world), never a name list, so a
+  pack that later places a library ambient in its own environment gets
+  the same answer for free.
 - **Core surfaces are providers too.** `package require Tcl 8.5` is real
   Tcl; the core surface rides the same algebra as provider `tcl` (and
   provider `jim`, provider `f5-irules`) so one lifecycle/window mechanism
@@ -869,9 +877,18 @@ require`") as the nudge and floors gating version-sensitive facts — but
 the policy becomes an environment field:
 
 - `open` (plain Tcl, EDA shells): hosted packs visible, W120 advisory.
-- `closed` (`f5-irules`): only the ambient closure exists; hosted packs
-  and `package require` are not part of the language (require itself is
-  not an iRules command).
+- `closed` (`f5-irules`, and equally `bpf`/`spectcl`): only the ambient
+  closure exists; hosted packs and `package require` are not part of the
+  language (require itself is not an iRules command).
+
+**Landed (P3)** at package granularity: `ResolvedContext::package_active`
+implements exactly these three rules, and the Tk pilot is what exercises
+all three from one package — ambient under `tk`, leniently visible under
+every `open` plain-Tcl environment, refused under `closed`. The `open`
+leniency is deliberately a statement about packages **no environment owns
+as its own runtime**: a closed-world vendor surface stays invisible
+outside its own environment, which is the old `vendor_ambient_packages`
+subtraction restated positively.
 - `ambient-only-plus-require` (`f5-iapps`, `f5-tmsh` — recommended):
   ambient surface plus explicitly required packages; hosted-but-unrequired
   packs are excluded from resolution (this is today's subtractive tcllib
@@ -1036,6 +1053,17 @@ byte-identical to before (pinned by
   spans and messages) and always outranks the range warning at the same
   word; W150/W151 fire only for items clean at the primary, at Warning
   severity — declared non-primary targets are assistance facts.
+
+**P3 addendum — the package half is exercised.** §3.2's last bullet
+("packages take range targets exactly like cores") needed no further
+code: `supports Tk 8.5-8.6` declares a set on the `Tk` package axis, the
+version gate already routes a Tk item's lifecycle to that axis through
+`lifecycle_axis`, and the W150 remainder names the failing Tk releases.
+The pilot pins it on the acceptance case — an item Tk only grew at 8.6
+under a declared `Tk 8.5-8.6` — plus the two controls that keep
+invariant I2 honest (a `tcl` declaration must not gate the `Tk` axis) and
+the `wish` variant, where the range applies with no `package require` at
+all because the environment places Tk ambient.
 
 Deferred from this slice: numerals *inside* compound `expr` bodies (the
 whole-word walk catches `expr {010}` and plain arguments; a braced
@@ -1432,6 +1460,75 @@ gates on (adopted verbatim from the review):
   semantics (B11) — then the native `commands/tk` deleted. The `tk`
   environment ships beside it. The Tk semantics epic (#1710) continues
   against the pack form.
+
+  **Status: the model move is landed; the surface stays compiled.**
+  What moved:
+
+  - **Placement.** The `tk` environment places `Tk` **ambient** on Tk's
+    own version axis (`Requirement Tk 8.4-` — never `tracks-base`, B11);
+    every plain-Tcl environment places it **hosted**, the release-pinned
+    ones under B11's named host exemption (`tclsh8.6` ships Tk 8.6, so
+    the point on the *Tk* axis is derived from the pinned core release)
+    and the unpinned `tcl` sink under a bare requirement. Identity,
+    aliases (`wish`), and detection facts were already environment data
+    and stay there.
+  - **Activation.** Every `required_package: Some("Tk")` spec (68 of
+    them) now carries the `RequiresPackage("Tk")` conjunct, so the Tk
+    surface resolves through **one** query,
+    `ResolvedContext::package_active("Tk")`, under §5.3's policy: the
+    ambient closure always, the lenient hosted world under `open`,
+    nothing under `closed`. The surviving `Core(Tcl)` row on those specs
+    is specificity data only — `specificity_breadth` counts it to
+    reproduce the coexisting `get_for_dialect` mask popcount exactly —
+    and goes with the mask under ledger C1.
+  - **Classification.** `is_closed_world_package` gained the conjunct Tk
+    forces: a package that is ambient *somewhere* and hosted *elsewhere*
+    is a library with an ambient host, not a vendor runtime. Reading
+    ambience alone would have made Tk closed-world the instant the pilot
+    placed it and erased Tk from plain Tcl.
+  - **Holds resolved (ledger F4).** `DocumentEnvironment::is_tk` is
+    private with two identity-only callers; `can_host_package` moved onto
+    the context as a pure placement query (no lenient special case — the
+    `tcl` sink declares its own Tk placement);
+    `ResolvedContext::with_authoring_mask` and the second leaked
+    document-context are deleted, because the ambient placement *derives*
+    the `TK` bit that used to be injected. The analyser-vs-unit `tk`
+    asymmetry is ruled **permanent** and narrowed to catalogue identity
+    (see the centralisation companion).
+  - **The W120 ruling.** W120's suppression rule was already "the package
+    is ambient here", so the ruling is the placement: silent under `tk` /
+    `wish` (the interpreter loaded Tk before the first byte — there is no
+    `package require Tk` to write), unchanged under every plain-Tcl
+    environment. Pinned by
+    `w120_is_silent_under_the_tk_environment_and_nags_under_plain_tcl`
+    and `tk_checks_activate_on_the_ambient_placement_not_the_environment_name`.
+  - **Range targeting.** `supports Tk 8.5-8.6` gates Tk items on the Tk
+    axis through the P1b machinery unchanged — the package half of §5.4
+    needed no new code, only the acceptance case
+    (`a_tk_range_warns_on_an_item_the_older_tk_lacks` and its two axis /
+    ambient controls).
+
+  **One enumerated behavioural delta**, pinned by
+  `tk_is_closed_out_of_closed_worlds` and allowlisted in the P1-E
+  acceptance sweeps: a **closed** world (`bpf`, `spectcl`) no longer
+  resolves the Tk surface. `package require` is not part of either
+  language, so `wm` was never callable there; the old profile mask
+  admitted it only because `TK_AND_TCL` unions the whole Tcl ladder.
+  Every open world — the five plain-Tcl releases, the lenient sink, the
+  F5 shells, the EDA shells, `expect` — answers exactly as before.
+
+  **What a surface-to-pack conversion still needs** (the remainder of
+  this phase): the invocation-refinement descriptor for Tk's 53
+  `subcommand_forms` sites; SpecTcl vocabulary for the widget-class and
+  option-database shapes the Rust specs carry natively
+  (`creates_instance_at`, `tk_geometry`'s `TkGeometryManagerSpec`, the
+  shared `common.rs` enum value sets, the `ttk::` style tables, the
+  `TK_NAMESPACED_CLASSIC_ALIASES` co-registration); the B11
+  lowercase-`tk`/uppercase-`Tk` predicated co-provide and loader-alias
+  model, which the placement layer does not yet express; and the I10
+  behavioural-parity harness. Until those land, `Tk` is a package with a
+  real placement whose *declarations* are still compiled Rust — which is
+  exactly the split this phase set out to prove is possible.
 - **P4 — smaller packages.** iapps/tmsh (splitting the shared
   `IAPPS|TMSH` sources into two packs + shared `values`/`descriptor`
   tables), expect, and the EDA environment shells move into their packs

@@ -737,10 +737,17 @@ fn ladder_environments() -> Vec<EnvironmentDefinition> {
         core: Some(tcl_core(release)),
         targets: tcl_line(release),
         expected_packages: vec![
-            // Tk tracks the embedded base on the plain ladder (`wish`
-            // 8.5 ships Tk 8.5) — the one host relation the catalogue
-            // genuinely guarantees; the `tk` environment itself uses
-            // Tk's own axis (B11).
+            // Tk is **hosted** here: a `tclsh8.6` document must
+            // `package require Tk` (W120 nags when it does not), and the
+            // floor rides Tk's **own** package axis — never the Tcl core
+            // axis (B11, invariant I2). `TracksBase` is B11's one named
+            // exemption ("unless a specific host environment truly
+            // guarantees matched versions"): a *release-pinned* Tcl
+            // environment is exactly that host — the 8.6 distribution
+            // ships Tk 8.6 — so the point on the Tk axis is derived from
+            // the pinned core release. The unpinned environments (`tcl`,
+            // `tk`) claim no such guarantee and carry a bare requirement
+            // instead.
             PackagePlacement {
                 package: arc("Tk"),
                 version: Placement::TracksBase,
@@ -769,7 +776,17 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
         editor_identity: EditorLanguageIdentityId::new("tcl"),
         core: Some(tcl_core(Release::TCL_9_0)),
         targets: tcl_full_ladder(),
-        expected_packages: Vec::new(),
+        // P3: the lenient sink declares the same **hosted** Tk placement
+        // the ladder rows carry, so "can this environment host Tk?" is a
+        // placement query everywhere instead of a lenient special case.
+        // No release is implied — an unversioned document names no Tcl
+        // release either — so Tk sits on a requirement over its own axis
+        // (B11), which is also why this row grants no floor.
+        expected_packages: vec![PackagePlacement {
+            package: arc("Tk"),
+            version: Placement::Requirement(reqs(VersionAxisId::package("Tk"), &["8.4-"])),
+            ambient: false,
+        }],
         policy_defaults: open_policy(None),
         server_detection: DetectionFacts {
             // The generic Tcl source extensions the editors register for
@@ -789,9 +806,20 @@ fn plain_tcl_environment() -> EnvironmentDefinition {
     }
 }
 
-/// The `tk` environment (alias `wish`): tcl at base + Tk hosted on Tk's
-/// **own** version axis — never `tracks-base` (review B11). Erases the
-/// tk triangle.
+/// The `tk` environment (alias `wish`): tcl at base + Tk **ambient** on
+/// Tk's **own** version axis — never `tracks-base` (review B11). Erases
+/// the tk triangle.
+///
+/// **P3 (the Tk pilot).** The placement is `ambient` because that is what
+/// a `wish` document *is*: the interpreter has already loaded Tk before
+/// the first byte of the script runs, so there is no `package require Tk`
+/// to write and none to nag about. Everything the old triangle spelled
+/// three ways now falls out of this one row — `package_active("Tk")`,
+/// the context's `TK` authoring bit, the Tk-checks activation fact, and
+/// W120's silence (ledger F4). The version stays a **requirement** on
+/// `Tk`'s own axis rather than a point: `wish` reports its own Tk
+/// patchlevel, which the document text does not carry, so the honest
+/// answer is "some Tk ≥ 8.4" and the permissive no-primary rule applies.
 fn tk_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
         id: EnvironmentId::new("tk"),
@@ -804,7 +832,7 @@ fn tk_environment() -> EnvironmentDefinition {
             PackagePlacement {
                 package: arc("Tk"),
                 version: Placement::Requirement(reqs(VersionAxisId::package("Tk"), &["8.4-"])),
-                ambient: false,
+                ambient: true,
             },
             hosted_pin("Itcl", "4.2"),
         ],
@@ -1349,8 +1377,12 @@ mod tests {
         }
     }
 
-    /// Review B11: the `tk` environment places Tk on Tk's own version
-    /// axis, never `tracks-base`.
+    /// Review B11 and the P3 pilot: the `tk` environment places Tk
+    /// **ambient** (a `wish` shell has already loaded it — no `package
+    /// require Tk` exists to write) on Tk's **own** version axis, never
+    /// `tracks-base`. Every plain-Tcl environment places the same package
+    /// **hosted**, which is what makes `Tk` a library with an ambient
+    /// host rather than a closed-world vendor surface.
     #[test]
     fn tk_environment_uses_tks_own_axis() {
         let registry = EnvironmentRegistry::compiled();
@@ -1361,11 +1393,67 @@ mod tests {
             .iter()
             .find(|p| *p.package == *"Tk")
             .expect("Tk placement");
-        assert!(!placement.ambient, "hosted: still needs its require");
+        assert!(placement.ambient, "wish ships Tk: no require to write");
         let Placement::Requirement(set) = &placement.version else {
             panic!("Tk must be floored on its own axis, got {placement:?}");
         };
         assert_eq!(set.axis().package_name(), Some("Tk"));
+        // The alias is the shebang word too — one identity, two ingresses.
+        assert_eq!(registry.resolve("wish").expect("wish").id.as_str(), "tk");
+        assert!(
+            tk.server_detection
+                .shebang_words
+                .iter()
+                .any(|word| &**word == "wish")
+        );
+    }
+
+    /// The hosted half of the same placement: every plain-Tcl environment
+    /// declares that it *can* host Tk without shipping it, so "can this
+    /// environment host Tk?" is a placement query with no lenient special
+    /// case, and a release-pinned host derives the Tk point from its own
+    /// release (B11's named exemption) while the unpinned ones do not.
+    #[test]
+    fn plain_tcl_environments_host_tk_without_shipping_it() {
+        let registry = EnvironmentRegistry::compiled();
+        for (id, expected) in [
+            ("tcl", None),
+            ("tcl8.4", Some("8.4")),
+            ("tcl8.6", Some("8.6")),
+            ("tcl9.0", Some("9.0")),
+        ] {
+            let definition = registry.resolve(id).expect(id);
+            let placement = definition
+                .expected_packages
+                .iter()
+                .find(|p| *p.package == *"Tk")
+                .unwrap_or_else(|| panic!("{id} declares a Tk placement"));
+            assert!(!placement.ambient, "{id}: hosted, so W120 still nags");
+            match (expected, &placement.version) {
+                (Some(release), Placement::TracksBase) => {
+                    assert_eq!(
+                        definition.core.expect("core").default_release.as_str(),
+                        release,
+                        "{id}"
+                    );
+                }
+                (None, Placement::Requirement(set)) => {
+                    assert_eq!(set.axis().package_name(), Some("Tk"), "{id}");
+                }
+                (_, other) => panic!("{id}: unexpected Tk placement {other:?}"),
+            }
+        }
+        // A closed vendor shell declares none, so it cannot host Tk at all.
+        for id in ["f5-irules", "bpf", "spectcl", "xilinx-eda-tcl"] {
+            let definition = registry.resolve(id).expect(id);
+            assert!(
+                !definition
+                    .expected_packages
+                    .iter()
+                    .any(|p| *p.package == *"Tk"),
+                "{id}"
+            );
+        }
     }
 
     #[test]

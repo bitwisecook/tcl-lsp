@@ -73,7 +73,10 @@ mod tests {
             assert_eq!(environment.definition.id.as_str(), profile, "{name}");
             assert_eq!(environment.analyser_profile().name, profile, "{name}");
             assert_eq!(environment.unit_profile().name, profile, "{name}");
-            assert!(!environment.is_tk(), "{name}");
+            assert!(
+                !environment.document_context().ambient_package("Tk"),
+                "{name}"
+            );
         }
         // Unknown names and the bare `tcl` land on the lenient
         // environment and the permissive fallback profile.
@@ -82,13 +85,19 @@ mod tests {
             assert_eq!(environment.definition.id.as_str(), "tcl", "{name}");
             assert!(environment.analyser_profile().is_fallback(), "{name}");
             assert!(environment.unit_profile().is_fallback(), "{name}");
-            assert!(!environment.is_tk(), "{name}");
+            assert!(
+                !environment.document_context().ambient_package("Tk"),
+                "{name}"
+            );
         }
         // The `tk` ingress: permissive analyser profile (the old
-        // `by_name` answer), typed additive unit profile (the old
-        // `resolve_known` answer), and the Tk-environment fact set.
+        // `by_name` answer — the P3 ruling keeps that asymmetry, since
+        // `tk` is a package plus an environment and never a catalogue
+        // dialect), typed additive unit profile (the old `resolve_known`
+        // answer), and the Tk fact as a **placement** — the environment
+        // ships Tk ambient, which is what a `wish` shell is.
         let tk = resolve_environment("tk");
-        assert!(tk.is_tk());
+        assert!(tk.document_context().ambient_package("Tk"));
         assert!(tk.analyser_profile().is_fallback());
         assert_eq!(tk.unit_profile().name, "tk");
     }

@@ -199,9 +199,7 @@ pub fn vendor_surface_package(environment_id: &str) -> Option<&'static str> {
 
 /// Every package some compiled environment ships **ambient** — its keyed
 /// catalogue packs (`f5-irules-cmds`, the EDA tool surfaces, `Expect`).
-/// `pub(crate)`: also the context layer's mirror of the old model's
-/// `vendor_ambient_packages` set (the profile-pin-derived closed-world
-/// vocabulary its `package_available` rule subtracts).
+/// `pub(crate)`: the closed-world classification below is built from it.
 pub(crate) fn ambient_placement_packages() -> &'static HashSet<String> {
     static CELL: OnceLock<HashSet<String>> = OnceLock::new();
     CELL.get_or_init(|| {
@@ -214,21 +212,72 @@ pub(crate) fn ambient_placement_packages() -> &'static HashSet<String> {
     })
 }
 
+/// Every package some compiled environment offers **hosted** — the
+/// installable libraries (`Tk`, `Itcl`). A package in this set is a
+/// library, not a vendor runtime, however many environments also ship it
+/// ambient.
+pub(crate) fn hosted_placement_packages() -> &'static HashSet<String> {
+    static CELL: OnceLock<HashSet<String>> = OnceLock::new();
+    CELL.get_or_init(|| {
+        compiled_definitions()
+            .iter()
+            .flat_map(|definition| definition.expected_packages.iter())
+            .filter(|placement| !placement.ambient)
+            .map(|placement| placement.package.as_ref().to_owned())
+            .collect()
+    })
+}
+
 /// Whether `package` is a **closed-world** package: part of some
-/// environment's modelled runtime (an ambient placement, or a
-/// [`VENDOR_SURFACE_BRIDGE`] surface), and therefore never resolvable
-/// where that environment's world does not ship it.
+/// environment's modelled runtime and *only* that (an ambient placement no
+/// environment also hosts, or a [`VENDOR_SURFACE_BRIDGE`] surface), and
+/// therefore never resolvable where that environment's world does not ship
+/// it.
 ///
-/// The exact mirror of the old model's `vendor_ambient_packages` set: a
-/// hosted library (Tk, tcllib, the stdlib packages — never ambient
-/// anywhere) is **not** closed-world, and a `required_package` gate on one
+/// The mirror of the old model's `vendor_ambient_packages` set, with the
+/// classification stated positively: a hosted library (tcllib, the stdlib
+/// packages) is **not** closed-world, and a `required_package` gate on one
 /// never hides the command (W120 nags about the missing require instead).
+///
+/// **P3 (the Tk pilot).** `Tk` is the case that forces the "and hosted
+/// nowhere" conjunct to be written down. It is ambient under the `tk`
+/// environment (`wish` has already loaded it) *and* hosted under every
+/// plain-Tcl environment (`tclsh` needs the `package require`) — a library
+/// with an ambient host, not a vendor runtime. Reading ambience alone
+/// would make Tk closed-world the moment the pilot placed it, and every Tk
+/// command would vanish from plain Tcl. The rule is data-driven, so a
+/// later pack that places a library ambient in its own environment gets
+/// the same answer with no table to edit.
 #[must_use]
 pub fn is_closed_world_package(package: &str) -> bool {
+    if hosted_placement_packages().contains(package) {
+        return false;
+    }
     VENDOR_SURFACE_BRIDGE
         .iter()
         .any(|&(_, bridged)| bridged == package)
         || ambient_placement_packages().contains(package)
+}
+
+/// Whether `package`'s availability is a **placement** question — some
+/// compiled environment ships it as part of its own runtime (an ambient
+/// placement, or a [`VENDOR_SURFACE_BRIDGE`] surface) — rather than the
+/// old "a `required_package` gate never hides anything" leniency.
+///
+/// A package no environment runs ambiently is an ordinary installable
+/// library (`Itcl`, every tcllib module): nothing in the model knows where
+/// it is or is not present, so its declarations carry no package conjunct
+/// and W120 owns the nag, exactly as before. **P3** brings `Tk` into this
+/// set — `wish` runs it ambiently — which is what routes all 68 Tk specs
+/// through [`ResolvedContext::package_active`].
+///
+/// [`ResolvedContext::package_active`]: crate::model::ResolvedContext::package_active
+#[must_use]
+pub fn is_placement_gated_package(package: &str) -> bool {
+    ambient_placement_packages().contains(package)
+        || VENDOR_SURFACE_BRIDGE
+            .iter()
+            .any(|&(_, bridged)| bridged == package)
 }
 
 /// The five Tcl ladder release lines, in ladder order: the bit, the line's
@@ -349,12 +398,29 @@ fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
 /// the packs migrate (P2).
 ///
 /// `required_package`/`tcllib_package` **add** a full-axis
-/// [`Provider::Package`] row for the owning package (provider knowledge —
-/// on a hosted package it never gates, exactly as the old
-/// `package_available` never did), and `required_package` on a
-/// **closed-world** package additionally **constrains** every row with
-/// [`CapabilityPredicate::RequiresPackage`], the old conjunctive gate.
+/// [`Provider::Package`] row for the owning package (provider knowledge),
+/// and `required_package` on a package whose availability is a
+/// **placement** question ([`is_placement_gated_package`]) additionally
+/// **constrains** every row with
+/// [`CapabilityPredicate::RequiresPackage`] — the conjunctive gate that
+/// routes the item's availability through
+/// [`ResolvedContext::package_active`], the one placement query.
 /// `lifecycle` populates every row's [`ItemHistory`].
+///
+/// **P3 (the Tk pilot).** Before the pilot the conjunct was applied only
+/// to *closed-world* packages, so a `Tk` command's availability came
+/// entirely off its `Core(Tcl)` row and the Tk placement was decoration.
+/// Widening it to every placed package is what makes the 68 Tk-owning
+/// specs (`required_package: Some("Tk")`) genuinely package-provided:
+/// `wish` admits
+/// them through the ambient placement, plain Tcl through the open world's
+/// lenient hosted rule, and a closed world refuses them. The surviving
+/// `Core(Tcl)` row is **specificity data, not an activation channel** —
+/// [`crate::model::context::specificity_breadth`] counts it to reproduce
+/// the coexisting `get_for_dialect` mask-popcount ordering exactly, and it
+/// disappears with the mask under ledger C1.
+///
+/// [`ResolvedContext::package_active`]: crate::model::ResolvedContext::package_active
 #[must_use]
 pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration; 2]> {
     let history = item_history(&spec.lifecycle);
@@ -402,7 +468,7 @@ pub fn declarations_for_spec(spec: &CommandSpec) -> SmallVec<[SurfaceDeclaration
         }
     }
     if let Some(package) = spec.required_package
-        && is_closed_world_package(package)
+        && is_placement_gated_package(package)
     {
         let id = PackageId::new(package);
         for declaration in &mut rows {

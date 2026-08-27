@@ -55,7 +55,7 @@ use tcl_dialect::{DialectSet, LibraryVersionOverrides, TclVersion};
 use crate::hover::OptionSpec;
 use crate::model::surface::{
     BuildCapability, CapabilityPredicate, Provider, SurfaceDeclaration, TCL_LINES,
-    VENDOR_BIT_PACKAGES, VENDOR_BITS, ambient_placement_packages, is_closed_world_package,
+    VENDOR_BIT_PACKAGES, VENDOR_BITS, is_closed_world_package, is_placement_gated_package,
     vendor_surface_package,
 };
 // The vendor-surface summary payload: plain registry-derived data, not
@@ -390,35 +390,34 @@ impl ResolvedContext {
             .any(|required| required.as_ref() == package)
     }
 
-    /// Whether the package provider `package` is active in this context
-    /// under the environment's world policy (§5.3):
+    /// Whether the package **provider** `package` supplies declarations in
+    /// this context — the carrier question, asked of a
+    /// [`Provider::Package`] row:
     ///
     /// - the environment's own vendor surface (the interim
     ///   [`vendor_surface_package`] bridge) and its **ambient** placements
     ///   are always active — they *are* the modelled runtime, under every
     ///   policy (a closed world is exactly its ambient closure);
-    /// - a **hosted** placement grants no availability by itself — it only
+    /// - a **hosted** placement carries no declarations by itself — it only
     ///   supplies the axis floor, exactly as the old hosted `LibraryPin`s
-    ///   (Tk, Itcl) never granted visibility — so hosted packages, placed
-    ///   or not, activate through an explicit require under the open
-    ///   policies and never under `Closed`;
+    ///   (Tk, Itcl) never granted visibility — so a hosted package carries
+    ///   its rows only through an explicit require, and never under
+    ///   `Closed`;
     /// - an unrequired **closed-world** package (another environment's
-    ///   surface) never resolves — the old `vendor_ambient_packages` rule.
+    ///   surface) never carries — the old `vendor_ambient_packages` rule.
     ///
-    /// (`Open`'s "hosted packs resolve everywhere" is a statement about
-    /// the workspace/document tiers that join in P2; a bare environment
-    /// context has no hosted world beyond its explicit requires, which is
-    /// exactly the old registry-level behaviour the equivalence sweeps
-    /// pin.)
+    /// Deliberately **narrower** than [`Self::package_active`]: the
+    /// translated `Provider::Package` row is a full-axis fallback the
+    /// mechanical translation adds for every owning package, so treating it
+    /// as leniently active would resurrect a spec its Tcl-core row already
+    /// excluded (`tcltest::bytestring` under 9.x — pinned by
+    /// `an_unplaced_hosted_package_row_needs_an_explicit_require`).
     #[must_use]
-    pub fn package_active(&self, package: &str) -> bool {
+    fn package_provider_active(&self, package: &str) -> bool {
         if vendor_surface_package(self.environment.id.as_str()) == Some(package) {
             return true;
         }
-        if self
-            .placement(package)
-            .is_some_and(|placement| placement.ambient)
-        {
+        if self.placement_is_ambient(package) {
             return true;
         }
         if is_closed_world_package(package) {
@@ -428,6 +427,53 @@ impl ResolvedContext {
             WorldPolicy::Closed => false,
             WorldPolicy::AmbientPlusRequire | WorldPolicy::Open => self.is_required(package),
         }
+    }
+
+    /// Whether `package` is **in this document's world** under the
+    /// environment's strictness policy (§5.3) — the availability question,
+    /// as opposed to [`Self::package_provider_active`]'s carrier question:
+    ///
+    /// - everything [`Self::package_provider_active`] admits (the ambient
+    ///   closure, the vendor surface, an explicit require);
+    /// - plus, outside a **closed** world, any package no environment owns
+    ///   as its closed-world runtime — §5.3's lenient `open` default,
+    ///   "hosted packs visible, W120 advisory";
+    /// - and nothing at all under `Closed`, where `package require` is not
+    ///   part of the language.
+    ///
+    /// **P3 (the Tk pilot).** This is the query ledger row F4 retires
+    /// `tk_loaded` / `hosts_tk` / the `TK_PACKAGE` substring scan onto, and
+    /// the pilot is what makes it load-bearing: `Tk` is ambient under the
+    /// `tk` environment and hosted under plain Tcl, so one function answers
+    /// "is Tk in this document's world?" for both, and the two answers
+    /// differ for the right reason — the placement, not the name. Callers
+    /// wanting "…without a `package require`" ask
+    /// [`Self::ambient_package`]; callers wanting "could this environment
+    /// host it at all?" ask [`Self::can_host_package`].
+    #[must_use]
+    pub fn package_active(&self, package: &str) -> bool {
+        self.package_provider_active(package)
+            || (self.environment.policy_defaults.closed_world != WorldPolicy::Closed
+                && !is_closed_world_package(package))
+    }
+
+    /// Whether this environment can **host** `package` as a `package
+    /// require` — it declares a placement for it (§3.2's placement
+    /// claims).
+    ///
+    /// The placement-model face of the retired `DialectProfile::hosts_tk`
+    /// and of `DocumentEnvironment::can_host_package`'s lenient-sink
+    /// special case (ledger F4): a closed-world vendor shell — the F5
+    /// surfaces, the EDA shells, `bpf`, `spectcl` — declares no Tk
+    /// placement and therefore cannot host it however the source spells
+    /// its `package require`, while every plain-Tcl environment (the
+    /// lenient `tcl` sink included) and `tk` itself declares one.
+    ///
+    /// Distinct from [`Self::package_active`]: hosting is what the
+    /// *environment* offers, activation is what this *document* got.
+    #[must_use]
+    pub fn can_host_package(&self, package: &str) -> bool {
+        self.placement(package).is_some()
     }
 
     /// Whether `provider` is active here: a core provider iff it is the
@@ -463,7 +509,7 @@ impl ResolvedContext {
                 }
                 false
             }),
-            Provider::Package(package) => self.package_active(package.as_str()),
+            Provider::Package(package) => self.package_provider_active(package.as_str()),
         }
     }
 
@@ -532,35 +578,23 @@ impl ResolvedContext {
 
     /// The authoring mask this context admits — the environment-derived
     /// mirror of the old `availability_mask` (sweep-pinned per catalogue
-    /// environment). The lenient `tcl` fallback and `tk` environments
-    /// derive the permissive full-ladder mask, exactly as the old
-    /// fallback profile answered.
+    /// environment). The lenient `tcl` fallback derives the permissive
+    /// full-ladder mask, exactly as the old fallback profile answered;
+    /// `tk` derives that ladder **plus** the `TK` bit, off its ambient
+    /// placement.
+    ///
+    /// **P3 (the Tk pilot).** Until the pilot this field had a second,
+    /// injected value: `DocumentEnvironment::document_context` overrode
+    /// the derivation with the threaded profile's mask, because a `tk`
+    /// document has always been answered under the additive `TK` bit and
+    /// the derivation could not produce it. That door
+    /// (`with_authoring_mask`) is deleted — the ambient Tk placement
+    /// derives the bit — so the field now has exactly one source,
+    /// [`compute_authoring_mask`], for every environment, and the
+    /// analyser-vs-unit `tk` mask asymmetry waves 1-2 carried is gone.
     #[must_use]
     pub fn authoring_mask(&self) -> DialectSet {
         self.authoring_mask
-    }
-
-    /// This context with its **transitional** authoring mask replaced —
-    /// the P1-F interop door, and the only way that field is ever anything
-    /// but [`compute_authoring_mask`]'s derivation.
-    ///
-    /// The one sanctioned user is the document ingress's `tk` promotion
-    /// ([`crate::model::DocumentEnvironment::document_context`]): `tk` is an
-    /// environment whose *derived* mask is the permissive fallback's — the
-    /// parity sweep pins that, because the analyser has always resolved the
-    /// `tk` name to the fallback profile — while the profile a `tk`
-    /// document threads carries the additive `TK` bit, and every consumer
-    /// asking a mask-shaped availability question about a `tk` document has
-    /// always been answered under that wider mask. P3 deletes this along
-    /// with the mask itself: once the Tk pilot makes the placement ambient,
-    /// `package_active("Tk")` puts Tk in the world for real and the
-    /// declaration rows answer without a bit.
-    #[must_use]
-    pub fn with_authoring_mask(&self, authoring_mask: DialectSet) -> Self {
-        Self {
-            authoring_mask,
-            ..self.clone()
-        }
     }
 
     /// The environment's option-gating version ceiling — the old
@@ -582,18 +616,33 @@ impl ResolvedContext {
     }
 
     /// Whether a `required_package` gate is satisfied here — the old
-    /// `ProfileQueries::package_available` rule with context-derived
-    /// inputs: a hosted library (never ambient in any environment) is
-    /// always satisfied (W120 owns the nag), a closed-world vendor
-    /// package only where this context ships it ambient.
+    /// `ProfileQueries::package_available` rule, restated over the
+    /// placement model.
+    ///
+    /// Two classes, and the split is data (§3.2's placement claims), not a
+    /// name list:
+    ///
+    /// - a package **no** environment runs as part of its own runtime
+    ///   ([`is_placement_gated_package`] is false — `Itcl`, every tcllib
+    ///   module) is always satisfied: the model does not know where it is
+    ///   installed, so W120 owns the nag, exactly as before;
+    /// - a **placement-gated** package answers [`Self::package_active`] —
+    ///   the environment's ambient closure, plus (outside a closed world)
+    ///   the lenient hosted rule and this document's own requires.
+    ///
+    /// **P3 (the Tk pilot)**: `Tk` moves from the first class into the
+    /// second, because `wish` runs it ambiently. The single enumerated
+    /// consequence is that a **closed** world stops resolving Tk: a `.bpf`
+    /// or `.tclspec` document can no longer call `wm` (`package require`
+    /// is not part of either language, so it never could), while every
+    /// open world answers exactly as before.
+    ///
+    /// [`is_placement_gated_package`]: crate::model::surface::is_placement_gated_package
     #[must_use]
     pub fn required_package_available(&self, required: Option<&str>) -> bool {
         match required {
             None => true,
-            Some(package) => {
-                self.placement_is_ambient(package)
-                    || !ambient_placement_packages().contains(package)
-            }
+            Some(package) => !is_placement_gated_package(package) || self.package_active(package),
         }
     }
 
@@ -1098,7 +1147,20 @@ fn release_line(
 /// admitted exactly when the core axis's point primary sits inside the
 /// line (no point primary — the lenient environments — admits the whole
 /// ladder); the iRules core admits the bare `IRULES` bit; each vendor bit
-/// is admitted when its surface package is active in this context.
+/// is admitted when this context's own runtime carries its surface
+/// package — the environment's vendor surface, or a package it places
+/// **ambient**.
+///
+/// The vendor conjunct is deliberately narrower than
+/// [`ResolvedContext::package_active`]: the mask is the old model's
+/// "which profile does this document thread?" vocabulary, and a *hosted*
+/// library that merely resolves leniently (Tk under `tclsh`, every
+/// tcllib package) never set a bit. Reading `package_active` here would
+/// hand `tcl8.6` the `TK` bit the moment P3 routed Tk through the
+/// placement model. The pinned consequence is the one the pilot wants:
+/// `tk` earns the `TK` bit from its **ambient** placement, which is
+/// exactly the promotion `DocumentEnvironment::document_context` used to
+/// apply by hand.
 fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
     let mut mask = DialectSet::empty();
     if let Some(core) = context.environment.core {
@@ -1133,7 +1195,9 @@ fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
         }
     }
     for (bit, package) in VENDOR_BITS {
-        if context.package_active(package) {
+        if vendor_surface_package(context.environment.id.as_str()) == Some(package)
+            || context.placement_is_ambient(package)
+        {
             mask = mask.union(bit);
         }
     }
@@ -1674,6 +1738,152 @@ mod tests {
         );
     }
 
+    // --- P3: the Tk pilot's placement model ---------------------------
+
+    /// The pilot's central claim, stated as one table: `Tk` is one
+    /// package whose availability is decided by **placement plus policy**,
+    /// and the three answers a caller can want are three distinct queries
+    /// that disagree in exactly the right places.
+    #[test]
+    fn tk_is_one_package_with_three_placement_answers() {
+        // (environment, in the world, ambient — no require needed, hostable)
+        for (environment, active, ambient, hostable) in [
+            // `wish`: ambient. Everything true, and W120 owns the silence.
+            ("tk", true, true, true),
+            // A release-pinned `tclsh`: hosted. Visible under the open
+            // world (§5.3's lenient default), but not shipped, so W120 nags
+            // and the `TK` authoring bit stays off.
+            ("tcl8.6", true, false, true),
+            ("tcl9.0", true, false, true),
+            // The lenient sink declares the same hosted placement.
+            ("tcl", true, false, true),
+            // A closed world is exactly its ambient closure: `package
+            // require` is not part of the language, so Tk is neither
+            // active nor hostable.
+            ("f5-irules", false, false, false),
+            ("bpf", false, false, false),
+            ("spectcl", false, false, false),
+            // Ambient-plus-require shells host nothing they did not place.
+            ("f5-iapps", true, false, false),
+            ("f5-tmsh", true, false, false),
+            // An EDA shell is open, so the lenient hosted rule applies —
+            // but it declares no Tk placement, so it cannot host one.
+            ("xilinx-eda-tcl", true, false, false),
+        ] {
+            let ctx = context(environment);
+            assert_eq!(ctx.package_active("Tk"), active, "{environment} active");
+            assert_eq!(ctx.ambient_package("Tk"), ambient, "{environment} ambient");
+            assert_eq!(
+                ctx.can_host_package("Tk"),
+                hostable,
+                "{environment} hostable"
+            );
+        }
+    }
+
+    /// `Tk` is ambient somewhere **and** hosted elsewhere, which is what
+    /// keeps it out of the closed-world vocabulary: reading ambience alone
+    /// would classify it as a vendor runtime the moment the pilot placed
+    /// it, and every Tk command would vanish from plain Tcl.
+    #[test]
+    fn tk_is_a_library_with_an_ambient_host_not_a_vendor_surface() {
+        use crate::model::surface::{is_closed_world_package, is_placement_gated_package};
+        assert!(!is_closed_world_package("Tk"));
+        assert!(is_placement_gated_package("Tk"));
+        assert!(context("tk").placement_is_ambient("Tk"));
+        assert!(context("tcl8.6").can_host_package("Tk"));
+        assert!(!context("tcl8.6").placement_is_ambient("Tk"));
+        // The vendor runtimes stay closed-world; the unplaced libraries
+        // stay ungated (W120 owns their nag, as before).
+        for vendor in ["f5-irules-cmds", "f5-iapps-cmds", "Expect"] {
+            assert!(is_closed_world_package(vendor), "{vendor}");
+        }
+        for library in ["Itcl", "csv", "struct::graph", "tcltest"] {
+            assert!(!is_closed_world_package(library), "{library}");
+            assert!(!is_placement_gated_package(library), "{library}");
+        }
+    }
+
+    /// Every `required_package: Some("Tk")` spec now carries the package
+    /// conjunct, so the Tk surface resolves through
+    /// [`ResolvedContext::package_active`] rather than off its
+    /// `Core(Tcl)` row. The surviving core row is specificity data — the
+    /// breadth the coexisting `get_for_dialect` popcount ordering needs —
+    /// which is why it is asserted here rather than deleted.
+    #[test]
+    fn tk_declarations_are_gated_on_the_package_provider() {
+        use crate::model::surface::{CapabilityPredicate, PackageId, Provider};
+        let spec = CommandSpec {
+            name: "context-test",
+            dialects: Some(DialectSet::TK_AND_TCL),
+            required_package: Some("Tk"),
+            ..CommandSpec::DEFAULT
+        };
+        let declarations = declarations_for_spec(&spec);
+        assert!(
+            declarations
+                .iter()
+                .all(|row| row.predicate
+                    == CapabilityPredicate::RequiresPackage(PackageId::new("Tk"))),
+            "{declarations:?}"
+        );
+        assert!(
+            declarations
+                .iter()
+                .any(|row| row.provider == Provider::Package(PackageId::new("Tk")))
+        );
+        // Specificity is unchanged: five Tcl ladder releases + the Tk
+        // vendor-bit package = the old `TK_AND_TCL` mask popcount of 6.
+        assert_eq!(specificity_breadth(&declarations), 6);
+        // …and availability follows the placement query exactly.
+        for environment in ["tk", "tcl8.6", "tcl", "f5-iapps"] {
+            assert!(
+                context(environment).is_available(&declarations),
+                "{environment}"
+            );
+        }
+    }
+
+    /// The **one enumerated P3 delta** from the old model, pinned
+    /// directly rather than only as an allowlist in the P1-E sweeps: a
+    /// closed world stops resolving the Tk surface. `package require` is
+    /// not part of the `bpf` or `spectcl` language, so `wm` was never
+    /// callable there; the old profile mask admitted it only because
+    /// `TK_AND_TCL` unions the whole Tcl ladder.
+    #[test]
+    fn tk_is_closed_out_of_closed_worlds() {
+        let spec = CommandSpec {
+            name: "context-test",
+            dialects: Some(DialectSet::TK_AND_TCL),
+            required_package: Some("Tk"),
+            ..CommandSpec::DEFAULT
+        };
+        let declarations = declarations_for_spec(&spec);
+        for closed in ["bpf", "spectcl", "f5-irules"] {
+            assert!(!context(closed).is_available(&declarations), "{closed}");
+            assert!(
+                !context(closed).required_package_available(Some("Tk")),
+                "{closed}"
+            );
+        }
+        // An explicit require cannot open a closed world either.
+        let mut required = context("spectcl");
+        required.require_package("Tk", None);
+        assert!(!required.is_available(&declarations));
+        // Nothing else moves: an unplaced library keeps the old lenient
+        // answer under the same closed worlds.
+        for closed in ["bpf", "spectcl"] {
+            assert!(
+                context(closed).required_package_available(Some("Itcl")),
+                "{closed}"
+            );
+            assert!(
+                context(closed).required_package_available(Some("csv")),
+                "{closed}"
+            );
+        }
+    }
+
     #[test]
     fn available_at_targets_names_the_covered_subset() {
         let ctx = context("tcl");
@@ -1802,17 +2012,29 @@ mod tests {
                 );
             }
         }
-        // The analyser resolved both `tcl` (and every unknown name) and
-        // the set-only `tk` ingress to the permissive fallback profile;
-        // their environments derive the same permissive facts.
+        // The analyser resolved `tcl` (and every unknown name) to the
+        // permissive fallback profile; its environment derives the same
+        // permissive facts.
         let plain = DialectProfile::plain_tcl();
-        for lenient in ["tcl", "tk"] {
-            let ctx = context(lenient);
-            assert_eq!(ctx.authoring_mask(), plain.availability_mask, "{lenient}");
-            assert_eq!(ctx.tcl_version_ceiling(), None, "{lenient}");
-            assert!(ctx.operator_heads_are_commands(), "{lenient}");
-            assert_eq!(ctx.vendor_authoring_bit(), None, "{lenient}");
-        }
+        let ctx = context("tcl");
+        assert_eq!(ctx.authoring_mask(), plain.availability_mask);
+        assert_eq!(ctx.tcl_version_ceiling(), None);
+        assert!(ctx.operator_heads_are_commands());
+        assert_eq!(ctx.vendor_authoring_bit(), None);
+        // `tk` derives the same permissive facts **plus** the `TK` bit —
+        // P3: its ambient Tk placement produces the bit the ingress used
+        // to inject over this derivation (`with_authoring_mask`, deleted).
+        // It is still not a *vendor* environment: `TK` is a library bit,
+        // so no vendor authoring bit and no ceiling.
+        let tk = context("tk");
+        assert_eq!(
+            tk.authoring_mask(),
+            plain.availability_mask.union(DialectSet::TK)
+        );
+        assert_eq!(tk.tcl_version_ceiling(), None);
+        assert!(tk.operator_heads_are_commands());
+        assert_eq!(tk.vendor_authoring_bit(), None);
+        assert!(tk.placement_is_ambient("Tk"));
     }
 
     /// **P1-F parity sweep 2**: the spec/subcommand/option availability
@@ -1832,7 +2054,7 @@ mod tests {
                 for spec in universe.specs(name) {
                     assert_eq!(
                         ctx.spec_available(spec),
-                        profile.is_available(spec),
+                        crate::model::assembly::tests::old_available_after_p3(profile, spec),
                         "`{name}` under `{}`",
                         profile.name
                     );

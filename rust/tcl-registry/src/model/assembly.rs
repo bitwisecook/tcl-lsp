@@ -472,7 +472,7 @@ pub fn side_effect_hints_in_context<'r>(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::cache::registry_for_profile;
     use crate::profile_queries::ProfileQueries;
@@ -485,6 +485,37 @@ mod tests {
         let definition = environments.resolve(profile_name).expect(profile_name);
         let identity = environments.identity_of(&definition);
         registry_for_environment(&definition, &identity, &KeyedVersions::default())
+    }
+
+    /// The old model's availability answer, **minus the one enumerated P3
+    /// delta**: `Tk` is a placement-gated package now (the `tk`
+    /// environment runs it ambiently), so a **closed** world no longer
+    /// resolves the Tk surface. `package require` is not part of the
+    /// language in `bpf` or `spectcl`, so a Tk command was never callable
+    /// there — the old profile mask admitted it because `TK_AND_TCL`
+    /// unions the whole Tcl ladder and the old package gate only
+    /// subtracted *other* environments' ambient surfaces.
+    ///
+    /// This is the only divergence in the P1-E acceptance sweeps after
+    /// P3; every open world (the five plain-Tcl releases, the lenient
+    /// sink, the F5 shells, the EDA shells, `expect`) answers exactly as
+    /// before. `tk_is_closed_out_of_closed_worlds` pins the new answer
+    /// directly.
+    pub(crate) fn old_available_after_p3(profile: &DialectProfile, spec: &CommandSpec) -> bool {
+        profile.is_available(spec) && !closed_world_tk_delta(profile.name, spec)
+    }
+
+    /// Whether `(environment, spec)` is one of the enumerated P3 rows:
+    /// a `Tk`-gated spec under a [`WorldPolicy::Closed`] environment.
+    fn closed_world_tk_delta(environment: &str, spec: &CommandSpec) -> bool {
+        if spec.required_package != Some("Tk") {
+            return false;
+        }
+        EnvironmentRegistry::compiled()
+            .resolve(environment)
+            .is_some_and(|definition| {
+                definition.policy_defaults.closed_world == tcl_dialect::model::WorldPolicy::Closed
+            })
     }
 
     /// The identity facts two same-shaped spec copies share (the tmsh
@@ -532,7 +563,7 @@ mod tests {
             let definition = environments.resolve(profile.name).expect(profile.name);
             let context = ResolvedContext::resolve(definition, &keyed);
             for (name, spec, declarations) in &translated {
-                let old = profile.is_available(spec);
+                let old = old_available_after_p3(profile, spec);
                 let new = context.is_available(declarations);
                 assert_eq!(
                     old, new,
@@ -561,7 +592,11 @@ mod tests {
             let old_registry = registry_for_profile(profile);
             let old_visible: BTreeSet<&str> = old_registry
                 .command_names()
-                .filter(|name| profile.resolve_command(old_registry, name).is_some())
+                .filter(|name| {
+                    profile
+                        .resolve_command(old_registry, name)
+                        .is_some_and(|spec| !closed_world_tk_delta(profile.name, spec))
+                })
                 .collect();
             let new_registry = new_registry_for(profile.name);
             let new_visible: BTreeSet<&str> =
@@ -616,7 +651,6 @@ mod tests {
     /// within a resolved head: see [`c7_hint_walk_counterexamples`].)
     #[test]
     fn side_effect_hint_selection_matches_the_hand_rolled_rule() {
-        use crate::profile_queries::ProfileQueries;
         use crate::side_effects::SideEffect;
         use tcl_dialect::DialectProfile;
 
@@ -627,7 +661,7 @@ mod tests {
             subcommand: Option<&str>,
         ) -> Option<Vec<SideEffect>> {
             for spec in registry.specs(command).iter().rev() {
-                if !profile.is_available(spec) {
+                if !old_available_after_p3(profile, spec) {
                     continue;
                 }
                 if let Some(sub_name) = subcommand
@@ -895,19 +929,42 @@ mod tests {
     }
 
     /// The new-model-only environments behave sensibly even though no old
-    /// profile pins them: the lenient `tk` environment resolves the Tk
-    /// surface (through its Tcl core rows, with the hosted placement
-    /// supplying the Tk-axis floor — review B11), and the closed
-    /// `f5-irules` world never does.
+    /// profile pins them, and P3's placement model decides the whole Tk
+    /// surface at the generation boundary: the `tk` environment ships Tk
+    /// **ambient** (`wish`), every plain-Tcl environment **hosts** it
+    /// (visible under the open world, W120 nagging), and a **closed**
+    /// world assembles none of it.
     #[test]
     fn the_tk_environment_hosts_tk_without_a_vendor_bit() {
         let tk = new_registry_for("tk");
         assert!(tk.resolve_command("button").is_some());
         assert!(tk.resolve_command("lmap").is_some(), "core rides along");
-        let irules = new_registry_for("f5-irules");
-        assert!(
-            irules.resolve_command("button").is_none(),
-            "a closed world without a Tk placement never resolves Tk"
-        );
+        assert!(tk.context().placement_is_ambient("Tk"));
+        // Hosted, and still resolvable: §5.3's lenient open world.
+        for hosted in ["tcl", "tcl8.6", "tcl9.0"] {
+            let generation = new_registry_for(hosted);
+            assert!(generation.resolve_command("button").is_some(), "{hosted}");
+            assert!(!generation.context().placement_is_ambient("Tk"), "{hosted}");
+            assert!(generation.context().can_host_package("Tk"), "{hosted}");
+        }
+        // Closed worlds assemble no Tk at all — `package require` is not
+        // part of any of these languages, so the surface was never
+        // callable there (the one enumerated P3 delta; see
+        // `old_available_after_p3`).
+        for closed in ["f5-irules", "bpf", "spectcl"] {
+            let generation = new_registry_for(closed);
+            for name in ["button", "wm", "pack", "ttk::treeview"] {
+                assert!(
+                    generation.resolve_command(name).is_none(),
+                    "`{name}` under `{closed}`"
+                );
+            }
+            assert!(!generation.context().can_host_package("Tk"), "{closed}");
+        }
+        // …and the closure is exactly Tk-shaped: the core surface and the
+        // environment's own words are untouched.
+        let spectcl = new_registry_for("spectcl");
+        assert!(spectcl.resolve_command("lmap").is_some());
+        assert!(spectcl.resolve_command("option").is_some(), "spectcl word");
     }
 }

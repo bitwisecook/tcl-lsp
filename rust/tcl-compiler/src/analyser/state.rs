@@ -456,11 +456,17 @@ pub struct Analyser {
     /// `tk` dialect / `package require Tk` fact resolved at flush time.  Set
     /// per walk by the `analyse*` entry points so non-Tk files pay nothing.
     pub(super) tk_accumulation_enabled: bool,
-    /// Whether the ingest dialect string was literally `"tk"` (a wish
-    /// shell). `tk` is a library over a Tcl base, not a catalog profile
-    /// (dialect-profile-model.md §7.2), so its shell identity is recorded
-    /// here at ingest for the Tk geometry checks.
-    pub(super) tk_dialect: bool,
+    /// Whether this document's environment ships the `Tk` package
+    /// **ambient** — i.e. Tk is already loaded before the first byte runs,
+    /// so no `package require Tk` exists to find (a `wish` shell).
+    ///
+    /// P3 (ledger F4): resolved at ingest from the environment's placement
+    /// (`ResolvedContext::ambient_package("Tk")`), not from the ingest
+    /// dialect *string* being literally `"tk"`. `Tk` is a package with a
+    /// placement, so any environment — compiled or pack-declared — that
+    /// says "Tk is ambient here" activates the Tk geometry checks without
+    /// a require, and nothing has to be named `tk` to do it.
+    pub(super) tk_ambient: bool,
     /// Tk checks (TK1002 / TK1003): diagnostics buffered during the walk and
     /// emitted post-walk by [`Self::flush_tk_geometry_diagnostics`], once the
     /// `tk` dialect / `package require Tk` activation condition is resolved.
@@ -1456,7 +1462,7 @@ impl Analyser {
             regex_vars: HashSet::new(),
             current_event: None,
             tk_accumulation_enabled: false,
-            tk_dialect: false,
+            tk_ambient: false,
             tk_pending_diags: Vec::new(),
             tk_domains: std::collections::BTreeMap::new(),
             version_gate_sites: Vec::new(),
@@ -1597,18 +1603,20 @@ impl Analyser {
 
     /// Resolve `dialect` at a walk ingress (centralisation R-a): stash
     /// the environment and this walk's registry generation, derive the
-    /// interop [`Self::profile`], and return whether the document runs
-    /// the `tk` environment (the fact `availability_for_name`'s `TK`-bit
-    /// union used to carry).
+    /// interop [`Self::profile`], and return whether this environment
+    /// ships `Tk` **ambient** ([`Self::tk_ambient`] — the fact
+    /// `availability_for_name`'s `TK`-bit union used to carry, now a
+    /// placement query on the walk's own context).
     pub(super) fn resolve_walk_environment(&mut self, dialect: &str) -> bool {
         let environment = crate::environment_ingress::resolve_environment(dialect);
         self.profile = environment.analyser_profile();
-        let tk_environment = environment.is_tk();
         let keyed =
             crate::environment_ingress::DocumentEnvironment::keyed_versions(&self.library_versions);
-        self.context = Some(environment.context_registry(&keyed, self.pack_overlay));
+        let generation = environment.context_registry(&keyed, self.pack_overlay);
+        let tk_ambient = generation.context().ambient_package("Tk");
+        self.context = Some(generation);
         self.environment = Some(environment);
-        tk_environment
+        tk_ambient
     }
 
     /// Set the W108 non-ASCII detection mode (`tclLsp.style.nonAscii`),
@@ -1871,7 +1879,7 @@ impl Analyser {
         // Stash the source so handlers (recovery, diagnostic
         // emitters) can re-slice it.
         self.source = source.to_string();
-        let tk_environment = self.resolve_walk_environment(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         // Tell pack hooks which dialect they are running under, for the
         // length of this walk. A hook's `ctx.dialect` used to be derived from
         // the call's `TclVersion`, which can only spell a release — so an
@@ -1882,9 +1890,8 @@ impl Analyser {
         let _dialect_scope = tcl_registry::pack_hooks::DialectScope::enter(Some(self.profile.name));
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, tk_environment);
-        self.tk_dialect = tk_environment;
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
         // §5.4 range targeting: resolve configured + directive-declared
         // version targets for this walk (a no-op for the undeclared
         // majority).
@@ -2287,12 +2294,11 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        let tk_environment = self.resolve_walk_environment(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, tk_environment);
-        self.tk_dialect = tk_environment;
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
         // §5.4 range targeting — same resolution as `analyse`.
         self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;
@@ -2382,12 +2388,11 @@ impl Analyser {
         self.source = source.to_string();
         // Same-source memo, cleared with the source it was derived from.
         self.irules_event_bodies = None;
-        let tk_environment = self.resolve_walk_environment(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_accumulation_enabled =
-            super::tk_checks::tk_checks_could_apply(source, tk_environment);
-        self.tk_dialect = tk_environment;
+        self.tk_accumulation_enabled = super::tk_checks::tk_checks_could_apply(source, tk_ambient);
+        self.tk_ambient = tk_ambient;
         // §5.4 range targeting — same resolution as `analyse`.
         self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;

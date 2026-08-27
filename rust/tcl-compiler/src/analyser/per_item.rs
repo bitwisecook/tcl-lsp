@@ -311,9 +311,10 @@ impl Analyser {
         // also falls back to full analysis rather than diverge (a parent
         // created outside a proc would otherwise look missing inside it, and a
         // `pack`/`grid` conflict spanning a proc body would never flush).
-        // Only the *dialect* half of Tk activation is decidable here; the
-        // `package require Tk` half is a whole-file fact established by the
-        // walk, and is checked after the body pass below (issue #1188).
+        // Only the *ambient-placement* half of Tk activation is decidable
+        // here; the `package require Tk` half is a whole-file fact
+        // established by the walk, and is checked after the body pass below
+        // (issue #1188).
         //
         // Evaluated one gate at a time (rather than as one `||` chain) so the
         // telemetry can name which fired — these are checked in cheapest-first
@@ -325,7 +326,10 @@ impl Analyser {
                 Some(PerItemFallback::StubDirective)
             } else if super::utils::has_sidecar_stubs(self.file_path.as_deref(), profile) {
                 Some(PerItemFallback::SidecarStub)
-            } else if environment.is_tk() {
+            } else if environment
+                .document_context()
+                .ambient_package(super::tk_checks::TK_PACKAGE)
+            {
                 Some(PerItemFallback::TkActive)
             } else if !self.declared_targets.is_empty()
                 || !super::utils::parse_supports_directives(source).is_empty()
@@ -468,10 +472,10 @@ impl Analyser {
         use std::collections::HashSet;
 
         self.source = source.to_string();
-        let tk_environment = self.resolve_walk_environment(dialect);
+        let tk_ambient = self.resolve_walk_environment(dialect);
         self.result.dialect = dialect.to_string();
         self.result.library_versions = self.library_versions.clone();
-        self.tk_dialect = tk_environment;
+        self.tk_ambient = tk_ambient;
         // The per-item path deliberately accumulates **no** Tk state, unlike
         // `analyse` / `analyse_chunked` / `analyse_commands`.  Everything the
         // accumulation feeds is discarded unless Tk turns out to be active, and

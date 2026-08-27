@@ -324,7 +324,7 @@ remain for other crates; deletion is P1-G.
 | F1 | The four mixed lookup APIs as provider-facing surface (`get`, `get_for_dialect`/`best_visible`, `ProfileQueries::resolve_command`, `DocumentFloor`) | two typed views: assistance `(environment, floors)` and semantic realm `BindingKnowledge`; `get` becomes registry-internal | P1a *(partial: the assistance half is ported — no LSP crate calls `ProfileQueries`, and `DocumentFloor` now reads placements/floors off the resolved context. The realm view now **exists** (the analyser oracle and `tcl_compiler::realm` answer `BindingKnowledge`), and the compiler's semantic selections go through it; `get`/`get_for_dialect` stay provider-facing for the LSP's remaining direct readers — the ~10-site tail R-c enumerates)* |
 | F2 | `profile_for_dialect` + `registry_for_dialect_profile` (ruling B's hop) and their pin tests | environment registry ingress | P1 **done** *(both are now thin faces of `resolve_environment`; the `tk` triangle the hop existed to reproduce is gone — `tk` is an environment, its store is the same plain-Tcl `Arc`, and the `TK` fact is `is_tk`)* |
 | F3 | `LanguageDialect::{Profile,Set}` (Set exists only for `tk`) | environment handle | P1 **done** *(one arm: the resolved environment's `unit_profile`; the language-id ingress accepts a contributed identity, never a legacy alias — review B7)* |
-| F4 | `tk_loaded` computations, `tk_preview`'s `profile_for_dialect("tk")`, `hosts_tk()` consumers, `TK_PACKAGE` substring activation | "provider `Tk` active" placement query | P1/P3 *(partial: `tk_loaded` is the resolved-environment identity and `hosts_tk` is `can_host_package("Tk")` — a placement query; `package_active("Tk")` proper waits for the P3 pilot to make the placement ambient, and with it the document mask's `TK` bit)* |
+| F4 | `tk_loaded` computations, `tk_preview`'s `profile_for_dialect("tk")`, `hosts_tk()` consumers, `TK_PACKAGE` substring activation | "provider `Tk` active" placement query | **done (P3)** *(the `tk` environment places `Tk` **ambient** on Tk's own axis, every plain-Tcl environment — the lenient sink included — places it **hosted**, and the three questions are three context queries: `package_active("Tk")` (in this document's world, §5.3 policy), `ambient_package("Tk")` (there with no `package require` — the Tk-checks activation fact and W120's silence), `can_host_package("Tk")` (this environment declares a placement). No consumer reads an environment **name** any more: `DocumentEnvironment::is_tk` is private and has two callers, the profile-identity interop and the seam's own pins. The document mask's `TK` bit is derived from the ambient placement, so `ResolvedContext::with_authoring_mask` and the second leaked document-context value are deleted)* |
 | F5 | Semantic-token's process-wide `f5-irules` registry `OnceLock`; `bigip.rs`'s hardcoded dialect strings | environment-keyed, generation-aware handles | P1 **done** *(both resolve through the seam; the `OnceLock` memoises the generation's store rather than a name-keyed cache entry)* |
 | F6 | Environment-blind workspace index symbols | realm/environment-keyed index rows feeding the four-tier known-anywhere model | P1a |
 | F7 | `registry_with_overlay`'s silent un-overlaid fallback | fail-closed rebuild-or-error on generation miss | P2 *(unchanged by wave 2: the door is now `DocumentEnvironment::context_registry`, which threads the overlay key exactly as `registry_for_profile_if_built` did — including the silent fallback)* |
@@ -350,9 +350,12 @@ and profile-pin/pack-ambient floors through `ResolvedContext`'s query
 surface, whose derived facts (authoring mask, ceiling, operator-head
 rule, placements, floors) are sweep-pinned to the old profile's answers
 for every catalogue environment. `availability_for_name`'s `TK` union
-became the resolved-environment fact (`DocumentEnvironment::is_tk`;
-`package_active("Tk")` takes over in P3 when the Tk placement goes
-ambient and W120's require-nag semantics move with it). The hook-path
+became the resolved-environment fact, and **P3 finished the move**: it is
+now `ResolvedContext::ambient_package("Tk")` — a placement query on the
+walk's own generation, not the environment's name — carried on the
+analyser as `tk_ambient` (was `tk_dialect`), so any environment that
+declares Tk ambient activates the Tk checks and silences W120 without
+being spelled `tk`. The hook-path
 `DialectSet::empty()` bypasses route through the model's
 `resolve_call_in_context` / `resolve_invocation_in_context` primitives
 (context-carrying, selection unchanged — the `// P1a:` seam naming
@@ -552,6 +555,21 @@ ingress forms, the exact `by_name` twin
 the pack-carrying registry cache key deliberately sink `tk` to the
 permissive fallback rather than promoting it, and splitting the two forms
 is what keeps that behaviour rather than silently widening it.
+
+**P3 ruling — the analyser-vs-unit `tk` asymmetry is permanent.** The
+half that was an *availability* split is gone: the `tk` environment's
+ambient Tk placement derives the `TK` authoring bit, so
+`document_authoring_mask()` is a plain read of the generation's own
+context for every environment and the injected second value
+(`ResolvedContext::with_authoring_mask`, plus a second leaked
+document-context) is deleted. What remains is a *catalogue* asymmetry,
+and the classification rule (redesign §2) is what fixes it: `tk` is a
+package plus an environment, never a dialect, so `DialectProfile::find
+("tk")` must keep answering `None` and `analyser_profile` must keep
+sinking to the permissive fallback, while `unit_profile` keeps promoting
+so a compilation unit carries the `tk` identity (name, label, Tk library
+pins). It retires with the interned `DialectProfile` itself, under
+ledger C1/F1 — not before.
 
 `ProfileQueries` has no caller left in these crates: `tcl lookup` and the
 MCP `command_info` answer `resolve_command` / `available_option_names` /

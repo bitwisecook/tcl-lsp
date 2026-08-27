@@ -66,10 +66,12 @@
 //!    `dialect_from_language_id`), so no shipped path changes answer.
 //! 2. **`tk` resolves as an environment, not a parsed bit.** The old
 //!    ingress recognised `tk` by `DialectSet::parse` and synthesised
-//!    `TK_PROFILE`; here it is the `tk` environment, whose
-//!    [`DocumentEnvironment::is_tk`] carries the fact and whose
+//!    `TK_PROFILE`; here it is the `tk` environment, which places the `Tk`
+//!    package **ambient** (P3), so every Tk fact — availability, the `TK`
+//!    authoring bit, the Tk-checks activation, W120's silence — is one
+//!    placement query on the resolved context, and
 //!    [`DocumentEnvironment::unit_profile`] still hands back the same
-//!    typed additive profile. Other `DialectSet` spellings that happened
+//!    typed additive profile for the identity interop. Other `DialectSet` spellings that happened
 //!    to parse (`tcl8.5|tcl8.6` unions) were never valid dialect names and
 //!    now sink to the lenient environment rather than a synthesised
 //!    profile.
@@ -152,16 +154,21 @@ pub fn resolve_known_environment(name: &str) -> Option<DocumentEnvironment> {
 }
 
 impl DocumentEnvironment {
-    /// Whether this is the `tk` environment — the fact that used to ride
-    /// `availability_for_name`'s `TK`-bit union (`tk` is the one ingress
-    /// whose surface is a library placement rather than a profile). The
-    /// placement-driven form ([`ResolvedContext::package_active`] on
-    /// `"Tk"`) takes over in P3, when the Tk pilot makes the placement
-    /// ambient under `wish` and W120's require-nag semantics move with it.
+    /// Whether this is the `tk` environment — an **identity** question
+    /// (the `wish` ingress), never an availability one.
+    ///
+    /// P3 moved every availability reader off this predicate and onto the
+    /// placement queries on the resolved context: "is Tk in this
+    /// document's world?" is `ResolvedContext::package_active("Tk")`, "is
+    /// it there without a `package require`?" is
+    /// `ResolvedContext::ambient_package("Tk")`, and "could this
+    /// environment host it at all?" is
+    /// `ResolvedContext::can_host_package("Tk")`. What is left is the two
+    /// places that genuinely ask which environment this is: the profile
+    /// interop below, and the seam's own pins.
     ///
     /// [`ResolvedContext::package_active`]: crate::model::ResolvedContext::package_active
-    #[must_use]
-    pub fn is_tk(&self) -> bool {
+    fn is_tk(&self) -> bool {
         self.definition.id.as_str() == "tk"
     }
 
@@ -179,6 +186,19 @@ impl DocumentEnvironment {
     /// their same-named profile; the model-only ids (`tcl`, `tk`) map to
     /// the permissive fallback, exactly as the old name ingress resolved
     /// them.
+    ///
+    /// **The `tk` asymmetry against [`Self::unit_profile`] is permanent**
+    /// (P3 ruling). It is not an availability split any more — P3 moved
+    /// the mask onto the derived context, so both faces now answer the
+    /// same availability question — but a *catalogue* one, and the
+    /// classification rule (§2) is what fixes it: `tk` is a package plus
+    /// an environment, never a dialect, so `DialectProfile::find("tk")`
+    /// must keep answering `None` and this face must keep sinking to the
+    /// permissive fallback. Two consumers depend on exactly that — the
+    /// CLI's KCS help filter and the pack-carrying registry cache key
+    /// (centralisation §2.4, wave 3) — and promoting here would silently
+    /// widen both. The asymmetry disappears when the interned
+    /// `DialectProfile` does, under ledger C1/F1.
     #[must_use]
     pub fn analyser_profile(&self) -> &'static DialectProfile {
         DialectProfile::find(self.definition.id.as_str()).unwrap_or_else(DialectProfile::plain_tcl)
@@ -188,8 +208,16 @@ impl DocumentEnvironment {
     /// threading a `DialectProfile` — is built for: as
     /// [`Self::analyser_profile`], except the `tk` environment keeps its
     /// typed additive ingress profile (the old `resolve_known`
-    /// promotion), so the unit's semantic bit and availability mask carry
-    /// the Tk surface.
+    /// promotion), so the unit carries the `tk` **identity** (its name,
+    /// display label, and Tk library pins) rather than the anonymous
+    /// fallback's.
+    ///
+    /// P3 note: the promotion is no longer what carries Tk's
+    /// *availability*. The `tk` environment's own derived authoring mask
+    /// now contains the `TK` bit (its ambient Tk placement produces it),
+    /// so `unit_profile().availability_mask` and
+    /// [`Self::document_authoring_mask`] agree by derivation rather than
+    /// by injection — pinned by `the_document_mask_is_the_threaded_profiles_mask`.
     #[must_use]
     pub fn unit_profile(&self) -> &'static DialectProfile {
         if self.is_tk() {
@@ -197,26 +225,6 @@ impl DocumentEnvironment {
         } else {
             self.analyser_profile()
         }
-    }
-
-    /// Whether this environment can host `package` as a `package
-    /// require` — it declares a placement for it, or it is the lenient
-    /// environment (an unlabelled shell constrains nothing).
-    ///
-    /// The environment-derived face of `DialectProfile::hosts_tk` (ledger
-    /// row F4, generalised off the one package it was written for): a
-    /// closed-world vendor shell — the F5 surfaces, the EDA shells, bpf —
-    /// declares no Tk placement and so cannot host it. P3 replaces the
-    /// remaining Tk callers with the ambient-placement query when the Tk
-    /// pilot lands.
-    #[must_use]
-    pub fn can_host_package(&self, package: &str) -> bool {
-        self.is_lenient()
-            || self
-                .definition
-                .expected_packages
-                .iter()
-                .any(|placement| placement.package.as_ref() == package)
     }
 
     /// Whether `name` is one of this environment's **contributed
@@ -280,33 +288,28 @@ impl DocumentEnvironment {
         (!self.is_lenient()).then(|| self.unit_profile())
     }
 
-    /// The **document** authoring mask: the mask of the profile a document
-    /// of this environment threads ([`Self::unit_profile`]).
+    /// The **document** authoring mask: the mask of the un-overlaid
+    /// generation's [`ResolvedContext`].
     ///
-    /// Identical to the context's own derived
-    /// [`ResolvedContext::authoring_mask`] for every catalogue environment
-    /// and for the lenient sink (both sweep-pinned), and wider for exactly
-    /// one: `tk`, whose additive `TK` bit rides the threaded profile rather
-    /// than the environment derivation. See
-    /// [`ResolvedContext::with_authoring_mask`] for why, and for when it
-    /// goes away.
+    /// P3: this is now a plain read of the derived mask for **every**
+    /// environment, `tk` included. It used to be the threaded profile's
+    /// mask instead, because the derivation could not produce `tk`'s
+    /// additive `TK` bit; the ambient Tk placement produces it now, so
+    /// the injected copy is gone and the sweep
+    /// (`the_document_mask_is_the_threaded_profiles_mask`) pins the two
+    /// equal by derivation.
     ///
     /// [`ResolvedContext::authoring_mask`]: crate::model::ResolvedContext::authoring_mask
-    /// [`ResolvedContext::with_authoring_mask`]: crate::model::ResolvedContext::with_authoring_mask
     #[must_use]
     pub fn document_authoring_mask(&self) -> tcl_dialect::DialectSet {
-        self.unit_profile().availability_mask
+        self.default_context_registry().context().authoring_mask()
     }
 
     /// The context a **document** of this environment is assisted under:
-    /// the un-overlaid generation's context carrying
-    /// [`Self::document_authoring_mask`].
+    /// the un-overlaid generation's own context.
     #[must_use]
     pub fn document_context(&self) -> ResolvedContext {
-        let generation = self.default_context_registry();
-        generation
-            .context()
-            .with_authoring_mask(self.document_authoring_mask())
+        self.default_context_registry().context().clone()
     }
 
     /// The keyed-axis pins for this session's library-version overrides.
@@ -404,41 +407,19 @@ pub fn static_context_for_profile(profile: &DialectProfile) -> &'static ContextR
     static_context_for(profile.name)
 }
 
-/// Every environment id whose **document context** has been promoted to a
-/// `&'static` view (see [`static_document_context_for`]).
-static LEAKED_DOCUMENT_CONTEXTS: OnceLock<Mutex<FxHashMap<String, &'static ResolvedContext>>> =
-    OnceLock::new();
-
 /// The context a **document** of `name` is assisted under: the un-overlaid
-/// generation's [`ResolvedContext`], carrying the document authoring mask
-/// ([`DocumentEnvironment::document_authoring_mask`]).
+/// generation's [`ResolvedContext`].
 ///
-/// This — not `static_context_for(name).context()` — is what an
-/// availability, option, floor, or subcommand question about a *document*
-/// is asked of: the two differ for exactly one environment, `tk`, and the
-/// difference is the additive `TK` bit every such answer has always been
-/// given under. Promoted to `&'static` on the same terms as the
-/// generation itself.
+/// This is what an availability, option, floor, or subcommand question
+/// about a *document* is asked of. **P3 collapsed it onto
+/// `static_context_for(name).context()`**: the two used to differ for
+/// exactly one environment, `tk`, whose additive `TK` bit was injected
+/// over the derivation here; the ambient Tk placement derives it now, so
+/// there is one context per generation and this face is a borrow of it —
+/// no second leak map, no second value that could drift.
 #[must_use]
 pub fn static_document_context_for(name: &str) -> &'static ResolvedContext {
-    let environment = resolve_environment(name);
-    let leaked = LEAKED_DOCUMENT_CONTEXTS.get_or_init(|| Mutex::new(FxHashMap::default()));
-    if let Some(view) = leaked
-        .lock()
-        .expect("document context leak map mutex")
-        .get(environment.id())
-        .copied()
-    {
-        return view;
-    }
-    let context = environment.document_context();
-    let mut guard = leaked.lock().expect("document context leak map mutex");
-    if let Some(view) = guard.get(environment.id()).copied() {
-        return view;
-    }
-    let leaked_context: &'static ResolvedContext = Box::leak(Box::new(context));
-    guard.insert(environment.id().to_owned(), leaked_context);
-    leaked_context
+    static_context_for(name).context()
 }
 
 /// [`static_document_context_for`] keyed by an already-resolved profile.
@@ -544,15 +525,22 @@ mod tests {
     /// equals the mask the old `ProfileQueries` read off the threaded
     /// profile, for every profile an ingress can produce — the catalogue,
     /// the additive `tk`, and the permissive sink every unknown name lands
-    /// on. This is what makes the `ProfileQueries` → `ResolvedContext` port
-    /// behaviour-preserving at the `tk` ingress, where the environment's own
-    /// derived mask is deliberately narrower.
+    /// on.
+    ///
+    /// **P3**: this now holds *by derivation* for every environment, `tk`
+    /// included. Waves 1-2 could only hold it by injection — the document
+    /// context replaced the derived mask with the threaded profile's,
+    /// because `tk`'s derivation had no way to produce the additive `TK`
+    /// bit. The ambient Tk placement produces it, so the injection door
+    /// (`ResolvedContext::with_authoring_mask`) and the second leaked
+    /// document-context value are both deleted, and the generation's own
+    /// context *is* the document context.
     #[test]
     fn the_document_mask_is_the_threaded_profiles_mask() {
         let names: Vec<&str> = DialectProfile::all()
             .iter()
             .map(|profile| profile.name)
-            .chain(["tk", "tcl", "", "no-such-dialect", "irules"])
+            .chain(["tk", "wish", "tcl", "", "no-such-dialect", "irules"])
             .collect();
         for name in names {
             let environment = resolve_environment(name);
@@ -566,21 +554,42 @@ mod tests {
                 environment.unit_profile().availability_mask,
                 "{name} context"
             );
+            // One value, not two: no injected mask over the derivation.
+            assert_eq!(
+                environment.document_context().authoring_mask(),
+                environment
+                    .default_context_registry()
+                    .context()
+                    .authoring_mask(),
+                "{name} derivation"
+            );
         }
-        // The one environment whose derived mask is narrower than the
-        // profile a document of it threads.
+        // The `TK` bit is *derived*, from the `tk` environment's ambient
+        // Tk placement.
         let tk = resolve_environment("tk");
+        let tk_context = tk.default_context_registry();
         assert!(
-            tk.document_authoring_mask()
-                .contains(tcl_dialect::DialectSet::TK)
-        );
-        assert!(
-            !tk.default_context_registry()
+            tk_context
                 .context()
                 .authoring_mask()
-                .contains(tcl_dialect::DialectSet::TK),
-            "the derived mask stays the swept permissive one"
+                .contains(tcl_dialect::DialectSet::TK)
         );
+        assert!(tk_context.context().placement_is_ambient("Tk"));
+        // …and no plain-Tcl environment gains it from the lenient hosted
+        // rule: *hosting* Tk is not *shipping* it.
+        for plain in ["tcl", "tcl8.6", "tcl9.0"] {
+            let environment = resolve_environment(plain);
+            let generation = environment.default_context_registry();
+            let context = generation.context();
+            assert!(
+                !context
+                    .authoring_mask()
+                    .contains(tcl_dialect::DialectSet::TK),
+                "{plain}"
+            );
+            assert!(context.can_host_package("Tk"), "{plain}");
+            assert!(!context.placement_is_ambient("Tk"), "{plain}");
+        }
     }
 
     /// Every name the retired validators accepted still resolves — the union

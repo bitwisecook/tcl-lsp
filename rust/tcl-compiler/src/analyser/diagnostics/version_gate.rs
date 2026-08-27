@@ -3186,5 +3186,70 @@ mod tests {
                 .collect();
             assert_eq!(base, pinned, "single target ⇒ today's behaviour");
         }
+
+        // -- P3: the Tk pilot rides the same range machinery ------------
+        //
+        // §5.4's "packages take range targets exactly like cores" (§3.2,
+        // last bullet), proved on the acceptance case. `Tk` is a package
+        // axis, so `supports Tk …` is the library half of ruling R6's
+        // directive and nothing about it is Tcl-core-specific.
+
+        /// A project declaring `Tk 8.5-8.6` gets warned about an item Tk
+        /// only grew at 8.6 — the deliverable's canonical case. `tk busy`
+        /// is `Lifecycle::introduced_in("8.6")` on the `tk` ensemble.
+        #[test]
+        fn a_tk_range_warns_on_an_item_the_older_tk_lacks() {
+            let src = "# tcl-lsp: supports Tk 8.5-8.6\n\
+                       package require Tk\n\
+                       tk busy hold .\n";
+            let d = diags(src, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("Tk 8.6")
+                    && m.contains("declared targets include")
+                    && m.contains("8.5")),
+                "an 8.6-only Tk subcommand under Tk 8.5-8.6: {d:?}"
+            );
+        }
+
+        /// The three controls that keep the Tk range honest: a range that
+        /// starts at 8.6 is clean, a `tcl` declaration does not gate the
+        /// `Tk` axis (invariant I2 — values from different axes are never
+        /// compared), and an undeclared document is untouched.
+        #[test]
+        fn a_tk_range_is_scoped_to_the_tk_axis() {
+            let body = "package require Tk\ntk busy hold .\n";
+            let covered = format!("# tcl-lsp: supports Tk 8.6-9.0\n{body}");
+            assert!(
+                !fires(&diags(&covered, "tcl8.6"), "W150"),
+                "Tk 8.6-9.0 covers an 8.6 introduction"
+            );
+            // A *core* range naming the same numerals says nothing about
+            // the Tk axis.
+            let core_only = format!("# tcl-lsp: supports tcl 8.5-8.6\n{body}");
+            let d = diags(&core_only, "tcl8.6");
+            assert!(
+                !d.iter().any(|(c, m)| c == "W150" && m.contains("Tk 8.6")),
+                "the core axis must not gate the Tk axis: {d:?}"
+            );
+            assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
+        }
+
+        /// Under `wish` the same declaration works with **no** `package
+        /// require`: the `tk` environment ships Tk ambient, so the range
+        /// is declared against a package the environment already placed.
+        #[test]
+        fn a_tk_range_applies_under_the_ambient_wish_placement() {
+            let src = "# tcl-lsp: supports Tk 8.5-8.6\ntk busy hold .\n";
+            let d = diags(src, "tk");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150" && m.contains("Tk 8.6")),
+                "wish + Tk 8.5-8.6: {d:?}"
+            );
+            assert!(
+                !d.iter().any(|(c, _)| c == "W120"),
+                "and no missing-require nag under an ambient placement: {d:?}"
+            );
+        }
     }
 }
