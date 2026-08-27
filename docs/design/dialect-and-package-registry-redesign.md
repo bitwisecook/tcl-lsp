@@ -93,9 +93,13 @@ Rust-side compatibility shims**: the tk triangle,
 `availability_for_name`'s union, `LanguageDialect::Set` and
 `registry_for_dialect_profile` are **deleted, not wrapped** — and held
 there by `cargo xtask retired-api-gate`. `TK_PROFILE` and the `DialectSet`
-bits survive, not as shims but as the interned catalogue the lexer and the
-executable-IR bundle are still keyed on; that is retirement-ledger row
-**C1**, §11's D1, the largest remaining item of the programme.
+bits survive, not as shims but as the interned catalogue the lexer is still
+keyed on and the authoring mask a `ResolvedContext` derives — retirement-ledger
+row **C1**'s residue. The **executable-IR half of C1 is done** (§11's D1): the
+semantic-analysis bundle, the executable IR, the world-state SSA and the WASM
+and BPF bridges are keyed on a resolved environment, and the lexer key with
+them (§11.4 E1). What is left of C1 is the *lexer's* interned
+`DialectProfile` — D5.
 
 ## 0.05 Standing design principles (owner, 2026-08-27)
 
@@ -1451,11 +1455,14 @@ way to it.** What actually went: `resolve_known`, `availability_for_name`,
 `LanguageDialect::{Profile,Set}`, `head_identity.rs`, the six divergent
 validators, and `side_effects.rs`'s hand-rolled selection — all deleted
 and held at zero by `cargo xtask retired-api-gate`. What is still standing
-in this list: `DialectSet` itself (bits and combinators, behind the
-semantic-facts bundle), `DialectProfile` with `PLAIN_TCL` and `TK_PROFILE`
+in this list: `DialectSet` itself (bits and combinators — no longer behind
+the semantic-facts bundle, which D1 re-keyed, but still the authoring mask a
+`ResolvedContext` derives and the store's internal index),
+`DialectProfile` with `PLAIN_TCL` and `TK_PROFILE`
 as interned statics the seam consumes, `KNOWN_DIALECTS` as the directive
 and CLI vocabulary, and `ProfileQueries` narrowed to `pub(crate)`. All of
-it is ledger row **C1** plus the tooling payload rows — §11's D1 and D15.
+it is ledger row **C1**'s residue (D1's executable-IR half is done; D5's
+lexer half is not) plus the tooling payload rows — §11's D15.
 The per-editor and per-CLI *ingress* work is done; the per-editor and
 per-CLI *payloads* are not.
 
@@ -2134,18 +2141,28 @@ open here is also in §11.
    (`rust/tcl-lsp-db/src/lib.rs:3017-3034`; `ProcBodyKey` likewise at
    `:1720-1750`; the doc comment above it is stale).
 
-   **State: still open, narrowed.** The key gained a third field
-   (`brace_line_continuation`, added with the F5 N-rules axis) and the
-   stale doc comment is corrected, but the truncation itself stands:
-   `LexerCfgKey::to_config` and `lower_proc_body` both close with
-   `..LexerConfig::default()`, whose `braced_var` is `Tcl9Nesting`,
-   `escapes` is `Tcl90` and `leading_bom` is `Content` — while
-   `LexerConfig::from_grammar` *does* set all three per dialect. So the
-   memoised path still answers an 8.x document under 9.0 close/escape
-   rules. Widening the key is mechanical but changes which documents share
-   a `compilation_unit` build per edit, so it is a behaviour change with a
-   performance dimension, not a comment fix. It is the same seam ledger
-   **C1** retires (the interned `DialectProfile`); §11 carries it.
+   **State: FIXED with the C1 executable-IR re-key (§11.4 E1).** The key
+   no longer interns config fields at all: it interns the **resolved
+   environment id**, and `to_config` names `LexerConfig::for_dialect`
+   itself, so all six dialect-derived fields are the document's.
+   `ProcBodyKey` drops the three duplicated fields — it already interned
+   the dialect — and derives the config the same way.
+
+   Widening the tuple instead was measured and rejected. Over the 18
+   catalogue profiles plus `tcl` and `tk`, the number of environments whose
+   two diagnostics consumers share **one** `compilation_unit` build per
+   edit would have gone from 15/20 to **7/20**, losing `tcl8.5`, `tcl8.6`,
+   `expect` and the five 8.x EDA shells — two whole-unit builds per
+   keystroke for the most common dialects, which principle P-B forbids.
+   Keying on the id and moving all four hosts of the CFG/SSA tail's unit
+   (`Analyser::emit_cfg_ssa_diagnostics`, `tcl_lsp_db::analyse_per_item_with`,
+   `tcl diag`'s `collect_rows`, `xtask fp_sweep`) off `LexerConfig::default()`
+   and onto the document's environment grammar takes it **up** to 20/20
+   instead. Measured aside: `leading_bom` was `Content` for every
+   environment under `for_dialect` anyway, so only `braced_var` and
+   `escapes` actually diverged — for 13 of the 20, 8 of which were sharing
+   the 9.0-shaped key and so were wrong without even paying for a second
+   build. `docs/design/lanes/c1-executable-ir-rekey.md` §4 has the table.
 2. **Stale owner-map claim**: `AGENTS.md:74` "tmsh mode per dialect" — no
    such lexer mode exists.
 
@@ -2455,11 +2472,11 @@ declined to make and named precisely rather than working around.
 
 | # | What it is | What it blocks | What would resolve it |
 |---|---|---|---|
-| D1 | **Ledger C1 — the executable-IR re-key.** `DialectSet` survives behind `SemanticAnalysisBundle`'s `dialect` field, its `unavailable(DialectSet::empty())` constructors, `tcl-lsp-db`'s `semantic_dialect_set` projection, `build_linear_executable_ir(registry, dialect, …)` and the world-state SSA it keys, plus `bpf-tcl-ir`'s `semantic_bridge`. P1a surveyed it and ruled it a coordinated re-type, not a port | The **largest** remaining item, and the gate on four others: the interned `DialectProfile` (so a pack-declared dialect can actually *lex*, D5), the analyser-vs-unit `tk` asymmetry, the salvage of the Tk specificity row, and the salsa lexer-config truncation (E1) | Re-key the bundle on `ResolvedContext`, which drags the WASM and BPF semantic bridges with it. It is one change or none — a partial re-key leaves two dialect vocabularies |
+| D1 | ~~**Ledger C1 — the executable-IR re-key.**~~ **DONE.** The path is keyed on `tcl_registry::model::semantic::SemanticContext` — a `Copy` generation-bound handle on the interned `&'static ContextRegistry` for one resolved environment, whose pointer equality *is* environment identity (a `ResolvedContext` value is neither `Eq` nor `Copy`, and cloning one per function unit per keystroke would put allocation and a deep compare on the per-edit path, against P-B). `SemanticAnalysisBundle`'s `dialect` field, both `unavailable(DialectSet::empty())` constructors, `tcl-lsp-db`'s `semantic_dialect_set` projection, `build_linear_executable_ir`, the world-state SSA, the memory SSA, the common AOT plan, the WASM bridge and `bpf-tcl-ir`'s `semantic_bridge` moved in one change; `DialectUnavailable { dialect }` became the payload-free `ContextUnavailable`. The semantic key **widens** from `DialectSet::parse(profile.name)` to the environment's authoring mask: byte-identical for `tcl8.4`–`tcl9.1`, `f5-irules` and `f5-bigip`; wider for `bpf`, `expect`, `spectcl`, `f5-iapps`, `f5-tmsh` and `tk`; and wider *from nothing* for the seven environments whose name owns no bit (the lenient `tcl` sink and the six EDA shells), which recorded `DialectUnavailable` and got no executable facts at all. The deep-analysis and Explorer paths already passed `availability_mask`, so this makes the interactive path agree with them. Pinned by the sweep in `model/semantic.rs` | — | Done. Full record, site inventory and deltas: `docs/design/lanes/c1-executable-ir-rekey.md`. It unblocked E1 (done with it) and leaves D5 as C1's remainder |
 | D2 | **The invocation-refinement descriptor** (Q12). The declarative, whole-descriptor replacement for `command_forms` / `subcommand_forms`: per-form word patterns, traits, mutator/query split, effects as data | Every surface-to-pack conversion. Tk's 53 `subcommand_forms` sites are the migration test and 53 of the 67 sites in the tree are Tk's, so **Tk cannot round-trip** without it; P3 named it first in what a conversion still needs | Design and land the descriptor type, then convert Tk's 53 sites behind the I10 behavioural-parity harness |
 | D3 | **`bpf_op`'s id catalogue.** The seventh ratified word has no loader reader because `CommandSpec::bpf_op` is `Option<&'static BpfOpSpec>` and every shipped value is a private per-command `static OP` under `tcl-registry/src/commands/bpf/`, so `bpf_op -native ID` has nothing to resolve `ID` against | A `bpf` surface pack; and it is the live proof that §6.3's loader-direction gate (E3) does not exist — the word is ratified, unread, and nothing fails | A named `id → &'static BpfOpSpec` table in `tcl_registry::bpf_op`, then the ordinary `-native ID` reader at the shared seam |
 | D4 | **Body-scoped completion codes** (E-R6, census G13). `::struct::tree::prune` exits with completion code 5, but *only inside a `walk` body*. A body slot carries a timing and a kind, never the set of codes its command consumes | P5 deliberately gave `prune` **no** control-flow trait, because `CONTINUES_LOOP` would be a lie the CFG builder acts on. So the CFG for a `struct::tree` walk is wrong-but-conservative, and every library-defined completion code has the same ceiling | `body_completion_codes: &[(u8, CompletionCode, &str)]` on `SubCommand`/`OptionSpec`, plus scoping the `BREAKS_LOOP` machinery to that body. E-R6 is the ruling; the field and the consumer are the work |
-| D5 | **Pack-declared dialects cannot lex.** P3 converts a validated `dialect` block into a `tcl_dialect::model::DynamicFamily` with a real `LexerGrammar` per release, and an `environment … { core DIALECT RELEASE }` binding resolves it — but `Family` is a closed enum, `grammar()` is a `const fn` over ladder ordinals, and `tcl_lexer::LexerConfig` is built from a `&'static DialectProfile` out of a compiled table. So the grammar is reachable and nothing on the analysis path consumes it | The `dialect` block's whole point: a third-party family that actually parses differently. Today a pack-declared dialect is data with no lexer | D1. This is not more conversion work — it is the `DialectProfile` re-type |
+| D5 | **Pack-declared dialects cannot lex.** P3 converts a validated `dialect` block into a `tcl_dialect::model::DynamicFamily` with a real `LexerGrammar` per release, and an `environment … { core DIALECT RELEASE }` binding resolves it — but `Family` is a closed enum, `grammar()` is a `const fn` over ladder ordinals, and `tcl_lexer::LexerConfig` is built from a `&'static DialectProfile` out of a compiled table. So the grammar is reachable and nothing on the analysis path consumes it | The `dialect` block's whole point: a third-party family that actually parses differently. Today a pack-declared dialect is data with no lexer | **D1 is done, and it narrowed this to one boundary.** The analysis path no longer speaks `DialectSet`, and E1 already re-keyed the salsa lexer key on the *environment id* rather than expanded config fields — so the lexer is asked for a grammar **by id** at exactly one door. What remains: `LexerConfig::for_dialect(name)` is `from_grammar(DialectProfile::find(name).unwrap_or(plain_tcl).grammar)`, so a pack-declared id misses `find` and silently sinks to plain Tcl. The change is to give `EnvironmentDefinition` its own `LexerGrammar` (and runtime release) — from the compiled profile for a catalogue environment, from `DynamicFamily` for a pack-declared one — and replace `for_dialect(name)` with `for_environment(&ResolvedContext)` at the ~200 F8/C12 boundary call sites. `Family`'s closed enum can stay: nothing matches on it once the grammar is a field. `SemanticContext::runtime_version` is the only other surviving profile projection |
 | D6 | **`NumberSyntax::Jim`.** Jim accepts `0x`/`0o`/`0b`/`0d` and leading zeros do **not** imply octal — none of `NumberSyntax`'s three values. P6 ships `Tcl90` as the closest (right that `010` is ten; wrong only in accepting Tcl 9's `_` separators, which Jim rejects) because `Tcl85` would be wrong the dangerous way round | `expr {1_000}` is accepted for a jim document and errors on every real `jimsh`. One over-accepting literal form | A `NumberSyntax::Jim` variant: 231 sites across 43 files plus a lexer arm — a lexer change, not a data edit |
 | D7 | **A byte-counting character model.** A non-utf8 Jim build counts bytes, a third rule `StringCharacterModel`'s two Tcl models cannot express. P6 answers `character_model` as `None` (every consumer abstains) and carries the measured fact on `CapabilitySet::utf8_character_model` instead | `string length` folding under `--minimal` jim. The abstention is honest, so nothing is wrong — it is simply unavailable | A `StringCharacterModel::Bytes` variant and its `count_for` agreement rule, which changes constant folding for **every** dialect and therefore needs the differential gate |
 | D8 | **The multi-realm `AnalysisWorld`** (Q21's remainder). P1a landed the single realm. Child interpreters, safe interpreters and `hide`/`expose` widen everything they touch to `Unknown` rather than being modelled | Precision only: an `interp create` widens more than it must. Soundness is preserved by the widening | Build the realm map on the landed `BindingKnowledge` and `RealmState` shapes, with the parent/child/safe/ordering e2e suite invariant I3 names |
@@ -2503,8 +2520,8 @@ what a reader should believe.
 
 | # | The claim | The code | Disposition |
 |---|---|---|---|
-| E1 | §9.1's salsa lexer-config truncation was expected to be fixed alongside the model move | `LexerCfgKey::to_config` and `lower_proc_body` still close with `..LexerConfig::default()` (`braced_var: Tcl9Nesting`, `escapes: Tcl90`, `leading_bom: Content`) while `LexerConfig::from_grammar` sets all three per dialect | **Still open**, gated on D1. The stale doc comment on `LexerCfgKey` is corrected; the truncation stands. Widening the key changes which documents share a `compilation_unit` build per edit, so it is a behaviour-plus-performance change, not a comment fix |
-| E2 | §3.3: "the tcllib-excluded-from-iApps rule **stops being** a subtractive `DialectSet::all().difference(IRULES \| IAPPS)` and becomes 'the `f5-iapps` environment is closed over its ambient set'" | `rust/tcl-registry/src/commands/tcllib/mod.rs:301` still computes exactly that difference | **Still open**, gated on D1 — the subtraction is `DialectSet` plumbing. Relatedly, §5.3's "`package_active` implements exactly these three rules" over-claims: `package_provider_active` distinguishes all three `WorldPolicy` values, but the *availability* query treats `AmbientPlusRequire` identically to `Open`. §5.3 now says so |
+| E1 | §9.1's salsa lexer-config truncation was expected to be fixed alongside the model move | `LexerCfgKey::to_config` and `lower_proc_body` closed with `..LexerConfig::default()` (`braced_var: Tcl9Nesting`, `escapes: Tcl90`, `leading_bom: Content`) while `LexerConfig::from_grammar` sets all three per dialect | **FIXED**, with D1. Not by widening the tuple — that was measured and rejected: over the 20 environments it takes the number that share one `compilation_unit` build per edit from **15/20 down to 7/20**, losing `tcl8.5`, `tcl8.6`, `expect` and the five 8.x EDA shells, i.e. two whole-unit builds per keystroke for the most common dialects (a straight P-B violation). Instead `LexerCfgKey` now interns the **resolved environment id** — the stable id D1 makes available — and `to_config` names `LexerConfig::for_dialect` itself, and all four hosts of the CFG/SSA tail's unit (`Analyser::emit_cfg_ssa_diagnostics`, `tcl_lsp_db::analyse_per_item_with`, `tcl diag`'s `collect_rows`, `xtask fp_sweep`) lex under the document's own environment instead of agreeing on `LexerConfig::default()`. Sharing goes **up**, to 20/20, and every field is the document's. `ProcBodyKey` drops the three duplicated fields (it already interned the dialect); `tcl diag`'s second unit build disappears. Measured aside: of the three truncated fields `leading_bom` was `Content` for every environment anyway, so only `braced_var` and `escapes` diverged — for 13 of 20 environments, 8 of which were silently sharing the 9.0-shaped key |
+| E2 | §3.3: "the tcllib-excluded-from-iApps rule **stops being** a subtractive `DialectSet::all().difference(IRULES \| IAPPS)` and becomes 'the `f5-iapps` environment is closed over its ambient set'" | `rust/tcl-registry/src/commands/tcllib/mod.rs:301` still computes exactly that difference | **Still open**, but **no longer gated**: D1 is done and the subtraction is now purely registry-internal `DialectSet` plumbing, which row C1 explicitly licenses as an internal fast path — so this is a local rewrite of `tcllib/mod.rs` against the ambient-set query, not a re-type. Relatedly, §5.3's "`package_active` implements exactly these three rules" over-claims: `package_provider_active` distinguishes all three `WorldPolicy` values, but the *availability* query treats `AmbientPlusRequire` identically to `Open`. §5.3 now says so |
 | E3 | §6.3: the round-trip gate "gains a loader-side direction … so a ratified word without a loader arm fails CI instead of silently dropping" | No such gate exists. `bpf_op` is ratified, unread, and nothing fails | **Still open** (D3 is its live instance). The two-loader byte-identity gate and the export gates are real and strong, but neither exercises a *documented-but-unimplemented* word |
 | E4 | The deep dive's §15.4 status block listed `render_spectcl` 2.0 emission and its pin lift as the one unlanded item | It landed one wave earlier: `DSL_VERSION` is `tcl_spectcl::NEWEST_VOCABULARY_VERSION` (`"2.0"`), `availability_rows` writes `available` / `-available` at all seven scopes, and a 1.x document keeps `dialects` | **Fixed by P8** — the status block now ticks it. This was a wave-2 lane recording a wave-1 landing it did not know about |
 | E5 | `LexerConfig::for_dialect`'s doc comment said `expand_syntax` is true for "iApps, tmsh, Expect, EDA flavours" and `irules_brace_separator` is "true only for iRules" | Measurement §4a moved both: `GRAMMAR_F5_TCL` is `expand_syntax: false`, `irules_brace_separator: true`, and all three F5 catalogue rows select it (P1-G) | **Fixed by P8** — comment corrected in place |

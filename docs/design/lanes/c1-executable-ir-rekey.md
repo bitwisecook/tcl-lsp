@@ -130,7 +130,12 @@ surfaces that are other ledger rows' to retire.
    pins the surviving decline, a unit built with no dialect. Rewritten with a
    citing comment.
 
-5. **E1 — see §4.** The CFG/SSA analyser tail's lexer config.
+5. **E1 — see §4.** The CFG/SSA analyser tail's lexer config, and with it
+   `tcl-lsp-db`'s `compilation_unit_shared_across_consumers`, whose `tcl8.4`
+   leg asserted *two* builds (the analyser tail wanted `default()`, the checks
+   pass `for_dialect("tcl8.4")`, and their `expand_syntax` differs). Both
+   consumers now lex under the document's environment, so `tcl8.4` shares one
+   build like every other environment. Rewritten with a citing comment.
 
 ## 4. E1 — the salsa lexer-config truncation, with the measured cost
 
@@ -239,7 +244,17 @@ What this lane changed for it, and what is left:
 - `cargo check --workspace --all-targets` clean.
 - `cargo clippy --workspace --all-targets` — zero warnings from this lane.
 - `cargo fmt --all` clean.
-- `cargo test` green for `tcl-registry` (including the P1-E equivalence
-  sweeps, the P1a C7 sweep and the F5 conformance vector suites), `tcl-compiler`,
-  `bpf-tcl-ir`, `tcl-lsp-db`, `tcl-lsp-core`, `tcl-lsp-server`, `tcl-explorer`,
-  `tcl-cli` (bar the known headless `explorer_gui` wasm-asset failure).
+- `cargo test` green across every workspace member, run in crate batches
+  (`tcl-syntax` with `-F num-bigint`). The whole set cannot be linked in one
+  `--workspace` pass in this container: the test binaries total ~21 GB and the
+  filesystem has ~38 GB, so the link step ENOSPCs — batching plus deleting the
+  linked test executables between batches is the only way through. Includes the
+  P1-E equivalence sweeps, the P1a C7 sweep and the F5 conformance vector
+  suites in `tcl-registry`.
+- Two failures, neither from this lane: `tcl-cli`'s headless
+  `explorer_gui::gui_renders_the_wasm_tab_and_settles_the_spinner` (its wasm
+  assets are absent in this container — known), and
+  `xtask`'s `retired_api_gate::tests::seeded_violations_are_flagged`, which
+  belongs to the concurrent O1/O2 lane (its seeded `PASSWORD_OPTION` line
+  matches two of its own retired patterns; last touched by `85965c011`).
+- `make xtask-check` exits 0.

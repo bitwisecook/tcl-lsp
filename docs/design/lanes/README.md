@@ -22,5 +22,8 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
+- [c1-executable-ir-rekey.md](c1-executable-ir-rekey.md) — centralisation
+  ledger row C1 / redesign §11.2 D1 (the executable-IR re-key onto the
+  resolved context) and §11.4 E1 (the salsa lexer-config truncation).
 - [o1-o2-option-relations.md](o1-o2-option-relations.md) — redesign §11.1
   rows O1 (the typed option-relation model, E-R14) and O2 (the M9 dead axes).

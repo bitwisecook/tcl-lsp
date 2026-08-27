@@ -7360,7 +7360,8 @@ mod tests {
                 .count()
         };
 
-        // tcl8.6: default == for_dialect, so the two consumers share one build.
+        // tcl8.6: both consumers intern the document's environment id, so
+        // they share one build.
         let file86 = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file86, cfg);
         let _ = compiler_check_diagnostics(&db, file86, cfg);
@@ -7370,15 +7371,21 @@ mod tests {
             "tcl8.6: both consumers share exactly one compilation_unit build"
         );
 
-        // tcl8.4: for_dialect disables `{*}` expansion, so the configs differ
-        // and each consumer builds its own unit (two executions).
+        // **Enumerated delta of redesign §11.4 row E1.** This case used to
+        // assert *two* builds: the analyser tail asked for
+        // `LexerConfig::default()` and the checks pass for
+        // `for_dialect("tcl8.4")`, whose `expand_syntax` differs, so the
+        // truncated three-field key interned two entries. Both consumers now
+        // lex under the document's own environment, so `tcl8.4` shares one
+        // build like every other environment — the sharing measurement in
+        // `docs/design/lanes/c1-executable-ir-rekey.md` §4 (15/20 → 20/20).
         let file84 = SourceFile::new(&db, src.to_owned(), "tcl8.4".to_owned(), None);
         let _ = file_analysis_incremental(&db, file84, cfg);
         let _ = compiler_check_diagnostics(&db, file84, cfg);
         assert_eq!(
             count_cu(&log),
-            2,
-            "tcl8.4: differing lexer configs -> a separate build per consumer"
+            1,
+            "tcl8.4: one environment id -> one shared build, as for every dialect"
         );
 
         // A fresh edit re-shares for tcl8.6 (one build for the new revision).

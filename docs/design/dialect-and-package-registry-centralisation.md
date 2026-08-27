@@ -268,12 +268,14 @@ user-facing change rather than a refactor (§11's D15).
 **The completion criterion (§8's P8 rider) is not met, and that is
 recorded rather than glossed:** "the migration is done when every ledger
 row's retired mechanism no longer exists in the tree". The mechanisms that
-still exist are exactly the rows above without a **done**, and the largest
-single blocker under them is ledger **C1** — the `DialectSet` residue
-behind the executable-IR bundle, which gates F8's key types, T11's
-`grammar_union`, the interned `DialectProfile` (and with it a
-pack-declared dialect's ability to lex), the analyser-vs-unit `tk`
-asymmetry, and the Tk specificity row.
+still exist are exactly the rows above without a **done**. **C1's
+executable-IR half has since landed** (§11.2 D1): the `DialectSet` residue
+behind the semantic-analysis bundle, the executable IR, the world-state SSA
+and the WASM/BPF bridges is gone, and the salsa lexer-config truncation
+(§11.4 E1) went with it. What C1 still holds open is the interned
+`DialectProfile` the *lexer* is keyed on — §11.2 D5, and with it a
+pack-declared dialect's ability to lex — plus F8's key types and T11's
+`grammar_union`, which read the surviving authoring mask.
 
 **Status: P1-G (the deletion phase) is done.** After the P1-F waves left
 every production ingress on the seam, the remaining test-fixture call
@@ -311,10 +313,9 @@ APIs were then removed:
   (interned-statics accessors the seam itself consumes — not name
   validators); `registry_for_profile_with_overlay` (the loader door
   only `tcl-spectcl` writes); `DialectSet::parse` (no name-ingress
-  caller left — every remaining use projects an already-resolved
-  profile's canonical name into the C1 mask vocabulary, e.g. the unit
-  build's `semantic_dialect_set`, and retires with C1's re-type, which
-  P1-G deliberately does not chase); `tcl_lsp_core::registry_for_dialect`
+  caller left — the unit build's `semantic_dialect_set`, its last consumer
+  on the analysis path, is gone with C1's re-key; the projections that
+  remain are registry-internal mask derivations); `tcl_lsp_core::registry_for_dialect`
   (the crate's own wave-2 seam wrapper, not the retired cache door).
 - **The zero-reference gate**: `cargo xtask retired-api-gate` (wired
   into `make xtask-check`) fails on any code-line reintroduction of the
@@ -366,7 +367,7 @@ remain for other crates; deletion is P1-G.
 | F5 | Semantic-token's process-wide `f5-irules` registry `OnceLock`; `bigip.rs`'s hardcoded dialect strings | environment-keyed, generation-aware handles | P1 **done** *(both resolve through the seam; the `OnceLock` memoises the generation's store rather than a name-keyed cache entry)* |
 | F6 | Environment-blind workspace index symbols | realm/environment-keyed index rows feeding the four-tier known-anywhere model | P1a |
 | F7 | `registry_with_overlay`'s silent un-overlaid fallback | fail-closed rebuild-or-error on generation miss | P2 *(unchanged by wave 2: the door is now `DocumentEnvironment::context_registry`, which threads the overlay key exactly as `registry_for_profile_if_built` did — including the silent fallback)* |
-| F8 | Salsa `dialect: String` inputs and interned keys; `LexerCfgKey`/`ProcBodyKey` two-field truncation | `(environment id, generation, overlay hash, targets)` keys; grammar-id lexer keys | P1 *(partial: every read of a salsa `dialect` string now resolves through the seam; the key types themselves are still `String`-shaped)* |
+| F8 | Salsa `dialect: String` inputs and interned keys; `LexerCfgKey`/`ProcBodyKey` two-field truncation | `(environment id, generation, overlay hash, targets)` keys; grammar-id lexer keys | P1 *(partial: every read of a salsa `dialect` string now resolves through the seam; the key types themselves are still `String`-shaped. **The truncation half is done** with C1's re-key (§11.4 E1): `LexerCfgKey` interns the resolved environment **id** and derives the whole `LexerConfig` from it, and `ProcBodyKey` dropped the three duplicated fields it carried beside the dialect it already interned — so the lexer keys are grammar-id keys as this row's target column asks. What remains is the `dialect: String` *shape* of the `SourceFile` input and the generation/overlay/targets components)* |
 | F9 | `getEffectiveConfig`'s dialect fields, `listDialects`, `setDialect` validators | environment/targets/realm status surface, `listEnvironments`, `Environment::resolve` | P1 *(partial: all four validators — `folderDialects`, folder `tclLsp.dialect`, `setDialect`, `setSessionDialectOverride` — are one `Environment::resolve`, and `getEffectiveConfig`'s labels are reached from the resolved environment; `listDialects` still enumerates `DialectProfile::all()` because the environment list has different contents and no `short_name`, so it is a payload change, not a refactor)* |
 | F10 | W120 fix-from-whole-file, the package-require code action's name-matching gate | assistance-labelled diagnostics; edits gated on `Must`/`May` declarations and the `PackageResolver` | P1a |
 | F11 | `TclVersion::from_dialect` in W123 refinement | target `VersionSet` evaluation with honest `Unknown` on guard straddles | P1b |
@@ -434,7 +435,7 @@ as widening **zero** hint selections.
 
 | # | Retired mechanism | Replacement | Phase |
 |---|---|---|---|
-| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 *(partial: `availability_for_name` is deleted (P1-G) and nothing synthesises `TK_PROFILE` from names. P1a's survey of the residue: the `DialectSet`-typed plumbing that remains all funnels through the semantic-facts bundle — `SemanticAnalysisBundle`'s `dialect: DialectSet` field, its `unavailable(DialectSet::empty())` constructors (compilation-unit lattice declines, branch-folding tests), and the `semantic_dialect_set` name→bit projection `tcl-lsp-db`'s per-item build shares — plus the executable-IR builder (`build_linear_executable_ir(registry, dialect, …)`) and world-state SSA it keys, and `bpf-tcl-ir`'s `semantic_bridge` consuming the same bundle. None of that is unblocked by the P1a oracle/context typing alone: the bundle's dialect key gates on re-keying **executable-IR invocation resolution** onto the context primitives (a `ResolvedContext`-keyed bundle), which drags the WASM/BPF semantic bridges with it — a coordinated re-type left for the C1 completion wave. The selection primitives' own `DialectSet::empty()`/authoring-mask arguments are now internal to the I4 proof and disappear with the same re-type)* |
+| C1 | `DialectSet` + unions, `availability_for_name`, `TK_PROFILE`/`tk()` synthesis, `DIALECT_BITS`/`BIT_ONLY_LABELS` | `VersionSet` declarations + environments; optional internal `FamilySet` fast path | P1 **executable-IR half done (C1 completion wave, §11.2 D1)** *(`availability_for_name` was deleted in P1-G and nothing synthesises `TK_PROFILE` from names. The residue P1a surveyed — `SemanticAnalysisBundle`'s `dialect: DialectSet` field, its `unavailable(DialectSet::empty())` constructors, the `semantic_dialect_set` name→bit projection `tcl-lsp-db` shared, `build_linear_executable_ir(registry, dialect, …)` and the world-state SSA it keys, and `bpf-tcl-ir`'s `semantic_bridge` — is **gone**, re-keyed in one change onto `tcl_registry::model::semantic::SemanticContext`, a `Copy` generation-bound handle on the interned `&'static ContextRegistry` for one resolved environment. A `ResolvedContext` **value** was rejected as the key: it is neither `Eq` nor `Copy`, and the bundle is a salsa-memoised field of every `FunctionUnit`, so a per-unit clone and deep compare on every keystroke would breach principle P-B; the handle's pointer equality **is** environment identity and it carries the availability view and the generation's command store together. The selection primitive is C7/I4's own — `resolve_structured_invocation_in_context` is the structured-words face of `assembly::resolve_invocation_in_context`, same binding proof — so no second selection rule was introduced. The WASM and BPF bridges, the memory SSA, the common AOT plan and the Explorer/CLI deep-analysis doors moved with it, and `DialectUnavailable { dialect }` became the payload-free `ContextUnavailable`. The selection primitives' own `DialectSet::empty()`/authoring-mask arguments are now internal to the I4 proof. **What is left of C1** is the row's other half: the interned `DialectProfile` the *lexer* is keyed on (`LexerConfig::for_dialect`), which is §11.2 D5 — the bits themselves survive only as the authoring mask a `ResolvedContext` derives and the store's internal index, which this row's target column licenses. Full record: `docs/design/lanes/c1-executable-ir-rekey.md`)* |
 | C2 | The six divergent dialect-name validators (incl. `special_vars::resolve_dialect`, raw `DialectSet::parse`) | `Environment::resolve` | P1 **done (P1-G)** *(`by_name`, `by_opt_name`, `resolve_known` and `availability_for_name` are deleted from the tree — test fixtures ported to the seam, the lower-crate compat name boundaries inline the find-then-plain-sink resolution (F8/C12 retire the boundaries themselves) — and `DialectSet::parse` has no name-ingress caller left (its remaining uses are C1 projections of canonical profile names). `special_vars::resolve_dialect` is deleted too (its production callers already threaded profiles through `dialect_set_for_profile`); the `retired-api-gate` holds the set at zero)* |
 | C3 | `resolve_call`/`resolve_legacy_call_selection`'s `dialect.is_empty() → get()` bypass and its callers (analyser hooks, lowering hooks, lsp-db) | binding-proof-gated `InvocationSpecId` selection (I4) | **done (P1a)** *(the primitives enforce the proof: with a context, the head resolves through `ResolvedContext::resolve_spec` and sub/form gating runs under the authoring mask; the analyser-hook, lowering-hook, and type-infer callers thread real contexts, `lsp-db` holds no bypass of its own, and each remaining `invocation_traits(…, empty)` reader is a documented conservative **widening** query, never hook selection)* |
 | C4 | `head_identity.rs` (parallel offset-keyed binding table, 20+ consumers) | realm `BindingKnowledge` | **done (P1a)** *(module deleted; the scan and its offset-keyed facts are the realm command-binding state — `tcl_compiler::realm::CommandBindingRealm`, spec-keyed `Spec`/`TakenOver`/`Deleted` facts with a `knowledge_at` `BindingKnowledge` view composing document facts over the environment under the world policy; all 35 consumer files ported; the `retired-api-gate` holds `head_identity`/`HeadIdentityMap`/`HeadIdentity`/`command_head_identities` at zero)* |
@@ -607,7 +608,7 @@ package plus an environment, never a dialect, so `DialectProfile::find
 sinking to the permissive fallback, while `unit_profile` keeps promoting
 so a compilation unit carries the `tk` identity (name, label, Tk library
 pins). It retires with the interned `DialectProfile` itself, under
-ledger C1/F1 — not before.
+ledger C1/F1 (now §11.2 D5) — not before.
 
 `ProfileQueries` has no caller left in these crates: `tcl lookup` and the
 MCP `command_info` answer `resolve_command` / `available_option_names` /
@@ -1002,7 +1003,10 @@ actually run:
   nothing on the analysis path consumes the dynamic grammar yet, because
   `tcl_lexer::LexerConfig` is built from a `&'static DialectProfile` the
   ingress hands out of a compiled table. Closing that last step is the
-  `DialectProfile` re-type (ledger C1), not more conversion.
+  `DialectProfile` re-type (ledger C1's remaining half, §11.2 D5), not more
+  conversion — and D1's re-key has already narrowed it to one door, since
+  the salsa lexer key now interns the environment **id** and asks for a
+  grammar by id.
 - The gates: `tcl-spectcl/tests/environment_registration.rs` (publish →
   resolve → route → retire, environments and dialects together) and the
   server e2e
