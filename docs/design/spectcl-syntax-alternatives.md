@@ -8,10 +8,21 @@
 > conditionality, registration-time trust) and its ratified rulings
 > E-R1–E-R9. The recommendation section below is retained as the
 > comparison record it was; the deep dive supersedes it as the basis
-> of the decision. Migration guarantees stand: 1.x packs load forever,
-> the 2.0 declarative rows already landed remain valid input verbatim
-> (E's registration commands accept them as data), and
-> `tcl spec upgrade` grows the `--restyle` step.
+> of the decision. Migration guarantees stand and are now **proved**: the
+> evaluation loader landed with an equivalence gate showing all 24 shipped
+> packs — 1,515 commands — load byte-identically through the CST loader
+> and the evaluator alike, hooks, clause grammars, degraded flags and
+> declaration lines included, so 1.x packs load forever and the 2.0
+> declarative rows are valid input verbatim (E's registration commands
+> accept them as data).
+>
+> One promise here is still outstanding: **`tcl spec upgrade` did not grow
+> a `--restyle` step.** `tcl spec upgrade` implements U0–U10 and already
+> rewrites 1.x rows into 2.0 spellings, so `--restyle` is a formatting
+> affordance on top of a landed translation rather than a missing
+> capability — tracked as D13 in the
+> [redesign's §11 open-questions ledger](dialect-and-package-registry-redesign.md#11-the-open-questions-ledger),
+> which is the single list of what this programme left open.
 >
 > Original status: **EXPLORATION for an owner decision.** A user's complaint —
 > SpecTcl is valid Tcl but does not *read* like Tcl — is solid: the

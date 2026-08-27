@@ -1,18 +1,28 @@
 # Design E deep dive — executable registration against the whole surface
 
-Status: **ADOPTED** (owner, 2026-08-26) — design E is the SpecTcl 2.0
-authoring surface, together with §1's execution model as a package.
-Rulings E-R1–E-R9 in §14 are thereby ratified; E-R10 records the
-standing known limits; the questions this document flags for the owner
-(option *requires* relations, the M9 dead axes) remain open. Originally
-written as exploration feeding the surface decision and the Rust model
-redesign. Companion to
+Status: **ADOPTED** (owner, 2026-08-26) and **IMPLEMENTED** (2026-08-27) —
+design E is the SpecTcl 2.0 authoring surface, together with §1's execution
+model as a package. Rulings E-R1–E-R9 in §14 are ratified; E-R10 records
+the standing known limits; **E-R11, E-R12 and E-R13 were implemented as
+proposed and are still marked "(proposed)" in §15 — their formal
+ratification is the one thing this document leaves undone**, tracked as
+O3 in the
+[redesign's §11 open-questions ledger](dialect-and-package-registry-redesign.md#11-the-open-questions-ledger).
+The two questions this document flags for the owner — the option
+*requires* relations and the M9 dead axes — also remain open, as O1 and O2
+there. Everything else in §15 has landed; §15.4 carries the tick list.
+
+Originally written as exploration feeding the surface decision and the
+Rust model redesign. **§14's verdict was tested rather than assumed**: the
+evaluation loader (P2-I) proved the equivalence gate over all 24 shipped
+packs, 1,515 commands, byte-identically through both loaders. Companion to
 [the six-design comparison](spectcl-syntax-alternatives.md) (which
 defines design E and the shared model), the
 [redesign proposal](dialect-and-package-registry-redesign.md) (§6
 SpecTcl 2.0), and the
 [centralisation contract](dialect-and-package-registry-centralisation.md).
-The owner is provisionally leaning towards E; this document stress-tests
+*(Written before the decision:)* the owner is provisionally leaning
+towards E; this document stress-tests
 that lean by walking E through the trickiest real surfaces we ship or
 target — `format`-class literal analysis, iRules against the profile
 and event graph, TclOO/Tk object surfaces, tcllib, the EDA shells,
@@ -22,11 +32,13 @@ each walk feeds back into the Rust model. The
 the acceptance checklist; this document is where design E answers it
 item by item with worked spellings.
 
-Nothing here is a decision. Where a walk forces a ruling candidate it
+*(Also written before the decision:)* nothing here is a decision. Where a
+walk forces a ruling candidate it
 is numbered `E-R#` and collected in the final section for the owner;
 where it forces a change to the Rust model it is numbered `M#` and
 collected in §13. Every file:line cited below was verified against the
-working tree during the survey behind this document.
+working tree during the survey behind this document — a snapshot of
+2026-08-26, before the #1631 phases moved much of what it cites.
 
 ## 1. The execution model, pinned before any example
 
@@ -1542,18 +1554,26 @@ the upgrade path and deleted (P1-G extends to cover them).
 
 ## 14. Collected ruling candidates
 
-| # | ruling candidate | forced by |
-|---|---|---|
-| E-R1 | Conditionality is data (`-available` rows); control-flow `available?` downgrades cacheability and is flagged by `spec check` | §1.3; review B5 |
-| E-R2 | The sandbox always runs; provenance (§6.4 tiers) gates what a registration call may touch, enforced at the call | §1.4; loader tier model |
-| E-R3 | Hooks emit facts referencing gated vocabulary; assembly alone evaluates gates — hooks stay target-independent | §2; range targeting |
-| E-R4 | Derived surfaces are never authored: mathop/mathfunc projections, the inline `oo::define` form, instance `configure` tables all derive from their entity | §6, §7, alternatives doc |
-| E-R5 | Templating is for *bulk* (32× `REQUIRES_HTTP_CONTEXT`, 1000× `-quiet`); structural regularity (widget inheritance) is declared, not templated | §3.2, §7, §10 |
-| E-R6 | Body-scoped named completion codes (`-completion-codes {5 prune}`) — attachable only where a body role is, consumed by the traits machinery, never the CFG field | §8 |
-| E-R7 | Pack-declared handle/type classes (`spawnid`, `collection(cell)`) through the existing `binds_handle`/typing vocabulary | §9, §10 |
-| E-R8 | Embedded-language identity is open and pack-namespaced (`ticklecharts::js`); embedded-language *semantics* come only from hooks | §11 (G6) |
-| E-R9 | The DSL vocabulary is single-sourced from the evaluator's command table; the editing-surface pack is emitted, never hand-kept | §12 |
-| E-R10 | Known limits that stand: option *requires* relations (pending owner ruling — best-value candidate), apave's nested tuples (G8/G9), position-dependent callback arity (`Unknown` is honest) | §11 |
+**Status column added 2026-08-27.** E-R1–E-R9 are ratified (owner,
+2026-08-26); E-R10 is a standing statement of limits, not a proposal;
+E-R11–E-R13 were written "(proposed)" in §15, implemented as written, and
+**never formally ratified** — see O3 in the redesign's §11.
+
+| # | ruling candidate | forced by | status |
+|---|---|---|---|
+| E-R1 | Conditionality is data (`-available` rows); control-flow `available?` downgrades cacheability and is flagged by `spec check` | §1.3; review B5 | ratified; implemented — `-available` rows are the shipped spelling and `available?` marks a pack target-dependent and uncacheable |
+| E-R2 | The sandbox always runs; provenance (§6.4 tiers) gates what a registration call may touch, enforced at the call | §1.4; loader tier model | ratified; implemented — provenance checks fire at the registration call (compiled-name overrides, `dialect` blocks, reserved environment names). The tier the studio buffer and `spectcl_check` evaluate at is O4, still unratified |
+| E-R3 | Hooks emit facts referencing gated vocabulary; assembly alone evaluates gates — hooks stay target-independent | §2; range targeting | ratified; implemented — hooks emit facts, assembly evaluates gates |
+| E-R4 | Derived surfaces are never authored: mathop/mathfunc projections, the inline `oo::define` form, instance `configure` tables all derive from their entity | §6, §7, alternatives doc | ratified; **partly implemented** — the mathop/mathfunc projections derive (`tcl::mathop`/`tcl::mathfunc` ruling, 2026-08-26). The inline `oo::define` form and instance `configure` tables still need §6.1's one-class-surface work |
+| E-R5 | Templating is for *bulk* (32× `REQUIRES_HTTP_CONTEXT`, 1000× `-quiet`); structural regularity (widget inheritance) is declared, not templated | §3.2, §7, §10 | ratified; implemented — templating is available and the canonical form is what generators emit |
+| E-R6 | Body-scoped named completion codes (`-completion-codes {5 prune}`) — attachable only where a body role is, consumed by the traits machinery, never the CFG field | §8 | ratified; **not implemented, narrowed by P5** — `::struct::tree::prune` is a real command carrying `CompletionCodeDomain::Exact([Other(5)])` and deliberately **no** control-flow trait, because the scoping field does not exist. See §8's status note and D4 in the redesign's §11 |
+| E-R7 | Pack-declared handle/type classes (`spawnid`, `collection(cell)`) through the existing `binds_handle`/typing vocabulary | §9, §10 | ratified; implemented for the shipped handle classes |
+| E-R8 | Embedded-language identity is open and pack-namespaced (`ticklecharts::js`); embedded-language *semantics* come only from hooks | §11 (G6) | ratified; implemented |
+| E-R9 | The DSL vocabulary is single-sourced from the evaluator's command table; the editing-surface pack is emitted, never hand-kept | §12 | ratified; **partly implemented** — the SpecTcl self-spec gained `available`, `environment` and `dialect` so authoring a pack gets completion and hover, but the vocabulary is not yet single-sourced from the evaluator's command table |
+| E-R10 | Known limits that stand: option *requires* relations (pending owner ruling — best-value candidate), apave's nested tuples (G8/G9), position-dependent callback arity (`Unknown` is honest) | §11 | a statement of limits, not a proposal. Its first item (option *requires* relations) is O1 in the redesign's §11; P5 confirmed it independently from `bibtex::parse` |
+| E-R11 | SpecTcl 2.0 has a **canonical form** — the straight-line subset of E; every generator emits it, `tcl spec export` expands any snapshot into it, contraction is never attempted | §15.1 | **proposed → implemented, unratified.** `tcl_spectcl::export` renders `Pack::registrations`; round-trip gate A holds over all 24 shipped packs (1,515 commands, 14,770 registration calls) snapshot-identical and text-idempotent; gate B proves three templated fixtures expand, reload and are fixed points. Wired as `tcl spec export`. See O3 |
+| E-R12 | The studio never rewrites a **programmed** pack: its source opens read-only beside its expansion and a form edit lands as a canonical patch pack in the `StudioOverride` tier | §15.2 | **proposed → implemented, unratified.** `PackStore::programmed` is a three-tiered predicate (target-dependent, expanded, or statements the snapshot did not record), `WriteBack::Patched` routes the edit, `PackStore::standing_overrides` is the queryable report, and a guard test holds the predicate over all twelve hand-written packs. See O3 |
+| E-R13 | The `spectcl_expand` MCP verb — pack source in, canonical form out — so a programmed pack is reviewable as its expansion rather than simulated in the reader's head | §15.3 | **proposed → implemented, unratified.** `spectcl_expand` ships; `spectcl_check` evaluates packs and surfaces `load_error`, `target_dependent`, per-notice classes and what an untrusted tier would refuse. See O3 |
 
 The overall verdict the deep dive supports: design E survives every
 wall the survey could find, *provided* §1's execution model is adopted
@@ -1574,7 +1594,8 @@ once one distinction is named.
 
 ### 15.1 The canonical subset
 
-**E-R11 (proposed): SpecTcl 2.0 has a *canonical form* — the
+**E-R11 (proposed 2026-08-26; implemented 2026-08-27, formal ratification
+outstanding — O3): SpecTcl 2.0 has a *canonical form* — the
 straight-line subset of E.** A canonical pack contains only literal
 registration calls (exactly today's declarative vocabulary: every
 2.0 word that just landed, no `proc`/`foreach`/`set`, no computed
@@ -1610,7 +1631,7 @@ edit D-shaped data, and `store.rs` already layers packs by `Tier` with
   at line 12, iteration `get_cells`") — the evaluator records the
   registration call-site the way the CST loader records line numbers
   today.
-- **Editing — E-R12 (proposed)**: a canonical pack is edited in place,
+- **Editing — E-R12 (proposed; implemented, ratification outstanding — O3)**: a canonical pack is edited in place,
   round-tripped byte-stably as today. A **programmed pack is never
   rewritten by the studio**: its source opens read-only alongside its
   expanded snapshot, and a form edit lands as a canonical *patch pack*
@@ -1645,7 +1666,7 @@ canonical 2.0 with the same evidence headers. Version-range
 derivation, release diffing, and the corpus heuristics do not care
 what surface they are printed in.
 
-### 15.3 The AI surface (tcl-mcp) — E-R13 (proposed)
+### 15.3 The AI surface (tcl-mcp) — E-R13 (proposed; implemented, ratification outstanding — O3)
 
 The MCP tools are how an AI authors packs, and E changes their loop in
 one direction only: **evaluation makes checking *safer* and richer,
@@ -1690,9 +1711,12 @@ emits 2.0 and the pin lifts → StudioOverride patch-pack editing for
 programmed packs → WASM job. The schema-churn from M-items proceeds
 independently behind the coverage witnesses.
 
-**Status.** Everything above has landed except the `render_spectcl`
-2.0 emission and its pin lift, which is independent of the two items
-either side of it:
+**Status (corrected 2026-08-27): everything above has landed.** An earlier
+revision of this block listed the `render_spectcl` 2.0 emission as the one
+outstanding item; it had in fact landed one wave earlier, in the same change
+as `spec export`, and this block was written without that knowledge. The
+renderer is version-aware, `DSL_VERSION` is `tcl_spectcl::NEWEST_VOCABULARY_VERSION`
+(`"2.0"`), and the unpin condition is documented at the constant.
 
 - ✅ **Evaluation loader + equivalence gate** — `tcl-spectcl`'s
   `loader::eval`, gated by `tests/eval_loader.rs`.
@@ -1701,7 +1725,13 @@ either side of it:
 - ✅ **Studio store reads through the eval loader** —
   `PackStore::from_source` evaluates, `declaration_site` reports
   expansion provenance, and the round-trip suite is unchanged.
-- ⬜ **`render_spectcl` emits 2.0 and the pin lifts** (P2-H).
+- ✅ **`render_spectcl` emits 2.0 and the pin lifts** — `availability_rows`
+  writes `available` / `-available` at all seven scopes the loader reads
+  it, a document's own header decides its spelling so 1.x drafts keep
+  `dialects` and never wear newer words (closing a latent #1627 path in
+  `render_block`), and `DSL_VERSION` lifted to `2.0` per the rewritten
+  condition at the constant. The round-trip gate caught the availability
+  window's exclusive upper bound as 270 real differences before the fix.
 - ✅ **StudioOverride patch-pack editing (E-R12)** —
   `PackStore::programmed` classifies the document,
   `WriteBack::Patched` routes a form edit into a canonical patch pack

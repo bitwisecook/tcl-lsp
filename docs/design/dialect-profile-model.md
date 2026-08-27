@@ -1,5 +1,23 @@
 # The compositional `DialectProfile`
 
+> **Status (2026-08-27): superseded in part by #1631, and still shipping.**
+> The four-layer model of
+> [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
+> landed through P6: environments, core profiles, surface declarations and
+> realm binding knowledge are the model every consumer now resolves
+> through, and the string-boundary resolvers this document described
+> (`by_name`, `by_opt_name`, `resolve_known`, `availability_for_name`) are
+> **deleted** — `cargo xtask retired-api-gate` fails the build if they
+> reappear. What survives, and what this document remains the reference
+> for, is the interned `&'static DialectProfile` catalogue itself: the seam
+> still supplies `DialectProfile::find` and the named handles, the lexer
+> still builds its `LexerConfig` from a profile's grammar, and the
+> `DialectSet` availability mask still rides the semantic-facts bundle.
+> That residue is retirement-ledger row **C1**, the largest remaining item
+> of the programme (redesign §11, D1). Read this document for how the
+> shipping catalogue behaves; read the redesign for the model it answers
+> to.
+
 One `DialectProfile` per canonical dialect owns **both** the availability axis
 (which commands and options exist) and the behaviour/runtime axis (how the
 lexer, the expression grammar, and numeric literals behave). Every consumer
@@ -308,7 +326,7 @@ behaviour-axis table §5.4 names that has not moved onto the profile.
 `is_fallback` and `const_fold_version`.
 
 Every field is written out literally in the catalog rather than computed at
-construction — a `static` array of 16 profiles cannot run derivation code — so
+construction — a `static` array of 18 profiles cannot run derivation code — so
 the invariant tests in `profile.rs` (§7.1, §11.2) are what hold the derived
 fields consistent with their bases.
 
@@ -746,7 +764,7 @@ than an ad-hoc one.
 
 `PLAIN_TCL` is not in `DialectProfile::all()` — it is a resolution sink, not
 a selectable dialect — so a caller that must enumerate real dialects gets the
-16 catalog entries, and a caller that must include the fallback reaches it
+18 catalogue entries, and a caller that must include the fallback reaches it
 through `DialectProfile::plain_tcl()`. `is_fallback()` is the predicate for
 "did this resolve to the sink", which is how `hosts_tk()` treats an unlabelled
 `wish` shell as Tk-capable.

@@ -526,15 +526,20 @@ pub enum SpecCommand {
     /// instead of repeating whatever version the newest sources declare.
     Import(SpecImportArgs),
 
-    /// Rewrite a pack's `speclib` version word to the newest `SpecTcl`
-    /// vocabulary.
+    /// Rewrite a 1.x pack's source to the newest `SpecTcl` vocabulary.
     ///
-    /// The vocabulary is additive and every loader reads all known versions
-    /// in full, so the upgrade is the declaration alone — no statement in the
-    /// pack changes. Declaring the newest vocabulary is what entitles a pack
-    /// to the 1.1-only words (row-level lifecycle flags, command-scope
-    /// `versioned_arg_value`, an option's `-deprecation-fix`) without the
-    /// loader's declares-1.0 notice.
+    /// Every loader reads all known vocabulary versions in full, so nothing
+    /// is *forced* to upgrade — but 2.0 changes meaning by adding words and
+    /// translating the legacy ones, so this rewrites statements as well as
+    /// the `speclib` version word: `dialects` / `-dialects` rows become
+    /// `available` rows at every scope (U2), `ambient_package` and
+    /// `file_extension … -dialect` rows rehome into `environment … -extend`
+    /// blocks under a cannot-infer rule that leaves ambiguous packs partial
+    /// (U4/U5), and the version word moves to 2.0 only when the body rewrite
+    /// completed on that file (U1). Edits are content-range replacements
+    /// located by the loader's own lexer and applied back-to-front, so
+    /// layout, comments and delimiters survive; `--verify` proves the
+    /// original and the rewrite load to byte-identical registry snapshots.
     Upgrade(SpecUpgradeArgs),
 
     /// Render a pack as canonical `SpecTcl` — its expansion, if it is a

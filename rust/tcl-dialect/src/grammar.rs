@@ -78,7 +78,8 @@ pub fn expr_word_operator_since(spelling: &str) -> Option<crate::TclVersion> {
 /// `expr_grammar_base` of some dialect — `DialectProfile::expr_grammar_base`,
 /// the field that already exists to gate exactly these two TIPs.
 ///
-/// A `None` base (an unversioned dialect: plain `tcl`, iRules) takes the
+/// A `None` base (an unversioned dialect: the lenient `tcl` sink, the `tk`
+/// ingress profile, and `f5-bigip`, which is not Tcl at all) takes the
 /// **newest** grammar, so every word operator is present. That is the same
 /// default the rest of [`LexerGrammar`] uses — [`BracedVarStyle::Tcl9Nesting`],
 /// [`NumberSyntax::Tcl90`] and [`ExprCommentStyle::Hash`] are all the newest

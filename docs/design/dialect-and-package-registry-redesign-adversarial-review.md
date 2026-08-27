@@ -7,6 +7,26 @@
 > **Verdict:** request changes. The dialect/package/environment separation is
 > the right direction, but P0 is not ready to ratify and P1/P3/P5 must not begin
 > from the current data model.
+>
+> **Disposition (2026-08-27): all thirteen blocking findings accepted, and
+> the review's contracts were built.** The redesign's revision 2 adopted
+> B1–B13, H1–H5, the contract sketches (`CoreProfileId`, `VersionSet` /
+> `ItemHistory`, `SurfaceDeclaration` / `BindingKnowledge`,
+> `EnvironmentDefinition` / `EnvironmentOverlay`, `AnalysisWorld` /
+> `RealmState`), the invariants I1–I10 and the safer phase order —
+> disposition table in
+> [§0.1](dialect-and-package-registry-redesign.md#01-review-disposition-revision-2)
+> — and phases P0–P6 then implemented them. Two of the review's calls were
+> vindicated by later measurement in ways the redesign had not anticipated:
+> **B1's build axis** earned its keep three separate times (Jim's
+> `--minimal`, iApps' 32-bit scriptd build, and `auto.def` flipping its
+> default at Jim 0.82 — which forced `CapabilitySet::canonical` to be keyed
+> by release rather than by family), and **B11's "Tk keeps its own version
+> axis, never `tracks-base`"** is exactly what let the Tk pilot erase the tk
+> triangle without a lenient special case. Of the invariants, **I7 (dropped
+> generations release dynamic specs) is the one that did not land** — the
+> loader still leaks per load. This review is kept verbatim as the record;
+> what remains open from it is in the redesign's **§11**.
 
 ## Executive verdict
 

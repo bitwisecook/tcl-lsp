@@ -266,9 +266,17 @@ impl LexerConfig {
     /// the `${…}` delimiting rule):
     ///
     /// * `expand_syntax` — true for Tcl 8.5+ runtimes and dialects that
-    ///   embed one (iApps, tmsh, Expect, EDA flavours). False for Tcl 8.4
-    ///   and iRules.
-    /// * `irules_brace_separator` — true only for iRules.
+    ///   embed one (Expect, the EDA flavours, `bpf`, `spectcl`). False for
+    ///   Tcl 8.4 and for **every** F5 dialect: measurement
+    ///   (`docs/design/bigip-irule-parser-measurements.md` §4a) showed
+    ///   `f5-tmsh` and `f5-iapps` are 8.4.6 forks like `f5-irules`, not the
+    ///   8.5 embeds the pre-#1631 catalogue assumed, and on all three
+    ///   `{*}$l` lexes as a literal `*` plus the unexpanded word.
+    /// * `irules_brace_separator` — true for every dialect on the `f5-tcl`
+    ///   trunk: `f5-irules`, `f5-tmsh` and `f5-iapps` all select
+    ///   `GRAMMAR_F5_TCL`, and §4a measured the implicit word break
+    ///   byte-identically in all three. The field keeps its historical
+    ///   name.
     /// * `braced_var` — the `${…}` delimiting rule:
     ///   [`BracedVarStyle::FirstClose`] for every 8.x-runtime dialect
     ///   (8.4–8.6, the F5 dialects — tmsh included — EDA, and Expect),

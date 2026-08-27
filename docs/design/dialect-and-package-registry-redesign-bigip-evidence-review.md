@@ -12,6 +12,32 @@
 > presently turn coarse documentation and undocumented implementation
 > assumptions into permanent type facts. They also treat six distinct language
 > contexts as though one observed `tclsh` could identify all of them.
+>
+> **Disposition (2026-08-27): all eight findings accepted, the E3 transcript
+> ran, and the review was right about the version claims — more sharply than
+> it argued.** The live appliance run
+> ([measurements](bigip-irule-parser-measurements.md)) **falsified the
+> iApps/tmsh "8.5"/"8.5.13" rows on both axes**: `TmshCliScript` and
+> `IAppImplementation` each report `info patchlevel` **8.4.6**, each fails
+> every 8.5 discriminator, and neither uses a core release's grammar
+> verbatim — all three F5 contexts are **one parser**. The review's "one
+> observed `tclsh`" objection was vindicated exactly: the on-box
+> `/usr/bin/tclsh8.4` is 8.4.13, unrelated to the 8.4.6 embedded in all
+> three contexts. The consequence for the model is a two-level tree the
+> proposal did not have — family `f5-tcl` as the shared trunk with
+> `f5-irules` as a dialect offshoot — and a tmsh lexing mode that **is**
+> required after all.
+>
+> Of the nine required changes below, **1 and 3–9 landed** (the evidence
+> layer `rust/tcl-registry/src/f5/`, the typed axes, the overlays, and 205
+> hermetic conformance vectors), **2 landed** (no "pinned forever" claim and
+> no unprovenanced 8.4.6/8.5.13 assertion survives), and the acceptance
+> matrix's coverage is what remains — one build and four contexts measured,
+> the 17.x column, the older-build column, the restricted-role tmsh column
+> and the two APL contexts still empty. The corpus paid for itself: on its
+> first run it found sixteen real model defects and all sixteen were fixed
+> by moving the model to the measurement. What is still owed is in the
+> redesign's **§11** (V1–V4, V9, V10).
 
 ## Executive finding
 

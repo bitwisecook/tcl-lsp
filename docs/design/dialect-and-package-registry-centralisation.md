@@ -1,8 +1,15 @@
 # Registration and resolution: the centralisation contract and retirement ledger
 
-> **Status: PROPOSAL — companion to
+> **Status: the contract as built — companion to
 > [dialect-and-package-registry-redesign.md](dialect-and-package-registry-redesign.md)
-> (revision 2).** That document defines the model (core profiles, packages,
+> (revision 2), which landed through P6 on 2026-08-27.** Every §3 ledger
+> row carries its final state (done / partial-with-reason /
+> open-gated-on-X), and every row still open is repeated in the redesign's
+> **§11 open-questions ledger**, which is the single place to look for
+> outstanding work across this programme. This document remains the audit
+> of record for *why* each mechanism was retired and what proves it.
+>
+> That document defines the model (core profiles, packages,
 > environments, realms). This one is the end-to-end audit of every
 > registration and resolution seam in the workspace — front end, compiler,
 > analyser, backends, runtimes and VMs, and all tooling — against that
@@ -241,6 +248,32 @@ Every entry: mechanism → replacement → phase (redesign §8) → the gate
 that proves the retirement. **F** front end, **C** compiler/analyser,
 **B** backends, **T** tooling. No entry may be wrapped or kept alongside
 its replacement.
+
+**How to read a row's final state (2026-08-27).** A Phase cell reading
+**done** is closed and gate-proved. A cell reading *(partial: …)* names
+what landed and what did not, in that row's own words. A cell carrying a
+bare phase and **no annotation was not touched by this programme** and
+remains open at its stated phase — that is the honest reading, not an
+omission, and every such row is collected in the redesign's **§11** open
+ledger. Verified at the sweep: `TclVersion::from_dialect` (F11) is still
+live in `tcl-lsp-server`; `all_dialect_command_names()` (C10) still holds
+its hardcoded pack list; `restrict_commands(&[&str])` and
+`SANDBOX_COMMANDS` (B7) are unchanged; `_registry_data.tcl` (B10) is still
+bundled by `tcl-irule-test`; and `render_spectcl`'s `is_dialect_set` (T8)
+still matches `"dialects" | "safe_on_uninit"` together. Most of the
+untouched rows are the *payload* halves — the user-visible enumerations,
+enums and row ids — deliberately held because re-keying them is a
+user-facing change rather than a refactor (§11's D15).
+
+**The completion criterion (§8's P8 rider) is not met, and that is
+recorded rather than glossed:** "the migration is done when every ledger
+row's retired mechanism no longer exists in the tree". The mechanisms that
+still exist are exactly the rows above without a **done**, and the largest
+single blocker under them is ledger **C1** — the `DialectSet` residue
+behind the executable-IR bundle, which gates F8's key types, T11's
+`grammar_union`, the interned `DialectProfile` (and with it a
+pack-declared dialect's ability to lex), the analyser-vs-unit `tk`
+asymmetry, and the Tk specificity row.
 
 **Status: P1-G (the deletion phase) is done.** After the P1-F waves left
 every production ingress on the seam, the remaining test-fixture call
@@ -627,7 +660,24 @@ this section.
 
 The audit surfaced questions the redesign had not answered. Proposed
 rulings (▸ = recommendation; genuinely owner-level items are also
-mirrored as Q22–Q25 in the main document):
+mirrored as Q22–Q25 in the main document).
+
+**Final state (2026-08-27).** All eleven were adopted as working rulings.
+Of them, **R6 half-landed** (the `supports NAME RANGE` directive ships and
+drives W150/W151; the `tclpkg.tcl` multi-clause `tcl` grammar is not
+ingested and the three version comparators have not collapsed), **R8
+partly landed** (per-family scoping is respected wherever a gate exists;
+B9's structural parity gate does not), and **R11 substantially landed**
+(its own status note has the detail). **R1, R2, R3, R4, R5, R7, R9 and
+R10 did not land as code**: the `StubOverlay` type still exists, special
+variables are still a compiled Rust table, `FILE_SCOPED_ENVS` is still a
+hardcoded Rust table, `render_spectcl` still conflates `safe_on_uninit`
+with availability, the hook `ctx` dict still has only a `dialect` key,
+`tcl spec check` and `tcl spec build --emit rust` are unbuilt, the KCS
+Applies-to vocabulary is unregenerated, and the one-oracle *gate* is not
+written (the one *oracle* is — R-c landed in P1a; what is missing is the
+mechanical enforcement that no consumer builds a second one). Each is in
+the redesign's §11.
 
 - **R1 — stubs are declarations.** Inline `# tcl-lsp: stub` and sidecar
   `.stubs` ingest as `SurfaceDeclaration`s with `Document`/`Workspace`
@@ -987,11 +1037,12 @@ already exist; nothing invents a parallel harness.
 
 ### 7.1 Reference interpreters — close the binary gap first
 
-The trees for 8.4.20/8.5.19/8.6.16/9.0.4/9.1b0 are fetched, but only
-tclsh 8.6 and 9.0 exist as binaries; **nothing builds 8.4/8.5/9.1**, so
-`audit_option_dialects` silently degrades their columns to "unsupported
+*As the audit found it (2026-08-26):* the trees for
+8.4.20/8.5.19/8.6.16/9.0.4/9.1b0 were fetched, but only tclsh 8.6 and 9.0
+existed as binaries; **nothing built 8.4/8.5/9.1**, so
+`audit_option_dialects` silently degraded their columns to "unsupported
 everywhere" and six VM cross-version suites' `TCL_LSP_TCLSH84/85/91` legs
-never run. Deliverables:
+never ran. That is fixed — see the status block below. Deliverables:
 
 - `ensure-test-deps.sh` builds in-tree `tclsh` for 8.4, 8.5, and 9.1 the
   same way it builds 9.0 (the recipe exists; the trees are present) —
@@ -1319,3 +1370,13 @@ structure itself is unchanged):
 - **P8** adds the KCS Applies-to regeneration (R9) and this document's
   ledger as the completion checklist: the migration is done when every
   ledger row's retired mechanism no longer exists in the tree.
+
+  **Status (2026-08-27): the documentation half landed; the checklist is
+  not ticked.** P8 reconciled every design document in this programme with
+  what shipped and collected the remainder in one place (redesign §11).
+  The **R9 KCS Applies-to regeneration did not happen** — it consumes
+  environment names as the controlled vocabulary, and the environment
+  *names* are still the T-row payloads this programme deliberately held.
+  The ledger's completion criterion is therefore unmet by exactly the rows
+  §3's preamble enumerates; the criterion itself is unchanged and remains
+  the right one.

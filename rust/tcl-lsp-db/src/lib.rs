@@ -3030,14 +3030,27 @@ fn top_level_only_unit(
     }
 }
 
-/// Interned identity of the dialect-varying [`tcl_lexer::LexerConfig`] fields,
-/// the salsa key that lets the two diagnostics consumers *share* one built
-/// [`CompilationUnit`].  Only `expand_syntax` / `irules_brace_separator` vary
-/// between [`LexerConfig::default`] (the analyser tail) and
-/// [`LexerConfig::for_dialect`] (the optimiser); the rest are always the default
-/// (`strict_quoting = false`, zero base offsets) on both paths.  The two configs
-/// **coincide for every dialect except `tcl8.4` / `f5-irules`**, so for the
-/// common case both consumers intern the same key and demand the same
+/// Interned identity of the [`tcl_lexer::LexerConfig`] fields this key
+/// carries, the salsa key that lets the two diagnostics consumers *share* one
+/// built [`CompilationUnit`].  The call-site knobs (`strict_quoting = false`,
+/// zero base offsets) are genuinely the default on both paths.
+///
+/// **This key is a deliberate truncation and it is a known defect.**
+/// [`LexerConfig::from_grammar`] sets six dialect-derived fields; this key
+/// interns three of them (`expand_syntax`, `irules_brace_separator`,
+/// `brace_line_continuation`) and `to_config` restores the rest
+/// from [`LexerConfig::default`] — so on the memoised path `braced_var` is
+/// always `Tcl9Nesting`, `escapes` always `Tcl90`, and `leading_bom` always
+/// `Content`, whatever the document's dialect says.  An 8.x document
+/// therefore lexes `${a{b}c}` under the 9.0 close rule here.  Widening the
+/// key is mechanical but changes *which* dialects share a build per edit, so
+/// it is a behaviour-plus-performance change; it is tracked as defect 1 of
+/// `docs/design/dialect-and-package-registry-redesign.md` §9 and gated on
+/// ledger C1 (the interned `DialectProfile` re-type) in that document's §11.
+///
+/// For the three fields it does carry, the two configs **coincide for every
+/// dialect except `tcl8.4` and the three `f5-tcl`-grammar dialects**, so for
+/// the common case both consumers intern the same key and demand the same
 /// [`compilation_unit`] — built once per edit instead of twice.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
@@ -3077,9 +3090,10 @@ fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<
 /// the salsa-native [`function_lattice`] graph).  Tracked + keyed on
 /// `(file, cfg)` so the analyser tail ([`file_analysis_incremental`]) and the
 /// optimiser/compiler-checks pass ([`compiler_check_diagnostics`]) **share one
-/// build per edit** whenever their configs coincide (every dialect bar `tcl8.4`
-/// / `f5-irules`); for those two dialects the configs differ, so each consumer
-/// builds its own (status quo).  Byte-identical to a direct
+/// build per edit** whenever their configs coincide — every dialect bar
+/// `tcl8.4` and the three `f5-tcl`-grammar dialects (`f5-irules`, `f5-tmsh`,
+/// `f5-iapps`, all of which select `GRAMMAR_F5_TCL` since #1631's P1-G);
+/// for those four the configs differ, so each consumer builds its own.  Byte-identical to a direct
 /// `memoised_compilation_unit` call.
 // LRU-capped: per-item key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 512, returns(clone))]
@@ -3144,7 +3158,7 @@ pub fn file_analysis_incremental(
     // the supplied unit is the one it would otherwise build; routing through the
     // tracked query lets `compiler_check_diagnostics` reuse this exact build in
     // the same edit whenever the dialect's config matches the default (every
-    // dialect but `tcl8.4` / `f5-irules`).
+    // dialect but `tcl8.4` and the three `f5-tcl`-grammar dialects).
     let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::default());
     analyser.set_cu_override(compilation_unit(db, file, cfg_key));
 

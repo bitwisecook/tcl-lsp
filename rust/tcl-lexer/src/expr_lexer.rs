@@ -315,8 +315,11 @@ struct Inner<'s> {
     /// `expr_grammar_base`, resolved through
     /// [`tcl_dialect::is_expr_word_operator`] rather than a list held here,
     /// because *which* of them exist moves the lexeme boundary and so cannot
-    /// be settled above the lexer. `None` (plain `tcl`, iRules) takes the
-    /// newest grammar, like every other knob on `LexerGrammar`.
+    /// be settled above the lexer. `None` — the lenient `tcl` sink, the `tk`
+    /// ingress profile, and `f5-bigip` — takes the newest grammar, like every
+    /// other knob on `LexerGrammar`. Every catalogue dialect names a base:
+    /// `f5-irules`, `f5-tmsh` and `f5-iapps` are all `Some(V8_4)`, the
+    /// measured F5 fork point.
     expr_grammar_base: Option<tcl_dialect::TclVersion>,
     /// The previous emitted lexeme was a number with no intervening byte.
     /// C's successful explicit-radix path recursively starts a fresh lexeme at
