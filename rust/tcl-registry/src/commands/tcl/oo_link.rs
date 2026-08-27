@@ -29,7 +29,7 @@
 //! `::oo::Helpers::link`, once loaded. Two specs, not one: an
 //! unconditional 9.0+ core entry, and an 8.6/8.7 entry gated on
 //! `ooutil` — a single `TCL86_PLUS`-wide spec would wrongly treat a
-//! bare 8.6 `link` (with no `package require ooutil` anywhere in the
+//! bare 8.6 `link` (with no `package require oo::util` anywhere in the
 //! file) as a known, resolvable command.
 //!
 //! Both entries are **method-context-scoped** (issue #1026,
@@ -97,8 +97,8 @@ pub fn spec_ooutil_86() -> CommandSpec {
         return_type: Some(TclType::String),
         hover: Some(HOVER),
         forms: FORMS,
-        tcllib_package: Some("ooutil"),
-        required_package: Some("ooutil"),
+        tcllib_package: Some("oo::util"),
+        required_package: Some("oo::util"),
         ..CommandSpec::DEFAULT
     }
 }

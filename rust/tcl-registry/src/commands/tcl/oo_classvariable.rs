@@ -21,7 +21,7 @@
 //! **8.6/8.7 route.** Like `link` and `mymethod`, Tcllib's `ooutil` installs
 //! its own `proc ::oo::Helpers::classvariable` (tcllib-2-0
 //! `modules/ooutil/ooutil.tcl:27`), so a document that says
-//! `package require ooutil` may legitimately write the bare word under
+//! `package require oo::util` may legitimately write the bare word under
 //! 8.6/8.7 even though core `TclOO` there has no such member. Confirmed
 //! live: `tclsh8.6` with `ooutil` loaded resolves and runs a
 //! `classvariable count` inside a method body exactly as 9.0 core does;
@@ -114,8 +114,8 @@ pub fn spec_ooutil_86() -> CommandSpec {
         repeated_args: REPEATED,
         hover: Some(HOVER),
         forms: FORMS,
-        tcllib_package: Some("ooutil"),
-        required_package: Some("ooutil"),
+        tcllib_package: Some("oo::util"),
+        required_package: Some("oo::util"),
         ..CommandSpec::DEFAULT
     }
 }
@@ -137,13 +137,13 @@ mod tests {
     /// Tcllib's `ooutil` defines `proc ::oo::Helpers::classvariable`
     /// (tcllib-2-0 `modules/ooutil/ooutil.tcl:27`), so the 8.6/8.7 route
     /// must carry the package gate that makes a bare `classvariable`
-    /// resolve only once the document says `package require ooutil`.
+    /// resolve only once the document says `package require oo::util`.
     #[test]
     fn classvariable_has_an_ooutil_86_route() {
         let ooutil = spec_ooutil_86();
         assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
-        assert_eq!(ooutil.required_package, Some("ooutil"));
-        assert_eq!(ooutil.tcllib_package, Some("ooutil"));
+        assert_eq!(ooutil.required_package, Some("oo::util"));
+        assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }
 
     /// Issue #1593. `classvariable` declares a cell in another frame, so

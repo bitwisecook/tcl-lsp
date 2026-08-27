@@ -2268,6 +2268,10 @@
       "summary": "Update file access/modification times."
     },
     {
+      "name": "fileutil::traverse",
+      "summary": "Create a directory-traversal object rooted at basedir."
+    },
+    {
       "name": "fileutil::updateInPlace",
       "summary": "Update a file in place using a command."
     },
@@ -8136,7 +8140,7 @@
     },
     {
       "name": "struct::tree::prune",
-      "summary": "This command is provided outside of the tree methods, as it is not a tree method per se."
+      "summary": "Abort the current struct::tree walk script and skip the current node's children."
     },
     {
       "name": "subst",

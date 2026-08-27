@@ -369,9 +369,20 @@ fn row(provider: Provider, applicable: VersionSet, history: ItemHistory) -> Surf
     }
 }
 
+/// A [`Provider::Package`] row for `name`, applicable over the package's
+/// **declared** version set.
+///
+/// For a tcllib module (P5) that set is the union of the trains its
+/// `pkgIndex.tcl` offers — `md5` is `[1.4.6, 2) ∪ [2.0.9, 3)`, not one
+/// span and not one point — read from
+/// [`crate::model::tcllib::module_version_set`]. For every other package
+/// the model has no per-version evidence yet, so the row keeps the
+/// full-axis fallback and the floor comes entirely from the document's
+/// `package require`.
 fn package_row(name: &str, history: ItemHistory) -> SurfaceDeclaration {
     let id = PackageId::new(name);
-    let applicable = full_axis(id.axis());
+    let applicable =
+        crate::model::tcllib::module_version_set(name).unwrap_or_else(|| full_axis(id.axis()));
     row(Provider::Package(id), applicable, history)
 }
 
@@ -612,6 +623,44 @@ mod tests {
             rows.iter()
                 .all(|row| row.predicate == CapabilityPredicate::None)
         );
+    }
+
+    /// **P5.** A tcllib module's package row is applicable over the
+    /// module's own **trains**, not over the whole axis: the version
+    /// range is a property of the declaration, on the module's own axis,
+    /// and a parallel-train module contributes two disjoint ranges.
+    #[test]
+    fn a_tcllib_module_row_carries_its_declared_trains() {
+        let row_for = |package: &'static str| {
+            let spec = CommandSpec {
+                name: "surface-test",
+                dialects: Some(DialectSet::ALL_TCL),
+                required_package: Some(package),
+                tcllib_package: Some(package),
+                ..CommandSpec::DEFAULT
+            };
+            declarations_for_spec(&spec)
+                .into_iter()
+                .find(|row| row.provider == Provider::Package(PackageId::new(package)))
+                .expect("a package row")
+        };
+        // Single train: the whole major line, never the shipped point.
+        let csv = row_for("csv");
+        assert_eq!(csv.applicable.axis(), &VersionAxisId::package("csv"));
+        assert_eq!(csv.applicable.ranges().len(), 1);
+        assert!(csv.applicable.contains(&v("0.10")));
+        assert!(!csv.applicable.contains(&v("1.0")));
+        // Parallel trains: two disjoint ranges on one axis.
+        let tree = row_for("struct::tree");
+        assert_eq!(tree.applicable.ranges().len(), 2);
+        assert!(tree.applicable.contains(&v("1.2.3")));
+        assert!(tree.applicable.contains(&v("2.1.3")));
+        assert!(!tree.applicable.contains(&v("2.0")));
+        // A package the census does not carry keeps the full-axis
+        // fallback — the model has no per-version evidence for it.
+        let http = row_for("http");
+        assert!(http.applicable.contains(&v("0.1")));
+        assert!(http.applicable.contains(&v("99.0")));
     }
 
     #[test]

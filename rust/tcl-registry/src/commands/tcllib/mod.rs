@@ -85,6 +85,7 @@ mod fileutil__tempdirreset;
 mod fileutil__tempfile;
 mod fileutil__test;
 mod fileutil__touch;
+mod fileutil__traverse;
 mod fileutil__updateinplace;
 mod fileutil__writefile;
 mod html__html_entities;
@@ -267,6 +268,7 @@ mod text_misc;
 mod web_asn;
 
 use crate::dialects::DialectSet;
+use crate::model::tcllib::core_floor_exclusions;
 use crate::spec::CommandSpec;
 
 /// Return all `tcllib` command specifications.
@@ -391,6 +393,7 @@ fn fileutil_html_ip_json_specs() -> Vec<CommandSpec> {
         fileutil__tempdirreset::spec(),
         fileutil__tempfile::spec(),
         fileutil__test::spec(),
+        fileutil__traverse::spec(),
         fileutil__touch::spec(),
         fileutil__updateinplace::spec(),
         fileutil__writefile::spec(),
@@ -637,7 +640,11 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
         "md5" => Some("md5"),
         "mime" => Some("mime"),
         "sha1" => Some("sha1"),
-        "sha2" => Some("sha2"),
+        // The commands live in `::sha2` but the module the user writes
+        // is `package require sha256` — `sha1/sha256.tcl` ends with
+        // `package provide sha256 1.0.6`, and no `sha2` package exists
+        // anywhere in tcllib 2.0. Namespace ≠ package identity (P5).
+        "sha2" => Some("sha256"),
         "smtp" => Some("smtp"),
         "snit" => Some("snit"),
         "textutil" => Some("textutil"),
@@ -658,15 +665,15 @@ fn tcllib_required_package(name: &str) -> Option<&'static str> {
 /// membership.  Returns the dialect bits to remove, or `None` when the
 /// package supports the full range.
 ///
-/// Verified against the bundled tcllib 2.0 sources (each module's
-/// `package require Tcl` line):
-///   * `report` 0.5   — `package require Tcl 8.5 9`  → excludes 8.4
-///   * `stooop` 4.4.2 — `package require Tcl 8.5 9`  → excludes 8.4
+/// **P5.** This used to be a two-name `match` (`report`, `stooop`) — the
+/// two modules somebody had checked — while every other module carried
+/// the same `package vsatisfies [package provide Tcl] 8.5 9` head guard
+/// and was offered under `tcl8.4` anyway.  The answer now comes from
+/// [`core_floor_exclusions`], which reads each module's real guard out of
+/// [`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES), so the rule is applied to the whole distribution
+/// from one piece of evidence instead of to two names from memory.
 fn tcllib_package_dialect_floor(pkg: &str) -> Option<DialectSet> {
-    match pkg {
-        "report" | "stooop" => Some(DialectSet::TCL84),
-        _ => None,
-    }
+    core_floor_exclusions(pkg)
 }
 
 #[cfg(test)]
@@ -705,39 +712,111 @@ mod tests {
         // `struct::*` ensembles own their package name.
         assert_eq!(pkg("struct::list"), Some("struct::list"));
         assert_eq!(pkg("struct::queue"), Some("struct::queue"));
-        // Versioned sha packages.
+        // Versioned sha packages. `::sha2` is the *namespace*; the
+        // package `tmp/tcllib-2.0/modules/sha1/sha256.tcl` provides is
+        // `sha256`, and that is what a user writes (P5).
         assert_eq!(pkg("sha1::sha1"), Some("sha1"));
-        assert_eq!(pkg("sha2::sha256"), Some("sha2"));
+        assert_eq!(pkg("sha2::sha256"), Some("sha256"));
     }
 
+    /// **P5's identity census.** Every package name the catalogue files a
+    /// tcllib command under is either a module the tcllib 2.0 sources
+    /// really provide ([`TCLLIB_MODULES`](crate::model::tcllib::TCLLIB_MODULES))
+    /// or a *recorded* gap
+    /// ([`UNBACKED_PACKAGE_NAMES`](crate::model::tcllib::UNBACKED_PACKAGE_NAMES)).
+    /// A new name backed by neither fails
+    /// the build, so the census can only shrink.
+    #[test]
+    fn the_identity_census_is_closed() {
+        use crate::model::tcllib::{is_unbacked_package_name, tcllib_module};
+        let mut unknown: Vec<&str> = tcllib_command_specs()
+            .iter()
+            .filter_map(CommandSpec::owning_package)
+            .filter(|package| {
+                tcllib_module(package).is_none() && !is_unbacked_package_name(package)
+            })
+            .collect();
+        unknown.sort_unstable();
+        unknown.dedup();
+        assert!(
+            unknown.is_empty(),
+            "tcllib package names backed by neither the module table nor the \
+             recorded-gap list: {unknown:?}",
+        );
+    }
+
+    /// Every row of the module table is a name the catalogue actually
+    /// uses — the census closes in both directions, so a module drifts
+    /// out of the table when its last command leaves the catalogue.
+    ///
+    /// `oo::util` is the one row provided from outside this module: its
+    /// three commands (`link`, `mymethod`, `classvariable`) are `TclOO`
+    /// helpers filed under `commands::tcl`, because the same names have a
+    /// core 9.0 route beside the tcllib one.
+    #[test]
+    fn the_module_table_carries_no_unused_rows() {
+        let mut used: std::collections::HashSet<&str> = tcllib_command_specs()
+            .iter()
+            .filter_map(CommandSpec::owning_package)
+            .collect();
+        used.insert("oo::util");
+        let unused: Vec<&str> = crate::model::tcllib::TCLLIB_MODULES
+            .iter()
+            .map(|module| module.package)
+            .filter(|package| !used.contains(package))
+            .collect();
+        assert!(unused.is_empty(), "unused module rows: {unused:?}");
+    }
+
+    /// The Tcl-core floor is now read per module from the sources, so it
+    /// covers the whole distribution rather than the two names the old
+    /// `match` happened to list (P5).
     #[test]
     fn tcl85_plus_packages_are_gated_out_of_tcl84() {
-        // `report` and `stooop` declare `package require Tcl 8.5 9` in
-        // tcllib 2.0, so none of their commands are available under the
-        // tcl8.4 dialect — and every command a package provides must be
-        // gated consistently, not just the ones with a dedicated spec.
         let specs = tcllib_command_specs();
+        for spec in &specs {
+            let Some(package) = spec.owning_package() else {
+                continue;
+            };
+            let Some(excluded) = core_floor_exclusions(package) else {
+                continue;
+            };
+            let dialects = spec.dialects.expect("tcllib command carries a dialect set");
+            assert!(
+                !dialects.intersects(excluded),
+                "`{}` (package {package}) must not be offered below its declared Tcl floor",
+                spec.name,
+            );
+            assert!(
+                dialects.contains(DialectSet::TCL90),
+                "`{}` should remain available under tcl9.0",
+                spec.name,
+            );
+        }
+        // The two names the old hand-written table carried still hold …
         let gated: Vec<_> = specs
             .iter()
             .filter(|s| s.name.starts_with("report::") || s.name.starts_with("stooop::"))
             .collect();
-        assert!(
-            !gated.is_empty(),
-            "expected report::/stooop:: commands in the tcllib set",
-        );
+        assert!(!gated.is_empty(), "expected report::/stooop:: commands");
         for spec in gated {
-            let dialects = spec.dialects.expect("tcllib command carries a dialect set");
-            assert!(
-                !dialects.contains(DialectSet::TCL84),
-                "`{}` must not be available under tcl8.4 (package requires Tcl 8.5+)",
-                spec.name,
-            );
-            assert!(
-                dialects.contains(DialectSet::TCL86),
-                "`{}` should remain available under tcl8.6",
-                spec.name,
-            );
+            let dialects = spec.dialects.expect("dialect set");
+            assert!(!dialects.contains(DialectSet::TCL84), "{}", spec.name);
+            assert!(dialects.contains(DialectSet::TCL86), "{}", spec.name);
         }
+        // … and so do the ones it silently missed: `csv` carries the same
+        // `8.5 9` guard, and the 8.6-floor modules lose 8.5 as well.
+        let floor_of = |name: &str| {
+            specs
+                .iter()
+                .find(|s| s.name == name)
+                .and_then(|s| s.dialects)
+                .expect("spec")
+        };
+        assert!(!floor_of("csv::split").contains(DialectSet::TCL84));
+        assert!(floor_of("csv::split").contains(DialectSet::TCL85));
+        assert!(!floor_of("defer::defer").contains(DialectSet::TCL85));
+        assert!(floor_of("defer::defer").contains(DialectSet::TCL86));
     }
 
     #[test]

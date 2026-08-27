@@ -85,7 +85,12 @@ a documented P2 seam — whose **environment half landed with P2-H**:
 under the §6.4 trust lattice, and the ingress resolves against it — see
 the §6 status note), and `binding.rs` (`BindingKnowledge`,
 `PackageStateMap`, and the `PackageTransition` family as a parallel type
-pending P1a realm integration). The equivalence sweeps pass with **zero
+pending P1a realm integration). **P5 added `tcllib.rs`** — the
+200-row per-module identity census (`package require` name, version
+trains, Tcl-core floor, source evidence) read out of `tmp/tcllib-2.0`,
+which supplies the applicability set of every tcllib module's package
+declaration and the per-module Tcl floor `commands::tcllib` gates on.
+The equivalence sweeps pass with **zero
 divergences** (the deliberate-divergence allowlist is empty): per-spec
 visibility agrees with `ProfileQueries::is_available` for 3,647 compiled
 specs × 18 catalogue profiles (65,646 checks), and per-environment

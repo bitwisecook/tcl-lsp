@@ -140,7 +140,7 @@ the F5 half of the migration:
 | F5 `tcl_platform` effects | accepted — context overlays may refine a core variable binding's effects: the iRules overlay distinguishes the CMP-demoting global from the `static::` alias, carries the F5 source, and is lifecycle-keyed |
 | F6 tmsh syntax axis | accepted — a distinct typed version axis (never comparable with Tcl axes) plus a registry-declared state transition for `tmsh::modify cli version active`: constant argument updates subsequent tmsh resolution, dynamic widens to `Unknown`; realm scope assigned only after the probe establishes it. **Landed (evidence lane, #15)**: `VersionAxisId::tmsh_syntax()` (and its sibling `VersionAxisId::big_ip()`) are typed axes in `tcl-dialect`, so every binary operation against a Tcl core or package axis is `AxisMismatch` rather than a coincidence of dotted numbers; `rust/tcl-registry/src/f5/tmsh_syntax.rs` resolves the `tmsh::modify cli version active` form through the ordinary `InvocationArguments` view (literal → `Selected`, non-literal → `Unknown`) and carries `scope_is_measured: false` until the realm-scope probe of §12 is run |
 | F7 iApp action metadata | accepted — `requires-bigip-version-min/max`, `role-acl`, `run-as` parse into typed document overlays intersecting the configured targets; appliance security settings (e.g. `systemauth.disablebash`) are a separate live-policy overlay; unknown principals widen authorisation-sensitive analysis. **Landed (evidence lane, #15)**: `rust/tcl-registry/src/f5/iapp_metadata.rs` parses the four properties (already present in the BIG-IP object schema, and pinned against it by test) into `IAppActionOverlay` — the declared interval on the BIG-IP axis, `effective_targets` intersecting it with the configured targets, `role-acl` as `None`/empty/roles, and an omitted `run-as` reading as the **calling user**, which widens authorisation analysis rather than inheriting an administrator surface. Appliance security settings stay out of this document overlay |
-| F8 conformance corpus | accepted — a checked-in F5 corpus (per-build, per-context manifests; exact scripts; normalised privacy-safe outputs; explicit `unknown` cells) with a transcript validator that never runs in CI; registry rows generate from the corpus and a drift gate fails when prose, rows, or tests disagree with it. **Partially landed (evidence lane, #15)**: `rust/tcl-registry/src/f5/corpus.rs` holds 205 hermetic vectors derived from the checked-in transcripts — 21 §4a parity cases, 9 §4a environment rows, 16 discriminators, 31 §4b command classes, 120 event-context cells, 8 priority facts — each citing its measurements section and each asserted against the model. Rows carry a two-sided `ModelExpectation`: `Agrees` must keep agreeing, `Diverges` must keep diverging *exactly where recorded* (so closing a gap is a deliberate edit), `NotComparable` names why there is no model answer. Still open: registry rows are not yet *generated* from the corpus, and the transcript-schema validator is not written |
+| F8 conformance corpus | accepted — a checked-in F5 corpus (per-build, per-context manifests; exact scripts; normalised privacy-safe outputs; explicit `unknown` cells) with a transcript validator that never runs in CI; registry rows generate from the corpus and a drift gate fails when prose, rows, or tests disagree with it. **Partially landed (evidence lane, #15)**: `rust/tcl-registry/src/f5/corpus.rs` holds 205 hermetic vectors derived from the checked-in transcripts — 21 §4a parity cases, 9 §4a environment rows, 16 discriminators, 31 §4b command classes, 120 event-context cells, 8 priority facts — each citing its measurements section and each asserted against the model. Rows carry a two-sided `ModelExpectation`: `Agrees` must keep agreeing, `Diverges` must keep diverging *exactly where recorded* (so closing a gap is a deliberate edit), `NotComparable` names why there is no model answer. **Defects fixed (#27)**: the corpus immediately caught sixteen real model defects and P4 closed every one by moving the model to the measurement — eight over-permissive event cells (`HTTP::uri` in `HTTP_RESPONSE`, `HTTP::status` in `HTTP_REQUEST`, `SSL::cipher` in `RULE_INIT`/`CLIENT_ACCEPTED`/`CLIENT_DATA`/`SERVER_CONNECTED`/`CLIENT_CLOSED`, `LB::server` in `RULE_INIT`), seven over-strict ones (`HTTP::uri`/`HTTP::status`/`HTTP::collect` in `LB_SELECTED`, `IP::server_addr` in the four client-side events), and the missing bare `matches` word operator. The event-context divergence count fell 21 → 6, and the six that remain are the deliberate `RULE_INIT` compile-acceptance rows §8 of the measurements says must not be read as "valid to use". Still open: registry rows are not yet *generated* from the corpus, and the transcript-schema validator is not written |
 
 **Migration hold**: no F5 row moves into the new source of truth until the
 review's acceptance matrix has its required coverage; until then the
@@ -1544,9 +1544,13 @@ gates on (adopted verbatim from the review):
   still owes is: (a) **corpus-generated rows** (the F5 catalogue entries
   are still hand-authored; the corpus asserts them rather than producing
   them) plus the transcript-schema validator and the prose/rows/tests
-  drift gate; (b) the **21 recorded event-context divergences** and the
-  missing `matches` word operator resolved in registry data one way or
-  the other; (c) the **role/policy visibility overlay** (F4) and the
+  drift gate; (b) ~~the **21 recorded event-context divergences** and
+  the missing `matches` word operator resolved in registry data one way
+  or the other~~ — **done (#27)**: the fifteen open event cells were
+  moved in per-command registry data and the bare `matches` is the
+  trunk's tenth word operator, leaving only the six deliberate
+  `RULE_INIT` compile-acceptance rows diverging (§0.2's F8 row has the
+  detail); (c) the **role/policy visibility overlay** (F4) and the
   `tcl_platform` CMP-effect overlay (F5), which this lane recorded as
   evidence but did not wire as overlays; and (d) the acceptance
   matrix's remaining coverage, which needs another appliance run, not
@@ -1559,6 +1563,111 @@ gates on (adopted verbatim from the review):
   `fileutil::traverse`, and `oo::dialect`, scaling to the long tail only
   after those dynamic surfaces are honest. Multi-train cases (`struct`,
   `struct::graph`) are the version-set acceptance tests.
+
+  **Status: the package model is landed on the real surface; the
+  declarations stay compiled** — the same split P3 proved for Tk, now
+  proved for 200 independently versioned third-party modules.
+
+  - **Per-module identity, from the sources.**
+    `tcl_registry::model::tcllib::TCLLIB_MODULES` is a 200-row census
+    read out of `tmp/tcllib-2.0`: each module's `package require` name,
+    the **trains** its own `pkgIndex.tcl` offers, its
+    `package require Tcl` floor, and the file each fact came from. A
+    module's declarations now carry that set as their applicability
+    (`declarations_for_spec`'s package row), on the module's **own**
+    axis. No row is a point: a train is a requirement, so single-train
+    `csv 0.10` is `[0.10, 1)` and seven modules — `md5`, `sha1`, `snit`,
+    `struct::tree`, `struct::graph`, `doctools::idx`, `doctools::toc` —
+    are genuine **parallel trains**, two disjoint ranges each. That is
+    the multi-train truth of §3.2 as data rather than as a plan.
+  - **Hosted, never ambient.** No compiled environment places a tcllib
+    module, so none is closed-world or placement-gated: visibility stays
+    §5.3's lenient `open` rule with W120 owning the nag, and the
+    **floor** comes from the document's own `package require`. Pinned by
+    `hosted_modules_are_never_ambient` over the whole table, so an
+    environment that later placed one ambient would fail the build
+    rather than silently become a closed world. Enumerating 200
+    placements per plain-Tcl environment would add data that says
+    nothing a `Placement::Requirement` with no point primary does not
+    already say — the ruling is the invariant, not the rows.
+  - **Two identity defects the sources proved.** `sha2` is a *namespace*
+    (`::sha2::sha256`); the package is `sha256`
+    (`sha1/sha256.tcl` ends `package provide sha256 1.0.6`). `ooutil` is
+    a *directory*; the package is `oo::util`. Both are renamed, so
+    `package require sha256` / `package require oo::util` — what tclsh
+    actually accepts — now activate the surface. Eleven further names
+    the catalogue uses (`tcl::chan`, `fileutil::magic`, `pt`,
+    `pt_export_api`, `tcl::combine`, …) are namespace prefixes or
+    manpage identities that no `package provide` backs; they are
+    recorded in `UNBACKED_PACKAGE_NAMES` with what the sources say
+    instead, and `the_identity_census_is_closed` fails the build if a
+    new unbacked name appears, so the list can only shrink.
+  - **The Tcl-core floor, applied from evidence.** The old
+    `tcllib_package_dialect_floor` was a two-name `match` (`report`,
+    `stooop`) while every other module carried the identical
+    `package vsatisfies [package provide Tcl] 8.5 9` guard and was
+    offered under `tcl8.4` regardless. It now reads the per-module floor
+    off the census, so the whole distribution is gated consistently —
+    §5.4's "package interplay" at ladder granularity, under D5's
+    "oldest never over-reports".
+  - **Range gating.** `# tcl-lsp: supports struct::tree 1.2-2.2` warns on
+    `::struct::tree::prune` (W150, naming `struct::tree 2.0` and the
+    failing targets); `supports struct::tree 2.1-` is clean;
+    `package require struct::tree 1.2` gives the single-floor W135. The
+    axis controls are stronger than P3's could be, because a tcllib
+    module can be gated against **another tcllib module**: a
+    `supports struct::list 1.2-2.2` declaration says nothing about the
+    `struct::tree` axis, and neither does a core `supports tcl 8.5-9.0`
+    (invariant I2).
+  - **The adversarial cases.** `struct::tree`'s walker is modelled
+    across both trains: `walk`'s 2.x `loopvar script` body (resolved
+    positionally, since the option prefix is variable-length), the 1.x
+    `-command` option carrying `retired: "2.0"` and the `Exactly(0)`
+    appended arity its `string map` + `uplevel` really has, `walkproc`
+    with `introduced: "2.0"`, and `::struct::tree::prune` as a real
+    command with `CompletionCodeDomain::Exact([Other(5)])`.
+    `http::geturl` gained the whole 20-option table it never had, with
+    the four callbacks' measured appended arities (1/2/3/3, all
+    deferred), the release deltas the four bundled Tcl trees prove, the
+    `-query`/`-querychannel` conflict, and its credential and
+    network-sink facts intact. `bibtex::parse`'s five proven
+    `-command`-versus-SAX conflicts are now `OptionConstraint` rows
+    beside its existing cross-option timing hook.
+  - **What stays inexpressible, with the field each needs.**
+    (a) *Scoped completion codes* (E-R6): `prune`'s code 5 is
+    loop-adjacent **only inside a `walk` body**. A body slot carries a
+    timing and a kind, never a set of codes its command consumes; the
+    missing field is `body_completion_codes: &[(u8, CompletionCode,
+    &str)]` on `SubCommand`/`OptionSpec`, so the `BREAKS_LOOP` machinery
+    could be scoped to that body. Until it exists `prune` carries no
+    control-flow trait, because `CONTINUES_LOOP` would be a lie the CFG
+    builder acts on. (b) *Instance-method version gating*: an
+    `ObjectClassSpec` method (and its options) already carries a
+    `Lifecycle`, but the analyser's instance-method path has no
+    diagnostic site, so `walkproc`'s `introduced: "2.0"` and
+    `walk -command`'s `retired: "2.0"` are declared and unread — the
+    missing piece is a consumer (`record_lifecycle_site` on
+    instance-method resolution), not a field. (c) *Option-requires
+    relations* (census G2's directional half): `bibtex::parse`'s
+    `-command` requires `-channel`, and `OptionConstraint` only says
+    "may not occur together" — and only between options, never between
+    an option and a positional argument. (d) *Callback substitution
+    sets*: `struct::tree` 1.x's `%n`/`%a`/`%t` and `struct::graph`'s
+    placeholders need `-substitutions {%n node …}` on the prefix slot;
+    `CallbackTaintInput::TkPercent` names the spelling but only as a
+    taint colour. (e) *Callee-frame expressions*:
+    `math::calculus::integralExpr`'s fourth argument is an `expr`
+    evaluated in the **callee's** frame against a callee-provided `x`;
+    `ArgRole::Expr` is right about the language and wrong about the
+    scope, and there is no `-scope callee -provides {x}`. (f)
+    *Transitive core floors*: `processman` declares Tcl 8.5 and requires
+    `cron 2.0`, which declares 8.6 — the census records direct floors
+    only.
+  - **Two enumerated behavioural deltas**, both pinned: tcllib commands
+    whose module declares a Tcl floor are no longer offered below it
+    (every 8.5-floor module loses `tcl8.4`; `defer`, `generator`,
+    `websocket` and the other 8.6-floor modules lose `tcl8.5` too), and
+    the two renamed packages answer to their real names.
 - **P6 — jim rebased.** The jim branch re-lands on the new model: its
   measured grammar data and probe scripts carry over as **release ×
   build-profile** columns (never one default-build column as the family

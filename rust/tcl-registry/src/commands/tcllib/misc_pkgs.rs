@@ -538,6 +538,46 @@ fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
         .collect()
 }
 
+/// `bibtex::parse`'s **proven** option conflicts (P5).
+///
+/// `bibtex.tcl:196-211` computes `sax` as "any of the five `-TYPEcommand`
+/// options is present" and `bg` as "`-command` is present", then raises
+/// *"The options `-command` and `-TYPEcommand` exclude each other"* when
+/// both hold.  That is five pairwise conflicts, one per SAX callback, and each
+/// is an ordinary [`OptionConstraint`].
+///
+/// The **other** rule at the same site is not expressible and stays a
+/// recorded limit: `-command` additionally excludes an inline `text`
+/// argument (`bibtex.tcl:237-241`), which is the same as saying
+/// `-command` *requires* `-channel`.  Two fields are missing for it —
+/// an option-requires-option relation (the census's G2 directional half,
+/// which the redesign flags as the most valuable single model addition
+/// left) and a relation between an option and the presence of a
+/// *positional* argument.  `OptionConstraint` only says "may not occur
+/// together", and only between options.
+const BIBTEX_PARSE_CONSTRAINTS: &[OptionConstraint] = &[
+    OptionConstraint {
+        options: &["-command", "-recordcommand"],
+        ..OptionConstraint::DEFAULT
+    },
+    OptionConstraint {
+        options: &["-command", "-preamblecommand"],
+        ..OptionConstraint::DEFAULT
+    },
+    OptionConstraint {
+        options: &["-command", "-stringcommand"],
+        ..OptionConstraint::DEFAULT
+    },
+    OptionConstraint {
+        options: &["-command", "-commentcommand"],
+        ..OptionConstraint::DEFAULT
+    },
+    OptionConstraint {
+        options: &["-command", "-progresscommand"],
+        ..OptionConstraint::DEFAULT
+    },
+];
+
 /// `bibtex::parse` — structured so its callback options carry command prefixes.
 fn bibtex_parse_spec() -> CommandSpec {
     CommandSpec {
@@ -549,6 +589,7 @@ fn bibtex_parse_spec() -> CommandSpec {
             "tcllib bibtex package",
         )),
         options: BIBTEX_PARSE_OPTIONS,
+        option_constraints: BIBTEX_PARSE_CONSTRAINTS,
         script_timing_resolver: Some(bibtex_parse_script_timing),
         tcllib_package: Some("bibtex"),
         required_package: Some("bibtex"),

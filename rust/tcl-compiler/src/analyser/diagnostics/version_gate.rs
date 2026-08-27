@@ -3235,6 +3235,87 @@ mod tests {
             assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
         }
 
+        // -- P5: the tcllib adversarial modules ------------------------
+        //
+        // A tcllib module is an independently versioned package with its
+        // own axis, so `supports struct::tree …` gates on the *module's*
+        // train, not on tcllib-as-a-blob and not on the Tcl core. The
+        // acceptance item is `::struct::tree::prune`: `tree1.tcl` (the
+        // 1.2.3 train) has no such proc, `tree_tcl.tcl` (2.1.3) defines
+        // it as `return -code 5`, so it carries
+        // `introduced: "2.0"` on the `struct::tree` axis.
+
+        /// A project declaring `struct::tree 1.2-2.2` — both trains — is
+        /// told that `prune` does not exist across the whole range.
+        #[test]
+        fn a_tcllib_module_range_warns_on_an_item_the_older_release_lacks() {
+            let src = "# tcl-lsp: supports struct::tree 1.2-2.2\n\
+                       package require struct::tree\n\
+                       ::struct::tree::prune\n";
+            let d = diags(src, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("struct::tree 2.0")
+                    && m.contains("declared targets include")
+                    && m.contains("1.2")),
+                "a 2.0-only command under struct::tree 1.2-2.2: {d:?}"
+            );
+            // The declaration alone is enough — no `package require`
+            // needed, because a target set is a project fact, not a
+            // document one.
+            let bare = "# tcl-lsp: supports struct::tree 1.2-2.2\n::struct::tree::prune\n";
+            assert!(fires(&diags(bare, "tcl8.6"), "W150"));
+        }
+
+        /// The module range lives on **that module's** axis (invariant
+        /// I2), which a tcllib module can prove in a way `Tk` could not:
+        /// a *different tcllib module's* range with overlapping numerals
+        /// must say nothing about this one.
+        #[test]
+        fn a_tcllib_module_range_is_scoped_to_that_modules_axis() {
+            let body = "package require struct::tree\n::struct::tree::prune\n";
+            // Covered: a range that starts inside the 2.x train is clean.
+            let covered = format!("# tcl-lsp: supports struct::tree 2.1-\n{body}");
+            assert!(
+                !fires(&diags(&covered, "tcl8.6"), "W150"),
+                "2.1- covers 2.0"
+            );
+            // Another *module* with the same numerals says nothing here.
+            let sibling = format!("# tcl-lsp: supports struct::list 1.2-2.2\n{body}");
+            assert!(
+                !fires(&diags(&sibling, "tcl8.6"), "W150"),
+                "struct::list's axis must not gate struct::tree's items",
+            );
+            // Neither does the core axis.
+            let core = format!("# tcl-lsp: supports tcl 8.5-9.0\n{body}");
+            assert!(
+                !fires(&diags(&core, "tcl8.6"), "W150"),
+                "the core axis must not gate a tcllib module axis (I2)",
+            );
+            assert!(!fires(&diags(body, "tcl8.6"), "W150"), "undeclared");
+        }
+
+        /// The single-floor seed of the same family still works, and a
+        /// module is **hosted**: the floor comes from the document's own
+        /// `package require`, never from a placement pin.
+        #[test]
+        fn a_tcllib_module_floor_comes_from_the_package_require() {
+            let old = "package require struct::tree 1.2\n::struct::tree::prune\n";
+            let d = diags(old, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W135"
+                    && m.contains("struct::tree 2.0")
+                    && m.contains("guarantees only 1.2")),
+                "the 1.2 require floors below the 2.0 introduction: {d:?}"
+            );
+            let new = "package require struct::tree 2.1\n::struct::tree::prune\n";
+            assert!(!fires(&diags(new, "tcl8.6"), "W135"), "2.1 satisfies it");
+            // No require at all is permissive on the version axis — W120
+            // owns the missing-require nag for a hosted package.
+            let none = "::struct::tree::prune\n";
+            assert!(!fires(&diags(none, "tcl8.6"), "W135"));
+        }
+
         /// Under `wish` the same declaration works with **no** `package
         /// require`: the `tk` environment ships Tk ambient, so the range
         /// is declared against a package the environment already placed.

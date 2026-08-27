@@ -20,8 +20,8 @@
 //! `docs/design/dialect-and-package-registry-redesign.md` §4 and
 //! `docs/design/dialect-and-package-registry-centralisation.md` §1).
 //!
-//! Four submodules, layered exactly as the design's availability chapter
-//! draws them:
+//! The submodules are layered exactly as the design's availability
+//! chapter draws them:
 //!
 //! - [`surface`] — [`SurfaceDeclaration`]: provider + axis-typed
 //!   [`tcl_dialect::model::VersionSet`] applicability + predicate +
@@ -38,6 +38,11 @@
 //!   toolchain resolves to a [`DocumentEnvironment`] here, and derives its
 //!   registry generation and interop profile from the resolved
 //!   environment (centralisation R-a, ledger C2/F2/F3/F9).
+//! - [`tcllib`] — per-module tcllib package identity (P5): each module's
+//!   `package require` name, its parallel version trains, and its
+//!   Tcl-core floor, all read out of the bundled tcllib 2.0 sources. This
+//!   is what makes a tcllib module a package with its own axis rather
+//!   than a name on one undifferentiated "tcllib" blob.
 //! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
 //!   (I3–I5) plus the package realm vocabulary
 //!   ([`PackageStateMap`], [`PackageTransition`]). P1a integrated the
@@ -56,6 +61,7 @@ pub mod context;
 pub mod ingress;
 pub mod registration;
 pub mod surface;
+pub mod tcllib;
 
 pub use assembly::{
     ContextRegistry, registry_for_environment, registry_for_environment_if_built,
@@ -73,6 +79,8 @@ pub use ingress::{
     is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
     static_context_for_profile, static_document_context_for, static_document_context_for_profile,
 };
+pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module};
+
 pub use registration::{
     EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, RejectedSource,
     SyncOutcome, live_environments, provenance_label, register_environments,

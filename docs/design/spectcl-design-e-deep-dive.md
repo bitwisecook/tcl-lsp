@@ -1014,6 +1014,57 @@ loop-adjacent completion — consumed by the existing
 open-coded CFG vocabulary. Scoped, named, and only attachable where a
 body role already is.
 
+> **Status note (redesign P5, 2026-08-27).** The walk above was written
+> before two of its three "not modelled at all" rows landed, and P5
+> closed most of the rest against `tmp/tcllib-2.0` directly. Corrections
+> and outcomes, so the bins above are read as history rather than as the
+> current state:
+>
+> - **`math::calculus` is modelled**, and its measured appended arities
+>   (`integral` f(x), `integral2D` f(x,y), `integral3D` f(x,y,z), the ODE
+>   steppers f(t,xvec), `newtonRaphson`'s two prefixes, every root finder
+>   f(x)) were re-derived from `calculus.tcl` / `rootfind.tcl` in P5 and
+>   agree row for row. What is *not* modelled is
+>   `integralExpr`'s fourth argument: an `expr` evaluated in the
+>   **callee's** frame against a callee-supplied `x`. `ArgRole::Expr`
+>   would be right about the language and wrong about the scope; the
+>   missing vocabulary is a scope-and-provides qualifier on an expr slot.
+> - **`struct::tree walk` and `walkproc` are modelled**, across both
+>   trains: the 2.x `loopvar script` body (position-resolved, because the
+>   option prefix is variable-length), `walkproc` with
+>   `introduced: "2.0"`, and the 1.x `-command` option with
+>   `retired: "2.0"` and the `Exactly(0)` appended arity its
+>   `string map` + `uplevel` actually has — *not* a prefix arity, which
+>   is the substantive difference from `struct::graph walk -command`'s
+>   `Exactly(3)` (verified identical in `graph1.tcl` and `graph_tcl.tcl`,
+>   so `struct::graph`'s walker has no cross-train delta at all).
+> - **`http::geturl`'s option table landed**, read from `geturl`'s own
+>   `set options {…}` list and callback call sites across all four
+>   bundled Tcl trees, with the release deltas those trees prove
+>   (8.5's http 2.7.13 adds `-keepalive -method -myaddr -protocol
+>   -strict`; 9.0's 2.10.2 adds `-guesstype`).
+> - **`bibtex::parse`'s cross-option timing flip** is the shipped
+>   `script_timing_resolver` and was re-verified against `bibtex.tcl`;
+>   P5 added the five `-command`-versus-SAX conflicts it also proves.
+>   Its *other* rule — `-command` requires `-channel` — is the G2
+>   directional half restated, and additionally needs a relation between
+>   an option and a **positional** argument, which nothing in the model
+>   has.
+> - **E-R6 stands, narrowed.** `::struct::tree::prune` is now a real
+>   command with `introduced: "2.0"` on the `struct::tree` axis and a
+>   completion domain of exactly `{5}` — the *producer* half needed no
+>   new vocabulary, because a library-defined code is
+>   `CompletionCode::Other`. What E-R6 is actually for is the *consumer*
+>   half, and the field is on the body slot:
+>   `body_completion_codes: &[(u8, CompletionCode, &str)]`. Until it
+>   exists `prune` carries no control-flow trait at all, because
+>   `CONTINUES_LOOP` would be a lie the CFG builder acts on.
+> - **The one new limit P5 found:** an `ObjectClassSpec` instance method
+>   and its options already carry a `Lifecycle`, but the analyser has no
+>   diagnostic site on the instance-method path, so `walkproc`'s and
+>   `walk -command`'s lifecycles are declared and unread. That is a
+>   missing *consumer*, not a missing field.
+
 ## 9. expect and argparse — grammars inside arguments
 
 `expect`'s clause grammar is the model at its best — `CaseListSpec` is

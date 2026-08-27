@@ -156,8 +156,8 @@ pub fn mymethod_spec_ooutil_86() -> CommandSpec {
         return_type: Some(TclType::List),
         hover: Some(hover(MYMETHOD_SYNOPSIS)),
         forms: MYMETHOD_FORMS,
-        tcllib_package: Some("ooutil"),
-        required_package: Some("ooutil"),
+        tcllib_package: Some("oo::util"),
+        required_package: Some("oo::util"),
         ..CommandSpec::DEFAULT
     }
 }
@@ -190,8 +190,8 @@ mod tests {
     fn only_mymethod_has_an_ooutil_86_route() {
         let ooutil = mymethod_spec_ooutil_86();
         assert_eq!(ooutil.dialects, Some(DialectSet::TCL86));
-        assert_eq!(ooutil.required_package, Some("ooutil"));
-        assert_eq!(ooutil.tcllib_package, Some("ooutil"));
+        assert_eq!(ooutil.required_package, Some("oo::util"));
+        assert_eq!(ooutil.tcllib_package, Some("oo::util"));
     }
 
     /// Scope, not dispatch: both spellings resolve only where `::oo::Helpers`
