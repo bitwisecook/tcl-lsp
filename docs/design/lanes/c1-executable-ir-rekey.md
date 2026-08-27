@@ -74,11 +74,36 @@ Re-keyed (`DialectSet` → `Option<SemanticContext>`):
 Tests updated: `tcl-compiler/tests/{alias_scoping, dataflow, dialect_threading,
 entry_contract_abstention, pipeline_coverage, real_job_fixtures}.rs`.
 
-`DialectSet` no longer appears anywhere on the executable-IR path. It survives
-only where the ledger licenses it: **inside** `tcl-registry` as the authoring
-mask a `ResolvedContext` derives and the store's own fast-path index (row C1's
-"optional internal `FamilySet` fast path"), and in the analyser / diagnostics
-surfaces that are other ledger rows' to retire.
+`DialectSet` no longer appears **as code** anywhere on the executable-IR path —
+per file, before → after (total mentions / code mentions):
+
+```
+executable_ir.rs              18 -> 0 / 0     memory_ssa.rs            10 -> 0 / 0
+compilation_unit.rs           20 -> 2 / 0     common_aot_plan.rs       10 -> 1 / 0
+semantic_analysis.rs          10 -> 2 / 0     registry_invocation.rs    7 -> 2 / 0
+bpf-tcl-ir/semantic_bridge.rs  5 -> 0 / 0     world_state_ssa.rs        3 -> 0 / 0
+mixed_region_plan.rs           2 -> 0 / 0     native_integer_proof.rs   2 -> 0 / 0
+var_escape/helpers.rs          2 -> 0 / 0     codegen/wasm/backend.rs   1 -> 0 / 0
+optimiser/branch_folding.rs    1 -> 0 / 0     optimiser/propagation.rs  1 -> 0 / 0
+```
+
+The nine survivors are all doc comments recording what was retired.
+`tcl-lsp-db` was already at zero mentions and stays there (it read the
+projection through `tcl-compiler`).
+
+**Classification of every remaining `DialectSet` use in the workspace**
+(~3,295 code lines, unchanged in kind by this lane):
+
+| Where | Lines | Row that owns it |
+|---|---|---|
+| `tcl-registry/src/commands/**` | 1,936 | the per-command `dialects:` gates — the declaration surface itself, D2/P7 |
+| `tcl-registry/src/{registry,spec,resolved_invocation,taint,special_vars,…}.rs` | ~560 | C1's licensed **internal** fast path: the store index and the mask a `ResolvedContext` derives |
+| `tcl-registry/src/model/{context,surface}.rs` | 81 | the authoring mask itself — the derivation, not a vocabulary |
+| `tcl-dialect` | 195 | the bit type, `parse`, the catalogue's `availability_mask` rows — F1/D5 |
+| `tcl-compiler` (analyser, `irules_checks`, `taint`, `oo`, codegen) | 113 | other rows: the iRules surface (O5/P7), the analyser diagnostics, C6/C8 |
+| `tcl-lsp-core`, `tcl-spectcl`, `tcl-syntax`, `xtask`, editors' generators | ~215 | T11 `grammar_union`, F8 key types, D15 payloads |
+| `bpf-tcl-ir/src/frontend.rs` | 2 | a test asserting the `bpf` profile's own `availability_mask` |
+| `tcl-explorer/src/serialise.rs` | 5 | the `irulesFlow` view's `irules_checks` calls — the iRules surface, not the IR |
 
 ## 3. Behavioural deltas (each carries a citing comment at its site)
 
