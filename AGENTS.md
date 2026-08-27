@@ -539,6 +539,51 @@ For background runs use `tee` to a `/tmp/` path, then `grep` the file when
 you want a specific signal.  Keep the file around until the PR merges so
 you can re-investigate after a CI ping without having to re-run the gate.
 
+## Long-running agent lanes: checkpoint or lose it
+
+A "lane" is a substantial piece of work handed to a background agent — a
+consumer port, a model re-type, a surface conversion. Lanes routinely run
+for an hour or more, and a container restart destroys everything a lane
+has not committed. It has happened; the rules below exist because of it.
+
+**Every lane keeps a tracking document** at
+`docs/design/lanes/<lane>.md`, in the repository so it is committed and
+survives anything. It records the lane's goal, the design decisions taken
+and why, the site inventory with done/remaining status, behavioural deltas
+accepted so far, and open uncertainties. Write it so a fresh agent could
+resume the lane cold from that file alone — that is the test of whether it
+says enough. It is updated in the same commit as the code it describes,
+and folded into the final commit message when the lane lands.
+
+**Every lane commits at each coherent milestone** — roughly whenever the
+agent would say "that part is done" — rather than accumulating one large
+uncommitted change. Three hard rules make this safe on a shared branch:
+
+- **The tree must compile before every commit.** `cargo check --workspace`
+  passes, or there is no commit. A shared branch whose head does not build
+  blocks everyone.
+- **Stage only the lane's own files, by explicit path.** Never `git add
+  -A`, `git add .`, or a whole shared directory: a concurrent lane may be
+  mid-edit in the same worktree, and its half-written files must not be
+  swept into another lane's commit.
+- **Prefix the message `wip(<lane>):`** so the final tidy commit is
+  distinguishable from the checkpoints behind it.
+
+If `.git/index.lock` exists another lane is committing — wait and retry,
+never delete the lock.
+
+**Lanes commit locally; the orchestrator pushes.** Two lanes pushing
+concurrently race on a non-fast-forward, and local commits already survive
+a container restart, so pushing buys nothing a lane needs.
+
+**Checkpointing does not weaken a coherence ruling.** Where a design says
+a change is "one change or none" — a coordinated re-type, say — that
+governs what ships as *complete*, not whether intermediate states may be
+recorded. Honestly labelled `wip` commits that compile are the opposite of
+a half-landed change: they make the state legible. A lane that concludes
+it cannot finish says so in its tracking document and leaves its last
+checkpoint compiling.
+
 ## Knowledge base and documentation
 
 The project has two kinds of written content with different purposes, tones,
