@@ -22,9 +22,6 @@ orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 
 ## In flight
 
-- [one-loader.md](one-loader.md) — the `SpecTcl` pack loader unification
-  (redesign §11, ledger row L1): one loader, one cache identity.
-- [one-vocabulary.md](one-vocabulary.md) — redesign §11.2 rows D9 and D18
-  (clauses R1 and R10) and centralisation ledger rows C6, C8, R1, R10:
-  stubs as provenance-tagged declarations, one command-table transition
-  vocabulary, and the one-oracle gate.
+None. Every lane of the #1631 programme has landed; what each one
+decided lives in its final commit message, and what the programme left
+open lives in the redesign's §11 open-questions ledger.
