@@ -846,6 +846,61 @@ fn tk_environment() -> EnvironmentDefinition {
     }
 }
 
+/// The `jim` environment (aliases `jimsh`, `jimtcl`) — **one** row for
+/// the whole nine-release ladder, which is P6's headline collapse.
+///
+/// The old model needed nine `jim0.76`–`jim0.84` catalogue profiles for
+/// one reason: a profile carries exactly one resolved `LexerGrammar`, so
+/// a release that differed in a single axis needed its own row, and ten
+/// user-facing surfaces each grew nine lines. Here the grammar is a
+/// function of `(family, release, build)`
+/// ([`crate::model::family::grammar`]), so the environment names the
+/// family and the ladder, and a project picks its point on the ladder
+/// with `# tcl-lsp: supports jim 0.81-0.84` — the §5.4 range machinery,
+/// on the `jim` core axis, unchanged.
+///
+/// Three deliberate absences:
+///
+/// - **No editor identity.** Review B7: a server may select among the
+///   identities the shipped extensions contribute and can never mint a
+///   new one. No editor contributes a `tcl-jim` id today, so this
+///   environment carries `None` exactly as `tk` and `bpf` do, and the
+///   jim rows the branch added to ten user-facing catalogues are simply
+///   not needed to make `# tcl-dialect: jim` resolve.
+/// - **No release-pinned siblings.** `jim0.84` is not an environment
+///   name; it is a target on this environment's axis.
+/// - **No expected packages.** Jim's command surface rides its ancestry
+///   edge from Tcl 8.6 ([`Family::ancestry`]) — inherit-then-override
+///   rather than the 76 hand-re-authored core commands the branch paid
+///   for. The override half is design **Q6**'s jim surface pack.
+///
+/// The targets span the whole ladder, so the core axis takes **no point
+/// primary** and answers under §5.4's permissive no-primary rule —
+/// exactly like the lenient `tcl` sink, and for the same reason: a
+/// document that names no jim release should not be judged against one.
+fn jim_environment() -> EnvironmentDefinition {
+    EnvironmentDefinition {
+        id: EnvironmentId::new("jim"),
+        aliases: arcs(&["jimsh", "jimtcl"]),
+        display_name: arc("Jim Tcl"),
+        editor_identity: None,
+        core: Some(CoreProfileSelector {
+            family: Family::Jim,
+            default_release: Release::JIM_0_84,
+            build: BuildProfileId::Canonical,
+        }),
+        targets: reqs(VersionAxisId::core(Family::Jim), &["0.76-0.85"]),
+        expected_packages: Vec::new(),
+        policy_defaults: open_policy(None),
+        server_detection: DetectionFacts {
+            shebang_words: arcs(&["jimsh"]),
+            ..DetectionFacts::default()
+        },
+        help_terms: arcs(&["jim", "jimtcl", "jimsh"]),
+        provenance: Provenance::BuiltIn,
+    }
+}
+
 fn irules_environment() -> EnvironmentDefinition {
     EnvironmentDefinition {
         id: EnvironmentId::new("f5-irules"),
@@ -1233,6 +1288,7 @@ pub fn compiled_definitions() -> Vec<EnvironmentDefinition> {
     definitions.push(plain_tcl_environment());
     definitions.extend(ladder_environments());
     definitions.push(tk_environment());
+    definitions.push(jim_environment());
     definitions.push(irules_environment());
     definitions.push(iapps_environment());
     definitions.push(tmsh_environment());
@@ -1314,9 +1370,56 @@ mod tests {
                 assert!(registry.resolve(&upper).is_none(), "{upper}");
             }
         }
-        for unknown in ["", "nonsense", "tcl8.7", "jim0.85"] {
+        for unknown in ["", "nonsense", "tcl8.7", "jim0.85", "jim0.84"] {
             assert!(registry.resolve(unknown).is_none(), "{unknown}");
         }
+    }
+
+    /// **P6.** One `jim` environment for a nine-release ladder: the
+    /// releases are targets on the family's own axis, not nine catalogue
+    /// rows, and no editor identity is minted for it (review B7).
+    #[test]
+    fn one_jim_environment_covers_the_whole_ladder() {
+        let registry = EnvironmentRegistry::compiled();
+        let jim = registry.resolve("jim").expect("jim");
+        for alias in ["jimsh", "jimtcl"] {
+            assert_eq!(registry.resolve(alias).expect(alias).id, jim.id, "{alias}");
+        }
+        // Exactly one compiled environment names the jim family.
+        let jim_rows: Vec<&str> = registry
+            .definitions()
+            .iter()
+            .filter(|definition| {
+                definition
+                    .core
+                    .is_some_and(|core| core.family == Family::Jim)
+            })
+            .map(|definition| definition.id.as_str())
+            .collect();
+        assert_eq!(jim_rows, ["jim"], "nine profiles became one environment");
+
+        let core = jim.core.expect("core");
+        assert_eq!(core.default_release, Release::JIM_0_84);
+        assert_eq!(core.build, BuildProfileId::Canonical);
+        assert_eq!(jim.targets.axis(), &VersionAxisId::core(Family::Jim));
+        // The whole ladder, so no release is implied.
+        for release in Family::Jim.releases() {
+            let point = Version::parse(release.as_str()).expect("jim releases spell versions");
+            assert!(jim.targets.contains(&point), "{release}");
+        }
+        assert!(
+            jim.editor_identity.is_none(),
+            "no editor contributes a jim language id (B7)"
+        );
+        assert!(
+            jim.expected_packages.is_empty(),
+            "the jim surface rides the ancestry edge, not a placement (Q6)"
+        );
+        assert_eq!(jim.policy_defaults.closed_world, WorldPolicy::Open);
+        assert_eq!(
+            jim.policy_defaults.version_ceiling, None,
+            "the ceiling is a Tcl-ladder concept; jim has its own axis"
+        );
     }
 
     #[test]

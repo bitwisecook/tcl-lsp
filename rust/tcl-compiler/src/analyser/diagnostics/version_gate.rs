@@ -3316,6 +3316,119 @@ mod tests {
             assert!(!fires(&diags(none, "tcl8.6"), "W135"));
         }
 
+        // -- P6: the jim ladder -----------------------------------------
+        //
+        // Jim's releases are targets on the `jim` **core** axis, not nine
+        // catalogue profiles, so a jim range is declared exactly as a Tcl
+        // one is and the §5.4 machinery answers on the family's own
+        // ladder. Invariant I2 is the load-bearing half: a jim
+        // declaration must never reach the Tcl axis, and a Tcl one must
+        // never reach jim's.
+
+        /// The declared targets of a `jim` document land on the jim core
+        /// axis, spelled off the jim ladder — and nowhere else.
+        #[test]
+        fn a_declared_jim_range_lands_on_the_jim_core_axis() {
+            use tcl_dialect::model::{Family, Version, VersionAxisId};
+            let mut analyser = Analyser::new();
+            let _ = analyser.analyse("# tcl-lsp: supports jim 0.76-0.79\nset x 1\n", "jim");
+            let context = analyser
+                .range_context
+                .as_ref()
+                .expect("a jim declaration switches range mode on");
+            let declared = context
+                .declared_targets(&VersionAxisId::core(Family::Jim))
+                .expect("targets on the jim axis");
+            assert!(declared.contains(&Version::parse("0.78").expect("version")));
+            assert!(!declared.contains(&Version::parse("0.84").expect("version")));
+            // I2, both spellings of the leak: not the Tcl core axis, and
+            // not a fictitious `package:jim` axis either — which is what
+            // the pre-P6 ingress minted, because it recognised only the
+            // name `tcl` as a family.
+            assert!(
+                context
+                    .declared_targets(&VersionAxisId::core(Family::Tcl))
+                    .is_none(),
+                "a jim range is not a Tcl range"
+            );
+            assert!(
+                context
+                    .declared_targets(&VersionAxisId::package("jim"))
+                    .is_none(),
+                "jim is a family, not a package"
+            );
+        }
+
+        /// A family range declared against the wrong core is **dropped**,
+        /// not coerced — in both directions. A `supports jim` line in a
+        /// Tcl document and a `supports tcl` line in a jim document are
+        /// each a statement about a ladder the document is not on.
+        #[test]
+        fn a_family_range_off_its_own_core_is_dropped() {
+            use tcl_dialect::model::{Family, VersionAxisId};
+            let mut in_tcl = Analyser::new();
+            let _ = in_tcl.analyse("# tcl-lsp: supports jim 0.81-0.84\nset x 1\n", "tcl8.6");
+            assert!(
+                in_tcl.range_context.is_none(),
+                "a jim range says nothing about a Tcl document"
+            );
+
+            let mut in_jim = Analyser::new();
+            let _ = in_jim.analyse("# tcl-lsp: supports tcl 8.5-9.0\nset x 1\n", "jim");
+            assert!(
+                in_jim.range_context.is_none(),
+                "a Tcl range says nothing about a jim document"
+            );
+
+            // …while the *package* axes still cross freely, because a
+            // package is not a ladder: `supports Tk 8.5-8.6` is a real
+            // declaration under either core.
+            let mut package = Analyser::new();
+            let _ = package.analyse("# tcl-lsp: supports Tk 8.5-8.6\nset x 1\n", "jim");
+            assert!(
+                package
+                    .range_context
+                    .as_ref()
+                    .expect("range mode")
+                    .declared_targets(&VersionAxisId::package("Tk"))
+                    .is_some()
+            );
+            assert!(
+                package
+                    .range_context
+                    .as_ref()
+                    .expect("range mode")
+                    .declared_targets(&VersionAxisId::core(Family::Jim))
+                    .is_none()
+            );
+        }
+
+        /// The W151 cross-target numeral check is a **Tcl-ladder** fact,
+        /// so a jim range never switches it on — the octal case under
+        /// `supports jim 0.76-0.84` stays silent where the same span of
+        /// the Tcl ladder would warn.
+        #[test]
+        fn a_jim_range_does_not_drive_the_tcl_numeral_check() {
+            let jim = "# tcl-lsp: supports jim 0.76-0.84\nexpr {010}\n";
+            assert!(!fires(&diags(jim, "jim"), "W151"));
+            // The control: the same shape on the Tcl axis does warn.
+            let tcl = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {010}\n";
+            assert!(fires(&diags(tcl, "tcl8.6"), "W151"));
+        }
+
+        /// Under `jim` the shared core surface resolves through the
+        /// ancestry edge: no W002 for `lassign`, `lmap` or `dict`, which
+        /// on the jim branch were three of 76 hand-re-authored specs.
+        #[test]
+        fn the_jim_environment_resolves_the_inherited_core_surface() {
+            let source = "set x 1\nlassign {a b} p q\nlmap i {1 2} {set i}\ndict get {a 1} a\n";
+            let d = diags(source, "jim");
+            assert!(
+                !d.iter().any(|(code, _)| code == "W002"),
+                "inherited core commands must resolve: {d:?}"
+            );
+        }
+
         /// Under `wish` the same declaration works with **no** `package
         /// require`: the `tk` environment ships Tk ambient, so the range
         /// is declared against a package the environment already placed.

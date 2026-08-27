@@ -1654,8 +1654,11 @@ impl Analyser {
     /// targets grammar ([`tcl_registry::model::targets_from_clauses`])
     /// and recorded on a document-level clone of this walk's resolved
     /// context. A malformed or empty declaration is dropped rather than
-    /// guessed at, and `tcl` targets are honoured only on a Tcl-family
-    /// core — the iRules/Jim ladders have their own axes.
+    /// guessed at. A provider named after a **family** declares targets
+    /// on that family's core axis and is honoured only when the
+    /// document's own core is that family — the Tcl, iRules and Jim
+    /// ladders are separate axes, and a declaration on one says nothing
+    /// about another (invariant I2).
     ///
     /// Also derives the numeral-grammar era set the W151 cross-target
     /// numeral check walks under; fewer than two represented grammars
@@ -1678,13 +1681,22 @@ impl Analyser {
         let core_family = context.environment.core.map(|core| core.family);
         let mut declared_any = false;
         for (name, clauses) in &merged {
-            let axis = if name.eq_ignore_ascii_case("tcl") {
-                if core_family != Some(Family::Tcl) {
-                    continue;
-                }
-                VersionAxisId::core(Family::Tcl)
-            } else {
-                VersionAxisId::package(name)
+            // A **family name** (`tcl`, `jim`, `f5-irules`, …) declares
+            // targets on that family's own core axis, and only when the
+            // document's core is that family: a `supports tcl 8.5-9.0`
+            // under a jim core, or a `supports jim 0.81-` under a Tcl
+            // one, is a declaration about a ladder this document is not
+            // on, and invariant I2 says it must be dropped rather than
+            // coerced. Before P6 only `tcl` was recognised here, so
+            // `supports jim 0.81-` minted a fictitious *package* axis
+            // named `jim` and switched range mode on against it.
+            let family = Family::ALL
+                .into_iter()
+                .find(|family| name.eq_ignore_ascii_case(family.name()));
+            let axis = match family {
+                Some(family) if core_family == Some(family) => VersionAxisId::core(family),
+                Some(_) => continue,
+                None => VersionAxisId::package(name),
             };
             let clause_list: Vec<&str> = clauses.split_whitespace().collect();
             let Ok(targets) = tcl_registry::model::targets_from_clauses(&axis, &clause_list) else {

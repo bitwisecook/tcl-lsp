@@ -31,9 +31,32 @@
 //! [`CoreProfile::expr`](crate::model::family::CoreProfile).
 //!
 //! Seeded: the Tcl family per release, iRules (the ten word operators on
-//! an 8.4 base), and Jim's design-pinned divergences (precedence and
-//! symbolic operators from §3.1; the rest of Jim's grammar is interim
-//! pending the P6 probe columns).
+//! an 8.4 base), and — since P6 — the Jim ladder read out of the
+//! upstream `jim.c` at every tag from 0.76 to 0.84: the full `OPRINIT`
+//! binding-power tables, the release at which each word and symbolic
+//! operator arrives, the twenty-six mathfuncs with the seven that
+//! survive a `--minimal` build, the expr-comment and arity flips at
+//! 0.81. Five struct-update values cover the whole ladder where the old
+//! model needed nine profiles.
+//!
+//! **The Jim rows are transcripts, not readings.** Five `jimsh` binaries
+//! were built from the upstream tags for P6 — 0.76 `--full`, 0.79
+//! `--full`, 0.81 default, 0.84 default, 0.84 `--minimal` — and each
+//! divergence below was run:
+//!
+//! | probe | 0.76 | 0.79 | 0.81 | 0.84 | 0.84 `--minimal` |
+//! |---|---|---|---|---|---|
+//! | `expr {"abc" lt "abd"}` | error | error | 1 | 1 | 1 |
+//! | `expr {"abc" =* "a*"}` | error | error | error | 1 | 1 |
+//! | `expr 1 + 2` | 3 | 3 | wrong # args | wrong # args | wrong # args |
+//! | `expr {-2 ** 2}` | -4 | 4 | 4 | 4 | 4 |
+//! | `expr {2 ** 3 ** 2}` | 64 | 512 | 512 | 512 | 512 |
+//! | `expr {atan2(1,1)}` | error | 0.785… | 0.785… | 0.785… | error |
+//! | `expr {sqrt(4)}` | 2.0 | 2.0 | error | 2.0 | error |
+//! | `expr {int(4.7)}` | 4 | 4 | 4 | 4 | 4 |
+//! | `expr {min(1,2)}` | error | error | error | error | error |
+//! | `expr {010}` | 10 | 10 | 10 | 10 | 10 |
+//! | `expr {1_000}` | error | error | error | error | error |
 
 use crate::grammar::{ExprCommentStyle, NumberSyntax};
 use crate::model::family::{Family, Release};
@@ -68,7 +91,7 @@ const fn word(spelling: &'static str, since: Release) -> WordOperator {
 /// [`ExprGrammar::symbolic_operators`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrecedenceTable {
-    rows: &'static [(&'static str, u8, u8)],
+    rows: &'static [(&'static str, u16, u16)],
 }
 
 impl PrecedenceTable {
@@ -76,7 +99,7 @@ impl PrecedenceTable {
     /// family's ladder never binds `op` as a binary infix operator
     /// (unary operators such as iRules' `not` are deliberately absent).
     #[must_use]
-    pub fn lookup(&self, op: &str) -> Option<(u8, u8)> {
+    pub fn lookup(&self, op: &str) -> Option<(u16, u16)> {
         self.rows
             .iter()
             .find_map(|&(spelling, left, right)| (spelling == op).then_some((left, right)))
@@ -84,13 +107,14 @@ impl PrecedenceTable {
 
     /// Every `(spelling, left_bp, right_bp)` row.
     #[must_use]
-    pub const fn rows(&self) -> &'static [(&'static str, u8, u8)] {
+    pub const fn rows(&self) -> &'static [(&'static str, u16, u16)] {
         self.rows
     }
 }
 
 /// One expr math function with the oldest release on its family's ladder
-/// that ships it.
+/// that ships it, and whether shipping it also depends on the build's
+/// math extension.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MathFunc {
     /// The function name, matched verbatim (mathfunc lookup is
@@ -98,10 +122,36 @@ pub struct MathFunc {
     pub name: &'static str,
     /// The oldest release whose canonical build ships it.
     pub since: Release,
+    /// Whether the function exists only when the build compiles in the
+    /// expr math extension
+    /// ([`CapabilitySet::math_extension`](crate::model::family::CapabilitySet::math_extension)).
+    ///
+    /// False for every C Tcl and F5 row — their math functions are a
+    /// fixed part of the core. True for the nineteen Jim functions
+    /// guarded by `#ifdef JIM_MATH_FUNCTIONS` in `Jim_ExprOperators`, and
+    /// false for the seven that sit outside the guard (`int`, `wide`,
+    /// `abs`, `double`, `round`, `rand`, `srand`), which is why a Jim
+    /// `--minimal` build rejects `sqrt(4)` and still evaluates
+    /// `int(4)`.
+    pub needs_math_extension: bool,
 }
 
 const fn func(name: &'static str, since: Release) -> MathFunc {
-    MathFunc { name, since }
+    MathFunc {
+        name,
+        since,
+        needs_math_extension: false,
+    }
+}
+
+/// A math function that exists only when the build's math extension is
+/// compiled in — Jim's `#ifdef JIM_MATH_FUNCTIONS` block.
+const fn math_ext_func(name: &'static str, since: Release) -> MathFunc {
+    MathFunc {
+        name,
+        since,
+        needs_math_extension: true,
+    }
 }
 
 /// The mathfunc surface of one resolved core, as a set (§3.1): membership
@@ -123,7 +173,14 @@ impl MathFuncSet {
     /// Whether `name` is in the set at the resolved release.
     #[must_use]
     pub fn contains(&self, name: &str) -> bool {
-        self.rows.iter().any(|f| {
+        self.get(name).is_some()
+    }
+
+    /// The set's row for `name` at the resolved release, or `None` when
+    /// the family never had it (or not yet at this release).
+    #[must_use]
+    pub fn get(&self, name: &str) -> Option<&'static MathFunc> {
+        self.rows.iter().find(|f| {
             f.name == name
                 && f.since.family() == self.ceiling.family()
                 && f.since.ordinal() <= self.ceiling.ordinal()
@@ -258,18 +315,35 @@ const F5_TCL_WORDS: &[WordOperator] = &[
     word("matches_regex", Release::F5_TCL_TMOS),
 ];
 
-/// Jim shares `eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge` across every
-/// modelled release (design §3.1) — at its own precedence levels, which
-/// is the point of the per-family table.
-const JIM_WORDS: &[WordOperator] = &[
+/// Jim through 0.79: `eq`/`ne`/`in`/`ni` only.
+///
+/// **This corrects the design's §3.1 reading.** The prose says Jim shares
+/// `eq`/`ne`/`in`/`ni`/`lt`/`le`/`gt`/`ge` "across every modelled
+/// release"; the `OPRINIT` table says otherwise. `lt`/`gt`/`le`/`ge` are
+/// absent from `Jim_ExprOperators` at 0.76, 0.77, 0.78 and 0.79 and
+/// appear at **0.80**, carrying the comment "Precedence must be higher
+/// than ==, !=, eq, ne but lower than <, >, <=, >=". Jim reached the TIP
+/// 461 word operators five Tcl years before C Tcl shipped them in 9.0,
+/// but it did not have them from the start of the modelled ladder, and a
+/// completion offering `lt` under `jim 0.78` would be offering a syntax
+/// error.
+const JIM_WORDS_0_76: &[WordOperator] = &[
     word("eq", Release::JIM_0_76),
     word("ne", Release::JIM_0_76),
     word("in", Release::JIM_0_76),
     word("ni", Release::JIM_0_76),
-    word("lt", Release::JIM_0_76),
-    word("le", Release::JIM_0_76),
-    word("gt", Release::JIM_0_76),
-    word("ge", Release::JIM_0_76),
+];
+
+/// Jim from 0.80: the four string relationals join the table.
+const JIM_WORDS_0_80: &[WordOperator] = &[
+    word("eq", Release::JIM_0_76),
+    word("ne", Release::JIM_0_76),
+    word("in", Release::JIM_0_76),
+    word("ni", Release::JIM_0_76),
+    word("lt", Release::JIM_0_80),
+    word("le", Release::JIM_0_80),
+    word("gt", Release::JIM_0_80),
+    word("ge", Release::JIM_0_80),
 ];
 
 // Binding powers for the Tcl family, transcribed from `binary_bp` in
@@ -277,7 +351,7 @@ const JIM_WORDS: &[WordOperator] = &[
 // them from here. C Tcl merges the comparisons into two levels
 // (`tclCompExpr.c`): `== != eq ne` at one, the relationals and
 // membership at the other. `**` is right-associative (right == left).
-const TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
+const TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("||", 4, 5),
     ("&&", 6, 7),
     ("|", 8, 9),
@@ -319,7 +393,7 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
 // power at all. §12 carries the discriminating re-probe; until it is
 // run, the operator takes the class every other F5 string-comparison
 // word form was measured at.
-const F5_TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
+const F5_TCL_PRECEDENCE_ROWS: &[(&str, u16, u16)] = &[
     ("||", 4, 5),
     ("or", 4, 5),
     ("&&", 6, 7),
@@ -352,14 +426,134 @@ const F5_TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     ("**", 23, 23),
 ];
 
-// Jim's design-pinned comparison levels (`jim.c:9252-9285`, the OPRINIT
-// precedences, stable across every modelled release): `in ni` 55,
-// `eq ne =* =~` 60, `== !=` 70, `lt gt le ge` 75, `< > <= >=` 80 — all
-// left-associative, encoded as `(2p, 2p + 1)` on Jim's own scale.
-// Deliberately PARTIAL: the non-comparison scaffold (logical, bitwise,
-// arithmetic) lands with the P6 measured columns, so `lookup` answers
-// `None` for those rather than guessing.
-const JIM_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
+// Jim's binary binding powers, transcribed from `Jim_ExprOperators`'
+// `OPRINIT` rows at the upstream tags 0.76 … 0.84. Jim's own scale runs
+// `||` 9 … `**` 120 (250 at 0.76); each row is encoded as `(2p, 2p + 1)`
+// for a left-associative operator and `(2p, 2p)` for a right-associative
+// one (`**` carries `OP_RIGHT_ASSOC`), the same convention the Tcl table
+// above uses, so Jim's ordering is preserved exactly and every number
+// here is twice a number in the C source.
+//
+// The unary rows (`!`, `~`, and the unary `+`/`-` spelled `" +"`/`" -"`,
+// all at 150) and the ternary `?`/`:` (5) are deliberately absent: this
+// is a binary infix table, exactly as `not` is absent from the F5 one.
+//
+// The comparison block is §3.1's motivating divergence, and the sources
+// bear the design's numbers out: `in ni` 55, `eq ne` 60, `== !=` 70,
+// `lt gt le ge` 75, `< > <= >=` 80. Where C Tcl merges the comparisons
+// into two levels, Jim splits them into four.
+
+/// Jim 0.76. `**` sits at **250** here — above the unary operators — and
+/// is **left**-associative (`OPRINIT("**", 250, 2, JimExprOpBin)`, no
+/// `OP_RIGHT_ASSOC`). 0.77 lowered it to 120 *and* made it
+/// right-associative, with the comment "Precedence is higher than * and
+/// / but lower than ! and ~". Both halves are measurable on a built
+/// `jimsh`, and both were measured for P6: `expr {-2 ** 2}` is **-4** at
+/// 0.76 and **4** at 0.79 (the unary minus overtakes `**`), and
+/// `expr {2 ** 3 ** 2}` is **64** at 0.76 and **512** at 0.79. This is
+/// the one row Jim ever moved, and it is why the table is release-keyed
+/// rather than the per-family constant the design sketched.
+const JIM_PRECEDENCE_ROWS_0_76: &[(&str, u16, u16)] = &[
+    ("||", 18, 19),
+    ("&&", 20, 21),
+    ("|", 96, 97),
+    ("^", 98, 99),
+    ("&", 100, 101),
+    ("in", 110, 111),
+    ("ni", 110, 111),
+    ("eq", 120, 121),
+    ("ne", 120, 121),
+    ("==", 140, 141),
+    ("!=", 140, 141),
+    ("<", 160, 161),
+    (">", 160, 161),
+    ("<=", 160, 161),
+    (">=", 160, 161),
+    ("<<", 180, 181),
+    (">>", 180, 181),
+    ("<<<", 180, 181),
+    (">>>", 180, 181),
+    ("+", 200, 201),
+    ("-", 200, 201),
+    ("*", 220, 221),
+    ("/", 220, 221),
+    ("%", 220, 221),
+    ("**", 500, 501),
+];
+
+/// Jim 0.77 through 0.79: identical but for `**`, now 120 and
+/// right-associative.
+const JIM_PRECEDENCE_ROWS_0_77: &[(&str, u16, u16)] = &[
+    ("||", 18, 19),
+    ("&&", 20, 21),
+    ("|", 96, 97),
+    ("^", 98, 99),
+    ("&", 100, 101),
+    ("in", 110, 111),
+    ("ni", 110, 111),
+    ("eq", 120, 121),
+    ("ne", 120, 121),
+    ("==", 140, 141),
+    ("!=", 140, 141),
+    ("<", 160, 161),
+    (">", 160, 161),
+    ("<=", 160, 161),
+    (">=", 160, 161),
+    ("<<", 180, 181),
+    (">>", 180, 181),
+    ("<<<", 180, 181),
+    (">>>", 180, 181),
+    ("+", 200, 201),
+    ("-", 200, 201),
+    ("*", 220, 221),
+    ("/", 220, 221),
+    ("%", 220, 221),
+    ("**", 240, 240),
+];
+
+/// Jim 0.80 through 0.83: the four string relationals arrive at 75 —
+/// "higher than ==, !=, eq, ne but lower than <, >, <=, >=".
+const JIM_PRECEDENCE_ROWS_0_80: &[(&str, u16, u16)] = &[
+    ("||", 18, 19),
+    ("&&", 20, 21),
+    ("|", 96, 97),
+    ("^", 98, 99),
+    ("&", 100, 101),
+    ("in", 110, 111),
+    ("ni", 110, 111),
+    ("eq", 120, 121),
+    ("ne", 120, 121),
+    ("==", 140, 141),
+    ("!=", 140, 141),
+    ("lt", 150, 151),
+    ("gt", 150, 151),
+    ("le", 150, 151),
+    ("ge", 150, 151),
+    ("<", 160, 161),
+    (">", 160, 161),
+    ("<=", 160, 161),
+    (">=", 160, 161),
+    ("<<", 180, 181),
+    (">>", 180, 181),
+    ("<<<", 180, 181),
+    (">>>", 180, 181),
+    ("+", 200, 201),
+    ("-", 200, 201),
+    ("*", 220, 221),
+    ("/", 220, 221),
+    ("%", 220, 221),
+    ("**", 240, 240),
+];
+
+/// Jim 0.84: `=*` and `=~` join `eq`/`ne` at 60 — the same semantic
+/// operation iRules spells `matches_glob`/`matches_regex`, at Jim's
+/// spelling and Jim's level.
+const JIM_PRECEDENCE_ROWS_0_84: &[(&str, u16, u16)] = &[
+    ("||", 18, 19),
+    ("&&", 20, 21),
+    ("|", 96, 97),
+    ("^", 98, 99),
+    ("&", 100, 101),
     ("in", 110, 111),
     ("ni", 110, 111),
     ("eq", 120, 121),
@@ -376,6 +570,16 @@ const JIM_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     (">", 160, 161),
     ("<=", 160, 161),
     (">=", 160, 161),
+    ("<<", 180, 181),
+    (">>", 180, 181),
+    ("<<<", 180, 181),
+    (">>>", 180, 181),
+    ("+", 200, 201),
+    ("-", 200, 201),
+    ("*", 220, 221),
+    ("/", 220, 221),
+    ("%", 220, 221),
+    ("**", 240, 240),
 ];
 
 const TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
@@ -386,8 +590,20 @@ const F5_TCL_PRECEDENCE: PrecedenceTable = PrecedenceTable {
     rows: F5_TCL_PRECEDENCE_ROWS,
 };
 
-const JIM_PRECEDENCE: PrecedenceTable = PrecedenceTable {
-    rows: JIM_PRECEDENCE_ROWS,
+const JIM_PRECEDENCE_0_76: PrecedenceTable = PrecedenceTable {
+    rows: JIM_PRECEDENCE_ROWS_0_76,
+};
+
+const JIM_PRECEDENCE_0_77: PrecedenceTable = PrecedenceTable {
+    rows: JIM_PRECEDENCE_ROWS_0_77,
+};
+
+const JIM_PRECEDENCE_0_80: PrecedenceTable = PrecedenceTable {
+    rows: JIM_PRECEDENCE_ROWS_0_80,
+};
+
+const JIM_PRECEDENCE_0_84: PrecedenceTable = PrecedenceTable {
+    rows: JIM_PRECEDENCE_ROWS_0_84,
 };
 
 /// Jim's symbolic extension operators (design §3.1): the 64-bit rotates
@@ -468,12 +684,65 @@ const TCL_MATHFUNCS: &[MathFunc] = &[
     func("trunc", Release::TCL_9_1),
 ];
 
-/// Jim's mathfunc rows are deliberately empty here: the design pins the
-/// count (26) and the five absentees versus C Tcl 8.5+, but the member
-/// list is P6 probe data not yet in this tree, and the canonical Jim
-/// capability column already answers `Unknown` — an invented list would
-/// be a silent guess.
-const JIM_MATHFUNCS: &[MathFunc] = &[];
+/// Jim's mathfunc rows, read out of `Jim_ExprOperators`' `OP_FUNC` block
+/// at the upstream tags — no longer the empty placeholder the design
+/// forbade guessing at.
+///
+/// Twenty-six at 0.77 and later, exactly the count §3.1 pins, and the
+/// five absentees it names are confirmed: **`entier`, `bool`, `min`,
+/// `max` and `isqrt` appear nowhere in the table at any modelled tag**,
+/// so a floor model keyed on "available since Tcl 8.5" would offer all
+/// five under Jim and every one of them is a syntax error there.
+///
+/// Two facts the design did not have:
+///
+/// 1. The set is **release-gated within the family**: 0.76 ships
+///    twenty-three, and `atan2`, `hypot` and `fmod` arrive at 0.77.
+/// 2. The set splits on the **build** axis. Seven rows — `int`, `wide`,
+///    `abs`, `double`, `round`, `rand`, `srand` — sit *outside*
+///    `#ifdef JIM_MATH_FUNCTIONS`; the other nineteen sit inside it. A
+///    `--minimal` build therefore has a mathfunc surface of seven, not
+///    of zero, which is why the guard is per row
+///    ([`MathFunc::needs_math_extension`]) rather than a single
+///    build-wide veto.
+const JIM_MATHFUNCS: &[MathFunc] = &[
+    // Always compiled in — no `JIM_MATH_FUNCTIONS` guard.
+    func("int", Release::JIM_0_76),
+    func("wide", Release::JIM_0_76),
+    func("abs", Release::JIM_0_76),
+    func("double", Release::JIM_0_76),
+    func("round", Release::JIM_0_76),
+    func("rand", Release::JIM_0_76),
+    func("srand", Release::JIM_0_76),
+    // `#ifdef JIM_MATH_FUNCTIONS` — absent from a `--minimal` build.
+    math_ext_func("sin", Release::JIM_0_76),
+    math_ext_func("cos", Release::JIM_0_76),
+    math_ext_func("tan", Release::JIM_0_76),
+    math_ext_func("asin", Release::JIM_0_76),
+    math_ext_func("acos", Release::JIM_0_76),
+    math_ext_func("atan", Release::JIM_0_76),
+    math_ext_func("sinh", Release::JIM_0_76),
+    math_ext_func("cosh", Release::JIM_0_76),
+    math_ext_func("tanh", Release::JIM_0_76),
+    math_ext_func("ceil", Release::JIM_0_76),
+    math_ext_func("floor", Release::JIM_0_76),
+    math_ext_func("exp", Release::JIM_0_76),
+    math_ext_func("log", Release::JIM_0_76),
+    math_ext_func("log10", Release::JIM_0_76),
+    math_ext_func("sqrt", Release::JIM_0_76),
+    math_ext_func("pow", Release::JIM_0_76),
+    // The three two-argument functions 0.77 added.
+    math_ext_func("atan2", Release::JIM_0_77),
+    math_ext_func("hypot", Release::JIM_0_77),
+    math_ext_func("fmod", Release::JIM_0_77),
+];
+
+const fn jim_set(ceiling: Release) -> MathFuncSet {
+    MathFuncSet {
+        rows: JIM_MATHFUNCS,
+        ceiling,
+    }
+}
 
 const fn tcl_set(ceiling: Release) -> MathFuncSet {
     MathFuncSet {
@@ -541,30 +810,68 @@ const EXPR_F5_TCL: ExprGrammar = ExprGrammar {
 /// grammar.
 const EXPR_IRULES: ExprGrammar = EXPR_F5_TCL;
 
-/// Jim through 0.80: `expr 1 + 2` still concatenates, no expr comments.
-/// Numbers are an interim stand-in (the Jim numeral grammar variants land
-/// with the P6 axis values); precedence and symbolic operators carry the
-/// design-pinned §3.1 measurements.
-const EXPR_JIM_LEGACY: ExprGrammar = ExprGrammar {
-    numbers: NumberSyntax::Tcl85,
+/// Jim 0.76 — the oldest modelled release, and the base every later Jim
+/// value is a struct update over. Four struct updates replace the nine
+/// near-identical `jim0.76`–`jim0.84` profiles the old model needed,
+/// because a profile could carry exactly one resolved grammar.
+///
+/// `numbers` is `NumberSyntax::Tcl90` for the reason
+/// [`crate::model::family::grammar`]'s Jim value documents: Jim's own
+/// numeral grammar is a fifth enum value that does not exist yet, and
+/// `Tcl90` is right about the load-bearing half (`010` is ten, not
+/// eight).
+const EXPR_JIM_0_76: ExprGrammar = ExprGrammar {
+    numbers: NumberSyntax::Tcl90,
     comments: ExprCommentStyle::None,
-    word_operators: JIM_WORDS,
-    precedence: JIM_PRECEDENCE,
+    word_operators: JIM_WORDS_0_76,
+    precedence: JIM_PRECEDENCE_0_76,
     symbolic_operators: JIM_SYMBOLIC,
-    mathfuncs: MathFuncSet {
-        rows: JIM_MATHFUNCS,
-        ceiling: Release::JIM_0_76,
-    },
+    mathfuncs: jim_set(Release::JIM_0_76),
     arity: ExprArity::Concatenating,
     substitution: ExprSubstitution::Interpolating,
 };
 
-/// Jim from 0.81: `expr` takes exactly one expression word (Jim's take on
-/// TIP 526) and `#` expr comments exist (design §1: expr comments ≥0.81).
-const EXPR_JIM_MODERN: ExprGrammar = ExprGrammar {
+/// Jim 0.77 through 0.79: `**` drops from 250 to 120, and `atan2`,
+/// `hypot` and `fmod` join the mathfunc set.
+const EXPR_JIM_0_77: ExprGrammar = ExprGrammar {
+    precedence: JIM_PRECEDENCE_0_77,
+    mathfuncs: jim_set(Release::JIM_0_77),
+    ..EXPR_JIM_0_76
+};
+
+/// Jim 0.80: `lt`/`gt`/`le`/`ge` arrive, at their own level between
+/// `== !=` and `< > <= >=`.
+const EXPR_JIM_0_80: ExprGrammar = ExprGrammar {
+    word_operators: JIM_WORDS_0_80,
+    precedence: JIM_PRECEDENCE_0_80,
+    mathfuncs: jim_set(Release::JIM_0_80),
+    ..EXPR_JIM_0_77
+};
+
+/// Jim 0.81 through 0.83: `expr` takes exactly one expression word
+/// (`Jim_ExprCoreCommand` gained the `Jim_WrongNumArgs(interp, 1, argv,
+/// "expression")` arm at this tag) and `#` begins a comment inside an
+/// expr body.
+///
+/// One honest residue: both halves are `#ifndef JIM_COMPAT` /
+/// `#ifdef JIM_COMPAT` in the C, so a `--compat` build still
+/// concatenates. `--compat` is off unless asked for (a plain `opt-bool
+/// compat` in `auto.def`), so the ladder value is the default build's;
+/// expressing the other column needs a `BuildProfileId::JimCompat` and a
+/// build-keyed `expr` resolution, which is P6's recorded next probe.
+const EXPR_JIM_0_81: ExprGrammar = ExprGrammar {
     comments: ExprCommentStyle::Hash,
     arity: ExprArity::ExactlyOne,
-    ..EXPR_JIM_LEGACY
+    mathfuncs: jim_set(Release::JIM_0_81),
+    ..EXPR_JIM_0_80
+};
+
+/// Jim 0.84: `=*` and `=~` join the symbolic set and the precedence
+/// table at `eq`/`ne`'s level.
+const EXPR_JIM_0_84: ExprGrammar = ExprGrammar {
+    precedence: JIM_PRECEDENCE_0_84,
+    mathfuncs: jim_set(Release::JIM_0_84),
+    ..EXPR_JIM_0_81
 };
 
 /// The expr grammar of `release` on `family`'s ladder — the resolution
@@ -589,13 +896,15 @@ pub fn expr(family: Family, release: Release) -> &'static ExprGrammar {
         },
         Family::F5Tcl => &EXPR_F5_TCL,
         Family::F5Irules => &EXPR_IRULES,
-        Family::Jim => {
-            if release.ordinal() <= Release::JIM_0_80.ordinal() {
-                &EXPR_JIM_LEGACY
-            } else {
-                &EXPR_JIM_MODERN
-            }
-        }
+        // The Jim ladder as a ladder: five values, each a struct update
+        // over the one before, where the old model needed nine profiles.
+        Family::Jim => match release.ordinal() {
+            0 => &EXPR_JIM_0_76,
+            1..=3 => &EXPR_JIM_0_77,
+            4 => &EXPR_JIM_0_80,
+            5..=7 => &EXPR_JIM_0_81,
+            _ => &EXPR_JIM_0_84,
+        },
     }
 }
 
@@ -663,15 +972,207 @@ mod tests {
         let (tcl_eqeq, _) = TCL_PRECEDENCE.lookup("==").unwrap();
         assert_eq!(tcl_eq, tcl_eqeq);
 
-        let (jim_in, _) = JIM_PRECEDENCE.lookup("in").unwrap();
-        let (jim_eq, _) = JIM_PRECEDENCE.lookup("eq").unwrap();
-        let (jim_eqeq, _) = JIM_PRECEDENCE.lookup("==").unwrap();
-        let (jim_lt, _) = JIM_PRECEDENCE.lookup("lt").unwrap();
-        let (jim_sym_lt, _) = JIM_PRECEDENCE.lookup("<").unwrap();
+        let jim = expr(Family::Jim, Release::JIM_0_84).precedence;
+        let (jim_in, _) = jim.lookup("in").unwrap();
+        let (jim_eq, _) = jim.lookup("eq").unwrap();
+        let (jim_eqeq, _) = jim.lookup("==").unwrap();
+        let (jim_lt, _) = jim.lookup("lt").unwrap();
+        let (jim_sym_lt, _) = jim.lookup("<").unwrap();
         assert!(jim_in < jim_eq);
         assert!(jim_eq < jim_eqeq);
         assert!(jim_eqeq < jim_lt);
         assert!(jim_lt < jim_sym_lt);
+        // Four distinct comparison levels where C Tcl has two.
+        let levels: std::collections::BTreeSet<u16> =
+            [jim_in, jim_eq, jim_eqeq, jim_lt, jim_sym_lt]
+                .into_iter()
+                .collect();
+        assert_eq!(levels.len(), 5, "Jim splits what Tcl merges");
+        assert_eq!(
+            [
+                TCL_PRECEDENCE.lookup("eq").unwrap().0,
+                TCL_PRECEDENCE.lookup("in").unwrap().0,
+            ]
+            .into_iter()
+            .collect::<std::collections::BTreeSet<u16>>()
+            .len(),
+            2,
+            "C Tcl has exactly two"
+        );
+    }
+
+    /// Every Jim binding power is twice its `OPRINIT` precedence, and the
+    /// whole table — not just the comparison block — is now present, so
+    /// `lookup` no longer answers `None` for the arithmetic and bitwise
+    /// scaffold the design left for P6.
+    #[test]
+    fn the_jim_table_is_the_whole_oprinit_table() {
+        let g = expr(Family::Jim, Release::JIM_0_84);
+        for (op, precedence) in [
+            ("||", 9u16),
+            ("&&", 10),
+            ("|", 48),
+            ("^", 49),
+            ("&", 50),
+            ("in", 55),
+            ("eq", 60),
+            ("=*", 60),
+            ("=~", 60),
+            ("==", 70),
+            ("lt", 75),
+            ("<", 80),
+            ("<<", 90),
+            ("<<<", 90),
+            ("+", 100),
+            ("*", 110),
+        ] {
+            assert_eq!(
+                g.precedence.lookup(op),
+                Some((2 * precedence, 2 * precedence + 1)),
+                "{op}"
+            );
+        }
+        // `**` is right-associative (`OP_RIGHT_ASSOC`), so right == left.
+        assert_eq!(g.precedence.lookup("**"), Some((240, 240)));
+        // The unary and ternary rows are not binary infix operators.
+        for op in ["!", "~", "?", ":"] {
+            assert_eq!(g.precedence.lookup(op), None, "{op}");
+        }
+    }
+
+    /// The one row Jim ever moved: `**` was 250 and **left**-associative
+    /// at 0.76, and 120 and right-associative from 0.77. A per-*family*
+    /// table (which is what §3.1 sketched) could hold neither change.
+    ///
+    /// Measured on `jimsh` built from the upstream tags:
+    /// `expr {-2 ** 2}` is -4 at 0.76 and 4 at 0.79 — the unary minus
+    /// (150) overtakes `**` when it drops to 120 — and
+    /// `expr {2 ** 3 ** 2}` is 64 at 0.76 and 512 at 0.79.
+    #[test]
+    fn jim_moved_exactly_one_precedence_on_its_ladder() {
+        let old = expr(Family::Jim, Release::JIM_0_76).precedence;
+        assert_eq!(
+            old.lookup("**"),
+            Some((500, 501)),
+            "left-associative at 0.76: `2 ** 3 ** 2` is 64"
+        );
+        // Above the unary operators (150 → 300 on the doubled scale), so
+        // `-2 ** 2` groups as -(2 ** 2).
+        assert!(old.lookup("**").expect("row").0 > 300);
+        for release in [Release::JIM_0_77, Release::JIM_0_80, Release::JIM_0_84] {
+            let table = expr(Family::Jim, release).precedence;
+            assert_eq!(
+                table.lookup("**"),
+                Some((240, 240)),
+                "{release}: right-associative — `2 ** 3 ** 2` is 512"
+            );
+            assert!(
+                table.lookup("**").expect("row").0 < 300,
+                "{release}: below the unary operators — `-2 ** 2` is 4"
+            );
+        }
+        // Every other row is stable across the whole ladder.
+        let base = expr(Family::Jim, Release::JIM_0_76).precedence;
+        for &(op, left, right) in base.rows() {
+            if op == "**" {
+                continue;
+            }
+            assert_eq!(
+                expr(Family::Jim, Release::JIM_0_84).precedence.lookup(op),
+                Some((left, right)),
+                "{op}"
+            );
+        }
+    }
+
+    /// **Correction to §3.1's prose.** The design says Jim shares
+    /// `lt`/`le`/`gt`/`ge` with Tcl "across every modelled release"; the
+    /// `OPRINIT` table says they arrive at 0.80. Offering them under
+    /// `jim 0.78` would be offering a syntax error.
+    #[test]
+    fn jim_string_relationals_arrive_at_0_80() {
+        for release in [
+            Release::JIM_0_76,
+            Release::JIM_0_77,
+            Release::JIM_0_78,
+            Release::JIM_0_79,
+        ] {
+            let g = expr(Family::Jim, release);
+            assert_eq!(g.word_operators.len(), 4, "{release}");
+            for op in ["lt", "le", "gt", "ge"] {
+                assert!(!g.has_word_operator(op), "{release}: {op}");
+                assert_eq!(g.precedence.lookup(op), None, "{release}: {op}");
+            }
+            // What it does have, from the start.
+            for op in ["eq", "ne", "in", "ni"] {
+                assert!(g.has_word_operator(op), "{release}: {op}");
+            }
+        }
+        for release in [Release::JIM_0_80, Release::JIM_0_84] {
+            let g = expr(Family::Jim, release);
+            assert_eq!(g.word_operators.len(), 8, "{release}");
+            for op in ["lt", "le", "gt", "ge"] {
+                assert!(g.has_word_operator(op), "{release}: {op}");
+                assert_eq!(g.precedence.lookup(op), Some((150, 151)), "{release}");
+            }
+        }
+    }
+
+    /// The mathfunc **set**, from the `OP_FUNC` rows of
+    /// `Jim_ExprOperators`: twenty-six from 0.77 (the count §3.1 pins),
+    /// twenty-three at 0.76, and the five C Tcl 8.5 functions Jim simply
+    /// never had.
+    #[test]
+    fn the_jim_mathfunc_set_is_measured_not_guessed() {
+        let g84 = expr(Family::Jim, Release::JIM_0_84);
+        assert_eq!(g84.mathfuncs.names().count(), 26);
+        assert_eq!(
+            expr(Family::Jim, Release::JIM_0_76)
+                .mathfuncs
+                .names()
+                .count(),
+            23,
+            "atan2/hypot/fmod arrive at 0.77"
+        );
+        for late in ["atan2", "hypot", "fmod"] {
+            assert!(
+                !expr(Family::Jim, Release::JIM_0_76)
+                    .mathfuncs
+                    .contains(late)
+            );
+            assert!(
+                expr(Family::Jim, Release::JIM_0_77)
+                    .mathfuncs
+                    .contains(late)
+            );
+        }
+        // §3.1's five absentees, confirmed against the source table.
+        for absent in ["entier", "bool", "min", "max", "isqrt"] {
+            assert!(!g84.mathfuncs.contains(absent), "{absent}");
+            // …and every one of them is a real C Tcl 8.5 function, which
+            // is exactly why a floor model would have offered it.
+            assert!(EXPR_TCL86.mathfuncs.contains(absent), "{absent}");
+        }
+        // The build split: seven rows outside `#ifdef
+        // JIM_MATH_FUNCTIONS`, nineteen inside it.
+        let unguarded: Vec<&str> = g84
+            .mathfuncs
+            .names()
+            .filter(|name| !g84.mathfuncs.get(name).expect("row").needs_math_extension)
+            .collect();
+        assert_eq!(
+            unguarded,
+            ["int", "wide", "abs", "double", "round", "rand", "srand"]
+        );
+        // Nothing in the Tcl or F5 tables is build-gated.
+        for g in [&EXPR_TCL91, &EXPR_F5_TCL] {
+            for name in g.mathfuncs.names() {
+                assert!(
+                    !g.mathfuncs.get(name).expect("row").needs_math_extension,
+                    "{name}"
+                );
+            }
+        }
     }
 
     #[test]
@@ -790,6 +1291,8 @@ mod tests {
         assert!(EXPR_F5_TCL.symbolic_operators.is_empty());
     }
 
+    /// Measured: `expr 1 + 2` answers 3 on `jimsh 0.76` and `0.79` and
+    /// is `wrong # args: should be "expr expression"` on 0.81 and 0.84.
     #[test]
     fn jim_arity_flips_at_0_81() {
         for release in [Release::JIM_0_76, Release::JIM_0_80] {
@@ -824,15 +1327,18 @@ mod tests {
                         w.spelling
                     );
                 }
-                for &(spelling, _) in g.symbolic_operators {
-                    if matches!(spelling, "<<<" | ">>>") {
-                        // The Jim rotate scaffold lands with P6's full
-                        // table.
-                        continue;
-                    }
-                    assert!(
+                // A symbolic row carries its own introducing release, so
+                // the table must bind it exactly from that release on —
+                // and must *not* bind it before (a `=~` binding power
+                // under `jim 0.80` would be an operator the core has no
+                // lexeme for). P6's full `OPRINIT` transcription is what
+                // lets this be an equality rather than an exemption
+                // list.
+                for &(spelling, since) in g.symbolic_operators {
+                    assert_eq!(
                         g.precedence.lookup(spelling).is_some(),
-                        "{family} {release}: {spelling} has no binding power"
+                        since.ordinal() <= release.ordinal(),
+                        "{family} {release}: {spelling}"
                     );
                 }
             }

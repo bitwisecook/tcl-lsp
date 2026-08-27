@@ -308,7 +308,7 @@ profiles and the jim branch:
 | `tcl8.4` … `tcl9.1` | dialect (family `tcl`, releases 8.4–9.1) | 9.1 has no grammar delta vs 9.0 but is a core release; releases are the family's version ladder, not separate catalogue entries. **Owner ruling (2026-08-26): the ladder stays exactly these per-release identities.** A per-major family split (`tcl8`/`tcl9` as families) was considered and rejected — succession is not a fork, and the single total order is load-bearing for `ItemHistory` windows spanning the 8/9 boundary, for the `vsatisfies`-oracle-pinned `VersionSet` algebra (where `tcl 8.5-` matches 9.0, as in Tcl itself), and for cross-major range targets like `tcl 8.5-9.0`. `tcl8`/`tcl9` named-range sugar was also declined: requirements spell explicit releases and ranges. Family status is earned by independent evolution (the `f5-tcl`/`jim` criterion), never by version numerals |
 | `f5-tcl` | **dialect (family `f5-tcl`, fork of Tcl 8.4.6, ladder keyed by TMOS release)** — owner-adopted (2026-08-26), measurement-backed | The shared BIG-IP fork trunk. **Measured identical in all three execution contexts** ([measurements](bigip-irule-parser-measurements.md) §4a, §4b): the implicit word break (R-rules), the brace-line continuation (N-rules), the inert `{*}`, 8.4 numerals, full ordinary `proc` semantics, and the `expr` word operators — which are **not** iRules-only. `f5-tmsh` and `f5-iapps` are environments *over this dialect*, differing only in ambient packages and host facts, with no grammar delta between them; iRules rides it as a further dialect offshoot |
 | `f5-irules` | dialect (family `f5-irules`, **offshoot of `f5-tcl`** — a fork of a fork, owner ruling 2026-08-26) + environment `f5-irules` | Inherits the trunk grammar whole (R-rules, N-rules, inert `{*}`, word operators — all `f5-tcl` facts per §4a). What it adds *over `f5-tcl`* is not lexical grammar but **load-time language rules**, measured live: the declaration-only top level — only `when`, `proc`, `priority`, `timing` at the root of a rule (bare `set` is `"set" unknown property` from the config layer; `IrulesExecutionContext`, IRULE5006/5007; top-level `proc` reachable only via `call`, an iRules-only command) — closed-world command resolution at rule load (unaffected by `catch`), the event model with compile-enforced event-context validity, and `expr` math-function validation at load. §4c sharpens how those load-time rules work: they are **lexical scans of braced script literals** — `eval {proc …}` and `uplevel #0 {proc …}` are rejected identically to a bare `proc`, but script text held in a variable escapes the scan entirely (both the definition *and* the literal call head must be hidden), so our analyser must mirror exactly that: recurse the load-time checks through braced literals under `eval`/`uplevel`, and abstain — widening to `May` bindings — on variable-held scripts. A runtime-defined proc is then a **persistent per-TMM global** (survives across events and connections, definable mid-request), while `when` is not a runtime command in any scope — the event table is fixed at load. And one severity is pinned by measurement: unbraced `if $var` is both the construct F5 itself warns about and the load-bearing primitive of the only user-space JIT the dialect permits (KaiWilke's `static::`-cached compiled-expression idiom), so it must surface as a **warning, never an error**, ideally with the cached-expression idiom recognised. Riding on that dialect, the `f5-irules` **environment** carries what was always policy (review B12): the 31-command disabled list, which §4b splits into **two mechanisms** — **16 absent from TMM's interpreter** (`exec`, `open`, `socket`, `source`, `file`, `glob`, `cd`, `exit`, `load`, `pwd`, `fconfigure`, `unknown`, the four `auto_*`) and **15 present but refused by the rule compiler** (`namespace`, `time`, `rename`, `interp`, `package`, `gets`, `eof`, `seek`, `tell`, `flush`, `fblocked`, `fcopy`, `pid`, `update`, `vwait`), the latter reachable via `eval` at runtime, so a policy warning about rule *source*, not a language fact — plus 8.3-era-only `trace`, static-head-identity, and fabricated `tcl_platform` (`os BIG-IP`, `wordSize 8`) |
-| `jim0.76`–`jim0.84` (branch) | dialect (family `jim`, releases 0.76–0.84) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1) |
+| `jim` (was `jim0.76`–`jim0.84` on the branch) | dialect (family `jim`, releases 0.76–0.84) + **one** environment `jim` (aliases `jimsh`, `jimtcl`) | measured grammar deltas per release (`NumberSyntax::Jim`/`Jim080`, `EscapeSyntax::Jim`, expr comments ≥0.81, special-float set; since extended with the five lexical axes and the expr precedence/operator/mathfunc/arity divergences — §1, §3.1). **Landed (P6)**: the nine profiles are one environment plus a ladder, the releases are targets on the `jim` core axis, and the family carries a `Lineage::Reimplementation` ancestry edge to Tcl 8.6 that inherits the core command surface instead of re-authoring it — see §8's P6 status |
 | `f5-iapps` | environment `f5-iapps` = **dialect `f5-tcl`** (32-bit build profile) + iapps pack (ambient, BIG-IP-keyed) + policy (fixed ensembles, W108 strict ASCII, no hosted tcllib) | **CORRECTED by measurement** ([measurements](bigip-irule-parser-measurements.md) §4a): the 8.5 baseline hypothesis is falsified. `IAppImplementation` reports `info patchlevel` **8.4.6**, fails every 8.5 discriminator (`dict`, `lassign`, `apply`, `0b101`), and its grammar is **not** `GRAMMAR_TCL85` verbatim — it carries the full `f5-tcl` trunk grammar: R-rules, N-rules, inert `{*}`, and the expr word operators, all byte-identical to TMM. Environment deltas are real but *non-grammatical*: `exec` works here and not in TMM, `package names` is large, `tcl_platform` is real-Linux with `wordSize 4` — a 32-bit build of the family, the CoreProfile build-profile axis earning its place again. APL container routing remains a language-id fact; the two APL contexts are still `Unknown`. **Catalogue corrected (P1-G)**: the shipping `f5-iapps` row now selects `GRAMMAR_F5_TCL` with the 8.4 base fields and `operators_as_commands: false` |
 | `f5-tmsh` | environment `f5-tmsh` = **dialect `f5-tcl`** + tmsh pack (ambient, BIG-IP-keyed) + tmsh syntax-version axis | **CORRECTED by measurement** ([measurements](bigip-irule-parser-measurements.md) §4a): both claims in the previous cell are falsified. `TmshCliScript` reports **8.4.6**, not 8.5.13, and a tmsh lexing mode **is** required — a `cli script` reproduces the entire trunk grammar (R-rules, N-rules, inert `{*}`, expr word operators) identically to TMM. The `AGENTS.md` owner-map claim was right after all: the mode selects the `f5-tcl` trunk grammar. Environment deltas: `exec` works, `tcl_platform` is **empty**, `tcl_patchLevel` does not exist at all, and a non-standard `info vartype` subcommand exists. The `IAPPS\|TMSH` spec files still split into two packs sharing sources. **Catalogue corrected (P1-G)**: the shipping `f5-tmsh` row now selects `GRAMMAR_F5_TCL` with the 8.4 base fields and `operators_as_commands: false` |
 | `tk` (off-catalogue) | package `Tk` + environment `tk` (alias: "wish") = tcl@base + Tk ambient | erases the tk triangle. **Landed (P3)**: the `tk` environment places `Tk` ambient on Tk's own axis and every plain-Tcl environment places it hosted, so one package answers both — see §8's P3 status |
@@ -353,7 +353,12 @@ different character model (`é` is length 1 vs 2), different expr-function
 acceptance (`sqrt(4)` evaluates vs "syntax error in expression"), and a
 different command surface (`json::decode`, `tcl::prefix`, `zlib` present
 vs absent) — compiled in or out *before any interpreter exists*, so no
-`package require` model can recover it. Tcl's own history has the same
+`package require` model can recover it. P6 adds a second, sharper proof
+from the same source: `auto.def` **flipped its default at 0.82**, so a
+bare `./configure` gives neither utf8 nor math through 0.81 and both from
+0.82. "The canonical build" therefore names two different capability
+records on one ladder, which is why `CapabilitySet::canonical` is keyed by
+release rather than by family. Tcl's own history has the same
 axis (`TCL_UTF_MAX` 3/4/6 builds, threaded vs unthreaded 8.x). Families
 that are genuinely build-invariant declare one canonical build profile; a
 named profile may inherit a measured default; and an **unknown build
@@ -419,7 +424,10 @@ the probes:
   the comparison operators into two levels (`tclCompExpr.c`):
   `== != eq ne` at one, `< > <= >= lt le gt ge in ni` at the other. Jim
   splits the same operators across four-plus (`jim.c:9252-9285`, `OPRINIT`
-  precedences, stable across every modelled release): `in ni` 55,
+  precedences, stable across every modelled release *for the comparison
+  block* — **but not for the whole table: P6 found `**` at 250 on 0.76
+  and 120 from 0.77, so the table is release-keyed after all, and
+  `lt`/`gt`/`le`/`ge` do not exist before 0.80**): `in ni` 55,
   `eq ne =* =~` 60, `== !=` 70, `lt gt le ge` 75, `< > <= >=` 80. So
   `expr {"a" eq "b" == 1}` parses as `("a" eq "b") == 1` under Tcl and as
   `"a" eq ("b" == 1)` under Jim. Today's `binary_bp` in
@@ -439,7 +447,12 @@ the probes:
 - **Mathfunc membership is a per-core-profile set.** Jim ships 26
   functions (`jim.c:9294-9321`) and lacks five that C Tcl 8.5+ has:
   `entier`, `bool`, `min`, `max`, `isqrt` — `expr {min(1,2)}` errors in
-  every modelled Jim release. Today's `TclVersion`-floor keying in
+  every modelled Jim release. **Confirmed and refined by P6**: 26 from
+  0.77 (23 at 0.76 — `atan2`, `hypot` and `fmod` arrive at 0.77), and the
+  set splits on the build axis *per function*, not wholesale: seven rows
+  (`int`, `wide`, `abs`, `double`, `round`, `rand`, `srand`) sit outside
+  `#ifdef JIM_MATH_FUNCTIONS`, so a `--minimal` build still evaluates
+  `int(4)` while rejecting `sqrt(4)`. Today's `TclVersion`-floor keying in
   `tcl-syntax/src/expr/mathfunc.rs` (`spec_tcl90`/`spec_tcl91`) would
   read those as "available since 8.5" and silently offer them under Jim.
   The set is resolved per core profile — and per **build**: Jim's math
@@ -453,7 +466,10 @@ the probes:
   on TIP 526; C Tcl still concatenates in 9.1). The diagnostic rides the
   registry's `arity_windows` on the `expr` spec under provider
   `Core(jim)` — the core surface is a provider (§3.2), so core-keyed
-  arity windows are already representable. The *parse* behaviour —
+  arity windows are already representable. (P6: both halves are
+  `#ifdef JIM_COMPAT` in the C, so a `--compat` build still concatenates
+  at 0.84; `--compat` is off unless asked for, so the ladder carries the
+  default build's value and the compat column is a recorded probe.) The *parse* behaviour —
   whether a multi-word `expr` concatenates its words with spaces before
   parsing — is the `arity` field here, because the analyser needs it
   before any spec is resolved.
@@ -1675,6 +1691,173 @@ gates on (adopted verbatim from the review):
   shared core specs or a jim surface pack (**Q6**); its ten profiles and
   `JimVersion` disappear into the `jim` family ladder. (**Q10** may
   reorder P6 earlier if the branch should merge early.)
+
+  **Status: the wiring tax is discharged; the surface pack stays Q6.**
+  The branch (`claude/jimtcl-dialect-rust-5q48z8`) is **not merged into
+  the redesign line**, so none of §1's measured tax was present to
+  delete: no `jim0.76`–`jim0.84` profiles, no `JimVersion`, no 76
+  re-authored core commands. What P6 did instead is make the model
+  *hold* jim, so the tax cannot be re-incurred — and then check that
+  claim against the upstream sources rather than against the branch's
+  summary of them. Every value below is read from `jim.c`, `auto.def`,
+  `utf8.h` and `jim_tcl.txt` at the upstream tags 0.76 … 0.84.
+
+  - **Nine profiles → one environment and one ladder.** `jim` (aliases
+    `jimsh`, `jimtcl`) is a single `EnvironmentDefinition` targeting the
+    whole `0.76-0.85` span on the **jim core axis**, with no point
+    primary — a document that names no jim release is not judged against
+    one. Grammar is `grammar(Family::Jim, release)`: one measured
+    `LexerGrammar` plus one struct update (expr comments arrive at 0.81),
+    where the old model needed nine rows because a profile carries
+    exactly one resolved grammar. `expr` is five struct-update values
+    over the same ladder. **Ten user-facing surfaces grew by zero rows**:
+    the editor catalogues are generated from `DialectProfile::all`, which
+    P6 does not touch, and `gen-editor-dialects` / `gen-editor-extensions`
+    report the same 19 languages and 24 extensions as before.
+  - **No parallel version enum.** `Release` on the jim ladder already
+    was the replacement for `JimVersion`; P6 adds the ingress that makes
+    it reachable — `# tcl-lsp: supports jim 0.81-0.84` — and the ordering
+    is ladder-ordinal, so the branch's lexical `"0.76" >= since`
+    comparison (which breaks at `0.100`) has no home to come back to.
+  - **76 re-authored core commands → one ancestry edge.** `Family::Jim`
+    now carries an `Ancestry` — but a `Lineage::Reimplementation`, not a
+    fork: Jim shares no source with Tcl ("a small footprint
+    reimplementation of the Tcl scripting language", `jim_tcl.txt`), so
+    calling the edge a fork would have been a provenance lie for the sake
+    of reusing a mechanism. The edge is anchored at **Tcl 8.6** — "a
+    significant subset of the Tcl 8.6 command set" — and carries the
+    *surface* only: every lexical and expr axis is Jim's own, and the
+    test asserts the two grammars differ. `provider_active` walks the
+    edge, the resolved context takes an 8.6 point primary on the Tcl
+    axis, and the derived authoring mask is the 8.6 line, so `set`, `if`,
+    `proc`, `lassign`, `lmap` and `dict` resolve for a jim document out
+    of the shared catalogue. The generalisation paid for itself
+    immediately: the registry's lineage walk lost its `if ancestor ==
+    Tcl { F5_FORK_POINT }` special case and the authoring mask lost its
+    per-family `DialectSet::TCL84` hardcode — both now read
+    `Ancestry::anchor`.
+  - **`--minimal` is a real `BuildProfileId`, and the build axis is
+    semantic twice over.** `BuildProfileId::{JimFull, JimMinimal}` carry
+    measured capability records: `--minimal` compiles out `JIM_UTF8`
+    (so `utf8.h` defines `utf8_strlen` as `strlen` — "No utf-8 support.
+    1 byte = 1 char") and `JIM_MATH_FUNCTIONS` (so nineteen of the
+    twenty-six mathfunc rows are not compiled). The second proof is
+    sharper and was not in the design: **`auto.def` flipped its default
+    at 0.82** ("Note that full is now the default"), so through 0.81 a
+    bare `./configure` gave neither utf8 nor math. `CapabilitySet::
+    canonical` is therefore keyed by `Release`, not by `Family`:
+    `expr {sqrt(4)}` is a syntax error on a stock `jimsh 0.81` and
+    answers `2.0` on a stock `jimsh 0.82`, from the same command with no
+    flags. A build axis that were metadata could not say that.
+  - **The mathfunc gate is per function, not per build.** Seven rows —
+    `int`, `wide`, `abs`, `double`, `round`, `rand`, `srand` — sit
+    *outside* `#ifdef JIM_MATH_FUNCTIONS`, so a `--minimal` build has a
+    mathfunc surface of seven, not of zero. `MathFunc` gained
+    `needs_math_extension` and `CoreProfile::mathfunc` consults it; every
+    C Tcl and F5 row is `false`, so nothing else moved.
+  - **Range targeting and I2.** `resolve_declared_targets` recognised
+    only the literal name `tcl` as a family, so `supports jim 0.81-`
+    minted a fictitious *package* axis named `jim` and switched range
+    mode on against it. It now matches any `Family::name()` and honours
+    the declaration **only when the document's core is that family**:
+    `supports jim …` under `tcl8.6` and `supports tcl …` under `jim` are
+    both dropped, because each is a claim about a ladder the document is
+    not on. Everything below the ingress needed no jim-specific code at
+    all — `targets_from_clauses`, `next_line_bound`, `ladder_coverage`,
+    `ladder_releases_in`, `targets_outside_window` and
+    `available_at_targets` all read the family's own ladder, so
+    `supports jim 0.76-0.79` names `0.76 0.77 0.78 0.79`, clamps
+    `0.81-` to `0.84`, and answers `None` on the Tcl axis. The leak is
+    unrepresentable rather than merely untested: intersecting a jim
+    target set with a Tcl one is a typed `AxisMismatch`.
+  - **Five corrections the sources forced on §3.1.** (a) `lt`/`le`/`gt`/
+    `ge` are **not** on every modelled Jim release: they are absent from
+    `Jim_ExprOperators` at 0.76–0.79 and arrive at **0.80**, so offering
+    them under `jim 0.78` would offer a syntax error. (b) Precedence is
+    not purely a per-*family* fact: `**` bound at **250 and
+    left-associative** at 0.76 and at **120, right-associative** from
+    0.77, so `expr {-2 ** 2}` is −4 on 0.76 and 4 from 0.77 (the unary
+    minus, at 150, overtakes it) and `expr {2 ** 3 ** 2}` is 64 at 0.76
+    and 512 at 0.79. The table is release-keyed for that one row, and the
+    binding powers are now the whole `OPRINIT` table rather than the
+    comparison block alone. (c) The mathfunc set is release-gated within
+    the family: 0.76 ships twenty-three, and `atan2`, `hypot` and `fmod`
+    arrive at 0.77 to make the twenty-six §3.1 pins. (d) Jim's `${…}`
+    close rule is `FirstClose`, the 8.x rule, and it skips no leading
+    BOM — the interim value (Tcl 9's grammar wholesale) was wrong on
+    both. (e) The 0.81 arity flip is `#ifndef JIM_COMPAT`, so a
+    `--compat` build still concatenates; `--compat` is off unless asked
+    for, so the ladder carries the default build's value and the other
+    column is recorded as the next probe.
+  - **The mathfunc disposition.** The rows are no longer empty. Twenty-six
+    at 0.77+ (the count §3.1 pins), twenty-three at 0.76, each with its
+    introducing release and its `#ifdef` status, read from the `OP_FUNC`
+    block of `Jim_ExprOperators`. §3.1's five named absentees are
+    **confirmed against the table**: `entier`, `bool`, `min`, `max` and
+    `isqrt` appear at no modelled tag, and the test asserts that each of
+    them *is* a real C Tcl 8.5 function — which is exactly why the
+    `TclVersion`-floor keying in `tcl-syntax/src/expr/mathfunc.rs` would
+    have offered all five under Jim.
+  - **Three honest gaps, each with the field it needs.** (a) *Numerals*:
+    `JimNumberBase` accepts `0x`/`0o`/`0b`/`0d` and leading zeros do
+    **not** imply octal, which is none of `NumberSyntax`'s three values.
+    `Tcl90` ships as the closest (right that `010` is ten; wrong only in
+    accepting Tcl 9's `_` separators, which Jim rejects) because `Tcl85`
+    would be wrong the dangerous way round. The missing piece is a
+    `NumberSyntax::Jim` variant — 231 sites across 43 files, a lexer
+    change, not a data edit. (b) *Byte counting*: a non-utf8 Jim build
+    counts bytes, a third rule `StringCharacterModel`'s two **Tcl**
+    models cannot express, so `character_model` answers `None` (every
+    consumer abstains) and the measured fact travels on
+    `CapabilitySet::utf8_character_model`. The missing piece is a
+    `StringCharacterModel::Bytes` variant and its `count_for` agreement
+    rule, which changes constant folding for every dialect. (c) *Live
+    lexing*: the analyser still takes its `LexerConfig` from the interned
+    `self.profile.grammar`, and `jim` sinks to the permissive fallback
+    profile exactly as `tk` and `tcl` do, so the measured Jim grammar is
+    not yet what lexes a jim document. That is ledger **C1**'s interned-
+    `DialectProfile` seam, not a P6 regression — but until it retires,
+    `braced_var` and the BOM rule are the fallback's. The five further
+    lexical axes the branch measured (word separators, brace
+    continuation, quote termination, `$(…)` variable syntax, list parse)
+    remain new `LexerGrammar` fields, unchanged by this lane.
+  - **The probe matrix, run rather than assumed.** Five `jimsh` binaries
+    were built from the upstream tags for this lane — 0.76 `--full`,
+    0.79 `--full`, 0.81 default, 0.84 default, 0.84 `--minimal` — and
+    every claim above is a transcript, not a reading of the C alone:
+
+    | probe | 0.76 | 0.79 | 0.81 default | 0.84 default | 0.84 `--minimal` |
+    |---|---|---|---|---|---|
+    | `expr {sqrt(4)}` | 2.0 | 2.0 | **syntax error** | 2.0 | **syntax error** |
+    | `expr {int(4.7)}` | 4 | 4 | 4 | 4 | **4** |
+    | `expr {min(1,2)}` | error | error | error | error | error |
+    | `expr {atan2(1,1)}` | **error** | 0.785… | 0.785… | 0.785… | error |
+    | `string length é` | 1 | 1 | 1 | 1 | **2** |
+    | `string length [subst \U0001F600]` | 1 | 1 | 1 | 1 | **4** |
+    | `expr {"abc" lt "abd"}` | **error** | **error** | 1 | 1 | 1 |
+    | `expr {"abc" =* "a*"}` | error | error | **error** | 1 | 1 |
+    | `expr 1 + 2` | 3 | 3 | **wrong # args** | **wrong # args** | **wrong # args** |
+    | `expr {-2 ** 2}` | **-4** | 4 | 4 | 4 | 4 |
+    | `expr {2 ** 3 ** 2}` | **64** | 512 | 512 | 512 | 512 |
+    | `expr {010}` | 10 | 10 | 10 | 10 | 10 |
+    | `expr {1_000}` | error | error | error | **error** | **error** |
+
+    The 0.81-vs-0.84 `sqrt` column is the configure-default flip; the
+    0.84 `--full`-vs-`--minimal` column is `--minimal` alone; `int` beside
+    `sqrt` is the per-function math gate; `string length` in both forms
+    is the character-model delta and the byte-counting gap; and `1_000`
+    is the one place `NumberSyntax::Tcl90` over-accepts for Jim. This
+    corpus is transcripts on disk rather than a hermetic in-tree fixture
+    set — the natural follow-on is a jim probe corpus shaped like the F5
+    one (§0.2's evidence layer), keyed by `(release, configure flags,
+    platform, commit)` exactly as H3 requires.
+  - **What P6 deliberately did not do.** No jim command specs were
+    authored: the jim surface pack is **Q6**, and the inherited Tcl 8.6
+    surface therefore over-admits what `jim_tcl.txt` says Jim lacks —
+    threads, coroutines, and command/variable traces. That
+    over-admission is recorded as data
+    (`JIM_ABSENT_FROM_THE_INHERITED_SURFACE`) with a test that fails the
+    day the pack lands, so it is a named gap rather than a silent one.
 - **P7 — irules surface pack-expression (optional, deferred).** Requires
   the seven words + `event_requires` draft-model fix; the dialect
   (grammar, structure) and closed-world policy stay compiled regardless.

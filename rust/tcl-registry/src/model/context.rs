@@ -291,33 +291,34 @@ impl ResolvedContext {
                 primary: single_line.then(|| core_release.clone()).flatten(),
                 targets,
             });
-            // Fork lineage (measurements §4/§4a): a fork-of-Tcl core
-            // embeds its fork parent's core, so each ancestor axis gets a
-            // point primary — the Tcl root at the measured fork
-            // patchlevel (8.4.6), an intermediate hop at its own
-            // release's spelling where that spelling is a version. The
-            // `f5-irules` offshoot's closed load-time resolution keeps
-            // its ancestor surface explicit per spec instead
-            // (`provider_active`), so it takes no lineage floors either.
+            // Ancestry lineage: a core derived from another family
+            // embeds that family's surface, so each ancestor axis gets a
+            // point primary at the edge's own **anchor**
+            // ([`Ancestry::anchor`]) — the F5 trunk at its measured fork
+            // patchlevel 8.4.6 (measurements §4/§4a), Jim at the Tcl 8.6
+            // command set `jim_tcl.txt` says it implements a significant
+            // subset of. Reading the anchor off the edge is what lets one
+            // walk serve a fork and a reimplementation without the
+            // family special case this loop used to carry. An anchor that
+            // is not a version (the iRules `tmos` line) yields no floor,
+            // which is the intent. The `f5-irules` offshoot's closed
+            // load-time resolution keeps its ancestor surface explicit
+            // per spec instead (`provider_active`), so it takes no
+            // lineage floors either.
             if !core.family.closed_load_time_resolution() {
-                let mut parent = core.family.fork_parent();
-                while let Some((ancestor, release)) = parent {
-                    let axis = VersionAxisId::core(ancestor);
-                    if floors.floor(&axis).is_none() {
-                        let point = if ancestor == tcl_dialect::model::Family::Tcl {
-                            Version::parse(tcl_dialect::model::Family::F5_FORK_POINT).ok()
-                        } else {
-                            Version::parse(release.as_str()).ok()
-                        };
-                        if let Some(point) = point {
-                            floors.set(AxisFloor {
-                                axis: axis.clone(),
-                                targets: point_set(&axis, &point),
-                                primary: Some(point),
-                            });
-                        }
+                let mut edge = core.family.ancestry();
+                while let Some(ancestry) = edge {
+                    let axis = VersionAxisId::core(ancestry.parent);
+                    if floors.floor(&axis).is_none()
+                        && let Ok(point) = Version::parse(ancestry.anchor)
+                    {
+                        floors.set(AxisFloor {
+                            axis: axis.clone(),
+                            targets: point_set(&axis, &point),
+                            primary: Some(point),
+                        });
                     }
-                    parent = ancestor.fork_parent();
+                    edge = ancestry.parent.ancestry();
                 }
             }
         }
@@ -500,12 +501,12 @@ impl ResolvedContext {
                 if core.family.closed_load_time_resolution() {
                     return false;
                 }
-                let mut parent = core.family.fork_parent();
-                while let Some((ancestor, _)) = parent {
-                    if ancestor == *family {
+                let mut edge = core.family.ancestry();
+                while let Some(ancestry) = edge {
+                    if ancestry.parent == *family {
                         return true;
                     }
-                    parent = ancestor.fork_parent();
+                    edge = ancestry.parent.ancestry();
                 }
                 false
             }),
@@ -1179,19 +1180,39 @@ fn compute_authoring_mask(context: &ResolvedContext) -> DialectSet {
                     }
                 }
             }
-            Family::F5Tcl => {
-                // measurements §4a (F5 reclassification,
-                // `docs/design/bigip-irule-parser-measurements.md`): the
-                // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed
-                // the fork of Tcl at 8.4.6 — every 8.4/8.5 discriminator
-                // behaves as 8.4 — so the embedded core admits the 8.4
-                // line, not the falsified 8.5 one the old profiles claim.
-                mask = mask.union(DialectSet::TCL84);
-            }
             Family::F5Irules => {
                 mask = mask.union(DialectSet::IRULES);
             }
-            Family::Jim => {}
+            // Every other family derives its Tcl-facing surface from an
+            // ancestry anchor, so the admitted ladder bit is the line
+            // that anchor sits in — derived, not per family.
+            //
+            // `f5-tcl`: measurements §4a (F5 reclassification,
+            // `docs/design/bigip-irule-parser-measurements.md`) — the
+            // trunk-riding environments (`f5-iapps`, `f5-tmsh`) embed the
+            // fork of Tcl at 8.4.6, every 8.4/8.5 discriminator behaves
+            // as 8.4, so the embedded core admits the 8.4 line and not
+            // the falsified 8.5 one the old profiles claimed.
+            //
+            // `jim`: the 8.6 command-set anchor (`jim_tcl.txt`), which is
+            // the whole of P6's inherit-then-override — a `jim` document
+            // resolves `set`, `if`, `proc`, `lassign`, `dict` and `lmap`
+            // from the shared core specs instead of from 76
+            // hand-re-authored copies.
+            Family::F5Tcl | Family::Jim => {
+                if let Some(ancestry) = core.family.ancestry()
+                    && ancestry.parent == Family::Tcl
+                    && let Ok(anchor) = Version::parse(ancestry.anchor)
+                {
+                    for (bit, start, end) in TCL_LINES {
+                        let start = Version::parse(start).expect("compiled line start parses");
+                        let end = Version::parse(end).expect("compiled line end parses");
+                        if anchor >= start && anchor < end {
+                            mask = mask.union(bit);
+                        }
+                    }
+                }
+            }
         }
     }
     for (bit, package) in VENDOR_BITS {
@@ -1902,6 +1923,182 @@ mod tests {
         // Another provider's rows never contribute to this axis.
         let vendor = ctx.available_at_targets(&rows(Some(DialectSet::EXPECT)), &axis);
         assert!(vendor.is_empty());
+    }
+
+    /// **P6.** A `jim` context resolves the shared core surface through
+    /// its ancestry edge instead of through 76 re-authored specs: the
+    /// `Core(Tcl)` provider is active, the Tcl-axis primary is the 8.6
+    /// anchor, and the derived authoring mask is the 8.6 line — so
+    /// `lassign` (8.5+) and `lmap` (8.6+) both resolve while an
+    /// 8.4-only shape does not.
+    #[test]
+    fn a_jim_context_inherits_the_tcl_core_surface() {
+        let ctx = context("jim");
+        let jim_axis = VersionAxisId::core(tcl_dialect::model::Family::Jim);
+        let tcl_axis = VersionAxisId::core(tcl_dialect::model::Family::Tcl);
+
+        assert!(ctx.provider_active(&Provider::Core(tcl_dialect::model::Family::Jim)));
+        assert!(
+            ctx.provider_active(&Provider::Core(tcl_dialect::model::Family::Tcl)),
+            "the ancestry edge is what admits the shared core specs"
+        );
+        assert!(!ctx.provider_active(&Provider::Core(tcl_dialect::model::Family::F5Irules)));
+
+        // The lineage floor is the edge's anchor, on the *Tcl* axis.
+        assert_eq!(
+            ctx.floors.primary(&tcl_axis).map(Version::as_str),
+            Some(tcl_dialect::model::Family::JIM_SURFACE_ANCHOR)
+        );
+        // Jim's own axis spans the ladder and takes no point primary.
+        assert!(ctx.floors.primary(&jim_axis).is_none());
+        assert!(
+            ctx.floors
+                .targets(&jim_axis)
+                .expect("jim targets")
+                .contains(&Version::parse("0.76").expect("version"))
+        );
+
+        // The derived mask, and what it admits.
+        assert_eq!(ctx.authoring_mask(), DialectSet::TCL86);
+        for gate in [
+            DialectSet::ALL_TCL,
+            DialectSet::TCL85_PLUS,
+            DialectSet::TCL86_PLUS,
+        ] {
+            assert!(
+                ctx.spec_available(&CommandSpec {
+                    name: "context-test",
+                    dialects: Some(gate),
+                    ..CommandSpec::DEFAULT
+                }),
+                "{gate:?}"
+            );
+        }
+        assert!(
+            !ctx.spec_available(&CommandSpec {
+                name: "context-test",
+                dialects: Some(DialectSet::TCL84),
+                ..CommandSpec::DEFAULT
+            }),
+            "an 8.4-only shape is not part of the 8.6 command set"
+        );
+        // A real command, resolved from the shared catalogue: this is
+        // the 76-commands-by-hand line item, gone.
+        let registry = crate::model::assembly::universe();
+        for name in ["set", "if", "proc", "lassign", "lmap", "dict"] {
+            assert!(ctx.resolve_spec(registry, name).is_some(), "{name}");
+        }
+    }
+
+    /// **P6, invariant I2.** A declared `jim` range gates on the jim
+    /// axis and says nothing on the Tcl axis — and vice versa. The
+    /// axis machinery needed no jim-specific code: `targets_from_clauses`,
+    /// `ladder_releases_in` and `ladder_coverage` all read the family's
+    /// own ladder.
+    #[test]
+    fn a_declared_jim_range_gates_on_the_jim_axis_only() {
+        let jim_axis = VersionAxisId::core(tcl_dialect::model::Family::Jim);
+        let tcl_axis = VersionAxisId::core(tcl_dialect::model::Family::Tcl);
+        let mut ctx = context("jim");
+
+        // The targets grammar spells jim ranges off the jim ladder: a
+        // bare release is that release's line, an inclusive max covers
+        // the whole line of the named release, and an open end clamps to
+        // the modelled ladder.
+        let declared = targets_from_clauses(&jim_axis, &["0.76-0.79"]).expect("well-formed");
+        assert_eq!(
+            ladder_releases_in(&declared),
+            vec!["0.76", "0.77", "0.78", "0.79"]
+        );
+        assert!(!declared.contains(&Version::parse("0.80").expect("version")));
+        let open = targets_from_clauses(&jim_axis, &["0.81-"]).expect("well-formed");
+        assert_eq!(
+            ladder_releases_in(&open),
+            vec!["0.81", "0.82", "0.83", "0.84"]
+        );
+        assert!(
+            !open.contains(&Version::parse("0.85").expect("version")),
+            "an open end clamps to the modelled ladder"
+        );
+
+        ctx.declare_targets(declared);
+        assert!(ctx.declared_targets(&jim_axis).is_some());
+        assert!(
+            ctx.declared_targets(&tcl_axis).is_none(),
+            "I2: a jim declaration is not a Tcl declaration"
+        );
+
+        // The window query answers on the jim axis. `lt`/`ge` arrive at
+        // Jim 0.80, so a 0.76-0.79 project is told so.
+        let outside = ctx
+            .targets_outside_window(&jim_axis, Some("0.80"), None)
+            .expect("the whole declaration is below 0.80");
+        assert_eq!(
+            ladder_releases_in(&outside),
+            vec!["0.76", "0.77", "0.78", "0.79"]
+        );
+        assert_eq!(requirement_spelling(&outside), "0.76-0.80");
+        // A window the declaration sits inside abstains.
+        assert!(
+            ctx.targets_outside_window(&jim_axis, Some("0.76"), None)
+                .is_none()
+        );
+        // …and the same question on the Tcl axis abstains entirely: the
+        // jim declaration is not evidence about Tcl releases.
+        assert!(
+            ctx.targets_outside_window(&tcl_axis, Some("8.6"), None)
+                .is_none(),
+            "I2: the jim range must not leak onto the Tcl axis"
+        );
+
+        // The leak is unrepresentable, not merely untested: the two sets
+        // cannot be compared at all.
+        let tcl_targets = targets_from_clauses(&tcl_axis, &["8.5-9.0"]).expect("well-formed");
+        let jim_targets = targets_from_clauses(&jim_axis, &["0.81-"]).expect("well-formed");
+        assert!(
+            jim_targets.intersect(&tcl_targets).is_err(),
+            "I2: cross-axis operations are typed errors"
+        );
+
+        // A declared *Tcl* range on a jim context gates the Tcl axis and
+        // leaves jim's alone — the mirror direction.
+        let mut mirror = context("jim");
+        mirror.declare_targets(tcl_targets);
+        assert!(mirror.declared_targets(&tcl_axis).is_some());
+        assert!(mirror.declared_targets(&jim_axis).is_none());
+        assert!(
+            mirror
+                .targets_outside_window(&jim_axis, Some("0.80"), None)
+                .is_none()
+        );
+    }
+
+    /// **P6.** A `Core(Jim)` declaration restricted to part of the jim
+    /// ladder reports exactly the covered subset — the same
+    /// `available_at_targets` machinery Tk and the tcllib modules use,
+    /// on a core family's own axis.
+    #[test]
+    fn available_at_targets_answers_on_the_jim_axis() {
+        let ctx = context("jim");
+        let jim_axis = VersionAxisId::core(tcl_dialect::model::Family::Jim);
+        let modern = vec![SurfaceDeclaration {
+            provider: Provider::Core(tcl_dialect::model::Family::Jim),
+            applicable: targets_from_clauses(&jim_axis, &["0.80-"]).expect("well-formed"),
+            predicate: crate::model::surface::CapabilityPredicate::None,
+            history: tcl_dialect::model::ItemHistory::default(),
+            provenance: tcl_dialect::model::Provenance::BuiltIn,
+        }];
+        let covered = ctx.available_at_targets(&modern, &jim_axis);
+        assert!(covered.contains(&Version::parse("0.84").expect("version")));
+        assert!(!covered.contains(&Version::parse("0.79").expect("version")));
+        // The declaration does not cover the environment's whole ladder.
+        let targets = ctx.floors.targets(&jim_axis).expect("targets");
+        assert!(!targets.subset(&covered).expect("same axis"));
+        // A Tcl-provider row contributes nothing to the jim axis.
+        assert!(
+            ctx.available_at_targets(&rows(Some(DialectSet::ALL_TCL)), &jim_axis)
+                .is_empty()
+        );
     }
 
     #[test]
