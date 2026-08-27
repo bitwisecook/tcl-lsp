@@ -40,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["SIP"],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SIPALG::nonregister_subscriber_listener",

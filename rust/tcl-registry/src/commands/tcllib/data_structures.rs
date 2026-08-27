@@ -64,10 +64,12 @@
 //!   `-substitutions {%n node …}` qualifier on the prefix slot would.
 //!   [`CallbackTaintInput::TkPercent`] names such a spelling, but only as a
 //!   taint colour.
-//! - *Cross-option legality.*  `-order in` is illegal with `-type bfs`, and
-//!   `prune` is an error under `-order post`/`-order in`.  [`OptionConstraint`]
-//!   expresses "may not occur together" between two *options*, not between
-//!   an option's **value** and another option's value.
+//! - *Body-scoped legality.*  `prune` is an error under
+//!   `-order post`/`-order in` — a relation between an option's value and a
+//!   command used *inside the walk body*, which is the body-scoped half of the
+//!   same E-R6 gap as `prune`'s completion code, not an option relation.
+//!   (`-order in` with `-type bfs`, the *other* half of what used to be
+//!   recorded here, **is** expressible under E-R14 and is declared below.)
 //! - *Instance-method version gating.*  The lifecycles on `walkproc` and on
 //!   `walk -command` are declared but unread: the analyser has no diagnostic
 //!   site on the instance-method dispatch path.  That is a missing consumer,
@@ -199,9 +201,10 @@ fn struct_tree_walkproc_command_prefixes(
 }
 
 /// Traversal orders both trains accept (`struct_tree.man`; `WalkOptions`
-/// in `tree_tcl.tcl`).  `in` is illegal with `-type bfs`, and `post`/`in`
-/// are the two orders `::struct::tree::prune` may not be used with —
-/// neither cross-option rule has a field, see the module note.
+/// in `tree_tcl.tcl`).  `in` is illegal with `-type bfs` — declared as
+/// [`STRUCT_TREE_WALK_RELATIONS`] under E-R14 — and `post`/`in` are the two
+/// orders `::struct::tree::prune` may not be used with, which is body-scoped
+/// and still has no field (see the module note).
 const STRUCT_TREE_ORDER_VALUES: &[ArgValue] = &[
     ArgValue {
         value: "pre",
@@ -269,6 +272,24 @@ const STRUCT_TREE_WALK_OPTIONS: &[OptionSpec] = &[
     },
 ];
 
+/// The cross-option **value** legality rule both walkers share.
+///
+/// `tree_tcl.tcl`'s `WalkOptions` closes with
+/// `if {[string equal $order "in"] && [string equal $type "bfs"]} { return
+/// -code error "unable to do a ${order}-order breadth first walk" }` — a
+/// relation between one option's *value* and another option's *value*, which
+/// is exactly [`RelationTerm::OptionValue`]'s reason to exist.  It is written
+/// directionally (`-order in` forbids `-type bfs`) because that is how the
+/// library phrases the failure, and because `-order in` is the word the
+/// author has to change.
+const STRUCT_TREE_WALK_RELATIONS: &[OptionRelation] = &[OptionRelation {
+    kind: RelationKind::Forbids,
+    subject: Some(RelationTerm::OptionValue("-order", "in")),
+    terms: &[RelationTerm::OptionValue("-type", "bfs")],
+    message: Some("unable to do a in-order breadth first walk"),
+    ..OptionRelation::DEFAULT
+}];
+
 /// `walkproc`'s options: `WalkOptions` (`tree_tcl.tcl`) accepts only
 /// `-order`, `-type` and `--`.  `-command` is deliberately absent — it is
 /// the 1.x `walk` interface, and `walkproc` postdates its removal.
@@ -331,6 +352,11 @@ const STRUCT_TREE_METHODS: &[SubCommand] = &[
         detail: "Walk the tree from node, evaluating a script (2.x) or a %-substituted command (1.x) at each visited node.",
         synopsis: "treeName walk node ?-order pre|post|in|both? ?-type bfs|dfs? ?--? loopvar script",
         options: STRUCT_TREE_WALK_OPTIONS,
+        option_relations: STRUCT_TREE_WALK_RELATIONS,
+        // `_walk {name node args}` takes the node **positionally** and then
+        // reads its option run out of `$args`, so the options are not leading
+        // in the invocation as written (`$t walk root -order in …`).
+        option_placement: OptionPlacement::Anywhere,
         arg_role_resolver: Some(struct_tree_walk_arg_roles),
         ..SubCommand::DEFAULT
     },
@@ -340,6 +366,8 @@ const STRUCT_TREE_METHODS: &[SubCommand] = &[
         detail: "Walk the tree from node, invoking the trailing command prefix at each node.",
         synopsis: "treeName walkproc node ?-order pre|post|in|both? ?-type bfs|dfs? cmdprefix",
         options: STRUCT_TREE_WALKPROC_OPTIONS,
+        option_relations: STRUCT_TREE_WALK_RELATIONS,
+        option_placement: OptionPlacement::Anywhere,
         command_prefix_resolver: Some(struct_tree_walkproc_command_prefixes),
         // `walkproc` arrived with the 2.0 walker rework: `tree1.tcl` (the
         // 1.2.3 train) defines `_walk` and no `_walkproc` at all, while

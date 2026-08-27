@@ -156,7 +156,6 @@ const BOOL_TRAITS: &[(&str, Traits)] = &[
     ("is_side_switch", Traits::IS_SIDE_SWITCH),
     ("defines_procedure", Traits::DEFINES_PROCEDURE),
     ("unsafe", Traits::UNSAFE),
-    ("password_option_command", Traits::PASSWORD_OPTION),
     ("taint_sink", Traits::TAINT_SINK),
 ];
 
@@ -594,9 +593,7 @@ fn main() {
                     || er.transport.is_some()
                     || !er.profiles.is_empty()
                     || !er.also_in.is_empty()
-                    || er.init_only
-                    || er.flow
-                    || er.capability.is_some();
+                    || er.flow;
                 (profiles, also_in, any)
             }
         };

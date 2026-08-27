@@ -39,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["CLIENT_DATA", "SERVER_CONNECTED", "SERVER_DATA"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "XLAT::listen (-hairpin)? (-inherit-main-rules)? (-single-connection)? (-translation-loose)? (XLAT_LISTEN_SUBCMDS)+",

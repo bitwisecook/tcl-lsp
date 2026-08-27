@@ -40,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FLOW"],
             also_in: &["CLIENT_DATA"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "DATAGRAM::ip6 hop_limit",

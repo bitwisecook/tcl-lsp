@@ -299,6 +299,7 @@ fn bind_command(spec: &mut CommandSpec, family: HookFamily, slot: HookSlot) {
         HookFamily::ClauseShapeCheck => {
             spec.clause_shape_check = pack_hooks::clause_shape_check_fn(slot);
         }
+        HookFamily::Constraints => spec.constraints = pack_hooks::constraints_fn(slot),
         // An option's `-arity-hook` never hangs off the command itself.
         HookFamily::OptionArity => {}
     }
@@ -329,6 +330,7 @@ fn bind_subcommand(sub: &mut SubCommand, bindings: &[Binding<'_>]) {
                     sub.literal_argument_validator =
                         pack_hooks::literal_argument_validator_fn(slot);
                 }
+                HookFamily::Constraints => sub.constraints = pack_hooks::constraints_fn(slot),
                 // The loader declares no other family on a subcommand row.
                 HookFamily::TaintSinkGate
                 | HookFamily::ContextGate

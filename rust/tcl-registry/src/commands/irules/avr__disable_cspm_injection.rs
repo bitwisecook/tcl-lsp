@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FASTHTTP"],
             also_in: &["AVR_CSPM_INJECTION"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "AVR::disable_cspm_injection",

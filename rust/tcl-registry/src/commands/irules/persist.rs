@@ -255,9 +255,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["PERSIST_DOWN"],
-            init_only: false,
             flow: true,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "persist <mode> ?args?",

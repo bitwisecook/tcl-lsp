@@ -1285,16 +1285,63 @@ fn repeat_rows(expr: &str) -> Option<Vec<Vec<String>>> {
     Some(rows)
 }
 
-/// `option_conflict {…}` rows from a rendered `&[OptionConstraint]`.
+/// One `RelationTerm::…(…)` expression as an author spells the term.
+///
+/// The inverse of the loader's `relation_term`, so a relation round-trips
+/// through the exporter byte-identically to how it was authored.
+fn relation_term_word(expr: &str) -> Option<String> {
+    let expr = expr.trim();
+    let open = expr.find('(')?;
+    let inner = expr[open + 1..].strip_suffix(')')?;
+    let variant = expr[..open].rsplit("::").next()?.trim();
+    let parts = split_top(inner, ',');
+    let words: Vec<String> = match (variant, parts.as_slice()) {
+        ("Option", [name]) => vec![rust_str(name)?],
+        ("OptionValue", [name, value]) => vec![rust_str(name)?, rust_str(value)?],
+        ("Argument", [index]) => vec!["arg".to_owned(), index.trim().to_owned()],
+        ("ArgumentValue", [index, value]) => {
+            vec!["arg".to_owned(), index.trim().to_owned(), rust_str(value)?]
+        }
+        _ => return None,
+    };
+    // The term's *content*, unquoted: the caller brace-quotes it once, either
+    // as a standalone subject word or as one element of the term list.
+    // Quoting here as well would double-brace `{arg 0}` inside the list.
+    Some(words.join(" "))
+}
+
+/// The four E-R14 option-relation rows from a rendered `&[OptionRelation]`.
+///
+/// `option_conflict` keeps its 1.x shape exactly — statement word then the
+/// term list — so an unchanged pack round-trips unchanged; the other three
+/// take the subject between them.
 fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String>>> {
     let mut rows = Vec::new();
     for item in slice_items(expr)? {
         let fields = struct_fields(item)?;
-        let options: Option<Vec<String>> = slice_items(fields.get("options")?)?
+        let terms: Option<Vec<String>> = slice_items(fields.get("terms")?)?
             .into_iter()
-            .map(rust_str)
+            .map(relation_term_word)
             .collect();
-        let mut row = vec!["option_conflict".to_owned(), list_word(&options?)?];
+        let terms = list_word(&terms?)?;
+        let kind = fields
+            .get("kind")
+            .map_or("MutuallyExclusive", |k| variant_of(k));
+        let statement = match kind {
+            "MutuallyExclusive" => "option_conflict",
+            "Requires" => "option_requires",
+            "RequiresOneOf" => "option_requires_one_of",
+            "Forbids" => "option_forbids",
+            _ => return None,
+        };
+        let mut row = vec![statement.to_owned()];
+        if kind != "MutuallyExclusive" {
+            row.push(match fields.get("subject").and_then(|s| unwrap_some(s)) {
+                Some(inner) => word(&relation_term_word(inner)?)?,
+                None => "{}".to_owned(),
+            });
+        }
+        row.push(terms);
         if let Some(inner) = unwrap_some(fields.get("dialects")?) {
             let members = dialect_names(inner)?;
             if let Some(spelling) = availability.then(|| available_flag(&members)).flatten() {
@@ -1304,6 +1351,10 @@ fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String
                 row.push("-dialects".to_owned());
                 row.push(dialect_words(&members)?);
             }
+        }
+        if let Some(inner) = fields.get("message").and_then(|m| unwrap_some(m)) {
+            row.push("-message".to_owned());
+            row.push(word(&rust_str(inner)?)?);
         }
         push_literal_lifecycle_flags(&mut row, fields.get("lifecycle").copied())?;
         rows.push(row);
@@ -1816,7 +1867,7 @@ fn arity_window_rows(out: &mut Out, ctx: &Ctx<'_>, draft: &Draft) {
 /// Indices are visited in the order the tables themselves list them — roles
 /// first, then the tables that only ever accompany them — so a spec that
 /// declares its roles out of index order keeps that order on the way back in.
-fn arg_rows(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
+fn arg_row_statements(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
     let table =
         |key: &str| -> Vec<Value> { as_array(draft.get(key).unwrap_or(&Value::Null)).to_vec() };
     let roles = table("arg_roles");
@@ -2252,7 +2303,7 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
         byte_array_payload_row,
     );
 
-    arg_rows(out, ctx, draft);
+    arg_row_statements(out, ctx, draft);
     callback_taint_input_table(out, ctx, draft);
     if ctx.set(draft, "repeated_args")
         && let Some(expr) = draft["repeated_args"].as_str()
@@ -2377,7 +2428,6 @@ fn command_body(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             "xc_translatable no"
         });
     }
-    text(out, ctx, draft, "xc_operation");
     text(out, ctx, draft, "deprecated_replacement");
     flag(out, ctx, draft, "deprecated_replacement_drop_in");
 
@@ -2451,8 +2501,9 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
             option_row(out, ctx, &option);
         }
     }
-    if ctx.set(draft, "option_constraints")
-        && let Some(expr) = draft["option_constraints"].as_str()
+    enum_word(out, ctx, draft, "option_placement");
+    if ctx.set(draft, "option_relations")
+        && let Some(expr) = draft["option_relations"].as_str()
     {
         match option_conflict_rows(expr, ctx.availability) {
             Some(rows) => {
@@ -2460,7 +2511,7 @@ fn option_block(out: &mut Out, ctx: &mut Ctx<'_>, draft: &Draft) {
                     out.row(&row, "");
                 }
             }
-            None => todo(out, "option_constraints"),
+            None => todo(out, "option_relations"),
         }
     }
 }
@@ -2707,7 +2758,7 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
     enum_word(out_body, ctx, sub, "prefix_matching");
     text(out_body, ctx, sub, "cfg_rewrite_name");
 
-    arg_rows(out_body, ctx, sub);
+    arg_row_statements(out_body, ctx, sub);
     callback_taint_input_table(out_body, ctx, sub);
     if ctx.set(sub, "repeated_args")
         && let Some(expr) = sub["repeated_args"].as_str()
@@ -2750,7 +2801,6 @@ fn subcommand_block(out: &mut Out, parent: &mut Ctx<'_>, sub: &Draft, keyword: &
         out_body.line(&format!("credential_arg {}", sub["credential_arg"]));
     }
     text_list(out_body, ctx, sub, "sensitive_headers");
-    text(out_body, ctx, sub, "xc_operation");
 
     option_block(out_body, ctx, sub);
     versioned_arg_value_rows_for(out_body, ctx, sub);
@@ -3258,7 +3308,9 @@ mod tests {
 
     #[test]
     fn an_option_constraint_keeps_its_dialect_gate() {
-        const EXPR: &str = "&[OptionConstraint { options: &[\"-glob\", \"-regexp\"], \
+        const EXPR: &str = "&[OptionRelation { kind: RelationKind::MutuallyExclusive, \
+                            subject: None, terms: &[RelationTerm::Option(\"-glob\"), \
+                            RelationTerm::Option(\"-regexp\")], \
                             dialects: Some(DialectSet::ALL_TCL.union(DialectSet::IRULES)) }]";
         // Under 2.0 the gate is written in the availability algebra …
         let rows = option_conflict_rows(EXPR, true).expect("the constraint parses");
@@ -3272,6 +3324,47 @@ mod tests {
             rows[0].join(" "),
             "option_conflict {-glob -regexp} -dialects {all-tcl f5-irules}"
         );
+    }
+
+    /// **The E-R14 export gate.** Each of the three new relation kinds, and
+    /// each of the four term shapes, must come back out as the statement an
+    /// author would have written — otherwise a pack that round-trips through
+    /// the studio silently loses a relation.
+    #[test]
+    fn every_relation_kind_and_term_shape_round_trips_to_its_statement() {
+        for (expr, expected) in [
+            (
+                "&[OptionRelation { kind: RelationKind::Requires, \
+                 subject: Some(RelationTerm::Option(\"-command\")), \
+                 terms: &[RelationTerm::Option(\"-channel\")], dialects: None, \
+                 message: None }]",
+                "option_requires -command -channel",
+            ),
+            (
+                "&[OptionRelation { kind: RelationKind::RequiresOneOf, subject: None, \
+                 terms: &[RelationTerm::Option(\"-channel\"), RelationTerm::Argument(0)], \
+                 dialects: None, message: Some(\"Neither -channel nor text specified\") }]",
+                "option_requires_one_of {} {-channel {arg 0}} \
+                 -message {Neither -channel nor text specified}",
+            ),
+            (
+                "&[OptionRelation { kind: RelationKind::Forbids, \
+                 subject: Some(RelationTerm::OptionValue(\"-order\", \"in\")), \
+                 terms: &[RelationTerm::OptionValue(\"-type\", \"bfs\")], \
+                 dialects: None, message: None }]",
+                "option_forbids {-order in} {{-type bfs}}",
+            ),
+            (
+                "&[OptionRelation { kind: RelationKind::Forbids, \
+                 subject: Some(RelationTerm::Option(\"-channel\")), \
+                 terms: &[RelationTerm::ArgumentValue(1, \"text\")], \
+                 dialects: None, message: None }]",
+                "option_forbids -channel {{arg 1 text}}",
+            ),
+        ] {
+            let rows = option_conflict_rows(expr, true).expect("the relation parses");
+            assert_eq!(rows[0].join(" "), expected, "{expr}");
+        }
     }
 
     #[test]

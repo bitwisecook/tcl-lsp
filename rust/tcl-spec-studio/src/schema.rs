@@ -416,13 +416,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.",
     ),
     f(
-        "arg_rows",
-        "Versioned argument rows",
-        ARGS,
-        FieldKind::RustExpr { hint: "ARG_ROWS" },
-        "The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.",
-    ),
-    f(
         "arg_roles",
         "Argument roles",
         ARGS,
@@ -771,6 +764,18 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Whether repeated calls return the same value, or depend on mutable or volatile state.",
     ),
     f(
+        "constraints",
+        "Option-relation escape hatch",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(check_option_constraints)",
+        },
+        "The rare E-R14 escape hatch, consulted only when every declarative \
+         option relation reported nothing. Prefer an `option_requires` / \
+         `option_forbids` / `option_requires_one_of` row: those are checked \
+         natively with no VM entry.",
+    ),
+    f(
         "literal_argument_validator",
         "Literal argument validator",
         HOOKS,
@@ -886,14 +891,29 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Declared option flags, their values, roles, and dialect gates.",
     ),
     f(
-        "option_constraints",
-        "Option constraints",
+        "option_relations",
+        "Option relations",
         OPTS,
         FieldKind::RustExpr {
-            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None, \
-                   lifecycle: Lifecycle::UNSPECIFIED }]",
+            hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
+                   terms: &[RelationTerm::Option(\"-a\"), RelationTerm::Option(\"-b\")], \
+                   dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
-        "Registry-declared sets of leading options that may not occur together.",
+        "Registry-declared relations between this command's options and arguments \
+         (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, \
+         each checked natively with no VM entry.",
+    ),
+    f(
+        "option_placement",
+        "Option placement",
+        OPTS,
+        FieldKind::Enum {
+            catalogue: "optionPlacement",
+            optional: false,
+        },
+        "Where this invocation's declared options may appear: a leading run that \
+         stops at the first non-option word (every core Tcl command), or anywhere \
+         between the positional words up to an explicit `--` (`http::geturl`).",
     ),
     f(
         "reserved_trailing_words",
@@ -1135,13 +1155,6 @@ pub const COMMAND_FIELDS: &[FieldSchema] = &[
         "Cross-compile translatability override. Unset uses the default rules.",
     ),
     f(
-        "xc_operation",
-        "XC operation",
-        DEPRECATION,
-        FieldKind::OptText,
-        "The XC operation the command maps to when translatable.",
-    ),
-    f(
         "deprecated_replacement",
         "Deprecated replacement",
         DEPRECATION,
@@ -1315,13 +1328,6 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "ARITY_WINDOWS",
         },
         "Per-release signature shapes, for a command whose argument count changed across its owning package's releases. Empty unless it did; the plain arity is the fallback whenever no window covers the resolved floor.",
-    ),
-    f(
-        "arg_rows",
-        "Versioned argument rows",
-        ARGS,
-        FieldKind::RustExpr { hint: "ARG_ROWS" },
-        "The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.",
     ),
     f(
         "detail",
@@ -1551,14 +1557,28 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Option flags declared on this subcommand.",
     ),
     f(
-        "option_constraints",
-        "Option constraints",
+        "option_relations",
+        "Option relations",
         OPTS,
         FieldKind::RustExpr {
-            hint: "&[OptionConstraint { options: &[\"-a\", \"-b\"], dialects: None, \
-                   lifecycle: Lifecycle::UNSPECIFIED }]",
+            hint: "&[OptionRelation { kind: RelationKind::MutuallyExclusive, subject: None, \
+                   terms: &[RelationTerm::Option(\"-a\"), RelationTerm::Option(\"-b\")], \
+                   dialects: None, lifecycle: Lifecycle::UNSPECIFIED, message: None }]",
         },
-        "Subcommand-specific sets of leading options that may not occur together.",
+        "Subcommand-specific option relations (E-R14), evaluated by the same \
+         native checker as the command-level ones.",
+    ),
+    f(
+        "option_placement",
+        "Option placement",
+        OPTS,
+        FieldKind::Enum {
+            catalogue: "optionPlacement",
+            optional: false,
+        },
+        "Where this invocation's declared options may appear: a leading run that \
+         stops at the first non-option word (every core Tcl command), or anywhere \
+         between the positional words up to an explicit `--` (`http::geturl`).",
     ),
     f(
         "min_abbrev",
@@ -1801,13 +1821,6 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
         "Format-string override, taking priority over the command's.",
     ),
     f(
-        "xc_operation",
-        "XC operation",
-        DEPRECATION,
-        FieldKind::OptText,
-        "The XC operation this subcommand maps to.",
-    ),
-    f(
         "side_effects",
         "Side effects",
         EFFECTS,
@@ -1849,6 +1862,18 @@ pub const SUBCOMMAND_FIELDS: &[FieldSchema] = &[
             hint: "Some(ResultStability::ReferentiallyTransparent)",
         },
         "Subcommand-specific result stability declaration.",
+    ),
+    f(
+        "constraints",
+        "Option-relation escape hatch",
+        HOOKS,
+        FieldKind::RustExpr {
+            hint: "Some(check_option_constraints)",
+        },
+        "The rare E-R14 escape hatch, consulted only when every declarative \
+         option relation reported nothing. Prefer an `option_requires` / \
+         `option_forbids` / `option_requires_one_of` row: those are checked \
+         natively with no VM entry.",
     ),
     f(
         "literal_argument_validator",
@@ -1940,8 +1965,23 @@ fn custom_variant(id: &str, key: &str, doc: &str) -> Value {
     })
 }
 
-fn custom_catalogues() -> [(&'static str, Value); 4] {
+fn custom_catalogues() -> [(&'static str, Value); 5] {
     [
+        (
+            "optionPlacement",
+            json!([
+                custom_variant(
+                    "optionPlacement",
+                    "Leading",
+                    "option parsing stops at the first non-option word",
+                ),
+                custom_variant(
+                    "optionPlacement",
+                    "Anywhere",
+                    "options are recognised between positional words, up to `--`",
+                ),
+            ]),
+        ),
         (
             "defaultFormFirstWord",
             json!([custom_variant(

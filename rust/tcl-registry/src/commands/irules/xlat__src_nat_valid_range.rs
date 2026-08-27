@@ -42,9 +42,7 @@ pub const fn spec() -> CommandSpec {
                 "SERVER_CONNECTED",
                 "SERVER_DATA",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "XLAT::src_nat_valid_range",

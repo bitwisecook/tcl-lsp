@@ -4325,9 +4325,7 @@ mod tests {
             transport: None,
             profiles: &["ASM"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let events = valid_events(&requires);
         assert_eq!(
@@ -4356,9 +4354,7 @@ mod tests {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let events = valid_events(&requires);
         assert!(events.iter().any(|e| e == "HTTP_REQUEST"), "{events:?}");
@@ -4420,9 +4416,7 @@ mod tests {
             transport: None,
             profiles: &[],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         };
         let eff = super::effective_event_requires("DIAMETER::foo", &base);
         assert_eq!(

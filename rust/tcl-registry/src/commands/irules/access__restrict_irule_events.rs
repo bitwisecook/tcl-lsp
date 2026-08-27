@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["CLIENT_ACCEPTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ACCESS::restrict_irule_events (enable | disable)",

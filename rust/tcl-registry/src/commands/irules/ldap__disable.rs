@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LDAP::disable",

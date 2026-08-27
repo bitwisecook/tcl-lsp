@@ -39,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["DIAMETER", "MR"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "DIAMETER::respond DIAMETER_VERSION RFLAG_BINARY PFLAG_BINARY EFLAG_BINARY TFLAG_BINARY",

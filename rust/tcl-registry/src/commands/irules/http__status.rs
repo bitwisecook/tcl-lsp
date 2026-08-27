@@ -48,9 +48,7 @@ pub const fn spec() -> CommandSpec {
             // `LB_SELECTED` implies no HTTP profile, yet the rule
             // compiler accepts `HTTP::status` there (§8).
             also_in: &["LB_SELECTED", "MR_INGRESS"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::status",

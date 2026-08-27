@@ -41,6 +41,7 @@ use tcl_registry::literal_validation::{
     LiteralValidationDecline,
 };
 use tcl_registry::pack_hooks::{HookAnswer, HookFamily};
+use tcl_registry::spec::{ConstraintReport, ConstraintSlot};
 
 use crate::intern::{intern, intern_words};
 
@@ -78,6 +79,12 @@ pub enum Emission {
         /// The W141 message, when the value is rejected.
         invalid: Option<String>,
     },
+    /// The `constraints` family's `invalid SLOT MESSAGE ?-conflict?`.
+    Constraint(ConstraintReport),
+    /// The `constraints` family's bare `abstain ?REASON?` — the explicit
+    /// "I cannot judge this call" the types-hook contract requires, and the
+    /// one emission that cancels every report the body already made.
+    ConstraintAbstain,
 }
 
 /// Where every verb of one invocation writes.
@@ -111,10 +118,119 @@ impl Sink {
     }
 }
 
-/// One emitter verb, bound to the sink of the invocation that will read it.
+/// The `constraints` family's per-invocation reading view — what
+/// `option-present` / `option-value` / `literal` / `arg-count` answer from.
+///
+/// A verb command is defined once per pack, at install, while the invocation
+/// changes per call; this is the cell the host refills before each dispatch,
+/// exactly as it clears [`Sink`].
+#[derive(Debug, Default)]
+pub struct Reading {
+    view: RefCell<ReadingView>,
+}
+
+/// One invocation as the reading verbs see it.
+#[derive(Debug, Default, Clone)]
+struct ReadingView {
+    /// Canonical option name → its first literal value word, in call order.
+    options: Vec<(String, Option<String>)>,
+    /// Positional words after the option run, `None` where not statically
+    /// known.
+    positionals: Vec<Option<String>>,
+    /// Whether the call was read to its end with every word literal.
+    complete: bool,
+}
+
+impl Reading {
+    /// Replace the view with this call's, before the body runs.
+    pub fn set(
+        &self,
+        options: &[(&'static str, Option<&str>)],
+        positionals: &[Option<&str>],
+        complete: bool,
+    ) {
+        *self.view.borrow_mut() = ReadingView {
+            options: options
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), value.map(str::to_owned)))
+                .collect(),
+            positionals: positionals
+                .iter()
+                .map(|word| word.map(str::to_owned))
+                .collect(),
+            complete,
+        };
+    }
+
+    /// Drop the view, so a verb called outside an invocation sees nothing.
+    pub fn clear(&self) {
+        *self.view.borrow_mut() = ReadingView::default();
+    }
+
+    fn option_present(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        let [name] = arguments else {
+            return Err(misuse("option-present", "expected OPTION"));
+        };
+        let name = text(name);
+        let present = self
+            .view
+            .borrow()
+            .options
+            .iter()
+            .any(|(option, _)| *option == name);
+        Ok(Value::from(present))
+    }
+
+    fn option_value(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        let [name] = arguments else {
+            return Err(misuse("option-value", "expected OPTION"));
+        };
+        let name = text(name);
+        Ok(self
+            .view
+            .borrow()
+            .options
+            .iter()
+            .find(|(option, _)| *option == name)
+            .and_then(|(_, value)| value.clone())
+            .map_or(Value::Empty, |value| Value::string(&value)))
+    }
+
+    /// `literal N` — the positional word at `N`, or the empty string when it
+    /// is not statically known. The same spelling the `types` hook uses to
+    /// reach a literal argument, so an author learns one verb.
+    fn literal(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        let [index] = arguments else {
+            return Err(misuse("literal", "expected INDEX"));
+        };
+        let index = index_of("literal", index)?;
+        Ok(self
+            .view
+            .borrow()
+            .positionals
+            .get(index)
+            .cloned()
+            .flatten()
+            .map_or(Value::Empty, |value| Value::string(&value)))
+    }
+
+    /// `arg-count` — how many positional words the call supplied. Paired with
+    /// `complete` in `ctx`, this is what lets a body abstain honestly.
+    fn arg_count(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        if !arguments.is_empty() {
+            return Err(misuse("arg-count", "takes no arguments"));
+        }
+        Ok(Value::from(self.view.borrow().positionals.len()))
+    }
+}
+
+/// One emitter or reader verb, bound to the sink and reading view of the
+/// invocation that will use it.
 struct Verb {
     verb: &'static str,
+    family: HookFamily,
     sink: Rc<Sink>,
+    reading: Rc<Reading>,
 }
 
 fn text(value: &Value) -> String {
@@ -188,6 +304,27 @@ fn timing_by_name(name: &str) -> Result<ScriptTiming, EngineError> {
 
 impl HostCommand for Verb {
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
+        // Reader verbs answer from the invocation view and emit nothing —
+        // they are how a `constraints` body reads the call it is judging.
+        match self.verb {
+            "option-present" => return self.reading.option_present(arguments),
+            "option-value" => return self.reading.option_value(arguments),
+            "literal" => return self.reading.literal(arguments),
+            "arg-count" => return self.reading.arg_count(arguments),
+            _ => {}
+        }
+        // `invalid` and `abstain` are shared spellings whose *shape* is the
+        // family's: the literal-argument validator's flag form, and the
+        // constraints family's positional `SLOT MESSAGE`.
+        if self.family == HookFamily::Constraints {
+            let emission = match self.verb {
+                "invalid" => constraint_emission(arguments)?,
+                "abstain" => Emission::ConstraintAbstain,
+                other => return Err(misuse(other, "not an emitter verb of this family")),
+            };
+            self.sink.push(emission);
+            return Ok(Value::Empty);
+        }
         let emission = match self.verb {
             "role" => {
                 let [index, role] = arguments else {
@@ -314,6 +451,54 @@ fn invalid_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     }))
 }
 
+/// `invalid SLOT MESSAGE ?-conflict?` — the `constraints` family's report.
+///
+/// `SLOT` is an option spelling (`-channel`), `arg N` for a positional, or
+/// `command` for a report about the whole invocation. `-conflict` selects
+/// W147 ("these cannot go together") over the default W152 ("this one needs
+/// that one") — the only structural choice a hook makes.
+fn constraint_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
+    let [slot, message, rest @ ..] = arguments else {
+        return Err(misuse("invalid", "expected SLOT MESSAGE ?-conflict?"));
+    };
+    let mut conflict = false;
+    for flag in rest {
+        match text(flag).as_str() {
+            "-conflict" => conflict = true,
+            other => return Err(misuse("invalid", &format!("unknown flag \"{other}\""))),
+        }
+    }
+    Ok(Emission::Constraint(ConstraintReport {
+        slot: constraint_slot(&text(slot))?,
+        message: text(message),
+        conflict,
+    }))
+}
+
+/// `-option` / `arg N` / `command`.
+fn constraint_slot(spelling: &str) -> Result<ConstraintSlot, EngineError> {
+    let spelling = spelling.trim();
+    if spelling == "command" {
+        return Ok(ConstraintSlot::Command);
+    }
+    if let Some(index) = spelling.strip_prefix("arg ") {
+        let index: u8 = index.trim().parse().map_err(|_| {
+            misuse(
+                "invalid",
+                &format!("bad argument index in slot \"{spelling}\""),
+            )
+        })?;
+        return Ok(ConstraintSlot::Argument(index));
+    }
+    if spelling.starts_with('-') {
+        return Ok(ConstraintSlot::Option(intern(spelling)));
+    }
+    Err(misuse(
+        "invalid",
+        &format!("slot must be an option, `arg N`, or `command`, got \"{spelling}\""),
+    ))
+}
+
 /// `consume N ?-invalid MESSAGE?`
 fn consume_emission(arguments: &[Value]) -> Result<Emission, EngineError> {
     let [count, rest @ ..] = arguments else {
@@ -342,14 +527,20 @@ fn word_list(value: &Value) -> Vec<String> {
 
 /// Build the verb commands a family injects, all sharing `sink`.
 #[must_use]
-pub fn verbs_for(family: HookFamily, sink: &Rc<Sink>) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
+pub fn verbs_for(
+    family: HookFamily,
+    sink: &Rc<Sink>,
+    reading: &Rc<Reading>,
+) -> Vec<(&'static str, Rc<dyn HostCommand>)> {
     family
         .verbs()
         .iter()
         .map(|verb| {
             let command: Rc<dyn HostCommand> = Rc::new(Verb {
                 verb,
+                family,
                 sink: Rc::clone(sink),
+                reading: Rc::clone(reading),
             });
             (*verb, command)
         })
@@ -471,5 +662,28 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
                 _ => None,
             })
             .unwrap_or(HookAnswer::Abstain),
+        // An explicit `abstain` cancels every report the body already made:
+        // a body that discovers half-way through that it cannot judge the
+        // call must be able to withdraw, not merely stop.
+        HookFamily::Constraints => {
+            if emissions
+                .iter()
+                .any(|emission| *emission == Emission::ConstraintAbstain)
+            {
+                return HookAnswer::Abstain;
+            }
+            let reports: Vec<ConstraintReport> = emissions
+                .into_iter()
+                .filter_map(|emission| match emission {
+                    Emission::Constraint(report) => Some(report),
+                    _ => None,
+                })
+                .collect();
+            if reports.is_empty() {
+                HookAnswer::Abstain
+            } else {
+                HookAnswer::Constraints(reports)
+            }
+        }
     }
 }

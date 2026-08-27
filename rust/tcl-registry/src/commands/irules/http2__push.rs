@@ -40,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FASTHTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP2::push <uri> ?options? ?request headers ...? ?-- response headers ...?",

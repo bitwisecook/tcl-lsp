@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["ICAP", "IVS_ENTRY"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "IVS_ENTRY::result (noop | modified | response)",

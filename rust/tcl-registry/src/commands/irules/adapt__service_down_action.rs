@@ -39,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["HTTP", "REQUESTADAPT", "RESPONSEADAPT"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ADAPT::service_down_action (ADAPT_CTX)? (ADAPT_SIDE)? ('ignore' | 'reset' | 'drop')?",

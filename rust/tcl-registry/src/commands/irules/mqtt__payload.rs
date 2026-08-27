@@ -88,9 +88,7 @@ const MQTT_REQUIREMENTS: EventRequires = EventRequires {
     transport: None,
     profiles: &["MQTT"],
     also_in: &[],
-    init_only: false,
     flow: false,
-    capability: None,
 };
 
 const MQTT_MESSAGE_EVENTS: &[&str] = &[

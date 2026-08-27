@@ -80,9 +80,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             kind: FormKind::Getter,

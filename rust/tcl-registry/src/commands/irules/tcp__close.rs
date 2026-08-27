@@ -38,9 +38,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &[],
             also_in: &["SIP_REQUEST", "SIP_REQUEST_SEND", "SIP_RESPONSE"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "TCP::close",

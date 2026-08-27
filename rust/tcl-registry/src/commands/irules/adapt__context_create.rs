@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["HTTP", "REQUESTADAPT"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ADAPT::context_create (ADAPT_SIDE)? NAME",

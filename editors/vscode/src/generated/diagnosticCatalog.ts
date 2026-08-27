@@ -361,6 +361,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W152",
+    section: "warning",
+    description:
+      "A registry-declared option relation is unmet — an option or argument the call supplied requires a companion option or argument it did not (`-command` without `-channel`), or the invocation supplies none of a required set.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

@@ -168,7 +168,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::PRODUCES_CANONICAL_LIST,
     Traits::BUILDS_COMMAND_PREFIX,
     Traits::UNSAFE,
-    Traits::PASSWORD_OPTION,
     Traits::IS_SIDE_SWITCH,
     Traits::IRULES_TOP_LEVEL_ONLY,
     Traits::SETS_EVENT_PRIORITY,
@@ -177,7 +176,6 @@ const ALL_TRAITS: &[Traits] = &[
     Traits::NEEDS_START_CMD,
     Traits::TAINT_SINK,
     Traits::TAINT_SOURCE,
-    Traits::IRULES_DATA_GETTER,
     Traits::CREATES_DYNAMIC_BARRIER,
     Traits::INVOKES_USER_PROC,
     Traits::BYTE_COMPILED,
@@ -1744,8 +1742,8 @@ fn check_subcommand_lifecycles(path: &str, sub: &tcl_registry::SubCommand) {
             sub.lifecycle,
         );
     }
-    for constraint in sub.option_constraints {
-        let what = format!("{path} constraint {:?}", constraint.options);
+    for constraint in sub.option_relations {
+        let what = format!("{path} relation {}", constraint.describe());
         check_lifecycle_under(&what, constraint.lifecycle, sub.lifecycle);
     }
     for effect in sub.side_effects {
@@ -1778,8 +1776,8 @@ fn check_command_lifecycles(root: &str, spec: &tcl_registry::CommandSpec) {
             spec.lifecycle,
         );
     }
-    for constraint in spec.option_constraints {
-        let what = format!("{root} constraint {:?}", constraint.options);
+    for constraint in spec.option_relations {
+        let what = format!("{root} relation {}", constraint.describe());
         check_lifecycle_under(&what, constraint.lifecycle, spec.lifecycle);
     }
     for form in spec.forms {

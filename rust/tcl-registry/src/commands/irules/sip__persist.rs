@@ -42,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["SIP"],
             also_in: &["MR_EGRESS", "MR_FAILED", "MR_INGRESS"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SIP::persist",

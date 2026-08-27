@@ -492,7 +492,7 @@ pub struct Analyser {
     /// [`Self::flush_dsl_gate_diagnostics`] against the effective Tcl
     /// version.
     pub(super) dsl_gate_sites: Vec<super::diagnostics::version_gate::DslGateSite>,
-    /// Proven W147 option conflicts whose `OptionConstraint` is version-gated
+    /// Proven W147 option conflicts whose `OptionRelation` is version-gated
     /// — decided post-walk by [`Self::flush_gated_option_conflicts`], which
     /// promotes the ones the resolved floor actually has onto
     /// [`Self::pending_arity`]. A constraint with no lifecycle bypasses this

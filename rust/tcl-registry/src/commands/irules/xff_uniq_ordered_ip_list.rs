@@ -40,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "xff_uniq_ordered_ip_list ?xff_header_name?",

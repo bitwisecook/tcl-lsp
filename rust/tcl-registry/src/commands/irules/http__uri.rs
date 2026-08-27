@@ -84,9 +84,7 @@ pub const fn spec() -> CommandSpec {
                 "MR_INGRESS",
                 "SERVER_CONNECTED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

@@ -121,6 +121,12 @@ pub(super) fn specs() -> Vec<CommandSpec> {
             "Validate literal argument words and offer a fix.",
         ),
         hook_statement(
+            "constraints",
+            CALLING_CONVENTION,
+            "reading verbs: `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitter verbs: `invalid SLOT MESSAGE ?-conflict?` and `abstain`. `SLOT` is an option spelling, `arg N`, or `command`. Silence means no report. **The rare escape hatch** (E-R14): reached only when a spec declares one AND no declarative `option_conflict` / `option_requires` / `option_requires_one_of` / `option_forbids` relation already reported — declare `-inputs {invocation}` so the verdict is content-cached and an edit elsewhere never re-runs it, and `abstain` when `ctx`'s `complete` is false.",
+            "Judge an option relation no declarative row can express.",
+        ),
+        hook_statement(
             "clause_shape_check",
             CALLING_CONVENTION,
             "emitter verbs: `missing-expr ?after?`, `missing-body after`, `extra-words first`. Silence means the shape is accepted. Ordinarily **derived** from `clause_grammar` — no hook body is needed for any chain the grammar can spell; this is the escape hatch.",

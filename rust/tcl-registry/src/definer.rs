@@ -2077,7 +2077,6 @@ const SPECTCL_COMMAND_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("warn_missing_import"),
     MemberSpec::keyword_only("is_namespace_exported"),
     MemberSpec::keyword_only("xc_translatable"),
-    MemberSpec::keyword_only("xc_operation"),
     MemberSpec::keyword_only("deprecated_replacement"),
     MemberSpec::keyword_only("deprecated_replacement_drop_in"),
     MemberSpec::keyword_only("byte_array_effect"),
@@ -2151,16 +2150,14 @@ const SPECTCL_CASE_LIST_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("warn_unbraced_bodies"),
 ];
 
-/// The eight scalars of an `event_requires { … }` block.
+/// The six scalars of an `event_requires { … }` block.
 const SPECTCL_EVENT_REQUIRES_MEMBERS: &[MemberSpec] = &[
     MemberSpec::keyword_only("client_side"),
     MemberSpec::keyword_only("server_side"),
     MemberSpec::keyword_only("transport"),
     MemberSpec::keyword_only("profiles"),
     MemberSpec::keyword_only("also_in"),
-    MemberSpec::keyword_only("init_only"),
     MemberSpec::keyword_only("flow"),
-    MemberSpec::keyword_only("capability"),
 ];
 
 /// The rows of a `world_effects { … }` block.  `resolver` is reference-only

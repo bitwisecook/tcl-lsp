@@ -315,7 +315,7 @@ fn the_ruled_spellings_are_the_ones_the_memo_settled() {
         "setter_constraints",
         "repeated_args",
         "manufacturer_methods",
-        "option_constraints",
+        "option_relations",
         "oo_context_facts",
         "sub_subcommands",
         "versioned_arg_values",

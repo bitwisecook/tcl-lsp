@@ -42,9 +42,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_RESPONSE",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "UDP::unused_port REMOTE_ADDR REMOTE_PORT LOCAL_ADDR",

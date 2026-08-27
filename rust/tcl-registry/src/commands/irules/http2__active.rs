@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &["MR_EGRESS", "MR_INGRESS"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP2::active",

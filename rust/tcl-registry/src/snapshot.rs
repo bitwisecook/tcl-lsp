@@ -219,10 +219,6 @@ pub fn profile_graph_snapshot() -> Json {
             "conflicts".to_owned(),
             Json::str_array(sorted(spec.conflicts)),
         );
-        entry.insert(
-            "capabilities".to_owned(),
-            Json::str_array(sorted(spec.capabilities)),
-        );
         profiles.insert(spec.name.to_owned(), Json::Object(entry));
     }
 

@@ -188,9 +188,10 @@ pub mod prelude {
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
     };
     pub use crate::spec::{
-        ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
-        DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-        OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+        BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
+        ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
+        ObjectClassSpec, OoContextFact, OptionPlacement, OptionRelation, OptionScope, RelationKind,
+        RelationTerm, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
         leading_option_word_count, leading_option_word_count_with, resolve_option_prefix,
         resolve_option_prefix_with,
     };
@@ -279,9 +280,11 @@ pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
 pub use spec::{
-    ArgTables, BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ContextGate,
-    DefaultFormFirstWord, InlineCaseClause, ObjectClassSpec, OoContextFact, OptionConstraint,
-    OptionScope, ScriptTimingResolver, SubCommand, SubSubCommand, VersionedArgValue,
+    BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
+    ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
+    ObjectClassSpec, OoContextFact, OptionPlacement, OptionRelation, OptionScope, RelationFacts,
+    RelationKind, RelationTerm, RelationVerdict, RelationViolation, ScriptTimingResolver,
+    SubCommand, SubSubCommand, VersionedArgValue,
 };
 pub use special_vars::{
     SPECIAL_VARS, SpecialVarKey, SpecialVarKind, SpecialVarSpec, StartupBinding, VarAccess,

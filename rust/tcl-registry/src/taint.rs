@@ -490,17 +490,15 @@ pub fn augment_source_colours(colour: TaintColour) -> TaintColour {
     out
 }
 
-/// Return `true` when `command` carries the iRules data-getter trait
-/// or starts with one of the [`IRULES_TAINT_SOURCE_PREFIXES`]
-/// namespaces. The prefix fallback covers iRules commands that are
-/// registered without the explicit trait.
+/// Return `true` when `command` starts with one of the
+/// [`IRULES_TAINT_SOURCE_PREFIXES`] namespaces.
+///
+/// The namespace prefixes are the whole rule. The `Traits::IRULES_DATA_GETTER`
+/// half was deleted by the O2 ruling (2026-08-27): no shipped spec and no pack
+/// ever set it, so the trait branch could not fire, and the prefix set has
+/// always been what actually answered.
 #[must_use]
-pub fn is_irules_data_getter(registry: &CommandRegistry, command: &str) -> bool {
-    if let Some(spec) = registry.get(command)
-        && spec.traits.contains(Traits::IRULES_DATA_GETTER)
-    {
-        return true;
-    }
+pub fn is_irules_data_getter(command: &str) -> bool {
     IRULES_TAINT_SOURCE_PREFIXES
         .iter()
         .any(|p| command.starts_with(p))

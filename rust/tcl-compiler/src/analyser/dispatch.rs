@@ -80,9 +80,22 @@ pub struct CommandSig {
     /// `leading_options`.
     pub leading_option_specs: Vec<&'static OptionSpec>,
 
-    /// Registry-declared relationships between leading options. The generic
-    /// validity pass reports conflicts without naming a command.
-    pub option_constraints: Vec<&'static tcl_registry::OptionConstraint>,
+    /// Registry-declared relations between this invocation's options and
+    /// arguments (E-R14). The generic validity pass evaluates them **natively**
+    /// — no hook, no VM — and reports W147 / W152 without naming a command.
+    pub option_relations: Vec<&'static tcl_registry::OptionRelation>,
+
+    /// The resolved command / subcommand's `constraints` escape hatch, when
+    /// it declares one. Consulted only after `option_relations` reported
+    /// nothing, so a spec without one never reaches the hook seam
+    /// (principle P-B).
+    pub constraints_hook: Option<tcl_registry::ConstraintsHook>,
+
+    /// Where this invocation's options may appear, from
+    /// [`tcl_registry::CommandSpec::option_placement`]. Read only by the
+    /// relation checker: the arity check's leading-option skip is a different
+    /// question and keeps its own scan.
+    pub option_placement: tcl_registry::OptionPlacement,
 
     /// The resolved command / subcommand's primary invocation synopsis
     /// ([`tcl_registry::CommandSpec::primary_synopsis`] /
@@ -263,13 +276,13 @@ pub fn signature_for_command(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
-                    option_constraints: sub
-                        .option_constraints
+                    option_relations: sub
+                        .option_relations
                         .iter()
                         .chain(
                             sub.subcommand_forms
                                 .iter()
-                                .flat_map(|form| form.option_constraints.iter()),
+                                .flat_map(|form| form.option_relations.iter()),
                         )
                         .filter(|constraint| {
                             constraint.supports_dialect(
@@ -278,6 +291,8 @@ pub fn signature_for_command(
                             )
                         })
                         .collect(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -311,18 +326,20 @@ pub fn signature_for_command(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
-        option_constraints: spec
-            .option_constraints
+        option_relations: spec
+            .option_relations
             .iter()
             .chain(
                 spec.command_forms
                     .iter()
-                    .flat_map(|form| form.option_constraints.iter()),
+                    .flat_map(|form| form.option_relations.iter()),
             )
             .filter(|constraint| {
                 constraint.supports_dialect(Some(context.authoring_mask()), spec.dialects)
             })
             .collect(),
+        constraints_hook: spec.constraints,
+        option_placement: spec.option_placement,
         // The walk cannot know the file's resolved package-version floor
         // yet (`package require` may appear anywhere), so form selection
         // stays permissive here — the post-walk gate is what version-aware
@@ -368,15 +385,17 @@ pub fn signature_for_command_any_dialect(
                     traits: sub.traits,
                     leading_options,
                     leading_option_specs,
-                    option_constraints: sub
-                        .option_constraints
+                    option_relations: sub
+                        .option_relations
                         .iter()
                         .chain(
                             sub.subcommand_forms
                                 .iter()
-                                .flat_map(|form| form.option_constraints.iter()),
+                                .flat_map(|form| form.option_relations.iter()),
                         )
                         .collect(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -409,15 +428,17 @@ pub fn signature_for_command_any_dialect(
         traits: spec.traits,
         leading_options,
         leading_option_specs,
-        option_constraints: spec
-            .option_constraints
+        option_relations: spec
+            .option_relations
             .iter()
             .chain(
                 spec.command_forms
                     .iter()
-                    .flat_map(|form| form.option_constraints.iter()),
+                    .flat_map(|form| form.option_relations.iter()),
             )
             .collect(),
+        constraints_hook: spec.constraints,
+        option_placement: spec.option_placement,
         // Deliberately permissive, like every other gate on this
         // dialect-agnostic path: the question it answers is "does this exist
         // in ANY dialect", so filtering forms by a version floor would defeat
@@ -457,7 +478,9 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
                     // Scoped ensemble operations declare no option flags.
                     leading_options: BTreeSet::new(),
                     leading_option_specs: Vec::new(),
-                    option_constraints: Vec::new(),
+                    option_relations: Vec::new(),
+                    constraints_hook: sub.constraints,
+                    option_placement: sub.option_placement,
                     synopsis: sub.primary_synopsis(),
                     min_abbrev: sub.min_abbrev,
                 },
@@ -487,7 +510,11 @@ pub fn signature_for_scoped_command(scoped: &ScopedCommand) -> CommandSignature 
         traits: Traits::empty(),
         leading_options: BTreeSet::new(),
         leading_option_specs: Vec::new(),
-        option_constraints: Vec::new(),
+        option_relations: Vec::new(),
+        // A scoped ensemble declares no relations, so it has no escape hatch
+        // either.
+        constraints_hook: None,
+        option_placement: tcl_registry::OptionPlacement::Leading,
         synopsis: scoped
             .hover
             .as_ref()

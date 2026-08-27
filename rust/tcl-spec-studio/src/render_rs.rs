@@ -911,6 +911,7 @@ fn enum_type_name(catalogue: &str) -> &'static str {
         "dialects" => "DialectSet",
         "defaultFormFirstWord" => "DefaultFormFirstWord",
         "prefixMatching" => "PrefixMatching",
+        "optionPlacement" => "OptionPlacement",
         _ => "Unknown",
     }
 }
@@ -1343,7 +1344,7 @@ mod tests {
     };
     use tcl_registry::lifecycle::Lifecycle;
     use tcl_registry::representation::RepresentationEffect;
-    use tcl_registry::spec::{CommandSpec, OptionConstraint, SubCommand};
+    use tcl_registry::spec::{CommandSpec, OptionRelation, SubCommand};
     use tcl_registry::traits::Traits;
     use tcl_registry::types::TclType;
 
@@ -1657,14 +1658,17 @@ mod tests {
 
     #[test]
     fn registry_owned_diagnostic_and_representation_metadata_round_trips() {
-        const CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-            options: &["-encoding", "-nopkg"],
-            ..OptionConstraint::DEFAULT
+        const CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
+            terms: &[
+                tcl_registry::RelationTerm::Option("-encoding"),
+                tcl_registry::RelationTerm::Option("-nopkg"),
+            ],
+            ..OptionRelation::DEFAULT
         }];
         let spec = CommandSpec {
             name: "source",
             representation_effect: Some(RepresentationEffect::copy_on_write_container(0, 2)),
-            option_constraints: CONSTRAINTS,
+            option_relations: CONSTRAINTS,
             lifecycle: Lifecycle {
                 introduced: None,
                 deprecated: Some("8.6"),
@@ -1681,11 +1685,16 @@ mod tests {
         assert!(out.contains(
             "representation_effect: Some(RepresentationEffect::CopyOnWriteContainerMutation { variable_arg: 0, minimum_arguments: 2 }),"
         ));
-        assert!(out.contains(
-            "option_constraints: &[OptionConstraint { options: &[\"-encoding\", \"-nopkg\"], \
-             dialects: None, lifecycle: Lifecycle { introduced: None, deprecated: None, \
-             retired: None, deprecation_fix: None } }],"
-        ));
+        assert!(
+            out.contains(
+                "option_relations: &[OptionRelation { kind: RelationKind::MutuallyExclusive, \
+                 subject: None, terms: &[RelationTerm::Option(\"-encoding\"), \
+                 RelationTerm::Option(\"-nopkg\")], dialects: None, \
+                 lifecycle: Lifecycle { introduced: None, deprecated: None, \
+                 retired: None, deprecation_fix: None }, message: None }],"
+            ),
+            "{out}"
+        );
         assert!(out.contains(
             "deprecation_fix: Some(DeprecationFixHook::ReplaceMatchedWord { replacement: \"children\", description: \"Use interp children\", safety: DeprecationFixSafety::SemanticsEquivalent })"
         ));

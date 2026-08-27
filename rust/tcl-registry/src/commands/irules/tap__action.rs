@@ -39,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["TAP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "TAP::action (allow | alarm | basicPolicy | strictPolicy | jsInjection | captcha | block | tcpReset | deception | conviction)?",

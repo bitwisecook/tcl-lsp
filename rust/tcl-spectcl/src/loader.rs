@@ -122,8 +122,7 @@ use tcl_registry::side_effects::{
     ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
 };
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ProjectedArgs, SubCommand,
-    SubSubCommand, VersionedArgRow, project_arg_rows,
+    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, SubCommand, SubSubCommand,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
 use tcl_registry::taint::SetterConstraint;
@@ -766,6 +765,14 @@ fn accept_clause_shape(_args: &[&str]) -> Option<ClauseShapeError> {
 
 fn literals_valid(_args: InvocationArguments<'_>) -> LiteralArgumentValidation {
     LiteralArgumentValidation::Valid
+}
+
+/// The `constraints` placeholder a declared-but-unbound hook carries: no
+/// report, which is exactly what a pack with no `constraints` hook answers.
+fn no_constraint_reports(
+    _facts: &tcl_registry::spec::RelationFacts<'_>,
+) -> Vec<tcl_registry::spec::ConstraintReport> {
+    Vec::new()
 }
 
 /// Silence still consumes one word — `consume 0` is a report, not an
@@ -3142,38 +3149,68 @@ fn object_class_row(
 /// a notice rather than wrapping.
 const MAX_ARG_INDEX: usize = 255;
 
-/// The `arg` rows a command or subcommand body declared, in source order.
+/// One `arg` row as authored.
 ///
-/// One record per row rather than six parallel vectors: a row's lifecycle
-/// gates the whole row, and a parallel-vector accumulator would have to gate
-/// six places consistently forever. [`project_arg_rows`] turns the records
-/// into the parallel form the registry stores, in one place (issue #1627).
+/// A record per row rather than six parallel vectors, so a column added here
+/// has one place to be projected from ([`ArgRows::seal`]) rather than six
+/// accumulator sites to keep in step.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+struct ArgRow {
+    index: u8,
+    role: Option<ArgRole>,
+    type_hint: Option<ArgTypeHint>,
+    values: &'static [ArgValue],
+    closed: bool,
+    presentation: Option<ArgPresentation>,
+    appends: Option<tcl_registry::arg_role::AppendedArity>,
+}
+
+/// The six parallel per-argument slices a command or subcommand stores.
+#[derive(Debug, Default)]
+struct ArgSlices {
+    roles: Vec<(u8, ArgRole)>,
+    types: Vec<(u8, ArgTypeHint)>,
+    values: Vec<(u8, &'static [ArgValue])>,
+    closed: Vec<u8>,
+    presentation: Vec<(u8, ArgPresentation)>,
+    prefixes: Vec<(u8, tcl_registry::arg_role::AppendedArity)>,
+}
+
+/// The `arg` rows a command or subcommand body declared, in source order.
 #[derive(Debug, Default)]
 struct ArgRows {
-    rows: Vec<VersionedArgRow>,
+    rows: Vec<ArgRow>,
 }
 
 impl ArgRows {
-    /// The parallel slices to store, and the authored rows to retain beside
-    /// them.
+    /// Project the authored rows into the parallel slices the registry stores.
     ///
-    /// The slices are the projection at **no floor**, so an unversioned pack —
-    /// which is every pack today — gets byte-for-byte what the parallel
-    /// accumulator used to build. The rows are retained only when some row is
-    /// actually gated: a consumer re-projects from them at a resolved floor,
-    /// and there is nothing to re-project when no row can be filtered out.
-    fn seal(self) -> (ProjectedArgs, &'static [VersionedArgRow]) {
-        let projected = project_arg_rows(&self.rows, None);
-        let versioned = self
-            .rows
-            .iter()
-            .any(|row| row.lifecycle != Lifecycle::UNSPECIFIED);
-        let rows: &'static [VersionedArgRow] = if versioned {
-            leak_slice(self.rows)
-        } else {
-            &[]
-        };
-        (projected, rows)
+    /// The **one** place a per-argument row becomes the parallel form the rest
+    /// of the registry reads: a column added to [`ArgRow`] and not added here
+    /// silently vanishes, which `projection_carries_every_row_column` pins.
+    fn seal(self) -> ArgSlices {
+        let mut out = ArgSlices::default();
+        for row in self.rows {
+            if let Some(role) = row.role {
+                out.roles.push((row.index, role));
+            }
+            if let Some(hint) = row.type_hint {
+                out.types.push((row.index, hint));
+            }
+            if !row.values.is_empty() {
+                out.values.push((row.index, row.values));
+            }
+            if row.closed {
+                out.closed.push(row.index);
+            }
+            if let Some(presentation) = row.presentation {
+                out.presentation.push((row.index, presentation));
+            }
+            if let Some(appends) = row.appends {
+                out.prefixes.push((row.index, appends));
+            }
+        }
+        out
     }
 
     // One flag per `arg` row column, and there are eleven of them; splitting
@@ -3199,9 +3236,9 @@ impl ArgRows {
         }
         let index = u8::try_from(index).unwrap_or(u8::MAX);
 
-        let mut row = VersionedArgRow {
+        let mut row = ArgRow {
             index,
-            ..VersionedArgRow::DEFAULT
+            ..ArgRow::default()
         };
         let mut hint = ArgTypeHint {
             expected: None,
@@ -3213,13 +3250,6 @@ impl ArgRows {
         let mut i = 2;
         while i < words.len() {
             let flag = words[i].text.clone();
-            // The three lifecycle flags are 1.2 vocabulary on this row: they
-            // are what makes a per-argument fact versionable at all.
-            if lifecycle_flag(&mut row.lifecycle, &flag, words, &mut i) {
-                log.v12(stmt.line, &flag);
-                i += 1;
-                continue;
-            }
             match flag.as_str() {
                 "-role" => {
                     let name = next_text(words, &mut i);
@@ -3308,8 +3338,6 @@ impl ArgRows {
         if saw_type_flag {
             row.type_hint = Some(hint);
         }
-        row.lifecycle =
-            checked_lifecycle(row.lifecycle, &format!("argument {index}"), stmt.line, log);
         self.rows.push(row);
     }
 }
@@ -3748,19 +3776,15 @@ fn event_requires_block(stmts: &[Stmt], log: &mut Log) -> EventRequires {
         transport: None,
         profiles: &[],
         also_in: &[],
-        init_only: false,
         flow: false,
-        capability: None,
     };
     for stmt in stmts {
         let value = stmt.word_text(1).to_owned();
         match stmt.word_text(0) {
             "client_side" => requires.client_side = parse_flag(stmt.tail()),
             "server_side" => requires.server_side = parse_flag(stmt.tail()),
-            "init_only" => requires.init_only = parse_flag(stmt.tail()),
             "flow" => requires.flow = parse_flag(stmt.tail()),
             "transport" => requires.transport = Some(leak_str(&value)),
-            "capability" => requires.capability = Some(leak_str(&value)),
             "profiles" => requires.profiles = leak_strs(&list_words(&value)),
             "also_in" => requires.also_in = leak_strs(&list_words(&value)),
             _ => log.unknown_property(stmt),
@@ -4715,7 +4739,7 @@ struct CommandAcc {
     subcommands: Vec<SubCommand>,
     manufacturers: Vec<ManufacturerMethod>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
-    option_constraints: Vec<tcl_registry::spec::OptionConstraint>,
+    option_relations: Vec<tcl_registry::spec::OptionRelation>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
@@ -4851,7 +4875,7 @@ fn command_from_parts(
             }
         }
 
-        let (args, arg_rows) = acc.args.seal();
+        let args = acc.args.seal();
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
             &args.roles,
@@ -4868,7 +4892,6 @@ fn command_from_parts(
         spec.arg_presentation = leak_slice(args.presentation);
         spec.command_prefixes = leak_slice(args.prefixes);
         spec.callback_taint_inputs = leak_slice(callback_taint_inputs);
-        spec.arg_rows = arg_rows;
         spec.arity_windows = checked_arity_windows(acc.arity_windows, "command", line, log);
         spec.options = leak_slice(acc.options);
         spec.forms = leak_slice(acc.forms);
@@ -4876,7 +4899,7 @@ fn command_from_parts(
         spec.subcommands = leak_slice(acc.subcommands);
         spec.manufacturer_methods = leak_slice(acc.manufacturers);
         spec.repeated_args = leak_slice(acc.repeats);
-        spec.option_constraints = leak_slice(acc.option_constraints);
+        spec.option_relations = leak_slice(acc.option_relations);
         spec.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         spec.setter_constraints = leak_slice(acc.setter_constraints);
         spec.oo_context_facts = leak_slice(acc.oo_context_facts);
@@ -4937,15 +4960,6 @@ fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
             log,
         );
     }
-    for row in spec.arg_rows {
-        check_contained(
-            &format!("arg {}", row.index),
-            row.lifecycle,
-            parent,
-            line,
-            log,
-        );
-    }
     for option in spec.options {
         check_contained(
             &format!("option `{}`", option.name),
@@ -4955,9 +4969,9 @@ fn check_command_containment(spec: &CommandSpec, line: u32, log: &mut Log) {
             log,
         );
     }
-    for constraint in spec.option_constraints {
+    for constraint in spec.option_relations {
         check_contained(
-            &format!("option_conflict `{}`", constraint.options.join(" ")),
+            &constraint.describe(),
             constraint.lifecycle,
             parent,
             line,
@@ -5027,15 +5041,6 @@ fn check_subcommand_containment(sub: &SubCommand, line: u32, log: &mut Log) {
             log,
         );
     }
-    for row in sub.arg_rows {
-        check_contained(
-            &format!("subcommand `{path}` arg {}", row.index),
-            row.lifecycle,
-            parent,
-            line,
-            log,
-        );
-    }
     for option in sub.options {
         check_contained(
             &format!("subcommand `{path}` option `{}`", option.name),
@@ -5045,12 +5050,9 @@ fn check_subcommand_containment(sub: &SubCommand, line: u32, log: &mut Log) {
             log,
         );
     }
-    for constraint in sub.option_constraints {
+    for constraint in sub.option_relations {
         check_contained(
-            &format!(
-                "subcommand `{path}` option_conflict `{}`",
-                constraint.options.join(" ")
-            ),
+            &format!("subcommand `{path}` `{}`", constraint.describe()),
             constraint.lifecycle,
             parent,
             line,
@@ -5240,7 +5242,6 @@ fn apply_command_stmt(
                 log.say(stmt.line, "`xc_translatable` requires yes or no");
             }
         }
-        "xc_operation" => spec.xc_operation = Some(leak_str(&value)),
 
         // --- shape --------------------------------------------------------
         "arg" => acc.args.apply(stmt, tables, log),
@@ -5451,8 +5452,25 @@ fn apply_command_stmt(
             }
             acc.options.push(option);
         }
+        // The four E-R14 option-relation statements, one shared row parser.
+        // `option_conflict` is the 1.x spelling and keeps its exact shape; the
+        // other three are 2.0 vocabulary.
         "option_conflict" => {
-            acc.option_constraints.push(option_conflict_row(stmt, log));
+            acc.option_relations.push(option_relation_row(
+                stmt,
+                tcl_registry::RelationKind::MutuallyExclusive,
+                log,
+            ));
+        }
+        "option_requires" | "option_requires_one_of" | "option_forbids" => {
+            log.v20(stmt.line, &key);
+            let kind = match key.as_str() {
+                "option_requires" => tcl_registry::RelationKind::Requires,
+                "option_requires_one_of" => tcl_registry::RelationKind::RequiresOneOf,
+                _ => tcl_registry::RelationKind::Forbids,
+            };
+            acc.option_relations
+                .push(option_relation_row(stmt, kind, log));
         }
         // The command-level mirror of the subcommand row, sharing its parser:
         // a literal value of one argument gated on the package's own axis.
@@ -5536,9 +5554,13 @@ fn apply_command_stmt(
         | "taint_sink_gate"
         | "context_gate"
         | "literal_argument_validator"
+        | "constraints"
         | "clause_shape_check" => {
             if key == "script_timing_resolver" {
                 log.v12(stmt.line, "script_timing_resolver");
+            }
+            if key == "constraints" {
+                log.v20(stmt.line, "constraints");
             }
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
@@ -5579,6 +5601,13 @@ fn apply_command_stmt(
                         "literal_argument_validator",
                         HookFamily::LiteralArgumentValidator,
                     )
+                }
+                // E-R14's escape hatch. The pre-binding placeholder reports
+                // nothing, so a pack whose host never installs answers exactly
+                // as a pack with no hook: silence.
+                "constraints" => {
+                    spec.constraints = Some(no_constraint_reports);
+                    ("constraints", HookFamily::Constraints)
                 }
                 _ => {
                     spec.clause_shape_check = Some(accept_clause_shape);
@@ -5754,48 +5783,126 @@ fn side_effect_row(stmt: &Stmt, log: &mut Log) -> Option<SideEffect> {
     Some(effect)
 }
 
-fn option_conflict_row(stmt: &Stmt, log: &mut Log) -> tcl_registry::spec::OptionConstraint {
-    let mut constraint = tcl_registry::spec::OptionConstraint {
-        options: leak_strs(&list_words(stmt.word_text(1))),
-        ..tcl_registry::spec::OptionConstraint::DEFAULT
+/// One [`tcl_registry::RelationTerm`] as an author spells it.
+///
+/// A bare `-name` is the option; `{-name value}` pins its value; `{arg N}` is
+/// the positional at `N` and `{arg N value}` pins its value. The four shapes
+/// are the four things a real library's option table talks about, and each is
+/// an ordinary Tcl list word — no mini-language (principle P-E).
+fn relation_term(
+    spelling: &str,
+    statement: &str,
+    line: u32,
+    log: &mut Log,
+) -> Option<tcl_registry::RelationTerm> {
+    let words = list_words(spelling);
+    match words.as_slice() {
+        [name] if name.starts_with('-') => Some(tcl_registry::RelationTerm::Option(leak_str(name))),
+        [name, value] if name.starts_with('-') => Some(tcl_registry::RelationTerm::OptionValue(
+            leak_str(name),
+            leak_str(value),
+        )),
+        [keyword, index] if keyword == "arg" => {
+            index.parse().ok().map(tcl_registry::RelationTerm::Argument)
+        }
+        [keyword, index, value] if keyword == "arg" => index
+            .parse()
+            .ok()
+            .map(|index| tcl_registry::RelationTerm::ArgumentValue(index, leak_str(value))),
+        _ => None,
+    }
+    .or_else(|| {
+        log.say(
+            line,
+            format!("`{statement}`: unreadable relation term `{spelling}` dropped"),
+        );
+        None
+    })
+}
+
+/// Every term in a braced list, dropping the unreadable ones with a notice.
+fn relation_terms(
+    text: &str,
+    statement: &str,
+    line: u32,
+    log: &mut Log,
+) -> &'static [tcl_registry::RelationTerm] {
+    let terms: Vec<tcl_registry::RelationTerm> = list_words(text)
+        .iter()
+        .filter_map(|spelling| relation_term(spelling, statement, line, log))
+        .collect();
+    leak_slice(terms)
+}
+
+/// The shared row parser behind all four option-relation statements.
+///
+/// `option_conflict {-a -b}` keeps its 1.x spelling exactly — the terms are
+/// word 1 and there is no subject. The three E-R14 statements take the subject
+/// as word 1 and the terms as word 2, with an empty subject (`{}`) making the
+/// relation unconditional. Every flag (`-dialects`, `-available`, the
+/// lifecycle trio) is shared, so an author learns one row and four verbs.
+fn option_relation_row(
+    stmt: &Stmt,
+    kind: tcl_registry::RelationKind,
+    log: &mut Log,
+) -> tcl_registry::spec::OptionRelation {
+    let statement = kind.statement_word();
+    let (subject, terms_word, first_flag) = if kind == tcl_registry::RelationKind::MutuallyExclusive
+    {
+        (None, stmt.word_text(1).to_owned(), 2)
+    } else {
+        let spelling = stmt.word_text(1).to_owned();
+        let subject = if spelling.trim().is_empty() {
+            None
+        } else {
+            relation_term(&spelling, statement, stmt.line, log)
+        };
+        (subject, stmt.word_text(2).to_owned(), 3)
+    };
+    let mut relation = tcl_registry::spec::OptionRelation {
+        kind,
+        subject,
+        terms: relation_terms(&terms_word, statement, stmt.line, log),
+        ..tcl_registry::spec::OptionRelation::DEFAULT
     };
     let words = &stmt.words;
-    let mut i = 2;
+    let mut i = first_flag;
     while i < words.len() {
         match words[i].text.as_str() {
             "-dialects" => {
                 let text = next_text(words, &mut i);
-                constraint.dialects = parse_dialects(&text, stmt.line, log);
+                relation.dialects = parse_dialects(&text, stmt.line, log);
             }
             "-available" => {
                 log.v20(stmt.line, "-available");
                 let text = next_text(words, &mut i);
                 let availability = available::from_flag(&text, stmt.line, log);
                 apply_availability(
-                    &mut constraint.dialects,
+                    &mut relation.dialects,
                     availability,
-                    "option constraint",
+                    "option relation",
                     stmt.line,
                     log,
                 );
             }
+            // The library's own error text, quoted instead of generated.
+            "-message" => {
+                let text = next_text(words, &mut i);
+                relation.message = Some(leak_str(&text));
+            }
             other => {
-                if lifecycle_flag(&mut constraint.lifecycle, other, words, &mut i) {
+                if lifecycle_flag(&mut relation.lifecycle, other, words, &mut i) {
                     log.v11(stmt.line, other);
                 } else {
-                    log.unknown_flag("option_conflict", stmt.line, other);
+                    log.unknown_flag(statement, stmt.line, other);
                 }
             }
         }
         i += 1;
     }
-    constraint.lifecycle = checked_lifecycle(
-        constraint.lifecycle,
-        &format!("option_conflict `{}`", stmt.word_text(1)),
-        stmt.line,
-        log,
-    );
-    constraint
+    relation.lifecycle =
+        checked_lifecycle(relation.lifecycle, &relation.describe(), stmt.line, log);
+    relation
 }
 
 fn frame_effect_row(stmt: &Stmt, log: &mut Log) -> Option<FrameEffectSpec> {
@@ -5982,7 +6089,7 @@ struct SubAcc {
     side_effects: Vec<SideEffect>,
     sub_subcommands: Vec<SubSubCommand>,
     repeats: Vec<tcl_registry::repeated::RepeatedArgLayout>,
-    option_constraints: Vec<tcl_registry::spec::OptionConstraint>,
+    option_relations: Vec<tcl_registry::spec::OptionRelation>,
     versioned_arg_values: Vec<tcl_registry::spec::VersionedArgValue>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
 }
@@ -6024,7 +6131,7 @@ fn subcommand_from_parts(
         };
         let mut acc = SubAcc::default();
         fill(&mut sub, &mut acc, log);
-        let (args, arg_rows) = acc.args.seal();
+        let args = acc.args.seal();
         let callback_taint_inputs = validated_callback_taint_input_table(
             acc.callback_taint_inputs,
             &args.roles,
@@ -6041,13 +6148,12 @@ fn subcommand_from_parts(
         sub.arg_presentation = leak_slice(args.presentation);
         sub.command_prefixes = leak_slice(args.prefixes);
         sub.callback_taint_inputs = leak_slice(callback_taint_inputs);
-        sub.arg_rows = arg_rows;
         sub.arity_windows = checked_arity_windows(acc.arity_windows, kind, line, log);
         sub.options = leak_slice(acc.options);
         sub.side_effects = leak_slice(acc.side_effects);
         sub.sub_subcommands = leak_slice(acc.sub_subcommands);
         sub.repeated_args = leak_slice(acc.repeats);
-        sub.option_constraints = leak_slice(acc.option_constraints);
+        sub.option_relations = leak_slice(acc.option_relations);
         sub.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         sub.lifecycle = checked_lifecycle(sub.lifecycle, &format!("{kind} `{name}`"), line, log);
         Some(sub)
@@ -6124,7 +6230,6 @@ fn apply_subcommand_stmt(
         "introduced_version" => sub.lifecycle.introduced = Some(leak_str(&value)),
         "deprecated_version" => sub.lifecycle.deprecated = Some(leak_str(&value)),
         "retired_version" => sub.lifecycle.retired = Some(leak_str(&value)),
-        "xc_operation" => sub.xc_operation = Some(leak_str(&value)),
         "taint_output_sink" => sub.taint_output_sink = Some(leak_str(&value)),
         "taint_transform" => sub.taint_transform = Some(parse_taint(&value, stmt.line, log)),
         "taint_double_encode_colour" => {
@@ -6185,7 +6290,21 @@ fn apply_subcommand_stmt(
             }
             acc.options.push(option);
         }
-        "option_conflict" => acc.option_constraints.push(option_conflict_row(stmt, log)),
+        "option_conflict" => acc.option_relations.push(option_relation_row(
+            stmt,
+            tcl_registry::RelationKind::MutuallyExclusive,
+            log,
+        )),
+        "option_requires" | "option_requires_one_of" | "option_forbids" => {
+            log.v20(stmt.line, &key);
+            let kind = match key.as_str() {
+                "option_requires" => tcl_registry::RelationKind::Requires,
+                "option_requires_one_of" => tcl_registry::RelationKind::RequiresOneOf,
+                _ => tcl_registry::RelationKind::Forbids,
+            };
+            acc.option_relations
+                .push(option_relation_row(stmt, kind, log));
+        }
         // The ratified word `SubCommand` carries in its own right: an
         // ensemble arm's result contract is not its command's.
         "result_stability" => {
@@ -6240,9 +6359,13 @@ fn apply_subcommand_stmt(
         | "script_timing_resolver"
         | "const_fold"
         | "const_fold_versioned"
+        | "constraints"
         | "literal_argument_validator" => {
             if key == "script_timing_resolver" {
                 log.v12(stmt.line, "script_timing_resolver");
+            }
+            if key == "constraints" {
+                log.v20(stmt.line, "constraints");
             }
             let Some(source) = hook_source(stmt) else {
                 log.say(stmt.line, format!("unreadable `{key}` hook dropped"));
@@ -6268,6 +6391,10 @@ fn apply_subcommand_stmt(
                 "const_fold_versioned" => {
                     sub.const_fold_versioned = Some(abstain_const_fold_versioned);
                     ("const_fold_versioned", HookFamily::ConstFoldVersioned)
+                }
+                "constraints" => {
+                    sub.constraints = Some(no_constraint_reports);
+                    ("constraints", HookFamily::Constraints)
                 }
                 _ => {
                     sub.literal_argument_validator = Some(literals_valid);
@@ -6780,7 +6907,7 @@ mod tests {
         assert_eq!(effect.lifecycle.introduced, Some("1.1"));
 
         let constraint = spec
-            .option_constraints
+            .option_relations
             .first()
             .expect("the option_conflict loads");
         assert_eq!(constraint.lifecycle.introduced, Some("1.1"));
@@ -7381,198 +7508,6 @@ mod tests {
         );
     }
 
-    /// A gated `arg` row is retained beside the parallel slices *and* still
-    /// projected into them, because the registry's slices are the projection
-    /// at no floor. An ungated pack retains no rows at all — there would be
-    /// nothing for a consumer to re-project.
-    #[test]
-    fn gated_arg_rows_are_retained_beside_the_slices_they_project_into() {
-        let gated = load_pack(
-            "speclib probe 1.2 {\n command demo {\n \
-             arity 2\n \
-             arg 0 -role Body\n \
-             arg 1 -role Expr -introduced 3.0\n \
-             }\n}",
-        );
-        assert!(gated.notices.is_empty(), "{:?}", gated.notices);
-        let spec = gated.command("demo").expect("demo loads").spec;
-        assert_eq!(
-            spec.arg_rows.len(),
-            2,
-            "both rows retained, not just the gated one"
-        );
-        assert_eq!(
-            spec.arg_roles,
-            &[(0, ArgRole::Body), (1, ArgRole::Expr)],
-            "the slices are the projection at no floor, so both rows appear"
-        );
-        assert_eq!(
-            project_arg_rows(spec.arg_rows, Some("1.0")).roles,
-            vec![(0, ArgRole::Body)],
-            "re-projected at a real floor, the 3.0 row is gone"
-        );
-
-        let ungated = load_pack(
-            "speclib probe 1.2 {\n command demo {\n \
-             arity 2\n \
-             arg 0 -role Body\n \
-             }\n}",
-        );
-        let spec = ungated.command("demo").expect("demo loads").spec;
-        assert_eq!(spec.arg_roles, &[(0, ArgRole::Body)]);
-        assert!(
-            spec.arg_rows.is_empty(),
-            "no row can be filtered out, so none are kept: {:?}",
-            spec.arg_rows
-        );
-    }
-
-    /// The authored row reaches the accessors consumers actually read
-    /// (issue #1644) — the loader's half of the wiring, end to end from pack
-    /// text to the answers a provider asks for.
-    ///
-    /// Before this, a row gated `-introduced 3.0` round-tripped through the
-    /// loader and the renderer and then changed nothing: every consumer read
-    /// the parallel slices, which are the projection at *no* floor.
-    #[test]
-    fn a_gated_arg_row_reaches_the_floor_aware_accessors() {
-        let pack = load_pack(
-            "speclib probe 1.2 {\n command demo {\n \
-             arity 3\n \
-             arg 0 -role Body\n \
-             arg 1 -role Expr -introduced 3.0 -values {brandnew}\n \
-             }\n}",
-        );
-        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-        let spec = pack.command("demo").expect("demo loads").spec;
-
-        // Roles: the argument is not typed below its introduction …
-        assert_eq!(
-            spec.arg_tables_at(Some("1.0")).roles(),
-            &[(0, ArgRole::Body)],
-            "the 3.0 argument is not role-typed at a 1.0 floor"
-        );
-        // … and is at and above it, and with no floor resolved.
-        assert_eq!(
-            spec.arg_tables_at(Some("3.0")).roles(),
-            &[(0, ArgRole::Body), (1, ArgRole::Expr)]
-        );
-        assert_eq!(
-            spec.arg_tables_at(None).roles(),
-            &[(0, ArgRole::Body), (1, ArgRole::Expr)],
-            "an unresolved floor stays permissive"
-        );
-
-        // Values: the same gate, through the accessor completion calls.
-        assert!(
-            spec.available_arg_values_at(1, Some("1.0")).is_empty(),
-            "its values are not offered at a 1.0 floor"
-        );
-        assert_eq!(
-            spec.available_arg_values_at(1, Some("3.0"))
-                .iter()
-                .map(|value| value.value)
-                .collect::<Vec<_>>(),
-            vec!["brandnew"],
-            "and are from 3.0"
-        );
-    }
-
-    /// A `-appends` row is a per-argument row like any other, so its
-    /// **command-prefix** position is gated too — on both legs (PR #1674
-    /// review).
-    ///
-    /// The loader gives a `-appends` row `ArgRole::CommandPrefix` when the
-    /// index has no role of its own, so the position reaches consumers through
-    /// the prefix query rather than the plain role table. That query answers
-    /// the role list *and* the appended arity the callback-arity check reads,
-    /// which is why the role lookup delegates to it: filtering one and not the
-    /// other would let a call site's position and its arity disagree about
-    /// which release they belong to.
-    #[test]
-    fn a_gated_appends_row_is_gated_on_both_legs() {
-        let pack = load_pack(
-            "speclib probe 1.2 {\n command demo {\n \
-             arity 3\n \
-             arg 0 -appends {Exactly 1}\n \
-             arg 1 -appends {Exactly 2} -introduced 3.0\n \
-             subcommand run {\n \
-             arity 3\n \
-             arg 0 -appends {Exactly 1}\n \
-             arg 1 -appends {Exactly 2} -introduced 3.0\n \
-             }\n \
-             }\n}",
-        );
-        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
-        let mut registry = tcl_registry::registry::CommandRegistry::build_default();
-        registry.insert(pack.command("demo").expect("demo loads").spec.clone());
-
-        // Command leg: the 3.0 prefix position is absent at 1.0 — from the
-        // arity-bearing query and from the role list that delegates to it.
-        let args = ["a", "b", "c"];
-        assert_eq!(
-            registry.command_prefixes_at("demo", &args, Some("1.0")),
-            vec![(0, tcl_registry::arg_role::AppendedArity::Exactly(1))],
-            "the 3.0 prefix row must not appear at a 1.0 floor"
-        );
-        assert_eq!(
-            registry.arg_indices_for_role_at("demo", &args, ArgRole::CommandPrefix, Some("1.0")),
-            vec![0],
-            "and the role list must agree with it"
-        );
-        assert_eq!(
-            registry.command_prefixes_at("demo", &args, Some("3.0")),
-            vec![
-                (0, tcl_registry::arg_role::AppendedArity::Exactly(1)),
-                (1, tcl_registry::arg_role::AppendedArity::Exactly(2)),
-            ],
-            "both apply from 3.0"
-        );
-        assert_eq!(
-            registry.arg_indices_for_role_at("demo", &args, ArgRole::CommandPrefix, Some("3.0")),
-            vec![0, 1]
-        );
-        // FN guard: an unresolved floor stays permissive.
-        assert_eq!(
-            registry.arg_indices_for_role("demo", &args, ArgRole::CommandPrefix),
-            vec![0, 1],
-            "no floor resolved means no gating"
-        );
-
-        // Subcommand leg: same rows, one position further along.
-        let sub_args = ["run", "a", "b", "c"];
-        assert_eq!(
-            registry.command_prefixes_at("demo", &sub_args, Some("1.0")),
-            vec![(1, tcl_registry::arg_role::AppendedArity::Exactly(1))],
-            "a subcommand's gated prefix row is gated too"
-        );
-        assert_eq!(
-            registry.arg_indices_for_role_at(
-                "demo",
-                &sub_args,
-                ArgRole::CommandPrefix,
-                Some("1.0")
-            ),
-            vec![1]
-        );
-        assert_eq!(
-            registry.command_prefixes_at("demo", &sub_args, Some("3.0")),
-            vec![
-                (1, tcl_registry::arg_role::AppendedArity::Exactly(1)),
-                (2, tcl_registry::arg_role::AppendedArity::Exactly(2)),
-            ]
-        );
-        assert_eq!(
-            registry.arg_indices_for_role_at(
-                "demo",
-                &sub_args,
-                ArgRole::CommandPrefix,
-                Some("3.0")
-            ),
-            vec![1, 2]
-        );
-    }
-
     /// Windows and gated argument rows join the containment pass every other
     /// lifecycle already goes through: a row that outlives the command
     /// declaring it is a pack defect the author can only find if told.
@@ -7584,12 +7519,10 @@ mod tests {
              retired_version 4.0\n \
              arity 1\n \
              arity 2 -introduced 5.0\n \
-             arg 0 -role Body -introduced 6.0\n \
              }\n}",
         );
         let said = |needle: &str| pack.notices.iter().any(|n| n.message.contains(needle));
         assert!(said("arity window"), "{:?}", pack.notices);
-        assert!(said("arg 0"), "{:?}", pack.notices);
     }
 
     /// An impossibly-ordered window lifecycle comes back UNSPECIFIED, which

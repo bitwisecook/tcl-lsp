@@ -69,10 +69,41 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
 /// `-query` and `-querychannel` are mutually exclusive — `geturl` raises
 /// "Can't combine -query and -querychannel options!" when both appear
 /// (9.0.4:1136).
-const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-    options: &["-query", "-querychannel"],
-    ..OptionConstraint::DEFAULT
-}];
+/// `geturl`'s option relations, all three proved against `http.tcl` and
+/// `http.n` in the bundled 9.0.4 tree.
+///
+/// The exclusion is `geturl`'s own hard error (`http.tcl`: *"Can't combine
+/// -query and -querychannel options!"*).  The two `RequiresOneOf` rows are
+/// the **conditional pairs** `http.n` documents: `-queryprogress` is
+/// *"made after each transfer of data to the URL in a POST request (i.e. a
+/// call to `::http::geturl` with option `-query` or `-querychannel`)"*, and
+/// `-queryblocksize` is *"the block size used when posting query data"* —
+/// each is inert without a query body, so supplying one alone is a mistake
+/// the caller wants to know about rather than a runtime error.
+const OPTION_RELATIONS: &[OptionRelation] = &[
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-query"),
+        RelationTerm::Option("-querychannel"),
+    ]),
+    OptionRelation {
+        kind: RelationKind::RequiresOneOf,
+        subject: Some(RelationTerm::Option("-queryprogress")),
+        terms: &[
+            RelationTerm::Option("-query"),
+            RelationTerm::Option("-querychannel"),
+        ],
+        ..OptionRelation::DEFAULT
+    },
+    OptionRelation {
+        kind: RelationKind::RequiresOneOf,
+        subject: Some(RelationTerm::Option("-queryblocksize")),
+        terms: &[
+            RelationTerm::Option("-query"),
+            RelationTerm::Option("-querychannel"),
+        ],
+        ..OptionRelation::DEFAULT
+    },
+];
 
 /// Every option `geturl` accepts, with the release each appeared in and
 /// the callback shape each executable option really has.
@@ -227,7 +258,11 @@ pub fn spec() -> CommandSpec {
         taint_network_sink_args: Some(&[0]),
         credential_options: const { &["-headers"] },
         options: OPTIONS,
-        option_constraints: OPTION_CONSTRAINTS,
+        option_relations: OPTION_RELATIONS,
+        // `geturl` takes the URL positionally and then loops
+        // `foreach {flag value} $args` over everything after it, so its
+        // options are not a leading run.
+        option_placement: OptionPlacement::Anywhere,
         required_package: Some("http"),
         side_effects: SIDE_EFFECTS,
         ..CommandSpec::DEFAULT
@@ -302,10 +337,10 @@ mod tests {
         let spec = spec();
         assert_eq!(spec.taint_network_sink_args, Some(&[0][..]));
         assert_eq!(spec.credential_options, &["-headers"]);
-        assert_eq!(spec.option_constraints.len(), 1);
+        assert_eq!(spec.option_relations.len(), 3);
         assert_eq!(
-            spec.option_constraints[0].options,
-            &["-query", "-querychannel"],
+            spec.option_relations[0].describe(),
+            "option_conflict {-query -querychannel}",
         );
     }
 

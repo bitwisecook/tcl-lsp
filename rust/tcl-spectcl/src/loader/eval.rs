@@ -246,7 +246,6 @@ const ROW_WORDS: &[&str] = &[
     "deprecated_replacement",
     "deprecated_replacement_drop_in",
     "xc_translatable",
-    "xc_operation",
     "arg",
     "repeat",
     "reserved_trailing_words",

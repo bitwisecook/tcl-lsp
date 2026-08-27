@@ -42,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &["LB_FAILED", "LB_QUEUED", "LB_SELECTED", "PERSIST_DOWN"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LB::reselect (clone pool POOL_OBJ (member IP_ADDR)?)?",

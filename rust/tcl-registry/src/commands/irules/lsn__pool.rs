@@ -43,9 +43,7 @@ pub const fn spec() -> CommandSpec {
                 "LB_SELECTED",
                 "SA_PICKED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::pool LSN_POOL",

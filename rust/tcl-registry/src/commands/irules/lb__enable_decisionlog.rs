@@ -37,9 +37,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["FASTHTTP"],
             also_in: &["CLIENT_ACCEPTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LB::enable_decisionlog",

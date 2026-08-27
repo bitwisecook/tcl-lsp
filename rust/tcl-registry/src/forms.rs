@@ -43,7 +43,7 @@ use crate::representation::RepresentationEffect;
 use crate::result_stability::ResultStability;
 use crate::semantic_operation::SemanticOperationId;
 use crate::side_effects::SideEffect;
-use crate::spec::OptionConstraint;
+use crate::spec::OptionRelation;
 use crate::state_transition::StateTransitionDescriptor;
 use crate::traits::Traits;
 use crate::world_effect::WorldEffectDescriptor;
@@ -120,7 +120,7 @@ pub struct CommandForm {
 
     /// Relationships between options that are invalid when supplied
     /// together on this form.
-    pub option_constraints: &'static [OptionConstraint],
+    pub option_relations: &'static [OptionRelation],
 
     /// Dialects in which this form applies. `None` = inherit from
     /// the parent [`crate::CommandSpec`] / [`crate::SubCommand`].
@@ -208,7 +208,7 @@ impl CommandForm {
         literal_argument_prefix: None,
         arg_roles: &[],
         options: &[],
-        option_constraints: &[],
+        option_relations: &[],
         dialects: None,
         semantic_operation: None,
         completion: None,

@@ -1862,6 +1862,7 @@ fn family_key(family: loader::HookFamily) -> &'static str {
         F::ContextGate => "context_gate",
         F::LiteralArgumentValidator => "literal_argument_validator",
         F::ClauseShapeCheck => "clause_shape_check",
+        F::Constraints => "constraints",
         F::OptionArity => "-arity-hook",
     }
 }

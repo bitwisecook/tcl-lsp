@@ -41,9 +41,7 @@ pub const fn spec() -> CommandSpec {
             // exceptional event explicitly while retaining the profile for an
             // informational "assumes profile" hint in other legal contexts.
             also_in: &["HTTP_CLASS_SELECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ASM::disable",

@@ -950,35 +950,240 @@ impl CaseListSpec {
 pub const DEFAULT_CREDENTIAL_OPTION_NAMES: &[&str] =
     &["-password", "-pass", "-secret", "-token", "-apikey"];
 
-/// A registry-declared relationship between leading options.
+/// One operand of an [`OptionRelation`] — what a term names in an invocation.
 ///
-/// The analyser and LSP consume this descriptor generically: a command such
-/// as `source` or `glob` supplies the rejected option set, while the shared
-/// invocation validator reports a conflict. `dialects` is an additional
-/// availability gate; `None` inherits the owning command or subcommand's
-/// dialect set.
-#[derive(Debug, Clone, Copy)]
-pub struct OptionConstraint {
-    /// Canonical option names that may not occur together.
-    pub options: &'static [&'static str],
-    /// Tcl dialects in which this relationship applies.
-    pub dialects: Option<DialectSet>,
-    /// Introduction / deprecation / retirement releases of this relationship
-    /// on the owning command's package version axis — a conflict that only
-    /// exists once both options do. [`Lifecycle::UNSPECIFIED`] means it
-    /// applies in every package version.
-    pub lifecycle: Lifecycle,
+/// The four shapes are the four things a real library's option table talks
+/// about: an option, an option *carrying a particular value*, a positional
+/// argument, and a positional argument carrying a particular value. `bibtex`
+/// needs the first and the third (`-command` requires `-channel`, and excludes
+/// the inline `text` word); `struct::tree walk` needs the second
+/// (`-order in` is illegal with `-type bfs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelationTerm {
+    /// The option is present, whatever value it carries (`-channel`).
+    Option(&'static str),
+    /// The option is present **and** its first value word is this literal
+    /// (`-type bfs`). Canonical option name first, value second.
+    OptionValue(&'static str, &'static str),
+    /// A positional argument exists at this 0-based index, counted *after*
+    /// the leading option run.
+    Argument(u8),
+    /// The positional argument at this index is this literal.
+    ArgumentValue(u8, &'static str),
 }
 
-impl OptionConstraint {
-    /// Default value for all fields — used with `..OptionConstraint::DEFAULT`.
+impl RelationTerm {
+    /// How the term reads in a diagnostic message.
+    #[must_use]
+    pub fn describe(self) -> String {
+        match self {
+            Self::Option(name) => name.to_owned(),
+            Self::OptionValue(name, value) => format!("{name} {value}"),
+            Self::Argument(index) => format!("argument {}", index + 1),
+            Self::ArgumentValue(index, value) => format!("argument {} = {value}", index + 1),
+        }
+    }
+
+    /// The term as a `SpecTcl` author writes it — the one spelling both
+    /// loaders read and the exporter writes.
+    ///
+    /// A bare `-name` is the option; a braced `{-name value}` pins its value;
+    /// `{arg N}` is the positional at `N`, and `{arg N value}` pins its value.
+    #[must_use]
+    pub fn spelling(self) -> String {
+        match self {
+            Self::Option(name) => name.to_owned(),
+            Self::OptionValue(name, value) => format!("{{{name} {value}}}"),
+            Self::Argument(index) => format!("{{arg {index}}}"),
+            Self::ArgumentValue(index, value) => format!("{{arg {index} {value}}}"),
+        }
+    }
+
+    /// The canonical option name this term names, when it names one.
+    #[must_use]
+    pub const fn option_name(self) -> Option<&'static str> {
+        match self {
+            Self::Option(name) | Self::OptionValue(name, _) => Some(name),
+            Self::Argument(_) | Self::ArgumentValue(_, _) => None,
+        }
+    }
+}
+
+/// What an [`OptionRelation`] asserts about its subject and its terms.
+///
+/// [`Self::MutuallyExclusive`] is the whole of the retired `OptionRelation`;
+/// the other three are what E-R14 adds. Each is checked natively — no hook, no
+/// VM — by [`OptionRelation::evaluate`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RelationKind {
+    /// At most one of `terms` may hold. `subject` is unused.
+    MutuallyExclusive,
+    /// If `subject` holds, **every** term must hold
+    /// (`bibtex::parse -command` requires `-channel`).
+    Requires,
+    /// If `subject` holds, **at least one** term must hold.
+    RequiresOneOf,
+    /// If `subject` holds, **no** term may hold — directional exclusion, for
+    /// the asymmetric case a symmetric set cannot phrase
+    /// (`struct::tree walk -order in` is illegal with `-type bfs`).
+    Forbids,
+}
+
+impl RelationKind {
+    /// The DSL statement word that authors this kind.
+    #[must_use]
+    pub const fn statement_word(self) -> &'static str {
+        match self {
+            Self::MutuallyExclusive => "option_conflict",
+            Self::Requires => "option_requires",
+            Self::RequiresOneOf => "option_requires_one_of",
+            Self::Forbids => "option_forbids",
+        }
+    }
+
+    /// Whether a violation of this kind reads as "these cannot go together"
+    /// (W147) rather than "this one needs that one" (W152).
+    #[must_use]
+    pub const fn is_exclusion(self) -> bool {
+        matches!(self, Self::MutuallyExclusive | Self::Forbids)
+    }
+}
+
+/// A registry-declared relation between an invocation's options and arguments.
+///
+/// **The declarative half of E-R14** (owner ruling 2026-08-27). Every relation
+/// expressible here is evaluated natively by [`Self::evaluate`] — a few slice
+/// scans over facts the analyser's leading-option walk already collected — so
+/// the common case never enters the hook VM. The `constraints` hook
+/// ([`crate::pack_hooks::HookFamily::Constraints`]) is the escape hatch for the
+/// rest, and principle P-B makes reaching for it the exception.
+///
+/// `dialects` is an additional availability gate; `None` inherits the owning
+/// command or subcommand's dialect set. `lifecycle` gates the relation on the
+/// owning package's version axis — a relation that only exists once both of its
+/// operands do.
+#[derive(Debug, Clone, Copy)]
+pub struct OptionRelation {
+    /// What the relation asserts.
+    pub kind: RelationKind,
+    /// The term that triggers the relation. `None` makes the relation
+    /// **unconditional** — it always applies, which is what
+    /// `bibtex::parse`'s "neither `-channel` nor text specified" needs — and
+    /// is also how [`RelationKind::MutuallyExclusive`], which has no subject,
+    /// always reads.
+    pub subject: Option<RelationTerm>,
+    /// The terms the relation ranges over.
+    pub terms: &'static [RelationTerm],
+    /// Tcl dialects in which this relation applies.
+    pub dialects: Option<DialectSet>,
+    /// Introduction / deprecation / retirement releases of this relation on
+    /// the owning command's package version axis. [`Lifecycle::UNSPECIFIED`]
+    /// means it applies in every package version.
+    pub lifecycle: Lifecycle,
+    /// An author-supplied message replacing the generated one — for a library
+    /// whose own error text is worth quoting.
+    pub message: Option<&'static str>,
+}
+
+/// Whether a [`RelationTerm`] holds in one invocation.
+///
+/// `Unknown` is what keeps the checker sound: presence is always provable, but
+/// *absence* is only provable when the invocation was read to its end with
+/// every relevant word literal. A `Requires` relation over an invocation the
+/// analyser could not read to the end abstains rather than accusing a call of
+/// omitting an option that a `{*}` expansion may well be supplying.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TermHolds {
+    /// Proven present.
+    Yes,
+    /// Proven absent.
+    No,
+    /// Not statically knowable here.
+    Unknown,
+}
+
+/// One invocation as the relation checker reads it.
+///
+/// Built once per call site by the analyser from the leading-option walk it
+/// already performs, and borrowed by every relation on that command — the
+/// scan is not repeated per relation.
+#[derive(Debug, Clone, Copy)]
+pub struct RelationFacts<'a> {
+    /// The canonical name of each declared option the call supplied, in call
+    /// order, paired with its first value word when that word is a literal.
+    pub options: &'a [(&'static str, Option<&'a str>)],
+    /// The positional words after the leading option run, `None` where a word
+    /// is not statically known.
+    pub positionals: &'a [Option<&'a str>],
+    /// Whether the invocation was read to its end with nothing unreadable in
+    /// it — no `{*}` expansion, and no substituted word where an option could
+    /// have been. **Only** this licenses proving a term *absent*.
+    pub complete: bool,
+}
+
+impl RelationFacts<'_> {
+    /// The value the call gave `name`, or `None` when the option is absent or
+    /// its value is not a literal.
+    fn option_value(&self, name: &str) -> Option<Option<&str>> {
+        self.options
+            .iter()
+            .find(|(option, _)| *option == name)
+            .map(|(_, value)| *value)
+    }
+}
+
+/// What a relation says about one invocation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RelationVerdict {
+    /// The relation holds, or does not apply to this call.
+    Satisfied,
+    /// The call cannot be judged: something the relation reads is not
+    /// statically known.
+    Abstain,
+    /// The relation is violated.
+    Violated(RelationViolation),
+}
+
+/// The evidence behind a [`RelationVerdict::Violated`], for the message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelationViolation {
+    /// What the relation asserts.
+    pub kind: RelationKind,
+    /// The terms the call actually supplied that take part in the report.
+    pub present: Vec<RelationTerm>,
+    /// The terms the relation wanted and did not find. Empty for an
+    /// exclusion.
+    pub missing: Vec<RelationTerm>,
+    /// The author's own message, when the relation carries one.
+    pub message: Option<&'static str>,
+}
+
+impl OptionRelation {
+    /// A relation with no fields set — used with `..OptionRelation::DEFAULT`.
+    ///
+    /// The default kind is [`RelationKind::MutuallyExclusive`], so a row
+    /// migrated from the retired `OptionRelation` reads exactly as it did.
     pub const DEFAULT: Self = Self {
-        options: &[],
+        kind: RelationKind::MutuallyExclusive,
+        subject: None,
+        terms: &[],
         dialects: None,
         lifecycle: Lifecycle::UNSPECIFIED,
+        message: None,
     };
 
-    /// Whether this constraint applies given the resolved *`package_version`*.
+    /// The mutual-exclusion relation over `options` — the shape every row
+    /// authored before E-R14 had, spelled in one place so the migration is a
+    /// call rather than six fields.
+    #[must_use]
+    pub const fn conflict(terms: &'static [RelationTerm]) -> Self {
+        Self {
+            terms,
+            ..Self::DEFAULT
+        }
+    }
+
+    /// Whether this relation applies given the resolved *`package_version`*.
     ///
     /// *`package_version`* is the guaranteed-available floor from a
     /// `package require` (see [`crate::version::requirement_lower_bound`]).
@@ -988,13 +1193,13 @@ impl OptionConstraint {
         self.lifecycle.available_at(package_version)
     }
 
-    /// This constraint's lifecycle state at the resolved *`package_version`*.
+    /// This relation's lifecycle state at the resolved *`package_version`*.
     #[must_use]
     pub fn lifecycle_state(&self, package_version: Option<&str>) -> LifecycleState {
         self.lifecycle.state_at(package_version)
     }
 
-    /// Whether this constraint is active for `dialect`, inheriting the
+    /// Whether this relation is active for `dialect`, inheriting the
     /// command/subcommand dialect set when it has no own gate.
     #[must_use]
     pub const fn supports_dialect(
@@ -1014,226 +1219,372 @@ impl OptionConstraint {
             None => true,
         }
     }
-}
 
-/// One `arg` row as authored, with the lifecycle that gates the whole row.
-///
-/// The registry's per-argument facts are six parallel index-keyed slices
-/// (`arg_roles`, `arg_types`, `arg_values`, `closed_value_args`,
-/// `arg_presentation`, `command_prefixes`). That shape is why arity was the one
-/// axis nobody could version: there is no per-argument record to hang a
-/// [`Lifecycle`] on, so a seventh parallel slice would have needed every one of
-/// those six consumers to remember a filter (issue #1627).
-///
-/// This is that record. The loader reads one of these per `arg` row and
-/// *projects* it into the six parallel slices, so the parallel form the rest of
-/// the registry reads is derived rather than authored twice. A row whose
-/// lifecycle excludes the resolved floor contributes nothing to the projection
-/// — which is the whole point, and is why the projection is one function
-/// instead of six call sites.
-///
-/// Empty for every command whose arguments never changed across releases,
-/// which is almost all of them.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct VersionedArgRow {
-    /// 0-based argument index this row describes.
-    pub index: u8,
-    /// The owning package's releases this row applies to.
-    pub lifecycle: Lifecycle,
-    /// Fills `arg_roles`.
-    pub role: Option<ArgRole>,
-    /// Fills `arg_types`.
-    pub type_hint: Option<ArgTypeHint>,
-    /// Fills `arg_values`.
-    pub values: &'static [ArgValue],
-    /// Contributes this index to `closed_value_args`.
-    pub closed: bool,
-    /// Fills `arg_presentation`.
-    pub presentation: Option<ArgPresentation>,
-    /// Fills `command_prefixes`.
-    pub appends: Option<crate::arg_role::AppendedArity>,
-}
-
-impl VersionedArgRow {
-    /// A row with no facts declared, for struct-update syntax.
-    pub const DEFAULT: Self = Self {
-        index: 0,
-        lifecycle: Lifecycle::UNSPECIFIED,
-        role: None,
-        type_hint: None,
-        values: &[],
-        closed: false,
-        presentation: None,
-        appends: None,
-    };
-
-    /// Whether this row applies at `target`.
+    /// The relation as a `SpecTcl` author wrote it — the statement word, the
+    /// subject and the terms.
     ///
-    /// An unresolved target is permissive, matching every other lifecycle
-    /// query: with no floor there is nothing to gate against, so a versioned
-    /// pack behaves exactly as an unversioned one until a floor is known.
+    /// The one spelling shared by the loader's containment notices, the
+    /// studio's row label and the export round trip, so a relation reads the
+    /// same everywhere it is named.
     #[must_use]
-    pub fn applies_at(&self, target: Option<&str>) -> bool {
-        self.lifecycle.available_at(target)
-    }
-}
-
-/// The six parallel per-argument slices, projected from a [`VersionedArgRow`]
-/// list at one resolved package floor.
-///
-/// Owned rather than `&'static` because the floor is a per-document fact: the
-/// registry's own slices are the projection at "no floor", built once at load,
-/// while this is built on demand by a consumer that has resolved one.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct ProjectedArgs {
-    /// `(index, role)`, as `CommandSpec::arg_roles`.
-    pub roles: Vec<(u8, ArgRole)>,
-    /// `(index, hint)`, as `CommandSpec::arg_types`.
-    pub types: Vec<(u8, ArgTypeHint)>,
-    /// `(index, values)`, as `CommandSpec::arg_values`.
-    pub values: Vec<(u8, &'static [ArgValue])>,
-    /// Indices, as `CommandSpec::closed_value_args`.
-    pub closed: Vec<u8>,
-    /// `(index, presentation)`, as `CommandSpec::arg_presentation`.
-    pub presentation: Vec<(u8, ArgPresentation)>,
-    /// `(index, appended)`, as `CommandSpec::command_prefixes`.
-    pub prefixes: Vec<(u8, crate::arg_role::AppendedArity)>,
-}
-
-/// One command's per-argument tables **as seen at a resolved package floor**
-/// (issue #1644).
-///
-/// Borrowed on the fast path and owned only when it must be: a spec whose rows
-/// are all ungated — every shipped command, and every pack that declares no
-/// lifecycle on an argument — keeps `arg_rows` empty, so its stored slices
-/// already *are* the answer at any floor and are handed back by reference. A
-/// gated row is the only thing that makes a projection necessary, and then the
-/// filtered tables are owned for the length of the query.
-///
-/// The floor stays an **argument** rather than becoming registry state:
-/// `CommandRegistry` handles are cached per (profile, pack overlay) and shared
-/// across documents, while a version floor is a per-document fact, so a
-/// registry that remembered one would answer the wrong document.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ArgTables<'a> {
-    /// No row is gated, so the spec's own slices answer at every floor.
-    Stored {
-        /// As `CommandSpec::arg_roles`.
-        roles: &'a [(u8, ArgRole)],
-        /// As `CommandSpec::arg_types`.
-        types: &'a [(u8, ArgTypeHint)],
-        /// As `CommandSpec::arg_values`.
-        values: &'a [(u8, &'static [ArgValue])],
-        /// As `CommandSpec::closed_value_args`.
-        closed: &'a [u8],
-        /// As `CommandSpec::arg_presentation`.
-        presentation: &'a [(u8, ArgPresentation)],
-        /// As `CommandSpec::command_prefixes`.
-        prefixes: &'a [(u8, crate::arg_role::AppendedArity)],
-    },
-    /// A gated row was filtered out at this floor.
-    Projected(ProjectedArgs),
-}
-
-impl ArgTables<'_> {
-    /// `(index, role)` rows that exist at this floor.
-    #[must_use]
-    pub fn roles(&self) -> &[(u8, ArgRole)] {
-        match self {
-            Self::Stored { roles, .. } => roles,
-            Self::Projected(projected) => &projected.roles,
-        }
-    }
-
-    /// `(index, type hint)` rows that exist at this floor.
-    #[must_use]
-    pub fn types(&self) -> &[(u8, ArgTypeHint)] {
-        match self {
-            Self::Stored { types, .. } => types,
-            Self::Projected(projected) => &projected.types,
-        }
-    }
-
-    /// `(index, values)` rows that exist at this floor.
-    #[must_use]
-    pub fn values(&self) -> &[(u8, &'static [ArgValue])] {
-        match self {
-            Self::Stored { values, .. } => values,
-            Self::Projected(projected) => &projected.values,
-        }
-    }
-
-    /// The enumerable values declared for `index` at this floor, empty when
-    /// the argument has no value set here — the floor-aware twin of
-    /// `CommandSpec::arg_values_at`.
-    #[must_use]
-    pub fn values_at(&self, index: u8) -> &'static [ArgValue] {
-        self.values()
+    pub fn describe(&self) -> String {
+        let terms = self
+            .terms
             .iter()
-            .find(|(i, _)| *i == index)
-            .map_or(&[], |(_, values)| values)
-    }
-
-    /// Closed-value argument indices that exist at this floor.
-    #[must_use]
-    pub fn closed(&self) -> &[u8] {
-        match self {
-            Self::Stored { closed, .. } => closed,
-            Self::Projected(projected) => &projected.closed,
+            .map(|term| term.spelling())
+            .collect::<Vec<_>>()
+            .join(" ");
+        match self.subject {
+            Some(subject) => format!(
+                "{} {} {{{terms}}}",
+                self.kind.statement_word(),
+                subject.spelling()
+            ),
+            None => format!("{} {{{terms}}}", self.kind.statement_word()),
         }
     }
 
-    /// `(index, presentation)` rows that exist at this floor.
+    /// Every option name this relation mentions, subject included — what a
+    /// consumer needs to decide whether the relation is worth evaluating at
+    /// all.
     #[must_use]
-    pub fn presentation(&self) -> &[(u8, ArgPresentation)] {
-        match self {
-            Self::Stored { presentation, .. } => presentation,
-            Self::Projected(projected) => &projected.presentation,
+    pub fn option_names(&self) -> Vec<&'static str> {
+        self.subject
+            .into_iter()
+            .chain(self.terms.iter().copied())
+            .filter_map(RelationTerm::option_name)
+            .collect()
+    }
+
+    /// Whether `term` holds in `facts`.
+    fn holds(term: RelationTerm, facts: &RelationFacts<'_>) -> TermHolds {
+        match term {
+            RelationTerm::Option(name) => match facts.option_value(name) {
+                Some(_) => TermHolds::Yes,
+                None if facts.complete => TermHolds::No,
+                None => TermHolds::Unknown,
+            },
+            RelationTerm::OptionValue(name, wanted) => match facts.option_value(name) {
+                // Present with a literal value: an exact answer either way.
+                Some(Some(actual)) => {
+                    if actual == wanted {
+                        TermHolds::Yes
+                    } else {
+                        TermHolds::No
+                    }
+                }
+                // Present, value not statically known — it may be `wanted`.
+                Some(None) => TermHolds::Unknown,
+                None if facts.complete => TermHolds::No,
+                None => TermHolds::Unknown,
+            },
+            RelationTerm::Argument(index) => {
+                if usize::from(index) < facts.positionals.len() {
+                    TermHolds::Yes
+                } else if facts.complete {
+                    TermHolds::No
+                } else {
+                    TermHolds::Unknown
+                }
+            }
+            RelationTerm::ArgumentValue(index, wanted) => {
+                match facts.positionals.get(usize::from(index)) {
+                    Some(Some(actual)) => {
+                        if *actual == wanted {
+                            TermHolds::Yes
+                        } else {
+                            TermHolds::No
+                        }
+                    }
+                    Some(None) => TermHolds::Unknown,
+                    None if facts.complete => TermHolds::No,
+                    None => TermHolds::Unknown,
+                }
+            }
         }
     }
 
-    /// `(index, appended arity)` command-prefix rows that exist at this floor.
+    /// Judge one invocation against this relation — **the whole declarative
+    /// checker**, and the reason the common case never enters a VM.
+    ///
+    /// Presence is always provable, so an exclusion never needs `complete`;
+    /// absence is provable only when the invocation was read to its end, so a
+    /// `Requires` / `RequiresOneOf` over a truncated call abstains.
     #[must_use]
-    pub fn prefixes(&self) -> &[(u8, crate::arg_role::AppendedArity)] {
-        match self {
-            Self::Stored { prefixes, .. } => prefixes,
-            Self::Projected(projected) => &projected.prefixes,
+    pub fn evaluate(&self, facts: &RelationFacts<'_>) -> RelationVerdict {
+        let violation = |present: Vec<RelationTerm>, missing: Vec<RelationTerm>| {
+            RelationVerdict::Violated(RelationViolation {
+                kind: self.kind,
+                present,
+                missing,
+                message: self.message,
+            })
+        };
+        if self.kind == RelationKind::MutuallyExclusive {
+            let present: Vec<RelationTerm> = self
+                .terms
+                .iter()
+                .copied()
+                .filter(|term| Self::holds(*term, facts) == TermHolds::Yes)
+                .collect();
+            return if present.len() >= 2 {
+                violation(present, Vec::new())
+            } else {
+                RelationVerdict::Satisfied
+            };
+        }
+
+        // No subject means the relation is unconditional: it applies to every
+        // call, so there is nothing to prove before checking the terms.
+        if let Some(subject) = self.subject {
+            match Self::holds(subject, facts) {
+                TermHolds::No => return RelationVerdict::Satisfied,
+                TermHolds::Unknown => return RelationVerdict::Abstain,
+                TermHolds::Yes => {}
+            }
+        }
+        let subject_terms = || self.subject.into_iter().collect::<Vec<_>>();
+
+        match self.kind {
+            RelationKind::MutuallyExclusive => unreachable!("handled above"),
+            RelationKind::Requires => {
+                let mut missing = Vec::new();
+                for term in self.terms.iter().copied() {
+                    match Self::holds(term, facts) {
+                        TermHolds::Yes => {}
+                        TermHolds::No => missing.push(term),
+                        TermHolds::Unknown => return RelationVerdict::Abstain,
+                    }
+                }
+                if missing.is_empty() {
+                    RelationVerdict::Satisfied
+                } else {
+                    violation(subject_terms(), missing)
+                }
+            }
+            RelationKind::RequiresOneOf => {
+                let mut any_unknown = false;
+                for term in self.terms.iter().copied() {
+                    match Self::holds(term, facts) {
+                        TermHolds::Yes => return RelationVerdict::Satisfied,
+                        TermHolds::No => {}
+                        TermHolds::Unknown => any_unknown = true,
+                    }
+                }
+                if any_unknown {
+                    RelationVerdict::Abstain
+                } else {
+                    violation(subject_terms(), self.terms.to_vec())
+                }
+            }
+            RelationKind::Forbids => {
+                let present: Vec<RelationTerm> = self
+                    .terms
+                    .iter()
+                    .copied()
+                    .filter(|term| Self::holds(*term, facts) == TermHolds::Yes)
+                    .collect();
+                if present.is_empty() {
+                    RelationVerdict::Satisfied
+                } else {
+                    let mut all = subject_terms();
+                    all.extend(present);
+                    violation(all, Vec::new())
+                }
+            }
         }
     }
 }
 
-/// Project `rows` into the six parallel slices, keeping only rows that apply
-/// at `target`.
+/// Where in an invocation a command's declared options may appear — the fact
+/// the E-R14 relation checker needs to find them.
 ///
-/// This is the **one** place a per-argument row becomes the parallel form the
-/// rest of the registry reads. A column added to [`VersionedArgRow`] and not
-/// added here silently vanishes — which is exactly the failure the record shape
-/// exists to prevent — so `projection_carries_every_row_column` pins that every
-/// column survives a round trip.
-#[must_use]
-pub fn project_arg_rows(rows: &[VersionedArgRow], target: Option<&str>) -> ProjectedArgs {
-    let mut out = ProjectedArgs::default();
-    for row in rows.iter().filter(|row| row.applies_at(target)) {
-        if let Some(role) = row.role {
-            out.roles.push((row.index, role));
-        }
-        if let Some(hint) = row.type_hint {
-            out.types.push((row.index, hint));
-        }
-        if !row.values.is_empty() {
-            out.values.push((row.index, row.values));
-        }
-        if row.closed {
-            out.closed.push(row.index);
-        }
-        if let Some(presentation) = row.presentation {
-            out.presentation.push((row.index, presentation));
-        }
-        if let Some(appends) = row.appends {
-            out.prefixes.push((row.index, appends));
+/// Not a style preference: core Tcl's C option loops almost all `break` on the
+/// first word that is not a declared option (`Tcl_GlobObjCmd`, `source`,
+/// `lsort`), so a later option-shaped word there is a *positional*, and
+/// reading it as an option would invent a conflict the interpreter never
+/// raises. A script-level command like `http::geturl`, whose parser is
+/// `foreach {flag value} $args` after taking the URL, is the other shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum OptionPlacement {
+    /// A leading run: option parsing stops at the first non-option word.
+    /// The default, and what every core Tcl command does.
+    #[default]
+    Leading,
+    /// Options are recognised anywhere in the argument list, after and
+    /// between positional words, up to an explicit `--`.
+    Anywhere,
+}
+
+impl OptionPlacement {
+    /// Every placement, in declaration order — the loader's and the studio's
+    /// enumeration.
+    pub const ALL: &'static [(&'static str, Self)] =
+        &[("Leading", Self::Leading), ("Anywhere", Self::Anywhere)];
+
+    /// The DSL spelling.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Leading => "Leading",
+            Self::Anywhere => "Anywhere",
         }
     }
-    out
+}
+
+/// Where a `constraints` hook's report points.
+///
+/// The hook's `invalid SLOT MESSAGE` verb names one of these: an option
+/// spelling, a 0-based positional index (`arg 2`), or the command word itself
+/// when the report is about the invocation as a whole.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConstraintSlot {
+    /// A canonical option name.
+    Option(&'static str),
+    /// A 0-based positional index, counted after the leading option run.
+    Argument(u8),
+    /// The command word — for a report about the whole invocation.
+    Command,
+}
+
+/// One thing a `constraints` hook reported.
+///
+/// Deliberately smaller than [`RelationViolation`]: a hook says *where* and
+/// *what*, and the analyser owns the diagnostic code and the span. `conflict`
+/// selects W147 ("these cannot go together") over the default W152 ("this one
+/// needs that one"), which is the only structural choice a hook makes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstraintReport {
+    /// The slot the report points at.
+    pub slot: ConstraintSlot,
+    /// The message, as the hook wrote it.
+    pub message: String,
+    /// Report as an exclusion (W147) rather than a requirement (W152).
+    pub conflict: bool,
+}
+
+/// What the option-relation checker did, for the P-B measurement.
+///
+/// Principle P-B's claim — "every relation the declarative vocabulary can
+/// express is checked natively with no VM entry" — is only worth as much as
+/// the number behind it, so the checker counts rather than asserting. Three
+/// thread-local counters, incremented once per call site: cheap enough to
+/// leave on (they are `Cell<u64>` adds on a path that already allocates a
+/// `Vec` per violation), and the only way a regression that starts entering
+/// the VM shows up as anything but a slowdown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct RelationCheckStats {
+    /// Call sites whose walk found at least one declared option word — the
+    /// population the check is *about*.
+    pub option_bearing_sites: u64,
+    /// Of those, the sites whose command declares at least one relation or a
+    /// `constraints` hook, and so were actually judged.
+    pub judged_sites: u64,
+    /// Relations evaluated natively across those call sites — the work that
+    /// never enters a VM.
+    pub relations_evaluated: u64,
+    /// Call sites that reached a `constraints` hook. **This is the number the
+    /// design is about**: it must stay 0 for a corpus of shipped commands.
+    pub hook_entries: u64,
+}
+
+thread_local! {
+    static RELATION_STATS: std::cell::Cell<RelationCheckStats> =
+        const { std::cell::Cell::new(RelationCheckStats {
+            option_bearing_sites: 0,
+            judged_sites: 0,
+            relations_evaluated: 0,
+            hook_entries: 0,
+        }) };
+}
+
+/// Record one call site the option walk read.
+///
+/// `judged` is false for a call site whose command declares no relation at
+/// all — it is still an option-bearing site, and counting it is what makes
+/// the ratio meaningful.
+pub fn note_relation_check(
+    option_bearing: bool,
+    judged: bool,
+    relations_evaluated: usize,
+    entered_hook: bool,
+) {
+    RELATION_STATS.with(|stats| {
+        let mut current = stats.get();
+        current.option_bearing_sites += u64::from(option_bearing);
+        current.judged_sites += u64::from(judged);
+        current.relations_evaluated += relations_evaluated as u64;
+        current.hook_entries += u64::from(entered_hook);
+        stats.set(current);
+    });
+}
+
+/// This thread's option-relation counters.
+#[must_use]
+pub fn relation_check_stats() -> RelationCheckStats {
+    RELATION_STATS.with(std::cell::Cell::get)
+}
+
+/// Zero this thread's option-relation counters.
+pub fn reset_relation_check_stats() {
+    RELATION_STATS.with(|stats| stats.set(RelationCheckStats::default()));
+}
+
+/// A `constraints` hook: the E-R14 escape hatch.
+///
+/// **Called only when a spec declares one and the declarative relations found
+/// nothing to report** (principle P-B). A shipped spec's hook is an ordinary
+/// Rust function; a pack's is a Tcl body on the sandboxed VM, reached through
+/// [`crate::pack_hooks::constraints_fn`] — the consumer cannot tell which.
+///
+/// Silence (an empty vector) means "no report", which is also what a crashed,
+/// quarantined, budget-blown or hostless pack hook answers.
+pub type ConstraintsHook = fn(&RelationFacts<'_>) -> Vec<ConstraintReport>;
+
+impl RelationViolation {
+    /// The diagnostic message for this violation — the author's own text when
+    /// the relation carries one, otherwise generated from the terms.
+    ///
+    /// `display_name` is the command (or `command subcommand`) as written.
+    #[must_use]
+    pub fn message_for(&self, display_name: &str) -> String {
+        if let Some(message) = self.message {
+            return message.to_owned();
+        }
+        let join = |terms: &[RelationTerm]| {
+            terms
+                .iter()
+                .map(|term| term.describe())
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        match self.kind {
+            RelationKind::MutuallyExclusive => format!(
+                "Options {} cannot be used together for '{display_name}'",
+                join(&self.present)
+            ),
+            RelationKind::Forbids => format!(
+                "{} cannot be used together for '{display_name}'",
+                join(&self.present)
+            ),
+            RelationKind::Requires if self.present.is_empty() => {
+                format!("'{display_name}' requires {}", join(&self.missing))
+            }
+            RelationKind::Requires => format!(
+                "{} requires {} for '{display_name}'",
+                join(&self.present),
+                join(&self.missing)
+            ),
+            RelationKind::RequiresOneOf if self.present.is_empty() => {
+                format!("'{display_name}' requires one of {}", join(&self.missing))
+            }
+            RelationKind::RequiresOneOf => format!(
+                "{} requires one of {} for '{display_name}'",
+                join(&self.present),
+                join(&self.missing)
+            ),
+        }
+    }
 }
 
 /// Unified command metadata — the single source of truth.
@@ -1278,16 +1629,6 @@ pub struct CommandSpec {
     /// the loader notices for packs and `registry_sweep` rejects outright for
     /// shipped specs.
     pub arity_windows: &'static [ArityWindow],
-
-    /// The authored per-argument rows this command's parallel `arg_*` slices
-    /// were projected from, retained so a consumer holding a resolved package
-    /// floor can re-project at that floor (issue #1627).
-    ///
-    /// Empty unless some argument carries a lifecycle. When empty the parallel
-    /// slices are the whole truth, which is the case for almost every command.
-    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
-    /// than replacing them.
-    pub arg_rows: &'static [VersionedArgRow],
 
     /// Static argument roles (for fixed-layout commands like `for`).
     /// Each tuple is `(arg_index, role)`.
@@ -1601,10 +1942,21 @@ pub struct CommandSpec {
     /// Options declared on the command (for completion and arity adjustment).
     pub options: &'static [OptionSpec],
 
-    /// Relationships between leading options that the command rejects when
-    /// they occur together.  This is data for generic invocation validation,
-    /// not a command-specific analyser rule.
-    pub option_constraints: &'static [OptionConstraint],
+    /// Typed relations between this command's options and arguments — the
+    /// declarative half of E-R14.  Data for generic invocation validation,
+    /// not a command-specific analyser rule, and checked natively with no
+    /// hook and no VM entry.
+    pub option_relations: &'static [OptionRelation],
+
+    /// The `constraints` escape hatch: a hook consulted **only** when
+    /// [`Self::option_relations`] reported nothing, for the rare rule no
+    /// declarative relation can express.  `None` for every shipped command.
+    pub constraints: Option<ConstraintsHook>,
+
+    /// Where this command's options may appear — what the relation checker
+    /// needs to find them.  [`OptionPlacement::Leading`] for everything whose
+    /// option parsing stops at the first non-option word.
+    pub option_placement: OptionPlacement,
 
     /// Number of trailing words (after the command name) that C Tcl's own
     /// option-scanning loop never treats as option candidates, regardless
@@ -1806,10 +2158,6 @@ pub struct CommandSpec {
     /// rules, `Some(false)` = never translatable, `Some(true)` =
     /// translatable despite a namespace prefix.
     pub xc_translatable: Option<bool>,
-
-    /// XC operation this command maps to, when it is translatable.
-    /// `None` = no explicit mapping.
-    pub xc_operation: Option<&'static str>,
 
     /// Replacement command name (resolved) for a deprecated command,
     /// surfaced by the deprecation code action. `None` = not deprecated.
@@ -2151,7 +2499,6 @@ impl CommandSpec {
         dialects: None,
         arity: Arity::any(),
         arity_windows: &[],
-        arg_rows: &[],
         arg_roles: &[],
         arg_role_resolver: None,
         arg_presentation: &[],
@@ -2206,7 +2553,9 @@ impl CommandSpec {
         event_handler_priority: None,
         irules_top_level_effect: None,
         options: &[],
-        option_constraints: &[],
+        option_relations: &[],
+        constraints: None,
+        option_placement: OptionPlacement::Leading,
         reserved_trailing_words: 0,
         arg_values: &[],
         versioned_arg_values: &[],
@@ -2234,7 +2583,6 @@ impl CommandSpec {
         warn_missing_import: true,
         is_namespace_exported: false,
         xc_translatable: None,
-        xc_operation: None,
         deprecated_replacement: None,
         deprecated_replacement_drop_in: false,
         byte_array_payload: None,
@@ -2575,33 +2923,6 @@ impl CommandSpec {
             .map(|(_, r)| *r)
     }
 
-    /// This command's per-argument tables as they exist at
-    /// `package_version` (issue #1644).
-    ///
-    /// The floor-aware form of the six parallel `arg_*` slices. With no gated
-    /// row — every shipped command, and every pack that put no lifecycle on an
-    /// argument — the stored slices are returned by reference and this is a
-    /// pointer copy; a gated row is what makes the projection necessary, and
-    /// only then is anything built.
-    ///
-    /// `None` is permissive, matching every other lifecycle query: with no
-    /// floor resolved there is nothing to gate against, so a versioned pack
-    /// answers exactly as an unversioned one until a floor is known.
-    #[must_use]
-    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
-        if self.arg_rows.is_empty() {
-            return ArgTables::Stored {
-                roles: self.arg_roles,
-                types: self.arg_types,
-                values: self.arg_values,
-                closed: self.closed_value_args,
-                presentation: self.arg_presentation,
-                prefixes: self.command_prefixes,
-            };
-        }
-        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
-    }
-
     /// Look up enumerable argument values for the 0-based `index`
     /// *after* the command name.  Returns an empty slice when this
     /// argument has no fixed value set.  Mirrors
@@ -2618,18 +2939,10 @@ impl CommandSpec {
     /// `package_version` — the command-level twin of
     /// [`SubCommand::arg_value_available_for_version`].
     ///
-    /// `index` is 0-based *after the command name*. Three gates apply, and a
-    /// value must pass all of them: the **row** the value was declared on
-    /// (issue #1644), the value's own [`ArgValue::lifecycle`], and any
-    /// [`Self::versioned_arg_values`] entry naming it. A value with none of
-    /// the three is ungated, and an ungated value is always available.
-    ///
-    /// The row gate is not the same question as the value gate, and reads
-    /// opposite when it fails: a value the row still declares but that is
-    /// itself gated out is *declared and unavailable*, while a value whose
-    /// whole argument does not exist at this floor is not declared here at
-    /// all. Both answer `false`, which is why the check is written as "the
-    /// value survives the row projection" rather than "the row survives".
+    /// `index` is 0-based *after the command name*. Two gates apply, and a
+    /// value must pass both: the value's own [`ArgValue::lifecycle`], and any
+    /// [`Self::versioned_arg_values`] entry naming it. A value with neither is
+    /// ungated, and an ungated value is always available.
     #[must_use]
     pub fn arg_value_available_for_version(
         &self,
@@ -2637,16 +2950,10 @@ impl CommandSpec {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let tables = self.arg_tables_at(package_version);
-        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
-            || !self.arg_values_at(index).iter().any(|v| v.value == value);
-        let declared = tables
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .find(|v| v.value == value)
-            .is_none_or(|v| v.available_for_version(package_version));
-        survives_row
-            && declared
+            .is_none_or(|v| v.available_for_version(package_version))
             && self
                 .versioned_arg_values
                 .iter()
@@ -2664,11 +2971,7 @@ impl CommandSpec {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        // Iterated over the *projected* table, so an argument whose whole row
-        // a later release introduced offers nothing at an older floor rather
-        // than being offered and then filtered value by value (issue #1644).
-        self.arg_tables_at(package_version)
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -2942,16 +3245,6 @@ pub struct SubCommand {
     /// the same contract as [`CommandSpec::arity_windows`].
     pub arity_windows: &'static [ArityWindow],
 
-    /// The authored per-argument rows this command's parallel `arg_*` slices
-    /// were projected from, retained so a consumer holding a resolved package
-    /// floor can re-project at that floor (issue #1627).
-    ///
-    /// Empty unless some argument carries a lifecycle. When empty the parallel
-    /// slices are the whole truth, which is the case for almost every command.
-    /// See [`VersionedArgRow`] for why the rows exist beside the slices rather
-    /// than replacing them.
-    pub arg_rows: &'static [VersionedArgRow],
-
     /// Short description for completion list.
     pub detail: &'static str,
 
@@ -3059,9 +3352,17 @@ pub struct SubCommand {
     /// Per-subcommand options.
     pub options: &'static [OptionSpec],
 
-    /// Relationships between this subcommand's leading options that the
-    /// command rejects when they occur together.
-    pub option_constraints: &'static [OptionConstraint],
+    /// Typed relations between this subcommand's options and arguments
+    /// (E-R14), checked natively.
+    pub option_relations: &'static [OptionRelation],
+
+    /// The subcommand's `constraints` escape hatch — see
+    /// [`CommandSpec::constraints`].
+    pub constraints: Option<ConstraintsHook>,
+
+    /// Where this subcommand's options may appear — see
+    /// [`CommandSpec::option_placement`].
+    pub option_placement: OptionPlacement,
 
     /// Documented minimum abbreviation length for this subcommand's own
     /// name, when the command promises a longer minimum than uniqueness
@@ -3193,10 +3494,6 @@ pub struct SubCommand {
     /// ⇒ `Clock`, `binary scan` ⇒ `Binary`), taking priority over the
     /// parent command's [`CommandSpec::format_string_type`].
     pub format_string_type: Option<FormatType>,
-
-    /// XC operation this subcommand maps to. `None` = no explicit
-    /// mapping.
-    pub xc_operation: Option<&'static str>,
 
     /// Structured side-effect declarations for this subcommand.
     pub side_effects: &'static [SideEffect],
@@ -3383,7 +3680,6 @@ impl SubCommand {
         traits: Traits::empty(),
         arity: Arity::any(),
         arity_windows: &[],
-        arg_rows: &[],
         detail: "",
         synopsis: "",
         hover: None,
@@ -3411,7 +3707,9 @@ impl SubCommand {
         analyser_hook: None,
         command_table_effect: None,
         options: &[],
-        option_constraints: &[],
+        option_relations: &[],
+        constraints: None,
+        option_placement: OptionPlacement::Leading,
         min_abbrev: None,
         prefix_matching: PrefixMatching::Enabled,
         arg_values: &[],
@@ -3438,7 +3736,6 @@ impl SubCommand {
         sensitive_headers: &[],
         pattern_type: None,
         format_string_type: None,
-        xc_operation: None,
         side_effects: &[],
         world_effects: None,
         state_transitions: None,
@@ -3608,16 +3905,10 @@ impl SubCommand {
         value: &str,
         package_version: Option<&str>,
     ) -> bool {
-        let tables = self.arg_tables_at(package_version);
-        let survives_row = tables.values_at(index).iter().any(|v| v.value == value)
-            || !self.arg_values_at(index).iter().any(|v| v.value == value);
-        let declared = tables
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .find(|v| v.value == value)
-            .is_none_or(|v| v.available_for_version(package_version));
-        survives_row
-            && declared
+            .is_none_or(|v| v.available_for_version(package_version))
             && self
                 .versioned_arg_values
                 .iter()
@@ -3634,11 +3925,7 @@ impl SubCommand {
         index: u8,
         package_version: Option<&str>,
     ) -> Vec<&'static ArgValue> {
-        // Iterated over the *projected* table, so an argument whose whole row
-        // a later release introduced offers nothing at an older floor rather
-        // than being offered and then filtered value by value (issue #1644).
-        self.arg_tables_at(package_version)
-            .values_at(index)
+        self.arg_values_at(index)
             .iter()
             .filter(|value| {
                 self.arg_value_available_for_version(index, value.value, package_version)
@@ -3828,25 +4115,6 @@ impl SubCommand {
             }
         }
         specs
-    }
-
-    /// This subcommand's per-argument tables as they exist at
-    /// `package_version` — the subcommand twin of
-    /// [`CommandSpec::arg_tables_at`] (issue #1644), with the same fast path
-    /// and the same permissive `None`.
-    #[must_use]
-    pub fn arg_tables_at(&self, package_version: Option<&str>) -> ArgTables<'_> {
-        if self.arg_rows.is_empty() {
-            return ArgTables::Stored {
-                roles: self.arg_roles,
-                types: self.arg_types,
-                values: self.arg_values,
-                closed: self.closed_value_args,
-                presentation: self.arg_presentation,
-                prefixes: self.command_prefixes,
-            };
-        }
-        ArgTables::Projected(project_arg_rows(self.arg_rows, package_version))
     }
 
     /// Look up enumerable argument values for the 0-based
@@ -4117,199 +4385,5 @@ mod tests {
         };
         assert_eq!(names(Some("1.0")), vec!["classic"]);
         assert_eq!(names(Some("2.0")), vec!["classic", "modern"]);
-    }
-}
-
-#[cfg(test)]
-mod versioned_arg_row_tests {
-    use super::*;
-
-    /// A row carrying every column at once, so a projection that drops one is
-    /// visible.
-    fn full_row(index: u8, lifecycle: Lifecycle) -> VersionedArgRow {
-        const VALUES: &[ArgValue] = &[ArgValue {
-            value: "one",
-            ..ArgValue::DEFAULT
-        }];
-        VersionedArgRow {
-            index,
-            lifecycle,
-            role: Some(ArgRole::VarWrite),
-            type_hint: Some(ArgTypeHint {
-                expected: None,
-                shimmers: true,
-                transparent_from: &[],
-            }),
-            values: VALUES,
-            closed: true,
-            presentation: Some(ArgPresentation::BlockScript),
-            appends: Some(crate::arg_role::AppendedArity::Exactly(2)),
-        }
-    }
-
-    /// THE DRIFT GUARD.
-    ///
-    /// `VersionedArgRow` exists so a per-argument lifecycle cannot be forgotten
-    /// by one of six parallel slices. That only holds while the projection
-    /// carries every column: a field added to the record and not to
-    /// `project_arg_rows` vanishes silently, and the record shape would then be
-    /// giving false assurance.
-    ///
-    /// Asserting every column of one fully-populated row survives is the
-    /// cheapest thing that fails when that happens.
-    #[test]
-    fn projection_carries_every_row_column() {
-        let rows = [full_row(3, Lifecycle::UNSPECIFIED)];
-        let out = project_arg_rows(&rows, None);
-
-        assert_eq!(out.roles, vec![(3, ArgRole::VarWrite)], "role column lost");
-        assert_eq!(out.types.len(), 1, "type column lost");
-        assert_eq!(out.types[0].0, 3);
-        assert_eq!(out.values.len(), 1, "values column lost");
-        assert_eq!(out.values[0].0, 3);
-        assert_eq!(out.closed, vec![3], "closed column lost");
-        assert_eq!(
-            out.presentation,
-            vec![(3, ArgPresentation::BlockScript)],
-            "presentation column lost"
-        );
-        assert_eq!(
-            out.prefixes,
-            vec![(3, crate::arg_role::AppendedArity::Exactly(2))],
-            "prefixes column lost"
-        );
-    }
-
-    /// The filter the record shape was introduced for: a row outside the
-    /// resolved floor contributes to *no* slice, in one place rather than six.
-    #[test]
-    fn a_row_outside_the_floor_is_filtered_from_every_slice() {
-        let rows = [
-            full_row(0, Lifecycle::UNSPECIFIED),
-            full_row(1, Lifecycle::introduced_in("3.0")),
-        ];
-
-        // Floor below the second row's introduction: it contributes nothing.
-        let old = project_arg_rows(&rows, Some("2.0"));
-        assert_eq!(old.roles.len(), 1, "the 3.0 row must not appear at 2.0");
-        assert_eq!(old.roles[0].0, 0);
-        assert_eq!(old.closed, vec![0]);
-        assert_eq!(old.values.len(), 1);
-        assert_eq!(old.presentation.len(), 1);
-        assert_eq!(old.prefixes.len(), 1);
-        assert_eq!(old.types.len(), 1);
-
-        // At and above it, both rows apply.
-        let new = project_arg_rows(&rows, Some("3.0"));
-        assert_eq!(new.roles.len(), 2, "both rows apply from 3.0");
-
-        // FN guard: with no floor resolved the gate is permissive, so a
-        // versioned pack behaves exactly as an unversioned one.
-        let unpinned = project_arg_rows(&rows, None);
-        assert_eq!(
-            unpinned.roles.len(),
-            2,
-            "an unresolved floor must not silently drop rows"
-        );
-    }
-
-    /// A command that gates no argument answers from its stored slices at
-    /// every floor — the fast path (issue #1644).
-    ///
-    /// This is what keeps the wiring free for the whole shipped registry: no
-    /// spec has a gated row, so no projection is ever built and the tables a
-    /// consumer sees are the same `&'static` slices as before.
-    #[test]
-    fn an_ungated_command_answers_from_its_stored_slices() {
-        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite)];
-        const SPEC: CommandSpec = CommandSpec {
-            name: "ungated",
-            arg_roles: ROLES,
-            ..CommandSpec::DEFAULT
-        };
-        for floor in [None, Some("1.0"), Some("9.9")] {
-            let tables = SPEC.arg_tables_at(floor);
-            assert!(
-                matches!(tables, ArgTables::Stored { .. }),
-                "no gated row means nothing to project at {floor:?}"
-            );
-            assert_eq!(tables.roles(), ROLES);
-            assert!(
-                std::ptr::eq(tables.roles(), ROLES),
-                "the stored slice is handed back, not copied"
-            );
-        }
-    }
-
-    /// The answer #1644 exists to change: at a floor below the row's
-    /// introduction the argument is neither role-typed nor offered its values;
-    /// at and above it, both.
-    #[test]
-    fn a_gated_row_changes_the_role_and_value_answers() {
-        const NEW_VALUES: &[ArgValue] = &[ArgValue {
-            value: "later",
-            ..ArgValue::DEFAULT
-        }];
-        const ROWS: &[VersionedArgRow] = &[
-            VersionedArgRow {
-                index: 0,
-                role: Some(ArgRole::VarWrite),
-                ..VersionedArgRow::DEFAULT
-            },
-            VersionedArgRow {
-                index: 1,
-                lifecycle: Lifecycle::introduced_in("3.0"),
-                role: Some(ArgRole::Body),
-                values: NEW_VALUES,
-                ..VersionedArgRow::DEFAULT
-            },
-        ];
-        // The stored slices are the projection at no floor, exactly as the
-        // loader seals them.
-        const ROLES: &[(u8, ArgRole)] = &[(0, ArgRole::VarWrite), (1, ArgRole::Body)];
-        const VALUES: &[(u8, &[ArgValue])] = &[(1, NEW_VALUES)];
-        const SPEC: CommandSpec = CommandSpec {
-            name: "gated",
-            arg_rows: ROWS,
-            arg_roles: ROLES,
-            arg_values: VALUES,
-            ..CommandSpec::DEFAULT
-        };
-
-        let old = SPEC.arg_tables_at(Some("2.0"));
-        assert_eq!(
-            old.roles(),
-            &[(0, ArgRole::VarWrite)],
-            "the 3.0 argument is not role-typed at 2.0"
-        );
-        assert!(
-            old.values_at(1).is_empty(),
-            "and offers no values at 2.0: {:?}",
-            old.values_at(1)
-        );
-        assert!(
-            SPEC.available_arg_values_at(1, Some("2.0")).is_empty(),
-            "the value accessor completion calls must agree"
-        );
-        assert!(
-            !SPEC.arg_value_available_for_version(1, "later", Some("2.0")),
-            "a value whose whole argument does not exist yet is not available"
-        );
-
-        let new = SPEC.arg_tables_at(Some("3.0"));
-        assert_eq!(new.roles(), ROLES, "both arguments are typed from 3.0");
-        assert_eq!(
-            SPEC.available_arg_values_at(1, Some("3.0"))
-                .iter()
-                .map(|value| value.value)
-                .collect::<Vec<_>>(),
-            vec!["later"],
-            "and the value is offered from 3.0"
-        );
-        assert!(SPEC.arg_value_available_for_version(1, "later", Some("3.0")));
-
-        // FN guard: an unresolved floor stays permissive.
-        assert_eq!(SPEC.arg_tables_at(None).roles(), ROLES);
-        assert_eq!(SPEC.available_arg_values_at(1, None).len(), 1);
     }
 }

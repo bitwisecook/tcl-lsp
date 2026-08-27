@@ -68,7 +68,7 @@ use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::representation::RepresentationEffect;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionConstraint, SubCommand,
+    BytePayloadSpec, CommandSpec, ObjectClassSpec, OoContextFact, OptionRelation, SubCommand,
     SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
@@ -185,27 +185,6 @@ pub(crate) fn arity_windows(windows: &[tcl_registry::arity::ArityWindow]) -> Val
                         "deprecated": opt_str(window.lifecycle.deprecated),
                         "retired": opt_str(window.lifecycle.retired),
                     },
-                })
-            })
-            .collect::<Vec<_>>(),
-    )
-}
-
-/// The authored per-argument rows as a draft value — the source the parallel
-/// `arg_*` tables are projected from (#1627).
-pub(crate) fn arg_rows(rows: &[tcl_registry::spec::VersionedArgRow]) -> Value {
-    Value::Array(
-        rows.iter()
-            .map(|row| {
-                json!({
-                    "index": row.index,
-                    "lifecycle": {
-                        "introduced": opt_str(row.lifecycle.introduced),
-                        "deprecated": opt_str(row.lifecycle.deprecated),
-                        "retired": opt_str(row.lifecycle.retired),
-                    },
-                    "role": row.role.map_or(Value::Null, |r| json!(format!("{r:?}"))),
-                    "closed": row.closed,
                 })
             })
             .collect::<Vec<_>>(),
@@ -831,27 +810,58 @@ fn dialect_set_expr(set: DialectSet) -> String {
     )
 }
 
-/// The Rust expression for a `&'static [OptionConstraint]` field.
+/// The Rust expression for one [`tcl_registry::RelationTerm`].
+fn relation_term_expr(term: tcl_registry::RelationTerm) -> String {
+    use tcl_registry::RelationTerm as T;
+    match term {
+        T::Option(name) => format!("RelationTerm::Option({})", rust_string(name)),
+        T::OptionValue(name, value) => format!(
+            "RelationTerm::OptionValue({}, {})",
+            rust_string(name),
+            rust_string(value)
+        ),
+        T::Argument(index) => format!("RelationTerm::Argument({index})"),
+        T::ArgumentValue(index, value) => {
+            format!(
+                "RelationTerm::ArgumentValue({index}, {})",
+                rust_string(value)
+            )
+        }
+    }
+}
+
+/// The Rust expression for a `&'static [OptionRelation]` field.
 ///
-/// A full struct literal per constraint, `lifecycle` included: a conflict can
-/// itself be gated — it only exists once both options do.
-fn option_constraints_expr(constraints: &[OptionConstraint]) -> Option<String> {
+/// A full struct literal per relation, `lifecycle` included: a relation can
+/// itself be gated — it only exists once both its operands do.
+fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
     let items: Option<Vec<String>> = constraints
         .iter()
-        .map(|constraint| {
-            let options = constraint
-                .options
+        .map(|relation| {
+            let terms = relation
+                .terms
                 .iter()
-                .map(|option| rust_string(option))
+                .copied()
+                .map(relation_term_expr)
                 .collect::<Vec<_>>()
                 .join(", ");
-            let dialects = constraint.dialects.map_or_else(
+            let subject = relation.subject.map_or_else(
+                || "None".to_owned(),
+                |term| format!("Some({})", relation_term_expr(term)),
+            );
+            let dialects = relation.dialects.map_or_else(
                 || "None".to_owned(),
                 |set| format!("Some({})", dialect_set_expr(set)),
             );
+            let message = relation.message.map_or_else(
+                || "None".to_owned(),
+                |text| format!("Some({})", rust_string(text)),
+            );
             Some(format!(
-                "OptionConstraint {{ options: &[{options}], dialects: {dialects}, lifecycle: {} }}",
-                lifecycle_expr(constraint.lifecycle)?,
+                "OptionRelation {{ kind: RelationKind::{:?}, subject: {subject}, \
+                 terms: &[{terms}], dialects: {dialects}, lifecycle: {}, message: {message} }}",
+                relation.kind,
+                lifecycle_expr(relation.lifecycle)?,
             ))
         })
         .collect();
@@ -925,7 +935,6 @@ fn subcommand_identity(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) 
     d.insert("traits".into(), traits(sub.traits));
     d.insert("arity".into(), arity(sub.arity));
     d.insert("arity_windows".into(), arity_windows(sub.arity_windows));
-    d.insert("arg_rows".into(), arg_rows(sub.arg_rows));
     d.insert("detail".into(), json!(sub.detail));
     d.insert("synopsis".into(), json!(sub.synopsis));
     d.insert("hover".into(), hover(sub.hover));
@@ -1056,6 +1065,10 @@ fn subcommand_hooks(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         lost.expr("result_stability", sub.result_stability.is_some()),
     );
     d.insert(
+        "constraints".into(),
+        lost.expr("constraints", sub.constraints.is_some()),
+    );
+    d.insert(
         "literal_argument_validator".into(),
         lost.expr(
             "literal_argument_validator",
@@ -1085,14 +1098,18 @@ fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
 /// Options, values, availability, behaviour flags, taint, and effects.
 fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("options".into(), option_rows(sub.options, lost));
-    let option_constraints = if sub.option_constraints.is_empty() {
+    let option_relations = if sub.option_relations.is_empty() {
         Value::Null
     } else {
-        option_constraints_expr(sub.option_constraints)
-            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+        option_relations_expr(sub.option_relations)
+            .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
-    d.insert("option_constraints".into(), option_constraints);
+    d.insert("option_relations".into(), option_relations);
     d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
+    d.insert(
+        "option_placement".into(),
+        json!(catalogue::variant_name(&sub.option_placement)),
+    );
     d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&sub.prefix_matching)),
@@ -1161,7 +1178,6 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
         sub.format_string_type
             .map_or(Value::Null, |t| json!(catalogue::variant_name(&t))),
     );
-    d.insert("xc_operation".into(), opt_str(sub.xc_operation));
     d.insert(
         "side_effects".into(),
         nested_rows(sub.side_effects, "side_effects", lost, side_effect),
@@ -1211,7 +1227,6 @@ fn command_identity(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
     d.insert("dialects".into(), dialects(spec.dialects));
     d.insert("arity".into(), arity(spec.arity));
     d.insert("arity_windows".into(), arity_windows(spec.arity_windows));
-    d.insert("arg_rows".into(), arg_rows(spec.arg_rows));
     d.insert("arg_roles".into(), role_map(spec.arg_roles));
     d.insert(
         "arg_presentation".into(),
@@ -1307,6 +1322,10 @@ fn command_docs(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         json!(spec.allow_unknown_subcommands),
     );
     d.insert(
+        "option_placement".into(),
+        json!(catalogue::variant_name(&spec.option_placement)),
+    );
+    d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&spec.prefix_matching)),
     );
@@ -1398,6 +1417,10 @@ fn command_hooks(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         lost.expr("result_stability", spec.result_stability.is_some()),
     );
     d.insert(
+        "constraints".into(),
+        lost.expr("constraints", spec.constraints.is_some()),
+    );
+    d.insert(
         "literal_argument_validator".into(),
         lost.expr(
             "literal_argument_validator",
@@ -1471,13 +1494,13 @@ fn command_options(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         ),
     );
     d.insert("options".into(), option_rows(spec.options, lost));
-    let option_constraints = if spec.option_constraints.is_empty() {
+    let option_relations = if spec.option_relations.is_empty() {
         Value::Null
     } else {
-        option_constraints_expr(spec.option_constraints)
-            .map_or_else(|| lost.expr("option_constraints", true), |expr| json!(expr))
+        option_relations_expr(spec.option_relations)
+            .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
-    d.insert("option_constraints".into(), option_constraints);
+    d.insert("option_relations".into(), option_relations);
     d.insert(
         "reserved_trailing_words".into(),
         json!(spec.reserved_trailing_words),
@@ -1596,7 +1619,6 @@ fn command_advanced(d: &mut Draft, spec: &CommandSpec, lost: &mut Unrecovered) {
         "xc_translatable".into(),
         spec.xc_translatable.map_or(Value::Null, |b| json!(b)),
     );
-    d.insert("xc_operation".into(), opt_str(spec.xc_operation));
     d.insert(
         "deprecated_replacement".into(),
         opt_str(spec.deprecated_replacement),

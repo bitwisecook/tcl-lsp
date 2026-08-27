@@ -59,9 +59,7 @@ pub const fn spec() -> CommandSpec {
                 "SIP_REQUEST",
                 "STREAM_MATCHED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "LSN::persistence none (TIMEOUT)?",

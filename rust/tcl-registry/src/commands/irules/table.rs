@@ -548,9 +548,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &[],
             also_in: &[],
-            init_only: false,
             flow: true,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "table <subcommand> ?options? ?--? key ?value? ?lifetime? ?timeout?",

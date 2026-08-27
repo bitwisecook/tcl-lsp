@@ -39,9 +39,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["ASM"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "ASM::signature (ids | names | set_names | staged_ids | staged_names | staged_set_names)",

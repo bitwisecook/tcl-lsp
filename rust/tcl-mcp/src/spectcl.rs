@@ -359,6 +359,7 @@ fn family_key(family: HookFamily) -> &'static str {
         HookFamily::ContextGate => "context_gate",
         HookFamily::LiteralArgumentValidator => "literal_argument_validator",
         HookFamily::ClauseShapeCheck => "clause_shape_check",
+        HookFamily::Constraints => "constraints",
         HookFamily::OptionArity => "-arity-hook",
     }
 }

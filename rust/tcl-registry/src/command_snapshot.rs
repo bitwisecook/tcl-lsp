@@ -94,7 +94,6 @@ const TRAIT_FLAGS: &[(&str, Traits)] = &[
     ("never_inline_body", Traits::NEVER_INLINE_BODY),
     ("not_proc_factory", Traits::NOT_PROC_FACTORY),
     ("opens_channel", Traits::OPENS_CHANNEL),
-    ("password_option_command", Traits::PASSWORD_OPTION),
     ("performs_substitution", Traits::PERFORMS_SUBSTITUTION),
     ("produces_canonical_list", Traits::PRODUCES_CANONICAL_LIST),
     ("builds_command_prefix", Traits::BUILDS_COMMAND_PREFIX),

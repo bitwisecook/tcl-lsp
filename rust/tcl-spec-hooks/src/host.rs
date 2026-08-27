@@ -28,7 +28,7 @@ use tcl_registry::invocation_words::InvocationWordKind;
 use tcl_registry::pack_hooks::{self, HookAnswer, HookCall, HookFamily, HookSlot, PackHookHost};
 
 use crate::crash::{CrashKind, CrashRecord};
-use crate::emit::{Sink, answer_of, verbs_for};
+use crate::emit::{Reading, Sink, answer_of, verbs_for};
 use crate::program::{HookInstallation, HookProgram, PackPrograms};
 use crate::sandbox::{SANDBOX_COMMANDS, builtins};
 
@@ -78,6 +78,9 @@ struct PackRuntime<E: Engine> {
     dsl_version: String,
     engine: E,
     sink: Rc<Sink>,
+    /// The `constraints` family's per-invocation reading view, refilled
+    /// beside `sink` before every dispatch.
+    reading: Rc<Reading>,
     hooks: Vec<HookRuntime<E::Handle>>,
     /// Set when a hook of this pack panicked. A caught panic leaves the
     /// engine's own state unproven, so the whole pack stops answering — which
@@ -131,6 +134,7 @@ impl<E: Engine> HookHost<E> {
     pub fn load_pack(&self, programs: PackPrograms) -> Vec<HookInstallation> {
         let mut engine = (self.engine_factory)();
         let sink = Rc::new(Sink::default());
+        let reading = Rc::new(Reading::default());
         let mut families: Vec<HookFamily> = programs
             .programs
             .iter()
@@ -146,7 +150,7 @@ impl<E: Engine> HookHost<E> {
             }
         }
         for family in families {
-            for (name, command) in verbs_for(family, &sink) {
+            for (name, command) in verbs_for(family, &sink, &reading) {
                 if let Err(error) = engine.define_command(name, command) {
                     failures.push(format!("{name}: {error}"));
                 }
@@ -189,6 +193,7 @@ impl<E: Engine> HookHost<E> {
             dsl_version: programs.dsl_version,
             engine,
             sink,
+            reading,
             hooks: runtimes,
             poisoned: false,
         });
@@ -365,6 +370,29 @@ fn ctx_value(program: &HookProgram, call: &HookCall<'_>) -> Value {
             Value::from(call.in_event_body),
         ),
     ];
+    if let Some(view) = call.constraints {
+        entries.push((
+            Value::string("options"),
+            Value::dict(view.options.iter().map(|(name, value)| {
+                (
+                    Value::string(*name),
+                    value.map_or(Value::Empty, Value::string),
+                )
+            })),
+        ));
+        entries.push((
+            Value::string("positionals"),
+            Value::list(
+                view.positionals
+                    .iter()
+                    .map(|word| word.map_or(Value::Empty, Value::string)),
+            ),
+        ));
+        // The abstention key: `complete` false means a `{*}` expansion or a
+        // substituted word could be supplying anything, so nothing may be
+        // proven absent and the body should `abstain`.
+        entries.push((Value::string("complete"), Value::from(view.complete)));
+    }
     if let Some(option) = call.option {
         entries.push((Value::string("option"), Value::string(option.option)));
         entries.push((Value::string("option-index"), Value::from(option.index)));
@@ -396,6 +424,7 @@ impl<E: Engine> PackHookHost for HookHost<E> {
             let PackRuntime {
                 engine,
                 sink,
+                reading,
                 hooks,
                 ..
             } = pack;
@@ -417,8 +446,15 @@ impl<E: Engine> PackHookHost for HookHost<E> {
                 vec![ctx_value(&hook.program, call)]
             };
             sink.clear();
+            // The `constraints` family's reading verbs answer from this cell,
+            // refilled per call exactly as the sink is cleared per call.
+            match call.constraints {
+                Some(view) => reading.set(view.options, view.positionals, view.complete),
+                None => reading.clear(),
+            }
             let invoked =
                 catch_unwind(AssertUnwindSafe(|| engine.invoke(&hook.handle, &arguments)));
+            reading.clear();
             match invoked {
                 Ok(Ok(_)) => Outcome::Answer(answer_of(hook.program.family, sink.drain())),
                 Ok(Err(error)) => {

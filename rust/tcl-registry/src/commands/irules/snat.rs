@@ -43,9 +43,7 @@ pub const fn spec() -> CommandSpec {
             // recorded here as prerequisites.
             profiles: &[],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "snat (automap | none | IP_TUPLE | (IP_ADDR (PORT)?))",

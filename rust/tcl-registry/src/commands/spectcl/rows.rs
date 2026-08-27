@@ -137,11 +137,18 @@ const MANUFACTURER_OPTIONS: &[OptionSpec] = &[
     ),
 ];
 
-const OPTION_CONFLICT_OPTIONS: &[OptionSpec] = &[valued(
-    "-dialects",
-    "set",
-    "restrict this constraint to a dialect set",
-)];
+const OPTION_CONFLICT_OPTIONS: &[OptionSpec] = &[
+    valued(
+        "-dialects",
+        "set",
+        "restrict this relation to a dialect set",
+    ),
+    valued(
+        "-message",
+        "prose",
+        "the library's own error text, quoted instead of generated",
+    ),
+];
 
 const SETTER_CONSTRAINT_OPTIONS: &[OptionSpec] = &[
     valued("-prefix", "text", "the prefix the value must carry"),
@@ -270,7 +277,31 @@ fn call_shape_rows() -> Vec<CommandSpec> {
             VALUE0,
             OPTION_CONFLICT_OPTIONS,
             "Declare a set of options that may not co-occur.",
-            "`OptionConstraint` is a flat may-not-co-occur set with no directionality, so only the `forbid` half of a real library's constraints maps. Option *requirement* relationships are a recorded registry gap, not DSL syntax.",
+            "`option_conflict {-a -b}` — the symmetric relation, and the only one 1.x could express. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`.",
+        ),
+        row(
+            "option_requires",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument requires every term of a set.",
+            "`option_requires SUBJECT {TERM …}` — E-R14's directional relation (`bibtex::parse -command` requires `-channel`). Checked natively in Rust; no hook, no VM.",
+        ),
+        row(
+            "option_requires_one_of",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument requires at least one term of a set.",
+            "`option_requires_one_of SUBJECT {TERM …}`. An empty subject (`{}`) makes the relation unconditional — `bibtex::parse` needs `-channel` or a text argument on every call.",
+        ),
+        row(
+            "option_forbids",
+            Arity::at_least(2),
+            VALUE0,
+            OPTION_CONFLICT_OPTIONS,
+            "Declare that one option or argument excludes every term of a set.",
+            "`option_forbids SUBJECT {TERM …}` — the asymmetric exclusion a symmetric set cannot phrase (`struct::tree walk -order in` is illegal with `-type bfs`).",
         ),
         row(
             "setter_constraint",

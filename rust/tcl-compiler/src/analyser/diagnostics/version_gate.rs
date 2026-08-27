@@ -88,7 +88,7 @@ pub(in crate::analyser) struct VersionGateSite {
     dialect: &'static str,
 }
 
-/// A proven **W147** option conflict whose [`OptionConstraint`] is
+/// A proven **W147** option conflict whose [`OptionRelation`] is
 /// version-gated, held until the whole-file floor is known.
 ///
 /// A relationship such as `option_conflict {-a -b} -introduced 2.0` does not
@@ -103,7 +103,7 @@ pub(in crate::analyser) struct VersionGateSite {
 /// exists — the version gate is a filter in front of the ordinary queue, not
 /// a second reporting path.
 ///
-/// [`OptionConstraint`]: tcl_registry::OptionConstraint
+/// [`OptionRelation`]: tcl_registry::OptionRelation
 #[derive(Debug, Clone, PartialEq)]
 pub(in crate::analyser) struct GatedOptionConflict {
     /// The axis governing the constraint's lifecycle, or `None` when the
@@ -1031,7 +1031,7 @@ impl Analyser {
         }
     }
 
-    /// Buffer a *proven* option conflict whose [`OptionConstraint`] carries a
+    /// Buffer a *proven* option conflict whose [`OptionRelation`] carries a
     /// lifecycle, to be decided once the whole-file floor is known.
     ///
     /// The caller has already established that the conflict is violated and
@@ -1040,7 +1040,7 @@ impl Analyser {
     /// post-walk fact for the same reason every other lifecycle check is one
     /// — `package require` may appear anywhere.
     ///
-    /// [`OptionConstraint`]: tcl_registry::OptionConstraint
+    /// [`OptionRelation`]: tcl_registry::OptionRelation
     pub(in crate::analyser) fn record_gated_option_conflict(
         &mut self,
         resolution_name: &str,
@@ -2777,30 +2777,36 @@ mod tests {
             },
         ];
 
-        const CONSTRAINTS: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
-            options: &["-alpha", "-beta"],
+        const CONSTRAINTS: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
+            terms: &[
+                tcl_registry::RelationTerm::Option("-alpha"),
+                tcl_registry::RelationTerm::Option("-beta"),
+            ],
             lifecycle: tcl_registry::lifecycle::Lifecycle::introduced_in("2.0"),
-            ..tcl_registry::OptionConstraint::DEFAULT
+            ..tcl_registry::OptionRelation::DEFAULT
         }];
 
         /// The same relationship with no lifecycle at all — the zero-change
         /// control for the inline path.
-        const UNGATED_CONSTRAINTS: &[tcl_registry::OptionConstraint] =
-            &[tcl_registry::OptionConstraint {
-                options: &["-alpha", "-beta"],
-                ..tcl_registry::OptionConstraint::DEFAULT
+        const UNGATED_CONSTRAINTS: &[tcl_registry::OptionRelation] =
+            &[tcl_registry::OptionRelation {
+                terms: &[
+                    tcl_registry::RelationTerm::Option("-alpha"),
+                    tcl_registry::RelationTerm::Option("-beta"),
+                ],
+                ..tcl_registry::OptionRelation::DEFAULT
             }];
 
         fn spec(
             name: &'static str,
-            constraints: &'static [tcl_registry::OptionConstraint],
+            constraints: &'static [tcl_registry::OptionRelation],
         ) -> tcl_registry::CommandSpec {
             tcl_registry::CommandSpec {
                 name,
                 required_package: Some("Fauxpkg"),
                 arity: tcl_registry::Arity::any(),
                 options: OPTIONS,
-                option_constraints: constraints,
+                option_relations: constraints,
                 ..tcl_registry::CommandSpec::DEFAULT
             }
         }
@@ -2870,12 +2876,15 @@ mod tests {
         #[test]
         fn a_retired_conflict_stops_being_enforced_but_a_deprecated_one_does_not() {
             // Retirement is exclusive: the relationship is gone at 3.0…
-            const RETIRED: &[tcl_registry::OptionConstraint] = &[tcl_registry::OptionConstraint {
-                options: &["-alpha", "-beta"],
+            const RETIRED: &[tcl_registry::OptionRelation] = &[tcl_registry::OptionRelation {
+                terms: &[
+                    tcl_registry::RelationTerm::Option("-alpha"),
+                    tcl_registry::RelationTerm::Option("-beta"),
+                ],
                 lifecycle: tcl_registry::lifecycle::Lifecycle::UNSPECIFIED
                     .retired_from("3.0")
                     .deprecated_from("2.0"),
-                ..tcl_registry::OptionConstraint::DEFAULT
+                ..tcl_registry::OptionRelation::DEFAULT
             }];
             const KEY: u64 = 0x7e57_c0f2;
             let profile =

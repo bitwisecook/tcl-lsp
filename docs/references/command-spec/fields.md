@@ -119,12 +119,6 @@ On a subcommand, count after the subcommand word instead: `string length string`
 
 Per-release signature shapes, for the rare command whose argument count changed between releases of the package that owns it. Leave empty unless it did — the plain arity above already describes a signature that never changed, and it stays the fallback whenever no window covers the document's resolved floor. Windows must not overlap, so consecutive ones are written closed: retire each where the next is introduced.
 
-### `arg_rows` — Versioned argument rows
-
-*command and subcommand* — The authored per-argument rows the parallel argument tables above are projected from, retained so a consumer holding a resolved package floor can re-project at it. Empty unless some argument carries a release window.
-
-The authored per-argument rows the argument tables above are projected from, kept so a document with a resolved package floor can re-project at it. Empty unless some argument carries a release window; when it is empty the tables above are the whole truth.
-
 ### `arg_roles` — Argument roles
 
 *command and subcommand* — Static role per 0-based argument index, for fixed-layout commands.
@@ -319,11 +313,17 @@ The command's `-flag` switches, each with whether it takes a value (`-nocase` ta
 
 Declared options get completion, spelling checks, and correct highlighting of flag-versus-value; undeclared ones are reported as unknown.
 
-### `option_constraints` — Option constraints
+### `option_relations` — Option constraints
 
-*command and subcommand* — Registry-declared sets of leading options that may not occur together.
+*command and subcommand* — Registry-declared relations between this command's options and arguments (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, each checked natively with no VM entry.
 
 Pairs or sets of options that must not appear together in one call — mutually exclusive modes like `-glob` and `-regexp`. The checker reports a call using both, with no code written for the specific command.
+
+### `option_placement` — Option placement
+
+*command and subcommand* — Where this invocation's declared options may appear: a leading run that stops at the first non-option word (every core Tcl command), or anywhere between the positional words up to an explicit `--` (`http::geturl`).
+
+Where this command's declared options may be found. `Leading` — the default, and what every core Tcl command does — stops option parsing at the first word that is not a declared option, so a later `-`-looking word is a positional. `Anywhere` keeps recognising options between the positional words up to an explicit `--`, which is the shape of a script-level parser that loops `foreach {flag value} $args` after taking its fixed arguments (`http::geturl`). Getting this wrong invents option relations the interpreter never applies.
 
 ### `reserved_trailing_words` — Reserved trailing words
 
@@ -557,6 +557,12 @@ Only for the BPF-Tcl dialect: how this command lowers to a BPF operation. Anythi
 
 Compiler internals: routes the command to a hand-written analyser family (`proc`, `foreach`, `package require`, …) for behaviour the declarative fields cannot express. The goal of this whole form is to make these unnecessary — fill in roles, traits, and effects first, and reach for a hook only when something still cannot be said.
 
+### `constraints` — Option-relation escape hatch
+
+*command and subcommand* — The rare E-R14 escape hatch, consulted only when every declarative option relation reported nothing. Prefer an `option_requires` / `option_forbids` / `option_requires_one_of` row: those are checked natively with no VM entry.
+
+The rare escape hatch for an option relation no declarative row can express (E-R14). It is consulted **only** when the spec declares one and every `option_conflict` / `option_requires` / `option_requires_one_of` / `option_forbids` row already reported nothing — reach for a declarative row first, because those are checked natively with no VM entry. Declare `-inputs {invocation}` so the verdict is cached on the call's content.
+
 ### `literal_argument_validator` — Literal argument validator
 
 *command and subcommand* — Registry callback for relationships and member sets within statically-known arguments.
@@ -674,12 +680,6 @@ The replacement story for ageing commands — what to use instead and whether th
 *command only* — Cross-compile translatability override. Unset uses the default rules.
 
 F5 only: whether the iRules-to-XC translator can carry this command across. Unset follows the default rules; set it only to override them in either direction.
-
-### `xc_operation` — XC operation
-
-*command and subcommand* — The XC operation the command maps to when translatable.
-
-F5 only: the XC-side operation this command (or subcommand) maps to when translated.
 
 ### `deprecated_replacement` — Deprecated replacement
 
@@ -1219,6 +1219,15 @@ How many value words an option consumes: one (`-index i`) or a fixed count. Opti
 | `One` | consumes one value word |
 | `Fixed` | consumes a fixed number of value words |
 
+### Option placement
+
+Where a command's declared options may be found in its invocation. `Leading` is the default and what almost every core Tcl command does: its C option loop `break`s on the first word that is not a declared option, so an option-shaped word after that is a positional argument. `Anywhere` is the script-level shape — a parser that takes its fixed arguments and then loops `foreach {flag value} $args`, recognising options between positionals up to an explicit `--`. The option-relation checker reads this to find the options it judges; the wrong answer either misses a relation or invents one.
+
+| Value | Meaning |
+|---|---|
+| `Leading` | option parsing stops at the first non-option word |
+| `Anywhere` | options are recognised between positional words, up to `--` |
+
 ### Pattern types
 
 The two pattern languages a Pattern argument can speak: glob (`string match`) and regular expressions (`regexp`). A `*` means something different in each, so the right label matters for validation and highlighting.
@@ -1371,7 +1380,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `BUILDS_COMMAND_PREFIX` | builds a command prefix |
 | `WRAPS_COMMAND_PREFIX` | wraps a script into a command prefix |
 | `UNSAFE` | unsafe in sandboxed dialects |
-| `PASSWORD_OPTION` | takes a password-bearing option |
 | `IS_SIDE_SWITCH` | switches the iRules connection side |
 | `IRULES_TOP_LEVEL_ONLY` | iRules: valid only at the top level |
 | `SETS_EVENT_PRIORITY` | sets the inherited iRules event priority |
@@ -1386,7 +1394,6 @@ The registry's behavioural vocabulary — one flag per fact a consumer might nee
 | `TAINT_SOURCE_ZERO_ARGS` | a zero-argument taint source |
 | `TAINTS_VAR_WRITES` | taints variables written by the command |
 | `CONFIGURES_INSTANCE_OPTIONS` | configures options declared by the receiver's class |
-| `IRULES_DATA_GETTER` | an iRules data getter |
 | `CREATES_DYNAMIC_BARRIER` | creates a dynamic (eval-like) barrier |
 | `INVOKES_USER_PROC` | invokes a user-defined procedure |
 | `BYTE_COMPILED` | byte-compiled by C Tcl |

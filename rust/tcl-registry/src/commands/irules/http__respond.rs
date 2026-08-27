@@ -128,9 +128,7 @@ pub const fn spec() -> CommandSpec {
                 "MR_FAILED",
                 "NAME_RESOLVED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         // Command-level arg-value completion: the bareword option
         // tokens that follow the `<status>` positional argument

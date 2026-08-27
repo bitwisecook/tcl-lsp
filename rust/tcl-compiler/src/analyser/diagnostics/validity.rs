@@ -32,6 +32,7 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 use tcl_core_types::DiagCode;
 use tcl_registry::Arity;
+use tcl_registry::lifecycle::Lifecycle;
 
 use super::helpers::{has_substitution, is_ident_continue};
 use crate::analyser::state::Analyser;
@@ -180,23 +181,262 @@ fn count_positionals(args: &[String], arg_expand: &[bool], start: usize) -> (usi
     (nargs_min, any_expand)
 }
 
-fn first_distinct_option_conflict(
-    seen_options: &[(&'static str, tcl_lexer::Span)],
-    constraints: &[&'static tcl_registry::OptionConstraint],
-) -> Option<(
-    &'static tcl_registry::OptionConstraint,
-    tcl_lexer::Span,
-    tcl_lexer::Span,
-)> {
-    constraints.iter().find_map(|constraint| {
-        let first = seen_options
-            .iter()
-            .find(|(name, _)| constraint.options.contains(name))?;
-        let second = seen_options
-            .iter()
-            .find(|(name, _)| constraint.options.contains(name) && name != &first.0)?;
-        Some((*constraint, first.1, second.1))
-    })
+/// One leading option word the call supplied, as the relation checker needs
+/// it: the canonical name, the flag word's span, and the option's first value
+/// word when that word is statically known.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct SeenOption {
+    pub(in crate::analyser) name: &'static str,
+    pub(in crate::analyser) span: tcl_lexer::Span,
+    pub(in crate::analyser) value: Option<String>,
+}
+
+/// One positional word after the leading option run: its literal text when
+/// statically known, and its span.
+#[derive(Debug, Clone)]
+pub(in crate::analyser) struct SeenPositional {
+    pub(in crate::analyser) value: Option<String>,
+    pub(in crate::analyser) span: tcl_lexer::Span,
+}
+
+/// The span a relation violation points at: the run from the first to the last
+/// word the violation names, or `fallback` when it names none the call
+/// actually supplied (a `requires-one-of` that found nothing).
+fn relation_span(
+    present: &[tcl_registry::RelationTerm],
+    seen_options: &[SeenOption],
+    positionals: &[SeenPositional],
+    fallback: tcl_lexer::Span,
+) -> tcl_lexer::Span {
+    let span_of = |term: tcl_registry::RelationTerm| -> Option<tcl_lexer::Span> {
+        match term {
+            tcl_registry::RelationTerm::Option(name)
+            | tcl_registry::RelationTerm::OptionValue(name, _) => seen_options
+                .iter()
+                .find(|option| option.name == name)
+                .map(|option| option.span),
+            tcl_registry::RelationTerm::Argument(index)
+            | tcl_registry::RelationTerm::ArgumentValue(index, _) => {
+                positionals.get(usize::from(index)).map(|word| word.span)
+            }
+        }
+    };
+    let spans: Vec<tcl_lexer::Span> = present.iter().copied().filter_map(span_of).collect();
+    match (spans.first(), spans.last()) {
+        (Some(first), Some(last)) => tcl_lexer::Span::new(first.start(), last.end()),
+        _ => fallback,
+    }
+}
+
+/// **The whole E-R14 consumer**, shared by the ordinary command path and the
+/// object-instance dispatch path so one invocation is judged by one rule.
+///
+/// Every relation is evaluated natively; the `constraints` hook is reached
+/// only when a spec declares one *and* nothing declarative had anything to
+/// report — so a registry with no `constraints` hook (which is every shipped
+/// command) never enters the VM at any call site.
+///
+/// Each entry pairs the relation's [`Lifecycle`] with its diagnostic, so the
+/// caller can buffer a version-gated relation for the post-walk floor and push
+/// an ungated one inline.
+pub(in crate::analyser) fn option_relation_diagnostics(
+    display_name: &str,
+    relations: &[&'static tcl_registry::OptionRelation],
+    constraints_hook: Option<tcl_registry::ConstraintsHook>,
+    seen_options: &[SeenOption],
+    positionals: &[SeenPositional],
+    complete: bool,
+    fallback_span: tcl_lexer::Span,
+) -> Vec<(Lifecycle, crate::analyser::types::Diagnostic)> {
+    if relations.is_empty() && constraints_hook.is_none() {
+        tcl_registry::spec::note_relation_check(!seen_options.is_empty(), false, 0, false);
+        return Vec::new();
+    }
+    let options: Vec<(&'static str, Option<&str>)> = seen_options
+        .iter()
+        .map(|option| (option.name, option.value.as_deref()))
+        .collect();
+    let positional_values: Vec<Option<&str>> = positionals
+        .iter()
+        .map(|word| word.value.as_deref())
+        .collect();
+    let facts = tcl_registry::RelationFacts {
+        options: &options,
+        positionals: &positional_values,
+        complete,
+    };
+
+    let mut out = Vec::new();
+    for relation in relations {
+        let tcl_registry::RelationVerdict::Violated(violation) = relation.evaluate(&facts) else {
+            continue;
+        };
+        let span = relation_span(&violation.present, seen_options, positionals, fallback_span);
+        let code = if violation.kind.is_exclusion() {
+            DiagCode::W147
+        } else {
+            DiagCode::W152
+        };
+        out.push((
+            relation.lifecycle,
+            crate::analyser::types::Diagnostic::new(
+                code,
+                span,
+                violation.message_for(display_name),
+                Severity::Warning,
+            ),
+        ));
+    }
+
+    // The escape hatch, and only here: a spec that declares no `constraints`
+    // hook never reaches the hook seam at all, and one that does is asked only
+    // when the declarative relations found nothing to report.
+    if !out.is_empty() {
+        tcl_registry::spec::note_relation_check(
+            !seen_options.is_empty(),
+            true,
+            relations.len(),
+            false,
+        );
+        return out;
+    }
+    let Some(hook) = constraints_hook else {
+        tcl_registry::spec::note_relation_check(
+            !seen_options.is_empty(),
+            true,
+            relations.len(),
+            false,
+        );
+        return out;
+    };
+    tcl_registry::spec::note_relation_check(!seen_options.is_empty(), true, relations.len(), true);
+    for report in hook(&facts) {
+        let span = match report.slot {
+            tcl_registry::ConstraintSlot::Option(name) => seen_options
+                .iter()
+                .find(|option| option.name == name)
+                .map_or(fallback_span, |option| option.span),
+            tcl_registry::ConstraintSlot::Argument(index) => positionals
+                .get(usize::from(index))
+                .map_or(fallback_span, |word| word.span),
+            tcl_registry::ConstraintSlot::Command => fallback_span,
+        };
+        let code = if report.conflict {
+            DiagCode::W147
+        } else {
+            DiagCode::W152
+        };
+        out.push((
+            Lifecycle::UNSPECIFIED,
+            crate::analyser::types::Diagnostic::new(code, span, report.message, Severity::Warning),
+        ));
+    }
+    out
+}
+
+/// Whether a word's value is statically known — the precondition for proving
+/// a relation term *absent*.
+///
+/// A `Var`/`Cmd` token is a substitution outright; a `$`/`[` anywhere else in
+/// the text is an interpolation inside a quoted word. Both mean the word could
+/// be anything at run time, including the very option a `requires` relation is
+/// about to complain is missing.
+fn statically_known_word(text: &str, token: Option<&tcl_lexer::Token>) -> bool {
+    if token.is_some_and(|tok| {
+        matches!(
+            tok.kind,
+            tcl_lexer::TokenType::Var | tcl_lexer::TokenType::Cmd
+        )
+    }) {
+        return false;
+    }
+    !text.contains('$') && !text.contains('[')
+}
+
+/// Read one invocation's option and positional words — **the single walk the
+/// E-R14 relation checker judges from**, shared by the ordinary command path
+/// and the object-instance dispatch path.
+///
+/// `args` / `arg_tokens` / `arg_expand` are the words *after* whatever prefix
+/// the caller has already consumed (the command word, or the command and
+/// method words), so the indices a relation names line up with the synopsis.
+///
+/// The third return is `complete`: whether the call was read to its end with
+/// every word statically known. Only `complete` licenses proving a term
+/// *absent*, which is what keeps a `requires` relation from accusing a
+/// `{*}$opts` call of omitting an option the expansion may well supply.
+///
+/// [`tcl_registry::OptionPlacement`] decides where options may be found.
+/// `Leading` stops at the first non-option word — what core Tcl's own C option
+/// loops do, so a later option-shaped word there is a positional and reading
+/// it as an option would invent a relation the interpreter never applies.
+/// `Anywhere` keeps recognising declared options between positional words, up
+/// to an explicit `--`, which is the script-level `foreach {flag value}`
+/// shape (`http::geturl`).
+pub(in crate::analyser) fn scan_invocation_words(
+    option_specs: &[&'static tcl_registry::prelude::OptionSpec],
+    placement: tcl_registry::OptionPlacement,
+    args: &[String],
+    arg_tokens: &[tcl_lexer::Token],
+    arg_expand: &[bool],
+    source: &str,
+    fallback_span: tcl_lexer::Span,
+) -> (Vec<SeenOption>, Vec<SeenPositional>, bool) {
+    let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
+    let span_at = |index: usize| {
+        arg_tokens.get(index).map_or(fallback_span, |token| {
+            super::super::utils::full_word_span(*token, source)
+        })
+    };
+    let known = |index: usize| {
+        args.get(index)
+            .is_some_and(|text| statically_known_word(text, arg_tokens.get(index)))
+            && !expanded(index)
+    };
+    let mut options: Vec<SeenOption> = Vec::new();
+    let mut positionals: Vec<SeenPositional> = Vec::new();
+    let mut complete = true;
+    let mut i = 0usize;
+    let mut in_options = true;
+    while i < args.len() {
+        if expanded(i) {
+            // An expanded word could be anything, options included, so the
+            // walk stops and nothing may be proven absent.
+            complete = false;
+            break;
+        }
+        if in_options && args[i] == "--" {
+            in_options = false;
+            i += 1;
+            continue;
+        }
+        if in_options && let Some(opt) = option_specs.iter().find(|o| o.matches(&args[i])) {
+            let consumed = opt.value_word_count(args, i);
+            let value = (consumed > 0 && known(i + 1))
+                .then(|| args.get(i + 1).cloned())
+                .flatten();
+            options.push(SeenOption {
+                name: opt.name,
+                span: span_at(i),
+                value,
+            });
+            i += 1 + consumed;
+            continue;
+        }
+        if in_options && placement == tcl_registry::OptionPlacement::Leading {
+            // The leading run is over; everything from here is positional.
+            in_options = false;
+        }
+        if !known(i) {
+            complete = false;
+        }
+        positionals.push(SeenPositional {
+            value: known(i).then(|| args[i].clone()),
+            span: span_at(i),
+        });
+        i += 1;
+    }
+    (options, positionals, complete)
 }
 
 /// Compatibility adapter for existing end-offset consumers. The delimiter
@@ -1696,7 +1936,6 @@ impl Analyser {
         // — the same `value_word_count` skip the W004 dialect-option loop
         // uses.
         let mut i = 0usize;
-        let mut seen_options: Vec<(&'static str, tcl_lexer::Span)> = Vec::new();
         while i < args.len() {
             if expanded(i) {
                 break;
@@ -1707,12 +1946,6 @@ impl Analyser {
                 break;
             }
             if let Some(opt) = sig.leading_option_specs.iter().find(|o| o.matches(arg)) {
-                if let Some(token) = arg_tokens.get(i) {
-                    seen_options.push((
-                        opt.name,
-                        super::super::utils::full_word_span(*token, &self.source),
-                    ));
-                }
                 // Skip the flag itself plus however many value words it
                 // consumes at this position (0 for a bare flag).
                 i += 1 + opt.value_word_count(args, i);
@@ -1729,11 +1962,29 @@ impl Analyser {
         let (nargs_min, positional_any_expand) =
             count_positionals(args, arg_expand, positional_start);
 
-        self.queue_option_conflict(
+        // The relation checker reads its own walk rather than reusing the
+        // arity skip above: the arity question is "where do the positionals
+        // start", which stops at the first unclassifiable word, while a
+        // relation must also know the option *values*, the positional words,
+        // and whether the call was readable to its end.
+        let source = self.source.clone();
+        let (seen_options, positionals, complete) = scan_invocation_words(
+            &sig.leading_option_specs,
+            sig.option_placement,
+            args,
+            arg_tokens,
+            arg_expand,
+            &source,
+            cmd_tok.span,
+        );
+        self.queue_option_relation_violations(
             resolution_name,
             display_name,
             sig,
             &seen_options,
+            &positionals,
+            complete,
+            cmd_tok,
             scope_path,
         );
 
@@ -1851,60 +2102,69 @@ impl Analyser {
         self.lifecycle_axis(spec)
     }
 
-    /// **W147** for the first proven conflict among the literal leading
-    /// option words.
+    /// **W147 / W152** for every registry-declared option relation this call
+    /// violates (E-R14).
     ///
-    /// Option relationships are registry data. The generic analyser only
-    /// projects the literal leading option words and reports the first proven
-    /// conflict; dynamic option names and `{*}` expansions remain
-    /// conservative abstentions. No repair is offered because choosing which
-    /// option expresses the caller's intent is inherently ambiguous.
+    /// Option relations are registry data, checked **natively**: the whole
+    /// evaluation is [`tcl_registry::OptionRelation::evaluate`] over the facts
+    /// the option walk above already collected, with no hook and no VM entry
+    /// (principle P-B). A `constraints` hook runs only where a spec declares
+    /// one *and* the declarative relations reported nothing.
     ///
-    /// A conflict whose [`tcl_registry::OptionConstraint`] carries a
-    /// lifecycle is *buffered* rather than queued: a relationship declared
-    /// `-introduced 2.0` does not exist in a file whose owning package
-    /// resolves to 1.x, and — like every other lifecycle fact — the floor is
-    /// not known until every `package require` has been walked. An
-    /// unversioned constraint keeps the inline path exactly as it was.
-    fn queue_option_conflict(
+    /// The generic analyser only projects the option words and the positional
+    /// words around them; dynamic option names and `{*}` expansions leave
+    /// `complete` false, and every relation whose verdict would need to prove
+    /// a term *absent* then abstains. No repair is offered because choosing
+    /// which option expresses the caller's intent is inherently ambiguous.
+    ///
+    /// A relation carrying a lifecycle is *buffered* rather than queued: a
+    /// relation declared `-introduced 2.0` does not exist in a file whose
+    /// owning package resolves to 1.x, and — like every other lifecycle fact —
+    /// the floor is not known until every `package require` has been walked.
+    /// An unversioned relation keeps the inline path exactly as it was.
+    #[allow(clippy::too_many_arguments)]
+    fn queue_option_relation_violations(
         &mut self,
         resolution_name: &str,
         display_name: &str,
         sig: &super::dispatch::CommandSig,
-        seen_options: &[(&'static str, tcl_lexer::Span)],
+        seen_options: &[SeenOption],
+        positionals: &[SeenPositional],
+        complete: bool,
+        cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
-        let Some((constraint, first, second)) =
-            first_distinct_option_conflict(seen_options, &sig.option_constraints)
-        else {
+        let reports = option_relation_diagnostics(
+            display_name,
+            &sig.option_relations,
+            sig.constraints_hook,
+            seen_options,
+            positionals,
+            complete,
+            cmd_tok.span,
+        );
+        if reports.is_empty() {
             return;
-        };
-        let names = constraint
-            .options
-            .iter()
-            .filter(|name| seen_options.iter().any(|(seen, _)| seen == *name))
-            .copied()
-            .collect::<Vec<_>>()
-            .join(", ");
+        }
         let ns = self.command_resolution_namespace(scope_path);
         let enforce_order = !self.scope_path_in_proc_body(scope_path);
-        let diagnostic = crate::analyser::types::Diagnostic::new(
-            DiagCode::W147,
-            tcl_lexer::Span::new(first.start(), second.end()),
-            format!("Options {names} cannot be used together for '{display_name}'"),
-            Severity::Warning,
-        );
-        if constraint.lifecycle.is_unspecified() {
-            self.pending_arity
-                .push((resolution_name.to_string(), ns, enforce_order, diagnostic));
-        } else {
-            self.record_gated_option_conflict(
-                resolution_name,
-                constraint.lifecycle,
-                ns,
-                enforce_order,
-                diagnostic,
-            );
+        for (lifecycle, diagnostic) in reports {
+            if lifecycle.is_unspecified() {
+                self.pending_arity.push((
+                    resolution_name.to_string(),
+                    ns.clone(),
+                    enforce_order,
+                    diagnostic,
+                ));
+            } else {
+                self.record_gated_option_conflict(
+                    resolution_name,
+                    lifecycle,
+                    ns.clone(),
+                    enforce_order,
+                    diagnostic,
+                );
+            }
         }
     }
 

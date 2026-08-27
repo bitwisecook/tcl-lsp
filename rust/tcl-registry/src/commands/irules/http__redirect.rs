@@ -40,9 +40,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["LB_FAILED", "NAME_RESOLVED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::redirect REDIRECT_URL",

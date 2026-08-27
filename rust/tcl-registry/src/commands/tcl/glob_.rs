@@ -122,10 +122,10 @@ const TYPES_VALUES: &[ArgValue] = &[
     },
 ];
 
-const OPTION_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-    options: &["-directory", "-path"],
-    ..OptionConstraint::DEFAULT
-}];
+const OPTION_RELATIONS: &[OptionRelation] = &[OptionRelation::conflict(&[
+    RelationTerm::Option("-directory"),
+    RelationTerm::Option("-path"),
+])];
 
 /// Locate every pattern in glob's tail after its declared option prefix.
 ///
@@ -251,7 +251,7 @@ pub fn spec() -> CommandSpec {
                 },
             ]
         },
-        option_constraints: OPTION_CONSTRAINTS,
+        option_relations: OPTION_RELATIONS,
         hover: Some(HoverSnippet {
             summary: "Return names of files that match patterns.",
             synopsis: &[
@@ -275,7 +275,10 @@ mod tests {
     #[test]
     fn glob_declares_directory_path_conflict() {
         let glob = spec();
-        assert_eq!(glob.option_constraints.len(), 1);
-        assert_eq!(glob.option_constraints[0].options, &["-directory", "-path"]);
+        assert_eq!(glob.option_relations.len(), 1);
+        assert_eq!(
+            glob.option_relations[0].describe(),
+            "option_conflict {-directory -path}"
+        );
     }
 }

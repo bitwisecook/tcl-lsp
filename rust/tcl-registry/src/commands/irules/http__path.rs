@@ -65,9 +65,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
             also_in: &["MR_INGRESS", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

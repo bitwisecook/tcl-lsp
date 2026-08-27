@@ -49,9 +49,7 @@ pub const fn spec() -> CommandSpec {
                 "AUTH_WANTCREDENTIAL",
                 "LB_SELECTED",
             ],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "HTTP::collect (CONTENT_LENGTH)?",

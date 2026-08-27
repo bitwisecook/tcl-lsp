@@ -129,9 +129,7 @@ pub const fn spec() -> CommandSpec {
             transport: None,
             profiles: &["SIP"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SIP::via ?field? ?INDEX?",

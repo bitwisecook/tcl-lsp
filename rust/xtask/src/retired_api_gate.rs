@@ -132,6 +132,82 @@ const RETIRED: &[RetiredPattern] = &[
         needle: "command_head_identities",
         outside_registry_only: false,
     },
+    // Ledger O2 (redesign §11.1, owner ruling 2026-08-27): the M9 dead axes.
+    // Each was declared-and-unpopulated model surface — a word no data used,
+    // inviting packs to guess at semantics the engine never implemented.
+    // Principle P-C: anything genuinely needed later comes back *with* its
+    // consumer, under whatever name that consumer wants.
+    //
+    // `ProfileSpec::conflicts` is deliberately NOT here: it is the one axis of
+    // the six with a live consumer (`tcl-bigip`'s BIGIP6039 profile-graph
+    // check), so it was kept.
+    RetiredPattern {
+        needle: "PASSWORD_OPTION",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "PasswordOption",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "IRULES_DATA_GETTER",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "IrulesDataGetter",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "xc_operation",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "arg_rows",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "VersionedArgRow",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "ProjectedArgs",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "ArgTables",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "arg_tables_at",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "project_arg_rows",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "arg_indices_for_role_at",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "command_prefixes_at",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "init_only",
+        outside_registry_only: false,
+    },
+    // The `EventRequires` capability axis. Scoped to a needle that cannot
+    // collide with the live `CapabilitySet` / `BuildCapability` vocabulary:
+    // the retired word was a bare `capability` **field** on that struct.
+    RetiredPattern {
+        needle: "requires.capability",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "OptionConstraint",
+        outside_registry_only: false,
+    },
 ];
 
 /// Live seam names a retired needle is a prefix of — a hit whose
@@ -273,6 +349,23 @@ mod tests {
             "let map = HeadIdentityMap::none();",
             "let id = HeadIdentity::Rebound;",
             "let map = command_head_identities(source, dialect, registry);",
+            // Ledger O2 — the M9 dead axes.
+            "if spec.traits.contains(Traits::PASSWORD_OPTION) { }",
+            "PasswordOption => PASSWORD_OPTION, Security, \"takes a password option\";",
+            "if spec.traits.contains(Traits::IRULES_DATA_GETTER) { }",
+            "IrulesDataGetter => IRULES_DATA_GETTER, Irules, \"a getter\";",
+            "spec.xc_operation = Some(leak_str(&value));",
+            "spec.arg_rows = rows;",
+            "let row = VersionedArgRow { index: 0 };",
+            "let out = ProjectedArgs::default();",
+            "let tables = ArgTables::Stored { roles };",
+            "let tables = spec.arg_tables_at(floor);",
+            "let out = project_arg_rows(rows, None);",
+            "let idx = registry.arg_indices_for_role_at(name, args, role, floor);",
+            "let p = registry.command_prefixes_at(name, args, floor);",
+            "requires.init_only = parse_flag(stmt.tail());",
+            "if let Some(want) = requires.capability { }",
+            "let c: &[OptionConstraint] = &[];",
         ] {
             assert_eq!(scan(seeded, false).len(), 1, "{seeded}");
         }

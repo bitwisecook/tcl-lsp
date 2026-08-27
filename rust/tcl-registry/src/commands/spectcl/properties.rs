@@ -373,11 +373,6 @@ const ROWS: &[Row] = &[
         "Whether the command is translatable.",
         "Tri-state: the argument is **required** — absent is `unset`, which is not `false`.",
     ),
-    one(
-        "xc_operation",
-        "The translation operation the command maps to.",
-        "",
-    ),
 ];
 
 pub(super) fn specs() -> Vec<CommandSpec> {

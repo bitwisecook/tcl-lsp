@@ -95,9 +95,6 @@ fn missing_requirements_description(
     requires: &EventRequires,
     profiles: &ProfileRegistry,
 ) -> String {
-    if requires.init_only {
-        return "only valid in RULE_INIT".to_string();
-    }
     let mut reasons: Vec<String> = Vec::new();
     if requires.flow && !props.flow {
         reasons.push("no active traffic flow (non-flow event)".to_string());
@@ -2074,23 +2071,21 @@ mod tests {
     }
 
     #[test]
-    fn missing_requirements_description_reports_init_only_and_profiles() {
+    fn missing_requirements_description_reports_the_unmet_stack_requirements() {
         let profiles = profile_registry();
         let events = event_registry();
-        let init_req = EventRequires {
+        let server_req = EventRequires {
             client_side: false,
-            server_side: false,
+            server_side: true,
             transport: None,
             profiles: &[],
             also_in: &[],
-            init_only: true,
             flow: false,
-            capability: None,
         };
-        let props = events.get_props("HTTP_REQUEST").expect("known event");
+        let props = events.get_props("CLIENT_ACCEPTED").expect("known event");
         assert_eq!(
-            missing_requirements_description(props, &init_req, profiles),
-            "only valid in RULE_INIT"
+            missing_requirements_description(props, &server_req, profiles),
+            "no server-side connection"
         );
     }
 }

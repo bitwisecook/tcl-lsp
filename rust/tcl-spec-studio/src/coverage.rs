@@ -78,7 +78,7 @@ use tcl_registry::lifecycle::Lifecycle;
 use tcl_registry::repeated::RepeatedArgLayout;
 use tcl_registry::side_effects::SideEffect;
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, OptionConstraint, SubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, ObjectClassSpec, OptionRelation, SubCommand,
     SubSubCommand, VersionedArgValue,
 };
 use tcl_registry::symbol_def::SymbolDef;
@@ -169,7 +169,7 @@ pub fn witness_command_spec(spec: &CommandSpec) {
     let CommandSpec {
         name: _, traits: _,
         dialects: _,
-        arity: _, arity_windows: _, arg_rows: _,
+        arity: _, arity_windows: _,
         arg_roles: _,
         arg_role_resolver: _,
         arg_presentation: _,
@@ -223,7 +223,9 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         event_handler_priority: _,
         irules_top_level_effect: _,
         options: _,
-        option_constraints: _,
+        option_relations: _,
+        constraints: _,
+        option_placement: _,
         reserved_trailing_words: _,
         arg_values: _, versioned_arg_values: _,
         body_kind: _,
@@ -249,7 +251,6 @@ pub fn witness_command_spec(spec: &CommandSpec) {
         warn_missing_import: _,
         is_namespace_exported: _,
         xc_translatable: _,
-        xc_operation: _,
         deprecated_replacement: _,
         deprecated_replacement_drop_in: _,
         byte_array_payload: _,
@@ -278,7 +279,6 @@ pub const COMMAND_SPEC: &[Field] = &[
     f("dialects", Surface::Key("dialects")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
-    f("arg_rows", Surface::Key("arg_rows")),
     f("arg_roles", Surface::Key("arg_roles")),
     f("arg_role_resolver", Surface::Key("arg_role_resolver")),
     f("arg_presentation", Surface::Key("arg_presentation")),
@@ -369,7 +369,9 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("irules_top_level_effect"),
     ),
     f("options", Surface::Key("options")),
-    f("option_constraints", Surface::Key("option_constraints")),
+    f("option_relations", Surface::Key("option_relations")),
+    f("constraints", Surface::Key("constraints")),
+    f("option_placement", Surface::Key("option_placement")),
     f(
         "reserved_trailing_words",
         Surface::Key("reserved_trailing_words"),
@@ -421,7 +423,6 @@ pub const COMMAND_SPEC: &[Field] = &[
         Surface::Key("is_namespace_exported"),
     ),
     f("xc_translatable", Surface::Key("xc_translatable")),
-    f("xc_operation", Surface::Key("xc_operation")),
     f(
         "deprecated_replacement",
         Surface::Key("deprecated_replacement"),
@@ -464,7 +465,6 @@ pub fn witness_sub_command(sub: &SubCommand) {
         traits: _,
         arity: _,
         arity_windows: _,
-        arg_rows: _,
         detail: _,
         synopsis: _,
         hover: _,
@@ -492,7 +492,9 @@ pub fn witness_sub_command(sub: &SubCommand) {
         analyser_hook: _,
         command_table_effect: _,
         options: _,
-        option_constraints: _,
+        option_relations: _,
+        constraints: _,
+        option_placement: _,
         min_abbrev: _,
         prefix_matching: _,
         arg_values: _,
@@ -518,7 +520,6 @@ pub fn witness_sub_command(sub: &SubCommand) {
         sensitive_headers: _,
         pattern_type: _,
         format_string_type: _,
-        xc_operation: _,
         side_effects: _,
         world_effects: _,
         state_transitions: _,
@@ -542,7 +543,6 @@ pub const SUB_COMMAND: &[Field] = &[
     f("traits", Surface::Key("traits")),
     f("arity", Surface::Key("arity")),
     f("arity_windows", Surface::Key("arity_windows")),
-    f("arg_rows", Surface::Key("arg_rows")),
     f("detail", Surface::Key("detail")),
     f("synopsis", Surface::Key("synopsis")),
     f("hover", Surface::Key("hover")),
@@ -582,7 +582,9 @@ pub const SUB_COMMAND: &[Field] = &[
     f("analyser_hook", Surface::Key("analyser_hook")),
     f("command_table_effect", Surface::Key("command_table_effect")),
     f("options", Surface::Key("options")),
-    f("option_constraints", Surface::Key("option_constraints")),
+    f("option_relations", Surface::Key("option_relations")),
+    f("constraints", Surface::Key("constraints")),
+    f("option_placement", Surface::Key("option_placement")),
     f("min_abbrev", Surface::Key("min_abbrev")),
     f("prefix_matching", Surface::Key("prefix_matching")),
     f("arg_values", Surface::Key("arg_values")),
@@ -620,7 +622,6 @@ pub const SUB_COMMAND: &[Field] = &[
     f("sensitive_headers", Surface::Key("sensitive_headers")),
     f("pattern_type", Surface::Key("pattern_type")),
     f("format_string_type", Surface::Key("format_string_type")),
-    f("xc_operation", Surface::Key("xc_operation")),
     f("side_effects", Surface::Key("side_effects")),
     f("world_effects", Surface::Key("world_effects")),
     f("state_transitions", Surface::Key("state_transitions")),
@@ -994,23 +995,29 @@ pub const BYTE_PAYLOAD_SPEC: &[Field] = &[
 ];
 
 /// Compile-time witness for [`OPTION_CONSTRAINT`].
-pub fn witness_option_constraint(constraint: &OptionConstraint) {
-    let OptionConstraint {
-        options: _,
+pub fn witness_option_constraint(constraint: &OptionRelation) {
+    let OptionRelation {
+        kind: _,
+        subject: _,
+        terms: _,
         dialects: _,
         lifecycle: _,
+        message: _,
     } = constraint;
 }
 
-/// Where the studio surfaces each [`OptionConstraint`] field.
+/// Where the studio surfaces each [`OptionRelation`] field.
 ///
-/// The whole constraint is one `RustExpr` — `option_constraints` holds a
-/// rendered `&[OptionConstraint { … }]` — so every field is spelled in that
+/// The whole constraint is one `RustExpr` — `option_relations` holds a
+/// rendered `&[OptionRelation { … }]` — so every field is spelled in that
 /// literal rather than getting a picker of its own.
 pub const OPTION_CONSTRAINT: &[Field] = &[
-    f("options", Surface::Expression("option_constraints")),
-    f("dialects", Surface::Expression("option_constraints")),
-    f("lifecycle", Surface::Expression("option_constraints")),
+    f("kind", Surface::Expression("option_relations")),
+    f("subject", Surface::Expression("option_relations")),
+    f("terms", Surface::Expression("option_relations")),
+    f("dialects", Surface::Expression("option_relations")),
+    f("lifecycle", Surface::Expression("option_relations")),
+    f("message", Surface::Expression("option_relations")),
 ];
 
 /// Compile-time witness for [`VERSIONED_ARG_VALUE`].
@@ -1423,7 +1430,7 @@ mod tests {
             &object_keys("SideEffect", &effect),
         );
 
-        witness_option_constraint(&OptionConstraint::DEFAULT);
+        witness_option_constraint(&OptionRelation::DEFAULT);
         witness_setter_constraint(&SETTER);
         let constraint = draft::setter_constraint(&SETTER);
         assert_carried(
@@ -1568,9 +1575,12 @@ mod tests {
         lifecycle: Lifecycle::UNSPECIFIED,
     };
 
-    const WITNESS_CONSTRAINTS: &[OptionConstraint] = &[OptionConstraint {
-        options: &["-glob", "-regexp"],
-        ..OptionConstraint::DEFAULT
+    const WITNESS_CONSTRAINTS: &[OptionRelation] = &[OptionRelation {
+        terms: &[
+            tcl_registry::RelationTerm::Option("-glob"),
+            tcl_registry::RelationTerm::Option("-regexp"),
+        ],
+        ..OptionRelation::DEFAULT
     }];
 
     const WITNESS_SUBS: &[SubCommand] = &[SubCommand {
@@ -1596,7 +1606,7 @@ mod tests {
             defines_symbol: Some(WITNESS_SYMBOL),
             oo_context_facts: &[("class", OoContextFactWitness::FACT)],
             manufacturer_methods: WITNESS_MANUFACTURERS,
-            option_constraints: WITNESS_CONSTRAINTS,
+            option_relations: WITNESS_CONSTRAINTS,
             subcommands: WITNESS_SUBS,
             ..CommandSpec::DEFAULT
         }
@@ -1697,7 +1707,7 @@ mod tests {
             ("SymbolDef", SYMBOL_DEF),
             ("BytePayloadSpec", BYTE_PAYLOAD_SPEC),
             ("VersionedArgValue", VERSIONED_ARG_VALUE),
-            ("OptionConstraint", OPTION_CONSTRAINT),
+            ("OptionRelation", OPTION_CONSTRAINT),
             ("ManufacturerMethod", MANUFACTURER_METHOD),
         ] {
             for field in table {

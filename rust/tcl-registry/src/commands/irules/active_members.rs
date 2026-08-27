@@ -42,9 +42,7 @@ pub const fn spec() -> CommandSpec {
             // descriptor generically).
             profiles: &[],
             also_in: &["LB_FAILED", "LB_SELECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "active_members ('-list')? POOL_OBJ",

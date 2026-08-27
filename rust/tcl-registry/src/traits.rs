@@ -443,8 +443,6 @@ declare_traits! {
     // Safety
     /// Inherently dangerous command.
     Unsafe => UNSAFE, Security, "unsafe in sandboxed dialects";
-    /// Password option command.
-    PasswordOption => PASSWORD_OPTION, Security, "takes a password-bearing option";
 
     // iRules-specific
     /// Side-switching command (`clientside`/`serverside`).
@@ -507,11 +505,6 @@ declare_traits! {
     /// class/factory command. Consumers resolve the receiver class and reuse
     /// that table rather than hardcoding a `configure` method name.
     ConfiguresInstanceOptions => CONFIGURES_INSTANCE_OPTIONS, Objects, "configures options declared by the receiver's class";
-    /// Command operates on attacker-controlled iRules data
-    /// (any reachable form of `HTTP::*` / `URI::*` / `IP::*` /
-    /// `TCP::*` / `UDP::*` / `SSL::*` / `STREAM::*`).
-    IrulesDataGetter => IRULES_DATA_GETTER, Irules, "an iRules data getter";
-
     /// Creates a runtime scope-alias barrier whose `VarWrite`
     /// args are vararg lists (`global x y z`, `variable a b c`,
     /// `upvar 1 a b 1 c d`).  The analyser's `var_scoping` pass
@@ -1246,7 +1239,6 @@ declare_trait_examples! {
     BuildsCommandPrefix => flow!("set user [gets stdin]\nset callback [list save $user]\nafter idle $callback"; (1, "list"); (0, "[gets stdin]", "supplies a dynamic argument"), (1, "list save $user", "builds a safely quoted command prefix"), (2, "after idle $callback", "invokes that prefix later"));
     WrapsCommandPrefix => flow!("namespace eval app { proc save {v} { puts $v } }\nset callback [namespace eval app { namespace code [list save value] }]\nafter idle $callback"; (1, "namespace"); (0, "app", "defines the target namespace"), (1, "namespace code", "wraps the script with namespace context"), (2, "after idle $callback", "runs it later in that context"));
     Unsafe => flow!("set child [interp create -safe]\ninterp eval $child {open secret.txt r}\nputs denied"; (1, "open"); (0, "-safe", "creates a restricted interpreter"), (1, "open secret.txt r", "uses an unsafe command and is rejected"), (2, "puts denied", "represents the denied operation"));
-    PasswordOption => flow!("set password [gets stdin]\nlogin -password $password\nputs authenticated"; (1, "login"); (0, "[gets stdin]", "supplies sensitive text"), (1, "login -password $password", "marks the option value as a credential"), (2, "puts authenticated", "uses only the authentication result"));
     IsSideSwitch => flow!("when HTTP_REQUEST {\n    serverside { TCP::collect }\n}"; (1, "serverside"); (0, "HTTP_REQUEST", "starts on the client side"), (1, "serverside", "switches analysis to the server side"), (1, "TCP::collect", "mutates server-side TCP state"));
     IrulesTopLevelOnly => flow!("when HTTP_REQUEST { puts request }\nproc invalid {} { when CLIENT_ACCEPTED { puts nested } }"; (0, "when"); (0, "when HTTP_REQUEST", "is valid at iRules top level"), (1, "when CLIENT_ACCEPTED", "is nested and therefore diagnosed"));
     SetsEventPriority => flow!("when HTTP_REQUEST priority 700 {\n    log local0. late-handler\n}"; (0, "when"); (0, "when HTTP_REQUEST priority 700", "sets this handler's inherited priority"), (1, "late-handler", "runs after lower-priority handlers"));
@@ -1261,7 +1253,6 @@ declare_trait_examples! {
     TaintSourceZeroArgs => flow!("scale .scale\nset user [.scale get]\nset derived [.scale get 10 20]\neval $user"; (1, ".scale get"); (1, ".scale get", "reads the current user-controlled widget value"), (2, ".scale get 10 20", "derives a value from explicit coordinates and is not a source"), (3, "$user", "reaches a code sink as attacker-controlled data"));
     TaintsVarWrites => flow!("entry .password -show * -textvariable password\neval $password"; (0, "entry"); (0, "entry .password", "creates a user-editable widget"), (0, "-textvariable password", "links its state to the variable"), (1, "$password", "remains attacker-controlled even though -show masks its display"));
     ConfiguresInstanceOptions => flow!("entry .editor\n.editor configure -textvariable draft\nputs [.editor cget -textvariable]"; (1, ".editor configure"); (0, "entry .editor", "creates a registry-typed widget command"), (1, ".editor configure -textvariable draft", "reuses the entry class's option table"), (2, "cget -textvariable", "observes the configured option"));
-    IrulesDataGetter => flow!("when HTTP_REQUEST {\n    set host [HTTP::host]\n    log local0. $host\n}"; (1, "HTTP::host"); (1, "HTTP::host", "reads request data from BIG-IP state"), (2, "$host", "carries that data to the log sink"));
     CreatesDynamicBarrier => flow!("set command [gets stdin]\n$command run\nputs done"; (1, "$command"); (0, "[gets stdin]", "supplies a runtime command name"), (1, "$command run", "creates a dynamic dispatch barrier"), (2, "puts done", "is analysed after an unknown call target"));
     InvokesUserProc => flow!("proc transform {value} { return [string toupper $value] }\nset result [transform hello]\nputs $result"; (1, "transform"); (0, "proc transform", "defines user code"), (1, "transform hello", "invokes that procedure"), (2, "$result", "observes its returned value"));
     ByteCompiled => flow!("set total 0\nforeach n {1 2 3} { incr total $n }\nputs $total"; (1, "foreach"); (0, "set total 0", "initialises runtime state"), (1, "foreach", "is emitted through C Tcl bytecode compilation"), (2, "$total", "observes the compiled execution result"));

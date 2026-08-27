@@ -538,43 +538,68 @@ fn bibtex_parse_script_timing(args: &[&str]) -> Vec<(u8, ScriptTiming)> {
         .collect()
 }
 
-/// `bibtex::parse`'s **proven** option conflicts (P5).
+/// `bibtex::parse`'s **proven** option relations (P5, completed under E-R14).
 ///
 /// `bibtex.tcl:196-211` computes `sax` as "any of the five `-TYPEcommand`
 /// options is present" and `bg` as "`-command` is present", then raises
 /// *"The options `-command` and `-TYPEcommand` exclude each other"* when
-/// both hold.  That is five pairwise conflicts, one per SAX callback, and each
-/// is an ordinary [`OptionConstraint`].
+/// both hold.  That is five pairwise exclusions, one per SAX callback.
 ///
-/// The **other** rule at the same site is not expressible and stays a
-/// recorded limit: `-command` additionally excludes an inline `text`
-/// argument (`bibtex.tcl:237-241`), which is the same as saying
-/// `-command` *requires* `-channel`.  Two fields are missing for it —
-/// an option-requires-option relation (the census's G2 directional half,
-/// which the redesign flags as the most valuable single model addition
-/// left) and a relation between an option and the presence of a
-/// *positional* argument.  `OptionConstraint` only says "may not occur
-/// together", and only between options.
-const BIBTEX_PARSE_CONSTRAINTS: &[OptionConstraint] = &[
-    OptionConstraint {
-        options: &["-command", "-recordcommand"],
-        ..OptionConstraint::DEFAULT
+/// The three rows after them are what the retired `OptionConstraint` could
+/// not say, and what E-R14's typed relation does (census gap G2's directional
+/// half, and the option-to-positional half beside it).  All three are the same
+/// site, `bibtex.tcl:213-241`:
+///
+/// - `-channel` present ⇒ *"Option -channel and text exclude each other"*, an
+///   exclusion between an option and a **positional argument**;
+/// - no `-channel` ⇒ *"Option -command and text exclude each other"*, i.e.
+///   `-command` **requires** `-channel` — the directional relation P5 raised;
+/// - no `-channel` and no text ⇒ *"Neither -channel nor text specified"*, an
+///   unconditional **requires-one-of** over an option and an argument.
+const BIBTEX_PARSE_RELATIONS: &[OptionRelation] = &[
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-command"),
+        RelationTerm::Option("-recordcommand"),
+    ]),
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-command"),
+        RelationTerm::Option("-preamblecommand"),
+    ]),
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-command"),
+        RelationTerm::Option("-stringcommand"),
+    ]),
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-command"),
+        RelationTerm::Option("-commentcommand"),
+    ]),
+    OptionRelation::conflict(&[
+        RelationTerm::Option("-command"),
+        RelationTerm::Option("-progresscommand"),
+    ]),
+    OptionRelation {
+        kind: RelationKind::Requires,
+        subject: Some(RelationTerm::Option("-command")),
+        terms: &[RelationTerm::Option("-channel")],
+        message: Some(
+            "Option -command and text exclude each other: bibtex::parse -command \
+             is the channel-completion callback and needs -channel",
+        ),
+        ..OptionRelation::DEFAULT
     },
-    OptionConstraint {
-        options: &["-command", "-preamblecommand"],
-        ..OptionConstraint::DEFAULT
+    OptionRelation {
+        kind: RelationKind::Forbids,
+        subject: Some(RelationTerm::Option("-channel")),
+        terms: &[RelationTerm::Argument(0)],
+        message: Some("Option -channel and text exclude each other"),
+        ..OptionRelation::DEFAULT
     },
-    OptionConstraint {
-        options: &["-command", "-stringcommand"],
-        ..OptionConstraint::DEFAULT
-    },
-    OptionConstraint {
-        options: &["-command", "-commentcommand"],
-        ..OptionConstraint::DEFAULT
-    },
-    OptionConstraint {
-        options: &["-command", "-progresscommand"],
-        ..OptionConstraint::DEFAULT
+    OptionRelation {
+        kind: RelationKind::RequiresOneOf,
+        subject: None,
+        terms: &[RelationTerm::Option("-channel"), RelationTerm::Argument(0)],
+        message: Some("Neither -channel nor text specified"),
+        ..OptionRelation::DEFAULT
     },
 ];
 
@@ -589,7 +614,7 @@ fn bibtex_parse_spec() -> CommandSpec {
             "tcllib bibtex package",
         )),
         options: BIBTEX_PARSE_OPTIONS,
-        option_constraints: BIBTEX_PARSE_CONSTRAINTS,
+        option_relations: BIBTEX_PARSE_RELATIONS,
         script_timing_resolver: Some(bibtex_parse_script_timing),
         tcllib_package: Some("bibtex"),
         required_package: Some("bibtex"),

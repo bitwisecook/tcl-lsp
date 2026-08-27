@@ -150,9 +150,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["CLIENTSSL", "SERVERSSL"],
             also_in: &["CLIENT_ACCEPTED", "SERVER_CONNECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::forward_proxy <subcommand> ?args?",

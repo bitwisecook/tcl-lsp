@@ -53,9 +53,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["HTTP"],
             also_in: &["HTTP_CLASS_FAILED", "HTTP_CLASS_SELECTED"],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[
             FormSpec {

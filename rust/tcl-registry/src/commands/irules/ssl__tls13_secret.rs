@@ -108,9 +108,7 @@ pub const fn spec() -> CommandSpec {
             transport: Some("tcp"),
             profiles: &["CLIENTSSL"],
             also_in: &[],
-            init_only: false,
             flow: false,
-            capability: None,
         }),
         forms: &[FormSpec {
             synopsis: "SSL::tls13_secret <side> <secret_type>",

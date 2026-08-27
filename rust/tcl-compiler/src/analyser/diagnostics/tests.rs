@@ -2041,6 +2041,226 @@ fn w147_is_generic_and_covers_glob_without_source_logic() {
     );
 }
 
+/// **E-R14 real case 1** — `bibtex::parse`'s `-command` requires `-channel`
+/// (`bibtex.tcl:213-241`), the census gap G2 directional half.
+#[test]
+fn w152_reports_a_directional_option_requirement() {
+    let messages = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W152)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    // `-command` with no `-channel`: the library raises "Option -command and
+    // text exclude each other" at run time.
+    let unmet =
+        messages("package require bibtex\n::bibtex::parse -command handle -recordcommand rec\n");
+    assert!(
+        unmet
+            .iter()
+            .any(|m| m.contains("-command") && m.contains("-channel")),
+        "{unmet:?}"
+    );
+    // With `-channel` present the relation is satisfied and nothing is said.
+    let met = messages("package require bibtex\n::bibtex::parse -channel $chan -command handle\n");
+    assert!(
+        !met.iter().any(|m| m.contains("-channel")),
+        "a satisfied requirement must be silent: {met:?}"
+    );
+}
+
+/// **E-R14 real case 2** — `http::geturl`'s conditional pairs
+/// (`http.n`: `-queryprogress` is made "in a POST request, i.e. a call with
+/// `-query` or `-querychannel`").
+///
+/// It also pins the `OptionPlacement::Anywhere` half: `geturl` takes the URL
+/// positionally *first* and only then loops over flag/value pairs, so a
+/// leading-run walk would find no options at all here.
+#[test]
+fn w152_reports_a_requires_one_of_after_a_positional_word() {
+    let codes = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W152)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let lone =
+        codes("package require http\n::http::geturl http://example.invalid/ -queryprogress cb\n");
+    assert!(
+        lone.iter()
+            .any(|m| m.contains("-queryprogress") && m.contains("-query")),
+        "{lone:?}"
+    );
+    let paired = codes(
+        "package require http\n\
+         ::http::geturl http://example.invalid/ -query a=1 -queryprogress cb\n",
+    );
+    assert!(
+        paired.is_empty(),
+        "the pair satisfies the relation: {paired:?}"
+    );
+}
+
+/// **E-R14 real case 3** — `struct::tree walk`'s `-order in` is illegal with
+/// `-type bfs` (`tree_tcl.tcl`'s `WalkOptions`).
+///
+/// A relation between one option's **value** and another option's value, on
+/// an object-instance method — neither of which the retired `OptionConstraint`
+/// could reach.
+#[test]
+fn w147_reports_a_cross_option_value_relation_on_an_instance_method() {
+    let messages = |src: &str| -> Vec<String> {
+        let mut a = Analyser::new();
+        a.analyse(src, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| d.code == DiagCode::W147)
+            .map(|d| d.message.clone())
+            .collect()
+    };
+    let illegal = messages(
+        "package require struct::tree\n\
+         set t [::struct::tree]\n\
+         $t walk root -order in -type bfs v script\n",
+    );
+    assert!(
+        illegal
+            .iter()
+            .any(|m| m.contains("in-order breadth first walk")),
+        "{illegal:?}"
+    );
+    // Every other order/type pairing the library accepts stays silent — the
+    // FP control, because a relation that fired on `-order pre` would make
+    // the whole walk vocabulary unusable.
+    for legal in [
+        "$t walk root -order pre -type bfs v script\n",
+        "$t walk root -order in -type dfs v script\n",
+        "$t walk root -order post v script\n",
+    ] {
+        let src = format!("package require struct::tree\nset t [::struct::tree]\n{legal}");
+        assert!(messages(&src).is_empty(), "{legal:?}: {:?}", messages(&src));
+    }
+}
+
+/// **The P-B measurement** (redesign §0.05): an option-heavy document is
+/// checked entirely in Rust.
+///
+/// The corpus below is 40 option-bearing call sites across the commands whose
+/// option tables are the densest in the tree — `glob`, `source`, `lsort`,
+/// `string match`, `regsub`, `switch`, `http::geturl`, `bibtex::parse`, and a
+/// `struct::tree` walk. The assertion is not "hooks are fast": it is that the
+/// count of call sites reaching a hook is **zero**, which is what principle
+/// P-B demands and what a regression would break loudly.
+#[test]
+fn an_option_heavy_document_is_checked_with_no_vm_entry() {
+    const CORPUS: &str = "\
+package require http\n\
+package require bibtex\n\
+package require struct::tree\n\
+set t [::struct::tree]\n\
+proc probe {chan pattern items t} {\n\
+    glob -directory /tmp -nocomplain -types f *.tcl\n\
+    glob -path /tmp/pre -nocomplain *.tcl\n\
+    glob -directory /tmp -path /tmp/pre *.tcl\n\
+    source -encoding utf-8 file.tcl\n\
+    source -encoding utf-8 -nopkg file.tcl\n\
+    lsort -integer -decreasing $items\n\
+    lsort -dictionary -unique $items\n\
+    lsort -command cmp -index 0 $items\n\
+    string match -nocase $pattern abc\n\
+    regsub -all -nocase -- $pattern abc def out\n\
+    regsub -start 0 -line -- $pattern abc def out\n\
+    switch -exact -- $pattern { a { } default { } }\n\
+    switch -glob -nocase -- $pattern { a { } default { } }\n\
+    switch -regexp -- $pattern { a { } default { } }\n\
+    ::http::geturl http://example.invalid/ -query a=1 -queryprogress cb\n\
+    ::http::geturl http://example.invalid/ -querychannel $chan -queryblocksize 4096\n\
+    ::http::geturl http://example.invalid/ -timeout 5000 -headers {}\n\
+    ::http::geturl http://example.invalid/ -query a=1 -querychannel $chan\n\
+    ::bibtex::parse -channel $chan -recordcommand rec\n\
+    ::bibtex::parse -channel $chan -preamblecommand pre -stringcommand str\n\
+    ::bibtex::parse -command handle -channel $chan\n\
+    ::bibtex::parse -command handle -recordcommand rec -channel $chan\n\
+    $t walk root -order pre -type dfs v script\n\
+    $t walk root -order in -type bfs v script\n\
+    $t walkproc root -order post -type dfs cmdprefix\n\
+    file link -symbolic a b\n\
+    file link -hard a b\n\
+    string map -nocase {a b} $pattern\n\
+    lsearch -exact -sorted $items a\n\
+    lsearch -glob -inline -all $items a\n\
+    lsearch -regexp -not $items a\n\
+    array get arr *\n\
+    fconfigure $chan -blocking 0 -buffering line\n\
+    open /tmp/x r\n\
+    exec -ignorestderr -- ls\n\
+    binary scan abc cH2 code ident\n\
+    clock format 0 -format {%Y} -gmt 1\n\
+    clock scan {2026} -format {%Y} -timezone :UTC\n\
+    interp create -safe child\n\
+    zlib compress abc 6\n\
+}\n\
+";
+
+    tcl_registry::spec::reset_relation_check_stats();
+    let before = tcl_registry::pack_hooks::cache_stats();
+    let cold = std::time::Instant::now();
+    let mut analyser = Analyser::new();
+    let result = analyser.analyse(CORPUS, "tcl8.6");
+    let cold = cold.elapsed();
+    let stats = tcl_registry::spec::relation_check_stats();
+    let after = tcl_registry::pack_hooks::cache_stats();
+
+    // A second pass over the same document, to show what a re-analysis after
+    // an unrelated edit costs when nothing a relation reads changed.
+    let warm = std::time::Instant::now();
+    let mut again = Analyser::new();
+    let _ = again.analyse(CORPUS, "tcl8.6");
+    let warm = warm.elapsed();
+
+    // THE NUMBER. Every relation on this corpus is declarative, so the count
+    // of call sites that entered the hook seam — and therefore the tclvm — is
+    // zero, and no hook dispatch happened at all.
+    assert_eq!(
+        stats.hook_entries, 0,
+        "an option-heavy document must not enter the hook VM: {stats:?}"
+    );
+    assert_eq!(
+        (after.hits - before.hits, after.misses - before.misses),
+        (0, 0),
+        "no pack-hook dispatch may happen while checking option relations"
+    );
+    assert!(
+        stats.option_bearing_sites >= 30,
+        "the corpus must actually exercise the checker: {stats:?}"
+    );
+    assert!(stats.relations_evaluated >= stats.judged_sites, "{stats:?}");
+    // The three real cases are all found in one pass over the corpus.
+    let reported = result
+        .diagnostics
+        .iter()
+        .filter(|d| matches!(d.code, DiagCode::W147 | DiagCode::W152))
+        .count();
+    assert!(reported >= 3, "{:?}", result.diagnostics);
+
+    println!(
+        "E-R14 measurement: {} option-bearing call sites walked, \
+         {} of them judged against declared relations, \
+         {} relations evaluated natively, {} entered tclvm; \
+         cold analysis {cold:?}, second pass {warm:?}",
+        stats.option_bearing_sites,
+        stats.judged_sites,
+        stats.relations_evaluated,
+        stats.hook_entries,
+    );
+}
+
 #[test]
 fn w147_requires_two_distinct_canonical_options() {
     for snippet in [

@@ -786,8 +786,8 @@ impl EventProps {
 ///
 /// Embedded on command specs via `excluded_events` and `EventRequires`.
 #[derive(Debug, Clone, PartialEq, Eq)]
-// `client_side` / `server_side` / `init_only` / `flow` are
-// orthogonal protocol-stack requirements. Same deferral as
+// `client_side` / `server_side` / `flow` are orthogonal
+// protocol-stack requirements. Same deferral as
 // [`EventProps`]: registry public surface, static-data literals.
 #[allow(clippy::struct_excessive_bools)]
 pub struct EventRequires {
@@ -801,12 +801,8 @@ pub struct EventRequires {
     pub profiles: &'static [&'static str],
     /// Events where the command is unconditionally valid.
     pub also_in: &'static [&'static str],
-    /// Only valid in `RULE_INIT`.
-    pub init_only: bool,
     /// Requires active traffic flow.
     pub flow: bool,
-    /// Required profile capability (e.g. `"sni"`).
-    pub capability: Option<&'static str>,
 }
 
 /// Event-validity override for one literal command-argument prefix.
@@ -1353,9 +1349,6 @@ pub fn event_satisfies(
     event_name: &str,
     profiles: &crate::profiles::ProfileRegistry,
 ) -> bool {
-    if requires.init_only {
-        return event_name == "RULE_INIT";
-    }
     if requires.also_in.contains(&event_name) {
         return true;
     }
