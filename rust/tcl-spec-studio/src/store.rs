@@ -490,6 +490,13 @@ impl PackStore {
     /// What an untrusted tier would refuse this document for, as
     /// `(line, why)` — E-R2 asked of the snapshot rather than of the load.
     ///
+    /// A **hypothetical**, deliberately: `Tier::Workspace` is
+    /// `Provenance::WorkspaceTrusted` today (§6.4 keys the untrusted class on
+    /// the editor's Workspace Trust state, which nothing on the discovery
+    /// path is told — redesign §11.1 O9), so a workspace pack that overrides
+    /// a shipped command still loads. This answers the question the author
+    /// wants answered anyway: *would* an untrusted workspace refuse this?
+    ///
     /// `None` for every pack that touches nothing reserved, which is nearly
     /// all of them.
     #[must_use]
@@ -2850,9 +2857,17 @@ command add_parameter {\narity 1..\n}\n}\n";
         assert_eq!(line, 2);
         assert!(why.contains("design E-R2"), "{why}");
 
-        // And loaded *as* a workspace pack it really is refused, which is
-        // what the report is warning about.
+        // A *workspace* pack is `Provenance::WorkspaceTrusted` (redesign
+        // §6.4 keys the untrusted class on the editor's Workspace Trust
+        // state, not on where the file was found), so it still loads and
+        // still overrides — the report above is the warning about the day
+        // it does not.
         let workspace = PackStore::from_source_at_tier(store.source(), Tier::Workspace);
-        assert!(workspace.commands().is_empty());
+        assert_eq!(workspace.commands().len(), 1);
+
+        // The live Spec Studio override tier *is* untrusted, and refuses it,
+        // which is what makes the report meaningful rather than theoretical.
+        let override_tier = PackStore::from_source_at_tier(store.source(), Tier::StudioOverride);
+        assert!(override_tier.commands().is_empty());
     }
 }

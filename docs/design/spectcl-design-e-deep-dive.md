@@ -15,7 +15,10 @@ there. Everything else in §15 has landed; §15.4 carries the tick list.
 Originally written as exploration feeding the surface decision and the
 Rust model redesign. **§14's verdict was tested rather than assumed**: the
 evaluation loader (P2-I) proved the equivalence gate over all 24 shipped
-packs, 1,515 commands, byte-identically through both loaders. Companion to
+packs, 1,515 commands, byte-identically through both loaders — and, that
+proved, the CST loader was **deleted** (centralisation ledger row L1, the
+`one-loader` lane), leaving `evaluate_pack` the single door every consumer
+loads a pack through and the golden-snapshot gate as the standing proof. Companion to
 [the six-design comparison](spectcl-syntax-alternatives.md) (which
 defines design E and the shared model), the
 [redesign proposal](dialect-and-package-registry-redesign.md) (§6
@@ -1649,7 +1652,7 @@ E-R11–E-R13 were written "(proposed)" in §15, implemented as written, and
 | # | ruling candidate | forced by | status |
 |---|---|---|---|
 | E-R1 | Conditionality is data (`-available` rows); control-flow `available?` downgrades cacheability and is flagged by `spec check` | §1.3; review B5 | ratified; implemented — `-available` rows are the shipped spelling and `available?` marks a pack target-dependent and uncacheable |
-| E-R2 | The sandbox always runs; provenance (§6.4 tiers) gates what a registration call may touch, enforced at the call | §1.4; loader tier model | ratified; implemented — provenance checks fire at the registration call (compiled-name overrides, `dialect` blocks, reserved environment names). The tier the studio buffer and `spectcl_check` evaluate at is O4, still unratified |
+| E-R2 | The sandbox always runs; provenance (§6.4 tiers) gates what a registration call may touch, enforced at the call | §1.4; loader tier model | ratified; implemented — provenance checks fire at the registration call (compiled-name overrides, `dialect` blocks, reserved environment names). Which tiers are *untrusted* now derives from `PackEnvironmentTier::provenance`, so the loader and the environment model agree: `Tier::Workspace` is `WorkspaceTrusted` and may still `-override` a shipped command, per §6.4's "in an untrusted workspace"; the untrusted class is reachable through the Spec Studio override tier until the editor's Workspace Trust state is plumbed (O9). The tier the studio buffer and `spectcl_check` evaluate at is O4, still unratified |
 | E-R3 | Hooks emit facts referencing gated vocabulary; assembly alone evaluates gates — hooks stay target-independent | §2; range targeting | ratified; implemented — hooks emit facts, assembly evaluates gates |
 | E-R4 | Derived surfaces are never authored: mathop/mathfunc projections, the inline `oo::define` form, instance `configure` tables all derive from their entity | §6, §7, alternatives doc | ratified; **partly implemented** — the mathop/mathfunc projections derive (`tcl::mathop`/`tcl::mathfunc` ruling, 2026-08-26). The inline `oo::define` form and instance `configure` tables still need §6.1's one-class-surface work |
 | E-R5 | Templating is for *bulk* (32× `REQUIRES_HTTP_CONTEXT`, 1000× `-quiet`); structural regularity (widget inheritance) is declared, not templated | §3.2, §7, §10 | ratified; implemented — templating is available and the canonical form is what generators emit |

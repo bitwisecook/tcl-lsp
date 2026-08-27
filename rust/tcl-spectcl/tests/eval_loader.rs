@@ -168,7 +168,7 @@ fn evaluate_through_the_interpreter(source: &str) -> Pack {
             static_fast_path: false,
             config: tcl_spec_hooks::pack_eval::PackEvalConfig {
                 budget: tcl_engine_api::Budget::of_commands(2_000_000_000)
-                    .with_wall_clock(std::time::Duration::from_secs(1_800))
+                    .with_wall_clock(std::time::Duration::from_mins(30))
                     .with_max_value_bytes(512 * 1024 * 1024),
             },
             ..EvalOptions::default()

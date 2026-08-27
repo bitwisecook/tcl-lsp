@@ -253,10 +253,13 @@ mod tests {
              command golden::b { arity 2 }\n}\n",
         );
         let first = render(&pack);
-        assert_eq!(first, render(&crate::loader::evaluate_pack(
-            "speclib golden 2.0 {\n  command golden::a { arity 1 }\n  \
+        assert_eq!(
+            first,
+            render(&crate::loader::evaluate_pack(
+                "speclib golden 2.0 {\n  command golden::a { arity 1 }\n  \
              command golden::b { arity 2 }\n}\n",
-        )));
+            ))
+        );
         assert!(first.contains("command golden::a line 2"), "{first}");
         assert!(first.contains("commands 2"), "{first}");
     }

@@ -1209,7 +1209,9 @@ R6 manifest grammar.
 > this section is unchanged by the decision: those words become the
 > registration commands of the evaluator, and existing 1.x/2.0 packs
 > — straight-line registration calls — evaluate to byte-identical
-> snapshots (the old-vs-new loader equivalence gate).
+> snapshots. That was proved by the old-vs-new loader equivalence gate;
+> the CST loader has since been deleted (ledger row L1) and the proof is
+> now the checked-in golden-snapshot gate.
 
 ### 6.1 Compatibility contract (corrected by review B13)
 
@@ -1333,7 +1335,7 @@ that consume it are P3+), `dynamic_surface` / `unknown_members` (mapping
 to the open-surface facts on commands and object classes), `include`
 (pack-file inclusion under the determinism contract), and the additive
 `environment NAME -extend { … }` form are landed at the shared
-row-reader seam of both loaders — see the centralisation document's §6
+row-reader seam — see the centralisation document's §6
 status note for the details and the registration seam that consumes the
 environment blocks.
 
@@ -1682,10 +1684,13 @@ gates on (adopted verbatim from the review):
   - **P2-I** landed the design-E **evaluation loader**: a pack file
     evaluated as a sandboxed Tcl program whose registration calls produce
     the frozen snapshot, with the determinism contract, typed budgets, and
-    transactional registration. The equivalence gate is the phase's proof —
+    transactional registration. The equivalence gate was the phase's proof —
     all 24 shipped packs (1,515 commands) load **byte-identically through
     both loaders**, hooks, clause grammars, degraded flags and declaration
-    lines included, with all 45 notices identical to the line number.
+    lines included, with all 45 notices identical to the line number. The
+    CST loader was deleted once that proof was in (ledger row L1); the
+    proof itself is kept as the golden-snapshot gate over the same 24
+    packs.
   - **P2-J** landed the canonical renderer and the tooling rework: `tcl
     spec export`, the `spectcl_expand` MCP verb, `spectcl_check` on the
     evaluator, the studio store reading through the eval loader,
@@ -2190,7 +2195,7 @@ open here is also in §11.
    `event_requirement_form` with its nested `event_requires` block,
    `data_collection`, `body_scope`, `side_switch_target` and
    `event_handler_priority` all have loader readers at the shared
-   row-reader seam of both loaders. `bpf_op` is deferred: it needs a named
+   row-reader seam. `bpf_op` is deferred: it needs a named
    `id → &'static BpfOpSpec` catalogue in `tcl_registry::bpf_op` before
    `bpf_op -native ID` can resolve anything (§11). **The blind spot that
    produced all seven is itself unfixed** — §6.3's loader-direction

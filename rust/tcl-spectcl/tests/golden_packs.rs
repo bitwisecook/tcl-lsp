@@ -56,7 +56,9 @@ fn explain(golden: &str, fresh: &str, pack: &tcl_spectcl::Pack) -> String {
             continue;
         }
         let _ = writeln!(out, "line {}:\n  golden: {was}\n  now   : {now}", index + 1);
-        if let Some(name) = now.strip_prefix("command ").and_then(|r| r.split(' ').next())
+        if let Some(name) = now
+            .strip_prefix("command ")
+            .and_then(|r| r.split(' ').next())
             && let Some(rendering) = golden::spec_rendering(pack, name)
         {
             let _ = writeln!(
@@ -137,7 +139,12 @@ fn no_golden_snapshot_is_orphaned() {
         .expect("the golden directory")
         .filter_map(Result::ok)
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
-        .filter(|name| name.ends_with(".snap") && !expected.contains(name))
+        .filter(|name| {
+            Path::new(name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("snap"))
+                && !expected.contains(name)
+        })
         .collect();
     orphans.sort();
     assert!(

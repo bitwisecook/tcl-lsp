@@ -31,6 +31,7 @@
 //! which is the direction regressions actually travel.
 
 use std::fmt::Write as _;
+use std::path::Path;
 use std::process::ExitCode;
 
 use tcl_spectcl::golden;
@@ -68,7 +69,10 @@ pub fn run(check: bool) -> ExitCode {
             let _ = writeln!(
                 stale,
                 "  {}",
-                golden_path.strip_prefix(&root).unwrap_or(&golden_path).display()
+                golden_path
+                    .strip_prefix(&root)
+                    .unwrap_or(&golden_path)
+                    .display()
             );
             continue;
         }
@@ -92,7 +96,10 @@ pub fn run(check: bool) -> ExitCode {
     if let Ok(entries) = std::fs::read_dir(&dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if name.ends_with(".snap") && !expected.contains(&name) {
+            let is_snapshot = Path::new(&name)
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("snap"));
+            if is_snapshot && !expected.contains(&name) {
                 if check {
                     orphans.push(name);
                 } else if std::fs::remove_file(entry.path()).is_ok() {
@@ -123,6 +130,9 @@ pub fn run(check: bool) -> ExitCode {
         return ExitCode::FAILURE;
     }
 
-    println!("pack-goldens: {written} snapshot(s) rewritten, {} pack(s) scanned", packs.len());
+    println!(
+        "pack-goldens: {written} snapshot(s) rewritten, {} pack(s) scanned",
+        packs.len()
+    );
     ExitCode::SUCCESS
 }

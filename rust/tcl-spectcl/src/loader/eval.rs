@@ -322,15 +322,43 @@ const ROW_WORDS: &[&str] = &[
     "sub_subcommand",
 ];
 
-/// The interpreter, when there is one.
+/// How the current body is being driven: the interpreter when there is one,
+/// and whether the capture layer may shortcut past it.
 ///
-/// `None` is the **file-level fast path**: a pack whose every statement, at
-/// every level, is static vocabulary is captured straight from the CST and
+/// `ctx: None` is the **file-level fast path**: a pack whose every statement,
+/// at every level, is static vocabulary is captured straight from the CST and
 /// never builds a `tcl-vm` interpreter at all. The moment a body needs real
 /// evaluation the drive gives up with [`NEEDS_INTERPRETER`] and the whole
 /// load restarts on the interpreter path — one attempt, no partial state,
 /// and the segmentations the attempt did are memoised for the retry.
-type Ctx<'a, 'b> = Option<&'a mut PackEvalCtx<'b>>;
+struct Drive<'a, 'b> {
+    ctx: Option<&'a mut PackEvalCtx<'b>>,
+    /// [`EvalOptions::static_fast_path`], carried here rather than on the
+    /// staging state because it is a property of *how* a body is driven.
+    fast_path: bool,
+}
+
+impl<'b> Drive<'_, 'b> {
+    /// The same drive, borrowed for a shorter life — what a loop over
+    /// statements needs to hand the interpreter down more than once.
+    fn reborrow(&mut self) -> Drive<'_, 'b> {
+        Drive {
+            ctx: self.ctx.as_deref_mut(),
+            fast_path: self.fast_path,
+        }
+    }
+}
+
+/// A drive with the interpreter behind it — what a host command's handler
+/// hands on when it recurses into a body. Reaching a handler at all means
+/// the interpreter route is running, and the fast path stays available for
+/// the nested bodies that qualify.
+fn interpreted<'a, 'b>(ctx: &'a mut PackEvalCtx<'b>) -> Drive<'a, 'b> {
+    Drive {
+        ctx: Some(ctx),
+        fast_path: true,
+    }
+}
 
 /// The sentinel [`run_body`] returns when a body must really evaluate and no
 /// interpreter was built. Never surfaces to a caller: [`evaluate_pack_in`]
@@ -605,9 +633,6 @@ struct State {
     /// verbatim index describes the *root* file, so line-keyed lookups
     /// must not fire inside an included one.
     in_include: bool,
-    /// Whether the static fast path is enabled for this evaluation
-    /// ([`EvalOptions::static_fast_path`]).
-    fast_path: bool,
     /// Sites that used vocabulary the capture layer (not the replay's
     /// readers) consumed — today only `include` — replayed into the
     /// vocabulary-consistency log so a word the capture layer ate still
@@ -724,7 +749,7 @@ fn speclib_handler(state: &Rc<RefCell<State>>) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
-        stage_speclib(Some(ctx), &state, args, line)?;
+        stage_speclib(interpreted(ctx), &state, args, line)?;
         Ok(None)
     })
 }
@@ -735,7 +760,7 @@ fn speclib_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// shortcut and the interpreter cannot drift on what a `speclib` header
 /// means. `args` are the statement's words after `speclib`, as values.
 fn stage_speclib(
-    mut ctx: Ctx<'_, '_>,
+    drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
     args: &[String],
     line: u32,
@@ -826,7 +851,7 @@ fn stage_speclib(
             },
         };
         state.borrow_mut().base_lines.push(block.base);
-        let outcome = run_body(ctx.as_deref_mut(), state, &block);
+        let outcome = run_body(drive, state, &block);
         state.borrow_mut().base_lines.pop();
         outcome?;
     }
@@ -878,7 +903,7 @@ fn command_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_command(Some(ctx), &state, name, overrides, line, &body)?;
+        stage_command(interpreted(ctx), &state, name, overrides, line, &body)?;
         Ok(None)
     })
 }
@@ -895,7 +920,7 @@ struct BodyText {
 /// Evaluate one `command` body in a fresh command scope and stage the
 /// declaration. Shared by the host command and the static driver.
 fn stage_command(
-    ctx: Ctx<'_, '_>,
+    drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
     name: String,
     overrides: bool,
@@ -907,7 +932,7 @@ fn stage_command(
         st.scopes.push((ScopeKind::Command, Vec::new()));
         st.base_lines.push(body.base);
     }
-    let outcome = run_body(ctx, state, body);
+    let outcome = run_body(drive, state, body);
     let nodes = {
         let mut st = state.borrow_mut();
         st.base_lines.pop();
@@ -961,7 +986,7 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_subcommand(Some(ctx), &state, name, line, &body)?;
+        stage_subcommand(interpreted(ctx), &state, name, line, &body)?;
         Ok(None)
     })
 }
@@ -970,7 +995,7 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// declaration into the owning command. Shared by the host command and the
 /// static driver.
 fn stage_subcommand(
-    ctx: Ctx<'_, '_>,
+    drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
     name: String,
     line: u32,
@@ -981,7 +1006,7 @@ fn stage_subcommand(
         st.scopes.push((ScopeKind::Subcommand, Vec::new()));
         st.base_lines.push(body.base);
     }
-    let outcome = run_body(ctx, state, body);
+    let outcome = run_body(drive, state, body);
     let nodes = {
         let mut st = state.borrow_mut();
         st.base_lines.pop();
@@ -1014,7 +1039,7 @@ fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
             return Ok(None);
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        stage_include(Some(ctx), &state, &words, line)?;
+        stage_include(interpreted(ctx), &state, &words, line)?;
         Ok(None)
     })
 }
@@ -1022,7 +1047,7 @@ fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
 /// Resolve and evaluate one `include` row. Shared by the host command and
 /// the static driver, so the two evaluation paths cannot drift.
 fn stage_include(
-    ctx: Ctx<'_, '_>,
+    drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
     words: &[&str],
     line: u32,
@@ -1114,7 +1139,7 @@ fn stage_include(
         base: 1,
         verbatim: true,
     };
-    let outcome = run_body(ctx, state, &body);
+    let outcome = run_body(drive, state, &body);
     {
         let mut st = state.borrow_mut();
         st.in_include = was_in_include;
@@ -1130,14 +1155,18 @@ fn stage_include(
 /// anything else to the interpreter whole. The fast path is what keeps a
 /// 20k-line declarative pack from paying a 20k-line bytecode compilation
 /// for an evaluation that could only ever capture rows.
-fn run_body(ctx: Ctx<'_, '_>, state: &Rc<RefCell<State>>, body: &BodyText) -> Result<(), String> {
-    if body.verbatim && state.borrow().fast_path {
+fn run_body(
+    drive: Drive<'_, '_>,
+    state: &Rc<RefCell<State>>,
+    body: &BodyText,
+) -> Result<(), String> {
+    if body.verbatim && drive.fast_path {
         let stmts = statements(&body.text, body.base, FileBom::Content);
         if stmts.iter().all(static_stmt) {
-            return drive_static(ctx, state, &stmts);
+            return drive_static(drive, state, &stmts);
         }
     }
-    match ctx {
+    match drive.ctx {
         Some(ctx) => ctx.eval_body(&body.text),
         None => Err(NEEDS_INTERPRETER.to_owned()),
     }
@@ -1175,7 +1204,7 @@ fn static_stmt(stmt: &Stmt) -> bool {
 /// into `command`/`subcommand` bodies through the same fast-or-evaluate
 /// decision.
 fn drive_static(
-    mut ctx: Ctx<'_, '_>,
+    mut drive: Drive<'_, '_>,
     state: &Rc<RefCell<State>>,
     stmts: &[Stmt],
 ) -> Result<(), String> {
@@ -1185,7 +1214,7 @@ fn drive_static(
         match stmt.word_text(0) {
             "speclib" => {
                 let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
-                stage_speclib(ctx.as_deref_mut(), state, &args, stmt.line)?;
+                stage_speclib(drive.reborrow(), state, &args, stmt.line)?;
             }
             "command" if at_pack => {
                 let name = stmt.word_text(1).to_owned();
@@ -1207,14 +1236,7 @@ fn drive_static(
                     base: body.line,
                     verbatim: true,
                 };
-                stage_command(
-                    ctx.as_deref_mut(),
-                    state,
-                    name,
-                    overrides,
-                    stmt.line,
-                    &block,
-                )?;
+                stage_command(drive.reborrow(), state, name, overrides, stmt.line, &block)?;
             }
             "subcommand" if in_command => {
                 let name = stmt.word_text(1).to_owned();
@@ -1228,7 +1250,7 @@ fn drive_static(
                     base: body.line,
                     verbatim: true,
                 };
-                stage_subcommand(ctx.as_deref_mut(), state, name, stmt.line, &block)?;
+                stage_subcommand(drive.reborrow(), state, name, stmt.line, &block)?;
             }
             "default" => {
                 let args: Vec<String> = stmt.words.iter().skip(1).map(|w| w.text.clone()).collect();
@@ -1238,7 +1260,7 @@ fn drive_static(
             }
             "include" if at_pack => {
                 let words: Vec<&str> = stmt.words.iter().skip(1).map(|w| w.text.as_str()).collect();
-                stage_include(ctx.as_deref_mut(), state, &words, stmt.line)?;
+                stage_include(drive.reborrow(), state, &words, stmt.line)?;
             }
             _ => state.borrow_mut().push_node(Node::Row(stmt.clone())),
         }
@@ -1342,7 +1364,7 @@ pub fn evaluate_pack_in(
         return replay(state, options);
     }
 
-    let state = new_state(source, options, include);
+    let state = new_state(source, include);
     let mut vocabulary: Vec<(&str, WordHandler)> = Vec::with_capacity(ROW_WORDS.len() + 5);
     for &word in ROW_WORDS {
         vocabulary.push((word, row_handler(word, &state)));
@@ -1368,15 +1390,10 @@ pub fn evaluate_pack_in(
 }
 
 /// The staging state one load starts from.
-fn new_state(
-    source: &str,
-    options: &EvalOptions,
-    include: Option<Rc<super::IncludeContext>>,
-) -> Rc<RefCell<State>> {
+fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<RefCell<State>> {
     let state = Rc::new(RefCell::new(State::default()));
     {
         let mut st = state.borrow_mut();
-        st.fast_path = options.static_fast_path;
         st.verbatim = VerbatimIndex::of(source);
         st.include = include;
         st.include_stack = vec![xxhash_rust::xxh3::xxh3_64(source.as_bytes())];
@@ -1397,15 +1414,22 @@ fn drive_file_statically(
     source: &str,
     include: Option<Rc<super::IncludeContext>>,
 ) -> Option<State> {
-    let options = EvalOptions::default();
-    let state = new_state(source, &options, include);
+    let state = new_state(source, include);
     // `FileBom::Skip`: this is the file entry point, so a leading mark is a
     // prologue rather than part of the first word.
     let top = pack_statements(source);
     if !top.iter().all(static_stmt) {
         return None;
     }
-    drive_static(None, &state, &top).ok()?;
+    drive_static(
+        Drive {
+            ctx: None,
+            fast_path: true,
+        },
+        &state,
+        &top,
+    )
+    .ok()?;
     Rc::try_unwrap(state).ok().map(RefCell::into_inner)
 }
 

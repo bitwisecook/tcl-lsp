@@ -843,9 +843,9 @@ Capabilities (U-numbers are the implementation checklist):
   nothing above `2.0` is required; report per file the sites translated,
   sites left TODO, and notice deltas.
 - **U8** — byte-preservation contract (fact 1 above).
-- **U9** — `--verify`: `load_pack(original)` and `load_pack(upgraded)`
-  produce **byte-identical registry snapshots** (the `registry-dump`
-  backend), wired into CI over the eight bundled packs — 1,165 `dialects`
+- **U9** — `--verify`: `evaluate_pack(original)` and
+  `evaluate_pack(upgraded)` produce **byte-identical registry snapshots**
+  (the `registry-dump` backend), wired into CI over the eight bundled packs — 1,165 `dialects`
   rows across them today, a real corpus from day one. The pack-level
   analogue of invariant I10.
 - **U10** — explicit `--from`/`--to`; downgrades refused (an unsupported
@@ -935,7 +935,7 @@ row). No bundled pack was rewritten.
   include-bearing packs — content-hash-keyed cycle rejection, bounded
   depth, provenance inherited, and the registration record carries the
   *included statements* so export writes the expansion). Every word is
-  implemented once at the shared row-reader seam (both loaders), rides
+  implemented once at the shared row-reader seam, rides
   the export gates, and classifies **semantic** in the §6.1 downgrade
   table so an older build abstains rather than strengthening.
 - `environment NAME -extend { … }` — the additive form the U4/U5
@@ -1027,7 +1027,7 @@ descriptor remains §6.2 work; of the seven ratified-but-unimplemented words
 six now load (`result_stability` at command and subcommand scope,
 `event_requirement_form`, `data_collection`, `body_scope`,
 `side_switch_target`, `event_handler_priority`), each at the shared
-row-reader seam of both loaders and riding the export gates.
+row-reader seam and riding the export gates.
 `bpf_op` stays deferred: `CommandSpec::bpf_op` is
 `Option<&'static BpfOpSpec>` and every shipped value is a per-command
 private `static OP` in `tcl-registry/src/commands/bpf/`, so the documented
