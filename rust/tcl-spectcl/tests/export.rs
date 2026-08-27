@@ -408,3 +408,47 @@ fn an_included_fragment_exports_as_its_expansion() {
     assert_eq!(snapshot(&pack), snapshot(&reloaded));
     assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
 }
+
+/// The seven ratified words round-trip through gate A's machinery: export,
+/// reload, identical snapshot, idempotent text. Their rows are captured
+/// verbatim like every other, so this is the gate that proves a reader
+/// added without an export arm cannot slip through.
+#[test]
+fn the_ratified_words_round_trip_through_gate_a() {
+    let source = r"
+speclib probe 2.0 {
+    command probe::collect {
+        arity 0
+        result_stability Volatile
+        data_collection -native HTTP_COLLECT
+        side_switch_target Server
+        event_handler_priority -default 500 -min 0 -max 1000 -warn-implicit
+        event_requirement_form {append} -only-in {HTTP_REQUEST} {
+            client_side yes
+        }
+        body_scope {
+            name {probe body}
+            command top {
+                arity 1..2
+                subcommand set { arity 1 }
+            }
+        }
+        subcommand line {
+            arity 0
+            result_stability ReferentiallyTransparent
+        }
+    }
+}
+";
+    let pack = load_pack(source);
+    assert!(pack.notices.is_empty(), "{:#?}", pack.notices);
+    let (exported, losses) = export_pack_reporting(&pack);
+    assert!(losses.is_empty(), "{losses:#?}");
+    let reloaded = load_pack(&exported);
+    assert_eq!(snapshot(&pack), snapshot(&reloaded));
+    assert_eq!(notice_keys(&pack), notice_keys(&reloaded));
+    assert!(reloaded.commands[0].spec.body_scope.is_some());
+    assert!(reloaded.commands[0].spec.result_stability.is_some());
+    let twice = export_pack_reporting(&reloaded).0;
+    assert_eq!(twice, exported, "export is not idempotent");
+}

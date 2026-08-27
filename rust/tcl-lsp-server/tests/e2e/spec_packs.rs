@@ -1032,3 +1032,113 @@ fn a_removed_pack_stops_advertising_its_extension() {
 
     let _ = std::fs::remove_dir_all(&root);
 }
+
+/// A pack that declares an **environment** with a file-extension detection
+/// row makes documents with that extension resolve to it — through the
+/// ordinary ingress, with no dialect setting, no language id, and nothing in
+/// the document saying so.
+///
+/// This is the production wiring of the environment-registration seam end to
+/// end: discovery finds the pack, the load publishes it, publishing registers
+/// its `environment` block into the one live registry the ingress resolves
+/// against and republishes the extension routing detection reads — so
+/// `getEffectiveConfig` on a `.pshx` buffer answers with the pack's own
+/// environment id and display name rather than the session default.
+///
+/// And the other half of the same contract: delete the pack, and the
+/// environment retires. A pack-declared environment that outlived its file
+/// would be a dialect the user cannot get rid of.
+#[test]
+fn a_pack_declared_environment_routes_its_documents_through_the_ingress() {
+    const ENVIRONMENT_PACK: &str = r"
+speclib envprobe 2.0 {
+    environment probe-shell-tcl {
+        display_name   {Probe Shell}
+        core           tcl 8.6
+        ambient        ProbeCmds 1.0
+        alias          probe-shell
+        file_extension pshx -name {Probe Shell Script}
+        policy         ambient-plus-require
+    }
+    command probe_open {
+        arity 1
+        hover { summary {Open a probe shell session.} }
+    }
+}
+";
+    let root = workspace("environment");
+    let pack = root.join(".tcl-lsp/envprobe.tclspec");
+    write(&pack, ENVIRONMENT_PACK);
+    let source = "probe_open session\n";
+    let doc = root.join("session.pshx");
+    write(&doc, source);
+
+    let mut lsp = Lsp::with_config_at_root(json!({}), &root);
+    let uri = file_uri(&doc);
+    await_pack_named(&mut lsp, "envprobe");
+    lsp.open_ready(&uri, source);
+
+    let dialect = |lsp: &mut Lsp, uri: &str| -> String {
+        lsp.effective_config(uri)
+            .get("dialect")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    // Resolved at open, from the extension alone: the barrier above means the
+    // pack — and so its environment — was live before the document opened.
+    assert_eq!(dialect(&mut lsp, &uri), "probe-shell-tcl");
+
+    // The claim is advertised to the client too, so an editor that can
+    // register associations at runtime opens `.pshx` as Tcl in the first
+    // place — without that, every path but the user's own works.
+    let advertised = lsp
+        .effective_config("")
+        .get("pack_file_extensions")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    let row = advertised
+        .iter()
+        .find(|row| row.get("extension").and_then(Value::as_str) == Some("pshx"))
+        .unwrap_or_else(|| panic!("the environment's extension is advertised: {advertised:#?}"));
+    assert_eq!(
+        row.get("dialect").and_then(Value::as_str),
+        Some("probe-shell-tcl")
+    );
+    assert_eq!(
+        row.get("display_name").and_then(Value::as_str),
+        Some("Probe Shell Script")
+    );
+
+    // A plain `.tcl` buffer in the same workspace is untouched — the
+    // environment claims its own extension, not the workspace.
+    let plain = root.join("plain.tcl");
+    write(&plain, source);
+    let plain_uri = file_uri(&plain);
+    lsp.open_ready(&plain_uri, source);
+    assert_ne!(dialect(&mut lsp, &plain_uri), "probe-shell-tcl");
+
+    // Delete the pack: the environment retires with it, and the extension
+    // stops routing.
+    std::fs::remove_file(&pack).expect("remove pack");
+    notify_pack_changed(&mut lsp, &pack, DELETED);
+    let deadline = std::time::Instant::now() + scaled_timeout(std::time::Duration::from_secs(30));
+    loop {
+        // A document's dialect is resolved when it opens, so the retirement
+        // is observed the way a user would see it: close the buffer and open
+        // it again.
+        lsp.close_document(&uri);
+        lsp.open_ready(&uri, source);
+        if dialect(&mut lsp, &uri) != "probe-shell-tcl" {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the environment was still routing after its pack was deleted"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+
+    let _ = std::fs::remove_dir_all(&root);
+}

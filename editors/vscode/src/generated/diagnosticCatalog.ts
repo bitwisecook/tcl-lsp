@@ -347,6 +347,20 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "W150",
+    section: "warning",
+    description:
+      "Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting).",
+    defaultEnabled: true,
+  },
+  {
+    code: "W151",
+    section: "warning",
+    description:
+      "Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0.",
+    defaultEnabled: true,
+  },
+  {
     code: "W200",
     section: "warning",
     description: "`exec` result not captured or binary format modifier requires newer Tcl.",

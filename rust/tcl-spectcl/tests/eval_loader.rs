@@ -677,3 +677,44 @@ fn an_included_fragment_loads_identically_through_both_loaders() {
         cst_cycle.notices
     );
 }
+
+/// The ratified words load identically through both loaders: they are read
+/// at the one shared row seam, so neither front end can drift on them.
+#[test]
+fn the_ratified_words_load_identically_through_both_loaders() {
+    let source = r"
+speclib probe 2.0 {
+    command probe::collect {
+        arity 0
+        result_stability Volatile
+        data_collection -native HTTP_COLLECT
+        side_switch_target Server
+        event_handler_priority -default 500 -min 0 -max 1000 -warn-implicit
+        event_requirement_form {append} -only-in {HTTP_REQUEST} {
+            client_side yes
+        }
+        body_scope {
+            name {probe body}
+            command top {
+                arity 1..2
+                subcommand set { arity 1 }
+            }
+        }
+        subcommand line {
+            arity 0
+            result_stability ReferentiallyTransparent
+        }
+    }
+}
+";
+    let cst = load_pack(source);
+    let eval = evaluate_pack(source);
+    assert!(cst.notices.is_empty(), "{:#?}", cst.notices);
+    assert!(eval.notices.is_empty(), "{:#?}", eval.notices);
+    assert_eq!(
+        snapshot(&cst),
+        snapshot(&eval),
+        "{}",
+        first_diff(&snapshot(&cst), &snapshot(&eval))
+    );
+}

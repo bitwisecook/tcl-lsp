@@ -64,15 +64,19 @@ pub use assembly::{
 pub use binding::{
     BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
 };
-pub use context::{ContextQueries, FloorMap, KeyedVersions, ResolvedContext, specificity_breadth};
+pub use context::{
+    ContextQueries, FloorMap, KeyedVersions, ResolvedContext, ladder_releases_in,
+    requirement_spelling, specificity_breadth, targets_from_clauses,
+};
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,
     is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
     static_context_for_profile, static_document_context_for, static_document_context_for_profile,
 };
 pub use registration::{
-    EnvironmentExtension, EnvironmentRegistrationError, live_environments, provenance_label,
-    register_environments,
+    EnvironmentExtension, EnvironmentRegistrationError, EnvironmentSource, RejectedSource,
+    SyncOutcome, live_environments, provenance_label, register_environments,
+    sync_environment_sources,
 };
 pub use surface::{
     BuildCapability, CapabilityPredicate, PackageId, Provider, SurfaceDeclaration,

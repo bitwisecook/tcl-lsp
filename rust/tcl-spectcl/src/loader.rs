@@ -94,7 +94,9 @@ use tcl_registry::definer::{
     MemberVisibility, SlotOp, SlotSpec,
 };
 use tcl_registry::deprecation::{DeprecationFixHook, DeprecationFixSafety};
-use tcl_registry::events::EventRequires;
+use tcl_registry::events::{
+    DataCollectionOperation, EventHandlerPriority, EventRequirementForm, EventRequires,
+};
 use tcl_registry::frame_effect::{FrameArgLayout, FrameEffectSpec, FrameLevelWord};
 use tcl_registry::handle_binding::{
     HandleBindingSpec, HandleClassSource, HandleKeyword, HandleName,
@@ -113,8 +115,12 @@ use tcl_registry::pack_hooks::HookInputs;
 use tcl_registry::patterns::{FormatType, PatternType};
 use tcl_registry::presentation::ArgPresentation;
 use tcl_registry::representation::RepresentationEffect;
+use tcl_registry::result_stability::ResultStability;
+use tcl_registry::scoped::{ScopedCommand, ScopedCommandEnv};
 use tcl_registry::semantic_operation::SemanticOperationId;
-use tcl_registry::side_effects::{ConnectionSide, SideEffect, SideEffectTarget, StorageType};
+use tcl_registry::side_effects::{
+    ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
+};
 use tcl_registry::spec::{
     BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, ProjectedArgs, SubCommand,
     SubSubCommand, VersionedArgRow, project_arg_rows,
@@ -124,6 +130,7 @@ use tcl_registry::taint::SetterConstraint;
 use tcl_registry::traits::Traits;
 use tcl_registry::types::{ReturnElements, TclType, VarElementsEffect, VarWriteTyping};
 use tcl_registry::world_effect::WorldEffectDescriptor;
+use tcl_registry::world_effect::WorldStateDomain;
 use tcl_registry::{CommandPrefixArguments, InvocationArguments};
 
 use crate::catalogue;
@@ -136,7 +143,7 @@ mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
 pub(crate) use environment_block::reserved_name as reserved_environment_name;
-pub use environment_block::{PackEnvironment, PackEnvironmentTier};
+pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub use eval::{
     EvalOptions, EvalSnapshotKey, LOADER_EVAL_VERSION, eval_snapshot_key, eval_snapshot_memoised,
     evaluate_pack, evaluate_pack_cached, evaluate_pack_in, evaluate_pack_with,
@@ -598,7 +605,7 @@ pub fn speclib_version_span(source: &str) -> Option<(std::ops::Range<usize>, Str
 /// once no registry snapshot references it needs the registry's `'static`
 /// specs to become refcounted, which is a change to its public type and not
 /// one to smuggle in here.
-fn leak_str(text: &str) -> &'static str {
+pub(crate) fn leak_str(text: &str) -> &'static str {
     static INTERNED: LazyLock<Mutex<HashSet<&'static str>>> =
         LazyLock::new(|| Mutex::new(HashSet::new()));
 
@@ -1105,6 +1112,7 @@ pub fn load_pack_with(source: &str, include: Option<&IncludeContext>) -> Pack {
         }
     }
 
+    finish_pack_cores(&mut pack, &mut log);
     finish_newer_words(&pack, &mut log);
     pack.notices = log.notices;
     pack
@@ -1278,6 +1286,62 @@ fn finish_newer_words(pack: &Pack, log: &mut Log) {
             ),
         });
     }
+}
+
+/// Resolve every `environment … { core DIALECT RELEASE }` row against the
+/// pack's own `dialect` blocks, once the whole file has been read.
+///
+/// A `core` row naming neither a compiled family nor a dialect this pack
+/// declares is §6.1's semantic class — the row says what language the
+/// environment's documents are — so the environment block is **rejected**,
+/// not degraded. Run after both passes because a `dialect` block may be
+/// written after the `environment` that rides it, and a pack's statement
+/// order is the author's business.
+fn finish_pack_cores(pack: &mut Pack, log: &mut Log) {
+    if pack.environments.iter().all(|e| e.pack_core.is_none()) {
+        return;
+    }
+    let dialects: Vec<(String, Vec<String>)> = pack
+        .dialects
+        .iter()
+        .map(|dialect| {
+            (
+                dialect.name.clone(),
+                dialect
+                    .releases
+                    .iter()
+                    .map(|release| release.release.clone())
+                    .collect(),
+            )
+        })
+        .collect();
+    let mut rejected: Vec<String> = Vec::new();
+    for environment in &pack.environments {
+        let Some(core) = &environment.pack_core else {
+            continue;
+        };
+        let found = dialects.iter().find(|(name, _)| *name == core.dialect);
+        let message = match found {
+            None => Some(format!(
+                "`environment {}` names core family `{}`, which is neither a compiled \
+                 family (`tcl`, `f5-tcl`, `f5-irules`, `jim`) nor a `dialect` block this \
+                 pack declares; the environment block is rejected",
+                environment.id, core.dialect
+            )),
+            Some((_, releases)) if !releases.contains(&core.release) => Some(format!(
+                "`environment {}` names core `{} {}`, which is not a `release` row of \
+                 `dialect {}`; the environment block is rejected",
+                environment.id, core.dialect, core.release, core.dialect
+            )),
+            Some(_) => None,
+        };
+        if let Some(message) = message {
+            log.say(core.line, message);
+            rejected.push(environment.id.clone());
+        }
+    }
+    pack.environments
+        .retain(|environment| !rejected.contains(&environment.id));
 }
 
 /// Report every `speclib` block after the first — none of them is loaded.
@@ -4281,6 +4345,361 @@ fn shipped_case_list(name: &str) -> Option<&'static CaseListSpec> {
     }
 }
 
+/// The shipped scoped-body environments a pack may name.
+fn shipped_body_scope(name: &str) -> Option<&'static ScopedCommandEnv> {
+    match name {
+        "report-defstyle" => Some(&tcl_registry::scoped::REPORT_DEFSTYLE_ENV),
+        "tclpkg-manifest" => Some(&tcl_registry::scoped::TCLPKG_MANIFEST_ENV),
+        _ => None,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// The ratified words (design §6.2)
+// ---------------------------------------------------------------------------
+//
+// Seven words the DSL memo's coverage matrix has always documented and the
+// loader had no reader for — the `DraftOpaque`-masks-`LoaderGap` blind spot
+// §6.3 names. They are not *new* vocabulary, so they draw no per-site
+// version notice: a 1.x pack that spelled one was always meant to load it.
+
+/// Every result-stability spelling with no payload.
+const RESULT_STABILITIES: &[ResultStability] = &[
+    ResultStability::Unknown,
+    ResultStability::ReferentiallyTransparent,
+    ResultStability::Volatile,
+];
+
+/// The versioned world-state domains a `ReadsVersionedWorld` may list.
+const WORLD_STATE_DOMAINS: &[WorldStateDomain] = &[
+    WorldStateDomain::InterpreterTopology,
+    WorldStateDomain::CommandBindings,
+    WorldStateDomain::NamespaceLookup,
+    WorldStateDomain::NamespaceUnknown,
+    WorldStateDomain::ExecutionTraces,
+    WorldStateDomain::VariableTraces,
+    WorldStateDomain::CommandTraces,
+    WorldStateDomain::OoDispatch,
+    WorldStateDomain::InterpreterPolicy,
+    WorldStateDomain::PackageState,
+    WorldStateDomain::HostCapabilities,
+];
+
+/// The sides a `side_switch_target` may select.
+const SIDE_SWITCH_TARGETS: &[SideSwitchTarget] = &[
+    SideSwitchTarget::Client,
+    SideSwitchTarget::Server,
+    SideSwitchTarget::Peer,
+];
+
+/// `result_stability Unknown|ReferentiallyTransparent|Volatile|{ReadsVersionedWorld {D …}}`.
+///
+/// The payload-carrying variant is one braced word holding the variant name
+/// and its domain list, which is how the memo spells every payload variant.
+fn result_stability_row(stmt: &Stmt, log: &mut Log) -> Option<ResultStability> {
+    let value = stmt.word_text(1);
+    let words = list_words(value);
+    if words.first().map(String::as_str) == Some("ReadsVersionedWorld") {
+        let listed = words
+            .get(1)
+            .map(|text| list_words(text))
+            .unwrap_or_default();
+        if listed.is_empty() {
+            log.say(
+                stmt.line,
+                "`result_stability {ReadsVersionedWorld {D …}}` needs at least one \
+                 world-state domain; the row is dropped",
+            );
+            return None;
+        }
+        let domains: Vec<WorldStateDomain> = listed
+            .iter()
+            .filter_map(|name| {
+                enum_by_name(
+                    WORLD_STATE_DOMAINS,
+                    name,
+                    "world-state domain",
+                    stmt.line,
+                    log,
+                )
+            })
+            .collect();
+        if domains.len() != listed.len() {
+            // An unreadable domain would silently *narrow* the dependency
+            // set, which is the direction that makes reuse unsound.
+            return None;
+        }
+        return Some(ResultStability::ReadsVersionedWorld(leak_slice(domains)));
+    }
+    enum_by_name(
+        RESULT_STABILITIES,
+        value,
+        "result stability",
+        stmt.line,
+        log,
+    )
+}
+
+/// `event_handler_priority -default N ?-warn-implicit? …`.
+///
+/// `-default` is the one required flag; the rest of `EventHandlerPriority`
+/// takes the open defaults (`priority`, the whole `u16` range, lower first)
+/// so a pack states only what its dialect actually constrains.
+fn event_handler_priority_row(stmt: &Stmt, log: &mut Log) -> Option<EventHandlerPriority> {
+    let mut policy = EventHandlerPriority {
+        keyword: "priority",
+        default_priority: 0,
+        min_priority: 0,
+        max_priority: u16::MAX,
+        lower_runs_first: true,
+        warn_when_implicit: false,
+    };
+    let mut stated_default = false;
+    let words = &stmt.words;
+    let mut index = 1;
+    while index < words.len() {
+        match words[index].text.as_str() {
+            "-keyword" => policy.keyword = leak_str(&next_text(words, &mut index)),
+            "-default" => {
+                let text = next_text(words, &mut index);
+                let Ok(value) = text.parse() else {
+                    log.say(
+                        stmt.line,
+                        format!("`event_handler_priority -default {text}` is not a priority"),
+                    );
+                    return None;
+                };
+                policy.default_priority = value;
+                stated_default = true;
+            }
+            "-min" => policy.min_priority = next_text(words, &mut index).parse().unwrap_or(0),
+            "-max" => {
+                policy.max_priority = next_text(words, &mut index).parse().unwrap_or(u16::MAX);
+            }
+            "-higher-runs-first" => policy.lower_runs_first = false,
+            "-warn-implicit" => policy.warn_when_implicit = true,
+            other => log.unknown_flag("event_handler_priority", stmt.line, other),
+        }
+        index += 1;
+    }
+    if !stated_default {
+        log.say(
+            stmt.line,
+            "`event_handler_priority` needs `-default N` — the priority the runtime \
+             uses when the keyword is omitted; the row is dropped",
+        );
+        return None;
+    }
+    if policy.min_priority > policy.max_priority || !policy.accepts(policy.default_priority) {
+        log.say(
+            stmt.line,
+            format!(
+                "`event_handler_priority -default {}` is outside `{}..={}`; the row is dropped",
+                policy.default_priority, policy.min_priority, policy.max_priority
+            ),
+        );
+        return None;
+    }
+    Some(policy)
+}
+
+/// The shared data-collection descriptors, by the id `-native` names.
+///
+/// Reference-only by design: the descriptor is paired with protocol
+/// machinery outside the registry, so a pack names one rather than
+/// spelling it.
+fn data_collection_by_id(id: &str) -> Option<DataCollectionOperation> {
+    use tcl_registry::events as ev;
+    let found = match id {
+        "HTTP_COLLECT" => ev::HTTP_COLLECT,
+        "HTTP_RELEASE" => ev::HTTP_RELEASE,
+        "HTTP_PAYLOAD" => ev::HTTP_PAYLOAD,
+        "TCP_COLLECT" => ev::TCP_COLLECT,
+        "TCP_RELEASE" => ev::TCP_RELEASE,
+        "TCP_PAYLOAD" => ev::TCP_PAYLOAD,
+        "SSL_COLLECT" => ev::SSL_COLLECT,
+        "SSL_RELEASE" => ev::SSL_RELEASE,
+        "SSL_PAYLOAD" => ev::SSL_PAYLOAD,
+        "UDP_PAYLOAD" => ev::UDP_PAYLOAD,
+        "ASM_PAYLOAD" => ev::ASM_PAYLOAD,
+        "MQTT_COLLECT" => ev::MQTT_COLLECT,
+        "MQTT_RELEASE" => ev::MQTT_RELEASE,
+        "MQTT_PAYLOAD" => ev::MQTT_PAYLOAD,
+        "MR_COLLECT" => ev::MR_COLLECT,
+        "MR_RELEASE" => ev::MR_RELEASE,
+        "MR_PAYLOAD" => ev::MR_PAYLOAD,
+        "RTSP_COLLECT" => ev::RTSP_COLLECT,
+        "RTSP_RELEASE" => ev::RTSP_RELEASE,
+        "RTSP_PAYLOAD" => ev::RTSP_PAYLOAD,
+        "SCTP_COLLECT" => ev::SCTP_COLLECT,
+        "SCTP_RELEASE" => ev::SCTP_RELEASE,
+        "SCTP_PAYLOAD" => ev::SCTP_PAYLOAD,
+        "WS_COLLECT" => ev::WS_COLLECT,
+        "WS_RELEASE" => ev::WS_RELEASE,
+        "WS_PAYLOAD" => ev::WS_PAYLOAD,
+        "CACHE_PAYLOAD" => ev::CACHE_PAYLOAD,
+        "DIAMETER_PAYLOAD" => ev::DIAMETER_PAYLOAD,
+        "GTP_PAYLOAD" => ev::GTP_PAYLOAD,
+        "REWRITE_PAYLOAD" => ev::REWRITE_PAYLOAD,
+        "SIP_PAYLOAD" => ev::SIP_PAYLOAD,
+        "XML_PAYLOAD" => ev::XML_PAYLOAD,
+        _ => return None,
+    };
+    Some(found)
+}
+
+/// `data_collection -native ID`.
+fn data_collection_row(stmt: &Stmt, log: &mut Log) -> Option<DataCollectionOperation> {
+    if stmt.word_text(1) != "-native" {
+        log.say(stmt.line, "`data_collection` takes `-native ID`");
+        return None;
+    }
+    let id = stmt.word_text(2);
+    let found = data_collection_by_id(id);
+    if found.is_none() {
+        log.say(
+            stmt.line,
+            format!("unknown data-collection descriptor `{id}` dropped"),
+        );
+    }
+    found
+}
+
+/// `event_requirement_form {word …} ?-only-in {E …}? ?{ … }?`.
+///
+/// The literal selector is the row's own first word; the trailing block, when
+/// there is one, is a nested `event_requires` read by the same reader the
+/// standalone row uses.
+fn event_requirement_form_row(stmt: &Stmt, log: &mut Log) -> EventRequirementForm {
+    let prefix = list_words(stmt.word_text(1));
+    let mut only_in: Vec<String> = Vec::new();
+    let mut requires = None;
+    let words = &stmt.words;
+    let mut index = 2;
+    while index < words.len() {
+        match words[index].text.as_str() {
+            "-only-in" => only_in = list_words(&next_text(words, &mut index)),
+            _ if words[index].braced => {
+                requires = Some(event_requires_block(&block(&words[index]), log));
+            }
+            other => log.unknown_flag("event_requirement_form", stmt.line, other),
+        }
+        index += 1;
+    }
+    EventRequirementForm {
+        argument_prefix: leak_strs(&prefix),
+        requires,
+        only_in: leak_strs(&only_in),
+    }
+}
+
+/// `body_scope NAME | { … }` — a shipped environment by name, a pack
+/// `descriptor body_scope NAME { … }`, or an inline block.
+fn body_scope_value(
+    stmt: &Stmt,
+    tables: &PackTables,
+    hooks: &mut Vec<HookDecl>,
+    log: &mut Log,
+) -> Option<&'static ScopedCommandEnv> {
+    let word = stmt.arg(1)?;
+    if !word.braced
+        && let Some(shipped) = shipped_body_scope(&word.text)
+    {
+        return Some(shipped);
+    }
+    resolve_block(stmt, "body_scope", tables, log)
+        .map(|stmts| leak_one(body_scope_block(&stmts, tables, hooks, log)))
+}
+
+/// The rows of a `body_scope { … }` block: `ScopedCommandEnv`'s own fields.
+fn body_scope_block(
+    stmts: &[Stmt],
+    tables: &PackTables,
+    hooks: &mut Vec<HookDecl>,
+    log: &mut Log,
+) -> ScopedCommandEnv {
+    let mut env = ScopedCommandEnv {
+        name: "",
+        commands: &[],
+        include_sibling_definitions: false,
+        allow_unknown_commands: false,
+    };
+    let mut commands: Vec<ScopedCommand> = Vec::new();
+    for stmt in stmts {
+        match stmt.word_text(0) {
+            "name" => env.name = leak_str(stmt.word_text(1)),
+            "include_sibling_definitions" => {
+                env.include_sibling_definitions = parse_flag(stmt.tail());
+            }
+            "allow_unknown_commands" => env.allow_unknown_commands = parse_flag(stmt.tail()),
+            "command" => {
+                if let Some(command) = scoped_command_row(stmt, tables, hooks, log) {
+                    commands.push(command);
+                }
+            }
+            _ => log.unknown_property(stmt),
+        }
+    }
+    env.commands = leak_slice(commands);
+    env
+}
+
+/// One `command NAME { … }` of a `body_scope` block.
+fn scoped_command_row(
+    stmt: &Stmt,
+    tables: &PackTables,
+    hooks: &mut Vec<HookDecl>,
+    log: &mut Log,
+) -> Option<ScopedCommand> {
+    let name = stmt.word_text(1);
+    if name.is_empty() {
+        log.say(stmt.line, "a `body_scope` `command` needs a name");
+        return None;
+    }
+    let Some(body) = stmt.arg(2) else {
+        log.say(
+            stmt.line,
+            format!("`command {name}` in a `body_scope` has no `{{ … }}` block"),
+        );
+        return None;
+    };
+    let mut command = ScopedCommand {
+        name: leak_str(name),
+        arity: Arity::any(),
+        subcommands: &[],
+        allow_unknown_subcommands: false,
+        detail: "",
+        hover: None,
+    };
+    let mut subcommands: Vec<SubCommand> = Vec::new();
+    log.scoped(format!("body_scope command {name}"), |log| {
+        for row in block(body) {
+            match row.word_text(0) {
+                "arity" => command.arity = parse_arity(&row, log).0,
+                "detail" => command.detail = leak_str(row.word_text(1)),
+                "allow_unknown_subcommands" => {
+                    command.allow_unknown_subcommands = parse_flag(row.tail());
+                }
+                "hover" => {
+                    if let Some(word) = row.arg(1) {
+                        command.hover = Some(hover_block(&block(word), log));
+                    }
+                }
+                "subcommand" => {
+                    if let Some(sub) =
+                        load_subcommand(&row, tables, hooks, "body_scope subcommand", log)
+                    {
+                        subcommands.push(sub);
+                    }
+                }
+                _ => log.unknown_property(&row),
+            }
+        }
+    });
+    command.subcommands = leak_slice(subcommands);
+    Some(command)
+}
+
 // ---------------------------------------------------------------------------
 // Command loading
 // ---------------------------------------------------------------------------
@@ -4301,6 +4720,7 @@ struct CommandAcc {
     setter_constraints: Vec<tcl_registry::taint::SetterConstraint>,
     oo_context_facts: Vec<(&'static str, tcl_registry::spec::OoContextFact)>,
     callback_taint_inputs: Vec<(u8, &'static [CallbackTaintInput])>,
+    event_requirement_forms: Vec<EventRequirementForm>,
     hooks: Vec<HookDecl>,
     clause_grammar: Option<ClauseGrammar>,
 }
@@ -4460,6 +4880,7 @@ fn command_from_parts(
         spec.versioned_arg_values = leak_slice(acc.versioned_arg_values);
         spec.setter_constraints = leak_slice(acc.setter_constraints);
         spec.oo_context_facts = leak_slice(acc.oo_context_facts);
+        spec.event_requirement_forms = leak_slice(acc.event_requirement_forms);
 
         spec.lifecycle = checked_lifecycle(
             spec.lifecycle,
@@ -4945,6 +5366,40 @@ fn apply_command_stmt(
         "world_effects" => spec.world_effects = world_effects_value(stmt, tables, log),
         "state_transitions" => {
             spec.state_transitions = state_transitions_value(stmt, tables, log);
+        }
+        // --- the ratified words (design §6.2, §6.3's blind spot) -----------
+        "result_stability" => {
+            if let Some(stability) = result_stability_row(stmt, log) {
+                spec.result_stability = Some(stability);
+            }
+        }
+        "side_switch_target" => {
+            spec.side_switch_target = enum_by_name(
+                SIDE_SWITCH_TARGETS,
+                &value,
+                "side-switch target",
+                stmt.line,
+                log,
+            );
+        }
+        "event_handler_priority" => {
+            if let Some(policy) = event_handler_priority_row(stmt, log) {
+                spec.event_handler_priority = Some(policy);
+            }
+        }
+        "data_collection" => {
+            if let Some(operation) = data_collection_row(stmt, log) {
+                spec.data_collection = Some(operation);
+            }
+        }
+        "event_requirement_form" => {
+            acc.event_requirement_forms
+                .push(event_requirement_form_row(stmt, log));
+        }
+        "body_scope" => {
+            if let Some(env) = body_scope_value(stmt, tables, &mut acc.hooks, log) {
+                spec.body_scope = Some(env);
+            }
         }
 
         // --- taint --------------------------------------------------------
@@ -5731,6 +6186,13 @@ fn apply_subcommand_stmt(
             acc.options.push(option);
         }
         "option_conflict" => acc.option_constraints.push(option_conflict_row(stmt, log)),
+        // The ratified word `SubCommand` carries in its own right: an
+        // ensemble arm's result contract is not its command's.
+        "result_stability" => {
+            if let Some(stability) = result_stability_row(stmt, log) {
+                sub.result_stability = Some(stability);
+            }
+        }
         "side_effect" => {
             if let Some(effect) = side_effect_row(stmt, log) {
                 acc.side_effects.push(effect);
@@ -7450,6 +7912,165 @@ mod tests {
             "{:?}",
             pack.notices
         );
+    }
+
+    /// The seven ratified words the loader had no reader for (§6.2's list,
+    /// §6.3's `DraftOpaque`-masks-`LoaderGap` blind spot): each lands on the
+    /// `CommandSpec` field the design memo's coverage matrix names for it.
+    #[test]
+    fn the_ratified_words_reach_their_model_fields() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n\
+             command probe::collect {\n\
+             \x20  arity 0\n\
+             \x20  result_stability Volatile\n\
+             \x20  data_collection -native HTTP_COLLECT\n\
+             \x20  side_switch_target Server\n\
+             \x20  event_handler_priority -default 500 -min 0 -max 1000 -warn-implicit\n\
+             \x20  event_requirement_form {append} -only-in {HTTP_REQUEST} {\n\
+             \x20      client_side yes\n\
+             \x20  }\n\
+             }\n\
+             command probe::read {\n\
+             \x20  arity 1\n\
+             \x20  result_stability {ReadsVersionedWorld {CommandBindings NamespaceLookup}}\n\
+             \x20  body_scope {\n\
+             \x20      name {probe body}\n\
+             \x20      include_sibling_definitions\n\
+             \x20      allow_unknown_commands no\n\
+             \x20      command top {\n\
+             \x20          arity 1..2\n\
+             \x20          detail {the top row}\n\
+             \x20          subcommand set { arity 1 }\n\
+             \x20      }\n\
+             \x20  }\n\
+             \x20  subcommand line {\n\
+             \x20      arity 0\n\
+             \x20      result_stability ReferentiallyTransparent\n\
+             \x20  }\n\
+             }\n\
+             }\n",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let collect = pack
+            .commands
+            .iter()
+            .find(|command| command.spec.name == "probe::collect")
+            .expect("the collect command loads");
+        assert_eq!(
+            collect.spec.result_stability,
+            Some(ResultStability::Volatile)
+        );
+        assert_eq!(
+            collect.spec.data_collection.map(|op| op.action),
+            Some(tcl_registry::events::DataCollectionAction::Collect)
+        );
+        assert_eq!(
+            collect.spec.side_switch_target,
+            Some(SideSwitchTarget::Server)
+        );
+        let priority = collect
+            .spec
+            .event_handler_priority
+            .expect("the priority policy loads");
+        assert_eq!(priority.default_priority, 500);
+        assert_eq!(priority.max_priority, 1000);
+        assert!(priority.warn_when_implicit);
+        assert_eq!(collect.spec.event_requirement_forms.len(), 1);
+        let form = &collect.spec.event_requirement_forms[0];
+        assert_eq!(form.argument_prefix, ["append"]);
+        assert_eq!(form.only_in, ["HTTP_REQUEST"]);
+        assert!(
+            form.requires
+                .as_ref()
+                .is_some_and(|requires| requires.client_side)
+        );
+
+        let read = pack
+            .commands
+            .iter()
+            .find(|command| command.spec.name == "probe::read")
+            .expect("the read command loads");
+        assert_eq!(
+            read.spec.result_stability,
+            Some(ResultStability::ReadsVersionedWorld(&[
+                WorldStateDomain::CommandBindings,
+                WorldStateDomain::NamespaceLookup,
+            ]))
+        );
+        let scope = read.spec.body_scope.expect("the body scope loads");
+        assert_eq!(scope.name, "probe body");
+        assert!(scope.include_sibling_definitions);
+        assert!(!scope.allow_unknown_commands);
+        let top = scope.command("top").expect("the scoped command loads");
+        assert!(top.arity.accepts(2));
+        assert_eq!(top.detail, "the top row");
+        assert!(top.subcommand("set").is_some());
+        assert_eq!(
+            read.spec
+                .subcommands
+                .iter()
+                .find(|sub| sub.name == "line")
+                .and_then(|sub| sub.result_stability),
+            Some(ResultStability::ReferentiallyTransparent)
+        );
+    }
+
+    /// A `body_scope` may also name a shipped environment or a pack
+    /// `descriptor`, exactly as `definition_body` and `case_list` do.
+    #[test]
+    fn a_body_scope_resolves_a_shipped_name_and_a_descriptor() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n\
+             descriptor body_scope probe-style {\n\
+             \x20  name {probe style}\n\
+             \x20  command row { arity 1 }\n\
+             }\n\
+             command probe::defstyle { arity 2; body_scope report-defstyle }\n\
+             command probe::style { arity 2; body_scope probe-style }\n\
+             }\n",
+        );
+        assert!(pack.notices.is_empty(), "{:?}", pack.notices);
+        let named = |name: &str| {
+            pack.commands
+                .iter()
+                .find(|command| command.spec.name == name)
+                .and_then(|command| command.spec.body_scope)
+                .expect("a body scope")
+        };
+        assert_eq!(
+            named("probe::defstyle").name,
+            tcl_registry::scoped::REPORT_DEFSTYLE_ENV.name
+        );
+        assert!(named("probe::defstyle").is_command("top"));
+        assert_eq!(named("probe::style").name, "probe style");
+        assert!(named("probe::style").is_command("row"));
+    }
+
+    /// A malformed ratified row is dropped with a notice rather than
+    /// guessed at: an unreadable world-state domain would *narrow* a
+    /// dependency set, and a priority outside its own range is not a range.
+    #[test]
+    fn a_malformed_ratified_row_is_dropped_with_a_notice() {
+        let pack = load_pack(
+            "speclib probe 2.0 {\n\
+             command probe::bad {\n\
+             \x20  arity 0\n\
+             \x20  result_stability {ReadsVersionedWorld {NotADomain}}\n\
+             \x20  event_handler_priority -default 2000 -max 1000\n\
+             \x20  data_collection -native NOT_A_DESCRIPTOR\n\
+             }\n\
+             }\n",
+        );
+        let command = pack
+            .commands
+            .iter()
+            .find(|command| command.spec.name == "probe::bad")
+            .expect("the command still loads");
+        assert_eq!(command.spec.result_stability, None);
+        assert_eq!(command.spec.event_handler_priority, None);
+        assert_eq!(command.spec.data_collection, None);
+        assert_eq!(pack.notices.len(), 3, "{:?}", pack.notices);
     }
 
     /// An `environment` block parses, validates, and converts.

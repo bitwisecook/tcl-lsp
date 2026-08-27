@@ -111,6 +111,11 @@ const MARKERS: &[(&str, VocabularyClass)] = &[
     ("effect", VocabularyClass::Semantic),
     ("hook", VocabularyClass::Semantic),
     ("codegen", VocabularyClass::Semantic),
+    // `bpf_op` names the operation a BPF-dialect command lowers to. An
+    // older build that drops it does not lose polish: it loses the
+    // lowering, and the command silently stops being the instruction it
+    // is. Codegen, so semantic.
+    ("bpf", VocabularyClass::Semantic),
     ("lowering", VocabularyClass::Semantic),
     ("intrinsic", VocabularyClass::Semantic),
     ("binding", VocabularyClass::Semantic),

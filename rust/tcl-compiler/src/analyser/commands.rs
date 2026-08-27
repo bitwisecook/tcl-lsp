@@ -1732,6 +1732,7 @@ impl Analyser {
         self.emit_w121_invalid_subnet_mask(args, arg_tokens);
         self.emit_w108_non_ascii(arg_tokens);
         self.emit_w148_numeral_release(args, arg_tokens);
+        self.emit_w151_range_numerals(args, arg_tokens);
         self.emit_bounds_family_diagnostics(cmd_name, args, arg_tokens);
         self.emit_registry_argument_diagnostics(site);
         self.emit_w304_missing_option_terminator(cmd_name, args, cmd_tok, arg_tokens);
@@ -1792,6 +1793,146 @@ impl Analyser {
                     ),
                     Severity::Warning,
                 ));
+        }
+    }
+
+    /// §5.4 cross-target numeral portability (**W151**): a literal word
+    /// that does not read as the *same* number under every numeral
+    /// grammar the declared target range spans.
+    ///
+    /// Two divergence shapes, both from the numeral axis the dialect
+    /// model already carries ([`tcl_dialect::NumberSyntax`], §3.1):
+    ///
+    /// * **meaning** — the word parses everywhere but to different
+    ///   values: the motivating leading-zero case (`010` is 8 under
+    ///   Tcl 8.x targets and 10 under 9.0 — a silent behaviour change);
+    /// * **validity** — the word is a numeral under some targets only
+    ///   (`0b101`/`0o17` predate 8.5; `0d5` and `_` separators predate
+    ///   9.0).
+    ///
+    /// A word the **primary** grammar itself rejects is W148's
+    /// single-target fact and is skipped here — one word, one
+    /// diagnostic. Dynamic/substituted words are ignored exactly as
+    /// W148 ignores them, and the whole walk is off unless the declared
+    /// range spans at least two numeral grammars
+    /// ([`Analyser::range_numeral_grammars`]).
+    fn emit_w151_range_numerals(&mut self, args: &[String], tokens: &[Token]) {
+        if self.range_numeral_grammars.len() < 2 {
+            return;
+        }
+        let grammars = self.range_numeral_grammars.clone();
+        let primary = self.profile.grammar.numbers;
+        let mut new_diags: Vec<crate::analyser::types::Diagnostic> = Vec::new();
+        for (arg, token) in args.iter().zip(tokens.iter()) {
+            if !matches!(token.kind, TokenType::Str | TokenType::Esc)
+                || arg.contains('$')
+                || arg.contains('[')
+            {
+                continue;
+            }
+            let word = arg.trim();
+            if word.is_empty() {
+                continue;
+            }
+            let read = |syntax: tcl_dialect::NumberSyntax| {
+                tcl_syntax::number::parse_whole_with(
+                    word,
+                    tcl_syntax::number::ParseFlags::for_syntax(syntax),
+                )
+            };
+            let readings: Vec<(
+                tcl_dialect::NumberSyntax,
+                Option<tcl_syntax::number::Number>,
+            )> = grammars
+                .iter()
+                .map(|&syntax| (syntax, read(syntax)))
+                .collect();
+            if readings.iter().all(|(_, reading)| reading.is_none()) {
+                continue;
+            }
+            // The primary's own rejection is W148's fact, not a range one.
+            if read(primary).is_none() {
+                continue;
+            }
+            let message = if let Some((rejecting, _)) =
+                readings.iter().find(|(_, reading)| reading.is_none())
+            {
+                format!(
+                    "Numeral '{word}' is not accepted under the declared target(s) {}.",
+                    self.range_numeral_target_names(*rejecting)
+                )
+            } else {
+                let (first_grammar, first) = &readings[0];
+                let Some((diverging, other)) = readings
+                    .iter()
+                    .find(|(_, reading)| reading != first)
+                    .map(|(grammar, reading)| (*grammar, reading.clone()))
+                else {
+                    continue; // every target reads the same value
+                };
+                let spell = |reading: &Option<tcl_syntax::number::Number>| match reading {
+                    Some(tcl_syntax::number::Number::Int(value)) => value.to_string(),
+                    _ => "a different value".to_owned(),
+                };
+                format!(
+                    "Numeral '{word}' means {} under declared target(s) {} but {} under {} — a silent meaning change across the declared range.",
+                    spell(first),
+                    self.range_numeral_target_names(*first_grammar),
+                    spell(&other),
+                    self.range_numeral_target_names(diverging)
+                )
+            };
+            new_diags.push(crate::analyser::types::Diagnostic::new(
+                DiagCode::W151,
+                token.span,
+                message,
+                Severity::Warning,
+            ));
+        }
+        self.result.diagnostics.extend(new_diags);
+    }
+
+    /// The declared core-target names a W151 message cites for the
+    /// targets that resolve `grammar` — the declared set intersected
+    /// with the grammar's era, named at ladder granularity.
+    fn range_numeral_target_names(&self, grammar: tcl_dialect::NumberSyntax) -> String {
+        use tcl_dialect::model::{Family, VersionAxisId};
+        let axis = VersionAxisId::core(Family::Tcl);
+        let fallback = || {
+            format!(
+                "Tcl {}",
+                match grammar {
+                    tcl_dialect::NumberSyntax::Tcl84 => "8.4",
+                    tcl_dialect::NumberSyntax::Tcl85 => "8.5",
+                    tcl_dialect::NumberSyntax::Tcl90 => "9.0",
+                }
+            )
+        };
+        let Some(declared) = self
+            .range_context
+            .as_ref()
+            .and_then(|context| context.declared_targets(&axis))
+        else {
+            return fallback();
+        };
+        let requirement = match grammar {
+            tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
+            tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
+            tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+        };
+        let Ok(era) =
+            tcl_dialect::model::VersionSet::from_requirements(axis.clone(), &[requirement])
+        else {
+            return fallback();
+        };
+        let Ok(overlap) = declared.intersect(&era) else {
+            return fallback();
+        };
+        let names = tcl_registry::model::ladder_releases_in(&overlap);
+        if names.is_empty() {
+            fallback()
+        } else {
+            names.join(", ")
         }
     }
 

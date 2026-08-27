@@ -205,6 +205,47 @@ impl VersionGateAxis {
             Self::TclCore => "Tcl",
         }
     }
+
+    /// The model axis this gate axis names — the §5.4 declared-target
+    /// sets are keyed by [`tcl_dialect::model::VersionAxisId`].
+    fn version_axis(self) -> tcl_dialect::model::VersionAxisId {
+        match self {
+            Self::Package(package) => tcl_dialect::model::VersionAxisId::package(package),
+            Self::TclCore => {
+                tcl_dialect::model::VersionAxisId::core(tcl_dialect::model::Family::Tcl)
+            }
+        }
+    }
+}
+
+/// A §5.4 **mask-gated** range site (W150): an item whose availability is
+/// spelled as `DialectSet` ladder bits rather than a lifecycle, admitted
+/// at the primary target but missing from part of the declared target
+/// set. Buffered during the walk and decided post-walk beside the
+/// lifecycle sites so one word still draws one diagnostic.
+#[derive(Debug)]
+pub(in crate::analyser) struct RangeGateSite {
+    /// Span the diagnostic anchors to.
+    span: Span,
+    /// Human phrase naming the gated syntax (`item_phrase` form).
+    what: String,
+    /// The gate's own version floor ("8.6"), when it spells one — the
+    /// "requires Tcl 8.6" half of the message.
+    requires: Option<String>,
+    /// The declared targets the gate does not cover.
+    uncovered: tcl_dialect::model::VersionSet,
+}
+
+/// The names a range diagnostic lists for `set`: the touched ladder
+/// releases where the axis has a version-spelled ladder, the
+/// requirement spelling otherwise.
+fn range_target_names(set: &tcl_dialect::model::VersionSet) -> String {
+    let names = tcl_registry::model::ladder_releases_in(set);
+    if names.is_empty() {
+        tcl_registry::model::requirement_spelling(set)
+    } else {
+        names.join(", ")
+    }
 }
 
 /// Owned word fact retained until the whole-file lifecycle floor is known.
@@ -272,7 +313,7 @@ fn deprecation_fix_payload(
 
 /// Payload distinguishing the package-version gate's syntax granularity.
 #[derive(Debug, Clone)]
-enum VersionGateItem {
+pub(in crate::analyser) enum VersionGateItem {
     Command(String),
     Subcommand {
         command: String,
@@ -516,16 +557,14 @@ impl Analyser {
                     ),
                 )
             };
-            self.record_lifecycle_site(
-                span,
-                invocation.axis,
-                sub.lifecycle,
-                VersionGateItem::Subcommand {
-                    command: invocation.command.to_owned(),
-                    subcommand: sub.name.to_owned(),
-                },
-                payload,
-            );
+            let item = VersionGateItem::Subcommand {
+                command: invocation.command.to_owned(),
+                subcommand: sub.name.to_owned(),
+            };
+            // §5.4 range mode: the subcommand's inherited mask gate
+            // across the declared core targets.
+            self.record_range_gate_site(span, &item, sub.dialects.or(spec.dialects));
+            self.record_lifecycle_site(span, invocation.axis, sub.lifecycle, item, payload);
         }
         if sub_is_literal && !sub.sub_subcommands.is_empty() {
             self.record_sub_subcommand_version_site(invocation, sub);
@@ -648,6 +687,7 @@ impl Analyser {
         invocation: LifecycleInvocation<'_>,
         options: &[tcl_registry::hover::OptionSpec],
         start_idx: usize,
+        parent_gate: Option<DialectSet>,
     ) {
         let mut i = start_idx;
         while i < invocation.args.len() {
@@ -675,16 +715,14 @@ impl Analyser {
                             ),
                         )
                     };
-                    self.record_lifecycle_site(
-                        span,
-                        invocation.axis,
-                        opt.lifecycle,
-                        VersionGateItem::Option {
-                            command: invocation.command.to_owned(),
-                            option: arg.to_owned(),
-                        },
-                        payload,
-                    );
+                    let item = VersionGateItem::Option {
+                        command: invocation.command.to_owned(),
+                        option: arg.to_owned(),
+                    };
+                    // §5.4 range mode: the option's inherited mask gate
+                    // across the declared core targets.
+                    self.record_range_gate_site(span, &item, opt.dialects.or(parent_gate));
+                    self.record_lifecycle_site(span, invocation.axis, opt.lifecycle, item, payload);
                 }
                 i += 1 + opt.value_word_count(invocation.args, i);
                 continue;
@@ -753,6 +791,17 @@ impl Analyser {
             payload,
         );
 
+        // §5.4 range mode: the command's mask-spelled availability across
+        // the declared core targets. Only an item the *primary* resolves
+        // is a range question — one absent at the primary stays W002's.
+        if self.range_context.is_some() && self.analysis_context().context().spec_available(spec) {
+            self.record_range_gate_site(
+                span,
+                &VersionGateItem::Command(cmd_name.to_owned()),
+                spec.dialects,
+            );
+        }
+
         // Command-level literal argument values (`HTTP::respond <status>
         // noserver`, a vendor mode word) — the same gate the subcommand arm
         // applies, one level up.
@@ -775,15 +824,15 @@ impl Analyser {
         if let Some(sub) = sub_match {
             self.record_subcommand_version_sites(invocation, spec, sub);
         }
-        let (options, start_idx) = match sub_match {
-            Some(sub) => (sub.options, 1usize),
-            None => (spec.options, 0usize),
+        let (options, start_idx, parent_gate) = match sub_match {
+            Some(sub) => (sub.options, 1usize, sub.dialects.or(spec.dialects)),
+            None => (spec.options, 0usize, spec.dialects),
         };
         if options.is_empty() {
             return;
         }
 
-        self.record_option_version_sites(invocation, options, start_idx);
+        self.record_option_version_sites(invocation, options, start_idx, parent_gate);
     }
 
     /// Emit W135/W136 for each buffered site whose package's resolved
@@ -795,41 +844,157 @@ impl Analyser {
     /// required without a version, or not required — the latter handled by
     /// W120) are skipped.
     pub(in crate::analyser) fn flush_version_gate_diagnostics(&mut self) {
-        if self.version_gate_sites.is_empty() {
+        if self.version_gate_sites.is_empty() && self.range_gate_sites.is_empty() {
             return;
         }
         let sites = std::mem::take(&mut self.version_gate_sites);
         let mut new_diags: Vec<Diagnostic> = Vec::new();
+        // Spans that drew a verdict, so the §5.4 range pass keeps the
+        // one-word-one-diagnostic rule: a primary (semantic-floor)
+        // verdict always outranks the assistance range warning.
+        let mut reported: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
         for site in sites {
-            let Some((floor, guarantee)) = self.axis_floor(site.axis) else {
-                continue;
-            };
+            let floor = self.axis_floor(site.axis);
             // A range that reaches a retirement outranks the floor's own
             // verdict *while the floor is satisfied*: "gone in part of the
             // accepted range" is the stronger fact than "deprecated here".
             // A floor that already fails keeps its own, more specific message.
-            let Some((code, message)) = self
-                .requirement_straddle_diagnostic(&site, &floor)
-                .or_else(|| version_gate_diagnostic(&site, &floor, &guarantee))
-            else {
+            let verdict = floor.as_ref().and_then(|(floor, guarantee)| {
+                self.requirement_straddle_diagnostic(&site, floor)
+                    .or_else(|| version_gate_diagnostic(&site, floor, guarantee))
+            });
+            if let Some((code, message)) = verdict {
+                let (floor, _) = floor.expect("a verdict implies a resolved floor");
+                let fixes = (code == DiagCode::W144)
+                    .then(|| lifecycle_deprecation_fix(&site, &floor))
+                    .flatten()
+                    .into_iter()
+                    .collect();
+                reported.insert((site.span.start(), site.span.end()));
+                new_diags.push(
+                    crate::analyser::types::Diagnostic::new(
+                        code,
+                        site.span,
+                        message,
+                        Severity::Warning,
+                    )
+                    .with_fixes(fixes),
+                );
                 continue;
-            };
-            let fixes = (code == DiagCode::W144)
-                .then(|| lifecycle_deprecation_fix(&site, &floor))
-                .flatten()
-                .into_iter()
-                .collect();
-            new_diags.push(
-                crate::analyser::types::Diagnostic::new(
-                    code,
+            }
+            // §5.4 range mode: the primary floor is satisfied (or none
+            // resolves), but a *declared* target can still sit outside
+            // the item's lifecycle window — the assistance range warning.
+            if let Some(message) = self.range_window_message(&site) {
+                reported.insert((site.span.start(), site.span.end()));
+                new_diags.push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W150,
                     site.span,
                     message,
                     Severity::Warning,
-                )
-                .with_fixes(fixes),
-            );
+                ));
+            }
         }
         self.result.diagnostics.extend(new_diags);
+        self.flush_range_gate_sites(&reported);
+    }
+
+    /// The **W150** message for a lifecycle site whose window excludes
+    /// part of the declared target set (§5.4), or `None` when no targets
+    /// are declared on the site's axis or the window covers them all.
+    /// The introduction end outranks the retirement end, mirroring the
+    /// floor gate's own precedence; deprecation is not absence and never
+    /// range-warns.
+    fn range_window_message(&self, site: &VersionGateSite) -> Option<String> {
+        let context = self.range_context.as_ref()?;
+        let axis = site.axis.version_axis();
+        context.declared_targets(&axis)?;
+        let what = item_phrase(&site.item);
+        let package = site.axis.name();
+        if let Some(introduced) = site.lifecycle.introduced
+            && let Some(outside) = context.targets_outside_window(&axis, Some(introduced), None)
+        {
+            return Some(format!(
+                "{what} requires {package} {introduced} but the declared targets include {}.",
+                range_target_names(&outside)
+            ));
+        }
+        let retired = site.lifecycle.retired?;
+        let outside = context.targets_outside_window(&axis, None, Some(retired))?;
+        Some(format!(
+            "{what} was removed in {package} {retired} but the declared targets include {}.",
+            range_target_names(&outside)
+        ))
+    }
+
+    /// Buffer a §5.4 mask-gated range site: `gate` is the item's
+    /// effective `DialectSet` availability gate (own or inherited). A
+    /// walk with no declared core targets records nothing.
+    pub(in crate::analyser) fn record_range_gate_site(
+        &mut self,
+        span: Span,
+        item: &VersionGateItem,
+        gate: Option<DialectSet>,
+    ) {
+        let Some(context) = self.range_context.as_ref() else {
+            return;
+        };
+        let Some(uncovered) = context.targets_uncovered_by_gate(gate) else {
+            return;
+        };
+        let requires = gate
+            .and_then(tcl_dialect::DialectSet::min_version)
+            .map(|version| version.as_package_version().to_owned());
+        self.range_gate_sites.push(RangeGateSite {
+            span,
+            what: item_phrase(item),
+            requires,
+            uncovered,
+        });
+    }
+
+    /// Emit **W150** for the buffered mask-gated range sites, skipping
+    /// any span the lifecycle pass already reported (one word, one
+    /// diagnostic).
+    fn flush_range_gate_sites(&mut self, reported: &std::collections::HashSet<(u32, u32)>) {
+        if self.range_gate_sites.is_empty() {
+            return;
+        }
+        let mut seen = reported.clone();
+        for site in std::mem::take(&mut self.range_gate_sites) {
+            if !seen.insert((site.span.start(), site.span.end())) {
+                continue;
+            }
+            let names = range_target_names(&site.uncovered);
+            // "requires X" is only the right story when the miss is
+            // *below* the gate's floor; a run that ends before a target
+            // (the removed-in-9.0 shape) gets the neutral phrasing.
+            let miss_is_below_floor = site.requires.as_ref().is_some_and(|requires| {
+                tcl_dialect::model::VersionSet::from_requirements(
+                    site.uncovered.axis().clone(),
+                    &[format!("0-{requires}")],
+                )
+                .is_ok_and(|below| site.uncovered.subset(&below).unwrap_or(false))
+            });
+            let message = match &site.requires {
+                Some(requires) if miss_is_below_floor => format!(
+                    "{} requires Tcl {requires} but the declared targets include {names}.",
+                    site.what
+                ),
+                _ => format!(
+                    "{} is not available at every declared Tcl target — missing at {names}.",
+                    site.what
+                ),
+            };
+            self.result
+                .diagnostics
+                .push(crate::analyser::types::Diagnostic::new(
+                    DiagCode::W150,
+                    site.span,
+                    message,
+                    Severity::Warning,
+                ));
+        }
     }
 
     /// The resolved version floor on `axis`, with the phrase naming what
@@ -1459,6 +1624,28 @@ impl Analyser {
         let mut new_diags: Vec<Diagnostic> = Vec::new();
         for site in sites {
             if site.min <= effective {
+                // §5.4 range mode: the feature is fine at the effective
+                // (primary) version, but a *declared* core target can
+                // still predate it — the assistance range warning.
+                if let Some(context) = self.range_context.as_ref()
+                    && let Some(outside) = context.targets_outside_window(
+                        &VersionGateAxis::TclCore.version_axis(),
+                        Some(site.min.as_package_version()),
+                        None,
+                    )
+                {
+                    new_diags.push(crate::analyser::types::Diagnostic::new(
+                        DiagCode::W150,
+                        site.span,
+                        format!(
+                            "{} requires Tcl {} but the declared targets include {}.",
+                            site.what,
+                            site.min.as_package_version(),
+                            range_target_names(&outside)
+                        ),
+                        Severity::Warning,
+                    ));
+                }
                 continue;
             }
             new_diags.push(crate::analyser::types::Diagnostic::new(
@@ -2741,6 +2928,263 @@ mod tests {
             let met = "proc use {} { fauxgated -alpha -beta }\n\
                        package require Fauxpkg 2.0\n";
             assert_eq!(conflicts(met).len(), 1, "{:?}", conflicts(met));
+        }
+    }
+
+    // -- §5.4 range targeting, W150 / W151 (P1b) ---------------------------
+
+    mod range_targeting {
+        use super::super::super::super::state::Analyser;
+
+        /// Every range / version-gate / numeral code for `source` under
+        /// `dialect`, on a fresh analyser.
+        fn diags(source: &str, dialect: &str) -> Vec<(String, String)> {
+            diags_with(Analyser::new(), source, dialect)
+        }
+
+        fn diags_with(
+            mut analyser: Analyser,
+            source: &str,
+            dialect: &str,
+        ) -> Vec<(String, String)> {
+            analyser
+                .analyse(source, dialect)
+                .diagnostics
+                .iter()
+                .filter(|d| {
+                    matches!(
+                        d.code.as_str(),
+                        "W002"
+                            | "W135"
+                            | "W136"
+                            | "W137"
+                            | "W138"
+                            | "W139"
+                            | "W144"
+                            | "W148"
+                            | "W150"
+                            | "W151"
+                    )
+                })
+                .map(|d| (d.code.to_string(), d.message.clone()))
+                .collect()
+        }
+
+        fn fires(diags: &[(String, String)], code: &str) -> bool {
+            diags.iter().any(|(c, _)| c == code)
+        }
+
+        /// The owner's canonical case, both ways: a leading-zero literal
+        /// under a range spanning 8.x and 9.x draws the meaning-change
+        /// warning; a single-target 9.0 project — and an undeclared one —
+        /// stays clean.
+        #[test]
+        fn the_octal_case_both_ways() {
+            let spanning = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {010}\n";
+            let diags = diags(spanning, "tcl8.6");
+            assert!(
+                diags.iter().any(|(c, m)| c == "W151"
+                    && m.contains("means 8")
+                    && m.contains("10")
+                    && m.contains("silent meaning change")),
+                "8.5-9.0 spans the octal/decimal boundary: {diags:?}"
+            );
+
+            let single = "# tcl-lsp: supports tcl 9.0\nexpr {010}\n";
+            assert!(
+                !fires(&super::range_targeting::diags(single, "tcl9.0"), "W151"),
+                "a single 9.0 target has one numeral grammar"
+            );
+            let undeclared = "expr {010}\n";
+            for dialect in ["tcl8.6", "tcl9.0", "tcl"] {
+                let diags = super::range_targeting::diags(undeclared, dialect);
+                assert!(
+                    !fires(&diags, "W151") && !fires(&diags, "W150"),
+                    "{dialect}: no declaration, no range mode: {diags:?}"
+                );
+            }
+        }
+
+        /// Prefix and separator numerals draw the validity half of W151
+        /// when a declared target predates them — and only then.
+        #[test]
+        fn prefix_numerals_follow_the_declared_range() {
+            // `0o17` predates nothing in 8.5-9.0…
+            let fine = "# tcl-lsp: supports tcl 8.5-9.0\nexpr {0o17}\n";
+            assert!(
+                !fires(&diags(fine, "tcl8.6"), "W151"),
+                "0o is 8.5+ and the range starts at 8.5"
+            );
+            // …but an 8.4 target rejects it.
+            let with_84 = "# tcl-lsp: supports tcl 8.4-9.0\nexpr {0o17}\n";
+            let d = diags(with_84, "tcl8.6");
+            assert!(
+                d.iter()
+                    .any(|(c, m)| c == "W151" && m.contains("not accepted") && m.contains("8.4")),
+                "0o17 is a bareword under 8.4: {d:?}"
+            );
+            // 9.x-only spellings under a range reaching back to 8.x — the
+            // primary (9.0) accepts them, the 8.x targets do not.
+            for word in ["0d5", "1_000"] {
+                let source = format!("# tcl-lsp: supports tcl 8.5-9.0\nset x {word}\n");
+                let d = diags(&source, "tcl9.0");
+                assert!(
+                    d.iter()
+                        .any(|(c, m)| c == "W151" && m.contains("not accepted")),
+                    "{word} is 9.0-only: {d:?}"
+                );
+                // Under an 8.6 primary the same word is W148's
+                // single-target fact, never double-reported as W151.
+                let d = diags(&source, "tcl8.6");
+                assert!(
+                    fires(&d, "W148") && !fires(&d, "W151"),
+                    "{word}: primary rejection stays W148's: {d:?}"
+                );
+            }
+        }
+
+        /// A command introduced at 8.6 under an 8.5–9.0 range: fine at the
+        /// primary, missing at the declared 8.5 target — the availability
+        /// half of the range family (mask-gated, no lifecycle involved).
+        #[test]
+        fn a_command_introduced_at_86_fails_the_85_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nlmap x {1 2} {set x}\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'lmap' requires Tcl 8.6")
+                    && m.contains("include 8.5")),
+                "lmap is 8.6+: {d:?}"
+            );
+            // A declared single target equal to the primary changes nothing.
+            let pinned = "# tcl-lsp: supports tcl 8.6\nlmap x {1 2} {set x}\n";
+            assert!(!fires(&diags(pinned, "tcl8.6"), "W150"));
+        }
+
+        /// The removal direction: `case` is gone from 9.0, so a range that
+        /// includes 9.0 flags it even though the 8.6 primary still has it.
+        #[test]
+        fn a_command_removed_at_9_fails_the_90_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\ncase $x in {a {set y 1}}\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'case'")
+                    && m.contains("missing at 9.0")),
+                "case does not exist at the 9.0 target: {d:?}"
+            );
+        }
+
+        /// The assistance/semantic split: an item that fails at the
+        /// **primary** keeps today's semantic-floor diagnostic (W002 here)
+        /// and never draws the assistance range warning on top.
+        #[test]
+        fn a_primary_failure_stays_the_floor_diagnostic() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nlmap x {1 2} {set x}\n";
+            let d = diags(source, "tcl8.5");
+            assert!(
+                !fires(&d, "W150"),
+                "absent at the primary is W002's, not a range fact: {d:?}"
+            );
+            assert!(
+                fires(&d, "W002"),
+                "the semantic floor verdict stands: {d:?}"
+            );
+        }
+
+        /// A library range (`supports Tk 8.5-8.6`) gates package items
+        /// through the same placement/floor machinery: the require
+        /// satisfies the floor, the declared 8.5–8.6 window does not reach
+        /// the option's 8.7 introduction.
+        #[test]
+        fn a_package_item_under_a_library_range() {
+            let source = "# tcl-lsp: supports Tk 8.5-8.6\n\
+                          package require Tk 8.7\n\
+                          entry .e -placeholder hi\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                !fires(&d, "W136"),
+                "the 8.7 require satisfies the floor: {d:?}"
+            );
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("'-placeholder'")
+                    && m.contains("requires Tk 8.7")
+                    && m.contains("8.5")),
+                "the declared Tk range misses the 8.7 introduction: {d:?}"
+            );
+            // Without the declaration the same source is silent — the
+            // library range is what changes the verdict.
+            let undeclared = "package require Tk 8.7\nentry .e -placeholder hi\n";
+            assert!(!fires(&diags(undeclared, "tcl8.6"), "W150"));
+        }
+
+        /// Settings-declared targets (`tclLsp.targets`) resolve exactly as
+        /// the directive does, and the directive wins per provider.
+        #[test]
+        fn settings_and_directive_ingress() {
+            let configured = || {
+                Analyser::new()
+                    .with_declared_targets(vec![("tcl".to_owned(), "8.5-9.0".to_owned())])
+            };
+            let source = "lmap x {1 2} {set x}\n";
+            let d = diags_with(configured(), source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150" && m.contains("'lmap'")),
+                "settings alone switch range mode on: {d:?}"
+            );
+            // A source directive narrows the same provider back to the
+            // primary's own line — the more specific source wins.
+            let overridden = "# tcl-lsp: supports tcl 8.6\nlmap x {1 2} {set x}\n";
+            assert!(
+                !fires(&diags_with(configured(), overridden, "tcl8.6"), "W150"),
+                "the directive overrides the configured pair"
+            );
+            // A malformed declaration is dropped, never guessed at.
+            let malformed = "# tcl-lsp: supports tcl not-a-version\nlmap x {1 2} {set x}\n";
+            assert!(!fires(&diags(malformed, "tcl8.6"), "W150"));
+        }
+
+        /// The argument-DSL rung follows the range too: a conversion fine
+        /// at the primary but newer than a declared target warns.
+        #[test]
+        fn a_dsl_feature_fails_an_older_declared_target() {
+            let source = "# tcl-lsp: supports tcl 8.5-9.0\nformat %b 5\n";
+            let d = diags(source, "tcl8.6");
+            assert!(
+                d.iter().any(|(c, m)| c == "W150"
+                    && m.contains("%b")
+                    && m.contains("requires Tcl 8.6")
+                    && m.contains("8.5")),
+                "%b is 8.6+ and 8.5 is declared: {d:?}"
+            );
+            assert!(!fires(&d, "W138"), "the primary itself is satisfied");
+        }
+
+        /// The no-range pin: a declared single target equal to the
+        /// primary's own line leaves the diagnostic list byte-identical to
+        /// an undeclared document.
+        #[test]
+        fn a_single_target_matching_the_primary_changes_nothing() {
+            let body = "lmap x {1 2} {set x}\n\
+                        expr {010}\n\
+                        format %b 5\n\
+                        entry .e -placeholder hi\n\
+                        trace variable v w handler\n";
+            let declared = format!("# tcl-lsp: supports tcl 8.6\n{body}");
+            let base: Vec<String> = Analyser::new()
+                .analyse(body, "tcl8.6")
+                .diagnostics
+                .iter()
+                .map(|d| format!("{} {}", d.code.as_str(), d.message))
+                .collect();
+            let pinned: Vec<String> = Analyser::new()
+                .analyse(&declared, "tcl8.6")
+                .diagnostics
+                .iter()
+                .map(|d| format!("{} {}", d.code.as_str(), d.message))
+                .collect();
+            assert_eq!(base, pinned, "single target ⇒ today's behaviour");
         }
     }
 }

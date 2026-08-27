@@ -63,6 +63,8 @@
 | W147 | warning | Mutually exclusive command options were supplied together. | ✓ |
 | W148 | warning | Numeral spelling is not accepted by the document's resolved Tcl release. | ✓ |
 | W149 | warning | Argument count matches a different release of the command's signature — the call fits a version window other than the one the resolved package floor selects. | ✓ |
+| W150 | warning | Not available across the project's declared version-target range — the item resolves at the primary target but is missing from one or more declared targets (range targeting). | ✓ |
+| W151 | warning | Numeral changes meaning or validity across the project's declared version-target range — e.g. a leading-zero literal is octal under Tcl 8.x targets and decimal under 9.0. | ✓ |
 | W200 | warning | `exec` result not captured or binary format modifier requires newer Tcl. | ✓ |
 | W201 | warning | Manual path concatenation — use `file join` instead. | ✓ |
 | W230 | warning | Constant list index out of range — lindex/lrange/lreplace silently return empty or clamp. | ✓ |

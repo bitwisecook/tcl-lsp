@@ -401,7 +401,7 @@ as widening **zero** hint selections.
 | C6 | The analyser's ad-hoc alias/rename/delete tables + `indirection.rs`'s bounded link walk as settlement inputs | `state_transition.rs`-fed realm state (which already carries the vocabulary) | P1a *(partial: the tables now feed the one oracle — `command_binding_knowledge` is their sole W123-class reader, and the realm module owns the top-level scan — but the tables themselves (`command_aliases`, `renamed_commands`, `deleted_commands`, the offset maps) are not yet re-homed onto `state_transition.rs`-fed realm state; that re-homing and `indirection.rs` remain)* |
 | C7 | `side_effects.rs`'s hand-rolled spec-selection rule | the single selection primitive | P1 *(compiler ported: the rule lives in the model as `side_effect_hints_in_context`, now behind the I4 head proof (measured: the proof gate widens zero selections catalogue-wide); the walk itself survives inside the primitive because proved-single-winner selection is **measured non-equivalent** at 9 points — `next` under `bpf`, `exit`/`send`/`close` under `expect`, `option`(+4 subcommands) under `spectcl` — pinned by `c7_hint_walk_counterexamples`, which fails the day the catalogue moves those hints onto the winning specs and the collapse can complete)* |
 | C8 | `CommandTableEffect` (third transition vocabulary) | `CommandBindingTransition` | P1a *(open: the realm scan still dispatches on `CommandTableEffect`; folding it into `CommandBindingTransition` is a coordinated registry+SpecTcl vocabulary change untouched by the P1a realm landing)* |
-| C9 | Whole-file `package_version_floor` as a semantic input; the `DocumentFloor` duplication | one floor engine, two typed views (R-d) | P1a/P1b |
+| C9 | Whole-file `package_version_floor` as a semantic input; the `DocumentFloor` duplication | one floor engine, two typed views (R-d) | P1a/P1b *(P1b lands the §5.4 range verdicts **beside** the floor engine, not as a second one: the version-gate flush asks the same `axis_floor` for the primary (semantic-floor) verdict and, only when that is satisfied, the document context's declared-target sets — `ResolvedContext::targets_outside_window` / `targets_uncovered_by_gate` — for the W150 range remainder, so a primary failure always outranks a range warning at the same word. `package_version_floor` and `DocumentFloor` themselves remain the two copies this row retires)* |
 | C10 | `all_dialect_command_names()`'s hardcoded 11-pack list and its EDA/SpecTcl exclusion policy | the four-tier known-anywhere model, with the exclusion policy restated as explicit tier data | P1 |
 | C11 | The ~20 hardcoded command-name match sites (terminal-action sets, `global\|variable\|upvar\|trace`, `set\|incr\|append\|lappend`, oo keywords, `on\|trap`, …) and the hardcoded `tcl8.5\|tcl8.6` profile-name match in the optimiser | registry descriptor data (traits, roles, clause grammars, definer grammars) and core-profile predicates | P1, gated |
 | C12 | `RuntimeExprSurface::for_tcl_version` and the duplicated operator/word tables; free-function `binary_bp` | `ExprGrammar` per core profile (precedence, symbolic operators, mathfunc sets, arity, substitution) with `for_profile`-only derivation | P1 |
@@ -868,13 +868,80 @@ row). No bundled pack was rewritten.
   pack-declared environment resolves through
   `model::ingress::resolve_environment` with its declared detection
   facts and ambient placements, and that reserved/untrusted claims fail.
-  `PackDialect` blocks still do not register (Family conversion is
-  P3+); production wiring of `register_pack_environments` into
-  discovery/load is the remaining half.
+
+**Production wiring (P3).** The seam is now what discovery and the server
+actually run:
+
+- **A second registration channel, keyed by source.**
+  `model::registration::sync_environment_sources` takes the *whole* set of
+  `EnvironmentSource`s (one per pack, id `tier:name`) and replaces the
+  source-keyed half of the dynamic state, so an environment whose pack has
+  left the workspace **retires** on the next rebuild. A source that breaks
+  a rule is reported by id and dropped while the rest register — one
+  malformed workspace pack must not un-register every other pack's
+  environments — and a set identical to the registered one is a no-op,
+  generation included, so an unchanged reload does not invalidate
+  downstream caches. `register_environments` keeps its all-or-nothing
+  anonymous semantics for single-pack callers.
+- **One publish point.** `tcl_spectcl::bundled::set_active` — the process's
+  answer to "which packs are loaded", called by the LSP server on every
+  reload and by `tcl-cli-support` once per CLI process — now calls
+  `registration::publish_pack_set`, which registers the set's environments
+  and converts and registers its `dialect` blocks.
+- **Detection routing follows the same claim.**
+  `registration::extension_routes` is a pure function of a pack set —
+  explicit `file_extension … -dialect D` rows first, then each
+  `environment` block's own detection rows, first claim winning — and the
+  pack *merge* publishes it, beside the `-dialect` rows it already
+  published. Deliberately at the merge and not only at the registration
+  seam: a reload whose content turns out identical never reaches the
+  publish point, and routing that depended on registration order would
+  lose its environment rows on exactly those reloads. So a pack-declared
+  environment is resolvable *and reachable* — a document whose extension it
+  claims routes to it through the ordinary ingress, with no setting and
+  nothing in the file — and the server advertises the same extensions to
+  the client (`pack_file_extensions`), so an editor that can register
+  associations at runtime opens the file as Tcl in the first place. The
+  server puts a refused pack's reason on the pack file as a `SPECTCL`
+  notice and logs the counts.
+- **`PackDialect` → runtime family data.** `tcl_spectcl::dialect_conversion`
+  converts a validated `dialect` block to a
+  `tcl_dialect::model::DynamicFamily`: namespaced `PACK/DIALECT` id (§3.3's
+  pack-name-prefixed scheme), one `LexerGrammar` per declared release, the
+  declaring tier's provenance. `tcl_dialect::model::dynamic` holds the store
+  — compiled family names reserved at every tier, a generation, the same
+  sync-and-retire shape. An `environment … { core DIALECT RELEASE }` row
+  naming a pack-declared dialect is carried as `PackCore` and resolved
+  against the pack's own `dialect` blocks after the whole file is read
+  (so a forward reference works); it registers as a `DynamicCore` binding,
+  and `dynamic_core_grammar(environment)` answers with the real grammar.
+  **The boundary**: a converted family is not a `Family` variant and cannot
+  be — that enum is closed and `grammar()` is a `const fn` over ladder
+  ordinals — so the environment carries `core: None` plus the binding, and
+  nothing on the analysis path consumes the dynamic grammar yet, because
+  `tcl_lexer::LexerConfig` is built from a `&'static DialectProfile` the
+  ingress hands out of a compiled table. Closing that last step is the
+  `DialectProfile` re-type (ledger C1), not more conversion.
+- The gates: `tcl-spectcl/tests/environment_registration.rs` (publish →
+  resolve → route → retire, environments and dialects together) and the
+  server e2e
+  `spec_packs::a_pack_declared_environment_routes_its_documents_through_the_ingress`
+  (a workspace pack's `environment` with a `file_extension` row, a document
+  with that extension resolving to it through `getEffectiveConfig`, and the
+  routing stopping when the pack is deleted).
 
 Still open from this section: nothing in U0–U10. The invocation-refinement
-descriptor and the seven ratified-but-unimplemented words remain §6.2
-work.
+descriptor remains §6.2 work; of the seven ratified-but-unimplemented words
+six now load (`result_stability` at command and subcommand scope,
+`event_requirement_form`, `data_collection`, `body_scope`,
+`side_switch_target`, `event_handler_priority`), each at the shared
+row-reader seam of both loaders and riding the export gates.
+`bpf_op` stays deferred: `CommandSpec::bpf_op` is
+`Option<&'static BpfOpSpec>` and every shipped value is a per-command
+private `static OP` in `tcl-registry/src/commands/bpf/`, so the documented
+`bpf_op -native ID` spelling has no id catalogue to resolve against — the
+missing model piece is a named `id → &'static BpfOpSpec` table in
+`tcl_registry::bpf_op`, not a loader reader.
 
 ## 7. The name-resolution oracle programme
 

@@ -474,6 +474,14 @@ pub struct AnalyserConfig {
     /// `synth_design` is a known command.
     #[returns(copy)]
     pub spec_pack_key: u64,
+    /// Declared version-target ranges (`tclLsp.targets`, redesign §5.4
+    /// range targeting) as `(provider, range)` pairs — `("tcl",
+    /// "8.5-9.0")`, `("Tk", "8.5-8.6")` — feeding
+    /// `Analyser::with_declared_targets`. Empty — the default — leaves
+    /// range mode off; a source-level `# tcl-lsp: supports` directive
+    /// overrides the configured pair for the same provider.
+    #[returns(ref)]
+    pub targets: Vec<(String, String)>,
 }
 
 /// Whole-file analysis, behind an `Arc` so reads bump a refcount rather than
@@ -508,6 +516,7 @@ pub fn file_analysis(
         .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra)
         .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(file.workspace_class_factories(db).clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
@@ -3123,6 +3132,7 @@ pub fn file_analysis_incremental(
         .with_pack_overlay(config.spec_pack_key(db))
         .with_extra_commands(extra_commands)
         .with_bigip_version(config.bigip_version(db).clone())
+        .with_declared_targets(config.targets(db).clone())
         .with_file_path(file.path(db).clone())
         .with_workspace_class_factories(workspace_class_factories.clone())
         .with_workspace_subclass_methods(file.workspace_subclass_methods(db).clone());
@@ -3596,6 +3606,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         )
     }
 
@@ -3872,6 +3883,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
 
@@ -4662,6 +4674,7 @@ mod tests {
             None,
             Some("21.1.0".to_owned()),
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4677,6 +4690,61 @@ mod tests {
         assert_eq!(
             incremental.library_versions.bigip_version.as_deref(),
             Some("21.1.0")
+        );
+    }
+
+    /// `tclLsp.targets` (§5.4 range targeting) flows through the config
+    /// into both analysis queries: a declared `tcl 8.5-9.0` range flags
+    /// the 8.6-introduced `lmap` at the declared 8.5 target, and the
+    /// undeclared default stays byte-identically silent.
+    #[test]
+    fn file_analysis_carries_declared_targets() {
+        let db = TclDatabase::default();
+        let ranged = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            vec![("tcl".to_owned(), "8.5-9.0".to_owned())],
+        );
+        let bare = AnalyserConfig::new(
+            &db,
+            Vec::new(),
+            NonAsciiMode::Default,
+            Vec::new(),
+            None,
+            None,
+            0,
+            Vec::new(),
+        );
+        let file = SourceFile::new(
+            &db,
+            "lmap x {1 2} {set x}\n".to_owned(),
+            "tcl8.6".to_owned(),
+            None,
+        );
+
+        let incremental = file_analysis_incremental(&db, file, ranged);
+        let full = file_analysis(&db, file, ranged);
+        assert_eq!(*incremental, *full);
+        assert!(
+            incremental
+                .diagnostics
+                .iter()
+                .any(|d| d.code.as_str() == "W150" && d.message.contains("8.5")),
+            "the declared range flags lmap at the 8.5 target: {:?}",
+            incremental.diagnostics
+        );
+        let undeclared = file_analysis_incremental(&db, file, bare);
+        assert!(
+            !undeclared
+                .diagnostics
+                .iter()
+                .any(|d| matches!(d.code.as_str(), "W150" | "W151")),
+            "no declaration, no range diagnostics"
         );
     }
 
@@ -4705,6 +4773,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4765,6 +4834,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -4827,6 +4897,7 @@ mod tests {
                     None,
                     None,
                     0,
+                    Vec::new(),
                 ),
             );
             let registry = db.registry(dialect);
@@ -5085,6 +5156,7 @@ mod tests {
                     None,
                     None,
                     0,
+                    Vec::new(),
                 ),
             );
             let want = compiler_check_diagnostics_uncached(src, registry, dialect, None, None);
@@ -5240,6 +5312,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5265,6 +5338,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5451,6 +5525,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5476,6 +5551,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             ),
         );
         assert_eq!(
@@ -5676,6 +5752,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // `a` defines `foo` (1 param) and an unrelated `bar`.
         let a = SourceFile::new(
@@ -5760,6 +5837,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(
             &db,
@@ -5829,6 +5907,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -5845,6 +5924,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
@@ -5903,6 +5983,7 @@ mod tests {
                 None,
                 None,
                 0,
+                Vec::new(),
             );
             let a = SourceFile::new(&db, a_text.to_owned(), "tcl8.6".to_owned(), None);
             let b = SourceFile::new(&db, b_text.to_owned(), "tcl8.6".to_owned(), None);
@@ -5919,6 +6000,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let a = SourceFile::new(&db, a_variants[0].to_owned(), "tcl8.6".to_owned(), None);
         let b = SourceFile::new(&db, b_variants[0].to_owned(), "tcl8.6".to_owned(), None);
@@ -5966,6 +6048,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines `proc helper {x y}` — arity exactly 2.
         let b = SourceFile::new(
@@ -6023,6 +6106,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B: a class `Widget` AND a proc whose tail is also `Widget` (arity 1).
         let b = SourceFile::new(
@@ -6083,6 +6167,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines onNode with 2 params; `graph walk -command` appends 3.
         let b = SourceFile::new(
@@ -6163,6 +6248,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let d_on = project_diagnostics(&db, a, cfg_on, proj);
         assert!(has(&d_on, "E003"), "baseline: E003 present when enabled");
@@ -6178,6 +6264,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let d_off = project_diagnostics(&db, a, cfg_off, proj);
         assert!(
@@ -6217,6 +6304,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
 
         // Wrong arity (3 args to a 2-param proc) → E003 still fires; no W123.
@@ -6269,6 +6357,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         assert!(has_w123(base), "baseline W123 expected");
         // With the command declared extra → suppressed.
@@ -6280,6 +6369,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         assert!(!has_w123(cfg), "extraCommands should suppress W123");
     }
@@ -6298,6 +6388,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // B defines a TclOO class `Widget`.
         let b = SourceFile::new(
@@ -6338,6 +6429,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6415,6 +6507,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6477,6 +6570,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6525,6 +6619,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6568,6 +6663,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let b = SourceFile::new(
             &db,
@@ -6608,6 +6704,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let f = SourceFile::new(&db, src.to_owned(), "tcl9.0".to_owned(), None);
         let proj = Project::new(&db, vec![f]);
@@ -6980,6 +7077,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(&db, src.to_owned(), "tcl8.6".to_owned(), None);
         let _ = file_analysis_incremental(&db, file, cfg);
@@ -7025,6 +7123,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let file = SourceFile::new(
             &db,
@@ -7087,6 +7186,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // Four independent procedures; we edit `b`'s body and leave a, c, d alone.
         let file = SourceFile::new(
@@ -7173,6 +7273,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         // `other` first so editing it shifts the two below; `target` takes a
         // param `caller` always passes the literal `42` for -> param_constants.
@@ -7250,6 +7351,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         let src = "proc a {x} { return $x }\nproc b {} { a 1 }\n";
         let count_cu = |log: &Arc<Mutex<Vec<String>>>| {

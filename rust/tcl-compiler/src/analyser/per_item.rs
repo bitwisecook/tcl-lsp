@@ -123,6 +123,11 @@ pub enum PerItemFallback {
     ClassFactsCollide,
     /// A method body's object-instance tracking could not be replayed.
     MethodInstanceReplay,
+    /// §5.4 range targeting is declared (configuration pairs or a
+    /// `# tcl-lsp: supports` directive): the range verdicts (W150/W151)
+    /// read walk-level state the isolated-body memo key does not carry,
+    /// so a declared document takes the full path rather than diverge.
+    DeclaredTargets,
 }
 
 impl PerItemFallback {
@@ -143,6 +148,7 @@ impl PerItemFallback {
             Self::DuplicateProcInBody => "duplicate-proc-in-body",
             Self::ClassFactsCollide => "class-facts-collide",
             Self::MethodInstanceReplay => "method-instance-replay",
+            Self::DeclaredTargets => "declared-targets",
         }
     }
 }
@@ -321,6 +327,12 @@ impl Analyser {
                 Some(PerItemFallback::SidecarStub)
             } else if environment.is_tk() {
                 Some(PerItemFallback::TkActive)
+            } else if !self.declared_targets.is_empty()
+                || !super::utils::parse_supports_directives(source).is_empty()
+            {
+                // §5.4 range mode: the range verdicts read whole-walk
+                // state the isolated-body key does not carry.
+                Some(PerItemFallback::DeclaredTargets)
             } else {
                 None
             }

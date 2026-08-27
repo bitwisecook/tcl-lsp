@@ -65,6 +65,25 @@
 //! - **Additions are open.** A new, non-reserved environment id may be
 //!   declared from any tier, untrusted included — a new identity is an
 //!   addition, not an override.
+//!
+//! ## Sources, and how a removed pack's environments retire
+//!
+//! [`register_environments`] is the *anonymous* channel: what it
+//! registers stays registered until something re-registers the same id.
+//! That is the right shape for a one-off declaration, and the wrong one
+//! for a **set** that is republished whenever the workspace changes — a
+//! pack deleted from `.tcl-lsp/` would keep its environments alive for
+//! the life of the process.
+//!
+//! [`sync_environment_sources`] is that second channel: the caller hands
+//! over the whole set, keyed by [`EnvironmentSource::id`], and the
+//! source-keyed half of the dynamic state is **replaced**. A source that
+//! is no longer in the set retires with the rebuild; a source that is
+//! still there re-registers idempotently. One malformed source does not
+//! disable the rest: each is validated as it is added and a rejected one
+//! is reported by id and dropped, which is what keeps one broken
+//! workspace pack from taking every other pack's environments with it.
+//! The anonymous channel is untouched by a sync, and vice versa.
 
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -178,6 +197,56 @@ impl std::fmt::Display for EnvironmentRegistrationError {
 
 impl std::error::Error for EnvironmentRegistrationError {}
 
+/// Everything one publisher — one pack, one configuration file —
+/// declares, under an id stable across reloads.
+///
+/// The unit [`sync_environment_sources`] replaces: the same id
+/// re-published replaces its previous contribution, and an id absent
+/// from a sync retires.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EnvironmentSource {
+    /// The publisher's stable id — a pack's tier-qualified name, a
+    /// configuration file's path. Reported verbatim when the source is
+    /// rejected, so the caller can attach the notice to the right file.
+    pub id: String,
+    /// The environment declarations this source contributes.
+    pub definitions: Vec<EnvironmentDefinition>,
+    /// The `-extend` contributions this source makes.
+    pub extensions: Vec<EnvironmentExtension>,
+}
+
+/// One source a sync refused, with the rule it broke.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RejectedSource {
+    /// The refused source's [`EnvironmentSource::id`].
+    pub source: String,
+    /// Why it was refused.
+    pub error: EnvironmentRegistrationError,
+}
+
+/// What one [`sync_environment_sources`] call did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SyncOutcome {
+    /// The live registry generation after the call — the previous one
+    /// when nothing changed.
+    pub generation: u64,
+    /// Whether the sync actually rebuilt the registry. `false` means the
+    /// set was byte-identical to the registered one, so the generation
+    /// deliberately did **not** move: a reload that found the same packs
+    /// must not invalidate every downstream generation cache.
+    pub changed: bool,
+    /// Definitions registered across every accepted source.
+    pub declared: usize,
+    /// `-extend` contributions registered across every accepted source.
+    pub extended: usize,
+    /// Environment ids that were registered before this call and are not
+    /// any more — a deleted pack's environments retiring.
+    pub retired: usize,
+    /// Sources refused, each with the rule it broke. The rest still
+    /// registered.
+    pub rejected: Vec<RejectedSource>,
+}
+
 /// The dynamic half of the live registry: what registrations have added
 /// beyond the compiled seed. Rebuilt into a fresh [`EnvironmentRegistry`]
 /// on every successful call.
@@ -189,6 +258,9 @@ struct DynamicState {
     /// Registered extensions. Exact duplicates are dropped, so reloading
     /// a pack does not stack its detection rows.
     extensions: Vec<EnvironmentExtension>,
+    /// The source-keyed half: replaced wholesale by
+    /// [`sync_environment_sources`], so an absent source retires.
+    sources: Vec<EnvironmentSource>,
 }
 
 /// The registration lock and the dynamic state behind it.
@@ -268,6 +340,189 @@ fn extend(definition: &mut EnvironmentDefinition, extension: &EnvironmentExtensi
     }
 }
 
+/// Assemble the registry one dynamic state describes, at `generation`.
+///
+/// The one place the trust gates and the rebuild order live, so the
+/// anonymous channel ([`register_environments`]) and the source channel
+/// ([`sync_environment_sources`]) cannot drift apart: compiled seed,
+/// then the anonymous definitions, then each source's definitions in
+/// source order, then every extension applied to whichever definition
+/// owns its base spelling.
+fn assemble(
+    definitions: &[EnvironmentDefinition],
+    extensions: &[EnvironmentExtension],
+    sources: &[EnvironmentSource],
+    generation: u64,
+) -> Result<EnvironmentRegistry, EnvironmentRegistrationError> {
+    let declared: Vec<&EnvironmentDefinition> = definitions
+        .iter()
+        .chain(sources.iter().flat_map(|source| source.definitions.iter()))
+        .collect();
+    let contributed: Vec<&EnvironmentExtension> = extensions
+        .iter()
+        .chain(sources.iter().flat_map(|source| source.extensions.iter()))
+        .collect();
+
+    // Trust gates before assembly, so the error names the rule rather
+    // than a downstream collision.
+    let compiled = EnvironmentRegistry::compiled();
+    for extension in &contributed {
+        let compiled_base = compiled.resolve(&extension.base);
+        if let Some(base) = &compiled_base {
+            if untrusted(extension.provenance) {
+                return Err(EnvironmentRegistrationError::UntrustedExtension {
+                    base: base.id.as_str().to_owned(),
+                    provenance: extension.provenance,
+                });
+            }
+        } else if !declared.iter().any(|definition| {
+            definition.id.as_str() == extension.base
+                || definition
+                    .aliases
+                    .iter()
+                    .any(|alias| alias.as_ref() == extension.base)
+        }) {
+            return Err(EnvironmentRegistrationError::UnknownExtensionBase {
+                base: extension.base.clone(),
+            });
+        }
+    }
+
+    let mut rebuilt = tcl_dialect::model::compiled_definitions();
+    rebuilt.extend(declared.iter().map(|definition| (*definition).clone()));
+    for extension in &contributed {
+        let base = rebuilt.iter_mut().find(|definition| {
+            definition.id.as_str() == extension.base
+                || definition
+                    .aliases
+                    .iter()
+                    .any(|alias| alias.as_ref() == extension.base)
+        });
+        if let Some(definition) = base {
+            extend(definition, extension);
+        }
+    }
+
+    EnvironmentRegistry::new(rebuilt, generation).map_err(|error| match &error {
+        EnvironmentRegistryError::ReservedName { name, claimed_by } => {
+            let provenance = declared
+                .iter()
+                .find(|definition| definition.id.as_str() == claimed_by)
+                .map_or(Provenance::WorkspaceUntrusted, |definition| {
+                    definition.provenance
+                });
+            EnvironmentRegistrationError::Reserved {
+                name: name.clone(),
+                claimed_by: claimed_by.clone(),
+                provenance,
+            }
+        }
+        _ => EnvironmentRegistrationError::Collision(error),
+    })
+}
+
+/// The live registry's current generation.
+fn current_generation() -> u64 {
+    live_cell()
+        .lock()
+        .expect("live environment registry lock")
+        .generation()
+}
+
+/// Every canonical id a set of sources declares.
+fn declared_ids(sources: &[EnvironmentSource]) -> Vec<String> {
+    sources
+        .iter()
+        .flat_map(|source| source.definitions.iter())
+        .map(|definition| definition.id.as_str().to_owned())
+        .collect()
+}
+
+/// Replace the source-keyed half of the live registry with `sources`.
+///
+/// The channel a **republished set** uses: workspace pack discovery hands
+/// over every loaded pack on every reload, and this makes the live
+/// registry say exactly that — new sources register, unchanged ones
+/// re-register idempotently, and a source that has gone (a deleted pack)
+/// retires with the rebuild.
+///
+/// Never fails as a whole. Each source is validated as it is added, and
+/// one that breaks a rule is reported in [`SyncOutcome::rejected`] and
+/// dropped while the rest register: a single malformed workspace pack
+/// must not take every other pack's environments down with it. A set
+/// identical to the registered one is a no-op, generation included, so a
+/// reload that found nothing new does not invalidate downstream caches.
+#[must_use]
+pub fn sync_environment_sources(sources: Vec<EnvironmentSource>) -> SyncOutcome {
+    let state = STATE.get_or_init(|| Mutex::new(DynamicState::default()));
+    let mut state = state.lock().expect("environment registration lock");
+
+    let mut accepted: Vec<EnvironmentSource> = Vec::new();
+    let mut rejected: Vec<RejectedSource> = Vec::new();
+    for source in sources {
+        let id = source.id.clone();
+        accepted.push(source);
+        if let Err(error) = assemble(&state.definitions, &state.extensions, &accepted, 0) {
+            accepted.pop();
+            rejected.push(RejectedSource { source: id, error });
+        }
+    }
+
+    let before = declared_ids(&state.sources);
+    let after = declared_ids(&accepted);
+    let retired = before.iter().filter(|id| !after.contains(id)).count();
+    let declared = after.len();
+    let extended: usize = accepted
+        .iter()
+        .map(|source| source.extensions.len())
+        .sum::<usize>();
+
+    if accepted == state.sources {
+        return SyncOutcome {
+            generation: current_generation(),
+            changed: false,
+            declared,
+            extended,
+            retired,
+            rejected,
+        };
+    }
+
+    let generation = current_generation() + 1;
+    match assemble(&state.definitions, &state.extensions, &accepted, generation) {
+        Ok(registry) => {
+            *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
+            state.sources = accepted;
+            SyncOutcome {
+                generation,
+                changed: true,
+                declared,
+                extended,
+                retired,
+                rejected,
+            }
+        }
+        Err(error) => {
+            // Unreachable: every accepted source assembled cleanly above,
+            // and `generation` is the only thing that changed. Keep the
+            // live registry rather than panicking on a rule the loop
+            // already proved holds.
+            rejected.push(RejectedSource {
+                source: String::new(),
+                error,
+            });
+            SyncOutcome {
+                generation: current_generation(),
+                changed: false,
+                declared: 0,
+                extended: 0,
+                retired: 0,
+                rejected,
+            }
+        }
+    }
+}
+
 /// Register pack-declared environments and extensions into the live
 /// registry, transactionally: either every definition and extension in
 /// the call lands and the live registry moves to the returned generation,
@@ -299,70 +554,13 @@ pub fn register_environments(
         }
     }
 
-    // Trust gates before assembly, so the error names the rule rather
-    // than a downstream collision.
-    let compiled = EnvironmentRegistry::compiled();
-    for extension in &candidate.extensions {
-        let compiled_base = compiled.resolve(&extension.base);
-        if let Some(base) = &compiled_base {
-            if untrusted(extension.provenance) {
-                return Err(EnvironmentRegistrationError::UntrustedExtension {
-                    base: base.id.as_str().to_owned(),
-                    provenance: extension.provenance,
-                });
-            }
-        } else if !candidate.definitions.iter().any(|definition| {
-            definition.id.as_str() == extension.base
-                || definition
-                    .aliases
-                    .iter()
-                    .any(|alias| alias.as_ref() == extension.base)
-        }) {
-            return Err(EnvironmentRegistrationError::UnknownExtensionBase {
-                base: extension.base.clone(),
-            });
-        }
-    }
-
-    // Rebuild: compiled seed + dynamic definitions, then extensions over
-    // whichever definition owns the base spelling.
-    let mut rebuilt = tcl_dialect::model::compiled_definitions();
-    rebuilt.extend(candidate.definitions.iter().cloned());
-    for extension in &candidate.extensions {
-        let base = rebuilt.iter_mut().find(|definition| {
-            definition.id.as_str() == extension.base
-                || definition
-                    .aliases
-                    .iter()
-                    .any(|alias| alias.as_ref() == extension.base)
-        });
-        if let Some(definition) = base {
-            extend(definition, extension);
-        }
-    }
-
-    let generation = live_cell()
-        .lock()
-        .expect("live environment registry lock")
-        .generation()
-        + 1;
-    let registry = EnvironmentRegistry::new(rebuilt, generation).map_err(|error| match &error {
-        EnvironmentRegistryError::ReservedName { name, claimed_by } => {
-            let provenance = candidate
-                .definitions
-                .iter()
-                .find(|definition| definition.id.as_str() == claimed_by)
-                .map_or(Provenance::WorkspaceUntrusted, |definition| {
-                    definition.provenance
-                });
-            EnvironmentRegistrationError::Reserved {
-                name: name.clone(),
-                claimed_by: claimed_by.clone(),
-                provenance,
-            }
-        }
-        _ => EnvironmentRegistrationError::Collision(error),
-    })?;
+    let generation = current_generation() + 1;
+    let registry = assemble(
+        &candidate.definitions,
+        &candidate.extensions,
+        &candidate.sources,
+        generation,
+    )?;
 
     *live_cell().lock().expect("live environment registry lock") = Arc::new(registry);
     *state = candidate;
@@ -372,7 +570,12 @@ pub fn register_environments(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ingress::resolve_environment;
+    use crate::model::ingress::{is_known_environment_name, resolve_environment};
+
+    /// The source channel replaces the whole source-keyed state, so two
+    /// tests driving it concurrently would retire each other's sources.
+    /// Every test that syncs takes this first.
+    static SYNCING: Mutex<()> = Mutex::new(());
     use tcl_dialect::model::{
         CoreProfileSelector, DetectionFacts, EnvironmentId, EnvironmentPolicy, Family, KeyedAxis,
         Placement, Release, VersionAxisId, VersionSet, WorldPolicy,
@@ -573,6 +776,73 @@ mod tests {
             error,
             EnvironmentRegistrationError::UnknownExtensionBase { .. }
         ));
+    }
+
+    /// A source-keyed sync registers, re-registers idempotently without
+    /// moving the generation, and **retires** what a later set drops.
+    #[test]
+    fn a_synced_source_registers_and_retires() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let source = EnvironmentSource {
+            id: "sync-probe-pack".to_owned(),
+            definitions: vec![definition("sync-probe-env", Provenance::User)],
+            extensions: Vec::new(),
+        };
+        let outcome = sync_environment_sources(vec![source.clone()]);
+        assert!(outcome.changed);
+        assert_eq!(outcome.declared, 1);
+        assert_eq!(outcome.retired, 0);
+        assert!(outcome.rejected.is_empty());
+        assert!(is_known_environment_name("sync-probe-env"));
+        assert_eq!(resolve_environment("sync-probe-env").id(), "sync-probe-env");
+
+        // The same set again: no rebuild, no generation move.
+        let again = sync_environment_sources(vec![source]);
+        assert!(!again.changed);
+        assert_eq!(again.generation, outcome.generation);
+
+        // The set without it: the environment retires and stops
+        // resolving, so a deleted pack cannot outlive its file.
+        let empty = sync_environment_sources(Vec::new());
+        assert!(empty.changed);
+        assert_eq!(empty.retired, 1);
+        assert!(!is_known_environment_name("sync-probe-env"));
+    }
+
+    /// One rejected source is dropped by id; every other source in the
+    /// same sync still registers.
+    #[test]
+    fn a_rejected_source_does_not_take_the_others_with_it() {
+        let _syncing = SYNCING
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let good = EnvironmentSource {
+            id: "sync-good-pack".to_owned(),
+            definitions: vec![definition("sync-good-env", Provenance::User)],
+            extensions: Vec::new(),
+        };
+        let bad = EnvironmentSource {
+            id: "sync-bad-pack".to_owned(),
+            definitions: vec![definition("tcl8.6", Provenance::WorkspaceTrusted)],
+            extensions: Vec::new(),
+        };
+        let outcome = sync_environment_sources(vec![good, bad]);
+        assert!(outcome.changed);
+        assert_eq!(outcome.declared, 1);
+        assert_eq!(outcome.rejected.len(), 1);
+        assert_eq!(outcome.rejected[0].source, "sync-bad-pack");
+        assert!(matches!(
+            outcome.rejected[0].error,
+            EnvironmentRegistrationError::Reserved { .. }
+        ));
+        assert_eq!(resolve_environment("sync-good-env").id(), "sync-good-env");
+        assert_eq!(
+            resolve_environment("tcl8.6").definition.provenance,
+            Provenance::BuiltIn
+        );
+        let _ = sync_environment_sources(Vec::new());
     }
 
     /// Registration invalidates through the generation machinery: the

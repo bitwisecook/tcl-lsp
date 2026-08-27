@@ -281,6 +281,16 @@ const ROW_WORDS: &[&str] = &[
     "frame_effect",
     "world_effects",
     "state_transitions",
+    // The ratified §6.2 words, at the scopes their model fields live on:
+    // `result_stability` at both command and subcommand scope, the rest at
+    // command scope. Captured here so an evaluated pack registers them
+    // through the same row readers a CST-loaded one does.
+    "result_stability",
+    "side_switch_target",
+    "event_handler_priority",
+    "data_collection",
+    "event_requirement_form",
+    "body_scope",
     "taint_source",
     "taint_transform",
     "taint_double_encode_colour",
@@ -1509,6 +1519,7 @@ fn replay(state: State, options: &EvalOptions) -> Pack {
     for (line, word) in &state.newer_word_sites {
         log.since(*line, word, "2.0");
     }
+    super::finish_pack_cores(&mut pack, &mut log);
     finish_newer_words(&pack, &mut log);
     pack.notices = log.notices;
     pack.notices.extend(state.eval_notices);

@@ -511,6 +511,28 @@ pub struct Analyser {
     /// D5 oldest-supported default; feeds
     /// [`tcl_dialect::DialectProfile::library_floor`].
     pub library_versions: tcl_dialect::LibraryVersionOverrides,
+    /// §5.4 range targeting — configuration-declared version targets
+    /// (`tclLsp.targets`) as `(provider, range clauses)` pairs, e.g.
+    /// `("tcl", "8.5-9.0")` / `("Tk", "8.5-8.6")`. Merged at each walk
+    /// ingress with the source's `# tcl-lsp: supports NAME RANGE`
+    /// directives (the directive wins per provider) by
+    /// [`Self::resolve_declared_targets`]. Empty — the default — leaves
+    /// range mode off and every answer byte-identical to today.
+    pub declared_targets: Vec<(String, String)>,
+    /// The resolved range-mode context: the walk generation's
+    /// [`tcl_registry::model::ResolvedContext`] with the merged target
+    /// declarations recorded on it (§5.4). `None` whenever nothing is
+    /// declared — the no-range fast path every existing document takes.
+    pub(super) range_context: Option<tcl_registry::model::ResolvedContext>,
+    /// The numeral grammars represented across the declared core-Tcl
+    /// targets (fewer than two ⇒ no numeral divergence is possible and
+    /// the W151 walk is off). Derived beside [`Self::range_context`].
+    pub(super) range_numeral_grammars: Vec<tcl_dialect::NumberSyntax>,
+    /// §5.4 mask-gated range sites (W150): availability gates whose
+    /// spelling is `DialectSet` ladder bits rather than a lifecycle,
+    /// buffered during the walk and decided post-walk beside the
+    /// lifecycle sites so one word still draws one diagnostic.
+    pub(super) range_gate_sites: Vec<super::diagnostics::version_gate::RangeGateSite>,
     /// Cached set of built-in command names for redefined-builtin
     /// detection. `None` until first lookup; filled lazily.
     pub builtin_names: Option<HashSet<String>>,
@@ -1443,6 +1465,10 @@ impl Analyser {
             pending_gated_arity: Vec::new(),
             pending_gated_bare_ensemble: Vec::new(),
             library_versions: tcl_dialect::LibraryVersionOverrides::default(),
+            declared_targets: Vec::new(),
+            range_context: None,
+            range_numeral_grammars: Vec::new(),
+            range_gate_sites: Vec::new(),
             builtin_names: None,
             builtin_dialect: None,
             conditional_depth: 0,
@@ -1600,6 +1626,96 @@ impl Analyser {
     pub fn with_bigip_version(mut self, version: Option<String>) -> Self {
         self.library_versions.bigip_version = version;
         self
+    }
+
+    /// Set the configuration-declared version targets (`tclLsp.targets`,
+    /// §5.4 range targeting) as `(provider, range clauses)` pairs,
+    /// returning `self` for builder-style configuration. A source-level
+    /// `# tcl-lsp: supports NAME RANGE` directive overrides the
+    /// configured pair for the same provider.
+    #[must_use]
+    pub fn with_declared_targets(mut self, targets: Vec<(String, String)>) -> Self {
+        self.declared_targets = targets;
+        self
+    }
+
+    /// Resolve the §5.4 declared version targets for this walk: the
+    /// configured [`Self::declared_targets`] pairs plus the source's
+    /// `# tcl-lsp: supports NAME RANGE` directives (the directive wins
+    /// per provider — most specific source, §5.4), parsed under the
+    /// targets grammar ([`tcl_registry::model::targets_from_clauses`])
+    /// and recorded on a document-level clone of this walk's resolved
+    /// context. A malformed or empty declaration is dropped rather than
+    /// guessed at, and `tcl` targets are honoured only on a Tcl-family
+    /// core — the iRules/Jim ladders have their own axes.
+    ///
+    /// Also derives the numeral-grammar era set the W151 cross-target
+    /// numeral check walks under; fewer than two represented grammars
+    /// switches that check off.
+    pub(super) fn resolve_declared_targets(&mut self, source: &str) {
+        use tcl_dialect::model::{Family, VersionAxisId};
+        self.range_context = None;
+        self.range_numeral_grammars = Vec::new();
+        let directives = super::utils::parse_supports_directives(source);
+        if self.declared_targets.is_empty() && directives.is_empty() {
+            return;
+        }
+        let mut merged: Vec<(String, String)> = self.declared_targets.clone();
+        for (name, clauses) in directives {
+            merged.retain(|(existing, _)| *existing != name);
+            merged.push((name, clauses));
+        }
+        let generation = self.analysis_context();
+        let mut context = generation.context().clone();
+        let core_family = context.environment.core.map(|core| core.family);
+        let mut declared_any = false;
+        for (name, clauses) in &merged {
+            let axis = if name.eq_ignore_ascii_case("tcl") {
+                if core_family != Some(Family::Tcl) {
+                    continue;
+                }
+                VersionAxisId::core(Family::Tcl)
+            } else {
+                VersionAxisId::package(name)
+            };
+            let clause_list: Vec<&str> = clauses.split_whitespace().collect();
+            let Ok(targets) = tcl_registry::model::targets_from_clauses(&axis, &clause_list) else {
+                continue;
+            };
+            if targets.is_empty() {
+                continue;
+            }
+            context.declare_targets(targets);
+            declared_any = true;
+        }
+        if !declared_any {
+            return;
+        }
+        let core_axis = VersionAxisId::core(Family::Tcl);
+        if let Some(declared) = context.declared_targets(&core_axis) {
+            for &grammar in tcl_dialect::NumberSyntax::ALL {
+                // Exhaustive on purpose: a future grammar variant must
+                // name its interval here before it compiles.
+                let requirement = match grammar {
+                    tcl_dialect::NumberSyntax::Tcl84 => "0-8.5",
+                    tcl_dialect::NumberSyntax::Tcl85 => "8.5-9.0",
+                    tcl_dialect::NumberSyntax::Tcl90 => "9.0-",
+                };
+                let Ok(era) = tcl_dialect::model::VersionSet::from_requirements(
+                    core_axis.clone(),
+                    &[requirement],
+                ) else {
+                    continue;
+                };
+                if declared
+                    .intersect(&era)
+                    .is_ok_and(|overlap| !overlap.is_empty())
+                {
+                    self.range_numeral_grammars.push(grammar);
+                }
+            }
+        }
+        self.range_context = Some(context);
     }
 
     /// Set the user-declared extra command names (`tclLsp.extraCommands`),
@@ -1769,6 +1885,10 @@ impl Analyser {
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_environment);
         self.tk_dialect = tk_environment;
+        // §5.4 range targeting: resolve configured + directive-declared
+        // version targets for this walk (a no-op for the undeclared
+        // majority).
+        self.resolve_declared_targets(source);
         // Clear the per-run iRules file-profile memo so a reused analyser
         // instance recomputes it for the new source / dialect.
         self.irules_file_profiles = None;
@@ -2173,6 +2293,8 @@ impl Analyser {
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_environment);
         self.tk_dialect = tk_environment;
+        // §5.4 range targeting — same resolution as `analyse`.
+        self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);
@@ -2266,6 +2388,8 @@ impl Analyser {
         self.tk_accumulation_enabled =
             super::tk_checks::tk_checks_could_apply(source, tk_environment);
         self.tk_dialect = tk_environment;
+        // §5.4 range targeting — same resolution as `analyse`.
+        self.resolve_declared_targets(source);
         self.unresolved_commands_emitted = false;
 
         let file_codes = super::utils::parse_file_suppression(source);

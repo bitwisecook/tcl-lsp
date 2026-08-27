@@ -79,6 +79,71 @@ pub fn parse_file_suppression(source: &str) -> HashSet<String> {
     codes
 }
 
+/// Extract §5.4 version-target declarations from top-of-file
+/// ``# tcl-lsp: supports NAME RANGE…`` directives (centralisation ruling
+/// R6 — the resolver-invisible targets declaration).
+///
+/// Same scan window as [`parse_file_suppression`]: leading comment /
+/// blank lines only, capped at [`FILE_DIRECTIVE_SCAN_LINES`]. `NAME` is
+/// the provider — `tcl` for the core, otherwise a package name (`Tk`,
+/// `struct`) — and `RANGE` is one or more whitespace-separated clauses in
+/// the targets grammar (`8.5-9.0`, `8.5-`, a bare `8.5` naming that
+/// release line only). Returns `(provider, clauses)` pairs in file
+/// order; a later directive for the same provider replaces the earlier
+/// one, and clause validation happens at resolution, not here.
+#[must_use]
+pub fn parse_supports_directives(source: &str) -> Vec<(String, String)> {
+    let mut declarations: Vec<(String, String)> = Vec::new();
+    for (idx, line) in source.lines().enumerate() {
+        if idx >= FILE_DIRECTIVE_SCAN_LINES {
+            break;
+        }
+        let stripped = line.trim();
+        if stripped.is_empty() {
+            continue;
+        }
+        if !stripped.starts_with('#') {
+            break;
+        }
+        let Some((name, clauses)) = parse_supports_directive(line) else {
+            continue;
+        };
+        declarations.retain(|(existing, _)| existing != name);
+        declarations.push((name.to_owned(), clauses.to_owned()));
+    }
+    declarations
+}
+
+/// Match ``# tcl-lsp: supports NAME RANGE…`` (case-insensitive on the
+/// keywords), returning the provider name and the raw clause text.
+/// `None` when the line is not that directive — including a `supports`
+/// with no range, which declares nothing.
+fn parse_supports_directive(line: &str) -> Option<(&str, &str)> {
+    let mut s = line.trim_start();
+    s = s.strip_prefix('#')?.trim_start();
+    let lower_prefix = "tcl-lsp";
+    let kw_end = lower_prefix.len();
+    if !s.get(..kw_end)?.eq_ignore_ascii_case(lower_prefix) {
+        return None;
+    }
+    s = s[kw_end..].trim_start();
+    s = s.strip_prefix(':')?.trim_start();
+    let supports_kw = "supports";
+    let sup_end = supports_kw.len();
+    if !s.get(..sup_end)?.eq_ignore_ascii_case(supports_kw) {
+        return None;
+    }
+    let rest = s.get(sup_end..)?;
+    // The keyword must end at a word boundary (`supportsx` is not it).
+    if !rest.starts_with([' ', '\t']) {
+        return None;
+    }
+    let rest = rest.trim();
+    let (name, clauses) = rest.split_once([' ', '\t'])?;
+    let clauses = clauses.trim();
+    (!name.is_empty() && !clauses.is_empty()).then_some((name, clauses))
+}
+
 /// Scan *source* for ``# noqa`` comment lines and record next-line
 /// suppressions.
 ///
@@ -1681,6 +1746,37 @@ mod tests {
         let src = "# Just a comment\nproc foo {} {}\n";
         let codes = parse_file_suppression(src);
         assert!(codes.is_empty());
+    }
+
+    #[test]
+    fn parse_supports_directives_reads_the_top_of_file_block() {
+        // Multi-clause ranges, case-insensitive keywords, and one
+        // declaration per provider (a later line replaces the earlier).
+        let src = "# tcl-lsp: supports tcl 8.5-9.0\n\
+                   # TCL-LSP: Supports Tk 8.5 8.6\n\
+                   # tcl-lsp: supports tcl 8.6\n\
+                   proc foo {} {}\n\
+                   # tcl-lsp: supports struct 1.5-2.2\n";
+        let declarations = parse_supports_directives(src);
+        assert_eq!(
+            declarations,
+            vec![
+                ("Tk".to_owned(), "8.5 8.6".to_owned()),
+                ("tcl".to_owned(), "8.6".to_owned()),
+            ],
+            "the tcl redeclaration replaces; the post-code directive is out of the scan window"
+        );
+        // Not-this-directive shapes declare nothing.
+        for line in [
+            "# tcl-lsp: supports\n",
+            "# tcl-lsp: supportsx tcl 8.5\n",
+            "# tcl-lsp: supports tcl\n",
+            "# tcl-lsp: disable=W150\n",
+            "# supports tcl 8.5\n",
+            "# — tcl-lsp: supports tcl 8.5\n",
+        ] {
+            assert!(parse_supports_directives(line).is_empty(), "{line:?}");
+        }
     }
 
     #[test]

@@ -228,3 +228,89 @@ fn a_trusted_extension_of_a_compiled_environment_is_additive() {
         "the compiled rows stay"
     );
 }
+
+/// **The production wiring**, at the seam every consumer publishes
+/// through: a whole loaded pack set registers its environments *and* its
+/// pack-declared dialects, and a set that no longer carries a pack retires
+/// what that pack declared.
+///
+/// One test rather than three, because the source channel is a global
+/// replace: two tests syncing concurrently would retire each other's
+/// sources, so the whole life cycle is asserted in one place.
+#[test]
+fn a_published_pack_set_registers_its_environments_and_dialects_and_retires_them() {
+    use std::path::PathBuf;
+    use tcl_spectcl::{PackFile, discovery::Origin, pack::load_in_memory, publish_pack_set};
+
+    const SOURCE: &str = r"
+speclib picolpack 2.0 {
+    dialect picol2 {
+        release 2.0
+        axis expand_syntax off
+        axis braced_var first-close
+        axis numbers tcl84
+    }
+    environment picol-shell {
+        display_name {Picol Shell}
+        core picol2 2.0
+        file_extension pcl -name {Picol Script}
+    }
+    command picol_eval { arity 1 }
+}
+";
+    let set = load_in_memory(vec![(
+        PackFile {
+            tier: tcl_spectcl::Tier::User,
+            path: PathBuf::from("/probe/picolpack.tclspec"),
+            origin: Origin::UserDir,
+        },
+        SOURCE.to_owned(),
+    )]);
+    assert!(set.notices.is_empty(), "{:?}", set.notices);
+
+    let registration = publish_pack_set(&set);
+    assert_eq!(registration.declared, 1);
+    assert_eq!(registration.dialects, 1);
+    assert_eq!(registration.dynamic_cores, 1);
+    assert!(
+        registration.dialects_refused.is_empty(),
+        "{:?}",
+        registration.dialects_refused
+    );
+    assert!(
+        registration.rejected.is_empty(),
+        "{:?}",
+        registration.rejected
+    );
+
+    // The environment resolves through the one ingress…
+    let resolved = resolve_environment("picol-shell");
+    assert_eq!(resolved.id(), "picol-shell");
+    assert_eq!(resolved.definition.display_name.as_ref(), "Picol Shell");
+    // …its extension routes to it through the detection seam…
+    assert_eq!(
+        tcl_registry::dialect_from_extension("/tmp/thing.pcl"),
+        Some("picol-shell")
+    );
+    // …and the pack-declared core is a real, resolvable grammar: the
+    // conversion produced lexer data, not a description of it.
+    let grammar =
+        tcl_dialect::model::dynamic_core_grammar("picol-shell").expect("the bound grammar");
+    assert!(!grammar.expand_syntax);
+    assert_eq!(grammar.braced_var, tcl_dialect::BracedVarStyle::FirstClose);
+    let family =
+        tcl_dialect::model::resolve_dynamic_family("picolpack/picol2").expect("the family");
+    assert_eq!(family.provenance, tcl_dialect::model::Provenance::User);
+    // Namespaced per the trust lattice; the bare name resolves too while
+    // it is unambiguous.
+    assert!(tcl_dialect::model::resolve_dynamic_family("picol2").is_some());
+
+    // Publish an empty set — the pack has left the workspace.
+    let retired = publish_pack_set(&tcl_spectcl::PackSet::default());
+    assert_eq!(retired.retired, 1);
+    assert!(!tcl_registry::model::is_known_environment_name(
+        "picol-shell"
+    ));
+    assert!(tcl_dialect::model::dynamic_core_grammar("picol-shell").is_none());
+    assert!(tcl_dialect::model::resolve_dynamic_family("picolpack/picol2").is_none());
+}

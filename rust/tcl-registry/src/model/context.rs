@@ -223,6 +223,17 @@ pub struct ResolvedContext {
     /// ([`crate::model::assembly::ContextRegistry`]), mirroring the old
     /// overlay registry's `ambient_packages` rows.
     pack_ambient: Vec<(Arc<str>, &'static str)>,
+    /// **Declared** target sets (§5.4 range targeting): per-axis version
+    /// sets the document or project explicitly declared it supports —
+    /// `tclLsp.targets` and the `# tcl-lsp: supports NAME RANGE`
+    /// directive (centralisation ruling R6). Deliberately separate from
+    /// [`Self::floors`]: the environment's own targets (the lenient
+    /// `tcl` sink targets the whole ladder) must not switch range mode
+    /// on, and the assistance `primary` stays exactly where the
+    /// environment put it — only the range-compatibility queries below
+    /// read this. Empty for every undeclared document, which is what
+    /// pins the no-range behaviour byte-identical.
+    declared_targets: Vec<VersionSet>,
     /// The **authoring mask** this context admits — the old model's
     /// `availability_mask`, re-derived from the environment (core primary ×
     /// ladder lines, active vendor surfaces). Cached at resolution; the
@@ -335,6 +346,7 @@ impl ResolvedContext {
             floors,
             required_packages: Vec::new(),
             pack_ambient: Vec::new(),
+            declared_targets: Vec::new(),
             authoring_mask: DialectSet::empty(),
         };
         context.authoring_mask = compute_authoring_mask(&context);
@@ -947,6 +959,92 @@ impl ResolvedContext {
         let lifecycle = spec.lifecycle.with_baseline(keyed_axis_baseline(axis));
         Some((lifecycle.introduced, lifecycle.retired))
     }
+
+    // --- §5.4 range targeting: declared target sets --------------------
+    //
+    // The additive range-mode queries (P1b). A document/project that
+    // *declares* a multi-version target set — `tclLsp.targets`, the
+    // `# tcl-lsp: supports NAME RANGE` directive (ruling R6) — records
+    // it here, and the compatibility checks ask whether an item holds at
+    // **every** declared target, naming the failing remainder. Nothing
+    // else reads the declared sets: `primary` (and with it every
+    // assistance answer) stays the environment's own, per §5.4's
+    // assistance/semantic split, and a document that declares nothing
+    // takes none of these paths.
+
+    /// Declare a target set on its axis, replacing any earlier
+    /// declaration on the same axis (most specific wins per provider —
+    /// §5.4's source ordering is resolved by the caller).
+    pub fn declare_targets(&mut self, targets: VersionSet) {
+        self.declared_targets
+            .retain(|existing| existing.axis() != targets.axis());
+        self.declared_targets.push(targets);
+    }
+
+    /// The declared target set on `axis`, if the document declared one.
+    #[must_use]
+    pub fn declared_targets(&self, axis: &VersionAxisId) -> Option<&VersionSet> {
+        self.declared_targets
+            .iter()
+            .find(|targets| targets.axis() == axis)
+    }
+
+    /// Every declared target set, in declaration order.
+    #[must_use]
+    pub fn declared_target_sets(&self) -> &[VersionSet] {
+        &self.declared_targets
+    }
+
+    /// The subset of the declared targets on `axis` **outside** the item
+    /// window `[introduced, retired)` — the §5.4 lifecycle range check.
+    /// `None` when the axis has no declared targets, the window covers
+    /// them all, or a bound does not parse (permissive, like every other
+    /// unparseable-version path). Bounds take the `a0` pad of the
+    /// requirement algebra, so "below the introduction" and "at or past
+    /// the retirement" agree with [`Lifecycle`]'s own comparisons at
+    /// ladder-release granularity.
+    ///
+    /// [`Lifecycle`]: crate::lifecycle::Lifecycle
+    #[must_use]
+    pub fn targets_outside_window(
+        &self,
+        axis: &VersionAxisId,
+        introduced: Option<&str>,
+        retired: Option<&str>,
+    ) -> Option<VersionSet> {
+        let targets = self.declared_targets(axis)?;
+        let mut excluded: Vec<String> = Vec::new();
+        if let Some(introduced) = introduced {
+            excluded.push(format!("0-{introduced}"));
+        }
+        if let Some(retired) = retired {
+            excluded.push(format!("{retired}-"));
+        }
+        if excluded.is_empty() {
+            return None;
+        }
+        let complement = VersionSet::from_requirements(axis.clone(), &excluded).ok()?;
+        let outside = targets.intersect(&complement).ok()?;
+        (!outside.is_empty()).then_some(outside)
+    }
+
+    /// The subset of the declared **core-Tcl** targets a `DialectSet`
+    /// availability gate does not cover — the §5.4 range check for the
+    /// mask-gated items (commands, subcommands, options) whose
+    /// introduction is spelled as ladder-line bits rather than a
+    /// lifecycle. `None` when no core targets are declared, the gate is
+    /// absent (unrestricted), the gate names no plain-Tcl line at all
+    /// (the item is another provider's — its own axis governs it), or
+    /// every declared target is covered.
+    #[must_use]
+    pub fn targets_uncovered_by_gate(&self, gate: Option<DialectSet>) -> Option<VersionSet> {
+        let axis = VersionAxisId::core(Family::Tcl);
+        let targets = self.declared_targets(&axis)?;
+        let bits = gate?;
+        let covered = crate::model::surface::tcl_core_set(bits)?;
+        let uncovered = targets.intersect(&complement_of(&covered)).ok()?;
+        (!uncovered.is_empty()).then_some(uncovered)
+    }
 }
 
 /// The declared data baseline of a keyed axis — the modelled F5 surfaces
@@ -1054,6 +1152,214 @@ fn point_set(axis: &VersionAxisId, version: &Version) -> VersionSet {
         axis.clone(),
         vec![tcl_dialect::model::HalfOpenRange::Exact(version.clone())],
     )
+}
+
+/// The complement of `set` on its axis, over span ranges.
+///
+/// An [`HalfOpenRange::Exact`] point contributes nothing here — "everything
+/// except exactly `v`" has no half-open spelling — so a point conservatively
+/// stays *inside* the complement. That direction can only widen a reported
+/// remainder, never hide one, and no gate-derived coverage set carries
+/// points.
+///
+/// [`HalfOpenRange::Exact`]: tcl_dialect::model::HalfOpenRange::Exact
+fn complement_of(set: &VersionSet) -> VersionSet {
+    use tcl_dialect::model::HalfOpenRange;
+    let mut ranges: Vec<HalfOpenRange> = Vec::new();
+    let mut cursor = Some(Version::parse("0").expect("the zero version parses"));
+    for range in set.ranges() {
+        let HalfOpenRange::Span { min, max } = range else {
+            continue;
+        };
+        if let Some(start) = cursor.take() {
+            if start < *min {
+                ranges.push(HalfOpenRange::Span {
+                    min: start,
+                    max: Some(min.clone()),
+                });
+            }
+            cursor.clone_from(max);
+        }
+        if cursor.is_none() {
+            break;
+        }
+    }
+    if let Some(start) = cursor {
+        ranges.push(HalfOpenRange::Span {
+            min: start,
+            max: None,
+        });
+    }
+    VersionSet::from_ranges(set.axis().clone(), ranges)
+}
+
+/// Requirement-style spelling of `set` for diagnostics and status
+/// surfaces: each range as `min-max` / `min-` (the `a0` bound pads
+/// stripped), joined by spaces. The empty set spells `""`.
+#[must_use]
+pub fn requirement_spelling(set: &VersionSet) -> String {
+    use tcl_dialect::model::HalfOpenRange;
+    fn strip(version: &Version) -> &str {
+        let text = version.as_str();
+        text.strip_suffix("a0").unwrap_or(text)
+    }
+    set.ranges()
+        .iter()
+        .map(|range| match range {
+            HalfOpenRange::Exact(version) => strip(version).to_owned(),
+            HalfOpenRange::Span { min, max: None } => format!("{}-", strip(min)),
+            HalfOpenRange::Span {
+                min,
+                max: Some(max),
+            } => format!("{}-{}", strip(min), strip(max)),
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The ladder releases of `set`'s core family whose release lines the set
+/// touches — the human names a range diagnostic lists ("the declared
+/// targets include 8.5"). Empty off a core axis, or where the ladder's
+/// spellings are not versions (the iRules `tmm` line).
+#[must_use]
+pub fn ladder_releases_in(set: &VersionSet) -> Vec<&'static str> {
+    let Some(family) = set.axis().core_family() else {
+        return Vec::new();
+    };
+    let mut names = Vec::new();
+    for release in family.releases() {
+        if Version::parse(release.as_str()).is_err() {
+            continue;
+        }
+        // The **narrow** line `[R, R+ε)` — one minor, the same width
+        // [`crate::model::surface::TCL_LINES`] gives each availability
+        // bit — so the unshipped ladder interior (8.7, 8.8) a coverage
+        // span deliberately includes never makes a release's name appear
+        // in a remainder it is not actually part of.
+        let requirement = match bumped_spelling(release.as_str()) {
+            Some(bound) => format!("{}-{bound}", release.as_str()),
+            None => continue,
+        };
+        let Ok(line) = VersionSet::from_requirements(set.axis().clone(), &[requirement]) else {
+            continue;
+        };
+        if line.intersect(set).is_ok_and(|overlap| !overlap.is_empty()) {
+            names.push(release.as_str());
+        }
+    }
+    names
+}
+
+/// The **targets grammar** (§5.4 / ruling R6) — how a `supports NAME
+/// RANGE` directive or a `tclLsp.targets` entry spells a target set.
+/// Space-separated clauses union; each clause is:
+///
+/// - `V` — the release **line** of `V` alone (`8.5` targets 8.5.x, never
+///   8.6 — the §6.2 `available` grammar's bare-release rule, not the
+///   `vsatisfies` next-major window);
+/// - `MIN-` — everything from `MIN` (clamped to the modelled ladder on a
+///   core axis);
+/// - `MIN-MAX` — from `MIN` through the **whole release line of `MAX`**
+///   (`tcl 8.5-9.0` includes 9.0.x — the §5.4 canonical spelling; the
+///   strict `vsatisfies` exclusive-max reading would silently drop the
+///   very release the declaration names).
+///
+/// On a core axis line bounds come from the family ladder; on a package
+/// axis (no ladder) the line of `V` is `[V, V+ε)` with the last dotted
+/// component bumped (`Tk 8.6` → `[8.6, 8.7)`).
+///
+/// # Errors
+/// [`VersionSetError`] when a clause is not a well-formed version or
+/// range — the ingress treats a malformed declaration as absent rather
+/// than guessing.
+pub fn targets_from_clauses<S: AsRef<str>>(
+    axis: &VersionAxisId,
+    clauses: &[S],
+) -> Result<VersionSet, VersionSetError> {
+    let mut requirements: Vec<String> = Vec::new();
+    for clause in clauses {
+        let clause = clause.as_ref();
+        let requirement = match clause.split_once('-') {
+            None => {
+                Version::parse(clause)?;
+                match next_line_bound(axis, clause) {
+                    Some(next) => format!("{clause}-{next}"),
+                    None => format!("{clause}-"),
+                }
+            }
+            Some((min, "")) => {
+                Version::parse(min)?;
+                format!("{min}-")
+            }
+            Some((min, max)) => {
+                Version::parse(min)?;
+                Version::parse(max)?;
+                match next_line_bound(axis, max) {
+                    Some(next) => format!("{min}-{next}"),
+                    None => format!("{min}-"),
+                }
+            }
+        };
+        requirements.push(requirement);
+    }
+    let declared = VersionSet::from_requirements(axis.clone(), &requirements)?;
+    // A core axis clamps to the modelled ladder, so an open-ended `8.5-`
+    // does not read past the newest modelled line and report every item
+    // "missing" at releases that do not exist yet.
+    if let Some(coverage) = ladder_coverage(axis) {
+        return declared.intersect(&coverage);
+    }
+    Ok(declared)
+}
+
+/// The exclusive upper bound of the release line starting at `version` on
+/// `axis`: the next ladder release above it (core axes), or the last
+/// dotted component bumped by one (package axes and the ladder's top
+/// line). `None` when no bound can be spelled (a non-numeric component).
+fn next_line_bound(axis: &VersionAxisId, version: &str) -> Option<String> {
+    let parsed = Version::parse(version).ok()?;
+    if let Some(family) = axis.core_family() {
+        for release in family.releases() {
+            if let Ok(step) = Version::parse(release.as_str())
+                && step > parsed
+            {
+                return Some(release.as_str().to_owned());
+            }
+        }
+    }
+    bumped_spelling(version)
+}
+
+/// `version` with its last dotted component bumped by one (`8.6` → `8.7`,
+/// `2` → `3`) — the one-minor line width. `None` when the last component
+/// is not a plain number.
+fn bumped_spelling(version: &str) -> Option<String> {
+    let mut parts: Vec<&str> = version.split('.').collect();
+    let last = parts.pop()?;
+    let bumped = last.parse::<u64>().ok()?.checked_add(1)?;
+    let mut spelling = parts.join(".");
+    if !spelling.is_empty() {
+        spelling.push('.');
+    }
+    spelling.push_str(&bumped.to_string());
+    Some(spelling)
+}
+
+/// The full modelled coverage of a core axis's ladder — first line start
+/// to one past the newest line (`tcl` → `8.4-9.2`, matching
+/// [`TCL_LINES`]' own bounds). `None` off a core axis or where the ladder
+/// spells no versions.
+fn ladder_coverage(axis: &VersionAxisId) -> Option<VersionSet> {
+    let family = axis.core_family()?;
+    let releases = family.releases();
+    let first = releases.first()?;
+    let last = releases.last()?;
+    Version::parse(first.as_str()).ok()?;
+    let requirement = match next_line_bound(axis, last.as_str()) {
+        Some(bound) => format!("{}-{}", first.as_str(), bound),
+        None => format!("{}-", first.as_str()),
+    };
+    VersionSet::from_requirements(axis.clone(), &[requirement]).ok()
 }
 
 /// The **assistance view** over declaration sets (§1.2's R-c/R-d
@@ -1641,6 +1947,116 @@ mod tests {
                 "{lenient} has no vendor surface"
             );
         }
+    }
+
+    /// §5.4 range targeting: the targets grammar, the window/gate
+    /// remainder queries, and the diagnostic spellings.
+    #[test]
+    fn declared_targets_answer_the_range_queries() {
+        let axis = VersionAxisId::core(tcl_dialect::model::Family::Tcl);
+        let mut ctx = context("tcl8.6");
+        // No declaration ⇒ every range query abstains (the no-range pin).
+        assert!(ctx.declared_targets(&axis).is_none());
+        assert!(
+            ctx.targets_outside_window(&axis, Some("8.6"), None)
+                .is_none()
+        );
+        assert!(
+            ctx.targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+                .is_none()
+        );
+
+        // The §5.4 canonical declaration: `tcl 8.5-9.0` covers the whole
+        // 9.0 line (inclusive-max reading), not the vsatisfies exclusive
+        // one.
+        let declared = targets_from_clauses(&axis, &["8.5-9.0"]).expect("well-formed");
+        assert!(declared.contains(&Version::parse("9.0.1").expect("version")));
+        assert!(declared.contains(&Version::parse("8.5").expect("version")));
+        assert!(!declared.contains(&Version::parse("9.1").expect("version")));
+        assert_eq!(ladder_releases_in(&declared), vec!["8.5", "8.6", "9.0"]);
+        ctx.declare_targets(declared.clone());
+        assert_eq!(ctx.declared_targets(&axis), Some(&declared));
+
+        // An item introduced at 8.6: the remainder is exactly the 8.5
+        // line, spelled and named for the message.
+        let outside = ctx
+            .targets_outside_window(&axis, Some("8.6"), None)
+            .expect("8.5 is outside");
+        assert_eq!(ladder_releases_in(&outside), vec!["8.5"]);
+        assert_eq!(requirement_spelling(&outside), "8.5-8.6");
+        // An item retired at 9.0: the remainder is the 9.0 line.
+        let retired = ctx
+            .targets_outside_window(&axis, None, Some("9.0"))
+            .expect("9.0 is outside");
+        assert_eq!(ladder_releases_in(&retired), vec!["9.0"]);
+        // A window covering the whole declaration abstains.
+        assert!(
+            ctx.targets_outside_window(&axis, Some("8.5"), None)
+                .is_none()
+        );
+
+        // Gate coverage: an 8.6+ gate misses the 8.5 target; ALL_TCL and
+        // an absent gate cover everything; a vendor-only gate is another
+        // provider's item and abstains.
+        let uncovered = ctx
+            .targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+            .expect("8.5 uncovered");
+        assert_eq!(ladder_releases_in(&uncovered), vec!["8.5"]);
+        assert!(
+            ctx.targets_uncovered_by_gate(Some(DialectSet::ALL_TCL))
+                .is_none()
+        );
+        assert!(ctx.targets_uncovered_by_gate(None).is_none());
+        assert!(
+            ctx.targets_uncovered_by_gate(Some(DialectSet::TK))
+                .is_none()
+        );
+        // An 8.x-only gate misses the 9.0 end.
+        let gone = ctx
+            .targets_uncovered_by_gate(Some(DialectSet::TCL8X))
+            .expect("9.0 uncovered");
+        assert_eq!(ladder_releases_in(&gone), vec!["9.0"]);
+
+        // Redeclaring an axis replaces, never accumulates.
+        ctx.declare_targets(targets_from_clauses(&axis, &["9.0"]).expect("well-formed"));
+        assert!(
+            ctx.targets_uncovered_by_gate(Some(DialectSet::TCL86_PLUS))
+                .is_none(),
+            "a single 9.0 target is covered by an 8.6+ gate"
+        );
+        assert_eq!(ctx.declared_target_sets().len(), 1);
+    }
+
+    /// The targets grammar's clause forms, including the package-axis
+    /// line rule and the ladder clamp.
+    #[test]
+    fn the_targets_grammar_spells_lines_and_ranges() {
+        let core = VersionAxisId::core(tcl_dialect::model::Family::Tcl);
+        // Bare release: the line alone, not the vsatisfies next-major
+        // window.
+        let line = targets_from_clauses(&core, &["8.5"]).expect("well-formed");
+        assert!(line.contains(&Version::parse("8.5.19").expect("version")));
+        assert!(!line.contains(&Version::parse("8.6").expect("version")));
+        // Open-ended: clamped to the modelled ladder.
+        let open = targets_from_clauses(&core, &["8.5-"]).expect("well-formed");
+        assert!(open.contains(&Version::parse("9.1").expect("version")));
+        assert!(!open.contains(&Version::parse("9.2").expect("version")));
+        // Multi-clause union (the `8.5 9.0` spelling).
+        let union = targets_from_clauses(&core, &["8.5", "9.0"]).expect("well-formed");
+        assert!(union.contains(&Version::parse("8.5").expect("version")));
+        assert!(union.contains(&Version::parse("9.0.1").expect("version")));
+        assert!(!union.contains(&Version::parse("8.6").expect("version")));
+        // Package axis: bare release bumps the last component.
+        let tk = VersionAxisId::package("Tk");
+        let tk_line = targets_from_clauses(&tk, &["8.6"]).expect("well-formed");
+        assert!(tk_line.contains(&Version::parse("8.6.12").expect("version")));
+        assert!(!tk_line.contains(&Version::parse("8.7").expect("version")));
+        let tk_range = targets_from_clauses(&tk, &["8.5-8.6"]).expect("well-formed");
+        assert!(tk_range.contains(&Version::parse("8.6.12").expect("version")));
+        assert!(!tk_range.contains(&Version::parse("8.7").expect("version")));
+        // Malformed clauses error rather than guess.
+        assert!(targets_from_clauses(&core, &["not-a-version"]).is_err());
+        assert!(targets_from_clauses(&core, &["8.5-9.0-9.1"]).is_err());
     }
 
     #[test]

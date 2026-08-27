@@ -215,12 +215,32 @@ static ACTIVE: RwLock<Option<Arc<PackSet>>> = RwLock::new(None);
 ///
 /// Called by the LSP server on each reload. A `None` set (or never calling
 /// this) leaves consumers on [`packs`], which is what a bare CLI wants.
-pub fn set_active(packs: Option<Arc<PackSet>>) {
+///
+/// This is also where a pack's **environments** go live: the published set
+/// is the process's answer to "which packs are loaded", and a pack-declared
+/// `environment` block is part of that answer, so
+/// [`crate::registration::publish_pack_set`] registers them into the live
+/// [`tcl_registry::model`] registry here — with the trust lattice enforced,
+/// the generation bumped, and the environments of a pack that has left the
+/// set retired by the same call. The returned
+/// [`PackSetRegistration`](crate::registration::PackSetRegistration) says
+/// what happened, so a server can log it and put a refused pack's reason on
+/// the pack file; a caller with nothing to report may ignore it.
+///
+/// A `None` set retires every pack-declared environment. It deliberately
+/// leaves the *extension routing* alone: consumers fall back to [`packs`],
+/// whose own merge published that tier's routing.
+pub fn set_active(packs: Option<Arc<PackSet>>) -> crate::registration::PackSetRegistration {
+    let registration = match &packs {
+        Some(packs) => crate::registration::publish_pack_set(packs),
+        None => crate::registration::retire_pack_environments(),
+    };
     let mut active = match ACTIVE.write() {
         Ok(active) => active,
         Err(poisoned) => poisoned.into_inner(),
     };
     *active = packs;
+    registration
 }
 
 /// The published workspace pack set, if any.

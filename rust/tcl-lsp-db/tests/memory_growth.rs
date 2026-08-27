@@ -147,6 +147,7 @@ fn build_config(db: &TclDatabase) -> AnalyserConfig {
         None,
         None,
         0,
+        Vec::new(),
     )
 }
 

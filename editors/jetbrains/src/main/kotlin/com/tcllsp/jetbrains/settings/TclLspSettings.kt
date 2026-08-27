@@ -149,6 +149,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
     var diagnosticW147: Boolean = true
     var diagnosticW148: Boolean = true
     var diagnosticW149: Boolean = true
+    var diagnosticW150: Boolean = true
+    var diagnosticW151: Boolean = true
     var diagnosticW200: Boolean = true
     var diagnosticW201: Boolean = true
     var diagnosticW230: Boolean = true
@@ -442,6 +444,8 @@ class TclLspSettings : PersistentStateComponent<TclLspSettings> {
                 "W147" to diagnosticW147,
                 "W148" to diagnosticW148,
                 "W149" to diagnosticW149,
+                "W150" to diagnosticW150,
+                "W151" to diagnosticW151,
                 "W200" to diagnosticW200,
                 "W201" to diagnosticW201,
                 "W230" to diagnosticW230,

@@ -978,6 +978,70 @@ overlap ⇒ Inert). Range targeting subsumes the fallback as "targets =
 the family's full ladder, lenient mode", and upgrades abstention to an
 actionable warning when the user has *declared* the range.
 
+**Status (P1b — declared ranges drive diagnostics end-to-end).** The
+first slice of this section ships: a document/project that *declares* a
+target range gets range-compatibility warnings; an undeclared document is
+byte-identical to before (pinned by
+`a_single_target_matching_the_primary_changes_nothing`).
+
+- **Model** (`tcl-registry::model::context`): `ResolvedContext` carries
+  **declared** target sets separately from the environment floors —
+  `declare_targets` / `declared_targets` / `declared_target_sets` — so
+  the lenient environments' full-ladder targets never switch range mode
+  on and `primary` (every assistance answer) is untouched. Two remainder
+  queries answer the checks: `targets_outside_window(axis, introduced,
+  retired)` for lifecycle-spelled items and `targets_uncovered_by_gate`
+  for `DialectSet`-mask-spelled ones (via `surface::tcl_core_set`), with
+  `requirement_spelling` / `ladder_releases_in` naming the failing
+  targets in messages.
+- **Targets grammar** (working ruling, R6's directive half): clauses are
+  space-separated and union; a bare `V` names **that release line only**
+  (the §6.2 `available` rule, not the vsatisfies next-major window);
+  `MIN-` is open-ended (clamped to the modelled ladder on a core axis);
+  `MIN-MAX` runs through the **whole line of `MAX`** — `tcl 8.5-9.0`
+  includes 9.0.x, because the strict vsatisfies exclusive-max reading
+  would silently drop the release the declaration names. On package
+  axes (no ladder) a line is `[V, V+ε)` with the last dotted component
+  bumped. Implemented as `targets_from_clauses`.
+- **Ingress**: `tclLsp.targets` (settings → `AnalyserConfig::targets` →
+  `Analyser::with_declared_targets`; VS Code exposes the object setting)
+  and the top-of-file `# tcl-lsp: supports NAME RANGE` comment directive
+  (R6's resolver-invisible declaration, parsed beside the `disable`
+  directives; the directive wins per provider over settings). `tcl`
+  names the core axis (honoured only on a Tcl-family core); any other
+  `NAME` is a package axis — the "same for libraries" ruling
+  (`supports Tk 8.5-8.6`). Malformed declarations are dropped, never
+  guessed at. The `tclpkg.tcl` manifest half of R6 (the multi-clause
+  `tcl` constraint grammar) is **not** ingested yet.
+- **Diagnostics**: **W150** — item not available across the whole
+  declared range: the version-gate flush evaluates every lifecycle site
+  against the declared window, the mask-gated command/subcommand/option
+  sites against gate coverage, and the argument-DSL sites (`string is`
+  classes, format/scan conversions, binary modifiers) against their
+  minimum release; messages name the failing targets ("`'lmap'` requires
+  Tcl 8.6 but the declared targets include 8.5"; "`'case'` … missing at
+  9.0"). **W151** — the numeral grammar delta, the motivating case:
+  whole-word literals are read under every `NumberSyntax` era the
+  declared range spans; a value divergence (`expr {010}`: 8 under 8.x,
+  10 under 9.0) or validity divergence (`0b`/`0o` before 8.5, `0d`/`_`
+  before 9.0) warns. Both are token-local detectors in the §3.1 sense —
+  the numeral axis provably diverges only token-locally.
+- **Assistance/semantic split**: a failure at the **primary** keeps
+  today's semantic-floor diagnostic (W002/W135/W136/W139/W144, unchanged
+  spans and messages) and always outranks the range warning at the same
+  word; W150/W151 fire only for items clean at the primary, at Warning
+  severity — declared non-primary targets are assistance facts.
+
+Deferred from this slice: numerals *inside* compound `expr` bodies (the
+whole-word walk catches `expr {010}` and plain arguments; a braced
+`{010 + 5}` needs the expr-token walk), the other grammar axes (escapes,
+`${a{b}c}`, expr comments/operators — the reference multi-profile
+evaluation), differential constant folding at the endpoints, the
+`package require`-satisfiability-per-target interplay, fix-its
+(`0o10`/decimal rewrites), Q15's explicit `primary` selection for
+multi-target projects, per-folder `tclLsp.targets` overrides, and the
+R6 manifest grammar.
+
 ## 6. SpecTcl 2.0 (`speclib … 2.0`)
 
 > **Authoring-surface decision (owner, 2026-08-26): design E,
@@ -1086,8 +1150,13 @@ maximally.
   `PackEnvironment`, with `to_definition` converting to an
   `EnvironmentDefinition` at the declaring tier's `Provenance`. Compiled
   canonical names and aliases are reserved (§3.3): a block claiming one is
-  rejected with a notice. Registration into the runtime
-  `EnvironmentRegistry` is later wire-up.
+  rejected with a notice. **Live in production**: the one pack publish
+  point (`bundled::set_active`, which the LSP server calls on every reload
+  and the CLI once per process) registers the whole loaded set through
+  `registration::publish_pack_set`, so a pack's environments resolve
+  through the ordinary ingress, a document whose extension one claims
+  routes to it, and a pack that has left the workspace has its
+  environments retired.
 - **`dialect NAME { … }`** — `release R ?-build P?` ladder rows and
   `axis NAME VALUE` rows against a closed axis vocabulary
   (`expand_syntax`, `braced_var`, `expr_comments`, `numbers`, `escapes`,
@@ -1095,7 +1164,16 @@ maximally.
   semantic class: the whole block is rejected, naming the axis. The §2
   classification gate rejects a block whose axes reproduce a compiled
   family release and names the environment it should have been.
-  Conversion to live `Family` data is P3+.
+  **Converted (P3)**: a validated block becomes a
+  `tcl_dialect::model::DynamicFamily` — a namespaced `PACK/DIALECT` id, one
+  `LexerGrammar` per declared release, the declaring tier's provenance,
+  compiled family names reserved — and an `environment … { core DIALECT
+  RELEASE }` row naming it registers as a `DynamicCore` binding whose
+  grammar `dynamic_core_grammar` answers with. The remaining step is the
+  lexer's, not the conversion's: `Family` is a closed enum and
+  `LexerConfig` is built from a `&'static DialectProfile` out of a compiled
+  table, so a pack-declared core cannot yet be *lexed* with. That waits on
+  the `DialectProfile` re-type (ledger C1).
 
 **Status (P2-H remainder).** `provides` (with the fallback-provider
 default), `co_provides` (parsed and carried as data; the alias mechanics
@@ -1105,8 +1183,27 @@ to the open-surface facts on commands and object classes), `include`
 `environment NAME -extend { … }` form are landed at the shared
 row-reader seam of both loaders — see the centralisation document's §6
 status note for the details and the registration seam that consumes the
-environment blocks. Not yet landed: the invocation-refinement descriptor
-and the seven ratified-but-unimplemented words.
+environment blocks.
+
+**Status (P3).** Six of the seven ratified-but-unimplemented words now have
+loader readers at that same shared seam, each riding the export gates and
+loading identically through both front ends: `result_stability` (command
+*and* subcommand scope, including the `{ReadsVersionedWorld {D …}}`
+payload form), `event_requirement_form` (with its nested `event_requires`
+block), `data_collection -native ID`, `body_scope` (inline block, pack
+`descriptor`, or a shipped environment by name), `side_switch_target`, and
+`event_handler_priority`. They are documented vocabulary rather than
+2.0 additions, so they draw no per-site version notice. `bpf_op` is
+deferred and needs a **model** change first: `CommandSpec::bpf_op` is
+`Option<&'static BpfOpSpec>` and every shipped value is a private
+per-command `static OP` under `tcl-registry/src/commands/bpf/`, so
+`bpf_op -native ID` has no id catalogue to resolve — the missing piece is a
+named `id → &'static BpfOpSpec` table in `tcl_registry::bpf_op`. Its
+downgrade class is already correct (`bpf` is a semantic marker: an older
+build that drops the word must exclude the command, not load it without a
+lowering). Still not landed: the invocation-refinement descriptor (Q12),
+which is a new descriptor type rather than a reader over an existing
+field.
 
 
 | Word | Purpose |

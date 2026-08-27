@@ -81,7 +81,11 @@ impl PackNotice {
         }
     }
 
-    fn whole_file(path: &Path, message: impl Into<String>, severity: Severity) -> Self {
+    /// A notice about the pack as a whole, on its first line — the shape a
+    /// finding that belongs to no single row takes (an environment
+    /// registration the live registry refused, a shadowed tier).
+    #[must_use]
+    pub fn whole_file(path: &Path, message: impl Into<String>, severity: Severity) -> Self {
         Self {
             path: path.to_path_buf(),
             line: 1,
@@ -119,14 +123,23 @@ pub struct MergedPack {
     /// 2.0), merged first-declaration-wins across the pack's files.
     ///
     /// Carried; registering them into the live registry is
-    /// [`crate::registration::register_environments`]'s call, which
-    /// consumes exactly these blocks (declarations through
+    /// [`crate::registration::publish_pack_set`]'s call — made for the
+    /// whole set at the one publish point
+    /// ([`crate::bundled::set_active`]), so a pack that leaves the
+    /// workspace has its environments retired by the same call that
+    /// re-registers the ones that stayed. It consumes exactly these
+    /// blocks (declarations through
     /// [`PackEnvironment::to_definition`](crate::PackEnvironment::to_definition),
     /// `-extend` blocks through `to_extension`) under the §6.4 trust
     /// lattice.
     pub environments: Vec<crate::loader::PackEnvironment>,
     /// The `dialect NAME { … }` blocks the pack declares (`SpecTcl` 2.0),
     /// merged first-declaration-wins across the pack's files.
+    ///
+    /// Converted to live family data by the same publish call, through
+    /// [`crate::dialect_conversion`]: a namespaced `PACK/DIALECT` family
+    /// with a grammar per declared release, plus the core bindings of the
+    /// environments above that ride one.
     pub dialects: Vec<crate::loader::PackDialect>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
@@ -355,7 +368,15 @@ pub(crate) fn load_sources(
     // extension tier sees it — every consumer funnels through this merge
     // (bundled, discovered, server reloads), which is what makes a pack the
     // source of truth for its own extensions.
-    tcl_registry::dialects::register_pack_extension_dialects(set.extension_dialects());
+    //
+    // Both kinds of claim: the explicit `file_extension … -dialect D` rows
+    // and each `environment` block's own detection rows, which is how a
+    // pack-declared environment's documents find it. Published here rather
+    // than only at the registration seam because a reload whose content is
+    // unchanged never reaches that seam, and the routing must survive it.
+    tcl_registry::dialects::register_pack_extension_dialects(
+        crate::registration::extension_routes(&set),
+    );
     set
 }
 

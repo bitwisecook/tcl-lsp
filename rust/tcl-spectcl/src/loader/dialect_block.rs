@@ -50,9 +50,12 @@
 //!
 //! ## Scope
 //!
-//! Parse, validate, carry, test. Converting a [`PackDialect`] into live
-//! [`Family`] data is P3+ work; nothing here mutates the compiled
-//! catalogue.
+//! Parse, validate, carry, test. Nothing here mutates the compiled
+//! catalogue, and nothing here registers: converting a [`PackDialect`]
+//! into live runtime family data is
+//! [`crate::dialect_conversion`]'s job, and the store it registers into
+//! is [`tcl_dialect::model::dynamic`] — a *dynamic* family beside the
+//! compiled [`Family`] ladder, never a new variant of it.
 
 use tcl_dialect::model::{BuildProfileId, Family, Release, grammar};
 use tcl_dialect::{

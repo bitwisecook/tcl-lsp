@@ -269,7 +269,7 @@ fn full_axis(axis: VersionAxisId) -> VersionSet {
 /// unshipped interior (`8.7`, `8.8`) exactly as the environment layer's own
 /// full-ladder target does — ladder adjacency, not numeric adjacency, is
 /// what a run means.
-fn tcl_core_set(bits: DialectSet) -> Option<VersionSet> {
+pub(crate) fn tcl_core_set(bits: DialectSet) -> Option<VersionSet> {
     let mut requirements: Vec<String> = Vec::new();
     let mut run: Option<(usize, usize)> = None;
     let flush = |run: &mut Option<(usize, usize)>, requirements: &mut Vec<String>| {

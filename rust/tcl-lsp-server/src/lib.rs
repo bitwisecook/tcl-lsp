@@ -5760,6 +5760,10 @@ pub struct Backend {
     /// `tclLsp.bigipVersion` — the session's target BIG-IP release for the
     /// keyed library-version axis (`None` = the oldest-supported default).
     bigip_version: Mutex<Option<String>>,
+    /// `tclLsp.targets` — declared version-target ranges (redesign §5.4
+    /// range targeting) as `(provider, range)` pairs; empty = range mode
+    /// off. Mirrored onto the salsa `AnalyserConfig`.
+    declared_targets: Mutex<Vec<(String, String)>>,
     /// Generic `static::` variable-name patterns for IRULE4002
     /// (`tclLsp.diagnostics.genericVariablePatterns`). `None` keeps the built-in
     /// default set; `Some(list)` replaces it (an empty list disables the check).
@@ -6885,6 +6889,7 @@ impl Backend {
             None,
             None,
             0,
+            Vec::new(),
         );
         let diagnostic_publisher = Arc::new(DiagnosticPublisher::new(client.clone()));
         Self {
@@ -6925,6 +6930,7 @@ impl Backend {
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
+            declared_targets: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),
@@ -7391,6 +7397,8 @@ impl Backend {
         config.set_generic_variable_patterns(&mut *db).to(generic);
         let bigip = self.bigip_version.lock().await.clone();
         config.set_bigip_version(&mut *db).to(bigip);
+        let targets = self.declared_targets.lock().await.clone();
+        config.set_targets(&mut *db).to(targets);
     }
 
     /// Run the salsa `document_symbols` query for `uri` on a worker thread,
@@ -9096,6 +9104,7 @@ impl Backend {
             spec_pack_reload: _,
             spec_pack_reload_seq: _,
             bigip_version: _,
+            declared_targets: _,
             generic_variable_patterns: _,
             formatting_settings: _,
             feature_toggles: _,
@@ -14040,6 +14049,24 @@ impl Backend {
             let version = version.trim();
             *self.bigip_version.lock().await = (!version.is_empty()).then(|| version.to_owned());
         }
+        // `tclLsp.targets` — declared version-target ranges (redesign §5.4
+        // range targeting): an object of provider → range, e.g.
+        // `{ "tcl": "8.5-9.0", "Tk": "8.5-8.6" }`. Reset unconditionally so
+        // removing the setting switches range mode back off.
+        {
+            let mut targets: Vec<(String, String)> = Vec::new();
+            if let Some(map) = cfg.get("targets").and_then(serde_json::Value::as_object) {
+                for (name, range) in map {
+                    if let Some(range) = range.as_str() {
+                        let range = range.trim();
+                        if !range.is_empty() {
+                            targets.push((name.clone(), range.to_owned()));
+                        }
+                    }
+                }
+            }
+            *self.declared_targets.lock().await = targets;
+        }
         // `tclLsp.diagnostics.genericVariablePatterns` — replaces the built-in
         // IRULE4002 generic-name set (an explicit empty list disables the
         // check; an absent key leaves the default).
@@ -14172,7 +14199,14 @@ impl Backend {
                     next.push((folder.clone(), handle));
                 } else {
                     let handle = tcl_lsp_db::AnalyserConfig::new(
-                        &*db, disabled, mode, extra, generic, None, pack_key,
+                        &*db,
+                        disabled,
+                        mode,
+                        extra,
+                        generic,
+                        None,
+                        pack_key,
+                        Vec::new(),
                     );
                     next.push((folder.clone(), handle));
                 }
@@ -14185,6 +14219,7 @@ impl Backend {
                 handle.set_extra_commands(&mut *db).to(Vec::new());
                 handle.set_generic_variable_patterns(&mut *db).to(None);
                 handle.set_bigip_version(&mut *db).to(None);
+                handle.set_targets(&mut *db).to(Vec::new());
                 tombstones.insert(folder, handle);
             }
             *handles = next;
@@ -14845,6 +14880,38 @@ impl Backend {
                     "display_name": row.display_name,
                     "pack": pack.name,
                 }));
+            }
+            // The same advertisement for the extensions a pack-declared
+            // `environment` block claims. Server-side these already route
+            // (`registration::extension_routes` publishes them alongside the
+            // `-dialect` rows), but an editor that never associates the
+            // extension still opens the file as plain text and never
+            // attaches — so an environment a pack declares would be
+            // reachable by every path except the one a user actually takes.
+            for environment in &pack.environments {
+                let resolved = tcl_registry::model::resolve_known_environment(&environment.id);
+                let language_id = resolved
+                    .as_ref()
+                    .and_then(|environment| environment.definition.editor_identity)
+                    .map_or("tcl", tcl_dialect::model::EditorLanguageIdentityId::as_str);
+                for claim in &environment.file_extensions {
+                    let extension = claim.extension.as_ref();
+                    if seen.iter().any(|prior| prior == extension)
+                        || tcl_dialect::DialectProfile::all()
+                            .iter()
+                            .any(|p| p.file_extensions.iter().any(|e| e.extension == extension))
+                    {
+                        continue;
+                    }
+                    seen.push(extension.to_owned());
+                    out.push(serde_json::json!({
+                        "extension": extension,
+                        "dialect": environment.id,
+                        "language_id": language_id,
+                        "display_name": claim.display_name.as_ref(),
+                        "pack": pack.name,
+                    }));
+                }
             }
         }
         out.sort_by(|a, b| a["extension"].as_str().cmp(&b["extension"].as_str()));
@@ -15764,6 +15831,9 @@ impl Backend {
             return false;
         };
 
+        // What publishing the set did to the live environment registry, when
+        // it was published — `None` when this reload changed nothing.
+        let mut registration: Option<tcl_spectcl::PackSetRegistration> = None;
         let changed = {
             let mut guard = self.spec_packs.lock().await;
             // Newest snapshot wins, decided by when the disk was read. With
@@ -15787,7 +15857,15 @@ impl Backend {
                 // — the compiler explorer most of all, which built a plain
                 // registry and so reported a pack's (and every EDA) command
                 // unknown on the very line whose diagnostic resolved it.
-                tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded)));
+                //
+                // This is also where a pack's `environment` blocks go live:
+                // the publish registers them into the one environment
+                // registry the ingress resolves against, retires the ones a
+                // pack that has left the workspace declared, and republishes
+                // the extension routing detection reads — so a document with
+                // a pack-declared extension resolves to that environment
+                // through the ordinary ingress from here on.
+                registration = Some(tcl_spectcl::bundled::set_active(Some(Arc::clone(&loaded))));
                 // The stamp moves with the content: it records which snapshot
                 // the *current* set came from, so a reload that read the disk
                 // earlier than that can never take its place.
@@ -15830,6 +15908,25 @@ impl Backend {
             // before anything re-analyses.
             self.sync_db_config().await;
         }
+        self.report_pack_reload(&packs, registration.as_ref(), changed)
+            .await;
+        self.settle_pack_reload(changed, trigger).await;
+        changed
+    }
+
+    /// Publish everything a finished reload has to *say*: shipped-command
+    /// collisions, the environments the live registry refused, and the
+    /// one-line summary on the log channel.
+    ///
+    /// Split out of [`Backend::reload_spec_packs`] because it is the
+    /// reporting half — it changes nothing about what is loaded, and every
+    /// input it needs is already settled by the time it runs.
+    async fn report_pack_reload(
+        &self,
+        packs: &Arc<tcl_spectcl::PackSet>,
+        registration: Option<&tcl_spectcl::PackSetRegistration>,
+        changed: bool,
+    ) {
         // Shipped-command collisions are not load notices — the loader has no
         // registry to compare against, so `PackSet::notices` cannot carry
         // them. They are computed here, against the session dialect's plain
@@ -15842,8 +15939,8 @@ impl Backend {
         // workspace scope, and the notice is about the pack file, which has no
         // dialect of its own.
         let dialect = self.session_dialect().await;
-        let for_collisions = Arc::clone(&packs);
-        let collisions = crate::rt::spawn_blocking(move || {
+        let for_collisions = Arc::clone(packs);
+        let mut collisions = crate::rt::spawn_blocking(move || {
             tcl_spectcl::pack::collision_notices(
                 &for_collisions,
                 tcl_lsp_core::registry_for_dialect(&dialect),
@@ -15851,16 +15948,32 @@ impl Backend {
         })
         .await
         .unwrap_or_default();
-        self.publish_spec_pack_notices(&packs, &collisions).await;
+        // A pack whose `environment` blocks the registry refused is a pack
+        // the author has to hear about, and the pack file is where they are
+        // looking. The reason is the registry's own message — the reserved
+        // name, the untrusted extension, the collision — so the notice says
+        // which rule and which pack rather than "some environments did not
+        // load".
+        collisions.extend(Self::environment_rejection_notices(packs, registration));
+        self.publish_spec_pack_notices(packs, &collisions).await;
 
         if changed {
             let commands: usize = packs.packs.iter().map(|p| p.commands.len()).sum();
+            let environments = registration.map_or_else(String::new, |r| {
+                format!(
+                    ", {} environment(s), {} extension(s), {} retired, {} refused",
+                    r.declared,
+                    r.extended,
+                    r.retired,
+                    r.rejected.len()
+                )
+            });
             self.client
                 .log_message(
                     MessageType::INFO,
                     format!(
                         "SpecTcl: {} pack(s), {commands} command(s), {} notice(s), \
-                         {} shipped-command collision(s)",
+                         {} shipped-command collision(s){environments}",
                         packs.packs.len(),
                         packs.notices.len(),
                         collisions.len()
@@ -15868,9 +15981,41 @@ impl Backend {
                 )
                 .await;
         }
+    }
 
-        self.settle_pack_reload(changed, trigger).await;
-        changed
+    /// A [`tcl_spectcl::PackNotice`] on each pack file whose environments
+    /// the live registry refused.
+    ///
+    /// Attached to the pack's *first* file: an environment block can come
+    /// from any file of a multi-file pack, and the registration seam works
+    /// on the merged pack, so the pack — not a line — is what the refusal
+    /// is about.
+    fn environment_rejection_notices(
+        packs: &tcl_spectcl::PackSet,
+        registration: Option<&tcl_spectcl::PackSetRegistration>,
+    ) -> Vec<tcl_spectcl::PackNotice> {
+        let Some(registration) = registration else {
+            return Vec::new();
+        };
+        registration
+            .rejected
+            .iter()
+            .filter_map(|rejection| {
+                let pack = packs
+                    .packs
+                    .iter()
+                    .find(|pack| pack.name == rejection.pack)?;
+                let path = pack.files.first()?;
+                Some(tcl_spectcl::PackNotice::whole_file(
+                    path,
+                    format!(
+                        "the `environment` blocks of pack `{}` are not loaded: {}",
+                        rejection.pack, rejection.error
+                    ),
+                    tcl_spectcl::pack::Severity::Warning,
+                ))
+            })
+            .collect()
     }
 
     /// Everything that has to happen *after* a pack set is published, in the
@@ -29677,6 +29822,7 @@ mod tests {
             None,
             None,
             0,
+            Vec::new(),
         );
         Backend {
             client,
@@ -29716,6 +29862,7 @@ mod tests {
             external_pack_watch_globs: Arc::new(Mutex::new(Vec::new())),
             pack_source_extensions: Arc::new(Mutex::new(Vec::new())),
             bigip_version: Mutex::new(None),
+            declared_targets: Mutex::new(Vec::new()),
             generic_variable_patterns: Mutex::new(None),
             formatting_settings: Mutex::new(serde_json::Value::Null),
             feature_toggles: Mutex::new(FeatureToggles::default()),

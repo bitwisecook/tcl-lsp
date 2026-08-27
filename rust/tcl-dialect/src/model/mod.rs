@@ -37,11 +37,17 @@
 //! here wraps or shims them — old names are first-class data rows in the
 //! new registry.
 
+pub mod dynamic;
 pub mod environment;
 pub mod expr_grammar;
 pub mod family;
 pub mod version_set;
 
+pub use dynamic::{
+    DynamicCore, DynamicFamily, DynamicFamilyError, DynamicFamilyId, DynamicRegistration,
+    DynamicRelease, dynamic_core_for, dynamic_core_grammar, dynamic_families, dynamic_generation,
+    register_dynamic_families, reserved_family_name, resolve_dynamic_family,
+};
 pub use environment::{
     ConfigurationOrigin, CoreProfileSelector, DetectionFacts, EditorLanguageIdentityId,
     EnvironmentDefinition, EnvironmentId, EnvironmentIdentity, EnvironmentOverlay,

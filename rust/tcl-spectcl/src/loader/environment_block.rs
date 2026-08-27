@@ -110,6 +110,25 @@ impl PackEnvironmentTier {
     }
 }
 
+/// A `core` row naming a dialect the pack itself declares, before it is
+/// resolved against the pack's `dialect` blocks.
+///
+/// The stand-in for a [`CoreProfileSelector`] that cannot exist: a
+/// [`Family`] is a closed enum, so a pack-declared family has no variant
+/// to select. The binding it becomes lives in
+/// [`tcl_dialect::model::DynamicCore`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackCore {
+    /// The dialect name the row named, as written.
+    pub dialect: String,
+    /// The release on that dialect's declared ladder.
+    pub release: String,
+    /// The build profile the row names.
+    pub build: BuildProfileId,
+    /// The declaring line.
+    pub line: u32,
+}
+
 /// One `ambient` / `hosted` row, before it becomes a
 /// [`PackagePlacement`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -149,8 +168,18 @@ pub struct PackEnvironment {
     /// presentation rule, since an editor identity only decides which
     /// contributed language a document opens under.
     pub editor_identity: Option<EditorLanguageIdentityId>,
-    /// The `core FAMILY RELEASE ?-build P?` selector, when declared.
+    /// The `core FAMILY RELEASE ?-build P?` selector, when it names a
+    /// **compiled** family.
     pub core: Option<CoreProfileSelector>,
+    /// The same row when it names a **pack-declared** dialect (§6.2's
+    /// `dialect` block), carried unresolved because the block it names
+    /// may be declared later in the file.
+    ///
+    /// [`crate::loader::finish_pack_cores`] resolves it against the
+    /// pack's own `dialect` blocks once the whole file is read, and
+    /// rejects the environment when it names nothing. A block that gets
+    /// this far therefore always names a dialect the pack declares.
+    pub pack_core: Option<PackCore>,
     /// `ambient` and `hosted` rows, in declaration order.
     pub placements: Vec<PackPlacementRow>,
     /// The `policy` word, defaulting to [`WorldPolicy::Open`].
@@ -323,6 +352,7 @@ pub(super) fn parse(stmt: &Stmt, log: &mut Log) -> Option<PackEnvironment> {
         display_name: None,
         editor_identity: None,
         core: None,
+        pack_core: None,
         placements: Vec::new(),
         world_policy: WorldPolicy::Open,
         file_extensions: Vec::new(),
@@ -477,35 +507,46 @@ fn world_policy(word: &str) -> Option<WorldPolicy> {
 /// `core FAMILY RELEASE ?-build P?`.
 fn core_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bool {
     let family_word = stmt.word_text(1);
-    let Some(family) = Family::ALL
+    let compiled = Family::ALL
         .iter()
         .copied()
-        .find(|family| family.name() == family_word)
-    else {
-        log.say(
-            stmt.line,
-            format!(
-                "`core {family_word}` names no core family (`tcl`, `f5-irules`, `jim`); \
-                 the environment block is rejected"
-            ),
-        );
-        return false;
-    };
+        .find(|family| family.name() == family_word);
     let release_word = stmt.word_text(2);
-    let Some(release) = family
-        .releases()
-        .iter()
-        .copied()
-        .find(|release| release.as_str() == release_word)
-    else {
-        log.say(
-            stmt.line,
-            format!(
-                "`core {family_word} {release_word}` names no release on the {family_word} \
-                 ladder; the environment block is rejected"
-            ),
-        );
-        return false;
+    // A name no compiled family carries may still be a dialect this pack
+    // declares (§6.2's `dialect` block). The block naming it can come
+    // *later* in the file, so the row is carried unresolved and
+    // `finish_pack_cores` settles it — rejecting the environment then if
+    // nothing declares the name, which is the same answer this row used
+    // to give immediately, only correct for a forward reference.
+    let release = if let Some(family) = compiled {
+        let found = family
+            .releases()
+            .iter()
+            .copied()
+            .find(|release| release.as_str() == release_word);
+        let Some(release) = found else {
+            log.say(
+                stmt.line,
+                format!(
+                    "`core {family_word} {release_word}` names no release on the \
+                     {family_word} ladder; the environment block is rejected"
+                ),
+            );
+            return false;
+        };
+        Some(release)
+    } else {
+        if release_word.is_empty() {
+            log.say(
+                stmt.line,
+                format!(
+                    "`core {family_word}` needs a release on that dialect's ladder; \
+                     the environment block is rejected"
+                ),
+            );
+            return false;
+        }
+        None
     };
     let mut build = BuildProfileId::Canonical;
     let words = &stmt.words;
@@ -535,11 +576,23 @@ fn core_row(environment: &mut PackEnvironment, stmt: &Stmt, log: &mut Log) -> bo
         }
         index += 1;
     }
-    environment.core = Some(CoreProfileSelector {
-        family,
-        default_release: release,
-        build,
-    });
+    match (compiled, release) {
+        (Some(family), Some(default_release)) => {
+            environment.core = Some(CoreProfileSelector {
+                family,
+                default_release,
+                build,
+            });
+        }
+        _ => {
+            environment.pack_core = Some(PackCore {
+                dialect: family_word.to_owned(),
+                release: release_word.to_owned(),
+                build,
+                line: stmt.line,
+            });
+        }
+    }
     true
 }
 
