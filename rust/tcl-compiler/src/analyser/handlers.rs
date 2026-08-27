@@ -35,7 +35,7 @@ use tcl_core_types::DiagCode;
 use tcl_lexer::{Span, Token, TokenType};
 use tcl_syntax::list::find_element;
 
-use crate::alias::{detect_interp_alias, resolve_alias};
+use crate::alias::{command_table_transitions, is_current_interpreter, resolve_alias};
 use crate::parsing::syntax::descend::descend_token;
 use crate::parsing::syntax::segment::segments_from_tree;
 use crate::segmenter::SegmentedCommand;
@@ -5058,31 +5058,62 @@ impl Analyser {
     /// Handle `interp alias {} ALIAS {} TARGET ?ARG ...?` —
     /// records the alias for later argument-role resolution.
     ///
-    /// Delegates the actual detection logic to
-    /// `crate::alias::detect_interp_alias` (which already handles
-    /// the canonical `interp alias {}` shape and the `args[5..]`
-    /// prepended-args slice). `offset` is the command token's start,
-    /// recorded in [`Analyser::alias_offsets`] for the same-file arity
-    /// resolver's top-level order gate.
+    /// Reads the registry's one command-table transition vocabulary
+    /// (`CommandBindingTransition`, ledger C8) rather than destructuring
+    /// `interp alias`'s word layout here. `offset` is the command token's
+    /// start, recorded in [`Analyser::alias_offsets`] for the same-file
+    /// arity resolver's top-level order gate.
     ///
     /// Dispatched via
     /// [`tcl_registry::hooks::AnalyserHookId::InterpAlias`] (stamped on
-    /// `interp`'s `alias` subcommand); `args[0]` is still the
-    /// subcommand word the detectors expect.
+    /// `interp`'s `alias` subcommand); `args[0]` is still the subcommand
+    /// word, which is what selects the alias descriptor.
     pub fn handle_interp_alias(&mut self, args: &[String], scope_path: &[usize], offset: u32) {
-        if let Some(deleted) = crate::alias::detect_interp_alias_delete(args) {
+        // What this call did to the command table is registry data, read
+        // through the one transition vocabulary (ledger C8). The
+        // interpreter *paths* are not — a path may be a tracked
+        // `set VAR [interp create …]` binding this analyser resolves
+        // itself — so the cross-domain arm below still reads the path
+        // words; the alias and target *command* names come from the facts.
+        let registry = self.registry.as_deref();
+        let facts: Vec<tcl_registry::CommandBindingTransition> =
+            registry.map_or_else(Vec::new, |registry| {
+                command_table_transitions(registry, "interp", args)
+                    .command_bindings()
+                    .cloned()
+                    .collect()
+            });
+        if let Some(tcl_registry::CommandBindingTransition::Delete { interpreter, name }) =
+            facts.first()
+            && interpreter.as_ref().is_none_or(is_current_interpreter)
+            && let Some(deleted) = name.literal()
+        {
             // Deleting an alias destroys the command object, so every
             // `namespace import` edge pointing at it dies too (issue #1103).
             // An empty srcPath means the interpreter this command *runs in*,
             // so inside a child's eval body the deletion homes under that
             // child's domain rather than the parent's command table.
-            let deleted = format!("{}{deleted}", self.current_interp_domain_prefix());
+            let deleted = format!(
+                "{}{}",
+                self.current_interp_domain_prefix(),
+                crate::naming::normalise_qualified_name(deleted)
+            );
             self.result
                 .destroyed_commands
                 .insert(deleted.clone(), offset);
             self.deleted_commands.insert(deleted, offset);
             return;
         }
+        let Some(tcl_registry::CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+        }) = facts.first()
+        else {
+            return;
+        };
         // The `interp alias {} A {} B` fast path homes both names at the
         // global root, which is only right in the main interpreter: inside a
         // child's eval body `{}` names *that child*. There, fall through to
@@ -5090,9 +5121,21 @@ impl Analyser {
         // `resolve_alias_domain_prefix` exactly as the explicit-path form
         // already does (issue #1141's flaw class).
         if self.interp_path_stack.is_empty()
-            && let Some((qualified, target_cmd, prepended)) = detect_interp_alias(args)
+            && is_current_interpreter(source_interpreter)
+            && is_current_interpreter(target_interpreter)
+            && let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal())
         {
-            self.record_interp_alias(qualified, target_cmd, prepended, offset);
+            let qualified = if alias_name.is_empty() {
+                String::new()
+            } else {
+                crate::naming::normalise_qualified_name(alias_name)
+            };
+            let prepended = arguments
+                .iter()
+                .filter_map(tcl_registry::TransitionSubject::literal)
+                .map(str::to_owned)
+                .collect();
+            self.record_interp_alias(qualified, target_cmd.to_owned(), prepended, offset);
             return;
         }
         // Cross-domain alias (issue #945 fault 8): `interp alias PATH name
@@ -5102,28 +5145,25 @@ impl Analyser {
         // literal paths both sides home under their `@interp@` domains, so
         // calls of the alias inside the child's eval bodies resolve to the
         // target through the ordinary alias link machinery. A path need
-        // not itself be a source literal any more (issue #923 idx 9): it
-        // also resolves through a tracked `set VAR [interp create ...]`
+        // not itself be a source literal (issue #923 idx 9): it also
+        // resolves through a tracked `set VAR [interp create ...]`
         // binding — only the alias/target *command* names stay hard
-        // literal requirements (a dynamic one genuinely names nothing
-        // statically, same reasoning `crate::alias::detect_interp_alias`
-        // already documents for the same-interpreter form).
-        if args.len() >= 5 {
-            let (src_path, alias_name, target_path, target_cmd) =
-                (&args[1], &args[2], &args[3], &args[4]);
-            let literal = |w: &String| !crate::naming::is_dynamic_word(w);
-            if literal(alias_name)
-                && literal(target_cmd)
-                && let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
-                && let Some(target_prefix) =
-                    self.resolve_alias_domain_prefix(target_path, scope_path)
-                && !(src_prefix.is_empty() && target_prefix.is_empty())
-            {
-                let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
-                let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
-                let prepended: Vec<String> = args[5..].to_vec();
-                self.record_interp_alias(qualified, target, prepended, offset);
-            }
+        // literal requirements, which is exactly what the registry's typed
+        // subjects already say.
+        let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal()) else {
+            return;
+        };
+        let (Some(src_path), Some(target_path)) = (args.get(1), args.get(3)) else {
+            return;
+        };
+        if let Some(src_prefix) = self.resolve_alias_domain_prefix(src_path, scope_path)
+            && let Some(target_prefix) = self.resolve_alias_domain_prefix(target_path, scope_path)
+            && !(src_prefix.is_empty() && target_prefix.is_empty())
+        {
+            let qualified = format!("{src_prefix}::{}", alias_name.trim_start_matches(':'));
+            let target = format!("{target_prefix}::{}", target_cmd.trim_start_matches(':'));
+            let prepended: Vec<String> = args[5..].to_vec();
+            self.record_interp_alias(qualified, target, prepended, offset);
         }
     }
 
@@ -8087,47 +8127,53 @@ impl Analyser {
                 continue;
             }
             let args = seg.args();
-            match registry.command_table_effect(seg.name(), args.first().map(String::as_str)) {
-                Some(tcl_registry::CommandTableEffect::DefinesProcedure) => {
-                    let Some(name) = args.first() else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(name, &query) {
-                        if tcl_syntax::naming::is_dynamic_word(name) {
+            for transition in
+                command_table_transitions(registry, seg.name(), args).command_bindings()
+            {
+                match transition {
+                    tcl_registry::CommandBindingTransition::Define { name, .. } => {
+                        let Some(name) = crate::alias::subject_word(name, args) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(name, &query) {
+                            if tcl_syntax::naming::is_dynamic_word(name) {
+                                return false;
+                            }
+                            matching_declarations += 1;
+                            if matching_declarations > expected_declarations {
+                                return false;
+                            }
+                        }
+                    }
+                    tcl_registry::CommandBindingTransition::Move { from, to } => {
+                        let (Some(old), Some(new)) = (
+                            crate::alias::subject_word(from, args),
+                            crate::alias::subject_word(to, args),
+                        ) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(old, &query)
+                            || (!new.is_empty() && dynamic_command_name_may_equal(new, &query))
+                        {
                             return false;
                         }
-                        matching_declarations += 1;
-                        if matching_declarations > expected_declarations {
+                    }
+                    tcl_registry::CommandBindingTransition::Delete { name, .. }
+                    | tcl_registry::CommandBindingTransition::Alias { alias: name, .. } => {
+                        // Only the alias/deleted NAME changes a command
+                        // identity. A dynamic target command changes what
+                        // that known alias does, not what name it binds.
+                        let Some(name) = crate::alias::subject_word(name, args) else {
+                            return false;
+                        };
+                        if dynamic_command_name_may_equal(name, &query) {
                             return false;
                         }
                     }
+                    // A mutation whose very shape is unknown could name
+                    // anything.
+                    tcl_registry::CommandBindingTransition::Unknown { .. } => return false,
                 }
-                Some(tcl_registry::CommandTableEffect::RenamesCommands) => {
-                    let [old, new] = args else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(old, &query)
-                        || (!new.is_empty() && dynamic_command_name_may_equal(new, &query))
-                    {
-                        return false;
-                    }
-                }
-                Some(tcl_registry::CommandTableEffect::CreatesAliases) => {
-                    // `interp alias SRC NAME TARGET TARGETCMD ...`: only the
-                    // alias NAME changes a command identity. A dynamic target
-                    // command changes what that known alias does, not what
-                    // name it binds.
-                    if args.len() == 3 {
-                        continue; // query form; the command table is unchanged
-                    }
-                    let Some(alias_name) = args.get(2) else {
-                        return false;
-                    };
-                    if dynamic_command_name_may_equal(alias_name, &query) {
-                        return false;
-                    }
-                }
-                None => {}
             }
         }
         matching_declarations == expected_declarations
@@ -14674,6 +14720,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_records_canonical_form() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(
             &[
                 "alias".to_string(),
@@ -14701,6 +14750,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_with_prepended_args() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(
             &[
                 "alias".to_string(),
@@ -14721,6 +14773,9 @@ mod tests {
     #[test]
     fn handle_interp_alias_wrong_shape_no_op() {
         let mut a = Analyser::new();
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.handle_interp_alias(&["alias".to_string()], &[], 0);
         assert!(a.command_aliases.is_empty());
         assert!(a.alias_offsets.is_empty());

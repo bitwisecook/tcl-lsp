@@ -22,9 +22,7 @@ use tcl_registry::hooks::AnalyserHookId;
 use tcl_registry::hover::OptionSpec;
 use tcl_registry::spec::resolve_option_prefix;
 use tcl_registry::tk_geometry::TkGeometryContainerPolicy;
-use tcl_registry::{
-    CommandRegistry, CommandSpec, CommandTableEffect, InvocationWord, InvocationWords, Traits,
-};
+use tcl_registry::{CommandRegistry, CommandSpec, InvocationWord, InvocationWords, Traits};
 
 use crate::executable_regions::{ExecutableContext, visit_executable_commands};
 
@@ -826,9 +824,20 @@ fn collect_registry_lifecycle_effect(
 ) {
     let releases_geometry = spec.traits.contains(Traits::FIRE_AND_FORGET_TEARDOWN)
         && spec.required_package == Some("Tk");
-    let renames_commands = registry
-        .command_table_effect(resolved_head, command.args().first().map(String::as_str))
-        == Some(CommandTableEffect::RenamesCommands);
+    // Which calls move a command binding, and which word carries the moved
+    // name, is registry data read through the one transition vocabulary
+    // (centralisation ledger C8) — never a coarse effect word this consumer
+    // then re-destructures.
+    let renames_commands =
+        tcl_compiler::alias::command_table_transitions(registry, resolved_head, command.args())
+            .command_bindings()
+            .any(|transition| {
+                matches!(
+                    transition,
+                    tcl_registry::CommandBindingTransition::Move { .. }
+                        | tcl_registry::CommandBindingTransition::Delete { .. }
+                )
+            });
     if !(releases_geometry || renames_commands) {
         return;
     }

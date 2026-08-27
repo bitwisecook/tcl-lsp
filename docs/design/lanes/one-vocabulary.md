@@ -22,7 +22,8 @@ thing, and no shims*. The P8 audit left two survivors.
 ## Status
 
 - [x] **R1 — landed.** `stub_overlay.rs` (423 lines) deleted.
-- [ ] C8 / D9
+- [x] **C8 / D9 — landed.** `CommandTableEffect` is no longer a consumer
+      vocabulary, and the per-consumer argument destructuring is gone.
 - [ ] R10
 
 ## Decisions
@@ -63,6 +64,74 @@ the real context queries rather than asserting it in prose, so a future
 change to the queries that would make a document row conditional fails a
 test instead of silently diverging.
 
+### C8 / D9 — what the three vocabularies collapsed onto
+
+Everything reads `state_transition.rs`'s `CommandBindingTransition`.
+
+**Why that one and not `CommandTableEffect`.** The three vocabularies were
+not peers. `CommandBindingTransition` is a *fact* about one invocation —
+which name moved where, with each operand typed `Literal` or a
+provenance-carrying `Unknown`. `CommandTableEffect` is a *coarse selector*
+— three words that say only "this kind of call mutates the table", after
+which every consumer re-derived the fact from the argument list itself.
+The analyser's `command_aliases` / `renamed_commands` / `deleted_commands`
+tables are *indexes*, not a vocabulary: what made them a third vocabulary
+was that they were populated by `alias.rs`'s own `detect_rename` /
+`detect_interp_alias` / `detect_interp_alias_delete` destructuring, each
+with its own `is_dynamic_word` rule, in parallel with the registry's
+resolvers. Collapsing onto the facts is the only direction that loses
+nothing: the other two are derivable from it, it is not derivable from
+them.
+
+**The shape.**
+
+- `state_transition::command_binding` holds the three **stock descriptors**
+  (`DEFINES_PROCEDURE`, `RENAMES_COMMANDS`, `CREATES_ALIASES`), lifted out
+  of `proc_.rs` / `rename_.rs` / `interp.rs`. The `interp alias` shape guard
+  that used to live in `alias.rs::is_interp_alias_shape` moved into the
+  stock resolver, where a pack stamping the selector on an unshaped command
+  hits it too.
+- Every shipped spec that mutates the command table (`proc`, `rename`,
+  `interp alias`, `tcl::OptProc`, iRules `proc`) now names its stock
+  descriptor and **no longer stamps `command_table_effect` beside it** —
+  declared once.
+- `CommandTableEffect` survives only as the **pack-authoring selector**: a
+  `SpecTcl` pack cannot supply a Rust resolver, so `CommandTableEffect::
+  transitions()` resolves its one word to the very same stock descriptor.
+  Pinned by `the_pack_selector_resolves_to_the_stock_transitions`.
+- `CommandRegistry::command_table_effect` is **deleted**. Its replacement
+  is `CommandRegistry::command_binding_transitions(words)`, which resolves
+  through the ordinary `resolve_structured_invocation` under the registry's
+  own profile mask — no second selection rule (C7/I4 stays intact).
+- `alias.rs` keeps the alias *table* and gains the compiler's one bridge:
+  `source_word` (the single `is_dynamic_word` application),
+  `command_table_transitions`, `is_current_interpreter`, `subject_word`.
+  `detect_rename`, `detect_interp_alias`, `detect_interp_alias_delete` and
+  `is_interp_alias_shape` are deleted.
+- `LegacyEffectBridge::command_table_effects: Vec<CommandTableEffect>`
+  became `command_table_mutation: bool`, fed from the resolved transitions
+  — that bridge was in effect a *fourth* place the same fact was said.
+
+**Consumers ported** (all now read the facts): `realm.rs`,
+`command_binding.rs`, `lowering/mod.rs`, `taint.rs`, `unit_scope.rs`,
+`interprocedural.rs`, `analyser/handlers.rs` (both
+`static_provenance_command_is_trusted` and `handle_interp_alias`),
+`gvn.rs`, `bpf-tcl-ir::semantic_bridge`, `tcl-lsp-core::tk_preview`.
+
+**Vocabulary extension.** `CommandBindingTransition::Alias` gained
+`arguments: Vec<TransitionSubject>` — the leading arguments `interp alias
+{} Cat {} Dog extra` bakes in. Without it the fact could not express what
+`detect_interp_alias`'s third return value carried, and the alias table
+would have lost the "prepended arguments decline" rule the indirection
+walk depends on.
+
+**What C6 still leaves open.** The analyser tables are now *populated
+from* the one vocabulary, and `indirection.rs`'s link walk reads those
+tables. The walk itself is a walk, not a vocabulary, so it is not a fourth
+one — but the tables are still `AnalysisResult`-shaped rather than
+`state_transition.rs`-shaped values, which is the residue C6's target
+column names. See "Open uncertainties".
+
 ## Behavioural deltas
 
 - **`StubSigFlags` is gone, and no flag is carried onto the declaration.**
@@ -83,6 +152,45 @@ test instead of silently diverging.
   where the last role won either way) and it states §6.4's untrusted-tier
   rule directly: a declaration may add a role position, never remove one.
 
+### C8 / D9 deltas (each with a citing comment at the site)
+
+- **A wrong-arity `rename` now states nothing.** `rename a b c` is
+  `wrong # args`, which moves nothing; the arity rule moved from
+  `realm.rs`'s `record_rename` into the stock resolver, where every
+  consumer sees it. `static_provenance_command_is_trusted` previously
+  *distrusted* such a call (`let [old, new] = args else { return false }`)
+  and now ignores it, which is what tclsh does.
+- **An `interp alias` query form no longer counts as a table mutation.**
+  `interp alias {} x` reads a binding back; the coarse selector said
+  "creates aliases" regardless, so `command_binding.rs`'s wildcard gate,
+  `unit_scope`'s opaque-caller scan and `interprocedural`'s class-clearing
+  fired on it. The facts say it mutates nothing.
+- **A subcommand-shaped mutator now resolves by unique prefix.** The
+  retired `command_table_effect` looked the subcommand up by exact
+  spelling; `resolve_structured_invocation` applies the ordinary ensemble
+  rule, so `interp ali {} a {} b` is now seen as the alias creation tclsh
+  actually performs. (`interp aliases` is its own subcommand and still
+  states nothing.)
+- **`tcl::OptProc` and iRules `proc` now state a `Define` fact.** Both
+  stamped the selector but carried no transition descriptor, so every
+  transition consumer saw `UnknownInvocation` for them. They now produce
+  the same `Define` `proc` does.
+- **The command-trace read is now keyed on the facts.** `EffectFootprint`'s
+  legacy command-table bridge fired off the stamped selector; it now fires
+  off `StateTransitions::touches_command_bindings()`, so it also fires for
+  a dynamic operand that only widened the bindings domain, and no longer
+  fires for a query form.
+- **`taint.rs` handles the deletion half.** `rename OLD {}` reached it as
+  `RenamesCommands` with an empty `new`, which removed the class fact; it
+  now arrives as a `Delete` fact and removes it explicitly. Same outcome,
+  stated rather than inferred from an empty string.
+
 ## Open uncertainties
 
-*(none for R1)*
+- **C6's tail.** The analyser's `command_aliases` / `renamed_commands` /
+  `deleted_commands` / offset maps are now populated *from* the one
+  vocabulary, so they are indexes rather than a parallel derivation. They
+  are not yet `state_transition.rs`-*shaped* values, and `indirection.rs`
+  walks them in `AnalysisResult` form. Re-typing them reaches ~30 files
+  across `tcl-lsp-core`'s navigation providers (definition, references,
+  rename, hover, minify, workspace-index), which is a lane of its own.

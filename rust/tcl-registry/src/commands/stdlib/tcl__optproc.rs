@@ -67,7 +67,8 @@ pub fn spec() -> CommandSpec {
         required_package: Some("opt"),
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::OptProc),
-        command_table_effect: Some(crate::command_table::CommandTableEffect::DefinesProcedure),
+        // Declared once, by naming the stock descriptor (ledger C8).
+        state_transitions: Some(crate::state_transition::command_binding::DEFINES_PROCEDURE),
         ..CommandSpec::DEFAULT
     }
 }

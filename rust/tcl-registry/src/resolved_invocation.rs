@@ -209,11 +209,6 @@ fn resolve_invocation_semantics<'r>(
             .and_then(|form| form.lowering_hook)
             .or(sub.and_then(|sub| sub.lowering_hook))
             .or(inherit_command.then_some(spec.lowering_hook).flatten()),
-        command_table_effect: sub
-            .and_then(|sub| sub.command_table_effect)
-            .or(inherit_command
-                .then_some(spec.command_table_effect)
-                .flatten()),
         side_effects: form
             .and_then(|form| form.side_effects)
             .unwrap_or(inherited_side_effects),
@@ -223,8 +218,26 @@ fn resolve_invocation_semantics<'r>(
             form: form.and_then(|form| form.world_effects),
         },
         state_transitions: ResolvedStateTransitions {
-            command: inherit_command.then_some(spec.state_transitions).flatten(),
-            subcommand: sub.and_then(|sub| sub.state_transitions),
+            // A `SpecTcl` pack cannot supply a Rust resolver, so it declares
+            // a command-table mutation with the one-word
+            // `command_table_effect` selector instead. Resolve it to the
+            // very stock descriptor a shipped spec names, so the pack
+            // shorthand and the shipped declaration produce one transition
+            // vocabulary through one resolver (ledger C8).
+            command: inherit_command
+                .then(|| {
+                    spec.state_transitions.or_else(|| {
+                        spec.command_table_effect
+                            .map(CommandTableEffect::transitions)
+                    })
+                })
+                .flatten(),
+            subcommand: sub.and_then(|sub| {
+                sub.state_transitions.or_else(|| {
+                    sub.command_table_effect
+                        .map(CommandTableEffect::transitions)
+                })
+            }),
             form: form.and_then(|form| form.state_transitions),
         },
         dispatch_dependencies: ResolvedDispatchDependencies {
@@ -565,8 +578,6 @@ pub struct InvocationSemantics<'r> {
     /// registry-to-common-IR dispatch key and will ultimately become the
     /// semantic operation selected by the registry.
     pub lowering_hook: Option<LoweringHookId>,
-    /// Command-table mutation semantics, when this invocation has them.
-    pub command_table_effect: Option<CommandTableEffect>,
     /// Structured side effects.  A non-empty resolved-subcommand declaration
     /// takes precedence over the command-level declaration, matching the
     /// existing side-effect classifier.
@@ -758,15 +769,19 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
     /// mistaken for a proof that no other Tcl-world effect can occur.
     #[must_use]
     pub fn effect_footprint(&self) -> EffectFootprint {
-        let (_, coverage) = self
+        let (transitions, coverage) = self
             .semantics
             .state_transitions
             .resolve_with_effect_coverage(self.words.arguments());
-        self.effect_footprint_with_transition_coverage(&coverage)
+        self.effect_footprint_with_transition_coverage(
+            transitions.touches_command_bindings(),
+            &coverage,
+        )
     }
 
     fn effect_footprint_with_transition_coverage(
         &self,
+        command_table_mutation: bool,
         coverage: &TransitionEffectCoverages,
     ) -> EffectFootprint {
         let mut footprint = if self.semantics.world_effects.is_declared() {
@@ -776,8 +791,11 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
         } else {
             EffectFootprint::conservative_unknown_invocation()
         };
+        // Whether this call mutated the command table is read from the one
+        // transition vocabulary (ledger C8), never from a second coarse
+        // effect word stamped beside it.
         footprint.extend(EffectFootprint::from_legacy_with_transition_coverage(
-            self.semantics.command_table_effect,
+            command_table_mutation,
             self.semantics.frame_effect,
             self.semantics.side_effects,
             coverage,
@@ -846,7 +864,10 @@ impl<'r, 'w> ResolvedInvocation<'r, 'w> {
             completion: self.semantics.completion,
             result_stability: self.semantics.result_stability,
             representation_effect: self.semantics.representation_effect,
-            effects: self.effect_footprint_with_transition_coverage(&transition_effect_coverage),
+            effects: self.effect_footprint_with_transition_coverage(
+                transitions.touches_command_bindings(),
+                &transition_effect_coverage,
+            ),
             state_transitions: if self.semantics.state_transitions.is_declared() {
                 StateTransitionKnowledge::Declared(transitions)
             } else {
@@ -1891,10 +1912,10 @@ mod tests {
             access.domain == WorldStateDomain::CommandTraces
                 && access.mode == EffectAccessMode::Read
         }));
-        assert_eq!(
-            footprint.legacy().command_table_effects,
-            vec![crate::CommandTableEffect::RenamesCommands],
-            "the typed existing command-table declaration remains available"
+        assert!(
+            footprint.legacy().command_table_mutation,
+            "the command-table mutation the transition states remains visible \
+             to the legacy effect bridge"
         );
         assert_eq!(footprint.legacy().side_effects.len(), 1);
 

@@ -6076,6 +6076,12 @@ mod tests {
     #[test]
     fn process_interp_alias_records_target() {
         let mut a = Analyser::new();
+        // The handler reads the registry's one command-table transition
+        // vocabulary (ledger C8), so a bare harness has to carry a registry
+        // the way a real walk does.
+        a.registry = Some(std::sync::Arc::clone(
+            tcl_registry::model::ingress::static_context_for("tcl").commands(),
+        ));
         a.process_command(
             &[
                 "interp".to_string(),

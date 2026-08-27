@@ -1864,7 +1864,9 @@ pub struct CommandSpec {
     /// [`CommandTableEffect`]). `None` = the command never rebinds a
     /// command name. Consumed by the command-binding lattice, the
     /// lowerer's alias table, and the analyser's rename / alias
-    /// records via [`crate::CommandRegistry::command_table_effect`].
+    /// records via [`crate::CommandTableEffect::transitions`], which
+    /// resolves this selector to the stock state-transition descriptor a
+    /// shipped spec names directly (centralisation ledger C8).
     pub command_table_effect: Option<CommandTableEffect>,
 
     /// Structured side-effect declarations.

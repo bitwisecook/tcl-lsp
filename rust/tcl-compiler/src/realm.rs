@@ -87,11 +87,11 @@
 
 use std::borrow::Cow;
 
-use crate::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
+use crate::alias::{command_table_transitions, is_current_interpreter};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use rustc_hash::FxHashMap;
 use tcl_registry::model::{BindingKnowledge, BindingTarget, ResolvedContext, SpecKey};
-use tcl_registry::{CommandRegistry, CommandSpec, CommandTableEffect};
+use tcl_registry::{CommandBindingTransition, CommandRegistry, CommandSpec, TransitionSubject};
 use tcl_syntax::naming::is_dynamic_word;
 
 /// What a command head resolves to at one point in a document.
@@ -457,23 +457,94 @@ pub fn document_realm_bindings_with_config(
             continue;
         };
         let args = &seg.texts[1..];
-        let Some(effect) = registry.command_table_effect(head, args.first().map(String::as_str))
-        else {
+        let transitions = command_table_transitions(registry, head, args);
+        if transitions.command_bindings().next().is_none() {
             continue;
-        };
+        }
         let at = seg.argv[0].span.start();
-        match effect {
-            CommandTableEffect::RenamesCommands => record_rename(&mut map, args, at, registry),
-            CommandTableEffect::CreatesAliases => record_alias(&mut map, args, at, registry),
-            CommandTableEffect::DefinesProcedure
-                if valid_irules_procedure_declaration(source, seg, registry) =>
-            {
-                record_proc(&mut map, args, at, registry);
-            }
-            CommandTableEffect::DefinesProcedure => {}
+        // A `proc` declaration is the one binding fact whose *validity* is
+        // dialect-gated: iRules restricts `proc` to its shared declaration
+        // surface, and a malformed body is not executable.
+        let declares_valid_procedure = valid_irules_procedure_declaration(source, seg, registry);
+        for transition in transitions.command_bindings() {
+            record_binding_transition(&mut map, transition, at, registry, declares_valid_procedure);
         }
     }
     map
+}
+
+/// Record one registry-stated command-binding transition as a realm fact.
+///
+/// The argument layout, the dynamic-operand rule, and the alias shape check
+/// all live in the registry's stock resolvers now (ledger C8): this reads
+/// facts, it does not decode words.
+fn record_binding_transition(
+    map: &mut CommandBindingRealm,
+    transition: &CommandBindingTransition,
+    at: u32,
+    registry: &CommandRegistry,
+    declares_valid_procedure: bool,
+) {
+    match transition {
+        CommandBindingTransition::Define { name, .. } => {
+            if declares_valid_procedure {
+                record_proc(map, name, at, registry);
+            }
+        }
+        CommandBindingTransition::Move { from, to } => record_move(map, from, to, at, registry),
+        CommandBindingTransition::Delete { interpreter, name } => {
+            // `rename OLD {}` carries no interpreter; `interp alias {} NAME
+            // {}` carries the source path, and only a deletion in *this*
+            // interpreter changes what the document's later names mean.
+            if interpreter.as_ref().is_none_or(is_current_interpreter)
+                && let Some(name) = static_subject(name)
+            {
+                map.record_both_spellings(name, FactBinding::Deleted, at);
+            }
+        }
+        CommandBindingTransition::Alias {
+            source_interpreter,
+            alias,
+            target_interpreter,
+            target,
+            arguments,
+        } => record_alias(
+            map,
+            AliasFact {
+                source_interpreter,
+                alias,
+                target_interpreter,
+                target,
+                arguments,
+            },
+            at,
+            registry,
+        ),
+        CommandBindingTransition::Unknown { operands } => {
+            // A `rename` whose *source* is dynamic states nothing at all —
+            // neither half of the move can be named. One whose source is
+            // known still vacates that name.
+            if let Some(from) = operands.first().and_then(static_subject) {
+                map.record_both_spellings(from, FactBinding::Deleted, at);
+            }
+        }
+    }
+}
+
+/// The literal value of `subject`, when it is a name this scan may treat as
+/// a static command spelling.
+fn static_subject(subject: &TransitionSubject) -> Option<&str> {
+    subject.literal().filter(|name| is_static_name(name))
+}
+
+/// One `interp alias` fact's operands, bundled so [`record_alias`] stays at
+/// or under the argument limit.
+struct AliasFact<'a> {
+    source_interpreter: &'a TransitionSubject,
+    alias: &'a TransitionSubject,
+    target_interpreter: &'a TransitionSubject,
+    target: &'a TransitionSubject,
+    arguments: &'a [TransitionSubject],
 }
 
 /// Whether this top-level segmented `proc` can actually create an iRules
@@ -534,39 +605,31 @@ fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
     available_spec(registry, name).is_some()
 }
 
-/// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
-/// `rename OLD {}` deletes `OLD` outright.
-fn record_rename(
+/// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops
+/// existing.  (`rename OLD {}` reaches the realm as a `Delete` fact
+/// instead, so this arm only ever sees a genuine move.)
+fn record_move(
     map: &mut CommandBindingRealm,
-    args: &[String],
+    from: &TransitionSubject,
+    to: &TransitionSubject,
     at: u32,
     registry: &CommandRegistry,
 ) {
-    // `rename` takes exactly two arguments; any other arity is a `wrong # args`
-    // error that moves nothing, so a malformed call must state nothing rather
-    // than half a fact.
-    if args.len() != 2 {
+    // A dynamic source means neither half of the move can be stated.
+    let Some(old) = static_subject(from) else {
         return;
-    }
-    let Some(old) = args.first() else { return };
-    if !is_static_name(old) {
-        // `rename $old new` — the source is unknown, so neither half of the
-        // move can be stated.  Abstain entirely.
-        return;
-    }
-    if let Some((old, new)) = detect_rename(args)
-        && is_static_name(&new)
-    {
+    };
+    if let Some(new) = static_subject(to) {
         // Only a source the registry models — directly or through an earlier
         // fact — is worth aliasing; renaming an ordinary user proc leaves `NEW`
         // an ordinary unknown name, which is already what an absent fact
         // produces.  A *provably rebound* source is stated, though: it moves
         // something the registry does not model onto `NEW`, and `NEW` must not
         // then be read under the built-in's grammar.
-        match inherited_spec(map, &old, at, registry) {
-            Some(key) => map.record_both_spellings(&new, FactBinding::Spec(key), at),
-            None if map.resolve(&old, at).is_rebound() => {
-                map.record_both_spellings(&new, FactBinding::TakenOver, at);
+        match inherited_spec(map, old, at, registry) {
+            Some(key) => map.record_both_spellings(new, FactBinding::Spec(key), at),
+            None if map.resolve(old, at).is_rebound() => {
+                map.record_both_spellings(new, FactBinding::TakenOver, at);
             }
             None => {}
         }
@@ -602,37 +665,32 @@ fn inherited_spec(
     }
 }
 
-/// `interp alias {} NEW {} TARGET ?arg…?` and its deletion form.
+/// `interp alias {} NEW {} TARGET ?arg…?`.  (The deletion form reaches the
+/// realm as a `Delete` fact instead.)
 fn record_alias(
     map: &mut CommandBindingRealm,
-    args: &[String],
+    fact: AliasFact<'_>,
     at: u32,
     registry: &CommandRegistry,
 ) {
-    // A `SpecTcl` pack may stamp `CreatesAliases` on a command that carries
-    // none of `interp alias`'s words — see
-    // [`crate::alias::is_interp_alias_shape`]. The detectors below already
-    // state nothing for such a call, and so must the foreign-target-path arm
-    // that reads `args[1..4]` positionally.
-    if !crate::alias::is_interp_alias_shape(args) {
+    if !is_current_interpreter(fact.source_interpreter) {
+        // A foreign `srcPath` binds a name in a child interpreter; nothing
+        // changes here.  A dynamic path cannot be stated either.
         return;
     }
-    if let Some(deleted) = detect_interp_alias_delete(args) {
-        map.record_both_spellings(&deleted, FactBinding::Deleted, at);
+    let Some(alias) = static_subject(fact.alias) else {
+        return;
+    };
+    if !is_current_interpreter(fact.target_interpreter) {
+        // A foreign *target* path is the one shape worth marking rebound —
+        // the alias exists here but runs elsewhere.
+        map.record_both_spellings(alias, FactBinding::TakenOver, at);
         return;
     }
-    let Some((qualified, target, prepended)) = detect_interp_alias(args) else {
-        // Not a current-interpreter creation: a foreign `srcPath` binds a name
-        // in a child interpreter (nothing changes here), and a dynamic name or
-        // target cannot be stated.  A *foreign target path* is the one shape
-        // worth marking rebound — the alias exists here but runs elsewhere.
-        if let (Some(src), Some(name), Some(tgt)) = (args.get(1), args.get(2), args.get(3))
-            && matches!(src.as_str(), "" | "{}")
-            && !matches!(tgt.as_str(), "" | "{}")
-            && is_static_name(name)
-        {
-            map.record_both_spellings(name, FactBinding::TakenOver, at);
-        }
+    // A dynamic target (`interp alias {} myEval {} $target`) names nothing
+    // statically: recording the alias would map `myEval` onto a
+    // never-registered name, so abstain rather than state half a fact.
+    let Some(target) = fact.target.literal() else {
         return;
     };
     // Pre-bound arguments shift every index, so the target's layout cannot be
@@ -642,12 +700,13 @@ fn record_alias(
     // `proc myproc …; interp alias {} lindex {} myproc` makes `lindex {a b c}
     // 1` answer `MINE`) — so the name is marked rebound rather than left alone.
     // The target is read through the map, so a chain of bindings composes.
-    let effective = prepended
+    let effective = fact
+        .arguments
         .is_empty()
-        .then(|| inherited_spec(map, &target, at, registry))
+        .then(|| inherited_spec(map, target, at, registry))
         .flatten();
     map.record_both_spellings(
-        &qualified,
+        alias,
         effective.map_or(FactBinding::TakenOver, FactBinding::Spec),
         at,
     );
@@ -664,12 +723,14 @@ fn record_alias(
 /// an absent fact produces.
 fn record_proc(
     map: &mut CommandBindingRealm,
-    args: &[String],
+    name: &TransitionSubject,
     at: u32,
     registry: &CommandRegistry,
 ) {
-    let Some(name) = args.first() else { return };
-    if !is_static_name(name) || name.contains("::") {
+    let Some(name) = static_subject(name) else {
+        return;
+    };
+    if name.contains("::") {
         // A qualified `proc ::ns::format` defines a *different* command; only
         // the global-namespace shadow is stated here.
         return;

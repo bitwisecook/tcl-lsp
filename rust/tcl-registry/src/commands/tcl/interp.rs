@@ -44,18 +44,6 @@ const FORMS: &[FormSpec] = &[FormSpec {
     ..FormSpec::DEFAULT
 }];
 
-const INTERP_ALIAS_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
-    StateTransitionDomain::CommandBindings,
-    StateTransitionDomain::Namespaces,
-    StateTransitionDomain::Interpreters,
-    StateTransitionDomain::CommandTraces,
-];
-
-const INTERP_ALIAS_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[TransitionEffectCoverage {
-    source: WorldEffectWriteSource::LegacyCommandTable,
-    domains: &[WorldStateDomain::CommandBindings],
-}];
-
 const INTERP_POLICY_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
     TransitionEffectCoverage {
         source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::InterpState),
@@ -199,78 +187,6 @@ const INTERP_BGERROR_EFFECTS: WorldEffectDescriptor = WorldEffectDescriptor {
     resolver: Some(interp_bgerror_world_effects),
     dynamic_fallback: WorldEffectDynamicFallback::Declared(INTERP_POLICY_DYNAMIC_EFFECTS),
 };
-
-const INTERP_ALIAS_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
-    composition: StateTransitionComposition::Extend,
-    resolver: Some(interp_alias_state_transitions),
-    argument_shape: StateTransitionArgumentShape::Positional,
-    dynamic_widening: &[StateTransitionWideningRule {
-        // The subcommand at index 0 is already known to have selected this
-        // descriptor. The source/target interpreter and command positions
-        // carry the transition's identity; baked alias arguments do not.
-        operands: StateTransitionOperandLayout::Indices(&[1, 2, 3, 4]),
-        domains: INTERP_ALIAS_TRANSITION_DOMAINS,
-    }],
-    effect_coverage: INTERP_ALIAS_EFFECT_COVERAGE,
-    // Alias setup can cross interpreter boundaries and invoke observable
-    // lifecycle hooks before reporting an error.
-    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
-};
-
-fn interp_alias_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
-    let mut transitions = StateTransitions::default();
-    let (Some(source_interpreter), Some(alias)) = (
-        TransitionSubject::from_argument(arguments, 1),
-        TransitionSubject::from_argument(arguments, 2),
-    ) else {
-        return transitions;
-    };
-
-    match arguments.len() {
-        // `interp alias sourcePath sourceCmd` queries an existing alias.
-        0..=3 => {}
-        // `interp alias sourcePath sourceCmd {}` deletes it. A computed
-        // target-path position could be empty at runtime, so retain a typed
-        // wildcard transition rather than pretending this is alias creation.
-        4 => match arguments.literal_at(3) {
-            Some("") => transitions.push(StateTransition::CommandBinding(
-                CommandBindingTransition::Delete {
-                    interpreter: Some(source_interpreter),
-                    name: alias,
-                },
-            )),
-            Some(_) => {}
-            None => {
-                let Some(target_path) = TransitionSubject::from_argument(arguments, 3) else {
-                    return transitions;
-                };
-                transitions.push(StateTransition::CommandBinding(
-                    CommandBindingTransition::Unknown {
-                        operands: vec![source_interpreter, alias, target_path],
-                    },
-                ));
-            }
-        },
-        // The create form requires both target interpreter path and command.
-        _ => {
-            let (Some(target_interpreter), Some(target)) = (
-                TransitionSubject::from_argument(arguments, 3),
-                TransitionSubject::from_argument(arguments, 4),
-            ) else {
-                return transitions;
-            };
-            transitions.push(StateTransition::CommandBinding(
-                CommandBindingTransition::Alias {
-                    source_interpreter,
-                    alias,
-                    target_interpreter,
-                    target,
-                },
-            ));
-        }
-    }
-    transitions
-}
 
 fn interp_create_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
     let mut transitions = StateTransitions::default();
@@ -537,9 +453,10 @@ static SUBCOMMANDS: &[SubCommand] = &[
         command_prefix_resolver: Some(interp_alias_command_prefixes),
         script_timing_resolver: Some(interp_alias_script_timing),
         analyser_hook: Some(crate::hooks::AnalyserHookId::InterpAlias),
-        command_table_effect: Some(crate::command_table::CommandTableEffect::CreatesAliases),
+
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(INTERP_ALIAS_TRANSITIONS),
+        // Declared once, by naming the stock descriptor (ledger C8).
+        state_transitions: Some(crate::state_transition::command_binding::CREATES_ALIASES),
         ..SubCommand::DEFAULT
     },
     SubCommand {

@@ -24,78 +24,6 @@ const SIDE_EFFECTS: &[SideEffect] = &[SideEffect {
     ..SideEffect::DEFAULT
 }];
 
-const RENAME_TRANSITION_DOMAINS: &[StateTransitionDomain] = &[
-    StateTransitionDomain::CommandBindings,
-    StateTransitionDomain::Namespaces,
-    StateTransitionDomain::CommandTraces,
-];
-
-const RENAME_EFFECT_COVERAGE: &[TransitionEffectCoverage] = &[
-    TransitionEffectCoverage {
-        source: WorldEffectWriteSource::LegacyCommandTable,
-        domains: &[WorldStateDomain::CommandBindings],
-    },
-    TransitionEffectCoverage {
-        source: WorldEffectWriteSource::LegacySideEffect(SideEffectTarget::ProcDefinition),
-        domains: &[WorldStateDomain::CommandBindings],
-    },
-];
-
-const RENAME_TRANSITIONS: StateTransitionDescriptor = StateTransitionDescriptor {
-    composition: StateTransitionComposition::Extend,
-    resolver: Some(rename_state_transitions),
-    argument_shape: StateTransitionArgumentShape::Positional,
-    dynamic_widening: &[StateTransitionWideningRule {
-        operands: StateTransitionOperandLayout::Indices(&[0, 1]),
-        domains: RENAME_TRANSITION_DOMAINS,
-    }],
-    effect_coverage: RENAME_EFFECT_COVERAGE,
-    // Keep the transition visible on an abrupt edge.  It is deliberately
-    // conservative for command traces and re-entrant callbacks, which can
-    // observe the command-table change while Tcl is completing the operation.
-    commit: StateTransitionCommit::MayCommitBeforeAbruptCompletion,
-};
-
-fn rename_state_transitions(arguments: InvocationArguments<'_>) -> StateTransitions {
-    let mut transitions = StateTransitions::default();
-    let (Some(from), Some(to)) = (
-        TransitionSubject::from_argument(arguments, 0),
-        TransitionSubject::from_argument(arguments, 1),
-    ) else {
-        return transitions;
-    };
-    match to.literal() {
-        Some("") => transitions.push(StateTransition::CommandBinding(
-            CommandBindingTransition::Delete {
-                interpreter: None,
-                name: from,
-            },
-        )),
-        Some(target) => {
-            // Tcl creates the target's namespace lineage when it is absent;
-            // record that separately from the command binding so generic
-            // world-state consumers retain both facts.
-            let namespace = crate::state_transition::namespace_qualifiers(target);
-            if !namespace.is_empty() {
-                transitions.push(StateTransition::Namespace(NamespaceTransition::Ensure {
-                    namespace: NamespaceTransitionTarget::Named(TransitionSubject::Literal(
-                        namespace.to_owned(),
-                    )),
-                }));
-            }
-            transitions.push(StateTransition::CommandBinding(
-                CommandBindingTransition::Move { from, to },
-            ));
-        }
-        None => transitions.push(StateTransition::CommandBinding(
-            CommandBindingTransition::Unknown {
-                operands: vec![from, to],
-            },
-        )),
-    }
-    transitions
-}
-
 const FORMS: &[FormSpec] = &[FormSpec {
     synopsis: "rename oldName newName",
     ..FormSpec::DEFAULT
@@ -155,9 +83,11 @@ pub fn spec() -> CommandSpec {
         forms: FORMS,
         side_effects: SIDE_EFFECTS,
         analyser_hook: Some(crate::hooks::AnalyserHookId::Rename),
-        command_table_effect: Some(crate::command_table::CommandTableEffect::RenamesCommands),
         world_effects: Some(WorldEffectDescriptor::EMPTY),
-        state_transitions: Some(RENAME_TRANSITIONS),
+        // The command-table mutation is declared **once**, by naming the
+        // stock descriptor (ledger C8). The former `command_table_effect`
+        // stamp beside it was the same fact in a second vocabulary.
+        state_transitions: Some(crate::state_transition::command_binding::RENAMES_COMMANDS),
         ..CommandSpec::DEFAULT
     }
 }
@@ -168,10 +98,12 @@ mod tests {
 
     #[test]
     fn qualified_literal_target_ensures_its_namespace_lineage_before_moving() {
-        let transitions = rename_state_transitions(InvocationArguments::literals(&[
-            "::old",
-            "::fresh::nested::new",
-        ]));
+        let transitions = crate::command_table::CommandTableEffect::RenamesCommands
+            .transitions()
+            .resolve(InvocationArguments::literals(&[
+                "::old",
+                "::fresh::nested::new",
+            ]));
 
         assert!(matches!(
             transitions.facts(),
@@ -195,7 +127,9 @@ mod tests {
 
     #[test]
     fn deletion_and_dynamic_target_do_not_claim_a_specific_namespace() {
-        let delete = rename_state_transitions(InvocationArguments::literals(&["old", ""]));
+        let delete = crate::command_table::CommandTableEffect::RenamesCommands
+            .transitions()
+            .resolve(InvocationArguments::literals(&["old", ""]));
         assert!(matches!(
             delete.facts(),
             [fact]
@@ -208,18 +142,29 @@ mod tests {
                 )
         ));
 
-        let dynamic = rename_state_transitions(InvocationArguments::structured(&[
-            crate::InvocationWord::Literal("old"),
-            crate::InvocationWord::Dynamic,
-        ]));
+        // A dynamic target states the unknown mutation *and* the descriptor's
+        // declared widening for the dynamic operand — the widening is what
+        // keeps a consumer conservative about the identities it can no
+        // longer name.
+        let dynamic = crate::command_table::CommandTableEffect::RenamesCommands
+            .transitions()
+            .resolve(InvocationArguments::structured(&[
+                crate::InvocationWord::Literal("old"),
+                crate::InvocationWord::Dynamic,
+            ]));
         assert!(matches!(
             dynamic.facts(),
-            [fact]
+            [unknown, widen]
                 if matches!(
-                    &fact.transition,
+                    &unknown.transition,
                     StateTransition::CommandBinding(CommandBindingTransition::Unknown { operands })
                         if operands.len() == 2
+                ) && matches!(
+                    &widen.transition,
+                    StateTransition::Widen(widening)
+                        if widening.domains.contains(&StateTransitionDomain::CommandBindings)
                 )
         ));
+        assert!(dynamic.touches_command_bindings());
     }
 }

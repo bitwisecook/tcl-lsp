@@ -792,9 +792,8 @@ pub(crate) fn global_instance_classes(
                     if let Some((_, receiver, _)) = constructor(statement) {
                         classes.remove(&receiver);
                     }
-                } else if registry
-                    .command_table_effect(command, args.first().map(String::as_str))
-                    .is_some()
+                } else if crate::alias::command_table_transitions(registry, command, args)
+                    .touches_command_bindings()
                     || registry.get(command).is_some_and(|spec| {
                         spec.traits
                             .contains(tcl_registry::Traits::FIRE_AND_FORGET_TEARDOWN)

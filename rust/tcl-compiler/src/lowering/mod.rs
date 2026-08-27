@@ -30,7 +30,9 @@ use tcl_registry::hooks::LoweringHookId;
 use tcl_registry::prelude::DialectSet;
 use tcl_registry::{ArgRole, CommandRegistry};
 
-use crate::alias::{CommandAliasMap, detect_interp_alias, detect_rename, resolve_alias};
+use crate::alias::{
+    CommandAliasMap, command_table_transitions, is_current_interpreter, resolve_alias,
+};
 use crate::ir::{
     CommandTokens, ForeachIterator, MethodDef, MethodKind, Module, Procedure, Script, Statement,
 };
@@ -1701,24 +1703,56 @@ impl<'r> Lowerer<'r> {
         // `resolve_alias` looks the name back up (current namespace, then
         // global) and `command_binding`'s own namespace-relative candidates.
         let args_owned: Vec<String> = args.to_vec();
-        match self
-            .registry
-            .command_table_effect(cmd_name, args_owned.first().map(String::as_str))
+        // What the call did to the command table is registry data, read
+        // through the one transition vocabulary (ledger C8); the alias
+        // table is this pass's *index* over those facts.
+        for transition in
+            command_table_transitions(self.registry, cmd_name, &args_owned).command_bindings()
         {
-            Some(tcl_registry::CommandTableEffect::CreatesAliases) => {
-                if let Some((qualified, target, prepended)) = detect_interp_alias(&args_owned) {
-                    self.aliases.insert(qualified, (target, prepended));
-                }
-            }
-            Some(tcl_registry::CommandTableEffect::RenamesCommands) => {
-                if let Some((old, new)) = detect_rename(&args_owned) {
+            match transition {
+                tcl_registry::CommandBindingTransition::Alias {
+                    source_interpreter,
+                    alias,
+                    target_interpreter,
+                    target,
+                    arguments,
+                } => {
+                    if !is_current_interpreter(source_interpreter)
+                        || !is_current_interpreter(target_interpreter)
+                    {
+                        continue;
+                    }
+                    let (Some(alias_name), Some(target_cmd)) = (alias.literal(), target.literal())
+                    else {
+                        continue;
+                    };
+                    let qualified = if alias_name.is_empty() {
+                        String::new()
+                    } else {
+                        crate::naming::normalise_qualified_name(alias_name)
+                    };
+                    let prepended = arguments
+                        .iter()
+                        .filter_map(tcl_registry::TransitionSubject::literal)
+                        .map(str::to_owned)
+                        .collect();
                     self.aliases
-                        .insert(join_namespace(namespace, &new), (old, Vec::new()));
+                        .insert(qualified, (target_cmd.to_owned(), prepended));
                 }
+                tcl_registry::CommandBindingTransition::Move { from, to } => {
+                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
+                        continue;
+                    };
+                    self.aliases
+                        .insert(join_namespace(namespace, new), (old.to_owned(), Vec::new()));
+                }
+                // A definition feeds the alias table nothing — it is lowered
+                // by its own hook below — and a deletion or an unknown
+                // mutation states no new name for it to index.
+                tcl_registry::CommandBindingTransition::Define { .. }
+                | tcl_registry::CommandBindingTransition::Delete { .. }
+                | tcl_registry::CommandBindingTransition::Unknown { .. } => {}
             }
-            // `proc` feeds the alias table nothing — its definition is
-            // lowered by its own hook below.
-            _ => {}
         }
 
         self.record_namespace_directives(cmd_name, args, seg, namespace);

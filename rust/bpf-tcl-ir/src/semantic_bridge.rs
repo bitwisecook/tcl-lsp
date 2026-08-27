@@ -357,7 +357,7 @@ fn semantic_failures(facts: &InvocationFacts) -> Vec<EbpfSemanticFailure> {
     }
     let legacy = facts.effects.legacy();
     if !facts.effects.accesses().is_empty()
-        || !legacy.command_table_effects.is_empty()
+        || legacy.command_table_mutation
         || !legacy.frame_effects.is_empty()
         || !legacy.side_effects.is_empty()
     {

@@ -595,35 +595,56 @@ pub(crate) fn transfer_instance_lifecycle(
     args: &[String],
     registry: &CommandRegistry,
 ) {
-    if let Some(effect) = registry.command_table_effect(command, args.first().map(String::as_str)) {
-        match effect {
-            tcl_registry::CommandTableEffect::RenamesCommands => {
-                let (Some(old), Some(new)) = (args.first(), args.get(1)) else {
-                    state.clear();
-                    return;
-                };
-                let Some(old) = literal_receiver(old) else {
-                    state.clear();
-                    return;
-                };
-                if new.starts_with(['$', '[', '{']) {
+    let transitions = crate::alias::command_table_transitions(registry, command, args);
+    if transitions.touches_command_bindings() {
+        for transition in transitions.command_bindings() {
+            match transition {
+                tcl_registry::CommandBindingTransition::Move { from, to } => {
+                    let (Some(old), Some(new)) = (from.literal(), to.literal()) else {
+                        state.clear();
+                        return;
+                    };
+                    let Some(old) = literal_receiver(old) else {
+                        state.clear();
+                        return;
+                    };
+                    if new.starts_with(['$', '[', '{']) {
+                        state.clear();
+                        return;
+                    }
+                    let class = state.remove(old);
+                    if !new.is_empty()
+                        && let Some(class) = class
+                    {
+                        state.insert(new.to_owned(), class);
+                    }
+                }
+                tcl_registry::CommandBindingTransition::Delete { name, .. } => {
+                    // The moved-away half of `rename OLD {}`: the receiver
+                    // identity at that name is gone.
+                    match name.literal().and_then(literal_receiver) {
+                        Some(old) => {
+                            state.remove(old);
+                        }
+                        None => {
+                            state.clear();
+                            return;
+                        }
+                    }
+                }
+                tcl_registry::CommandBindingTransition::Alias { .. }
+                | tcl_registry::CommandBindingTransition::Unknown { .. } => {
+                    // An alias may target or replace any command, including a
+                    // registry-modelled instance command.  Without a precise
+                    // target proof all receiver identities become unknown, and
+                    // an unknown mutation proves nothing at all.
                     state.clear();
                     return;
                 }
-                let class = state.remove(old);
-                if !new.is_empty()
-                    && let Some(class) = class
-                {
-                    state.insert(new.to_owned(), class);
-                }
+                // A definition binds a new name without disturbing an
+                // existing receiver identity.
+                tcl_registry::CommandBindingTransition::Define { .. } => {}
             }
-            tcl_registry::CommandTableEffect::CreatesAliases => {
-                // An alias may target or replace any command, including a
-                // registry-modelled instance command.  Without a precise
-                // target proof all receiver identities become unknown.
-                state.clear();
-            }
-            tcl_registry::CommandTableEffect::DefinesProcedure => {}
         }
         return;
     }

@@ -31,7 +31,6 @@ use crate::abbrev::{Keyword, KeywordTable, PrefixMatching};
 use crate::arg_role::{AppendedArity, ArgRole};
 use crate::arity::Arity;
 use crate::body_kind::BodyKind;
-use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
 use crate::events::{
     DataCollectionAction, DataCollectionOperation, DataCollectionProtocol, EventHandlerPriority,
@@ -47,6 +46,7 @@ use crate::resolved_invocation::{
 };
 use crate::side_effects::SideSwitchTarget;
 use crate::spec::{BytePayloadSpec, CommandSpec, SubCommand};
+use crate::state_transition::StateTransitions;
 use crate::traits::Traits;
 use crate::types::VarWriteTyping;
 use crate::{InvocationArguments, InvocationWords};
@@ -4399,37 +4399,43 @@ impl CommandRegistry {
         None
     }
 
-    /// Resolve how a call mutates the interpreter's command table —
-    /// the [`CommandTableEffect`] stamped on the command spec, or on
-    /// the subcommand `first_arg` names (which wins), for the
-    /// mutators `proc` / `rename` / `interp alias`.
+    /// The **command-table transitions** one invocation establishes — the
+    /// one vocabulary for "this call changed the command table"
+    /// (centralisation ledger C8, redesign §11.2 D9).
     ///
-    /// `name` resolves through [`Self::get`], so the explicitly global
-    /// spellings answer identically to the bare ones — `::rename format
-    /// ::origfmt`, `::interp alias {} myfmt {} ::origfmt` and `::proc
-    /// ::greet {} {…}` all really do mutate the command table (tclsh 9.0.4
-    /// and 8.6.16, byte-identical; `namespace which -command ::rename` →
-    /// `::rename`).  Resolving only the bare spelling — as the retired
-    /// per-consumer literal matches (`cmd_name != "rename"`) did — made a
-    /// qualified mutator invisible to every binding consumer, the
-    /// false-negative class issue #1185 exists to close.  The subcommand
-    /// word must still match exactly (no prefix abbreviation), as those
-    /// matches also did.
+    /// Every consumer that models command-name bindings reads this: the
+    /// flow-sensitive lattice, the lowerer's alias table, the analyser's
+    /// rename / alias records, the realm scan, the taint walk. None of them
+    /// dispatches on a coarse effect word and re-destructures the argument
+    /// layout for itself any more — the layout lives with the registry
+    /// resolver, once, and a dynamic operand becomes a typed
+    /// [`TransitionSubject::Unknown`] or a domain widening rather than each
+    /// consumer's own `is_dynamic_word` test.
+    ///
+    /// Selection is the ordinary
+    /// [`Self::resolve_structured_invocation`] under **this registry's own
+    /// profile mask**: command-table mutations are executable behaviour, so
+    /// they must use the profile-visible command surface. In particular,
+    /// iRules intentionally has no `rename` or `interp`, even though the
+    /// dialect-agnostic catalogue knows their Tcl specs. A profile-less
+    /// registry (`build_default`) answers dialect-agnostically, exactly as
+    /// [`Self::get`] does. The explicitly global spellings answer
+    /// identically to the bare ones — `::rename format ::origfmt`,
+    /// `::interp alias {} myfmt {} ::origfmt` and `::proc ::greet {} {…}`
+    /// all really do mutate the command table (tclsh 9.0.4 and 8.6.16,
+    /// byte-identical; `namespace which -command ::rename` → `::rename`).
+    ///
+    /// [`TransitionSubject::Unknown`]: crate::TransitionSubject::Unknown
     #[must_use]
-    pub fn command_table_effect(
-        &self,
-        name: &str,
-        first_arg: Option<&str>,
-    ) -> Option<CommandTableEffect> {
-        // Command-table mutations are executable behaviour, so they must use
-        // this registry's profile-visible command surface. In particular,
-        // iRules intentionally has no `rename` or `interp`, even though the
-        // dialect-agnostic catalogue knows their Tcl specs.
-        let spec = self.spec_for_this_registry(name)?;
-        first_arg
-            .and_then(|word| spec.subcommand(word))
-            .and_then(|sub| sub.command_table_effect)
-            .or(spec.command_table_effect)
+    pub fn command_binding_transitions(&self, words: InvocationWords<'_>) -> StateTransitions {
+        let mask = self
+            .profile
+            .map_or_else(DialectSet::empty, |profile| profile.availability_mask);
+        self.resolve_structured_invocation(words, mask)
+            .resolved()
+            .map_or_else(StateTransitions::default, |invocation| {
+                invocation.state_transitions()
+            })
     }
 
     /// Whether `name` (or the compound key `"cmd sub"`) produces a

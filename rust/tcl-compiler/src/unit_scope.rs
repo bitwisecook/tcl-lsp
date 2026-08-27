@@ -986,7 +986,7 @@ fn resolve_target(
 /// Registry-driven throughout — the callback positions come from
 /// [`tcl_registry::ArgRole::CommandPrefix`]
 /// ([`CommandRegistry::arg_indices_for_role`]) and the rebinding forms from
-/// [`CommandRegistry::command_table_effect`], so no command name appears
+/// [`crate::alias::command_table_transitions`], so no command name appears
 /// here.  Closes, for both the in-unit and the cross-unit scan, the
 /// `CommandPrefix` limitation PR #970 documented as shared and pre-existing.
 fn record_indirect_callers(
@@ -1029,20 +1029,19 @@ fn record_indirect_callers(
             None => out.record_unenumerable_caller(ctx.unenumerable_reach),
         }
     }
-    if ctx
-        .registry
-        .command_table_effect(command, arg_strs.first().copied())
-        .is_some_and(|effect| {
-            matches!(
-                effect,
-                tcl_registry::CommandTableEffect::RenamesCommands
-                    | tcl_registry::CommandTableEffect::CreatesAliases
-            )
-        })
-    {
-        // Every word of a rebinding call that names a known command is a
-        // name whose binding has moved — `rename OLD NEW` in either
-        // direction, `interp alias {} NEW {} TARGET` in either.
+    // A call that *moves* a binding — `rename OLD NEW`, `interp alias {} NEW
+    // {} TARGET` — makes every command name it touches one whose binding has
+    // moved, in either direction.  A definition does not: `proc` binds a new
+    // name without disturbing an existing one.  Which is which is registry
+    // data, read through the one transition vocabulary (ledger C8).
+    let owned: Vec<String> = arg_strs.iter().map(|word| (*word).to_string()).collect();
+    let transitions = crate::alias::command_table_transitions(ctx.registry, command, &owned);
+    if transitions.command_bindings().any(|transition| {
+        !matches!(
+            transition,
+            tcl_registry::CommandBindingTransition::Define { .. }
+        )
+    }) {
         for word in &arg_strs {
             if word.is_empty() || word.contains(['$', '[']) {
                 continue;

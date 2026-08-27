@@ -336,6 +336,9 @@ fn append_command_binding(
             alias,
             target_interpreter,
             target,
+            // Baked leading arguments change what the alias *runs*, never
+            // which command regions it reads or writes.
+            arguments: _,
         } => {
             let source = subject_interpreter(source_interpreter);
             let target_interpreter = subject_interpreter(target_interpreter);

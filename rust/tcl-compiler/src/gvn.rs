@@ -865,7 +865,7 @@ fn resolved_invocation_static_gvn_gates(resolved: &tcl_registry::InvocationFacts
     if !resolved.effects.accesses().is_empty() || resolved.effects.requires_world_barrier() {
         return false;
     }
-    if !resolved.effects.legacy().command_table_effects.is_empty()
+    if resolved.effects.legacy().command_table_mutation
         || !resolved.effects.legacy().frame_effects.is_empty()
         || !resolved.effects.legacy().side_effects.is_empty()
     {
