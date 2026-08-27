@@ -571,6 +571,7 @@ fn is_comparison_op(op: BinOp) -> bool {
         BinOp::StartsWith
             | BinOp::EndsWith
             | BinOp::Contains
+            | BinOp::Matches
             | BinOp::MatchesGlob
             | BinOp::MatchesRegex
             | BinOp::StrEq

@@ -1799,6 +1799,134 @@ mod tests {
         );
     }
 
+    /// The two cells the appliance measurements single out as *"exactly
+    /// the mistakes an editor should catch"*
+    /// (`docs/design/bigip-irule-parser-measurements.md` §8): the rule
+    /// compiler refuses `HTTP::uri` in `HTTP_RESPONSE` and `HTTP::status`
+    /// in `HTTP_REQUEST` at rule load, though both events carry an HTTP
+    /// profile. The model admitted both until the F5 conformance corpus
+    /// caught them (`tcl_registry::f5::corpus`, rows now `Agrees`).
+    #[test]
+    fn irule1001_warns_the_measured_http_asymmetries() {
+        for (source, command, event) in [
+            (
+                "when HTTP_RESPONSE { HTTP::uri }",
+                "HTTP::uri",
+                "HTTP_RESPONSE",
+            ),
+            (
+                "when HTTP_REQUEST { HTTP::status }",
+                "HTTP::status",
+                "HTTP_REQUEST",
+            ),
+        ] {
+            let diags = irule1001(source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .starts_with(&format!("'{command}' cannot be used in {event}.")),
+                "{}",
+                diags[0].1
+            );
+        }
+    }
+
+    /// The mirror image, and the reason the fix could not be a blanket
+    /// tightening: the same §8 sweep measured `IP::server_addr` accepted
+    /// in every traffic event including the client-side ones (its own
+    /// documentation says it returns `0` before the serverside connection
+    /// exists), and `HTTP::uri`/`HTTP::status`/`HTTP::collect` accepted in
+    /// `LB_SELECTED`, which implies no HTTP profile at all. Each of these
+    /// was a false positive before P4 moved the registry data.
+    #[test]
+    fn irule1001_quiet_for_the_measured_acceptances() {
+        // `IP::server_addr` has no profile requirement at all, so these
+        // are silent outright.
+        for source in [
+            "when CLIENT_ACCEPTED { IP::server_addr }",
+            "when CLIENT_DATA { IP::server_addr }",
+            "when HTTP_REQUEST { IP::server_addr }",
+            "when CLIENT_CLOSED { IP::server_addr }",
+        ] {
+            assert!(
+                irule1001(source).is_empty(),
+                "{source}: {:?}",
+                irule1001(source)
+            );
+        }
+        // The `HTTP::*` trio in `LB_SELECTED` keeps the *informational*
+        // half: the event implies no HTTP profile, so the file cannot
+        // confirm the virtual server carries one, and the unconfirmed
+        // -namespace-profile hint still fires. What must be gone is the
+        // **warning** — the appliance loads all three there (§8), and
+        // claiming otherwise was the false positive.
+        for source in [
+            "when LB_SELECTED { HTTP::uri }",
+            "when LB_SELECTED { HTTP::status }",
+            "when LB_SELECTED { HTTP::collect }",
+        ] {
+            let diags = irule1001(source);
+            assert!(
+                diags
+                    .iter()
+                    .all(|(severity, _)| *severity == Severity::Hint),
+                "{source}: {diags:?}"
+            );
+            assert!(
+                diags
+                    .iter()
+                    .all(|(_, message)| message.contains("assumes profile")),
+                "{source}: {diags:?}"
+            );
+        }
+    }
+
+    /// `SSL::cipher` is refused either side of a completed handshake and
+    /// in `RULE_INIT`, and accepted in the three events between (§8). The
+    /// model accepted it everywhere until the corpus caught it.
+    #[test]
+    fn irule1001_follows_the_measured_ssl_cipher_row() {
+        // The four handshake-adjacent events are a measured closed list,
+        // so they read as an exclusion…
+        for event in [
+            "CLIENT_ACCEPTED",
+            "CLIENT_DATA",
+            "SERVER_CONNECTED",
+            "CLIENT_CLOSED",
+        ] {
+            let source = format!("when {event} {{ SSL::cipher name }}");
+            let diags = irule1001(&source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .starts_with(&format!("'SSL::cipher' cannot be used in {event}.")),
+                "{}",
+                diags[0].1
+            );
+        }
+        // …while `RULE_INIT` is refused for the ordinary reason, with the
+        // reason spelled out. `LB::server` differs from `SSL::cipher` in
+        // exactly one cell: that is the only one it is refused in.
+        for command in ["SSL::cipher name", "LB::server pool"] {
+            let source = format!("when RULE_INIT {{ {command} }}");
+            let diags = irule1001(&source);
+            assert_eq!(diags.len(), 1, "{source}");
+            assert_eq!(diags[0].0, Severity::Warning, "{source}");
+            assert!(
+                diags[0]
+                    .1
+                    .contains("may not work in RULE_INIT: no active traffic flow"),
+                "{}",
+                diags[0].1
+            );
+        }
+        assert!(irule1001("when CLIENT_ACCEPTED { LB::server pool }").is_empty());
+    }
+
     #[test]
     fn irule1001_warns_excluded_event_with_available_list() {
         // HA::status is excluded from RULE_INIT; the "Available in: …" list is

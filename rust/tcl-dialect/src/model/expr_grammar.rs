@@ -30,7 +30,7 @@
 //! `(family, release, build)` through
 //! [`CoreProfile::expr`](crate::model::family::CoreProfile).
 //!
-//! Seeded: the Tcl family per release, iRules (the nine word operators on
+//! Seeded: the Tcl family per release, iRules (the ten word operators on
 //! an 8.4 base), and Jim's design-pinned divergences (precedence and
 //! symbolic operators from §3.1; the rest of Jim's grammar is interim
 //! pending the P6 probe columns).
@@ -226,16 +226,23 @@ const TCL_WORDS_90: &[WordOperator] = &[
 ];
 
 /// The F5 **trunk**: the fork point's word operators (`eq`/`ne` from the
-/// embedded Tcl 8.4.6 core) plus the nine word-form extension operators
+/// embedded Tcl 8.4.6 core) plus the ten word-form extension operators
 /// (`and`/`or`/`not`/`contains`/`starts_with`/`ends_with`/`equals`/
-/// `matches_glob`/`matches_regex` — the set the expr lexer's `irules_ops`
-/// recognises). Measured **byte-identical in tmsh and iApp contexts, not
-/// iRules-only** (`docs/design/bigip-irule-parser-measurements.md` §4a:
-/// `expr {"abc" starts_with "a"}` and `expr {1 and 1}` answer `1` in all
-/// three F5 contexts), so the nine carry the trunk's own release as
-/// their provenance. `not` is unary and therefore absent from the
-/// precedence table. The iRules offshoot overrides nothing here — it
-/// answers with this same slice along the fork edge.
+/// `matches`/`matches_glob`/`matches_regex` — the set the expr lexer's
+/// `irules_ops` recognises). Measured **byte-identical in tmsh and iApp
+/// contexts, not iRules-only**
+/// (`docs/design/bigip-irule-parser-measurements.md` §4a: `expr {"abc"
+/// starts_with "a"}` and `expr {1 and 1}` answer `1` in all three F5
+/// contexts), so the ten carry the trunk's own release as their
+/// provenance. `not` is unary and therefore absent from the precedence
+/// table. The iRules offshoot overrides nothing here — it answers with
+/// this same slice along the fork edge.
+///
+/// The bare `matches` is the tenth and was added last: §4a's `e_matches`
+/// case (`expr {"abc" matches "abc"}`) answered `1` in all three F5
+/// contexts and failed on both host builds, and §4b's model
+/// recommendation lists it beside `matches_glob`/`matches_regex` among
+/// the trunk's `expr` extensions.
 const F5_TCL_WORDS: &[WordOperator] = &[
     word("eq", Release::TCL_8_4),
     word("ne", Release::TCL_8_4),
@@ -246,6 +253,7 @@ const F5_TCL_WORDS: &[WordOperator] = &[
     word("starts_with", Release::F5_TCL_TMOS),
     word("ends_with", Release::F5_TCL_TMOS),
     word("equals", Release::F5_TCL_TMOS),
+    word("matches", Release::F5_TCL_TMOS),
     word("matches_glob", Release::F5_TCL_TMOS),
     word("matches_regex", Release::F5_TCL_TMOS),
 ];
@@ -300,9 +308,17 @@ const TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
 ];
 
 // The F5 trunk: the Tcl rows plus the word forms `binary_bp` binds —
-// `or` with `||`, `and` with `&&`, and the six binary comparison
+// `or` with `||`, `and` with `&&`, and the seven binary comparison
 // extensions at the equality level. A trunk fact: tmsh and iApp accept
 // the identical operator set (measurements §4a).
+//
+// `matches` sits at the equality level with its siblings by
+// **inference, not measurement**: the transcripts pin only that the
+// operator parses and answers `1` for `expr {"abc" matches "abc"}` (§4a
+// `e_matches`), a single-operator expression that exercises no binding
+// power at all. §12 carries the discriminating re-probe; until it is
+// run, the operator takes the class every other F5 string-comparison
+// word form was measured at.
 const F5_TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     ("||", 4, 5),
     ("or", 4, 5),
@@ -319,6 +335,7 @@ const F5_TCL_PRECEDENCE_ROWS: &[(&str, u8, u8)] = &[
     ("starts_with", 14, 15),
     ("ends_with", 14, 15),
     ("equals", 14, 15),
+    ("matches", 14, 15),
     ("matches_glob", 14, 15),
     ("matches_regex", 14, 15),
     ("<", 16, 17),
@@ -501,7 +518,7 @@ const EXPR_TCL91: ExprGrammar = ExprGrammar {
     ..EXPR_TCL90
 };
 
-/// The F5 trunk: the nine word operators over the fork point's 8.4 base
+/// The F5 trunk: the ten word operators over the fork point's 8.4 base
 /// — 8.4 numerals (`0b101` fails in every F5 context, measurements §4a),
 /// no expr comments, the 8.4 mathfunc set (expressed on the fork
 /// parent's ladder), concatenating arity. The `expr` sub-parser is
@@ -615,6 +632,7 @@ mod tests {
             "starts_with",
             "ends_with",
             "equals",
+            "matches",
             "matches_glob",
             "matches_regex",
         ] {
@@ -690,7 +708,7 @@ mod tests {
     /// and the offshoot answers with the trunk's grammar along the fork
     /// edge.
     #[test]
-    fn f5_trunk_words_are_the_nine_plus_the_fork_point_core() {
+    fn f5_trunk_words_are_the_ten_plus_the_fork_point_core() {
         let trunk = expr(Family::F5Tcl, Release::F5_TCL_TMOS);
         let offshoot = expr(Family::F5Irules, Release::F5_IRULES_TMM);
         assert_eq!(trunk, offshoot, "the offshoot overrides no expr axis");
@@ -703,6 +721,7 @@ mod tests {
                 "starts_with",
                 "ends_with",
                 "equals",
+                "matches",
                 "matches_glob",
                 "matches_regex",
             ] {
@@ -712,12 +731,12 @@ mod tests {
             // The fork point is 8.4: no TIP 201/461 operators.
             assert!(!g.has_word_operator("in"));
             assert!(!g.has_word_operator("lt"));
-            assert_eq!(g.word_operators.len(), 11);
+            assert_eq!(g.word_operators.len(), 12);
             assert_eq!(g.arity, ExprArity::Concatenating);
             assert_eq!(g.numbers, NumberSyntax::Tcl84);
             assert_eq!(g.comments, ExprCommentStyle::None);
         }
-        // The nine extension operators carry the trunk's own release as
+        // The ten extension operators carry the trunk's own release as
         // provenance; `eq`/`ne` carry the fork parent's.
         for w in trunk.word_operators {
             let expected = if matches!(w.spelling, "eq" | "ne") {

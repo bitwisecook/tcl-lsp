@@ -1447,6 +1447,7 @@ fn is_boolean_expr(node: &ExprNode) -> bool {
                 | BinOp::StartsWith
                 | BinOp::EndsWith
                 | BinOp::StrEquals
+                | BinOp::Matches
                 | BinOp::MatchesGlob
                 | BinOp::MatchesRegex
         ),

@@ -181,6 +181,7 @@ fn irules_word_and_string_operators() {
     assert_eq!(binop(&pi(r#"$u starts_with "x""#)), BinOp::StartsWith);
     assert_eq!(binop(&pi(r#"$u ends_with "x""#)), BinOp::EndsWith);
     assert_eq!(binop(&pi(r#"$u equals "x""#)), BinOp::StrEquals);
+    assert_eq!(binop(&pi(r#"$u matches "x""#)), BinOp::Matches);
     assert_eq!(binop(&pi(r#"$u matches_glob "x*""#)), BinOp::MatchesGlob);
     assert_eq!(binop(&pi(r#"$u matches_regex "x.""#)), BinOp::MatchesRegex);
 }

@@ -59,12 +59,31 @@ pub const fn spec() -> CommandSpec {
             return_value: "Returns the URI part of the HTTP request.",
         }),
         setter_constraints: SETTER_CONSTRAINTS,
+        // Measured on the appliance: the rule compiler refuses
+        // `HTTP::uri` in `HTTP_RESPONSE` with `command is not valid in
+        // current event context (HTTP_RESPONSE)`, even though the event
+        // carries an HTTP profile — the request URI is simply not
+        // addressable once the response is in hand
+        // (`docs/design/bigip-irule-parser-measurements.md` §8, which
+        // names this cell as *"exactly the mistakes an editor should
+        // catch"*).
+        excluded_events: &["HTTP_RESPONSE"],
         event_requires: Some(EventRequires {
             client_side: false,
             server_side: false,
             transport: Some("tcp"),
             profiles: &["FASTHTTP", "HTTP"],
-            also_in: &["MR_EGRESS", "MR_FAILED", "MR_INGRESS", "SERVER_CONNECTED"],
+            // `LB_SELECTED` implies no HTTP profile, yet the rule
+            // compiler accepts `HTTP::uri` there (§8) — an unconditional
+            // event, like the `MR_*` and `SERVER_CONNECTED` rows beside
+            // it.
+            also_in: &[
+                "LB_SELECTED",
+                "MR_EGRESS",
+                "MR_FAILED",
+                "MR_INGRESS",
+                "SERVER_CONNECTED",
+            ],
             init_only: false,
             flow: false,
             capability: None,

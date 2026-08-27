@@ -34,8 +34,8 @@
 //! already accepts it as expr grammar, but no bare/`tcl::mathop::`-prefixed
 //! command exists for it (verified against `tclsh` 8.4 through 9.1 — `info
 //! commands ::tcl::mathop::*` never lists `&&`, `||`, `and`, `or`, `not`,
-//! `contains`, `starts_with`, `ends_with`, `equals`, `matches_glob`, or
-//! `matches_regex`, on any version).
+//! `contains`, `starts_with`, `ends_with`, `equals`, `matches`,
+//! `matches_glob`, or `matches_regex`, on any version).
 
 use tcl_dialect::{DialectSet, TclVersion};
 
@@ -227,6 +227,7 @@ impl BinOp {
             | Self::StartsWith
             | Self::EndsWith
             | Self::StrEquals
+            | Self::Matches
             | Self::MatchesGlob
             | Self::MatchesRegex => Self::spec_irules_words(self),
         };
@@ -402,7 +403,7 @@ impl BinOp {
         }
     }
 
-    /// The 9 iRules word operators (well, 8 of the 9 — `not` is
+    /// The 10 iRules word operators (well, 9 of the 10 — `not` is
     /// [`UnaryOp::WordNot`]): parsed as expr grammar only in the iRules
     /// dialect, with no `::tcl::mathop` command form at all (verified
     /// absent on every Tcl version — these aren't a version-gated *mathop*
@@ -427,6 +428,20 @@ impl BinOp {
                 Some(DialectSet::IRULES),
                 None,
                 "string equality (iRules word form)",
+            ),
+            // The bare `matches` is the tenth word form. Only its
+            // *presence* is measured
+            // (`docs/design/bigip-irule-parser-measurements.md` §4a's
+            // `e_matches`: `expr {"abc" matches "abc"}` answers `1` in
+            // all three F5 contexts and fails on both host builds); the
+            // probe is an exact-equality case, so it discriminates none
+            // of the string-match readings. §12 carries the outstanding
+            // semantic re-probe, and the summary says so rather than
+            // implying a pinned meaning.
+            Self::Matches => (
+                Some(DialectSet::IRULES),
+                None,
+                "string match (semantics unpinned — measured present only)",
             ),
             Self::MatchesGlob => (Some(DialectSet::IRULES), None, "glob pattern match"),
             Self::MatchesRegex => (Some(DialectSet::IRULES), None, "regular-expression match"),
@@ -572,6 +587,7 @@ pub const ALL_BIN_OPS: &[BinOp] = &[
     BinOp::StartsWith,
     BinOp::EndsWith,
     BinOp::StrEquals,
+    BinOp::Matches,
     BinOp::MatchesGlob,
     BinOp::MatchesRegex,
 ];
@@ -630,6 +646,7 @@ mod tests {
                 | BinOp::StartsWith
                 | BinOp::EndsWith
                 | BinOp::StrEquals
+                | BinOp::Matches
                 | BinOp::MatchesGlob
                 | BinOp::MatchesRegex => {}
             }
@@ -637,7 +654,7 @@ mod tests {
         for &op in ALL_BIN_OPS {
             exhaustive(op);
         }
-        assert_eq!(ALL_BIN_OPS.len(), 35);
+        assert_eq!(ALL_BIN_OPS.len(), 36);
     }
 
     /// See [`all_bin_ops_lists_every_variant`] — same guard for `UnaryOp`'s
@@ -776,6 +793,7 @@ mod tests {
             BinOp::StartsWith,
             BinOp::EndsWith,
             BinOp::StrEquals,
+            BinOp::Matches,
             BinOp::MatchesGlob,
             BinOp::MatchesRegex,
         ];

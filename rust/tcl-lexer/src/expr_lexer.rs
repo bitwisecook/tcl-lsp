@@ -913,6 +913,7 @@ mod tests {
             "starts_with",
             "ends_with",
             "equals",
+            "matches",
             "matches_glob",
             "matches_regex",
         ];

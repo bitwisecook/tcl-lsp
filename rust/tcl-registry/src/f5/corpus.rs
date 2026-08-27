@@ -36,10 +36,12 @@
 //! - [`ModelExpectation::Diverges`] — the model's answer differs today,
 //!   with a recorded reason. The test asserts the divergence is *exactly
 //!   where it is recorded*, so closing one of these gaps fails the row and
-//!   forces it to be re-classified deliberately. Some divergences are
-//!   correct (a `RULE_INIT` compile acceptance that the measurements
-//!   themselves say must not be read as "valid to use"); the rest are open
-//!   registry-data gaps this corpus exists to make visible.
+//!   forces it to be re-classified deliberately. The six that remain are
+//!   all the *correct* kind — a `RULE_INIT` compile acceptance that the
+//!   measurements themselves say must not be read as "valid to use". The
+//!   sixteen open gaps this corpus made visible on its first run (fifteen
+//!   event cells and the missing `matches` operator) were closed in P4 by
+//!   moving the model to the measurement, never by weakening a row.
 //! - [`ModelExpectation::NotComparable`] — the measured cell has no model
 //!   counterpart at all (`static::` is a variable namespace, not a
 //!   command).
@@ -65,8 +67,12 @@ pub enum ModelExpectation {
 
 /// Why a model answer differs from the measured cell.
 ///
-/// The first variant is a *correct* difference; the rest are open gaps
-/// that P4's F5 migration has to resolve one way or the other.
+/// The first variant is a *correct* difference, and since P4 closed the
+/// registry-data gaps it is the only one any row carries. The other three
+/// stay as vocabulary rather than being deleted: a corpus that can only
+/// say "diverges" cannot say **which way** a future regression hurts, and
+/// the direction is the whole point — an over-permissive cell costs the
+/// user a missed load-time error, an over-strict one a false positive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DivergenceReason {
     /// The appliance accepts the command in `RULE_INIT` at **compile
@@ -320,7 +326,7 @@ use GrammarAxis::{
     NumeralGrammar, Unmodified, WordBreakGating,
 };
 use IrulesDisabledClass::{CompilerRefused, InterpreterAbsent};
-use ModelExpectation::{Agrees, Diverges};
+use ModelExpectation::Agrees;
 
 /// The §4a parity matrix: one case list, four wrappers, so every
 /// difference is a real context difference.
@@ -497,15 +503,15 @@ pub const PARSER_PARITY_VECTORS: &[ParserParityVector] = &[
         host85: Error("invalid bareword"),
         axis: ExprWordOperators,
         section: "§4a, §4b, §6",
-        // OPEN GAP. The trunk's word-operator table carries nine
-        // operators and the bare `matches` is not one of them, though the
-        // appliance answered `1` for it in all three F5 contexts and both
-        // host builds rejected it. Closing this is a two-line grammar-lane
-        // change (the operator row plus its precedence entry at the
-        // equality level, beside `matches_glob`); it is recorded here so
-        // it cannot be forgotten and so closing it fails this row
-        // deliberately.
-        expectation: Diverges(DivergenceReason::ModelMissingMeasuredSurface),
+        // CLOSED in P4. The trunk's word-operator table carried nine
+        // operators and the bare `matches` was not one of them, though
+        // the appliance answered `1` for it in all three F5 contexts and
+        // both host builds rejected it. It is the tenth operator now, at
+        // the equality level beside `matches_glob` — a *precedence* the
+        // transcripts do not pin (a single-operator expression exercises
+        // no binding power), so it takes its siblings' class and §12
+        // keeps the discriminating re-probe open.
+        expectation: Agrees,
     },
     ParserParityVector {
         case: "e_and_word",
@@ -941,19 +947,19 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "HTTP::uri",
         event: "LB_SELECTED",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
-    },
-    EventContextVector {
-        command: "HTTP::uri",
-        event: "SERVER_CONNECTED",
-        measured: EventCell::Accepted,
         expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "HTTP::uri",
+        event: "SERVER_CONNECTED",
+        measured: EventCell::Accepted,
+        expectation: ModelExpectation::Agrees,
+    },
+    EventContextVector {
+        command: "HTTP::uri",
         event: "HTTP_RESPONSE",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "HTTP::uri",
@@ -983,13 +989,13 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "HTTP::status",
         event: "HTTP_REQUEST",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "HTTP::status",
         event: "LB_SELECTED",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "HTTP::status",
@@ -1085,7 +1091,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "HTTP::collect",
         event: "LB_SELECTED",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "HTTP::collect",
@@ -1163,19 +1169,19 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "IP::server_addr",
         event: "CLIENT_ACCEPTED",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "IP::server_addr",
         event: "CLIENT_DATA",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "IP::server_addr",
         event: "HTTP_REQUEST",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "IP::server_addr",
@@ -1199,7 +1205,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "IP::server_addr",
         event: "CLIENT_CLOSED",
         measured: EventCell::Accepted,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelNarrowerThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "TCP::client_port",
@@ -1349,7 +1355,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "LB::server",
         event: "RULE_INIT",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "LB::server",
@@ -1397,19 +1403,19 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "SSL::cipher",
         event: "RULE_INIT",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "SSL::cipher",
         event: "CLIENT_ACCEPTED",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "SSL::cipher",
         event: "CLIENT_DATA",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "SSL::cipher",
@@ -1427,7 +1433,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "SSL::cipher",
         event: "SERVER_CONNECTED",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "SSL::cipher",
@@ -1439,7 +1445,7 @@ pub const EVENT_CONTEXT_VECTORS: &[EventContextVector] = &[
         command: "SSL::cipher",
         event: "CLIENT_CLOSED",
         measured: EventCell::Rejected,
-        expectation: ModelExpectation::Diverges(DivergenceReason::ModelBroaderThanMeasured),
+        expectation: ModelExpectation::Agrees,
     },
     EventContextVector {
         command: "pool",
@@ -1978,12 +1984,12 @@ mod tests {
         }
         assert_eq!(
             (agreeing, diverging),
-            (91, 21),
+            (106, 6),
             "the divergence budget is fixed: change it deliberately"
         );
 
-        // The RULE_INIT divergences are the deliberate ones; the rest are
-        // open gaps, and the corpus is where they are counted.
+        // Every remaining divergence is the deliberate `RULE_INIT`
+        // compile-acceptance one.
         let deliberate = EVENT_CONTEXT_VECTORS
             .iter()
             .filter(|row| {
@@ -1994,11 +2000,13 @@ mod tests {
             })
             .count();
         assert_eq!(deliberate, 6, "§8's compile-acceptance caveat");
+        assert_eq!(deliberate, diverging, "no open event-context gap is left");
 
-        // …and the open gaps, split by which way they hurt: an
-        // over-permissive cell costs the user a missed load-time error, an
-        // over-strict one costs a false positive. Both are P4 registry-data
-        // work, and both need the cell re-probed before the data moves.
+        // …and the two open-gap classes are empty. They are kept as
+        // vocabulary rather than deleted: the corpus has to be able to
+        // say *which way* a future regression hurts — an over-permissive
+        // cell costs the user a missed load-time error, an over-strict
+        // one a false positive.
         let count = |reason: DivergenceReason| {
             EVENT_CONTEXT_VECTORS
                 .iter()
@@ -2010,7 +2018,7 @@ mod tests {
                 count(DivergenceReason::ModelBroaderThanMeasured),
                 count(DivergenceReason::ModelNarrowerThanMeasured),
             ),
-            (8, 7),
+            (0, 0),
             "open event-context gaps: over-permissive vs over-strict"
         );
     }

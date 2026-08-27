@@ -386,6 +386,13 @@ pub enum Op {
     IRULE_EQUALS,
     IRULE_MATCHES_GLOB,
     IRULE_MATCHES_REGEX,
+    /// `iruleMatches` — the F5 trunk's bare `matches` word operator. Its
+    /// presence is measured
+    /// (`docs/design/bigip-irule-parser-measurements.md` §4a `e_matches`);
+    /// its discriminating semantics are §12's outstanding re-probe, so
+    /// the VM answers it as a string equality — the reading the measured
+    /// cell exercises — and the compiler declines to constant-fold it.
+    IRULE_MATCHES,
     IRULE_WORD_AND,
     IRULE_WORD_OR,
     IRULE_WORD_NOT,
@@ -606,6 +613,7 @@ impl Op {
             Self::IRULE_EQUALS => "iruleEquals",
             Self::IRULE_MATCHES_GLOB => "iruleMatchesGlob",
             Self::IRULE_MATCHES_REGEX => "iruleMatchesRegex",
+            Self::IRULE_MATCHES => "iruleMatches",
             Self::IRULE_WORD_AND => "iruleAnd",
             Self::IRULE_WORD_OR => "iruleOr",
             Self::IRULE_WORD_NOT => "iruleNot",
@@ -887,6 +895,7 @@ impl Op {
                 | Self::IRULE_EQUALS
                 | Self::IRULE_MATCHES_GLOB
                 | Self::IRULE_MATCHES_REGEX
+                | Self::IRULE_MATCHES
                 | Self::IRULE_WORD_AND
                 | Self::IRULE_WORD_OR
                 | Self::IRULE_WORD_NOT
@@ -1081,6 +1090,7 @@ impl Op {
             BinOp::StrEquals => Self::IRULE_EQUALS,
             BinOp::MatchesGlob => Self::IRULE_MATCHES_GLOB,
             BinOp::MatchesRegex => Self::IRULE_MATCHES_REGEX,
+            BinOp::Matches => Self::IRULE_MATCHES,
         })
     }
 
@@ -1821,6 +1831,7 @@ mod tests {
                     Op::IRULE_MATCHES_REGEX.mnemonic(),
                     Op::IRULE_MATCHES_REGEX.size(),
                 ),
+                Op::IRULE_MATCHES => (Op::IRULE_MATCHES.mnemonic(), Op::IRULE_MATCHES.size()),
                 Op::IRULE_WORD_AND => (Op::IRULE_WORD_AND.mnemonic(), Op::IRULE_WORD_AND.size()),
                 Op::IRULE_WORD_OR => (Op::IRULE_WORD_OR.mnemonic(), Op::IRULE_WORD_OR.size()),
                 Op::IRULE_WORD_NOT => (Op::IRULE_WORD_NOT.mnemonic(), Op::IRULE_WORD_NOT.size()),

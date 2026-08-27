@@ -64,7 +64,7 @@ fn binary_bp(op_text: &str) -> Option<(u8, u8)> {
         "&" => (12, 13),
         // Equality / string comparison / iRules comparisons
         "==" | "!=" | "eq" | "ne" | "contains" | "starts_with" | "ends_with" | "equals"
-        | "matches_glob" | "matches_regex" => (14, 15),
+        | "matches" | "matches_glob" | "matches_regex" => (14, 15),
         // Relational / list membership
         "<" | ">" | "<=" | ">=" | "in" | "ni" | "lt" | "le" | "gt" | "ge" => (16, 17),
         // Shift
@@ -115,6 +115,7 @@ fn binop_from_text(text: &str) -> Option<BinOp> {
         "starts_with" => BinOp::StartsWith,
         "ends_with" => BinOp::EndsWith,
         "equals" => BinOp::StrEquals,
+        "matches" => BinOp::Matches,
         "matches_glob" => BinOp::MatchesGlob,
         "matches_regex" => BinOp::MatchesRegex,
         _ => return None,

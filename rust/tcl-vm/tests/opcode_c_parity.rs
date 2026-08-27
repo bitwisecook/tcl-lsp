@@ -890,7 +890,7 @@ fn str_map_matches_string_map_command() {
 // -- iRules dialect operators ------------------------------------------------
 
 /// The dialect string tests (`contains` / `starts_with` / `ends_with` /
-/// `equals`), both outcomes each. The operands sit on the stack subject-first
+/// `equals` / `matches`), both outcomes each. The operands sit on the stack subject-first
 /// with the needle on top — the order `Op::from_binop` codegen pushes a binary
 /// expression's operands in (left, then right), the same as `Op::ADD`'s.
 #[test]
@@ -910,6 +910,17 @@ fn irule_string_tests_both_outcomes() {
         // comparison even when both operands look numeric.
         (Op::IRULE_EQUALS, "foobar", "FOOBAR", "0"),
         (Op::IRULE_EQUALS, "1", "1.0", "0"),
+        // The bare `matches`. Row one is the measured appliance cell
+        // (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // `e_matches`: `expr {"abc" matches "abc"}` → `1`); the rest
+        // record the reading the VM takes — a string equality, the one
+        // that measured cell exercises. §12 carries the discriminating
+        // re-probe, and until it is run the compiler refuses to
+        // constant-fold this operator rather than commit a fold to an
+        // unmeasured semantics.
+        (Op::IRULE_MATCHES, "abc", "abc", "1"),
+        (Op::IRULE_MATCHES, "foobar", "oob", "0"),
+        (Op::IRULE_MATCHES, "foobar", "FOOBAR", "0"),
     ] {
         let mut a = Asm::new();
         a.push(subject).push(operand).op(op, &[]);

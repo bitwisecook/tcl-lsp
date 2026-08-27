@@ -3069,7 +3069,8 @@ impl Vm {
 
             // -- iRules dialect operators --
             // The F5 word operators (`contains`/`starts_with`/`ends_with`/
-            // `equals`/`matches_glob`/`matches_regex`/`and`/`or`/`not`), which
+            // `equals`/`matches`/`matches_glob`/`matches_regex`/`and`/`or`/
+            // `not`), which
             // `Op::from_binop`/`from_unaryop` emit for an iRules expression.
             // They have no C Tcl counterpart; the semantics live in `expr` next
             // to the standard operators, and reuse the same glob matcher, ARE
@@ -3081,6 +3082,7 @@ impl Vm {
             Op::IRULE_EQUALS => try_op!(irule(f, BinOp::StrEquals)),
             Op::IRULE_MATCHES_GLOB => try_op!(irule(f, BinOp::MatchesGlob)),
             Op::IRULE_MATCHES_REGEX => try_op!(irule(f, BinOp::MatchesRegex)),
+            Op::IRULE_MATCHES => try_op!(irule(f, BinOp::Matches)),
             Op::IRULE_WORD_AND => try_op!(irule(f, BinOp::WordAnd)),
             Op::IRULE_WORD_OR => try_op!(irule(f, BinOp::WordOr)),
             Op::IRULE_WORD_NOT => try_op!(un(f, UnaryOp::WordNot)),

@@ -1011,6 +1011,7 @@ fn apply_binary(op: BinOp, a: TclValue, b: TclValue) -> Option<TclValue> {
         | BinOp::StartsWith
         | BinOp::EndsWith
         | BinOp::StrEquals
+        | BinOp::Matches
         | BinOp::MatchesGlob
         | BinOp::MatchesRegex
         | BinOp::In
@@ -1340,6 +1341,16 @@ fn apply_irules_string_op(op: BinOp, left: &str, right: &str) -> Option<TclValue
         // embedded options and greediness all differ — so folding here
         // could disagree with runtime.  Decline to evaluate and defer to
         // the runtime regex engine.
+        //
+        // The bare `matches` ([`BinOp::Matches`]) declines through the
+        // same arm, for a different reason: only its *presence* is
+        // measured (`docs/design/bigip-irule-parser-measurements.md` §4a
+        // `e_matches`), and the probe — `expr {"abc" matches "abc"}` — is
+        // an exact-equality case that discriminates none of the
+        // string-match readings.  The VM answers it as a string equality
+        // so the measured cell reproduces; folding it here would bake an
+        // unmeasured semantics into a rewrite, which §12's outstanding
+        // re-probe has not yet earned.
         _ => return None,
     };
     Some(TclValue::Int(i64::from(res)))

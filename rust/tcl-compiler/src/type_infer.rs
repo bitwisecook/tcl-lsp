@@ -367,6 +367,7 @@ fn infer_expr_type(
                 | BinOp::StartsWith
                 | BinOp::EndsWith
                 | BinOp::StrEquals
+                | BinOp::Matches
                 | BinOp::MatchesGlob
                 | BinOp::MatchesRegex => TypeLattice::of(TclType::Boolean),
 

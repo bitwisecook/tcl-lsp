@@ -323,6 +323,7 @@ mod tests {
             BinOp::StartsWith,
             BinOp::EndsWith,
             BinOp::StrEquals,
+            BinOp::Matches,
             BinOp::MatchesGlob,
             BinOp::MatchesRegex,
         ];

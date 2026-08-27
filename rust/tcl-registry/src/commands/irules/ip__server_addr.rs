@@ -32,14 +32,22 @@ pub const fn spec() -> CommandSpec {
             examples: "when SERVER_CONNECTED {\n   log local0. \"Node IP address: [IP::server_addr]\"\n}",
             return_value: "server's IP address",
         }),
+        // Not a server-side-only command. Measured on the appliance, the
+        // rule compiler accepts `IP::server_addr` in every one of the
+        // eight probed events except `RULE_INIT`, client-side events
+        // included (`docs/design/bigip-irule-parser-measurements.md` §8 —
+        // the same row shape as `LB::server` and `table`). The hover text
+        // says why: before the serverside connection exists the command
+        // returns `0` rather than failing, so only the absence of traffic
+        // flow refuses it.
         event_requires: Some(EventRequires {
             client_side: false,
-            server_side: true,
+            server_side: false,
             transport: None,
             profiles: &[],
             also_in: &["IP_GTM"],
             init_only: false,
-            flow: false,
+            flow: true,
             capability: None,
         }),
         forms: &[FormSpec {

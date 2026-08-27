@@ -4799,6 +4799,7 @@ const fn binop_coerces(op: crate::expr_ast::BinOp) -> bool {
             | BinOp::StartsWith
             | BinOp::EndsWith
             | BinOp::StrEquals
+            | BinOp::Matches
             | BinOp::MatchesGlob
             | BinOp::MatchesRegex
     )

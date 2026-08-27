@@ -164,6 +164,24 @@ pub const fn spec() -> CommandSpec {
             examples: "when CLIENT_ACCEPTED {\n    # Save the name of the VIP's default pool\n    set default_pool [LB::server pool]\n}",
             return_value: "LB::server returns a Tcl list with pool, pool member address and port. If no server was selected yet or all servers are down, returns default pool name only.",
         }),
+        // Measured on the appliance: accepted in all seven traffic
+        // events probed and refused only in `RULE_INIT`
+        // (`docs/design/bigip-irule-parser-measurements.md` §8) — the
+        // same row shape as `table`, and modelled the same way, as a
+        // plain flow requirement rather than a side or profile one. The
+        // hover example reads `LB::server pool` in `CLIENT_ACCEPTED`,
+        // before any load-balancing decision, which is why no side
+        // requirement is honest here.
+        event_requires: Some(EventRequires {
+            client_side: false,
+            server_side: false,
+            transport: None,
+            profiles: &[],
+            also_in: &[],
+            init_only: false,
+            flow: true,
+            capability: None,
+        }),
         forms: &[FormSpec {
             synopsis: "LB::server ?field?",
             ..FormSpec::DEFAULT
