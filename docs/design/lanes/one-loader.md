@@ -144,7 +144,9 @@ directory with the in-memory tier dropped, i.e. what a *server restart* pays;
 | **+ file-level fast path (shipped)** | **891.3** | **952.4** | **190.3** | **19.7** |
 
 `eda_xilinx` alone: uncached 688.2 → 553.1 ms, cold 609.2 → 594.0 ms, warm
-107.3 → 116.5 ms, memo 13.6 → 13.1 ms.
+107.3 → 116.5 ms, memo 13.6 → 13.1 ms. A re-measurement on the final tree
+reproduced the shipped row within run-to-run noise: 910.4 / 959.4 / 180.2 /
+18.6 ms.
 
 The first row of eval numbers is the finding the task anticipated: as
 inherited, the evaluation loader was **1.6× slower uncached and 4.1× slower
