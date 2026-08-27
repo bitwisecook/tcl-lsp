@@ -122,7 +122,8 @@ use tcl_registry::side_effects::{
     ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
 };
 use tcl_registry::spec::{
-    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, SubCommand, SubSubCommand,
+    BytePayloadSpec, CaseListSpec, CommandSpec, DefaultFormFirstWord, OptionPlacement, SubCommand,
+    SubSubCommand,
 };
 use tcl_registry::symbol_def::{DefinedSymbolKind, SymbolDef};
 use tcl_registry::taint::SetterConstraint;
@@ -5281,6 +5282,17 @@ fn apply_command_stmt(
                 spec.prefix_matching = mode;
             }
         }
+        // E-R14: where the relation checker looks for this command's options.
+        "option_placement" => {
+            log.v20(stmt.line, "option_placement");
+            const PLACEMENTS: &[OptionPlacement] =
+                &[OptionPlacement::Leading, OptionPlacement::Anywhere];
+            if let Some(placement) =
+                enum_by_name(PLACEMENTS, &value, "option placement", stmt.line, log)
+            {
+                spec.option_placement = placement;
+            }
+        }
         "self_receiver_words" => spec.self_receiver_words = leak_strs(&list_words(&value)),
 
         // --- types --------------------------------------------------------
@@ -6269,6 +6281,16 @@ fn apply_subcommand_stmt(
             const MATCHING: &[PrefixMatching] = &[PrefixMatching::Enabled, PrefixMatching::Strict];
             if let Some(mode) = enum_by_name(MATCHING, &value, "prefix matching", stmt.line, log) {
                 sub.prefix_matching = mode;
+            }
+        }
+        "option_placement" => {
+            log.v20(stmt.line, "option_placement");
+            const PLACEMENTS: &[OptionPlacement] =
+                &[OptionPlacement::Leading, OptionPlacement::Anywhere];
+            if let Some(placement) =
+                enum_by_name(PLACEMENTS, &value, "option placement", stmt.line, log)
+            {
+                sub.option_placement = placement;
             }
         }
         "pattern_type" => {
@@ -7332,10 +7354,14 @@ mod tests {
     /// hard-coded one.
     #[test]
     fn v12_words_under_an_older_declaration_draw_a_per_site_notice() {
+        // Two 1.2 sites: the arity window's lifecycle flag and `tk_geometry`.
+        // (The per-argument lifecycle that used to be the second site is gone
+        // with the `arg_rows` machinery — redesign §11.1 O2.)
         let body = "\n command demo {\n \
              arity 1\n \
              arity 2 -introduced 3.0\n \
-             arg 0 -role Body -introduced 3.0\n \
+             arg 0 -role Body\n \
+             tk_geometry Exclusive\n \
              option -x -introduced 1.2\n \
              }\n}";
 
