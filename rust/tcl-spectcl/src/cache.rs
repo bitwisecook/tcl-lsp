@@ -16,14 +16,15 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! The compiled-pack cache, in the OS cache directory.
+//! The compiled-pack cache — the **one door** production code loads a
+//! `.tclspec` through ([`evaluate_pack_cached`]).
 //!
 //! `docs/design/spec-packs.md`: on first load a pack's compiled form is
 //! written to `$XDG_CACHE_HOME/tcl-lsp/spectcl/` (and the platform
 //! equivalents) keyed by an **xxhash-class** digest of the pack source *plus
-//! the `SpecTcl` vocabulary version and loader build*, so an edited pack or an
-//! upgraded server recompiles exactly once and everything else is a hash check
-//! and a fast read.
+//! the `SpecTcl` vocabulary version, the loader build and the provenance
+//! tier*, so an edited pack or an upgraded server recompiles exactly once and
+//! everything else is a hash check and a fast read.
 //!
 //! ## Disposable by contract
 //!
@@ -52,6 +53,14 @@
 //!   parses on its way in, which is what makes the *next process* cheap. It is
 //!   the only part of loading that a new process can be spared, and
 //!   `docs/design/spec-packs.md` measures it at 4.28 ms for a 2,000-line pack.
+//!
+//! The in-memory tier is unbounded and never evicted, which is the right
+//! trade here rather than an oversight: a `Pack` is built out of `&'static`
+//! data leaked once at load ([`crate::loader`]'s "`&'static` by leaking"),
+//! so re-loading an edited pack leaks a *fresh* set either way. Serving the
+//! memo is therefore strictly less allocation than re-evaluating, and the
+//! real fix for both is registry generations (redesign §11.2 D10), which
+//! retires the leak and this note with it.
 //!
 //! It is worth being precise about what is *not* here, because the design
 //! promises more: "resolved drafts plus hook bytecode". Hook bodies are
@@ -249,24 +258,21 @@ fn snapshot_get(key: &EvalSnapshotKey) -> Option<Pack> {
         .cloned()
 }
 
-/// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
-/// whole cache; tests that must exercise the on-disk tier call it directly.
-pub fn forget_snapshots_for_test() {
-    forget_snapshots();
-}
-
-pub(crate) fn forget_snapshots() {
-    SNAPSHOT
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clear();
-}
-
 fn snapshot_put(key: EvalSnapshotKey, pack: &Pack) {
     SNAPSHOT
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner)
         .insert(key, pack.clone());
+}
+
+/// Drop every in-memory snapshot. [`clear`] does this as part of clearing the
+/// whole cache; the tests that must exercise the on-disk tier call it directly
+/// so a memo hit cannot answer for the read they are checking.
+pub(crate) fn forget_snapshots() {
+    SNAPSHOT
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clear();
 }
 
 /// Whether one source's snapshot is currently held in memory — the observable

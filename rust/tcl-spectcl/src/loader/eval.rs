@@ -350,13 +350,16 @@ impl<'b> Drive<'_, 'b> {
 }
 
 /// A drive with the interpreter behind it — what a host command's handler
-/// hands on when it recurses into a body. Reaching a handler at all means
-/// the interpreter route is running, and the fast path stays available for
-/// the nested bodies that qualify.
-fn interpreted<'a, 'b>(ctx: &'a mut PackEvalCtx<'b>) -> Drive<'a, 'b> {
+/// hands on when it recurses into a body.
+///
+/// `fast_path` is the *load's* setting, threaded through the handler rather
+/// than assumed: a load that asked for no fast path must not get one back
+/// for its nested bodies, which is exactly what the gate in
+/// `tests/eval_loader.rs` relies on to compare the two routes.
+fn interpreted<'a, 'b>(ctx: &'a mut PackEvalCtx<'b>, fast_path: bool) -> Drive<'a, 'b> {
     Drive {
         ctx: Some(ctx),
-        fast_path: true,
+        fast_path,
     }
 }
 
@@ -745,11 +748,11 @@ fn track_declared_support(state: &mut State, args: &[String], line: u32) {
 /// The `speclib` handler: header capture, extra-block reporting, and body
 /// evaluation. A thin adapter over [`stage_speclib`], which the static
 /// driver reaches with the file's own words instead of evaluated values.
-fn speclib_handler(state: &Rc<RefCell<State>>) -> WordHandler {
+fn speclib_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
-        stage_speclib(interpreted(ctx), &state, args, line)?;
+        stage_speclib(interpreted(ctx, fast_path), &state, args, line)?;
         Ok(None)
     })
 }
@@ -860,7 +863,7 @@ fn stage_speclib(
 
 /// The `command` handler: head capture plus body evaluation in a fresh
 /// command scope.
-fn command_handler(state: &Rc<RefCell<State>>) -> WordHandler {
+fn command_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
@@ -903,7 +906,14 @@ fn command_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_command(interpreted(ctx), &state, name, overrides, line, &body)?;
+        stage_command(
+            interpreted(ctx, fast_path),
+            &state,
+            name,
+            overrides,
+            line,
+            &body,
+        )?;
         Ok(None)
     })
 }
@@ -954,7 +964,7 @@ fn stage_command(
 /// The `subcommand` handler: valid only directly inside a `command` body,
 /// where its own body evaluates in a subcommand scope; anywhere else it is
 /// a plain row, which replays to the ordinary unknown-property notice.
-fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
+fn subcommand_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
@@ -986,7 +996,7 @@ fn subcommand_handler(state: &Rc<RefCell<State>>) -> WordHandler {
                 },
             }
         };
-        stage_subcommand(interpreted(ctx), &state, name, line, &body)?;
+        stage_subcommand(interpreted(ctx, fast_path), &state, name, line, &body)?;
         Ok(None)
     })
 }
@@ -1024,7 +1034,7 @@ fn stage_subcommand(
 /// The `include` handler (2.0, Q6): valid only as a literal pack-scope
 /// row; the resolved fragment evaluates in place with provenance
 /// inherited, under the determinism contract's content-hash cycle key.
-fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
+fn include_handler(state: &Rc<RefCell<State>>, fast_path: bool) -> WordHandler {
     let state = Rc::clone(state);
     Rc::new(move |ctx: &mut PackEvalCtx<'_>, args: &[String]| {
         let line = state.borrow().absolute_line(ctx.line());
@@ -1039,7 +1049,7 @@ fn include_handler(state: &Rc<RefCell<State>>) -> WordHandler {
             return Ok(None);
         }
         let words: Vec<&str> = args.iter().map(String::as_str).collect();
-        stage_include(interpreted(ctx), &state, &words, line)?;
+        stage_include(interpreted(ctx, fast_path), &state, &words, line)?;
         Ok(None)
     })
 }
@@ -1369,11 +1379,12 @@ pub fn evaluate_pack_in(
     for &word in ROW_WORDS {
         vocabulary.push((word, row_handler(word, &state)));
     }
-    vocabulary.push(("speclib", speclib_handler(&state)));
-    vocabulary.push(("command", command_handler(&state)));
-    vocabulary.push(("subcommand", subcommand_handler(&state)));
+    let fast_path = options.static_fast_path;
+    vocabulary.push(("speclib", speclib_handler(&state, fast_path)));
+    vocabulary.push(("command", command_handler(&state, fast_path)));
+    vocabulary.push(("subcommand", subcommand_handler(&state, fast_path)));
     vocabulary.push(("available?", available_handler(&state)));
-    vocabulary.push(("include", include_handler(&state)));
+    vocabulary.push(("include", include_handler(&state, fast_path)));
     let unknown = unknown_handler(&state);
 
     let outcome = pack_eval::run_pack_program(source, &vocabulary, &unknown, &options.config);
@@ -1409,7 +1420,12 @@ fn new_state(source: &str, include: Option<Rc<super::IncludeContext>>) -> Rc<Ref
 /// built state is dropped and [`evaluate_pack_in`] starts again on the
 /// interpreter path, which is why this cannot leave half a pack behind. The
 /// cost of a failed attempt is one `static_stmt` pass over statements the
-/// segmentation memo then hands straight back to the retry.
+/// segmentation memo then hands straight back to the retry (and, for a pack
+/// carrying `include` rows, one repeat of the resolver's read).
+///
+/// Any error abandons the attempt, not only [`NEEDS_INTERPRETER`]: the
+/// interpreter path re-runs the whole file and produces the real diagnosis,
+/// so falling back is always the safe answer to "this did not work".
 fn drive_file_statically(
     source: &str,
     include: Option<Rc<super::IncludeContext>>,

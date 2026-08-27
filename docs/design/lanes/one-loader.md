@@ -77,6 +77,23 @@ survives the code it was proving.
 
 5. **Golden snapshots replace the two-loader gate.** See below.
 
+6. **No consumer needed a parse-only mode.** The lane looked for one, because
+   a legitimate second *use* would have justified a mode. There is none:
+   `upgrade.rs` locates rows to rewrite by lexing the source directly
+   (`speclib_version_span`, the byte-range discipline) and never wants a
+   `Pack`; the studio's `render_spectcl` and the WASM DSL highlighter work
+   from a draft or from tokens; nothing asks for "the declarations without
+   running anything".
+
+   And the question is largely dissolved rather than answered: a **wholly
+   declarative pack never starts an interpreter at all** now, so an editor
+   feature that must not run a sandbox already gets that for every pack
+   shipped and for every pack an author writes declaratively. For a pack that
+   *does* template there is no honest non-evaluating answer to give — the
+   registrations only exist once the program has run — so a parse-only view
+   would have had to either lie or refuse, and refusing is what the budget and
+   determinism contracts already do.
+
 ## The gate's shape
 
 `rust/tcl-spectcl/src/golden.rs` renders one loaded pack; `cargo xtask
