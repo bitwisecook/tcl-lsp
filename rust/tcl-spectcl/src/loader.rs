@@ -5284,9 +5284,9 @@ fn apply_command_stmt(
         }
         // E-R14: where the relation checker looks for this command's options.
         "option_placement" => {
-            log.v20(stmt.line, "option_placement");
             const PLACEMENTS: &[OptionPlacement] =
                 &[OptionPlacement::Leading, OptionPlacement::Anywhere];
+            log.v20(stmt.line, "option_placement");
             if let Some(placement) =
                 enum_by_name(PLACEMENTS, &value, "option placement", stmt.line, log)
             {
@@ -6284,9 +6284,9 @@ fn apply_subcommand_stmt(
             }
         }
         "option_placement" => {
-            log.v20(stmt.line, "option_placement");
             const PLACEMENTS: &[OptionPlacement] =
                 &[OptionPlacement::Leading, OptionPlacement::Anywhere];
+            log.v20(stmt.line, "option_placement");
             if let Some(placement) =
                 enum_by_name(PLACEMENTS, &value, "option placement", stmt.line, log)
             {

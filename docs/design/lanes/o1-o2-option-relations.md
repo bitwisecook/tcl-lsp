@@ -224,12 +224,36 @@ entering the VM fails a test rather than merely getting slower.
 * `docs/design/README.md` gained the in-flight-lanes section the KCS index
   gate needs, and `docs/design/lanes/README.md` lists this lane.
 
+## Gates run
+
+* `cargo check --workspace` — clean (run before every commit).
+* `cargo clippy --workspace --all-targets -- -D warnings` — clean, with **no
+  new `#[allow]`**: the eight-argument relation queue became a
+  `ScannedInvocation` struct, `Option<Option<&str>>` became an
+  `OptionPresence` enum (which also collapsed the duplicate match arms), and
+  three functions that crossed the line budget were split along real seams.
+* `cargo fmt --all --check` — clean.
+* `cargo test` — green on `tcl-registry`, `tcl-spectcl`, `tcl-spec-hooks`,
+  `tcl-spec-studio`, `tcl-core-types`, `xtask` (26 binaries), on
+  `tcl-compiler`, `tcl-lsp-core`, `tcl-mcp`, `tcl-bigip` (100 binaries), and
+  on `tcl-lsp-server`, `tcl-irules`.
+* `make xtask-check` — **exit 0**, with every generated artefact regenerated
+  and back in sync (diag tables, editor settings, the VS Code package, the
+  JetBrains catalogue, the AI/MCP diagnostics, the callback-surface inventory,
+  the KCS index, `owner-resolution`, and `retired-api-gate`).
+
+## Known unrelated red
+
+`tcl-cli`'s `explorer_gui::gui_renders_the_wasm_tab_and_settles_the_spinner`
+fails with a Playwright `page.fill` timeout on the compiler-explorer WASM GUI.
+Nothing in this lane touches the explorer, its WASM bundle, or its driver; the
+skip heuristic in that test only covers a *missing* browser, not a slow one.
+Recorded here so it is not mistaken for an O1/O2 regression.
+
 ## Remaining
 
-* `make xtask-check` full run.
-* Full `cargo test` sweep on the touched crates (`tcl-registry`,
-  `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio`, `tcl-compiler`,
-  `tcl-lsp-core`, `tcl-lsp-server`, `tcl-mcp`, `xtask`).
+Nothing for this lane. The orchestrator folds this file into the final commit
+message and removes it.
 
 ## Behavioural deltas accepted
 
