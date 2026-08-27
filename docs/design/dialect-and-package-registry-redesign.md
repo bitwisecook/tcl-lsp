@@ -777,6 +777,22 @@ resolved answer.
   declarations at registry build time; a small `FamilySet` bitset may be
   kept as an internal optimisation but is not part of the model.
 
+> **Status (P1a, single-realm slice landed).** `BindingKnowledge` gained
+> its target type (`Spec` — the I4 hook licence — vs `Document` for
+> user-established bindings) and is produced by two integrated sources:
+> the compiler's document realm scan (`tcl_compiler::realm` — the
+> offset-keyed top-level command-binding state, retired-in from
+> `head_identity.rs`, ledger C4) and the analyser's one `exists` oracle
+> (`command_existence_oracle`/`command_binding_knowledge`, R-c), whose
+> document-wide widenings type the package/provider transitions above
+> and whose `Absent` verdict is exactly W123. The consumer contract's
+> I4 half is enforced at the model's selection primitives (see §8's I4
+> gate and the centralisation ledger's C3/C5/C7 rows). Still open here:
+> the multi-realm `AnalysisWorld` map (child/safe interpreters — Q21's
+> confirmed increment), `PackageTransition` feeding a live
+> `PackageStateMap` (today the require/provider widenings are consumed
+> as oracle state), and `StateTransition`'s package variant (C8).
+
 ## 5. Resolution: from bytes to environment, targets, and realms
 
 ### 5.1 Environment resolution (ingress)
@@ -1283,6 +1299,15 @@ gates on (adopted verbatim from the review):
   candidates: package transitions, safe interpreters, import/alias/rename
   effects, and the one shared name resolver produce `BindingKnowledge`;
   the assistance and semantic query APIs split. Gates: I3, I4, I5.
+  *Status: the single-realm slice is landed* — the document realm scan
+  and the analyser's one `exists` oracle produce `BindingKnowledge`
+  (§4.2 status note), invariant I4 gates the model's three selection
+  primitives (hook/type-fact/hint selection requires the environment
+  binding proof; `Absent` ⇒ no hook; documented widening queries are the
+  only context-less readers), and the C4/C5 retirements are complete.
+  The multi-realm map, the `state_transition.rs` re-homing of the
+  analyser's fact tables (C6 tail), and the `CommandTableEffect`
+  vocabulary fold (C8) remain this phase's open tail.
 - **P1b — range targeting, reference first.** Typed `VersionSet` targets
   on contexts, the `targets ⊆ applicable` diagnostic family (core and
   package providers uniformly), and the **per-distinct-profile reference

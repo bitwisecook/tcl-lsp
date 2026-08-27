@@ -119,7 +119,7 @@ fn interproc(source: &str) -> InterproceduralAnalysis {
         &r,
         None,
         ObjectTypeMap::none(),
-        tcl_compiler::head_identity::HeadIdentityMap::none(),
+        tcl_compiler::realm::CommandBindingRealm::none(),
     )
 }
 
@@ -788,7 +788,7 @@ fn call_by_name_reads(source: &str, caller_qname: &str) -> HashSet<String> {
         &r,
         None,
         ObjectTypeMap::none(),
-        tcl_compiler::head_identity::HeadIdentityMap::none(),
+        tcl_compiler::realm::CommandBindingRealm::none(),
     );
     let index = build_proc_index_from_summaries(&ia);
     let fu = cu.function(caller_qname).expect("caller proc");

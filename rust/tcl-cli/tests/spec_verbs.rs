@@ -420,8 +420,13 @@ fn spec_upgrade_verifies_and_refuses_downgrades() {
     assert!(stderr.contains("refusing to downgrade"), "{stderr}");
 }
 
-/// An environment-membership token needs the P1 environment registry, so
-/// the row is left byte-identical, marked, and the file reports partial.
+/// An environment-membership token whose environment declares **no**
+/// ambient package provider (`spectcl` — its surface is compiled) is
+/// left byte-identical, marked, and the file reports partial; a token
+/// whose environment does declare one (`f5-iapps`) translates for real
+/// through the live registry (upgrade spec U3, landed with P2-H — this
+/// test previously pinned the pre-U3 all-deferred behaviour and had gone
+/// stale against `tcl-spectcl`'s own U3 gates).
 #[test]
 fn spec_upgrade_defers_environment_membership_tokens() {
     let tree = Tree::new("upgrade-partial");
@@ -429,7 +434,7 @@ fn spec_upgrade_defers_environment_membership_tokens() {
     std::fs::write(
         &pack,
         "speclib demo 1.2 {\n command demo::greet {\n arity 1\n \
-         dialects {tcl8.6 f5-iapps}\n }\n}\n",
+         dialects {tcl8.6 spectcl}\n }\n}\n",
     )
     .expect("write pack");
     let path = pack.to_string_lossy().into_owned();
@@ -440,7 +445,26 @@ fn spec_upgrade_defers_environment_membership_tokens() {
     let written = std::fs::read_to_string(&pack).expect("read back");
     assert!(written.contains("# TODO(spectcl 2.0):"), "{written}");
     assert!(written.contains("speclib demo 1.2"), "{written}");
-    assert!(written.contains("dialects {tcl8.6 f5-iapps}"), "{written}");
+    assert!(written.contains("dialects {tcl8.6 spectcl}"), "{written}");
+
+    // The ambient-provider half really translates (U3): the row becomes
+    // the environment's own package claim and the header moves to 2.0.
+    let full = tree.path().join("full.tclspec");
+    std::fs::write(
+        &full,
+        "speclib demo 1.2 {\n command demo::greet {\n arity 1\n \
+         dialects {tcl8.6 f5-iapps}\n }\n}\n",
+    )
+    .expect("write pack");
+    let path = full.to_string_lossy().into_owned();
+    let (stdout, stderr, code) = run(&["spec", "upgrade", &path]);
+    assert_eq!(code, 0, "{stdout}{stderr}");
+    let written = std::fs::read_to_string(&full).expect("read back");
+    assert!(
+        written.contains("available {tcl 8.6} {package f5-iapps-cmds}"),
+        "{written}"
+    );
+    assert!(written.contains("speclib demo 2.0"), "{written}");
 }
 
 // ---------------------------------------------------------------------------

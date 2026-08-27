@@ -663,11 +663,11 @@ impl ResolvedContext {
     /// availability filter), for call sites holding a command store that
     /// is not this context's own generation.
     #[must_use]
-    pub fn resolve_spec<'r>(
+    pub fn resolve_spec(
         &self,
-        registry: &'r CommandRegistry,
+        registry: &CommandRegistry,
         name: &str,
-    ) -> Option<&'r CommandSpec> {
+    ) -> Option<&'static CommandSpec> {
         registry
             .get_for_dialect(name, self.authoring_mask)
             .filter(|spec| self.spec_available(spec))

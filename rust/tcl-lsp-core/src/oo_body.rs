@@ -91,7 +91,7 @@ pub fn outer_definition_grammar(
     Some(grammar)
 }
 
-pub use tcl_compiler::head_identity::HeadWords;
+pub use tcl_compiler::realm::HeadWords;
 
 /// The grammar the recursion into `head`'s body arguments should carry,
 /// given the enclosing grammar `cur` (`None` = not in a definition body).

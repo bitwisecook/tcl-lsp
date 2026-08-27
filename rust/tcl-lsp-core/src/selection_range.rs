@@ -305,7 +305,7 @@ fn command_span_at(
         profile: &'static tcl_dialect::DialectProfile,
         config: tcl_lexer::LexerConfig,
         registry: &tcl_registry::CommandRegistry,
-        identities: &tcl_compiler::head_identity::HeadIdentityMap,
+        identities: &tcl_compiler::realm::CommandBindingRealm,
         depth: u32,
         definition_grammar: Option<&'static tcl_registry::definer::DefinitionBodyGrammar>,
         best: &mut Option<Span>,
@@ -341,7 +341,7 @@ fn command_span_at(
             } else {
                 canonical
             };
-            let head = tcl_compiler::head_identity::HeadWords {
+            let head = tcl_compiler::realm::HeadWords {
                 written: command.name(),
                 resolved: &semantic_head,
             };
@@ -521,7 +521,7 @@ fn command_span_at(
     let profile = dialect;
     let registry = crate::registry_for_dialect_profile(profile);
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let mut best = None;
     visit(
         source,

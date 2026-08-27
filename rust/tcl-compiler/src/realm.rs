@@ -16,7 +16,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-//! Effective command identity for a command head (issues #1185, #1275).
+//! The document's **realm command-binding state** (redesign §4.2,
+//! centralisation ledger C4; issues #1185, #1275) — the single-realm
+//! `command_bindings` map of the model's `RealmState`, produced by one
+//! top-level scan and answered as [`tcl_registry::model::BindingKnowledge`]
+//! ([`CommandBindingRealm::knowledge_at`]) or as the head-word projection
+//! source-text consumers read ([`CommandBindingRealm::resolve`] /
+//! [`HeadWords`]). This retires the parallel offset-keyed head-identity
+//! table wholesale: the same facts, one vocabulary, spec-keyed.
 //!
 //! Tcl resolves a command by its interpreter-level *binding*, not by the
 //! spelling used to invoke it.  Three statically visible statements move that
@@ -42,7 +49,7 @@
 //!
 //! The table is **sound by abstention** — every shape it cannot prove leaves
 //! the head unchanged, and every shape that provably *breaks* a registry
-//! binding marks the head [`HeadIdentity::Rebound`] so no registry grammar is
+//! binding marks the head [`RealmBinding::Rebound`] so no registry grammar is
 //! applied to it.  Specifically:
 //!
 //! * **Dynamic heads and dynamic bindings** — `rename $old new`,
@@ -67,13 +74,13 @@
 //!
 //! # Positioned and unpositioned readers
 //!
-//! [`HeadIdentityMap::resolve`] answers for a head at a known byte offset.
+//! [`CommandBindingRealm::resolve`] answers for a head at a known byte offset.
 //! Several consumers re-lex a body out of its own decoded text (the formatter
 //! reformats `arg.text`, the minifier re-minifies a body slice, the call-graph
 //! scan segments a body string at offset 0), so no absolute offset exists at
 //! the point of the query.  Those read
-//! [`HeadIdentityMap::resolve_unpositioned`], which considers *every* fact
-//! about the spelling at once and abstains ([`HeadIdentity::Rebound`]) unless
+//! [`CommandBindingRealm::resolve_unpositioned`], which considers *every* fact
+//! about the spelling at once and abstains ([`RealmBinding::Rebound`]) unless
 //! they all agree — a document that binds a name twice cannot be read without
 //! a position, and guessing one of the two is exactly the fallback-to-spelling
 //! this module exists to remove.
@@ -83,12 +90,13 @@ use std::borrow::Cow;
 use crate::alias::{detect_interp_alias, detect_interp_alias_delete, detect_rename};
 use crate::segmenter::segment_commands_with_offset_and_config;
 use rustc_hash::FxHashMap;
-use tcl_registry::{CommandRegistry, CommandTableEffect};
+use tcl_registry::model::{BindingKnowledge, BindingTarget, ResolvedContext, SpecKey};
+use tcl_registry::{CommandRegistry, CommandSpec, CommandTableEffect};
 use tcl_syntax::naming::is_dynamic_word;
 
 /// What a command head resolves to at one point in a document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HeadIdentity<'a> {
+pub enum RealmBinding<'a> {
     /// The head names this registry command — the head text itself when no
     /// fact applies, or the effective target of a proven import / alias /
     /// rename.
@@ -102,12 +110,12 @@ pub enum HeadIdentity<'a> {
 
 /// A binding fact without borrowing the head spelling supplied by the caller.
 ///
-/// This is the cross-crate form of [`HeadIdentityMap`] lookup: a consumer can
+/// This is the cross-crate form of [`CommandBindingRealm`] lookup: a consumer can
 /// preserve its own written text when no fact applies, while a resolved target
 /// borrows from the map. That separation avoids making a syntax/registry
 /// caller manufacture compiler-owned copies merely to compare a command head.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HeadBinding<'a> {
+pub enum RealmBindingFact<'a> {
     /// No applicable fact; the written spelling remains the identity.
     Unchanged,
     /// A proven alias/import/rename target.
@@ -116,7 +124,7 @@ pub enum HeadBinding<'a> {
     Rebound,
 }
 
-impl<'a> HeadIdentity<'a> {
+impl<'a> RealmBinding<'a> {
     /// The name to resolve registry grammar against.
     ///
     /// [`Self::Rebound`] answers with the empty string, which
@@ -173,15 +181,31 @@ impl<'a> HeadWords<'a> {
     }
 }
 
+/// What one realm fact binds a head spelling to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum FactBinding {
+    /// A proven registry identity: the head *is* this spec here (a proven
+    /// import / alias / rename chain).
+    Spec(SpecKey),
+    /// The head's binding was provably taken over by something the
+    /// registry does not model — a user `proc` shadow, an alias with
+    /// pre-bound arguments or an unmodelled target. The command *exists*;
+    /// no registry grammar applies.
+    TakenOver,
+    /// The head was provably deleted (`rename NAME {}`, an alias
+    /// deletion, or a `rename OLD NEW` moving `OLD` away): nothing is
+    /// bound here from this point on.
+    Deleted,
+}
+
 /// One binding fact about one head spelling.
-#[derive(Debug, Clone)]
-struct HeadFact {
+#[derive(Debug, Clone, Copy)]
+struct RealmFact {
     /// Byte offset of the statement that established it; the fact applies to
     /// heads at or after this offset only.
     from: u32,
-    /// The registry name the head now resolves to, or `None` when the head was
-    /// rebound to something unmodelled.
-    target: Option<String>,
+    /// What the head is bound to from that offset.
+    binding: FactBinding,
 }
 
 /// Every statically proven command-identity fact in one document, keyed by the
@@ -192,21 +216,21 @@ struct HeadFact {
 /// (`namespace which -command ::myfmt` → `::myfmt`) and a consumer must not
 /// have to strip qualifiers itself.
 #[derive(Debug, Default)]
-pub struct HeadIdentityMap {
-    facts: FxHashMap<String, Vec<HeadFact>>,
+pub struct CommandBindingRealm {
+    facts: FxHashMap<String, Vec<RealmFact>>,
 }
 
 /// The shared empty map, for a consumer that has no document to scan (an
 /// IR-only caller, a unit-test harness).  Nothing is bound, so every head
 /// keeps its own spelling.
-static NO_IDENTITIES: std::sync::LazyLock<HeadIdentityMap> =
-    std::sync::LazyLock::new(HeadIdentityMap::default);
+static EMPTY_REALM: std::sync::LazyLock<CommandBindingRealm> =
+    std::sync::LazyLock::new(CommandBindingRealm::default);
 
-impl HeadIdentityMap {
+impl CommandBindingRealm {
     /// The empty map — no document, so no binding fact.
     #[must_use]
     pub fn none() -> &'static Self {
-        &NO_IDENTITIES
+        &EMPTY_REALM
     }
 
     /// Whether the document stated any binding fact at all — lets a caller
@@ -223,11 +247,11 @@ impl HeadIdentityMap {
     /// name and then rebinds it again reads correctly at every point between.
     /// With no applicable fact the head keeps its own spelling.
     #[must_use]
-    pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> HeadIdentity<'a> {
+    pub fn resolve<'a>(&'a self, head: &'a str, at: u32) -> RealmBinding<'a> {
         match self.binding_at(head, at) {
-            HeadBinding::Unchanged => HeadIdentity::Command(head),
-            HeadBinding::Command(name) => HeadIdentity::Command(name),
-            HeadBinding::Rebound => HeadIdentity::Rebound,
+            RealmBindingFact::Unchanged => RealmBinding::Command(head),
+            RealmBindingFact::Command(name) => RealmBinding::Command(name),
+            RealmBindingFact::Rebound => RealmBinding::Rebound,
         }
     }
 
@@ -238,16 +262,60 @@ impl HeadIdentityMap {
     /// [`tcl_registry::events::CommandHeadResolver`] without a dependency from
     /// the registry back into the compiler.
     #[must_use]
-    pub fn binding_at(&self, head: &str, at: u32) -> HeadBinding<'_> {
-        let Some(facts) = self.facts.get(head) else {
-            return HeadBinding::Unchanged;
-        };
-        let Some(fact) = facts.iter().filter(|f| f.from <= at).max_by_key(|f| f.from) else {
-            return HeadBinding::Unchanged;
-        };
-        fact.target
-            .as_deref()
-            .map_or(HeadBinding::Rebound, HeadBinding::Command)
+    pub fn binding_at(&self, head: &str, at: u32) -> RealmBindingFact<'_> {
+        match self.fact_at(head, at) {
+            None => RealmBindingFact::Unchanged,
+            Some(FactBinding::Spec(key)) => RealmBindingFact::Command(key.name()),
+            Some(FactBinding::TakenOver | FactBinding::Deleted) => RealmBindingFact::Rebound,
+        }
+    }
+
+    /// The latest applicable fact's binding for `head` at `at`, if any.
+    fn fact_at(&self, head: &str, at: u32) -> Option<FactBinding> {
+        self.facts
+            .get(head)?
+            .iter()
+            .filter(|f| f.from <= at)
+            .max_by_key(|f| f.from)
+            .map(|f| f.binding)
+    }
+
+    /// The realm's [`BindingKnowledge`] for `head` at byte offset `at` —
+    /// the document's facts composed over the environment (the one
+    /// `exists` oracle, centralisation R-c, for head-identity consumers):
+    ///
+    /// - a proven import / alias / rename chain answers
+    ///   [`BindingKnowledge::Must`] with its [`BindingTarget::Spec`];
+    /// - a proven takeover (user `proc` shadow, unmodelled alias) answers
+    ///   `Must` with a [`BindingTarget::Document`] — the command exists,
+    ///   no catalogue semantics apply, so no hook ever specialises (I4);
+    /// - a proven deletion answers [`BindingKnowledge::Absent`];
+    /// - with no document fact the environment answers: `Must(Spec)` when
+    ///   `context` provides the name, [`BindingKnowledge::Absent`] under a
+    ///   **closed world** (the guarantee iRules derives rather than
+    ///   assumes — B12 is policy over this oracle, not a second oracle),
+    ///   and [`BindingKnowledge::Unknown`] otherwise (an open world can
+    ///   gain commands at load time).
+    #[must_use]
+    pub fn knowledge_at(
+        &self,
+        context: &ResolvedContext,
+        commands: &CommandRegistry,
+        head: &str,
+        at: u32,
+    ) -> BindingKnowledge {
+        match self.fact_at(head, at) {
+            Some(FactBinding::Spec(key)) => BindingKnowledge::Must(BindingTarget::Spec(key)),
+            Some(FactBinding::TakenOver) => BindingKnowledge::Must(BindingTarget::document(head)),
+            Some(FactBinding::Deleted) => BindingKnowledge::Absent,
+            None => match context.resolve_spec(commands, head) {
+                Some(spec) => BindingKnowledge::Must(BindingTarget::Spec(SpecKey::new(spec))),
+                None => match context.environment.policy_defaults.closed_world {
+                    tcl_dialect::model::WorldPolicy::Closed => BindingKnowledge::Absent,
+                    _ => BindingKnowledge::Unknown,
+                },
+            },
+        }
     }
 
     /// The effective identity of `head` when the call's byte offset is not
@@ -255,24 +323,30 @@ impl HeadIdentityMap {
     ///
     /// Every fact about the spelling is considered at once.  With none, the
     /// head keeps its own spelling; with facts that all name the same target,
-    /// that target; otherwise [`HeadIdentity::Rebound`], because the reader
+    /// that target; otherwise [`RealmBinding::Rebound`], because the reader
     /// cannot tell which of two bindings is in force and the written spelling
     /// is precisely the answer that must not be assumed.
     #[must_use]
-    pub fn resolve_unpositioned<'a>(&'a self, head: &'a str) -> HeadIdentity<'a> {
+    pub fn resolve_unpositioned<'a>(&'a self, head: &'a str) -> RealmBinding<'a> {
         let Some(facts) = self.facts.get(head) else {
-            return HeadIdentity::Command(head);
+            return RealmBinding::Command(head);
         };
         let Some(first) = facts.first() else {
-            return HeadIdentity::Command(head);
+            return RealmBinding::Command(head);
         };
-        if facts.iter().any(|f| f.target != first.target) {
-            return HeadIdentity::Rebound;
+        // Facts naming different specs cannot be read without a position;
+        // a takeover beside a deletion reads Rebound either way, so only
+        // spec disagreement matters here.
+        match first.binding {
+            FactBinding::Spec(key)
+                if facts
+                    .iter()
+                    .all(|f| matches!(f.binding, FactBinding::Spec(other) if other == key)) =>
+            {
+                RealmBinding::Command(key.name())
+            }
+            _ => RealmBinding::Rebound,
         }
-        first
-            .target
-            .as_deref()
-            .map_or(HeadIdentity::Rebound, HeadIdentity::Command)
     }
 
     /// `head` in both its forms, resolved at byte offset `at`.
@@ -304,36 +378,35 @@ impl HeadIdentityMap {
     /// offset `at` — used to notice that a `proc` takes back a name a previous
     /// `rename` / alias had bound to a built-in.
     fn resolves_to_a_command(&self, head: &str, at: u32) -> bool {
-        matches!(self.resolve(head, at), HeadIdentity::Command(name) if name != head)
+        matches!(self.resolve(head, at), RealmBinding::Command(name) if name != head)
     }
 
-    /// Record `head` → `target` (or a rebinding, with `target` `None`) from
-    /// byte offset `from`.
-    fn record(&mut self, head: &str, target: Option<String>, from: u32) {
+    /// Record `head` → `binding` from byte offset `from`.
+    fn record(&mut self, head: &str, binding: FactBinding, from: u32) {
         if head.is_empty() {
             return;
         }
         self.facts
             .entry(head.to_owned())
             .or_default()
-            .push(HeadFact { from, target });
+            .push(RealmFact { from, binding });
     }
 
     /// Record a fact under both the written spelling and its explicitly global
     /// twin, so `myfmt` and `::myfmt` classify alike.
-    fn record_both_spellings(&mut self, name: &str, target: Option<String>, from: u32) {
+    fn record_both_spellings(&mut self, name: &str, binding: FactBinding, from: u32) {
         let bare = name.strip_prefix("::").unwrap_or(name);
-        self.record(bare, target.clone(), from);
-        self.record(&format!("::{bare}"), target, from);
+        self.record(bare, binding, from);
+        self.record(&format!("::{bare}"), binding, from);
     }
 }
 
-impl tcl_registry::events::CommandHeadResolver for HeadIdentityMap {
+impl tcl_registry::events::CommandHeadResolver for CommandBindingRealm {
     fn resolve<'a>(&'a self, written: &str, offset: u32) -> Cow<'a, str> {
         match self.binding_at(written, offset) {
-            HeadBinding::Unchanged => Cow::Owned(written.to_owned()),
-            HeadBinding::Command(name) => Cow::Borrowed(name),
-            HeadBinding::Rebound => Cow::Borrowed(""),
+            RealmBindingFact::Unchanged => Cow::Owned(written.to_owned()),
+            RealmBindingFact::Command(name) => Cow::Borrowed(name),
+            RealmBindingFact::Rebound => Cow::Borrowed(""),
         }
     }
 }
@@ -344,40 +417,40 @@ fn is_static_name(word: &str) -> bool {
 }
 
 /// Scan `source` for the top-level statements that move a command binding and
-/// build the document's [`HeadIdentityMap`].
+/// build the document's [`CommandBindingRealm`].
 ///
 /// Which commands mutate the command table is registry data
 /// ([`CommandTableEffect`]) and the argument shapes come from the compiler's
 /// own detectors ([`detect_interp_alias`] / [`detect_rename`]) — the same ones
 /// the IR-lowering pipeline uses — so no command name is spelled here.
 #[must_use]
-pub fn command_head_identities(
+pub fn document_realm_bindings(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
-) -> HeadIdentityMap {
-    command_head_identities_with_config(
+) -> CommandBindingRealm {
+    document_realm_bindings_with_config(
         source,
         tcl_lexer::LexerConfig::for_file_grammar(dialect.grammar),
         registry,
     )
 }
 
-/// [`command_head_identities`] with an explicit lexer configuration, for a
+/// [`document_realm_bindings`] with an explicit lexer configuration, for a
 /// consumer that already holds one (the formatter and the param-trait scan
 /// carry a [`tcl_lexer::LexerConfig`] rather than a dialect string).
 #[must_use]
-pub fn command_head_identities_with_config(
+pub fn document_realm_bindings_with_config(
     source: &str,
     config: tcl_lexer::LexerConfig,
     registry: &CommandRegistry,
-) -> HeadIdentityMap {
+) -> CommandBindingRealm {
     // One top-level segmentation feeds both halves — the `namespace import`
     // scan and the command-table mutators.
     let segments = segment_commands_with_offset_and_config(source, 0, config);
-    let mut map = HeadIdentityMap::default();
-    for (name, (qualified, offset)) in imported_command_aliases(&segments, registry) {
-        map.record(&name, Some(qualified), offset);
+    let mut map = CommandBindingRealm::default();
+    for (name, (key, offset)) in imported_command_aliases(&segments, registry) {
+        map.record(&name, FactBinding::Spec(key), offset);
     }
     for seg in &segments {
         let Some(head) = seg.texts.first() else {
@@ -442,26 +515,33 @@ fn valid_irules_procedure_declaration(
     )
 }
 
-/// Whether this profile's command table actually exposes `name`.
+/// The spec this profile's command table actually exposes for `name`, or
+/// `None` when the profile disables it.
 ///
 /// `CommandRegistry::get` is deliberately dialect-agnostic for diagnostics
-/// such as W002. Identity facts instead model an executed statement, so an
+/// such as W002. Realm facts instead model an executed statement, so an
 /// unavailable Tcl command (notably iRules' disabled `interp`, `rename`, and
 /// `namespace`) must produce no fact.
-fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
+fn available_spec(registry: &CommandRegistry, name: &str) -> Option<&'static CommandSpec> {
     registry.profile().map_or_else(
-        || registry.get(name).is_some(),
-        |profile| {
-            registry
-                .get_for_dialect(name, profile.availability_mask)
-                .is_some()
-        },
+        || registry.get(name),
+        |profile| registry.get_for_dialect(name, profile.availability_mask),
     )
+}
+
+/// [`available_spec`] as a boolean, for the callers that only gate.
+fn command_is_available(registry: &CommandRegistry, name: &str) -> bool {
+    available_spec(registry, name).is_some()
 }
 
 /// `rename OLD NEW` — `NEW` inherits `OLD`'s identity and `OLD` stops existing;
 /// `rename OLD {}` deletes `OLD` outright.
-fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+fn record_rename(
+    map: &mut CommandBindingRealm,
+    args: &[String],
+    at: u32,
+    registry: &CommandRegistry,
+) {
     // `rename` takes exactly two arguments; any other arity is a `wrong # args`
     // error that moves nothing, so a malformed call must state nothing rather
     // than half a fact.
@@ -483,13 +563,16 @@ fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: 
         // produces.  A *provably rebound* source is stated, though: it moves
         // something the registry does not model onto `NEW`, and `NEW` must not
         // then be read under the built-in's grammar.
-        let inherited = inherited_target(map, &old, at, registry);
-        if inherited.is_some() || map.resolve(&old, at).is_rebound() {
-            map.record_both_spellings(&new, inherited, at);
+        match inherited_spec(map, &old, at, registry) {
+            Some(key) => map.record_both_spellings(&new, FactBinding::Spec(key), at),
+            None if map.resolve(&old, at).is_rebound() => {
+                map.record_both_spellings(&new, FactBinding::TakenOver, at);
+            }
+            None => {}
         }
     }
     // Either way the old name is gone from this point on.
-    map.record_both_spellings(old, None, at);
+    map.record_both_spellings(old, FactBinding::Deleted, at);
 }
 
 /// The registry name `source` names at offset `at`, folding in any earlier
@@ -506,22 +589,26 @@ fn record_rename(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: 
 /// `None` means "names nothing the registry models" — either a provably
 /// taken-over spelling or an ordinary unknown name.  The two callers differ in
 /// what they do with that, so the distinction stays at the call site.
-fn inherited_target(
-    map: &HeadIdentityMap,
+fn inherited_spec(
+    map: &CommandBindingRealm,
     source: &str,
     at: u32,
     registry: &CommandRegistry,
-) -> Option<String> {
-    match map.resolve(source, at) {
-        HeadIdentity::Rebound => None,
-        HeadIdentity::Command(name) => {
-            command_is_available(registry, name).then(|| name.to_owned())
-        }
+) -> Option<SpecKey> {
+    match map.fact_at(source, at) {
+        Some(FactBinding::Spec(key)) => Some(key),
+        Some(FactBinding::TakenOver | FactBinding::Deleted) => None,
+        None => available_spec(registry, source).map(SpecKey::new),
     }
 }
 
 /// `interp alias {} NEW {} TARGET ?arg…?` and its deletion form.
-fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+fn record_alias(
+    map: &mut CommandBindingRealm,
+    args: &[String],
+    at: u32,
+    registry: &CommandRegistry,
+) {
     // A `SpecTcl` pack may stamp `CreatesAliases` on a command that carries
     // none of `interp alias`'s words — see
     // [`crate::alias::is_interp_alias_shape`]. The detectors below already
@@ -531,7 +618,7 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
         return;
     }
     if let Some(deleted) = detect_interp_alias_delete(args) {
-        map.record_both_spellings(&deleted, None, at);
+        map.record_both_spellings(&deleted, FactBinding::Deleted, at);
         return;
     }
     let Some((qualified, target, prepended)) = detect_interp_alias(args) else {
@@ -544,7 +631,7 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
             && !matches!(tgt.as_str(), "" | "{}")
             && is_static_name(name)
         {
-            map.record_both_spellings(name, None, at);
+            map.record_both_spellings(name, FactBinding::TakenOver, at);
         }
         return;
     };
@@ -557,9 +644,13 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
     // The target is read through the map, so a chain of bindings composes.
     let effective = prepended
         .is_empty()
-        .then(|| inherited_target(map, &target, at, registry))
+        .then(|| inherited_spec(map, &target, at, registry))
         .flatten();
-    map.record_both_spellings(&qualified, effective, at);
+    map.record_both_spellings(
+        &qualified,
+        effective.map_or(FactBinding::TakenOver, FactBinding::Spec),
+        at,
+    );
 }
 
 /// `proc NAME …` at top level — a user proc that shadows a registry built-in
@@ -571,7 +662,12 @@ fn record_alias(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &
 /// after `rename format origfmt` takes the moved built-in's name back).  Every
 /// other `proc` leaves the head an ordinary unknown name, which is already what
 /// an absent fact produces.
-fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &CommandRegistry) {
+fn record_proc(
+    map: &mut CommandBindingRealm,
+    args: &[String],
+    at: u32,
+    registry: &CommandRegistry,
+) {
     let Some(name) = args.first() else { return };
     if !is_static_name(name) || name.contains("::") {
         // A qualified `proc ::ns::format` defines a *different* command; only
@@ -579,7 +675,7 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
         return;
     }
     if command_is_available(registry, name) || map.resolves_to_a_command(name, at) {
-        map.record_both_spellings(name, None, at);
+        map.record_both_spellings(name, FactBinding::TakenOver, at);
     }
 }
 
@@ -599,8 +695,8 @@ fn record_proc(map: &mut HeadIdentityMap, args: &[String], at: u32, registry: &C
 fn imported_command_aliases(
     segments: &[crate::segmenter::SegmentedCommand],
     registry: &CommandRegistry,
-) -> FxHashMap<String, (String, u32)> {
-    let mut aliases: FxHashMap<String, (String, u32)> = FxHashMap::default();
+) -> FxHashMap<String, (SpecKey, u32)> {
+    let mut aliases: FxHashMap<String, (SpecKey, u32)> = FxHashMap::default();
     if !command_is_available(registry, "namespace") {
         return aliases;
     }
@@ -636,13 +732,13 @@ fn imported_command_aliases(
     if import_all.is_empty() && import_one.is_empty() {
         return aliases;
     }
-    // Record `name → (qualified, offset)`, keeping the *earliest* enabling
+    // Record `name → (spec, offset)`, keeping the *earliest* enabling
     // import when several would produce the same alias.
-    let mut record = |name: String, qualified: String, off: u32| {
+    let mut record = |name: String, key: SpecKey, off: u32| {
         aliases
             .entry(name)
             .and_modify(|(_, o)| *o = (*o).min(off))
-            .or_insert((qualified, off));
+            .or_insert((key, off));
     };
     // Import-all: every exported command in an imported namespace whose bare
     // tail does not already name a global command.
@@ -664,9 +760,9 @@ fn imported_command_aliases(
                 continue;
             };
             if command_is_available(registry, name)
-                && registry.get(name).is_some_and(|s| s.is_namespace_exported)
+                && let Some(spec) = registry.get(name).filter(|s| s.is_namespace_exported)
             {
-                record(tail.to_string(), name.to_string(), off);
+                record(tail.to_string(), SpecKey::new(spec), off);
             }
         }
     }
@@ -676,12 +772,12 @@ fn imported_command_aliases(
             continue;
         }
         let qualified = format!("{ns}::{name}");
-        if registry
+        if let Some(spec) = registry
             .get(&qualified)
             .filter(|_| command_is_available(registry, &qualified))
-            .is_some_and(|s| s.is_namespace_exported)
+            .filter(|s| s.is_namespace_exported)
         {
-            record(name.clone(), qualified, *off);
+            record(name.clone(), SpecKey::new(spec), *off);
         }
     }
     aliases
@@ -691,18 +787,18 @@ fn imported_command_aliases(
 mod tests {
     use super::*;
 
-    fn map_for(src: &str) -> HeadIdentityMap {
+    fn map_for(src: &str) -> CommandBindingRealm {
         let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
-        command_head_identities(
+        document_realm_bindings(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl").analyser_profile(),
             registry,
         )
     }
 
-    fn irules_map_for(src: &str) -> HeadIdentityMap {
+    fn irules_map_for(src: &str) -> CommandBindingRealm {
         let registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-        command_head_identities(src, tcl_dialect::DialectProfile::irules(), registry)
+        document_realm_bindings(src, tcl_dialect::DialectProfile::irules(), registry)
     }
 
     /// Offset just past the first line of `src`, i.e. "after statement 1".
@@ -710,26 +806,95 @@ mod tests {
         u32::try_from(src.find('\n').map_or(src.len(), |i| i + 1)).unwrap_or(0)
     }
 
+    /// The [`BindingKnowledge`] view (the R-c oracle for head-identity
+    /// consumers): document facts answer `Must(Spec)` / `Must(Document)` /
+    /// `Absent`; with no fact the environment answers, and the world
+    /// policy (B12) decides `Absent` vs `Unknown` for an unprovided name.
+    #[test]
+    fn knowledge_composes_facts_over_the_environment() {
+        let generation = tcl_registry::model::ingress::static_context_for("tcl9.0");
+        let context = generation.context();
+        let registry = generation.commands();
+        let src = "rename format origfmt\nproc lindex {args} { return MINE }\nrename lsort {}\n";
+        let map = document_realm_bindings(
+            src,
+            tcl_registry::model::ingress::resolve_environment("tcl9.0").analyser_profile(),
+            registry,
+        );
+        let end = u32::try_from(src.len()).unwrap_or(0);
+        // A proven rename chain is a spec-keyed Must — the I4 licence.
+        let origfmt = map.knowledge_at(context, registry, "origfmt", end);
+        assert_eq!(
+            origfmt.proved_spec().map(SpecKey::name),
+            Some("format"),
+            "a proven chain carries the registry spec"
+        );
+        // A user-proc takeover exists but licenses no hook.
+        let lindex = map.knowledge_at(context, registry, "lindex", end);
+        assert!(lindex.is_proved());
+        assert_eq!(lindex.proved_spec(), None, "no catalogue semantics (I4)");
+        // A deletion is honest absence.
+        assert_eq!(
+            map.knowledge_at(context, registry, "lsort", end),
+            BindingKnowledge::Absent
+        );
+        // No fact: the environment resolves…
+        let set = map.knowledge_at(context, registry, "set", end);
+        assert_eq!(set.proved_spec().map(SpecKey::name), Some("set"));
+        // …and an unprovided name under tcl9.0's open world stays Unknown
+        // (a `package require` can introduce it at load time).
+        assert_eq!(
+            map.knowledge_at(context, registry, "no-such-cmd", end),
+            BindingKnowledge::Unknown
+        );
+    }
+
+    /// Under a closed world (`f5-irules`) an unprovided name is proved
+    /// `Absent` — the static decidability iRules derives rather than
+    /// assumes (B12 as policy over the oracle).
+    #[test]
+    fn a_closed_world_proves_absence() {
+        let generation = tcl_registry::model::ingress::static_context_for("f5-irules");
+        let context = generation.context();
+        let registry = generation.commands();
+        let map = CommandBindingRealm::default();
+        assert_eq!(
+            map.knowledge_at(context, registry, "no-such-cmd", 0),
+            BindingKnowledge::Absent
+        );
+        // The disabled mutators are likewise absent from the surface…
+        assert_eq!(
+            map.knowledge_at(context, registry, "interp", 0),
+            BindingKnowledge::Absent
+        );
+        // …while a provided command proves Must.
+        assert!(
+            map.knowledge_at(context, registry, "when", 0)
+                .proved_spec()
+                .is_some()
+        );
+    }
+
     #[test]
     fn static_rename_moves_the_identity_and_clears_the_old_name() {
         let src = "rename format origfmt\norigfmt %d 7\nformat x\n";
         let map = map_for(src);
         let at = after_first_line(src);
-        assert_eq!(map.resolve("origfmt", at), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("origfmt", at), RealmBinding::Command("format"));
         // The `::`-qualified spelling of the new name resolves alike.
         assert_eq!(
             map.resolve("::origfmt", at),
-            HeadIdentity::Command("format")
+            RealmBinding::Command("format")
         );
         // The old name is gone from the rename onwards …
-        assert_eq!(map.resolve("format", at), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("format", at), RealmBinding::Rebound);
         // … but calls *before* it still see the built-in.
         let src = "format {%08x} 42\nrename format origfmt\n";
         let map = map_for(src);
-        assert_eq!(map.resolve("format", 0), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("format", 0), RealmBinding::Command("format"));
         assert_eq!(
             map.resolve("format", after_first_line(src)),
-            HeadIdentity::Rebound
+            RealmBinding::Rebound
         );
     }
 
@@ -738,15 +903,15 @@ mod tests {
         let src = "interp alias {} myfmt {} format\n";
         let map = map_for(src);
         let at = after_first_line(src);
-        assert_eq!(map.resolve("myfmt", at), HeadIdentity::Command("format"));
-        assert_eq!(map.resolve("::myfmt", at), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("myfmt", at), RealmBinding::Command("format"));
+        assert_eq!(map.resolve("::myfmt", at), RealmBinding::Command("format"));
 
         // Pre-bound arguments shift every index — the layout cannot be reused.
         let src = "interp alias {} pad {} format %08x\n";
         let map = map_for(src);
         assert_eq!(
             map.resolve("pad", after_first_line(src)),
-            HeadIdentity::Rebound
+            RealmBinding::Rebound
         );
     }
 
@@ -761,11 +926,11 @@ mod tests {
             let at = after_first_line(src);
             assert_eq!(
                 map.resolve("myfmt", at),
-                HeadIdentity::Command("myfmt"),
+                RealmBinding::Command("myfmt"),
                 "dynamic binding must not state a fact: {src}"
             );
             // A dynamic `rename` must not claim the *old* name is gone either.
-            assert_eq!(map.resolve("format", at), HeadIdentity::Command("format"));
+            assert_eq!(map.resolve("format", at), RealmBinding::Command("format"));
         }
     }
 
@@ -816,7 +981,7 @@ mod tests {
             let map = map_for(src);
             assert_eq!(
                 map.resolve("format", u32::MAX),
-                HeadIdentity::Command("format"),
+                RealmBinding::Command("format"),
                 "a malformed binding must not disturb `format`: {src}"
             );
         }
@@ -828,7 +993,7 @@ mod tests {
         let map = map_for(src);
         assert_eq!(
             map.resolve("myfmt", after_first_line(src)),
-            HeadIdentity::Rebound
+            RealmBinding::Rebound
         );
     }
 
@@ -838,7 +1003,7 @@ mod tests {
         let map = map_for(src);
         assert_eq!(
             map.resolve("format", after_first_line(src)),
-            HeadIdentity::Rebound
+            RealmBinding::Rebound
         );
         // A proc that shadows nothing states nothing.
         let src = "proc mything {args} { return 1 }\n";
@@ -872,7 +1037,7 @@ mod tests {
         let map = map_for(src);
         assert_eq!(
             map.resolve("origfmt", after_first_line(src)),
-            HeadIdentity::Command("format")
+            RealmBinding::Command("format")
         );
     }
 
@@ -884,11 +1049,11 @@ mod tests {
         // Between the `rename` and the `proc`, `origfmt` *is* the built-in …
         assert_eq!(
             map.resolve("origfmt", after_first_line(src)),
-            HeadIdentity::Command("format")
+            RealmBinding::Command("format")
         );
         // … and after the `proc` takes the name back it is a user command,
         // even though `origfmt` is not itself a registry name.
-        assert_eq!(map.resolve("origfmt", after_all), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("origfmt", after_all), RealmBinding::Rebound);
     }
 
     /// Issue #1275's "chained bindings do not compose" residual.
@@ -908,22 +1073,22 @@ mod tests {
         let src = "interp alias {} a {} format\nrename a b\n";
         let map = map_for(src);
         let end = u32::try_from(src.len()).unwrap_or(0);
-        assert_eq!(map.resolve("b", end), HeadIdentity::Command("format"));
-        assert_eq!(map.resolve("::b", end), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("b", end), RealmBinding::Command("format"));
+        assert_eq!(map.resolve("::b", end), RealmBinding::Command("format"));
         // The intermediate name is gone once the rename moves it.
-        assert_eq!(map.resolve("a", end), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("a", end), RealmBinding::Rebound);
 
         // rename → rename
         let src = "rename lindex li1\nrename li1 li2\n";
         let map = map_for(src);
         let end = u32::try_from(src.len()).unwrap_or(0);
-        assert_eq!(map.resolve("li2", end), HeadIdentity::Command("lindex"));
+        assert_eq!(map.resolve("li2", end), RealmBinding::Command("lindex"));
 
         // rename → alias
         let src = "rename lsort mysort\ninterp alias {} sorter {} mysort\n";
         let map = map_for(src);
         let end = u32::try_from(src.len()).unwrap_or(0);
-        assert_eq!(map.resolve("sorter", end), HeadIdentity::Command("lsort"));
+        assert_eq!(map.resolve("sorter", end), RealmBinding::Command("lsort"));
     }
 
     /// A chain must not inherit a *broken* binding: the rename moves the user
@@ -933,8 +1098,8 @@ mod tests {
         let src = "proc format {args} { return USER }\nrename format myfmt\n";
         let map = map_for(src);
         let end = u32::try_from(src.len()).unwrap_or(0);
-        assert_eq!(map.resolve("myfmt", end), HeadIdentity::Rebound);
-        assert_eq!(map.resolve("::myfmt", end), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("myfmt", end), RealmBinding::Rebound);
+        assert_eq!(map.resolve("::myfmt", end), RealmBinding::Rebound);
     }
 
     /// An alias whose target is an ordinary user proc still *takes over* the
@@ -946,7 +1111,7 @@ mod tests {
         let src = "proc myproc {args} { return MINE }\ninterp alias {} lindex {} myproc\n";
         let map = map_for(src);
         let end = u32::try_from(src.len()).unwrap_or(0);
-        assert_eq!(map.resolve("lindex", end), HeadIdentity::Rebound);
+        assert_eq!(map.resolve("lindex", end), RealmBinding::Rebound);
     }
 
     #[test]
@@ -956,29 +1121,29 @@ mod tests {
         let map = map_for(src);
         assert_eq!(
             map.resolve_unpositioned("origfmt"),
-            HeadIdentity::Command("format")
+            RealmBinding::Command("format")
         );
-        assert_eq!(map.resolve_unpositioned("format"), HeadIdentity::Rebound);
+        assert_eq!(map.resolve_unpositioned("format"), RealmBinding::Rebound);
         // A head nothing binds keeps its own spelling.
         assert_eq!(
             map.resolve_unpositioned("lindex"),
-            HeadIdentity::Command("lindex")
+            RealmBinding::Command("lindex")
         );
 
         // Two facts that disagree — without a position, neither can be chosen.
         let src = "rename format origfmt\nproc origfmt {args} { return 1 }\n";
         let map = map_for(src);
-        assert_eq!(map.resolve_unpositioned("origfmt"), HeadIdentity::Rebound);
+        assert_eq!(map.resolve_unpositioned("origfmt"), RealmBinding::Rebound);
     }
 
     #[test]
     fn the_shared_empty_map_binds_nothing() {
-        let map = HeadIdentityMap::none();
+        let map = CommandBindingRealm::none();
         assert!(map.is_empty());
-        assert_eq!(map.resolve("format", 0), HeadIdentity::Command("format"));
+        assert_eq!(map.resolve("format", 0), RealmBinding::Command("format"));
         assert_eq!(
             map.resolve_unpositioned("format"),
-            HeadIdentity::Command("format")
+            RealmBinding::Command("format")
         );
     }
 
@@ -987,7 +1152,7 @@ mod tests {
         // The `Rebound` sentinel must be unresolvable, since that is what makes
         // every registry query answer "unknown" without a variant check.
         let registry = tcl_registry::model::ingress::static_context_for("tcl").commands();
-        assert!(registry.get(HeadIdentity::Rebound.spec_name()).is_none());
+        assert!(registry.get(RealmBinding::Rebound.spec_name()).is_none());
     }
 
     #[test]
@@ -1006,18 +1171,18 @@ mod tests {
             let map = irules_map_for(src);
             assert_eq!(
                 map.resolve("when", u32::MAX),
-                HeadIdentity::Command("when"),
+                RealmBinding::Command("when"),
                 "malformed iRules proc poisoned `when`: {src:?}"
             );
         }
 
         let valid = irules_map_for("proc when {args} {}\nwhen HTTP_REQUEST {}\n");
-        assert_eq!(valid.resolve("when", u32::MAX), HeadIdentity::Rebound);
+        assert_eq!(valid.resolve("when", u32::MAX), RealmBinding::Rebound);
 
         // Generic Tcl deliberately preserves its existing `proc` binding
         // behaviour; the iRules declaration gate is profile-specific.
         let generic = map_for("proc format {} bare\nformat %d 1\n");
-        assert_eq!(generic.resolve("format", u32::MAX), HeadIdentity::Rebound);
+        assert_eq!(generic.resolve("format", u32::MAX), RealmBinding::Rebound);
     }
 
     #[test]
@@ -1038,7 +1203,7 @@ mod tests {
         // Their Tcl shapes are data/error commands here, never identity facts.
         let source = "interp alias {} event {} when\nrename when event\nnamespace import ::x::*\nwhen HTTP_REQUEST {}\n";
         let identities =
-            command_head_identities(source, tcl_dialect::DialectProfile::irules(), registry);
+            document_realm_bindings(source, tcl_dialect::DialectProfile::irules(), registry);
         assert!(
             identities.is_empty(),
             "disabled commands must not produce command-identity facts"
@@ -1057,7 +1222,7 @@ mod tests {
         // removes the registry event-handler grammar.
         let rebound = "proc when {args} {}\nwhen HTTP_REQUEST {}\n";
         let identities =
-            command_head_identities(rebound, tcl_dialect::DialectProfile::irules(), registry);
+            document_realm_bindings(rebound, tcl_dialect::DialectProfile::irules(), registry);
         let inferred =
             tcl_registry::profiles::compute_file_profiles_with_registry_and_head_resolver(
                 rebound,

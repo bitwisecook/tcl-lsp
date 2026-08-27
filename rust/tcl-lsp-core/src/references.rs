@@ -1996,8 +1996,7 @@ fn scan_method_sites_by_kind(
     callbacks_only: bool,
 ) -> Vec<tcl_lexer::Span> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = MyMethodScan {
         source,
         dialect,
@@ -2035,7 +2034,7 @@ struct MyMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     method: &'a str,
     skip: Option<tcl_lexer::Span>,
     /// `[list [self] METHOD ...]` later dispatches through the external
@@ -2537,8 +2536,7 @@ fn command_prefix_target_at_cursor(
     cursor_offset: u32,
 ) -> Option<PrefixTargetAtSpan> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let base_ctx = MyMethodScan {
         source,
         dialect,
@@ -2709,8 +2707,7 @@ fn scan_next_dispatch_sites_with_target(
     body: tcl_lexer::Span,
 ) -> Vec<(tcl_lexer::Span, Option<String>)> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = NextDispatchScan {
         source,
         dialect,
@@ -2737,7 +2734,7 @@ struct NextDispatchScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
 fn scan_next_dispatch_region_with_target(
@@ -3256,8 +3253,7 @@ fn find_obj_method_call_sites_with_extra_cmd_names(
     }
     let mut seen: FxHashSet<(u32, u32)> = out.iter().map(|s| (s.start(), s.end())).collect();
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let ctx = ObjMethodScan {
         source,
         dialect,
@@ -3530,7 +3526,7 @@ struct ObjMethodScan<'a> {
     source: &'a str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &'a tcl_registry::CommandRegistry,
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     analysis: &'a AnalysisResult,
     var_set: &'a FxHashSet<&'a str>,
     /// [`lattice_dispatch_family`] — the classes a `$v` receiver's
@@ -3753,8 +3749,7 @@ pub(crate) fn nested_dispatch_regions(
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     let registry = crate::registry_for_dialect_profile(dialect);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     nested_dispatch_regions_with_identities(source, dialect, registry, &identities, cmd)
 }
 
@@ -3765,7 +3760,7 @@ pub(crate) fn nested_dispatch_regions_with_identities(
     source: &str,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &tcl_registry::CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     cmd: &tcl_compiler::segmenter::SegmentedCommand,
 ) -> Vec<(usize, usize)> {
     let mut regions: Vec<(usize, usize)> = Vec::new();

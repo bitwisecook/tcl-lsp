@@ -17,7 +17,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! `retired-api-gate` — the zero-reference gate for the P1-G retirements
-//! (`docs/design/dialect-and-package-registry-centralisation.md` §3).
+//! (`docs/design/dialect-and-package-registry-centralisation.md` §3), plus
+//! the P1a ledger-C4 retirement (the `head_identity` binding table, now
+//! the realm command-binding state in `tcl_compiler::realm`).
 //!
 //! P1-G deleted the old dialect-name validators
 //! (`DialectProfile::by_name` / `by_opt_name` / `resolve_known` /
@@ -109,6 +111,25 @@ const RETIRED: &[RetiredPattern] = &[
     },
     RetiredPattern {
         needle: "special_vars::resolve_dialect",
+        outside_registry_only: false,
+    },
+    // Ledger C4 (P1a): the parallel offset-keyed head-identity binding
+    // table is retired wholesale onto the realm command-binding state
+    // (`tcl_compiler::realm`, answering `BindingKnowledge`).
+    RetiredPattern {
+        needle: "head_identity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "HeadIdentityMap",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "HeadIdentity",
+        outside_registry_only: false,
+    },
+    RetiredPattern {
+        needle: "command_head_identities",
         outside_registry_only: false,
     },
 ];
@@ -248,6 +269,10 @@ mod tests {
             "let r = registry_handle_for_profile(profile);",
             "use tcl_registry::profile_queries::ProfileQueries;",
             "let mask = tcl_registry::special_vars::resolve_dialect(dialect);",
+            "use tcl_compiler::head_identity::HeadWords;",
+            "let map = HeadIdentityMap::none();",
+            "let id = HeadIdentity::Rebound;",
+            "let map = command_head_identities(source, dialect, registry);",
         ] {
             assert_eq!(scan(seeded, false).len(), 1, "{seeded}");
         }

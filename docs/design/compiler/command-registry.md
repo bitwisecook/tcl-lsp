@@ -1406,16 +1406,18 @@ canonical name has already been substituted in.
 
 The source-text consumers are no longer part of this limitation. Each resolves
 its head's **effective command identity** once, before any registry query,
-through `rust/tcl-compiler/src/head_identity.rs`:
+through the document's realm command-binding state
+(`rust/tcl-compiler/src/realm.rs` — the P1a home of what
+`head_identity.rs` used to carry, ledger C4):
 
 ```rust
-enum HeadIdentity<'a> {
+enum RealmBinding<'a> {
     Command(&'a str),  // the registry name this spelling really invokes
     Rebound,           // the binding was provably taken over -- no grammar applies
 }
 ```
 
-`command_head_identities` scans the document's **top-level** statements once
+`document_realm_bindings` scans the document's **top-level** statements once
 and records an offset-keyed fact per head spelling. Which commands mutate the
 command table is registry data (`CommandTableEffect`), and the argument shapes
 come from the compiler's own `alias.rs` detectors -- the same ones the
@@ -1448,7 +1450,7 @@ origfmt {%08x} 42      ;# now the built-in
 format  {%08x} 42      ;# Rebound -- a plain string argument
 ```
 
-`HeadIdentity::spec_name()` answers `""` for `Rebound`, which
+`RealmBinding::spec_name()` answers `""` for `Rebound`, which
 `CommandRegistry::get` never resolves -- so every registry query the walker
 already makes (`arg_indices_for_role`, `format_string_args`,
 `handle_binding`, ...) answers "unknown command" without a variant check at

@@ -849,7 +849,7 @@ pub struct Analyser {
     /// (single-threaded) analyser instance rather than a thread-local.
     pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
     /// The document's statically proven command-identity facts
-    /// ([`crate::head_identity`]) — which registry command each head spelling
+    /// ([`crate::realm`]) — which registry command each head spelling
     /// really names, folding in `namespace import`, `interp alias`, `rename`,
     /// and a built-in-shadowing `proc`.  Rebuilt alongside
     /// [`Self::registry`] at the top of every entry point so a per-proc
@@ -857,7 +857,7 @@ pub struct Analyser {
     /// bindings rather than their written spellings (issue #1275).  Empty
     /// outside an active analysis run, and for the overwhelmingly common
     /// document that binds nothing.
-    pub head_identities: crate::head_identity::HeadIdentityMap,
+    pub head_identities: crate::realm::CommandBindingRealm,
     /// Sorted byte offsets of every ``\n`` in [`Self::source`],
     /// precomputed at the top of [`Self::analyse`] /
     /// [`Self::analyse_chunked`] / [`Self::analyse_commands`] so
@@ -1485,7 +1485,7 @@ impl Analyser {
             recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
             stub_overlay: None,
-            head_identities: crate::head_identity::HeadIdentityMap::default(),
+            head_identities: crate::realm::CommandBindingRealm::default(),
             line_offsets: None,
             cached_line_index: tcl_lexer::LineIndex::new(""),
             cached_line_index_source_len: 0,
@@ -1833,7 +1833,7 @@ impl Analyser {
         // ``self`` so per-command handlers (registry-driven body
         // iteration in ``process_command``) reuse it.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2203,7 +2203,7 @@ impl Analyser {
         // for the ``line_offsets`` index used by
         // ``apply_preceding_noqa``.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2292,7 +2292,7 @@ impl Analyser {
         // ``process_command`` silently skips body recursion on
         // the incremental path.
         self.registry = Some(self.profile_registry());
-        self.head_identities = crate::head_identity::command_head_identities_with_config(
+        self.head_identities = crate::realm::document_realm_bindings_with_config(
             source,
             self.lexer_config(),
             self.registry.as_deref().expect("registry just stashed"),
@@ -2509,22 +2509,35 @@ impl Analyser {
         }
     }
 
-    /// Resolve (and cache) the set of built-in command names for
-    /// the active dialect.
+    /// Resolve (and cache) the set of built-in command names that
+    /// **exist** under the active dialect — the registry tier of the one
+    /// `exists` oracle (centralisation R-c, ledger C5): every store name
+    /// the resolved context actually provides
+    /// ([`tcl_registry::model::ResolvedContext::resolve_spec`]), plus the
+    /// measured iRules §4b interpreter-present extension
+    /// ([`Self::extend_with_irules_interpreter_present_names`]).
     ///
-    /// The registry is built once per dialect and the resulting name
-    /// set is held on ``self.builtin_names`` for subsequent
+    /// This is the same set the W123 unresolved-command pass resolves
+    /// registry names against, so settlement
+    /// (`finalise_invocation_resolutions`), constant-dispatch, W113, and
+    /// W123 can no longer disagree about which registry commands exist —
+    /// the pre-P1a split where settlement read the *unfiltered* store
+    /// name set (and so believed in commands W123 did not) is retired.
+    ///
+    /// The name set is held on ``self.builtin_names`` for subsequent
     /// proc / class registrations to consult without rebuilding.
-    /// Used by **W113** (proc shadows built-in) at proc-emit time
-    /// and the emitters that gate on built-in vs user-defined.
-    ///
     /// The dialect resolves through the profile catalog; unknown dialect
     /// names sink to the permissive fallback profile's registry.
     pub fn builtin_command_names(&mut self) -> &std::collections::HashSet<String> {
         if self.builtin_dialect != Some(self.profile.name) || self.builtin_names.is_none() {
-            let registry = self.profile_registry();
-            let names: std::collections::HashSet<String> =
-                registry.command_names().map(str::to_string).collect();
+            let generation = self.analysis_context();
+            let registry = generation.commands();
+            let mut names: std::collections::HashSet<String> = registry
+                .command_names()
+                .filter(|name| generation.context().resolve_spec(registry, name).is_some())
+                .map(str::to_string)
+                .collect();
+            self.extend_with_irules_interpreter_present_names(&mut names);
             self.builtin_names = Some(names);
             self.builtin_dialect = Some(self.profile.name);
         }
@@ -2532,6 +2545,26 @@ impl Analyser {
         self.builtin_names
             .as_ref()
             .expect("builtin_names populated above")
+    }
+
+    /// measurements §4b: under `f5-irules` the 15 **compiler-refused**
+    /// builtins are present in TMM's interpreter — reachable via `eval` at
+    /// runtime — so the oracle must not claim they do not exist (no
+    /// "Unknown command" W123). Their literal-source load refusal is
+    /// IRULE2004's job (a policy warning, emitted by the disabled-command
+    /// pass). The 16 interpreter-absent commands stay unknown here: their
+    /// absence is a language fact. No-op outside the iRules profile.
+    pub(in crate::analyser) fn extend_with_irules_interpreter_present_names(
+        &self,
+        names: &mut std::collections::HashSet<String>,
+    ) {
+        if self.profile.is_irules() {
+            names.extend(
+                tcl_registry::irules_policy::IRULES_COMPILER_REFUSED
+                    .iter()
+                    .map(|name| (*name).to_string()),
+            );
+        }
     }
 
     /// Run the post-walk diagnostic-emission tail: the W123 / arity / missing-
@@ -3994,15 +4027,27 @@ mod tests {
         // with the same dialect return the same set.
         let mut a = Analyser::new();
         a.profile = tcl_dialect::DialectProfile::plain_tcl();
-        let initial_len = a.builtin_command_names().len();
         // ``set`` is a core built-in across all dialects.
         assert!(a.builtin_command_names().contains("set"));
-        // Cache invalidation: switching dialect rebuilds.
+        // I4/R-c (ledger C5): the set is the one `exists` oracle's
+        // registry tier — the names the resolved context actually
+        // provides, no longer the unfiltered store name set. Cache
+        // invalidation: switching dialect rebuilds onto the new context.
         a.profile = tcl_dialect::DialectProfile::irules();
-        let irules_len = a.builtin_command_names().len();
         assert!(
-            irules_len > initial_len,
-            "f5-irules should add commands beyond core (got {irules_len} vs {initial_len})",
+            a.builtin_command_names().contains("HTTP::header"),
+            "the iRules surface is provided under f5-irules"
+        );
+        assert!(
+            !a.builtin_command_names().contains("exec"),
+            "a compiler-disabled, interpreter-absent core command does not \
+             exist under the closed iRules world (R-c; pre-P1a the unfiltered \
+             store set believed in it)"
+        );
+        assert!(
+            a.builtin_command_names().contains("vwait"),
+            "a §4b interpreter-present (compiler-refused) builtin still exists \
+             for the oracle"
         );
     }
 

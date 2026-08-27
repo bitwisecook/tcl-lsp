@@ -124,6 +124,11 @@ struct CopyPair {
 ///
 /// The effective command, subcommand, form, target position, and arity floor
 /// are all registry data. Unknown or dynamic shapes abstain.
+///
+/// The context-less (`None`) primitive call is deliberate under invariant
+/// I4: this is a **widening** query — a mutation answer widens the S101
+/// shimmer warning set, so over-approximating across environments is the
+/// conservative direction, never a specialisation on an unproved binding.
 fn mutation_target<'a>(stmt: &'a Statement, registry: &CommandRegistry) -> Option<&'a str> {
     let Statement::Call { args, .. } = stmt else {
         return None;

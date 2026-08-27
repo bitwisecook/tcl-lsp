@@ -1795,7 +1795,7 @@ impl CompilationUnit {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is (issue #1275).
-        let identities = crate::head_identity::command_head_identities_with_config(
+        let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
             registry,
@@ -1870,7 +1870,7 @@ impl CompilationUnit {
         let object_types = crate::object_types::object_handle_classes(&self, registry);
         // The unit's own proven command-identity facts, so the call-graph scan
         // classifies a rebound head as the command it is (issue #1275).
-        let identities = crate::head_identity::command_head_identities_with_config(
+        let identities = crate::realm::document_realm_bindings_with_config(
             &self.source,
             tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
             registry,

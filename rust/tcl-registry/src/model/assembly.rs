@@ -361,23 +361,37 @@ fn prune_overlaid_generations(
 /// the resolved context the invocation executes under, when the caller
 /// has resolved one.
 ///
-/// P1a: selection here still precedes binding proof — the head is
-/// resolved dialect-blind against the store (which is already
-/// per-context at every current call site), exactly the behaviour of the
-/// `resolve_invocation(…, DialectSet::empty())` call sites this replaces,
-/// and the carried `context` is deliberately unread. Invariant I4 (no
-/// taint/effect/lowering/codegen hook is selected before its binding is
-/// proved) lands in P1a by replacing this body with
-/// realm-`BindingKnowledge` proof over that context; call sites then
-/// change behaviour only where a binding is genuinely unproved.
+/// **Invariant I4 (P1a)** — semantic hook selection requires binding
+/// proof, on the WASM backend's `ProofStatus` discipline (`Unavailable ≠
+/// permission`; only `NotRequired | Satisfied` specialise):
+///
+/// - a carried context is a proof obligation: the head must resolve to a
+///   spec's declaration under the document's environment
+///   ([`ResolvedContext::resolve_spec`] — availability-filtered,
+///   environment-level `Must`). A head nothing provides here is
+///   [`crate::model::BindingKnowledge::Absent`] ⇒ **no selection, no
+///   hook**; subcommand and form selection then proceed under the same
+///   environment (the context's authoring mask), so a gate-excluded
+///   subcommand or form cannot specialise either;
+/// - no context means the caller carries no environment (a unit harness,
+///   a shape-only query) — the obligation is `NotRequired` and the
+///   dialect-blind store selection stands, exactly as before.
 #[must_use]
 pub fn resolve_invocation_in_context<'r, 'w>(
     commands: &'r CommandRegistry,
-    _context: Option<&ResolvedContext>,
+    context: Option<&ResolvedContext>,
     name: &'w str,
     args: &'w [&'w str],
 ) -> Option<ResolvedInvocation<'r, 'w>> {
-    commands.resolve_invocation(name, args, DialectSet::empty())
+    let Some(context) = context else {
+        return commands.resolve_invocation(name, args, DialectSet::empty());
+    };
+    // Binding proof (I4): Absent ⇒ no hook. `resolve_spec` and the mask
+    // resolution below share one selection (`get_for_dialect` under the
+    // authoring mask), so the proved spec IS the selected spec; the
+    // proof adds the full availability conjunct the mask alone lacks.
+    context.resolve_spec(commands, name)?;
+    commands.resolve_invocation(name, args, context.authoring_mask())
 }
 
 /// The legacy-selection twin of [`resolve_invocation_in_context`] for the
@@ -385,16 +399,24 @@ pub fn resolve_invocation_in_context<'r, 'w>(
 /// `resolve_call` compatibility selection (exact subcommand lookup) and
 /// needs the composed hook stamps that projection carries.
 ///
-/// P1a: same seam, same invariant (I4) — see
-/// [`resolve_invocation_in_context`].
+/// Same invariant (I4), same proof — see
+/// [`resolve_invocation_in_context`]. The selected spec is additionally
+/// checked to be the proved binding itself, so a store/selection drift
+/// can never specialise an unproved head.
 #[must_use]
 pub fn resolve_call_in_context<'r>(
     commands: &'r CommandRegistry,
-    _context: Option<&ResolvedContext>,
+    context: Option<&ResolvedContext>,
     name: &str,
     args: &[&str],
 ) -> Option<ResolvedCall<'r>> {
-    commands.resolve_call(name, args, DialectSet::empty())
+    let Some(context) = context else {
+        return commands.resolve_call(name, args, DialectSet::empty());
+    };
+    let proved = context.resolve_spec(commands, name)?;
+    let resolved = commands.resolve_call(name, args, context.authoring_mask())?;
+    // `Unavailable ≠ permission`: only the proved binding may specialise.
+    std::ptr::eq(resolved.spec, proved).then_some(resolved)
 }
 
 /// The structured side-effect hints for one invocation — the third face
@@ -405,15 +427,19 @@ pub fn resolve_call_in_context<'r>(
 /// spec's subcommand-level hints (when `subcommand` resolves on it and
 /// declares any) else its command-level hints.
 ///
-/// The walk is deliberately **not** collapsed onto the single-winner
-/// selection above: measured on the compiled universe, `classvariable`
-/// and `next` under `bpf` (and their kin) draw hints from an *older*
-/// available spec when the newest — or the most specific — spec carries
-/// none, so a single-winner rule loses hints the shipped behaviour has.
-///
-/// P1a: hint selection precedes binding proof exactly as the hook
-/// selection above does — invariant I4 replaces this walk with
-/// realm-`BindingKnowledge` proof over the carried context.
+/// **I4 (P1a)**: with a context carried, the head must first resolve at
+/// all under the document's environment — an `Absent` binding yields no
+/// hints, and the caller's conservative unknown-read-write fallback
+/// applies (widening, never specialising). Within a proved head the
+/// hint **walk** survives: single-winner selection is measured *not*
+/// equivalent — `classvariable` and `next` under `bpf` (and their kin)
+/// draw hints from an *older* available spec when the proved winner
+/// carries none (the `c7_hint_walk_counterexamples` test pins both), so
+/// collapsing C7 onto the proved spec alone would silently lose hints.
+/// The walk is availability-filtered, so every contributing spec is one
+/// the environment provides; completing C7 (one proved winner carrying
+/// its own hints) waits on the catalogue moving those hints onto the
+/// winning specs.
 #[must_use]
 pub fn side_effect_hints_in_context<'r>(
     commands: &'r CommandRegistry,
@@ -421,6 +447,11 @@ pub fn side_effect_hints_in_context<'r>(
     command: &str,
     subcommand: Option<&str>,
 ) -> Option<&'r [crate::side_effects::SideEffect]> {
+    if let Some(context) = context {
+        // Binding proof (I4): a head the environment does not provide
+        // has no hints here — the caller widens to unknown.
+        context.resolve_spec(commands, command)?;
+    }
     for spec in commands.specs(command).iter().rev() {
         if let Some(context) = context
             && !context.spec_available(spec)
@@ -570,15 +601,19 @@ mod tests {
         );
     }
 
-    /// **C7 retirement gate**: the compiler's hand-rolled side-effect
-    /// spec selection (newest-first over `specs(name)`, availability
-    /// filter, first spec with a subcommand- or command-level hint) picks
-    /// the same hints as the model-owned
+    /// **C7 retirement gate** (I4-amended in P1a): for every head that
+    /// **resolves** under the context, the compiler's hand-rolled
+    /// side-effect spec selection (newest-first over `specs(name)`,
+    /// availability filter, first spec with a subcommand- or
+    /// command-level hint) picks the same hints as the model-owned
     /// [`side_effect_hints_in_context`] primitive — for every store name,
     /// every catalogue profile, no subcommand and every declared
-    /// subcommand spelling. (A single-winner selection is proven *not*
-    /// equivalent here: see the primitive's docs for the measured
-    /// counterexamples.)
+    /// subcommand spelling. For a head the context does **not** resolve,
+    /// the primitive now answers `None` by the binding-proof rule
+    /// (I4/R-e: `Absent` ⇒ no hints; the caller widens to the
+    /// conservative unknown write) — the one enumerated delta from the
+    /// old walk. (A single-winner selection is proven *not* equivalent
+    /// within a resolved head: see [`c7_hint_walk_counterexamples`].)
     #[test]
     fn side_effect_hint_selection_matches_the_hand_rolled_rule() {
         use crate::profile_queries::ProfileQueries;
@@ -610,7 +645,6 @@ mod tests {
 
         fn via_primitive(
             generation: &ContextRegistry,
-            _profile: &DialectProfile,
             command: &str,
             subcommand: Option<&str>,
         ) -> Option<Vec<SideEffect>> {
@@ -624,6 +658,81 @@ mod tests {
         }
 
         let mut checks = 0usize;
+        let mut proof_gated = 0usize;
+        for profile in DialectProfile::all() {
+            let generation = new_registry_for(profile.name);
+            let store = generation.commands();
+            for name in store.command_names() {
+                let mut sub_names: Vec<Option<&str>> = vec![None];
+                for spec in store.specs(name) {
+                    sub_names.extend(spec.subcommands.iter().map(|sub| Some(sub.name)));
+                }
+                sub_names.sort_unstable();
+                sub_names.dedup();
+                let head_resolves = generation.context().resolve_spec(store, name).is_some();
+                for subcommand in sub_names {
+                    let new = via_primitive(&generation, name, subcommand);
+                    if head_resolves {
+                        assert_eq!(
+                            hand_rolled(store, profile, name, subcommand),
+                            new,
+                            "`{name}` {subcommand:?} under `{}`",
+                            profile.name
+                        );
+                    } else {
+                        // I4/R-e: an Absent head yields no hints; the
+                        // caller's unknown-write fallback widens instead.
+                        assert_eq!(
+                            new, None,
+                            "`{name}` {subcommand:?} under `{}` must be proof-gated",
+                            profile.name
+                        );
+                        if hand_rolled(store, profile, name, subcommand).is_some() {
+                            proof_gated += 1;
+                        }
+                    }
+                    checks += 1;
+                }
+            }
+        }
+        println!(
+            "side-effect selection sweep: {checks} checks, 0 divergences within resolved \
+             heads; {proof_gated} unresolvable-head hint selections widened by the I4 proof gate"
+        );
+    }
+
+    /// **C7 decision sweep**: measure, over every catalogue profile ×
+    /// store name × subcommand spelling, whether replacing the hint
+    /// *walk* with proved-single-winner selection (the winner's own
+    /// subcommand-else-command hints and nothing else) preserves the
+    /// shipped hints. Wave 3 recorded `classvariable`/`next` under `bpf`
+    /// as counterexamples at the model primitive; this test is the
+    /// evidence gate: it prints every divergence and fails the collapse
+    /// while any exists, so C7 completes only when the catalogue's hints
+    /// genuinely live on the winning specs.
+    #[test]
+    fn c7_hint_walk_counterexamples() {
+        use crate::side_effects::SideEffect;
+        use tcl_dialect::DialectProfile;
+
+        fn winner_only(
+            generation: &ContextRegistry,
+            command: &str,
+            subcommand: Option<&str>,
+        ) -> Option<Vec<SideEffect>> {
+            let spec = generation
+                .context()
+                .resolve_spec(generation.commands(), command)?;
+            if let Some(sub_name) = subcommand
+                && let Some(sub) = spec.resolve_subcommand(sub_name)
+                && !sub.side_effects.is_empty()
+            {
+                return Some(sub.side_effects.to_vec());
+            }
+            (!spec.side_effects.is_empty()).then(|| spec.side_effects.to_vec())
+        }
+
+        let mut divergences: Vec<String> = Vec::new();
         for profile in DialectProfile::all() {
             let generation = new_registry_for(profile.name);
             let store = generation.commands();
@@ -635,17 +744,71 @@ mod tests {
                 sub_names.sort_unstable();
                 sub_names.dedup();
                 for subcommand in sub_names {
-                    assert_eq!(
-                        hand_rolled(store, profile, name, subcommand),
-                        via_primitive(&generation, profile, name, subcommand),
-                        "`{name}` {subcommand:?} under `{}`",
-                        profile.name
-                    );
-                    checks += 1;
+                    let walked = side_effect_hints_in_context(
+                        store,
+                        Some(generation.context()),
+                        name,
+                        subcommand,
+                    )
+                    .map(<[SideEffect]>::to_vec);
+                    if walked != winner_only(&generation, name, subcommand) {
+                        divergences
+                            .push(format!("`{name}` {subcommand:?} under `{}`", profile.name));
+                    }
                 }
             }
         }
-        println!("side-effect selection sweep: {checks} checks, 0 divergences");
+        assert!(
+            !divergences.is_empty(),
+            "proved-single-winner hint selection now matches the walk everywhere — \
+             C7 can complete: collapse the walk onto the proved winner"
+        );
+        println!(
+            "C7 walk-vs-proved-winner divergences ({} total): {}",
+            divergences.len(),
+            divergences.join(", ")
+        );
+    }
+
+    /// **Invariant I4**: with a context carried, the selection primitives
+    /// decline a head the environment does not provide (`Absent` ⇒ no
+    /// hook), and a proof-free caller (no context — `NotRequired`) keeps
+    /// the dialect-blind store selection.
+    #[test]
+    fn selection_requires_binding_proof_under_a_context() {
+        // `lmap` (8.6+) is in the tcl8.4 store but outside the 8.4
+        // surface; `namespace` is compiler-disabled under f5-irules.
+        for (environment, name) in [("tcl8.4", "lmap"), ("f5-irules", "namespace")] {
+            let generation = new_registry_for(environment);
+            let store = generation.commands();
+            let context = Some(generation.context());
+            assert!(
+                store.get(name).is_some(),
+                "`{name}` is in the `{environment}` store"
+            );
+            assert!(
+                resolve_invocation_in_context(store, context, name, &[]).is_none(),
+                "`{name}` under `{environment}`: Absent ⇒ no invocation selection (I4)"
+            );
+            assert!(
+                resolve_call_in_context(store, context, name, &["eval", "ns", "{}"]).is_none(),
+                "`{name}` under `{environment}`: Absent ⇒ no call selection (I4)"
+            );
+            assert!(
+                resolve_invocation_in_context(store, None, name, &[]).is_some(),
+                "no context carried ⇒ the obligation is NotRequired"
+            );
+        }
+        // A proved head still selects, hooks intact.
+        let generation = new_registry_for("tcl9.0");
+        let resolved = resolve_call_in_context(
+            generation.commands(),
+            Some(generation.context()),
+            "lmap",
+            &["x", "{1 2}", "{...}"],
+        )
+        .expect("`lmap` is proved under tcl9.0");
+        assert_eq!(resolved.spec.name, "lmap");
     }
 
     #[test]

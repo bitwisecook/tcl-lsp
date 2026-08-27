@@ -185,12 +185,12 @@ pub fn extract_irules_object_references_in_closure(
     let mut out = Vec::new();
     let mut scope = BindingScope::default();
     // The document's statically proven command-identity facts
-    // ([`tcl_compiler::head_identity`]), computed once for the whole rule: a
+    // ([`tcl_compiler::realm`]), computed once for the whole rule: a
     // reference-bearing command reached through a proven `interp alias` /
     // `rename` is still a reference, and a spelling whose binding was provably
     // taken over is not (issue #1275).  Empty — and lookup-free — unless the
     // rule binds something.
-    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
         source,
         LexerConfig::for_dialect("f5-irules"),
         registry,
@@ -221,7 +221,7 @@ struct WalkCtx<'a> {
     /// The rule's statically proven command-identity facts, so every head is
     /// resolved to the command it *is* rather than the one it is spelled as
     /// (issue #1275).
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// Exact segmented commands proven reachable from a valid known event.
     executable_spans: &'a HashSet<(u32, u32)>,
 }
@@ -231,7 +231,7 @@ struct WalkCtx<'a> {
 /// binds nothing.  Empty for a head whose binding was provably taken over,
 /// which every table and registry lookup then answers "unknown" for.
 fn resolve_head<'a>(
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     cmd: &'a SegmentedCommand,
 ) -> &'a str {
     let at = cmd.argv.first().map_or(0, |t| t.span.start());

@@ -3059,7 +3059,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(
             ia.procedures.contains_key("::ns::inner"),
@@ -3099,7 +3099,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(
             ia.procedures.contains_key("::a::foo"),
@@ -3121,7 +3121,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert_eq!(
             resolve_proc_qname("foo", "::a::b::c", &ia2).as_deref(),
@@ -3148,7 +3148,7 @@ mod tests {
             &registry(),
             None,
             crate::interprocedural::ObjectTypeMap::none(),
-            crate::head_identity::HeadIdentityMap::none(),
+            crate::realm::CommandBindingRealm::none(),
         );
         assert!(ia.procedures.contains_key("::ns2::inner"));
         assert!(ia.procedures.contains_key("::ns::ns2::inner"));

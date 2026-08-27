@@ -561,7 +561,7 @@ fn registry_pattern_format_hover(
     let cursor = crate::definition::byte_offset_at(&line_index, source, line, character);
     let config = LexerConfig::for_file_grammar(profile.grammar);
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let context = PatternFormatContext {
         analysis,
         source,

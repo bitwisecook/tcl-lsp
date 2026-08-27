@@ -11,8 +11,8 @@
 //! normal body arguments, clause-list arm bodies, lambda bodies, definition
 //! members, and live command substitutions.
 
-use tcl_compiler::head_identity::HeadIdentityMap;
 use tcl_compiler::lambda_literal::split_lambda_literal;
+use tcl_compiler::realm::CommandBindingRealm;
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{Lexer, LexerConfig, SourceMap, Token, TokenType};
 use tcl_registry::definer::DefinitionBodyGrammar;
@@ -47,7 +47,7 @@ pub(crate) fn visit_executable_commands(
     config: LexerConfig,
     registry: &CommandRegistry,
     availability: tcl_dialect::DialectSet,
-    identities: &HeadIdentityMap,
+    identities: &CommandBindingRealm,
     visitor: &mut impl FnMut(&SegmentedCommand, HeadWords<'_>, ExecutableContext) -> bool,
 ) {
     let mut walk = ExecutableWalker {
@@ -66,7 +66,7 @@ struct ExecutableWalker<'a, F> {
     config: LexerConfig,
     registry: &'a CommandRegistry,
     availability: tcl_dialect::DialectSet,
-    identities: &'a HeadIdentityMap,
+    identities: &'a CommandBindingRealm,
     visitor: &'a mut F,
 }
 
@@ -354,9 +354,8 @@ mod tests {
         let profile = dialect;
         let registry = crate::registry_for_dialect_profile(profile);
         let config = LexerConfig::for_file_dialect(profile.name);
-        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
-            source, config, registry,
-        );
+        let identities =
+            tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
         let mut heads = Vec::new();
         visit_executable_commands(
             source,
@@ -460,9 +459,8 @@ mod tests {
             ..tcl_registry::CommandSpec::DEFAULT
         });
         let config = LexerConfig::for_file_dialect("tcl8.6");
-        let identities = tcl_compiler::head_identity::command_head_identities_with_config(
-            source, config, &registry,
-        );
+        let identities =
+            tcl_compiler::realm::document_realm_bindings_with_config(source, config, &registry);
         let mut frame_spans = Vec::new();
         visit_executable_commands(
             source,

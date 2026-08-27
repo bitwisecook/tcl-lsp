@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 #[cfg(feature = "test-instrumentation")]
 use std::cell::Cell;
 
-use tcl_compiler::head_identity::{HeadIdentityMap, command_head_identities_with_config};
+use tcl_compiler::realm::{CommandBindingRealm, document_realm_bindings_with_config};
 use tcl_compiler::segmenter::{SegmentedCommand, segment_commands_with_offset_and_config};
 use tcl_lexer::{LexerConfig, Token, TokenType};
 use tcl_registry::events::{IrulesCommandPlacement, IrulesExecutionContext};
@@ -46,7 +46,7 @@ impl InventoryLexing {
 /// Immutable inventory-wide services threaded through recursive script walks.
 struct InventoryContext<'a> {
     registry: &'a CommandRegistry,
-    identities: &'a HeadIdentityMap,
+    identities: &'a CommandBindingRealm,
     lexing: InventoryLexing,
 }
 
@@ -95,7 +95,7 @@ pub fn irules_executable_commands(
     #[cfg(feature = "test-instrumentation")]
     EXECUTABLE_CLOSURE_BUILDS.with(|builds| builds.set(builds.get() + 1));
     let lexing = InventoryLexing::for_registry(registry);
-    let identities = command_head_identities_with_config(source, lexing.config, registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
     let ctx = InventoryContext {
         registry,
         identities: &identities,
@@ -122,7 +122,7 @@ pub fn irules_event_executable_closure(
     registry: &CommandRegistry,
 ) -> Vec<IrulesExecutableCommand> {
     let lexing = InventoryLexing::for_registry(registry);
-    let identities = command_head_identities_with_config(source, lexing.config, registry);
+    let identities = document_realm_bindings_with_config(source, lexing.config, registry);
     let ctx = InventoryContext {
         registry,
         identities: &identities,

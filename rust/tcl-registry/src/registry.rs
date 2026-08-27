@@ -1059,8 +1059,13 @@ impl CommandRegistry {
     /// A leading `::` (global qualifier) falls back to the bare name, so an
     /// explicitly-global call to a built-in (`::foreach`, `::for`, …)
     /// resolves to the same spec as its unqualified form.
+    ///
+    /// The return is `&'static` because the registry stores only interned
+    /// static specs — the identity [`crate::model::SpecKey`] keys the realm
+    /// binding layer by (P1a); the P2 generation work re-keys dynamic pack
+    /// specs when non-`'static` specs join.
     #[must_use]
-    pub fn get(&self, name: &str) -> Option<&CommandSpec> {
+    pub fn get(&self, name: &str) -> Option<&'static CommandSpec> {
         self.by_name
             .get(name)
             .or_else(|| {
@@ -1073,7 +1078,7 @@ impl CommandRegistry {
     /// Exact spelling lookup; unlike [`Self::get`], does not apply rooted
     /// global-name fallback.
     #[must_use]
-    pub fn get_exact(&self, name: &str) -> Option<&CommandSpec> {
+    pub fn get_exact(&self, name: &str) -> Option<&'static CommandSpec> {
         self.by_name.get(name).and_then(|v| v.last().copied())
     }
 
@@ -1171,7 +1176,7 @@ impl CommandRegistry {
     /// specs that carry the `IRULES` bit, no matter which consumer asks
     /// (dialect-profile-model.md §9.2).
     #[must_use]
-    pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&CommandSpec> {
+    pub fn get_for_dialect(&self, name: &str, dialect: DialectSet) -> Option<&'static CommandSpec> {
         self.by_name
             .get(name)
             .or_else(|| {

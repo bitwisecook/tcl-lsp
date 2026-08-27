@@ -262,6 +262,11 @@ fn statement_has_frame_reach(stmt: &Statement, registry: &CommandRegistry) -> bo
 /// ([`CommandRegistry::invocation_traits`]) because `info level` /
 /// `info frame` carry [`tcl_registry::Traits::CURRENT_FRAME_INTROSPECTION`]
 /// on the subcommand rather than on `info` itself.
+///
+/// The `DialectSet::empty()` read is deliberate under invariant I4: this is
+/// a **widening** query — a frame-reaching answer *declines* the inline,
+/// so over-approximating across environments is the conservative
+/// direction, never a specialisation on an unproved binding.
 fn invocation_reaches_frame(stmt: &Statement, registry: &CommandRegistry) -> bool {
     let (Statement::Call { args, .. } | Statement::Barrier { args, .. }) = stmt else {
         return false;

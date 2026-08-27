@@ -228,12 +228,12 @@ struct ScanCtx<'p, 'r> {
     ///
     /// Read *unpositioned*: a proc body is segmented from its own text at
     /// offset 0, so no document-absolute offset exists here.
-    identities: &'r crate::head_identity::HeadIdentityMap,
+    identities: &'r crate::realm::CommandBindingRealm,
 }
 
 impl ScanCtx<'_, '_> {
     /// One command head in both its forms.
-    fn head<'h>(&'h self, written: &'h str) -> crate::head_identity::HeadWords<'h> {
+    fn head<'h>(&'h self, written: &'h str) -> crate::realm::HeadWords<'h> {
         self.identities.head_words_unpositioned(written)
     }
 }
@@ -262,10 +262,10 @@ pub struct TraitScanEnv<'a> {
     /// arguments resolve to a clean `$param`.
     pub config: LexerConfig,
     /// The document's proven command-identity facts — see
-    /// [`crate::head_identity`].  Pass
-    /// [`HeadIdentityMap::none()`](crate::head_identity::HeadIdentityMap::none)
+    /// [`crate::realm`].  Pass
+    /// [`CommandBindingRealm::none()`](crate::realm::CommandBindingRealm::none)
     /// when there is no document to scan.
-    pub identities: &'a crate::head_identity::HeadIdentityMap,
+    pub identities: &'a crate::realm::CommandBindingRealm,
 }
 
 /// Mutable alias / value-copy state accumulated while scanning a proc body.
@@ -616,7 +616,7 @@ fn resolve_arg_roles(
 }
 
 fn scan_command<'p>(
-    head: crate::head_identity::HeadWords<'_>,
+    head: crate::realm::HeadWords<'_>,
     cmd_args: &[String],
     braced: &[bool],
     head_is_var: bool,
@@ -1379,7 +1379,7 @@ mod tests {
             registry,
             stub_overlay: None,
             config,
-            identities: crate::head_identity::HeadIdentityMap::none(),
+            identities: crate::realm::CommandBindingRealm::none(),
         }
     }
 
@@ -1848,7 +1848,7 @@ mod tests {
                 registry: &registry,
                 stub_overlay: Some(&overlay),
                 config: LexerConfig::default(),
-                identities: crate::head_identity::HeadIdentityMap::none(),
+                identities: crate::realm::CommandBindingRealm::none(),
             },
         );
         assert_trait(&traits, "h", ProcArgTrait::Command);
@@ -2228,7 +2228,7 @@ mod tests {
                 registry: &registry,
                 stub_overlay: Some(&overlay),
                 config: LexerConfig::default(),
-                identities: crate::head_identity::HeadIdentityMap::none(),
+                identities: crate::realm::CommandBindingRealm::none(),
             },
         );
         assert_trait(&traits, "script", ProcArgTrait::Body);
@@ -2250,7 +2250,7 @@ mod tests {
                 registry: &registry,
                 stub_overlay: Some(&overlay),
                 config: LexerConfig::default(),
-                identities: crate::head_identity::HeadIdentityMap::none(),
+                identities: crate::realm::CommandBindingRealm::none(),
             },
         );
         // A stub `VarWrite` role on a bare `$v` substitution is the same
@@ -2294,7 +2294,7 @@ mod tests {
                 registry: &registry,
                 stub_overlay: Some(&overlay),
                 config: LexerConfig::default(),
-                identities: crate::head_identity::HeadIdentityMap::none(),
+                identities: crate::realm::CommandBindingRealm::none(),
             },
         );
         assert_trait(&with_overlay, "script", ProcArgTrait::Eval);
@@ -2343,7 +2343,7 @@ mod tests {
     /// *proc body*, which is exactly the shape the analyser threads.
     fn traits_under(prelude: &str, body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
-        let identities = crate::head_identity::command_head_identities(
+        let identities = crate::realm::document_realm_bindings(
             prelude,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,
@@ -2418,7 +2418,7 @@ mod tests {
     fn caller_frame_scans_follow_the_resolved_head() {
         let registry = CommandRegistry::build_default();
         let env_of = |prelude: &str| {
-            crate::head_identity::command_head_identities(
+            crate::realm::document_realm_bindings(
                 prelude,
                 tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
                 &registry,
@@ -2456,7 +2456,7 @@ mod tests {
         );
 
         // Guard: with nothing bound, both scans fire on the built-in.
-        let none = crate::head_identity::HeadIdentityMap::none();
+        let none = crate::realm::CommandBindingRealm::none();
         let env = TraitScanEnv {
             identities: none,
             ..env

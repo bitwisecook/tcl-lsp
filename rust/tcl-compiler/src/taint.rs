@@ -2736,7 +2736,7 @@ fn find_taint_warnings_for_cu_base_with_external_variable_seeds(
         traced_variables: &cu.ir_module.traced_variables,
         has_dynamic_variable_trace: cu.ir_module.has_dynamic_variable_trace,
     };
-    let identities = crate::head_identity::command_head_identities_with_config(
+    let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
         dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
             tcl_lexer::LexerConfig::from_grammar(profile.grammar)
@@ -2996,7 +2996,7 @@ fn find_callback_substitution_warnings(
                         .unwrap_or_else(|| stmt.span());
                     let head_identities = source_is_command_substitution.then(|| {
                         callback_head_identities.get_or_init(|| {
-                            crate::head_identity::command_head_identities_with_config(
+                            crate::realm::document_realm_bindings_with_config(
                                 &cu.source,
                                 lexer_config,
                                 registry,
@@ -3176,7 +3176,7 @@ fn callback_replay_source(
     input_var: &str,
     proc_name: &str,
     dialect: Option<&tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
+    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let callback = callback.trim().strip_prefix('+').unwrap_or(callback.trim());
     // Current lowering normally preserves the brackets in `args`; older
@@ -3210,7 +3210,7 @@ fn callback_replay_list_prefix(
     inputs: &[tcl_registry::CallbackTaintInput],
     input_var: &str,
     dialect: Option<&tcl_dialect::DialectProfile>,
-    builder_context: Option<(&crate::head_identity::HeadIdentityMap, u32)>,
+    builder_context: Option<(&crate::realm::CommandBindingRealm, u32)>,
 ) -> Option<String> {
     let inner = callback.strip_prefix('[')?.strip_suffix(']')?;
     let config = dialect.map_or_else(tcl_lexer::LexerConfig::default, |profile| {
@@ -3626,7 +3626,7 @@ pub fn find_taint_warnings_for_function<
         dialect,
         shadowed_builtins,
         module_traces,
-        crate::head_identity::HeadIdentityMap::none(),
+        crate::realm::CommandBindingRealm::none(),
     )
 }
 
@@ -3643,7 +3643,7 @@ fn find_taint_warnings_for_function_with_identities<
     dialect: Option<&tcl_dialect::DialectProfile>,
     shadowed_builtins: &HashSet<String, H>,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'_>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
 ) -> Vec<TaintWarning> {
     find_taint_warnings_impl(
         &fu.cfg,
@@ -3667,7 +3667,7 @@ fn find_taint_warnings_for_function_with_identities<
 struct CommandHeadContext<'a> {
     fu: &'a crate::compilation_unit::FunctionUnit,
     module_traces: crate::compilation_unit::ModuleTraceFacts<'a>,
-    identities: &'a crate::head_identity::HeadIdentityMap,
+    identities: &'a crate::realm::CommandBindingRealm,
 }
 
 #[derive(Clone, Copy)]
@@ -4327,7 +4327,7 @@ fn ambient_constant_setup(
 /// identity to sources, sinks, argument roles, and nested bodies.
 fn ambient_command_setup<H: std::hash::BuildHasher>(
     cu: &crate::compilation_unit::CompilationUnit,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
     at: u32,
     shadowed_builtins: &HashSet<String, H>,
 ) -> String {
@@ -4360,11 +4360,11 @@ fn ambient_command_setup<H: std::hash::BuildHasher>(
             continue;
         }
         match identities.binding_at(&head, at) {
-            crate::head_identity::HeadBinding::Unchanged => {}
-            crate::head_identity::HeadBinding::Rebound => {
+            crate::realm::RealmBindingFact::Unchanged => {}
+            crate::realm::RealmBindingFact::Rebound => {
                 rebindings.push((head, format!("::proc {quoted_head} args {{}}\n")));
             }
-            crate::head_identity::HeadBinding::Command(target) => {
+            crate::realm::RealmBindingFact::Command(target) => {
                 let quoted_target = tcl_syntax::list::list_element(target);
                 let _ = writeln!(
                     aliases,
@@ -5489,6 +5489,12 @@ fn emit_sink_warnings<S: std::hash::BuildHasher>(
 /// A quoted word is literal data for `exec`/`puts`, but deferred source for
 /// `eval`, `uplevel`, and `interp eval`; the role/trait projection owns that
 /// distinction and the concatenating eval family extends through the tail.
+///
+/// The `DialectSet::empty()` read is deliberate under invariant I4: this is
+/// a **widening** query, not hook selection — treating an
+/// environment-disabled eval-family command as evaluating widens the taint
+/// warning set (conservative), it never specialises semantics on an
+/// unproved binding.
 fn quoted_sink_use_is_evaluated(call: &SinkCall<'_>, name: &str) -> bool {
     let arg_refs: Vec<&str> = call.args.iter().map(String::as_str).collect();
     let traits = call

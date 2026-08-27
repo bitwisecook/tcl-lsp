@@ -17,7 +17,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 //! The **semantic view**'s binding vocabulary (redesign §4.2) — types and
-//! contract only in P1-E; realm integration is P1a.
+//! contract landed in P1-E; P1a integrated the realm state: the compiler's
+//! document realm scan (`tcl_compiler::realm`) produces these values, the
+//! analyser's one `exists` oracle (centralisation R-c) answers them per
+//! program point, and the three selection primitives in
+//! [`crate::model::assembly`] consume the binding proof (invariant I4).
 //!
 //! ## The consumer contract (invariants I3–I5)
 //!
@@ -112,6 +116,40 @@ impl std::fmt::Debug for SpecKey {
     }
 }
 
+/// The target one realm binding resolves to (P1a): a catalogue spec, or a
+/// command the document itself establishes — a user `proc`/class, an
+/// alias or rename target with no registry identity, a scoped-environment
+/// command, a user-declared extra command.
+///
+/// Only [`Self::Spec`] can license semantic hook selection (I4): a
+/// document-defined binding exists, but carries no catalogue semantics to
+/// specialise on.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum BindingTarget {
+    /// A registry command spec.
+    Spec(SpecKey),
+    /// A command the document defines, by its (qualified where known)
+    /// name.
+    Document(Arc<str>),
+}
+
+impl BindingTarget {
+    /// A document-defined target for `name`.
+    #[must_use]
+    pub fn document(name: &str) -> Self {
+        Self::Document(Arc::from(name))
+    }
+
+    /// The spec key, for a catalogue-backed target.
+    #[must_use]
+    pub const fn spec(&self) -> Option<SpecKey> {
+        match self {
+            Self::Spec(key) => Some(*key),
+            Self::Document(_) => None,
+        }
+    }
+}
+
 /// What a realm proves about one command name at one program point
 /// (§4.2) — the single `exists` oracle of centralisation contract R-c.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -120,12 +158,14 @@ pub enum BindingKnowledge {
     /// guarantee iRules derives rather than assumes).
     Absent,
     /// Proved: exactly this binding, here. The only state that licenses
-    /// hook selection (I4).
-    Must(SpecKey),
+    /// hook selection (I4) — and only with a [`BindingTarget::Spec`]
+    /// target.
+    Must(BindingTarget),
     /// Known candidates, but order/branch not proved (two providers of
-    /// one name, a conditional require). Consumers take the union of
-    /// effects or abstain — never a pick by catalogue precedence (I4).
-    May(Arc<[SpecKey]>),
+    /// one name, same-tail definitions in several namespaces). Consumers
+    /// take the union of effects or abstain — never a pick by catalogue
+    /// precedence (I4).
+    May(Arc<[BindingTarget]>),
     /// Nothing provable: a dynamic loader, an unknown interp target, a
     /// widened domain.
     Unknown,
@@ -133,10 +173,23 @@ pub enum BindingKnowledge {
 
 impl BindingKnowledge {
     /// Whether this knowledge licenses semantic hook selection (I4): only
-    /// a proved [`Self::Must`] does.
+    /// a proved [`Self::Must`] does, and specialisation additionally
+    /// requires its target to be a catalogue spec
+    /// ([`Self::proved_spec`]).
     #[must_use]
     pub const fn is_proved(&self) -> bool {
         matches!(self, Self::Must(_))
+    }
+
+    /// The proved catalogue spec — the I4 licence for semantic hook
+    /// selection. `None` for every unproved state *and* for a proved
+    /// document-defined binding (which has no catalogue semantics).
+    #[must_use]
+    pub const fn proved_spec(&self) -> Option<SpecKey> {
+        match self {
+            Self::Must(target) => target.spec(),
+            Self::Absent | Self::May(_) | Self::Unknown => None,
+        }
     }
 
     /// The candidate set a conservative consumer may union over: the
@@ -144,10 +197,10 @@ impl BindingKnowledge {
     /// `Unknown` (an unknown binding has no enumerable candidates —
     /// consumers abstain).
     #[must_use]
-    pub fn candidates(&self) -> &[SpecKey] {
+    pub fn candidates(&self) -> &[BindingTarget] {
         match self {
-            Self::Must(key) => std::slice::from_ref(key),
-            Self::May(keys) => keys,
+            Self::Must(target) => std::slice::from_ref(target),
+            Self::May(targets) => targets,
             Self::Absent | Self::Unknown => &[],
         }
     }
@@ -165,13 +218,13 @@ impl BindingKnowledge {
             // `May` cannot enumerate the possibility of absence.
             (Self::Unknown | Self::Absent, _) | (_, Self::Unknown | Self::Absent) => Self::Unknown,
             (left, right) => {
-                let mut keys: Vec<SpecKey> = Vec::new();
-                for key in left.candidates().iter().chain(right.candidates()) {
-                    if !keys.contains(key) {
-                        keys.push(*key);
+                let mut targets: Vec<BindingTarget> = Vec::new();
+                for target in left.candidates().iter().chain(right.candidates()) {
+                    if !targets.contains(target) {
+                        targets.push(target.clone());
                     }
                 }
-                Self::May(keys.into())
+                Self::May(targets.into())
             }
         }
     }
@@ -313,16 +366,26 @@ mod tests {
     }
 
     #[test]
-    fn only_must_licenses_hooks() {
-        let must = BindingKnowledge::Must(key("proved"));
+    fn only_a_proved_spec_licenses_hooks() {
+        let spec = key("proved");
+        let must = BindingKnowledge::Must(BindingTarget::Spec(spec));
         assert!(must.is_proved());
+        assert_eq!(must.proved_spec(), Some(spec));
         assert_eq!(must.candidates().len(), 1);
+        // A proved *document* binding exists but never licenses a hook —
+        // it has no catalogue semantics to specialise on (I4).
+        let user = BindingKnowledge::Must(BindingTarget::document("::mine"));
+        assert!(user.is_proved());
+        assert_eq!(user.proved_spec(), None);
         for unproved in [
             BindingKnowledge::Absent,
             BindingKnowledge::Unknown,
-            BindingKnowledge::May(vec![key("a"), key("b")].into()),
+            BindingKnowledge::May(
+                vec![BindingTarget::Spec(key("a")), BindingTarget::Spec(key("b"))].into(),
+            ),
         ] {
             assert!(!unproved.is_proved(), "{unproved:?}");
+            assert_eq!(unproved.proved_spec(), None, "{unproved:?}");
         }
         assert!(BindingKnowledge::Unknown.candidates().is_empty());
         assert!(BindingKnowledge::Absent.candidates().is_empty());
@@ -330,15 +393,18 @@ mod tests {
 
     #[test]
     fn joins_widen_and_never_narrow() {
-        let a = key("a");
-        let b = key("b");
-        let must_a = BindingKnowledge::Must(a);
-        let must_b = BindingKnowledge::Must(b);
+        let a = BindingTarget::Spec(key("a"));
+        let b = BindingTarget::document("::b");
+        let must_a = BindingKnowledge::Must(a.clone());
+        let must_b = BindingKnowledge::Must(b.clone());
         // Idempotent.
         assert_eq!(must_a.join(&must_a), must_a);
         // Differing proofs widen to the candidate union, symmetrically.
         let joined = must_a.join(&must_b);
-        assert_eq!(joined, BindingKnowledge::May(vec![a, b].into()));
+        assert_eq!(
+            joined,
+            BindingKnowledge::May(vec![a.clone(), b.clone()].into())
+        );
         assert_eq!(
             must_b.join(&must_a),
             BindingKnowledge::May(vec![b, a].into())

@@ -40,8 +40,8 @@ use tcl_lexer::LineIndex;
 
 /// One request-local inventory of resolved iRules event-handler boundaries.
 ///
-/// The constructor builds the document's [`HeadIdentityMap`]
-/// (`tcl_compiler::head_identity::HeadIdentityMap`) exactly once, then hands
+/// The constructor builds the document's [`CommandBindingRealm`]
+/// (`tcl_compiler::realm::CommandBindingRealm`) exactly once, then hands
 /// it to the registry's top-level boundary owner. Callers can derive both the
 /// enclosing event and the deduplicated file inventory without a global cache
 /// or a second identity scan.
@@ -118,7 +118,7 @@ fn build_event_handlers(
     let config = tcl_lexer::LexerConfig::for_file_grammar(profile.grammar);
     let registry = crate::registry_for_dialect_profile(profile);
     let identities =
-        tcl_compiler::head_identity::command_head_identities_with_config(source, config, registry);
+        tcl_compiler::realm::document_realm_bindings_with_config(source, config, registry);
     let events = tcl_registry::events::EventRegistry::build();
     tcl_registry::events::top_level_when_handlers_with_registry_and_head_resolver(
         source,

@@ -378,6 +378,11 @@ fn extract_prefix_head(
 /// double-count diagnosis holds for the braced word, which was already
 /// guarded, but not for this one).
 ///
+/// The `DialectSet::empty()` traits read below is deliberate under
+/// invariant I4: this is a navigation/reference **widening** query (an
+/// extra recorded reference, never a semantic specialisation), so
+/// over-approximating across environments is the conservative direction.
+///
 /// [`ArgRole::Body`]: tcl_registry::arg_role::ArgRole::Body
 fn extract_wrapped_prefix_head(
     registry: &CommandRegistry,

@@ -285,12 +285,12 @@ pub(crate) fn caller_frame_bindings(
     // Without a registry there is no way to know which commands mutate the
     // command table, so there is no fact to record and the shared empty map is
     // the honest answer.
-    let scanned_identities = resolution.registry.map(|registry| {
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry)
-    });
+    let scanned_identities = resolution
+        .registry
+        .map(|registry| tcl_compiler::realm::document_realm_bindings(source, dialect, registry));
     let identities = scanned_identities
         .as_ref()
-        .unwrap_or_else(|| tcl_compiler::head_identity::HeadIdentityMap::none());
+        .unwrap_or_else(|| tcl_compiler::realm::CommandBindingRealm::none());
     let ctx = BindingScan {
         analysis,
         source,
@@ -322,7 +322,7 @@ struct BindingScan<'a> {
     /// The document's proven command-identity facts, built once per scan and
     /// handed to every trait scan below so a rebound head resolves here the
     /// same way it does everywhere else (issue #1275).
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     namespace: String,
     name: &'a str,
 }

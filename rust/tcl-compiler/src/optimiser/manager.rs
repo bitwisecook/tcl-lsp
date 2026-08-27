@@ -860,7 +860,7 @@ pub fn optimise_raw_for_profile(
         tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
     );
     let object_types = crate::object_types::object_handle_classes(&cu, registry);
-    let identities = crate::head_identity::command_head_identities_with_config(
+    let identities = crate::realm::document_realm_bindings_with_config(
         &cu.source,
         tcl_lexer::LexerConfig::for_dialect(dialect.map_or("", |profile| profile.name)),
         registry,

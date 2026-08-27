@@ -202,7 +202,7 @@ struct CommentLineWalker<'a> {
     whole: &'a str,
     config: tcl_lexer::LexerConfig,
     registry: &'a CommandRegistry,
-    identities: crate::head_identity::HeadIdentityMap,
+    identities: crate::realm::CommandBindingRealm,
     line_index: tcl_lexer::LineIndex,
     availability: tcl_dialect::DialectSet,
     visited: HashSet<(u32, u32)>,
@@ -215,9 +215,7 @@ impl<'a> CommentLineWalker<'a> {
             whole,
             config,
             registry,
-            identities: crate::head_identity::command_head_identities_with_config(
-                whole, config, registry,
-            ),
+            identities: crate::realm::document_realm_bindings_with_config(whole, config, registry),
             line_index: tcl_lexer::LineIndex::new(whole),
             availability: registry
                 .profile()

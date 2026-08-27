@@ -179,7 +179,7 @@ pub fn range_formatting(
     // The identity facts come from the **whole document**, not the slice: a
     // `rename` above the selection still governs what the selected commands
     // are (issue #1275).
-    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
         source,
         config.lexer_config(),
         registry,

@@ -590,7 +590,10 @@ fn body_has_dynamic_barrier(body_text: &str, registry: &CommandRegistry) -> bool
         // the registry's `EVALUATES_CODE` trait rather than a hardcoded
         // name list.  `DialectSet::empty()` because the question is the
         // command's *shape*, not its availability: a barrier is a barrier
-        // whichever dialect the file is analysed as.
+        // whichever dialect the file is analysed as.  Deliberate under
+        // invariant I4 — a barrier answer *widens* (falls back to
+        // `Statement::Barrier`), never specialises on an unproved
+        // binding.
         let traits = registry.invocation_traits(name, &args, DialectSet::empty());
         if !traits.contains(Traits::EVALUATES_CODE) {
             // Recurse into braced args of non-barrier commands so
@@ -822,8 +825,9 @@ pub struct Lowerer<'r> {
     dialect: Option<&'static tcl_dialect::DialectProfile>,
     /// The dialect's resolved registry generation, derived beside
     /// [`Self::dialect`] — the context [`try_lower_hook`]'s selection
-    /// primitive carries (P1a threads it into binding proof; unread until
-    /// then).
+    /// primitive reads for the I4 binding proof (P1a): a head the
+    /// environment does not provide selects no lowering hook and falls to
+    /// the default `Statement::Call` path.
     dialect_context: Option<std::sync::Arc<tcl_registry::model::ContextRegistry>>,
     /// Which lowering pass this instance performs — folds what would
     /// otherwise be two related bool fields (`for_bytecode`, `trace_visible`)

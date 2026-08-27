@@ -1062,7 +1062,7 @@ fn st_irules_event_fallback_survives_generic_tcl_registry() {
 }
 
 #[test]
-fn st_irules_declaration_boundary_tracks_resolved_head_identity() {
+fn st_irules_declaration_boundary_tracks_resolved_realm_binding() {
     // The shared top-level boundary owner resolves command identity at the
     // source offset: redefining `when` means the later spelling is no longer
     // an iRules event handler, even though its words retain declaration shape.

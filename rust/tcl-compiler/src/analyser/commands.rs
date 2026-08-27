@@ -1209,10 +1209,13 @@ impl Analyser {
         }
         let registry = self.registry.clone().unwrap_or_else(fallback_registry);
         let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
-        // The C3 selection primitive: the walk's resolved context rides
-        // along for P1a's binding proof; selection stays the dialect-blind
-        // store lookup it always was (the registry is already
-        // per-profile).
+        // The C3 selection primitive under invariant I4 (P1a): with the
+        // walk's resolved context carried, the head must prove its
+        // binding under the document's environment before any analyser
+        // hook is selected — an unprovided head (a version-gated command
+        // outside the release window, an iRules-disabled builtin) takes
+        // the generic path instead of a specialised handler. A harness
+        // walk with no context keeps the store selection (NotRequired).
         let resolved = tcl_registry::model::resolve_call_in_context(
             &registry,
             self.context
@@ -2093,7 +2096,8 @@ impl Analyser {
     /// second request). That is exactly the "runtime set of commands is
     /// unknowable" fact the existing dynamic-provider machinery models
     /// ([`super::types::AnalysisResult::has_dynamic_providers`] — the
-    /// analyser-side `BindingKnowledge::May` widening), so it is wired
+    /// oracle's `CommandDomainWidening::DynamicProviders`, under which
+    /// every head answers `BindingKnowledge::Unknown`), so it is wired
     /// through that flag rather than new state: W123/W120-class
     /// unresolved-name conclusions abstain for the rest of the document.
     ///

@@ -14,7 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
-use tcl_compiler::head_identity::command_head_identities;
+use tcl_compiler::realm::document_realm_bindings;
 use tcl_compiler::registry_invocation::segmented_command_arguments;
 use tcl_compiler::segmenter::SegmentedCommand;
 use tcl_lexer::{LexerConfig, Span, TokenType};
@@ -328,7 +328,7 @@ pub fn analyse_tk_ui(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> TkUiModel {
-    let identities = command_head_identities(source, dialect, registry);
+    let identities = document_realm_bindings(source, dialect, registry);
     let config = LexerConfig::for_file_grammar(dialect.grammar);
     let tk_active = crate::document_context_for_profile(dialect)
         .authoring_mask()
@@ -541,7 +541,7 @@ fn source_requires_tk(
     config: LexerConfig,
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
 ) -> bool {
     let mut active = false;
     let available_tk = crate::document_context_for_profile(dialect)

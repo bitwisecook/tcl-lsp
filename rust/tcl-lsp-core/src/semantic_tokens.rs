@@ -1224,7 +1224,7 @@ fn irules_registry() -> &'static CommandRegistry {
 fn irules_top_level_declaration_heads(
     source: &str,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
 ) -> FxHashSet<u32> {
     let mut heads: FxHashSet<u32> =
         tcl_registry::events::top_level_when_handler_candidates_with_registry_and_head_resolver(
@@ -4315,8 +4315,8 @@ struct ScriptCtx<'a> {
     /// that shadows a built-in (issue #1185).  Every fact is offset-keyed, so
     /// a binding cannot retroactively re-tag an earlier call; every shape that
     /// cannot be proven leaves the head alone.  Empty for a document that
-    /// binds nothing.  See [`tcl_compiler::head_identity`].
-    head_identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    /// binds nothing.  See [`tcl_compiler::realm`].
+    head_identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// Object-handle → class-name provenance for the whole document, so a
     /// `$var method …` dispatch can resolve the method's options through the
     /// registry's object-class model (issue #748).  Empty when no
@@ -4740,7 +4740,7 @@ struct CommandHead<'a> {
     tok: Token,
     text: &'a str,
     /// The registry name to resolve grammar against — empty when the head was
-    /// rebound (see [`tcl_compiler::head_identity::HeadIdentity::spec_name`]).
+    /// rebound (see [`tcl_compiler::realm::RealmBinding::spec_name`]).
     resolved: &'a str,
     /// Whether the head's registry binding was provably taken over by a
     /// `rename` / alias / shadowing `proc` (issue #1185).
@@ -4902,13 +4902,13 @@ fn emit_command_head(
 ///
 /// The overwhelmingly common document binds nothing, so the lookup is skipped
 /// entirely rather than hashing every head in the file.
-fn head_identity_of<'a>(
+fn realm_head_binding_of<'a>(
     ctx: ScriptCtx<'a>,
     head_text: &'a str,
     head_tok: Token,
-) -> tcl_compiler::head_identity::HeadIdentity<'a> {
+) -> tcl_compiler::realm::RealmBinding<'a> {
     if ctx.head_identities.is_empty() {
-        return tcl_compiler::head_identity::HeadIdentity::Command(head_text);
+        return tcl_compiler::realm::RealmBinding::Command(head_text);
     }
     ctx.head_identities
         .resolve(head_text, head_tok.span.start())
@@ -4927,7 +4927,7 @@ fn head_identity_of<'a>(
 fn emit_static_command_head(
     ctx: ScriptCtx<'_>,
     seg: &tcl_compiler::segmenter::SegmentedCommand,
-    identity: tcl_compiler::head_identity::HeadIdentity<'_>,
+    identity: tcl_compiler::realm::RealmBinding<'_>,
     entries: &mut Vec<Entry>,
 ) {
     let Some(&head_tok) = seg.argv.first() else {
@@ -4976,7 +4976,7 @@ fn collect_script(
         // built-in carries the `defaultLibrary` modifier.
         let head_tok = seg.argv[0];
         let head_text = &seg.texts[0];
-        let identity = head_identity_of(ctx, head_text, head_tok);
+        let identity = realm_head_binding_of(ctx, head_text, head_tok);
         let resolved_head: &str = identity.spec_name();
         let computed_head = head_is_computed(&seg);
         if !computed_head {
@@ -6016,8 +6016,7 @@ fn collect_entries(
     // `test` = `tcltest::test`), plus every statically proven `interp alias` /
     // `rename` / built-in-shadowing `proc` (issue #1185).  Empty (no lookups)
     // unless the document actually binds something.
-    let head_identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let head_identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
 
     // The iRules declaration overlay uses the shared top-level boundary facts
     // (including offset-resolved command identity) rather than this walk's

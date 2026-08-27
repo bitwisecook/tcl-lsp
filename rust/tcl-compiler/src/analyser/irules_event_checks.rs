@@ -1636,7 +1636,7 @@ mod tests {
         let blocks = super::collect_event_bodies(
             "when HTTP_REQUEST priority 5 { body1 }",
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0].0, "HTTP_REQUEST");
@@ -1655,7 +1655,7 @@ mod tests {
         let blocks = super::collect_event_bodies(
             source,
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["CLIENT_ACCEPTED"]);
@@ -1677,7 +1677,7 @@ mod tests {
         let blocks = super::collect_event_bodies(
             source,
             Some(registry),
-            &crate::head_identity::HeadIdentityMap::default(),
+            &crate::realm::CommandBindingRealm::default(),
         );
         let names: Vec<&str> = blocks.iter().map(|(e, _)| e.as_str()).collect();
         assert_eq!(names, vec!["HTTP_REQUEST", "CLIENT_DATA"]);

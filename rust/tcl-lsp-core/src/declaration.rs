@@ -90,8 +90,7 @@ pub fn declaration(
     // recognised by the command a head *is* rather than the one it is spelled
     // as (issue #1275).  Empty — and lookup-free — unless the document binds
     // something.
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let scan = DeclScan {
         source,
         dialect,
@@ -143,11 +142,11 @@ struct DeclScan<'a> {
     visible: &'a [Span],
     registry: &'a CommandRegistry,
     /// The document's statically proven command-identity facts
-    /// ([`tcl_compiler::head_identity`]): which registry command each head
+    /// ([`tcl_compiler::realm`]): which registry command each head
     /// spelling really names at each point in the file.  A head whose binding
     /// was provably taken over resolves to nothing, so no scope-alias grammar
     /// and no body recursion is applied to it.
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     /// The cursor's byte offset. The analyser's scope tree does not model an
     /// `apply` lambda body as its own scope (it has no `proc`/`namespace
     /// eval`-style boundary), so `visible` never reflects it; recursing into
@@ -607,7 +606,7 @@ mod tests {
     /// abstention this test exists to pin.
     fn scanned_declaration_lines(src: &str, target: &str) -> Vec<u32> {
         let registry = reg();
-        let identities = tcl_compiler::head_identity::command_head_identities(
+        let identities = tcl_compiler::realm::document_realm_bindings(
             src,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
             &registry,

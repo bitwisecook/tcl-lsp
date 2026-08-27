@@ -20,7 +20,7 @@ pub fn build_interprocedural_analysis(
     registry: &tcl_registry::CommandRegistry,
     dialect: Option<&str>,
     object_types: ObjectTypeMap<'_>,
-    identities: &crate::head_identity::HeadIdentityMap,
+    identities: &crate::realm::CommandBindingRealm,
 ) -> InterproceduralAnalysis
 ```
 

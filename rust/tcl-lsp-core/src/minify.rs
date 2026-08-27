@@ -518,8 +518,7 @@ pub fn minify_tcl(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> String {
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     minify_body(
         source,
         MinifyEnv {
@@ -625,8 +624,7 @@ pub fn minify_tcl_aggressive_with(
     // Phase 3: minify whitespace.
     // The identity facts come from the *renamed* text, which is what the
     // recursion below actually sees.
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(&renamed, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
     let minified = minify_body(
         &renamed,
         MinifyEnv {
@@ -662,8 +660,7 @@ pub fn minify_tcl_compact(
     let (renamed, symbol_map) = compact_names(source, dialect, isolated, registry);
     // The identity facts come from the *renamed* text, which is what the
     // recursion below actually sees.
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(&renamed, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(&renamed, dialect, registry);
     let minified = minify_body(
         &renamed,
         MinifyEnv {
@@ -689,14 +686,14 @@ struct MinifyEnv<'a> {
     /// The registry the argument roles and clause-list shapes come from.
     registry: &'a CommandRegistry,
     /// The document's statically proven command-identity facts
-    /// ([`tcl_compiler::head_identity`]), so a body / lambda / expression /
+    /// ([`tcl_compiler::realm`]), so a body / lambda / expression /
     /// clause-list argument is recognised by the command a head *is* rather
     /// than the one it is spelled as (issue #1275).
     ///
     /// Read *unpositioned*: this recursion re-minifies each nested body from
     /// its own slice, segmented at offset 0, so no document-absolute offset
     /// exists at the point of the query.
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
 impl<'a> MinifyEnv<'a> {
@@ -955,7 +952,7 @@ fn find_rename_barriers(
     source: &str,
     analysis: &AnalysisResult,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     include_global: bool,
 ) -> RenameBarriers {
     let mut out = RenameBarriers::default();
@@ -1240,8 +1237,7 @@ fn compact_names(
     let mut symbol_map = SymbolMap::default();
     let mut edits: Vec<Edit> = Vec::new();
 
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let barriers = find_rename_barriers(source, &analysis, registry, &identities, isolated);
     let rmw_targets = rmw_target_var_names(source, dialect, registry);
     let builtin_names: FxHashSet<&str> = registry.command_names().collect();
@@ -1695,8 +1691,7 @@ fn abbreviate_keywords(
     dialect: &'static tcl_dialect::DialectProfile,
     registry: &CommandRegistry,
 ) -> (String, usize) {
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let mut edits: Vec<Edit> = Vec::new();
     let mut stack: Vec<(String, u32)> = vec![(source.to_owned(), 0)];
     let later = later_core_registries(dialect);
@@ -1747,7 +1742,7 @@ struct AbbrevSite<'a> {
     /// own span resolves to a document-absolute offset.
     base: u32,
     /// The document's proven command-identity facts.
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
 }
 
 /// One word of a command, with the token it came from.

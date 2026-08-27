@@ -40,8 +40,10 @@
 //!   environment (centralisation R-a, ledger C2/F2/F3/F9).
 //! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
 //!   (I3–I5) plus the package realm vocabulary
-//!   ([`PackageStateMap`], [`PackageTransition`]); realm integration
-//!   itself is P1a.
+//!   ([`PackageStateMap`], [`PackageTransition`]). P1a integrated the
+//!   realm: the compiler's document realm scan produces these values,
+//!   and the [`assembly`] selection primitives enforce the binding-proof
+//!   rule (I4) over the carried context.
 //!
 //! Everything here lands **alongside** the old `DialectSet`-mask registry:
 //! nothing existing is wrapped or shimmed, and the equivalence sweeps in
@@ -59,7 +61,9 @@ pub use assembly::{
     ContextRegistry, registry_for_environment, registry_for_environment_if_built,
     resolve_call_in_context, resolve_invocation_in_context, side_effect_hints_in_context,
 };
-pub use binding::{BindingKnowledge, PackageState, PackageStateMap, PackageTransition, SpecKey};
+pub use binding::{
+    BindingKnowledge, BindingTarget, PackageState, PackageStateMap, PackageTransition, SpecKey,
+};
 pub use context::{ContextQueries, FloorMap, KeyedVersions, ResolvedContext, specificity_breadth};
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,

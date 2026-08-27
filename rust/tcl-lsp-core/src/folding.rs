@@ -128,8 +128,7 @@ pub fn folding_ranges(
         &mut ranges,
     );
     collect_continuation_folds(source, &line_index, &mut seen, &mut ranges);
-    let identities =
-        tcl_compiler::head_identity::command_head_identities(source, dialect, registry);
+    let identities = tcl_compiler::realm::document_realm_bindings(source, dialect, registry);
     let mut ctx = FoldCtx {
         registry,
         availability: crate::document_context_for_profile(dialect).authoring_mask(),
@@ -374,7 +373,7 @@ struct FoldCtx<'a> {
     /// role is resolved against the command a head *is* rather than the one it
     /// is spelled as (issue #1275).  Empty — and lookup-free — for the
     /// overwhelmingly common document that binds nothing.
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     line_index: &'a LineIndex,
     original_source: &'a str,
     seen: &'a mut FxHashSet<(u32, u32)>,
@@ -394,11 +393,11 @@ const MAX_FOLD_DEPTH: tcl_core_types::RecursionLimit = tcl_core_types::Recursion
 /// One segmented command's head, as written and as it resolves.
 ///
 /// The written spelling is sliced from the command itself; the resolved name
-/// comes from the document's [`HeadIdentityMap`](tcl_compiler::head_identity::HeadIdentityMap)
+/// comes from the document's [`CommandBindingRealm`](tcl_compiler::realm::CommandBindingRealm)
 /// at the head's own byte offset, so a binding never retroactively re-tags an
 /// earlier call.  A document that binds nothing skips the lookup entirely.
 fn resolve_head<'a>(
-    identities: &'a tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &'a tcl_compiler::realm::CommandBindingRealm,
     cmd: &'a tcl_compiler::segmenter::SegmentedCommand,
 ) -> HeadWords<'a> {
     let at = cmd.argv.first().map_or(0, |t| t.span.start());

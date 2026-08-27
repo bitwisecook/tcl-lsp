@@ -2519,7 +2519,7 @@ pub fn serialise_event_order(source: &str, line_index: &LineIndex, dialect: &str
 
     let mut per_event: HashMap<String, Vec<Handler>> = HashMap::new();
     let command_registry = registry_for_dialect(dialect);
-    let identities = tcl_compiler::head_identity::command_head_identities(
+    let identities = tcl_compiler::realm::document_realm_bindings(
         source,
         crate::environment::analyser_profile_for_dialect(dialect),
         &command_registry,

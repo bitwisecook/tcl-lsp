@@ -387,7 +387,7 @@ fn parse_commands(
 fn identify_body_args(
     cmd: &mut ParsedCommand,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     source_offset: u32,
 ) {
     // {*}-expanded command word: dynamic identity, skip.
@@ -527,7 +527,7 @@ fn format_case_list_body(
     case_list: &CaseListSpec,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     indent_level: usize,
 ) -> String {
     let shape = tcl_syntax::case_list::CaseListShape {
@@ -1514,7 +1514,7 @@ pub(crate) fn format_body(
     source_offset: u32,
     config: &FormatterConfig,
     registry: &CommandRegistry,
-    identities: &tcl_compiler::head_identity::HeadIdentityMap,
+    identities: &tcl_compiler::realm::CommandBindingRealm,
     indent_level: usize,
 ) -> String {
     // Native-stack safety net — see `MAX_FORMAT_DEPTH`'s doc comment
@@ -1738,7 +1738,7 @@ pub fn format_tcl(source: &str, config: &FormatterConfig, registry: &CommandRegi
     // The document's command-identity facts, computed once for the whole file
     // (issue #1275).  Empty — and lookup-free — unless the document binds
     // something.
-    let identities = tcl_compiler::head_identity::command_head_identities_with_config(
+    let identities = tcl_compiler::realm::document_realm_bindings_with_config(
         source,
         config.lexer_config(),
         registry,

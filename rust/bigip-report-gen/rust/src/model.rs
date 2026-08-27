@@ -703,7 +703,7 @@ fn shape_rule(f: &Map<String, J>, used: &HashMap<String, Vec<J>>) -> J {
     // firing order rather than alphabetical order (which scrambles the
     // lifecycle, e.g. CLIENTSSL_HANDSHAKE ahead of CLIENT_ACCEPTED).
     let command_registry = tcl_registry::model::ingress::static_context_for("f5-irules").commands();
-    let identities = tcl_compiler::head_identity::command_head_identities(
+    let identities = tcl_compiler::realm::document_realm_bindings(
         &body,
         tcl_dialect::DialectProfile::irules(),
         command_registry,

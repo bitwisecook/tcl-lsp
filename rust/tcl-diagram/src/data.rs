@@ -30,11 +30,11 @@ use std::collections::{HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::expr_ast::{ExprNode, render_expr};
-use tcl_compiler::head_identity::{HeadIdentity, HeadIdentityMap, command_head_identities};
 use tcl_compiler::interprocedural::{namespace_parts_from_proc, resolve_internal_call};
 use tcl_compiler::ir::{
     CommandTokens, Procedure, Script, Statement, SwitchArm, TryHandler, when_event_name,
 };
+use tcl_compiler::realm::{CommandBindingRealm, RealmBinding, document_realm_bindings};
 use tcl_compiler::registry_invocation::effective_command_arguments;
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationArguments;
@@ -56,7 +56,7 @@ const MAX_ARG_LEN: usize = 60;
 /// rebinding cannot accidentally be serialised using a stale registry command.
 struct DiagramContext<'a> {
     procedure_names: &'a HashSet<String>,
-    identities: &'a HeadIdentityMap,
+    identities: &'a CommandBindingRealm,
     registry: &'a CommandRegistry,
 }
 
@@ -317,9 +317,9 @@ fn registry_command(
     context: &DiagramContext<'_>,
 ) -> Option<String> {
     let command = match context.identities.resolve(command, at) {
-        HeadIdentity::Command(resolved) if resolved != command => resolved,
-        HeadIdentity::Rebound => return None,
-        HeadIdentity::Command(_) => canonical_command.unwrap_or(command),
+        RealmBinding::Command(resolved) if resolved != command => resolved,
+        RealmBinding::Rebound => return None,
+        RealmBinding::Command(_) => canonical_command.unwrap_or(command),
     };
     let ns_parts = namespace_parts_from_proc(caller_qname);
     let namespace = if ns_parts.is_empty() {
@@ -351,7 +351,7 @@ fn is_procedure_call(
     at: u32,
     context: &DiagramContext<'_>,
 ) -> bool {
-    if matches!(context.identities.resolve(command, at), HeadIdentity::Command(resolved) if resolved != command)
+    if matches!(context.identities.resolve(command, at), RealmBinding::Command(resolved) if resolved != command)
     {
         return false;
     }
@@ -793,7 +793,7 @@ pub fn diagram_data_for_dialect(
         .iter()
         .map(|(_, proc)| proc.qualified_name.clone())
         .collect();
-    let identities = command_head_identities(source, dialect, registry);
+    let identities = document_realm_bindings(source, dialect, registry);
     let context = DiagramContext {
         procedure_names: &procedure_names,
         identities: &identities,
