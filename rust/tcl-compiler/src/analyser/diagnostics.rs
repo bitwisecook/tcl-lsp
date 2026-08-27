@@ -377,19 +377,24 @@ impl Analyser {
             // `contains` condition) as an operator, and the lattice pipeline
             // needs it to fold one.
             //
-            // The *lexer* config stays the default rather than
-            // `for_dialect(dialect)`: the hosts that supply this unit through
-            // the `cu_override` seam (`tcl diag`'s `collect_rows`,
-            // `tcl_lsp_db::file_analysis_incremental`) build it with the
-            // default config, and the supplied unit must be the one this
-            // branch would have built. Changing it here would make an iRules
-            // document's diagnostics depend on which path built the unit.
+            // The *lexer* config is the document's own environment grammar,
+            // and every host that supplies this unit through the
+            // `cu_override` seam (`tcl diag`'s `collect_rows`,
+            // `tcl_lsp_db::analyse_per_item_with`, `xtask fp_sweep`) builds it
+            // the same way, so the supplied unit is the one this branch would
+            // have built. It used to be `LexerConfig::default()` on all four —
+            // agreeing, but wrong: an 8.x document lexed `${a{b}c}` under the
+            // 9.0 close rule and decoded escapes as 9.0, and an iRules
+            // document lexed with `{*}` expansion and no F5 word break
+            // (redesign §11.4 row E1, §9.1 defect 1).
             let cu = crate::compilation_unit::CompilationUnit::build_with_options(
                 source,
                 crate::compilation_unit::UnitBuildOptions {
                     registry,
                     defer_top_level: false,
-                    config: tcl_lexer::LexerConfig::default(),
+                    config: tcl_lexer::LexerConfig::for_dialect(
+                        dialect_owned.as_deref().unwrap_or_default(),
+                    ),
                     dialect: dialect_opt,
                     external_call_sites: None,
                 },

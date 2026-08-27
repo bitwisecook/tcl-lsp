@@ -32,7 +32,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use tcl_registry::CommandRegistry;
-use tcl_registry::dialects::DialectSet;
+use tcl_registry::model::semantic::SemanticContext;
 
 use crate::cfg::{CfgModule, Function as CfgFunction};
 use crate::cfg_builder::build_cfg;
@@ -710,7 +710,7 @@ impl FunctionUnit {
             complexity_guarded: false,
             base_offset: 0,
             method_facts: None,
-            semantic_facts: SemanticAnalysisBundle::unavailable(DialectSet::empty()),
+            semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
     }
 
@@ -738,7 +738,7 @@ impl FunctionUnit {
             complexity_guarded: true,
             base_offset: 0,
             method_facts: None,
-            semantic_facts: SemanticAnalysisBundle::unavailable(DialectSet::empty()),
+            semantic_facts: SemanticAnalysisBundle::unavailable(None),
         }
     }
 
@@ -789,15 +789,15 @@ impl FunctionUnit {
         u32::try_from((i64::from(pos) + self.base_offset).max(0)).unwrap_or(u32::MAX)
     }
 
-    /// Populate memory-SSA on demand under `dialect`. Returns `self` for
+    /// Populate memory-SSA on demand in `context`. Returns `self` for
     /// chaining.
     #[must_use]
     pub fn with_memory_ssa(
         mut self,
         registry: &tcl_registry::CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
     ) -> Self {
-        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry, dialect));
+        self.memory_ssa = Some(build_memory_ssa(&self.ssa, registry, context));
         self
     }
 
@@ -811,19 +811,19 @@ impl FunctionUnit {
     pub fn with_top_level_semantic_analysis(
         self,
         registry: &CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         script: &crate::ir::Script,
     ) -> Self {
         self.with_semantic_analysis(
             registry,
-            dialect,
+            context,
             Some(script),
             crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         )
     }
 
     /// Attach source-faithful, target-neutral semantic facts under an
-    /// explicitly selected dialect and dispatch entry contract.
+    /// explicitly resolved semantic context and dispatch entry contract.
     ///
     /// A missing source script remains an explicit unavailable state. A
     /// structured source shape outside the executable compatibility subset is
@@ -832,16 +832,16 @@ impl FunctionUnit {
     pub fn with_semantic_analysis(
         mut self,
         registry: &CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
         script: Option<&crate::ir::Script>,
         entry_assumption: crate::dispatch_proof::DispatchEntryAssumption,
     ) -> Self {
         self.semantic_facts = script.map_or_else(
-            || SemanticAnalysisBundle::unavailable(dialect),
+            || SemanticAnalysisBundle::unavailable(context),
             |script| {
                 SemanticAnalysisBundle::build_for_interactive_analysis(
                     registry,
-                    dialect,
+                    context,
                     script,
                     entry_assumption,
                 )
@@ -1094,26 +1094,26 @@ fn resolve_unit_scope(
     (call_sites, command_mutations, linkage)
 }
 
-/// The semantic-dialect bit a unit is filtered by: the *exact* bit the
-/// profile's own name parses to, deliberately not its `availability_mask`.
-/// The registry rows keyed by this describe the one dialect a document is,
-/// not the wider set of releases whose commands that dialect can reach
-/// (`f5-iapps` parses to `IAPPS` while its mask composes `TCL85|IAPPS`).
-/// `None` — the build named no dialect — selects nothing.
+/// The semantic context a unit's executable IR is resolved under: the
+/// environment the build's already-resolved profile names. `None` — the build
+/// named no dialect — carries no environment, and the semantic bundle records
+/// its `ContextUnavailable` decline rather than inventing one.
 ///
-/// Ledger C1: this is the last name→`DialectSet` projection in the unit
-/// build, kept because the semantic-facts bundle is still
-/// `DialectSet`-typed — it projects an already-resolved profile's
-/// canonical name, never a user-written string, so it is C1 plumbing
-/// rather than a name ingress (P1-G deleted those). It is `pub` so
-/// `tcl-lsp-db`'s per-item unit build reads the **same** projection
-/// instead of re-parsing the dialect name itself (P1-F wave 2); both
-/// retire when the bundle becomes declaration-keyed.
+/// **Ledger C1 / redesign §11.2 D1 — the re-key.** This replaces the retired
+/// `semantic_dialect_set` name→`DialectSet` projection, which selected the
+/// *exact* bit the profile's own name parsed to and therefore answered
+/// `DialectSet::empty()` (no executable facts at all) for every environment
+/// whose name owns no bit — the lenient `tcl` sink and the six EDA shells —
+/// and the bare vendor bit for the composite environments (`f5-iapps` parsed
+/// to `IAPPS` while its mask composes `TCL84|IAPPS`). The context's authoring
+/// mask is the environment's real one, which is what the deep-analysis and
+/// Explorer paths already passed, so the interactive path now agrees with
+/// them instead of seeing a narrower registry. It is `pub` so `tcl-lsp-db`'s
+/// per-item unit build reads the **same** projection instead of resolving the
+/// environment itself (P1-F wave 2).
 #[must_use]
-pub fn semantic_dialect_set(dialect: Option<&tcl_dialect::DialectProfile>) -> DialectSet {
-    dialect
-        .and_then(|profile| DialectSet::parse(profile.name))
-        .unwrap_or_else(DialectSet::empty)
+pub fn semantic_context(dialect: Option<&tcl_dialect::DialectProfile>) -> Option<SemanticContext> {
+    dialect.map(SemanticContext::for_profile)
 }
 
 /// Module-wide, read-only inputs [`build_procedure_units`] shares across
@@ -1262,7 +1262,7 @@ fn build_procedure_units(
         // world until a workspace-aware entry contract exists.
         fu = fu.with_semantic_analysis(
             ctx.registry,
-            semantic_dialect_set(ctx.dialect),
+            semantic_context(ctx.dialect),
             proc.map(|procedure| &procedure.body),
             crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
         );
@@ -1504,7 +1504,7 @@ impl CompilationUnit {
             traced_variables: &ir_module.traced_variables,
             has_dynamic_variable_trace: ir_module.has_dynamic_variable_trace,
         };
-        let semantic_dialect = semantic_dialect_set(dialect);
+        let semantic_context = semantic_context(dialect);
         let top_level = FunctionUnit::build_top_level(
             cfg_module.top_level.clone(),
             registry,
@@ -1512,7 +1512,7 @@ impl CompilationUnit {
             &top_level_extra_escaping,
             trace_facts,
         )
-        .with_top_level_semantic_analysis(registry, semantic_dialect, &ir_module.top_level);
+        .with_top_level_semantic_analysis(registry, semantic_context, &ir_module.top_level);
         let built = build_procedure_units(
             &ProcedureBuildContext {
                 ir_module: &ir_module,
@@ -1537,7 +1537,7 @@ impl CompilationUnit {
             &known_class_set,
             registry,
             trace_facts,
-            semantic_dialect,
+            semantic_context,
         );
         let body_units = Self::build_body_units(
             &ir_module,
@@ -1545,7 +1545,7 @@ impl CompilationUnit {
             &known_class_set,
             registry,
             trace_facts,
-            semantic_dialect,
+            semantic_context,
         );
         let connection_scope = Self::build_connection_scope(&procedures);
         Self::drop_cross_event_existence_folds(&mut procedures, connection_scope.as_ref());
@@ -1580,7 +1580,7 @@ impl CompilationUnit {
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
-        semantic_dialect: DialectSet,
+        semantic_context: Option<SemanticContext>,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.methods.is_empty() {
             return HashMap::new();
@@ -1649,7 +1649,7 @@ impl CompilationUnit {
                 }
                 .with_semantic_analysis(
                     registry,
-                    semantic_dialect,
+                    semantic_context,
                     Some(&method.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
@@ -1691,7 +1691,7 @@ impl CompilationUnit {
         known_class_set: &HashSet<String>,
         registry: &CommandRegistry,
         trace_facts: ModuleTraceFacts<'_>,
-        semantic_dialect: DialectSet,
+        semantic_context: Option<SemanticContext>,
     ) -> HashMap<String, FunctionUnit> {
         if ir_module.body_units.is_empty() {
             return HashMap::new();
@@ -1729,7 +1729,7 @@ impl CompilationUnit {
                 }
                 .with_semantic_analysis(
                     registry,
-                    semantic_dialect,
+                    semantic_context,
                     Some(&proc.body),
                     crate::dispatch_proof::DispatchEntryAssumption::UnknownWorld,
                 );
@@ -1916,12 +1916,12 @@ impl CompilationUnit {
     pub fn with_memory_ssa(
         mut self,
         registry: &tcl_registry::CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
     ) -> Self {
-        self.top_level = self.top_level.with_memory_ssa(registry, dialect);
+        self.top_level = self.top_level.with_memory_ssa(registry, context);
         let mut out: HashMap<String, FunctionUnit> = HashMap::with_capacity(self.procedures.len());
         for (k, fu) in self.procedures.drain() {
-            out.insert(k, fu.with_memory_ssa(registry, dialect));
+            out.insert(k, fu.with_memory_ssa(registry, context));
         }
         self.procedures = out;
         self
@@ -1939,47 +1939,47 @@ impl CompilationUnit {
     pub fn with_deep_semantic_analysis(
         mut self,
         registry: &tcl_registry::CommandRegistry,
-        dialect: DialectSet,
+        context: Option<SemanticContext>,
     ) -> Self {
         use crate::dispatch_proof::DispatchEntryAssumption;
         self.top_level.semantic_facts = SemanticAnalysisBundle::build(
             registry,
-            dialect,
+            context,
             &self.ir_module.top_level,
             DispatchEntryAssumption::PristineRegistryWorld,
         );
         for (name, unit) in &mut self.procedures {
             let Some(procedure) = self.ir_module.procedures.get(name) else {
-                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(context);
                 continue;
             };
             unit.semantic_facts = SemanticAnalysisBundle::build(
                 registry,
-                dialect,
+                context,
                 &procedure.body,
                 DispatchEntryAssumption::UnknownWorld,
             );
         }
         for (name, unit) in &mut self.methods {
             let Some(method) = self.ir_module.methods.get(name) else {
-                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(context);
                 continue;
             };
             unit.semantic_facts = SemanticAnalysisBundle::build(
                 registry,
-                dialect,
+                context,
                 &method.body,
                 DispatchEntryAssumption::UnknownWorld,
             );
         }
         for (name, unit) in &mut self.body_units {
             let Some(body) = self.ir_module.body_units.get(name) else {
-                unit.semantic_facts = SemanticAnalysisBundle::unavailable(dialect);
+                unit.semantic_facts = SemanticAnalysisBundle::unavailable(context);
                 continue;
             };
             unit.semantic_facts = SemanticAnalysisBundle::build(
                 registry,
-                dialect,
+                context,
                 &body.body,
                 DispatchEntryAssumption::UnknownWorld,
             );
@@ -2233,6 +2233,10 @@ pub fn decode_param_constants(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_context() -> SemanticContext {
+        SemanticContext::for_environment("tcl8.6")
+    }
 
     fn registry() -> CommandRegistry {
         CommandRegistry::build_default()
@@ -2595,7 +2599,7 @@ mod tests {
     #[test]
     fn with_memory_ssa_populates_optional() {
         let cu = CompilationUnit::build_for("set x 1", &registry(), false)
-            .with_memory_ssa(&registry(), DialectSet::TCL86);
+            .with_memory_ssa(&registry(), Some(test_context()));
         assert!(cu.top_level.memory_ssa.is_some());
     }
 
@@ -2608,7 +2612,7 @@ mod tests {
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         );
         let facts = &linear.top_level.semantic_facts;
-        assert_eq!(facts.dialect(), DialectSet::TCL86);
+        assert_eq!(facts.context(), Some(test_context()));
         let executable = facts.executable();
         assert_eq!(executable.invocations().count(), 1);
         assert!(executable.world_state_ssa().is_none());
@@ -2633,7 +2637,7 @@ mod tests {
         let ir = crate::lowering::lower_to_ir("puts hello", &registry());
         let explicit = crate::semantic_analysis::SemanticAnalysisBundle::build(
             &registry(),
-            DialectSet::TCL86,
+            Some(test_context()),
             &ir.top_level,
             crate::dispatch_proof::DispatchEntryAssumption::PristineRegistryWorld,
         );
@@ -2642,9 +2646,7 @@ mod tests {
         let legacy = CompilationUnit::build_for("puts hello", &registry(), false);
         assert!(matches!(
             legacy.top_level.semantic_facts.executable(),
-            crate::semantic_analysis::ExecutableAnalysisAvailability::DialectUnavailable {
-                dialect
-            } if *dialect == DialectSet::empty()
+            crate::semantic_analysis::ExecutableAnalysisAvailability::ContextUnavailable
         ));
     }
 
@@ -2656,7 +2658,7 @@ mod tests {
             false,
             tcl_registry::model::ingress::resolve_environment("tcl8.6").analyser_profile(),
         )
-        .with_deep_semantic_analysis(&registry(), DialectSet::TCL86);
+        .with_deep_semantic_analysis(&registry(), Some(test_context()));
         // The top-level source contains a structural `namespace eval` whose
         // completion switch is not yet representable by the common world-SSA
         // planner. Deep inspection must still retain executable facts and the

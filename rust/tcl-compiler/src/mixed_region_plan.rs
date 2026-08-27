@@ -1069,7 +1069,7 @@ pub enum MixedPlanValidationError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tcl_registry::dialects::DialectSet;
+    use tcl_registry::model::semantic::SemanticContext;
     use tcl_registry::{CommandRegistry, StateTransitionKnowledge};
 
     use crate::executable_ir::{ExecutableFunctionId, build_linear_executable_ir};
@@ -1080,7 +1080,7 @@ mod tests {
         let module = lower_to_ir(source, &registry);
         build_linear_executable_ir(
             &registry,
-            DialectSet::TCL90,
+            Some(SemanticContext::for_environment("tcl9.0")),
             ExecutableFunctionId::new(id),
             &module.top_level,
         )

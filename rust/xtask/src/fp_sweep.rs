@@ -502,13 +502,17 @@ fn sweep_document(doc: &SweepDocument, wanted: &[DiagCode], out: &mut Vec<Firing
         });
     };
 
-    // (1) Analyser tail.
+    // (1) Analyser tail. The document's own environment grammar — the same
+    // config every other `cu_override` host builds under, and the same one the
+    // checks pass below uses (redesign §11.4 row E1: all four hosts used to
+    // agree on `LexerConfig::default()`, which was wrong for every non-9.x
+    // dialect).
     let analysis_cu = Arc::new(CompilationUnit::build_with_options(
         &doc.input.source,
         UnitBuildOptions {
             registry,
             defer_top_level: false,
-            config: tcl_lexer::LexerConfig::default(),
+            config: tcl_lexer::LexerConfig::for_dialect(dialect),
             dialect: tcl_lsp_core::optional_profile_for_dialect(dialect),
             external_call_sites: None,
         },

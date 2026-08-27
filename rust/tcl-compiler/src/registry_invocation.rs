@@ -22,10 +22,12 @@
 //! semantic IR proves it literal. This module centralises that conversion for
 //! every common compiler pass: executable IR, memory SSA, and later shared
 //! analyses all resolve exactly the same structured [`WordExpr`] facts under
-//! an explicitly supplied dialect profile.
+//! an explicitly supplied [`SemanticContext`] — the resolved environment the
+//! document is assisted under (ledger C1 / redesign §11.2 D1; the retired
+//! `DialectSet` mask argument is gone).
 
 use tcl_dialect::EscapeSyntax;
-use tcl_registry::dialects::DialectSet;
+use tcl_registry::model::semantic::{SemanticContext, resolve_structured_invocation_in_context};
 use tcl_registry::{
     CommandRegistry, InvocationFacts, InvocationResolutionUnresolved, InvocationWord,
     InvocationWordKind, InvocationWords,
@@ -251,23 +253,28 @@ pub fn segmented_command_arguments(command: &SegmentedCommand) -> Vec<Invocation
         .collect()
 }
 
-/// Resolve semantic source words through the registry under `dialect`.
+/// Resolve semantic source words through the registry in `context`.
 ///
 /// The borrowed registry resolution is materialised immediately into owned
 /// facts or an owned typed unresolved outcome, making this suitable for
 /// common IR and analysis state.
+///
+/// `context` is `None` for a caller that carries no environment (a unit
+/// harness, a shape-only query); the selection is then dialect-blind, exactly
+/// as the retired `DialectSet::empty()` argument behaved.
 pub fn resolve_word_exprs(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     words: &[WordExpr],
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
     let Some((head, arguments)) = words.split_first() else {
         return Err(RegistryInvocationDecline::MissingCommandHead);
     };
     let arguments: Vec<_> = arguments.iter().map(invocation_word).collect();
-    let resolution = registry.resolve_structured_invocation(
+    let resolution = resolve_structured_invocation_in_context(
+        registry,
+        context,
         InvocationWords::structured(invocation_word(head), &arguments),
-        dialect,
     );
     if let Some(resolved) = resolution.resolved() {
         return Ok(RegistryInvocationResolution::Resolved(Box::new(
@@ -290,10 +297,10 @@ pub fn resolve_word_exprs(
 /// subcommand values.
 pub fn resolve_command_tokens(
     registry: &CommandRegistry,
-    dialect: DialectSet,
+    context: Option<SemanticContext>,
     tokens: &CommandTokens,
 ) -> Result<RegistryInvocationResolution, RegistryInvocationDecline> {
-    resolve_word_exprs(registry, dialect, tokens.words())
+    resolve_word_exprs(registry, context, tokens.words())
 }
 
 #[cfg(test)]
@@ -303,6 +310,10 @@ mod tests {
 
     use crate::ir::{SourceSite, WordOpacity};
     use crate::segmenter::segment_commands;
+
+    fn test_context() -> SemanticContext {
+        SemanticContext::for_environment("tcl8.6")
+    }
 
     fn literal(text: &str) -> WordExpr {
         WordExpr::Literal {
@@ -314,9 +325,12 @@ mod tests {
     #[test]
     fn literal_words_materialise_registry_transition_facts() {
         let words = [literal("global"), literal("::shared")];
-        let resolution =
-            resolve_word_exprs(&CommandRegistry::build_default(), DialectSet::TCL86, &words)
-                .expect("literal command has a registry outcome");
+        let resolution = resolve_word_exprs(
+            &CommandRegistry::build_default(),
+            Some(test_context()),
+            &words,
+        )
+        .expect("literal command has a registry outcome");
 
         let RegistryInvocationResolution::Resolved(facts) = resolution else {
             panic!("literal global must resolve");
@@ -388,7 +402,7 @@ mod tests {
         ];
         let RegistryInvocationResolution::Resolved(dynamic_facts) = resolve_word_exprs(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             &dynamic,
         )
         .expect("dynamic global has a registry outcome") else {
@@ -419,7 +433,7 @@ mod tests {
         ];
         let RegistryInvocationResolution::Resolved(expanded_facts) = resolve_word_exprs(
             &CommandRegistry::build_default(),
-            DialectSet::TCL86,
+            Some(test_context()),
             &expanded,
         )
         .expect("expanded proc has a registry outcome") else {
@@ -443,7 +457,11 @@ mod tests {
             source: SourceSite::source(tcl_lexer::Span::new(0, 0)),
         }];
         assert!(matches!(
-            resolve_word_exprs(&CommandRegistry::build_default(), DialectSet::TCL86, &words,),
+            resolve_word_exprs(
+                &CommandRegistry::build_default(),
+                Some(test_context()),
+                &words,
+            ),
             Ok(RegistryInvocationResolution::Unresolved(
                 OwnedInvocationResolutionUnresolved::ComputedHead {
                     word_kind: InvocationWordKind::Dynamic,

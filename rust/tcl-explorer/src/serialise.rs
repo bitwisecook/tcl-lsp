@@ -1038,7 +1038,7 @@ fn serialise_world_invocations(availability: &ExecutableAnalysisAvailability) ->
 
 fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static str {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::ContextUnavailable => "context-unavailable",
         ExecutableAnalysisAvailability::Available(_) => "available",
         ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
         ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
@@ -1049,7 +1049,7 @@ fn availability_kind(availability: &ExecutableAnalysisAvailability) -> &'static 
 
 fn availability_reason_kind(availability: &ExecutableAnalysisAvailability) -> Option<&'static str> {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { .. }
+        ExecutableAnalysisAvailability::ContextUnavailable
         | ExecutableAnalysisAvailability::Available(_)
         | ExecutableAnalysisAvailability::WorldStateNotRequired { .. }
         | ExecutableAnalysisAvailability::SourceUnavailable => None,
@@ -1670,7 +1670,7 @@ fn semantic_status(availability: &ExecutableAnalysisAvailability) -> &'static st
         ExecutableAnalysisAvailability::Available(_) => "available",
         ExecutableAnalysisAvailability::WorldStateDeclined { .. } => "world-state-declined",
         ExecutableAnalysisAvailability::WorldStateNotRequired { .. } => "world-state-not-required",
-        ExecutableAnalysisAvailability::DialectUnavailable { .. } => "dialect-unavailable",
+        ExecutableAnalysisAvailability::ContextUnavailable => "context-unavailable",
         ExecutableAnalysisAvailability::SourceDeclined(_) => "source-declined",
         ExecutableAnalysisAvailability::SourceUnavailable => "source-unavailable",
     }
@@ -1738,8 +1738,11 @@ fn source_decline_value(
 
 fn semantic_decline_value(availability: &ExecutableAnalysisAvailability) -> Option<Value> {
     match availability {
-        ExecutableAnalysisAvailability::DialectUnavailable { dialect } => {
-            Some(json!({"kind": "dialect-unavailable", "dialect": dialect.canonical_name()}))
+        // The re-keyed sidecar (ledger C1 / §11.2 D1) reaches this state by
+        // carrying no resolved environment at all, so there is no mask left to
+        // name in the payload.
+        ExecutableAnalysisAvailability::ContextUnavailable => {
+            Some(json!({"kind": "context-unavailable"}))
         }
         ExecutableAnalysisAvailability::WorldStateDeclined { decline, .. } => Some(
             json!({"kind": "world-state-declined", "reason": world_state_decline_label(decline)}),
@@ -2248,8 +2251,8 @@ pub fn serialise_bounds(result: &ExplorerResult) -> Value {
                 &snap.unit.sccp.executable_blocks,
                 snap.unit
                     .semantic_facts
-                    .dialect()
-                    .canonical_name()
+                    .context()
+                    .map(tcl_registry::model::semantic::SemanticContext::environment_id)
                     .and_then(crate::environment::catalogue_profile_for_dialect)
                     .and_then(tcl_dialect::DialectProfile::character_model),
             )

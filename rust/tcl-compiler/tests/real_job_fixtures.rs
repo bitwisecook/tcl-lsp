@@ -10,8 +10,8 @@
 use tcl_compiler::codegen::wasm::{WasmCompileOptions, compile_wasm};
 use tcl_compiler::compilation_unit::CompilationUnit;
 use tcl_compiler::lowering::lower_to_ir;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::model::ingress::static_context_for;
+use tcl_registry::model::semantic::SemanticContext;
 
 const SQAWK_ASSEMBLE: &str = include_str!("fixtures/real_jobs/sqawk/assemble.tcl");
 const ODO_CHECKSUM: &str = include_str!("fixtures/real_jobs/odo-miner/checksum.tcl");
@@ -48,8 +48,8 @@ fn real_jobs_lower_and_keep_semantics_around_opaque_regions() {
 
         let unit = CompilationUnit::build_for_dialect(fixture.source, registry, false, "tcl8.6");
         assert_eq!(
-            unit.top_level.semantic_facts.dialect(),
-            DialectSet::TCL86,
+            unit.top_level.semantic_facts.context(),
+            Some(SemanticContext::for_environment("tcl8.6")),
             "{} must retain the explicitly selected profile",
             fixture.name,
         );

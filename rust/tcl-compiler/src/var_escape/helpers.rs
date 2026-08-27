@@ -36,7 +36,6 @@ use std::sync::OnceLock;
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::InvocationFacts;
-use tcl_registry::dialects::DialectSet;
 use tcl_registry::prelude::Traits;
 
 use crate::ir::{CommandTokens, Statement};
@@ -117,10 +116,14 @@ pub(crate) fn invocation_facts_from_tokens(
     tokens: &CommandTokens,
     registry: &CommandRegistry,
 ) -> Option<Box<InvocationFacts>> {
-    let dialect = registry
+    // The store's own profile *is* an already-resolved environment id, so
+    // this is the id-keyed context for the registry the caller handed us
+    // (ledger C1 re-key; the retired form projected the profile's
+    // `availability_mask`, which the context's authoring mask reproduces).
+    let context = registry
         .profile()
-        .map_or_else(DialectSet::empty, |profile| profile.availability_mask);
-    match resolve_command_tokens(registry, dialect, tokens).ok()? {
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile);
+    match resolve_command_tokens(registry, context, tokens).ok()? {
         RegistryInvocationResolution::Resolved(facts) => Some(facts),
         RegistryInvocationResolution::Unresolved(_) => None,
     }

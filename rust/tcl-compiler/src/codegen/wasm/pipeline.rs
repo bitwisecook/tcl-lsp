@@ -229,8 +229,8 @@ impl WasmPackagingConstraint {
 /// Typed common-IR availability reasons retained by the canonical pipeline.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WasmExecutableAvailabilityDecline {
-    /// No single registry dialect could be selected for executable analysis.
-    DialectUnavailable,
+    /// No resolved environment was carried for executable analysis.
+    ContextUnavailable,
     /// The source compatibility bridge declined with its precise reason.
     Source(SourceCompatibilityDecline),
     /// The compilation unit did not retain a source script for this function.
@@ -242,7 +242,7 @@ impl WasmExecutableAvailabilityDecline {
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         match self {
-            Self::DialectUnavailable => "dialect-unavailable",
+            Self::ContextUnavailable => "context-unavailable",
             Self::Source(_) => "source-shape-declined",
             Self::SourceUnavailable => "source-unavailable",
         }
@@ -252,7 +252,7 @@ impl WasmExecutableAvailabilityDecline {
     #[must_use]
     pub const fn detail_kind(&self) -> &'static str {
         match self {
-            Self::DialectUnavailable => "dialect-unavailable",
+            Self::ContextUnavailable => "context-unavailable",
             Self::Source(SourceCompatibilityDecline::EmptyScript) => "empty-script",
             Self::Source(SourceCompatibilityDecline::UnsupportedStatement { .. }) => {
                 "unsupported-statement"
@@ -576,7 +576,7 @@ fn select_native_i64_add_plan(
     let common = CommonAotProofPlan::build(
         unit,
         registry,
-        unit.top_level.semantic_facts.dialect(),
+        unit.top_level.semantic_facts.context(),
         config,
         options.common_aot_environment(),
     );
@@ -799,8 +799,8 @@ fn select_semantic_plan(
     let availability = unit.top_level.semantic_facts.executable();
     let function = availability.function().ok_or_else(|| {
         WasmSemanticDecline::ExecutableUnavailable(match availability {
-            ExecutableAnalysisAvailability::DialectUnavailable { .. } => {
-                WasmExecutableAvailabilityDecline::DialectUnavailable
+            ExecutableAnalysisAvailability::ContextUnavailable => {
+                WasmExecutableAvailabilityDecline::ContextUnavailable
             }
             ExecutableAnalysisAvailability::SourceDeclined(decline) => {
                 WasmExecutableAvailabilityDecline::Source(decline.clone())

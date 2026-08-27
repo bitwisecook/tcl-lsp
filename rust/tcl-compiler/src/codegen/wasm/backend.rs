@@ -1513,7 +1513,7 @@ fn function_facts(
                 && mutations.trusts(bare)
                 && let Some(tokens) = tokens
                 && let Ok(RegistryInvocationResolution::Resolved(invocation)) =
-                    resolve_command_tokens(registry, unit.semantic_facts.dialect(), tokens)
+                    resolve_command_tokens(registry, unit.semantic_facts.context(), tokens)
             {
                 facts
                     .operations
@@ -1528,7 +1528,7 @@ fn function_facts(
                     &mut facts,
                     &mut planned_spans,
                     registry,
-                    unit.semantic_facts.dialect(),
+                    unit.semantic_facts.context(),
                     statement.span(),
                     tokens.as_ref(),
                 );
@@ -1595,7 +1595,7 @@ fn plan_leaf_statement(
     facts: &mut FunctionFacts,
     planned_spans: &mut HashSet<(u32, u32)>,
     registry: &CommandRegistry,
-    dialect: tcl_registry::dialects::DialectSet,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
     span: Span,
     tokens: Option<&crate::ir::CommandTokens>,
 ) {
@@ -1613,7 +1613,7 @@ fn plan_leaf_statement(
             .insert(key, WasmLeafInvokeDecline::MissingCommandTokens);
         return;
     };
-    let resolution = resolve_command_tokens(registry, dialect, tokens);
+    let resolution = resolve_command_tokens(registry, context, tokens);
     let resolved = match &resolution {
         Ok(RegistryInvocationResolution::Resolved(invocation)) => Some(invocation.as_ref()),
         _ => None,

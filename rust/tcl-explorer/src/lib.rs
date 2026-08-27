@@ -210,14 +210,19 @@ pub fn run_pipeline(source: &str, dialect: &str) -> ExplorerResult {
     // (upvar / global / variable / namespace upvar). Without it the
     // `aliases` list degrades to empty.
     let profile = environment::profile_for_dialect(dialect);
+    // Ledger C1: one resolved environment for the whole deep-inspection
+    // build, where the retired form passed `profile.availability_mask`.
+    let semantic_context = Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+        profile,
+    ));
     let unit = CompilationUnit::build_for_profile(source, registry, false, profile)
         .with_interprocedural(registry, Some(profile))
-        .with_memory_ssa(registry, profile.availability_mask)
+        .with_memory_ssa(registry, semantic_context)
         // The ordinary compiler path builds world SSA only when interactive
         // GVN can consume it. Explorer is an explicit inspection surface, so
         // it asks for the complete source-faithful sidecar and displays typed
         // declines rather than silently presenting an empty graph.
-        .with_deep_semantic_analysis(registry, profile.availability_mask);
+        .with_deep_semantic_analysis(registry, semantic_context);
 
     ExplorerResult {
         source: source.to_owned(),

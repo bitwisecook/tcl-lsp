@@ -43,6 +43,11 @@
 //!   Tcl-core floor, all read out of the bundled tcllib 2.0 sources. This
 //!   is what makes a tcllib module a package with its own axis rather
 //!   than a name on one undifferentiated "tcllib" blob.
+//! - [`semantic`] — [`SemanticContext`]: the generation-bound handle the
+//!   semantic-analysis and executable-IR path is keyed on (ledger C1,
+//!   redesign §11.2 D1), and
+//!   [`resolve_structured_invocation_in_context`], the structured-words
+//!   face of the C7/I4 selection primitive.
 //! - [`binding`] — the [`BindingKnowledge`] **semantic view** types
 //!   (I3–I5) plus the package realm vocabulary
 //!   ([`PackageStateMap`], [`PackageTransition`]). P1a integrated the
@@ -60,6 +65,7 @@ pub mod binding;
 pub mod context;
 pub mod ingress;
 pub mod registration;
+pub mod semantic;
 pub mod surface;
 pub mod tcllib;
 
@@ -79,6 +85,7 @@ pub use ingress::{
     is_known_environment_name, resolve_environment, resolve_known_environment, static_context_for,
     static_context_for_profile, static_document_context_for, static_document_context_for_profile,
 };
+pub use semantic::{SemanticContext, resolve_structured_invocation_in_context};
 pub use tcllib::{TCLLIB_MODULES, TcllibModule, module_version_set, tcllib_module};
 
 pub use registration::{

@@ -493,7 +493,10 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // Aliasing facts depend on the selected registry profile. Without an
     // explicit profile this optimisation cannot prove its alias safety gate,
     // so it abstains rather than interpreting every dialect at once.
-    let Some(dialect) = ctx.dialect.map(|profile| profile.availability_mask) else {
+    let Some(context) = ctx
+        .dialect
+        .map(tcl_registry::model::semantic::SemanticContext::for_profile)
+    else {
         return;
     };
 
@@ -502,7 +505,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
     // fall back to a direct alias computation.
     let aliased: BTreeSet<String> = match &fu.memory_ssa {
         Some(m) => m.aliased_names(),
-        None => compute_aliases(&fu.ssa, registry, dialect)
+        None => compute_aliases(&fu.ssa, registry, Some(context))
             .iter()
             .flat_map(crate::memory_ssa::AliasSet::names)
             .collect(),
@@ -529,7 +532,7 @@ fn run_store_to_load_forwarding(ctx: &mut PassContext<'_>, fu: &FunctionUnit) {
         ctx,
         fu,
         registry,
-        dialect,
+        context: Some(context),
         aliased: &aliased,
         traced: &traced,
         has_dynamic_trace,
@@ -573,7 +576,7 @@ struct ForwardEnv<'a> {
     ctx: &'a PassContext<'a>,
     fu: &'a FunctionUnit,
     registry: &'a tcl_registry::CommandRegistry,
-    dialect: tcl_registry::dialects::DialectSet,
+    context: Option<tcl_registry::model::semantic::SemanticContext>,
     aliased: &'a std::collections::BTreeSet<String>,
     traced: &'a std::collections::BTreeSet<String>,
     has_dynamic_trace: bool,
@@ -736,7 +739,7 @@ fn has_non_endpoint_wildcard_aliasing(
                 && crate::memory_ssa::statement_has_wildcard_aliasing(
                     &statement.statement,
                     env.registry,
-                    env.dialect,
+                    env.context,
                 )
         })
     })

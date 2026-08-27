@@ -200,17 +200,11 @@ fn main() {
     println!("\n== 2b gate: warm duplicate-build cost (function_lattice cache hot) ==");
     {
         const DUP_ITERS: u32 = 5;
-        let cfg_d = tcl_lexer::LexerConfig::for_dialect(dialect);
         // Warm the shared build (populates function_lattice / taint_cascade) on the
         // *edited* text, mirroring the per-edit state proc_taint_solve runs in.
         file.set_text(&mut db).to(edited.clone());
         let _ = compiler_check_diagnostics(&db, file, cfg);
-        let cfg_key = LexerCfgKey::new(
-            &db,
-            cfg_d.expand_syntax,
-            cfg_d.irules_brace_separator,
-            cfg_d.brace_line_continuation,
-        );
+        let cfg_key = LexerCfgKey::new(&db, dialect.to_owned());
         let mut dup_files = (0..DUP_ITERS)
             .map(|_| SourceFile::new(&db, edited.clone(), dialect.to_owned(), None))
             .collect::<Vec<_>>()

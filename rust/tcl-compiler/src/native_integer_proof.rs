@@ -943,7 +943,7 @@ fn parse_caller_integer(
 mod tests {
     use super::*;
     use crate::common_aot_plan::CommonAotEnvironment;
-    use tcl_registry::dialects::DialectSet;
+    use tcl_registry::model::semantic::SemanticContext;
 
     fn prove(
         source: &str,
@@ -956,7 +956,7 @@ mod tests {
         let plan = CommonAotProofPlan::build(
             &unit,
             registry,
-            DialectSet::parse(dialect.name).expect("test dialect"),
+            Some(SemanticContext::for_profile(dialect)),
             optimisations,
             CommonAotEnvironment::Hosted,
         );

@@ -1707,7 +1707,7 @@ pub fn function_lattice<'db>(db: &'db dyn TclDb, key: FnLatticeKey<'db>) -> Arc<
         )
         .with_semantic_analysis(
             registry,
-            tcl_compiler::compilation_unit::semantic_dialect_set(
+            tcl_compiler::compilation_unit::semantic_context(
                 tcl_lsp_core::optional_profile_for_dialect(key.dialect(db)),
             ),
             Some(key.body(db)),
@@ -1746,14 +1746,6 @@ pub struct ProcBodyKey<'db> {
     pub namespace: String,
     #[returns(ref)]
     pub dialect: String,
-    /// The dialect-varying [`tcl_lexer::LexerConfig`] fields (see
-    /// [`LexerCfgKey`]); the rest are the invariant defaults both consumers use.
-    #[returns(copy)]
-    pub expand_syntax: bool,
-    #[returns(copy)]
-    pub irules_brace_separator: bool,
-    #[returns(copy)]
-    pub brace_line_continuation: tcl_lexer::BraceLineContinuation,
 }
 
 /// Memoised offset-0 isolated lowering of one top-level `proc` body
@@ -1766,12 +1758,10 @@ pub struct ProcBodyKey<'db> {
 #[salsa::tracked(lru = 512, returns(clone))]
 pub fn lower_proc_body<'db>(db: &'db dyn TclDb, key: ProcBodyKey<'db>) -> Arc<Script> {
     let registry = db.registry(key.dialect(db));
-    let config = tcl_lexer::LexerConfig {
-        expand_syntax: key.expand_syntax(db),
-        irules_brace_separator: key.irules_brace_separator(db),
-        brace_line_continuation: key.brace_line_continuation(db),
-        ..tcl_lexer::LexerConfig::default()
-    };
+    // The body's own environment grammar — the key already carries the
+    // dialect, so the three truncated `LexerConfig` fields the key used to
+    // duplicate are derived rather than interned (redesign §11.4 E1).
+    let config = tcl_lexer::LexerConfig::for_dialect(key.dialect(db));
     Arc::new(tcl_compiler::lowering::lower_proc_body_isolated(
         key.body_text(db),
         key.namespace(db),
@@ -1839,9 +1829,7 @@ fn build_unit_with_keys<'db>(
     source: &str,
     options: UnitBuildOptions<'_>,
 ) -> (CompilationUnit, HashMap<String, FnLatticeKey<'db>>) {
-    let UnitBuildOptions {
-        registry, config, ..
-    } = options;
+    let UnitBuildOptions { registry, .. } = options;
     let dialect = options.dialect;
     // Salsa keys own their fields, so the memo identity is the profile's
     // canonical *name*. Unknown ingress names all resolve to the plain-Tcl
@@ -1933,9 +1921,6 @@ fn build_unit_with_keys<'db>(
                 body_text.to_owned(),
                 namespace.to_owned(),
                 dialect_key.to_owned(),
-                config.expand_syntax,
-                config.irules_brace_separator,
-                config.brace_line_continuation,
             );
             (*lower_proc_body(db, key)).clone()
         };
@@ -3030,58 +3015,57 @@ fn top_level_only_unit(
     }
 }
 
-/// Interned identity of the [`tcl_lexer::LexerConfig`] fields this key
-/// carries, the salsa key that lets the two diagnostics consumers *share* one
-/// built [`CompilationUnit`].  The call-site knobs (`strict_quoting = false`,
-/// zero base offsets) are genuinely the default on both paths.
+/// Interned identity of the lexer grammar a [`compilation_unit`] build lexes
+/// under: **the resolved environment id**, not an expanded
+/// [`tcl_lexer::LexerConfig`].  The call-site knobs (`strict_quoting = false`,
+/// zero base offsets) are genuinely the default on every path.
 ///
-/// **This key is a deliberate truncation and it is a known defect.**
-/// [`LexerConfig::from_grammar`] sets six dialect-derived fields; this key
-/// interns three of them (`expand_syntax`, `irules_brace_separator`,
-/// `brace_line_continuation`) and `to_config` restores the rest
-/// from [`LexerConfig::default`] — so on the memoised path `braced_var` is
-/// always `Tcl9Nesting`, `escapes` always `Tcl90`, and `leading_bom` always
-/// `Content`, whatever the document's dialect says.  An 8.x document
-/// therefore lexes `${a{b}c}` under the 9.0 close rule here.  Widening the
-/// key is mechanical but changes *which* dialects share a build per edit, so
-/// it is a behaviour-plus-performance change; it is tracked as defect 1 of
-/// `docs/design/dialect-and-package-registry-redesign.md` §9 and gated on
-/// ledger C1 (the interned `DialectProfile` re-type) in that document's §11.
+/// **This closes redesign §11.4 row E1.** The key used to intern three of the
+/// six dialect-derived `LexerConfig` fields (`expand_syntax`,
+/// `irules_brace_separator`, `brace_line_continuation`) and let `to_config`
+/// restore the rest from [`tcl_lexer::LexerConfig::default`] — so on the
+/// memoised path `braced_var` was always `Tcl9Nesting` and `escapes` always
+/// `Tcl90`, whatever the document's dialect said, and a `tcl8.6` document
+/// lexed `${a{b}c}` under the 9.0 close rule.  Keying on the environment id
+/// instead of the expanded fields makes `to_config` name
+/// [`tcl_lexer::LexerConfig::for_dialect`] itself, so every field is the
+/// document's.
 ///
-/// For the three fields it does carry, the two configs **coincide for every
-/// dialect except `tcl8.4` and the three `f5-tcl`-grammar dialects**, so for
-/// the common case both consumers intern the same key and demand the same
-/// [`compilation_unit`] — built once per edit instead of twice.
+/// **And it keeps the sharing**, which widening the tuple would have cost:
+/// with all four hosts of the CFG/SSA tail's unit (this crate's
+/// [`analyse_per_item_with`], `Analyser::emit_cfg_ssa_diagnostics`'s own
+/// build, `tcl diag`'s `collect_rows`, and `xtask fp_sweep`) lexing under the
+/// document's environment, both diagnostics consumers intern the **same** id
+/// for a document and demand one [`compilation_unit`] build per edit — for
+/// every environment, where the truncated tuple shared for 15 of the 20 and
+/// built twice for the other five.
 #[salsa::interned]
 pub struct LexerCfgKey<'db> {
-    #[returns(copy)]
-    pub expand_syntax: bool,
-    #[returns(copy)]
-    pub irules_brace_separator: bool,
-    #[returns(copy)]
-    pub brace_line_continuation: tcl_lexer::BraceLineContinuation,
+    /// The resolved environment id (`tcl8.6`, `f5-irules`, …) whose grammar
+    /// this build lexes under.
+    #[returns(ref)]
+    pub environment: String,
 }
 
 impl LexerCfgKey<'_> {
-    /// The full [`tcl_lexer::LexerConfig`] this key represents (the
-    /// interned fields + the invariant defaults both diagnostics paths use).
+    /// The full [`tcl_lexer::LexerConfig`] this key represents: the
+    /// environment's own grammar plus the invariant call-site knobs.
     fn to_config(self, db: &dyn TclDb) -> tcl_lexer::LexerConfig {
-        tcl_lexer::LexerConfig {
-            expand_syntax: self.expand_syntax(db),
-            irules_brace_separator: self.irules_brace_separator(db),
-            brace_line_continuation: self.brace_line_continuation(db),
-            ..tcl_lexer::LexerConfig::default()
-        }
+        tcl_lexer::LexerConfig::for_dialect(self.environment(db))
     }
 }
 
-/// Intern a [`LexerCfgKey`] from a concrete [`tcl_lexer::LexerConfig`].
-fn lexer_cfg_key(db: &dyn TclDb, config: tcl_lexer::LexerConfig) -> LexerCfgKey<'_> {
+/// Intern a [`LexerCfgKey`] for the environment `dialect` names.
+///
+/// The name is resolved through the one dialect-name ingress seam first, so
+/// an alias (`irules`) and its canonical id (`f5-irules`) share one key and
+/// one build rather than interning two.
+fn lexer_cfg_key<'db>(db: &'db dyn TclDb, dialect: &str) -> LexerCfgKey<'db> {
     LexerCfgKey::new(
         db,
-        config.expand_syntax,
-        config.irules_brace_separator,
-        config.brace_line_continuation,
+        tcl_registry::model::ingress::resolve_environment(dialect)
+            .id()
+            .to_owned(),
     )
 }
 
@@ -3153,13 +3137,14 @@ pub fn file_analysis_incremental(
 
     // Build the CFG/SSA tail's compilation unit with per-procedure lattices
     // memoised by `function_lattice`, and feed it through the analyser's
-    // `cu_override` seam, via the shared [`compilation_unit`] query.  The default
-    // lexer config mirrors what `emit_cfg_ssa_diagnostics` builds for itself, so
-    // the supplied unit is the one it would otherwise build; routing through the
-    // tracked query lets `compiler_check_diagnostics` reuse this exact build in
-    // the same edit whenever the dialect's config matches the default (every
-    // dialect but `tcl8.4` and the three `f5-tcl`-grammar dialects).
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::default());
+    // `cu_override` seam, via the shared [`compilation_unit`] query.  The
+    // document's own environment grammar mirrors what
+    // `emit_cfg_ssa_diagnostics` builds for itself, so the supplied unit is
+    // the one it would otherwise build; routing through the tracked query lets
+    // `compiler_check_diagnostics` reuse this exact build in the same edit —
+    // now for *every* environment, because both consumers intern the same
+    // environment id (redesign §11.4 E1).
+    let cfg_key = lexer_cfg_key(db, &dialect);
     analyser.set_cu_override(compilation_unit(db, file, cfg_key));
 
     let mut body_fn = |body: &DeferredBody| -> BodyFragment {
@@ -3252,7 +3237,7 @@ pub fn compiler_check_diagnostics(
     // dialect's lexer config matches the default (every dialect but `tcl8.4` /
     // `f5-irules`): the optimiser lowers with the dialect config, so a matching
     // config interns the same `LexerCfgKey` and reuses the same per-edit build.
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(&dialect));
+    let cfg_key = lexer_cfg_key(db, &dialect);
     let cu = compilation_unit(db, file, cfg_key);
     // Both halves of `run_all_checks` come from the memoised [`proc_taint_solve`]:
     // the interprocedural taint solve (`solve.taints`)
@@ -3338,7 +3323,7 @@ pub fn document_symbols(
 // LRU-capped: per-file key, see the crate docs' "Deep-memo eviction".
 #[salsa::tracked(lru = 64, returns(clone))]
 pub fn document_compilation_unit(db: &dyn TclDb, file: SourceFile) -> Arc<CompilationUnit> {
-    let cfg_key = lexer_cfg_key(db, tcl_lexer::LexerConfig::for_dialect(file.dialect(db)));
+    let cfg_key = lexer_cfg_key(db, file.dialect(db));
     compilation_unit(db, file, cfg_key)
 }
 
@@ -3702,7 +3687,7 @@ mod tests {
         const SRC: &str = "proc alpha {a b} {\n    set s [expr {$a + $b}]\n    return $s\n}\n\
                            proc beta {x} {\n    return [alpha $x 1]\n}\n";
         let db = TclDatabase::default();
-        let cfg_key = lexer_cfg_key(&db, tcl_lexer::LexerConfig::default());
+        let cfg_key = lexer_cfg_key(&db, "tcl8.6");
         let file_a = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let file_b = SourceFile::new(&db, SRC.to_owned(), "tcl8.6".to_owned(), None);
         let first = compilation_unit(&db, file_a, cfg_key);

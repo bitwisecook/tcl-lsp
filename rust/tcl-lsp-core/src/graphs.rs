@@ -1031,7 +1031,9 @@ pub fn memory_alias_graph(
         .with_interprocedural(registry, Some(profile))
         .with_memory_ssa(
             registry,
-            crate::document_context_for_profile(profile).authoring_mask(),
+            Some(tcl_registry::model::semantic::SemanticContext::for_profile(
+                profile,
+            )),
         );
 
     let mut functions: Vec<Value> = vec![memory_function_json(
