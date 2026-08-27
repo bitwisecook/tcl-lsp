@@ -1690,6 +1690,24 @@
     "notes": "static script-body position"
   },
   {
+    "id": "constraints/arg[1]@spectcl",
+    "owner": "constraints",
+    "surface": "command",
+    "kind": "body-script",
+    "provenance": "SpecTcl (docs/design/spec-packs.md)",
+    "dialects": [
+      "spectcl"
+    ],
+    "lifecycle": "all known owning-package versions",
+    "timing": "same-invocation",
+    "appended_arity": null,
+    "callback_taint_inputs": [],
+    "forms": [],
+    "registry_derived": true,
+    "registry_owner": "constraints",
+    "notes": "static script-body position"
+  },
+  {
     "id": "context_gate/arg[1]@spectcl",
     "owner": "context_gate",
     "surface": "command",
