@@ -260,6 +260,12 @@ pub enum Provenance {
     WorkspaceUntrusted,
     /// A live Spec Studio override.
     StudioOverride,
+    /// The document under analysis declared this itself — an inline
+    /// `# tcl-lsp: stub` block (gap ruling R1). The lowest trust class
+    /// there is: it is scoped to one buffer, it may improve assistance
+    /// inside that buffer, and it can never weaken a shipped analysis
+    /// fact or reach another document.
+    Document,
 }
 
 /// One environment definition (§3.3) — dynamic data, held behind `Arc`,

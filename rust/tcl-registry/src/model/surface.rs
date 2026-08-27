@@ -87,6 +87,15 @@ pub enum Provider {
     Core(Family),
     /// A named package's surface (`"Tk"`, `"struct::graph"`, `"iapps"`).
     Package(PackageId),
+    /// The analysed document (or its workspace sidecar) declaring a command
+    /// for itself — gap ruling R1's `# tcl-lsp: stub` surface, carried by
+    /// [`crate::model::declaration::DeclaredCommand`].
+    ///
+    /// A document provider is active exactly in the document that declared
+    /// it and nowhere else, which is why such a declaration never joins a
+    /// shared [`crate::model::ContextRegistry`] generation: the generation
+    /// is keyed by environment, and this row's scope is one buffer.
+    Document,
 }
 
 /// A typed build capability a predicate can require — the probe columns of
@@ -569,7 +578,7 @@ mod tests {
             .iter()
             .filter_map(|row| match &row.provider {
                 Provider::Package(id) => Some(id.as_str()),
-                Provider::Core(_) => None,
+                Provider::Core(_) | Provider::Document => None,
             })
             .collect();
         assert_eq!(packages, ["iapps", "tmsh"]);

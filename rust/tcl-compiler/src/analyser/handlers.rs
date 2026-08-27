@@ -1503,8 +1503,10 @@ impl Analyser {
         // different views of the proc *or* of the document's command bindings
         // (issue #1275).
         let env = super::param_traits::TraitScanEnv {
-            registry,
-            stub_overlay: self.stub_overlay.as_ref(),
+            surface: tcl_registry::model::DocumentCommandSurface::new(
+                registry,
+                self.declared_commands.as_ref(),
+            ),
             config: self.lexer_config(),
             identities: &self.head_identities,
         };
@@ -16090,7 +16092,7 @@ mod tests {
     // propagates into the per-proc `param_traits` map.
 
     #[test]
-    fn analyse_with_stub_overlay_propagates_role_to_param_traits() {
+    fn analyse_with_declared_stub_propagates_role_to_param_traits() {
         // The source declares a `# tcl-lsp: stub my_eval
         // {script:body}` directive, then defines a proc that
         // invokes `my_eval $body`.  The body arg's role flows

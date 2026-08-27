@@ -156,6 +156,7 @@ pub fn provenance_label(provenance: Provenance) -> &'static str {
         Provenance::WorkspaceTrusted => "trusted workspace",
         Provenance::WorkspaceUntrusted => "untrusted workspace",
         Provenance::StudioOverride => "studio override",
+        Provenance::Document => "document",
     }
 }
 
@@ -285,7 +286,7 @@ pub fn live_environments() -> Arc<EnvironmentRegistry> {
 fn untrusted(provenance: Provenance) -> bool {
     matches!(
         provenance,
-        Provenance::WorkspaceUntrusted | Provenance::StudioOverride
+        Provenance::WorkspaceUntrusted | Provenance::StudioOverride | Provenance::Document
     )
 }
 

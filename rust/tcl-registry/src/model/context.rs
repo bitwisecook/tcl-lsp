@@ -511,6 +511,11 @@ impl ResolvedContext {
                 false
             }),
             Provider::Package(package) => self.package_provider_active(package.as_str()),
+            // A document provider is the analysed buffer's own declaration
+            // (R1). It is active wherever it is consulted — the declaration
+            // set is per-document, so possession of the row *is* the scope
+            // check — and it never reaches a shared generation.
+            Provider::Document => true,
         }
     }
 
@@ -1567,6 +1572,10 @@ pub fn specificity_breadth(declarations: &[SurfaceDeclaration]) -> u32 {
                     breadth += 1;
                 }
             }
+            // A document declaration is the narrowest surface there is —
+            // one buffer — so it contributes no breadth and wins every
+            // most-specific tiebreak against a catalogue row.
+            Provider::Document => {}
         }
     }
     breadth

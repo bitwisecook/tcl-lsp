@@ -305,7 +305,7 @@ it**, never dropped silently — declared subcommands and options are listed,
 the return type is stated, and any argument role with no stub spelling is
 named as falling back to `value`.
 
-Roles map through the inverse of `StubOverlay::parse_role`, so a stub the
+Roles map through the inverse of `tcl_registry::model::role_for_word`, so a stub the
 studio renders parses back to the roles the draft declared.
 
 ## Inference contract

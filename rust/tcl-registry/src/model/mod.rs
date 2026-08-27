@@ -27,6 +27,11 @@
 //!   [`tcl_dialect::model::VersionSet`] applicability + predicate +
 //!   history, and the **mechanical translation** from today's
 //!   [`crate::CommandSpec`] fields ([`declarations_for_spec`]).
+//! - [`declaration`] — [`DeclaredSurface`] and [`DocumentCommandSurface`]:
+//!   the commands a *document* declares for itself (`# tcl-lsp: stub`
+//!   blocks and `.tcl.stubs` sidecars) ingested as provenance-tagged
+//!   [`SurfaceDeclaration`]s, and the one door a consumer asks about the
+//!   catalogue **and** those declarations (gap ruling R1).
 //! - [`context`] — [`ResolvedContext`] (environment + per-axis floor map)
 //!   and the [`ContextQueries`] **assistance view** (§1.2 R-c/R-d split):
 //!   `is_available`, `available_at_targets`.
@@ -63,6 +68,7 @@
 pub mod assembly;
 pub mod binding;
 pub mod context;
+pub mod declaration;
 pub mod ingress;
 pub mod registration;
 pub mod semantic;
@@ -79,6 +85,9 @@ pub use binding::{
 pub use context::{
     ContextQueries, FloorMap, KeyedVersions, ResolvedContext, ladder_releases_in,
     requirement_spelling, specificity_breadth, targets_from_clauses,
+};
+pub use declaration::{
+    DeclaredArgument, DeclaredCommand, DeclaredSurface, DocumentCommandSurface, role_for_word,
 };
 pub use ingress::{
     DocumentEnvironment, context_for_profile, environments, irules_context,

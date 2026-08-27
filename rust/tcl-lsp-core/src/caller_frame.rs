@@ -531,8 +531,10 @@ fn bindings_from_self_dispatch(
         return;
     };
     let env = TraitScanEnv {
-        registry,
-        stub_overlay: None,
+        // A method body reached through workspace navigation carries no
+        // document declarations: the `# tcl-lsp: stub` blocks belong to the
+        // file that wrote them, and this scan is over another file's body.
+        surface: tcl_registry::model::DocumentCommandSurface::new(registry, None),
         config: tcl_lexer::LexerConfig::from_grammar(ctx.dialect.grammar),
         identities: ctx.identities,
     };

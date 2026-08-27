@@ -66,7 +66,7 @@ use std::collections::{HashMap, HashSet};
 
 use tcl_registry::CommandRegistry;
 use tcl_registry::arg_role::ArgRole;
-use tcl_registry::stub_overlay::StubOverlay;
+use tcl_registry::model::DocumentCommandSurface;
 
 use super::types::ProcArgTrait;
 use crate::segmenter::segment_commands_with_offset_and_config;
@@ -77,9 +77,10 @@ use tcl_lexer::{LexerConfig, TokenType};
 /// (parameters with no detected trait) are dropped from the
 /// returned map.
 ///
-/// `env` carries the dialect-aware registry, the document's
-/// `# tcl-lsp: stub` overlay, the dialect lexer configuration, and the
-/// document's proven command-identity facts — see [`TraitScanEnv`].
+/// `env` carries the document's one command surface (the dialect-aware
+/// registry generation plus whatever the document declares for itself with
+/// `# tcl-lsp: stub`), the dialect lexer configuration, and the document's
+/// proven command-identity facts — see [`TraitScanEnv`].
 #[must_use]
 pub fn infer_param_traits(
     params: &[&str],
@@ -96,8 +97,7 @@ pub fn infer_param_traits(
 
     let ctx = ScanCtx {
         param_set: &param_set,
-        registry: env.registry,
-        stub_overlay: env.stub_overlay,
+        surface: env.surface,
         config: env.config,
         identities: env.identities,
     };
@@ -162,8 +162,7 @@ fn infer_param_traits_deep_at_depth(
 
     let ctx = ScanCtx {
         param_set: &param_set,
-        registry: env.registry,
-        stub_overlay: env.stub_overlay,
+        surface: env.surface,
         config: env.config,
         identities: env.identities,
     };
@@ -216,11 +215,10 @@ fn finalise_traits(
 ///
 /// `'p` is the params' lifetime (the param-name slices borrowed
 /// from the caller's `params` argument); `'r` borrows the
-/// registry / overlay / param-set for the duration of a scan.
+/// command surface / param-set for the duration of a scan.
 struct ScanCtx<'p, 'r> {
     param_set: &'r HashSet<&'p str>,
-    registry: &'r CommandRegistry,
-    stub_overlay: Option<&'r StubOverlay>,
+    surface: DocumentCommandSurface<'r>,
     config: LexerConfig,
     /// The **document's** proven command-identity facts (issue #1275), so a
     /// role, frame-effect, or structural handler is chosen by the command a
@@ -239,23 +237,24 @@ impl ScanCtx<'_, '_> {
 }
 
 /// Everything a param-trait scan needs about the document it is scanning
-/// inside: the dialect-aware registry, the per-document `# tcl-lsp: stub`
-/// overlay, the dialect lexer configuration the body re-segments under, and
-/// the document's proven command-identity facts.
+/// inside: the command surface it resolves against, the dialect lexer
+/// configuration the body re-segments under, and the document's proven
+/// command-identity facts.
 ///
 /// Bundled so the four public entry points share one parameter rather than
 /// four, and so adding a document-level fact does not re-open every signature.
 #[derive(Clone, Copy)]
 pub struct TraitScanEnv<'a> {
-    /// The caller's already-built, dialect-aware registry (typically
-    /// `Analyser::registry`).  Building a fresh `CommandRegistry::build_default()`
-    /// per proc would both be expensive and miss the dialect-specific
-    /// `arg_role_resolver` / `arg_roles` the caller's registry has loaded.
-    pub registry: &'a CommandRegistry,
-    /// The document's `# tcl-lsp: stub` overlay, when it declares any: a stub
-    /// like `# tcl-lsp: stub my_eval {script:body}` makes a `my_eval $param`
+    /// The one command surface this document analyses against
+    /// ([`DocumentCommandSurface`]): the caller's already-built,
+    /// dialect-aware registry generation plus whatever the document
+    /// declares for itself with `# tcl-lsp: stub` (gap ruling R1). Building
+    /// a fresh `CommandRegistry::build_default()` per proc would both be
+    /// expensive and miss the dialect-specific `arg_role_resolver` /
+    /// `arg_roles` the caller's generation has loaded; a stub like
+    /// `# tcl-lsp: stub my_eval {script:body}` makes a `my_eval $param`
     /// invocation mark the parameter `ProcArgTrait::Body`.
-    pub stub_overlay: Option<&'a StubOverlay>,
+    pub surface: DocumentCommandSurface<'a>,
     /// The dialect lexer configuration the body re-segments under.  `{*}`
     /// expansion (off for Tcl 8.4 / iRules) and the iRules `}{` ghost SEP
     /// change how a body splits into commands and words, which changes which
@@ -401,18 +400,14 @@ fn scan_deep<'p>(
         }
         let cmd_name = ctx.head(&seg.texts[0]).resolved;
         let cmd_args: Vec<&str> = seg.texts[1..].iter().map(String::as_str).collect();
-        // Look up body args from both the registry (for built-in
-        // commands) and the stub overlay (for user-declared
-        // `# tcl-lsp: stub` commands).  Union so a stub-defined
-        // body arg recurses just like a registry-defined one.
-        let mut body_indices: HashSet<usize> = ctx
-            .registry
+        // One surface answers for both a catalogue command and a
+        // document-declared `# tcl-lsp: stub` one, so a stub-defined body
+        // arg recurses just like a shipped one.
+        let body_indices: HashSet<usize> = ctx
+            .surface
             .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body)
             .into_iter()
             .collect();
-        if let Some(overlay) = ctx.stub_overlay {
-            body_indices.extend(overlay.arg_indices_for_role(cmd_name, &cmd_args, ArgRole::Body));
-        }
         for idx in body_indices {
             let Some(body_text) = cmd_args.get(idx) else {
                 continue;
@@ -451,7 +446,7 @@ fn scan_deep<'p>(
         // that enclosing param, i.e. only when the value genuinely flows
         // from the caller's frame into the lambda's.
         for idx in ctx
-            .registry
+            .surface
             .arg_indices_for_role(cmd_name, &cmd_args, ArgRole::LambdaLiteral)
         {
             let Some(&tok) = seg.argv.get(idx + 1) else {
@@ -488,8 +483,7 @@ fn scan_deep<'p>(
                 &lambda_param_names,
                 body_text,
                 TraitScanEnv {
-                    registry: ctx.registry,
-                    stub_overlay: ctx.stub_overlay,
+                    surface: ctx.surface,
                     config: ctx.config,
                     identities: ctx.identities,
                 },
@@ -564,20 +558,20 @@ fn extract_var_name(text: &str) -> Option<&str> {
     Some(name)
 }
 
-/// Resolve a command's per-arg roles via the registry, unioned
-/// with any matching `# tcl-lsp: stub` overlay entry.  Picks the
-/// `arg_role_resolver` callback first, then static
-/// `arg_roles`, then sub-command-level roles.  When
-/// `stub_overlay` is `Some`, user-declared stub commands
-/// contribute their declared roles on top of the registry's;
-/// a stub-defined role for a given arg index overrides the
-/// registry's (the overlay is later-write-wins).
+/// Resolve a command's per-arg roles over the document's one command
+/// surface.  Picks the `arg_role_resolver` callback first, then static
+/// `arg_roles`, then sub-command-level roles, and adds whatever the
+/// document declares for the same name (gap ruling R1) — the surface
+/// unions the two, so a declaration widens a shipped command's role set
+/// and never narrows it.  When two roles claim the same index the later
+/// role in the iteration order below wins, exactly as it did when the
+/// registry and the overlay were consulted separately.
 fn resolve_arg_roles(
     command: &str,
     args: &[String],
-    registry: &CommandRegistry,
-    stub_overlay: Option<&StubOverlay>,
+    surface: DocumentCommandSurface<'_>,
 ) -> HashMap<u8, ArgRole> {
+    let registry = surface.commands();
     let mut roles: HashMap<u8, ArgRole> = HashMap::new();
     let arg_strs: Vec<&str> = args.iter().map(String::as_str).collect();
     // `upvar`'s VarWrite slots are binding destinations, not ordinary
@@ -599,16 +593,9 @@ fn resolve_arg_roles(
         if alias_binding && role == ArgRole::VarWrite {
             continue;
         }
-        for idx in registry.arg_indices_for_role(command, &arg_strs, role) {
+        for idx in surface.arg_indices_for_role(command, &arg_strs, role) {
             if let Ok(idx_u8) = u8::try_from(idx) {
                 roles.insert(idx_u8, role);
-            }
-        }
-        if let Some(overlay) = stub_overlay {
-            for idx in overlay.arg_indices_for_role(command, &arg_strs, role) {
-                if let Ok(idx_u8) = u8::try_from(idx) {
-                    roles.insert(idx_u8, role);
-                }
             }
         }
     }
@@ -754,7 +741,7 @@ fn apply_arg_role_traits<'p>(
     aliases: &Aliases<'p>,
 ) {
     let param_set = ctx.param_set;
-    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, ctx.registry, ctx.stub_overlay);
+    let arg_roles = resolve_arg_roles(cmd_name, cmd_args, ctx.surface);
     for (idx, arg) in cmd_args.iter().enumerate() {
         let Ok(idx_u8) = u8::try_from(idx) else {
             continue;
@@ -994,7 +981,7 @@ fn handle_upvar<'p>(
     traits: &mut HashMap<&'p str, HashSet<ProcArgTrait>>,
     aliases: &mut Aliases<'p>,
 ) {
-    let (_, pairs) = upvar_level_and_pairs(args, ctx.registry);
+    let (_, pairs) = upvar_level_and_pairs(args, ctx.surface.commands());
     record_upvar_pairs(pairs, ctx.param_set, traits, aliases);
 }
 
@@ -1028,7 +1015,7 @@ pub fn caller_frame_upvar_params(
     body_source: &str,
     env: TraitScanEnv<'_>,
 ) -> HashSet<String> {
-    let registry = env.registry;
+    let registry = env.surface.commands();
     let mut out = HashSet::new();
     if params.is_empty() || body_source.trim().is_empty() {
         return out;
@@ -1100,7 +1087,7 @@ pub fn caller_frame_literal_targets(
 ) -> HashMap<String, bool> {
     use tcl_registry::frame_effect::FrameArgLayout;
 
-    let registry = env.registry;
+    let registry = env.surface.commands();
     let mut targets: HashMap<String, bool> = HashMap::new();
     if body_source.trim().is_empty() {
         return targets;
@@ -1365,31 +1352,30 @@ mod tests {
     }
 
     /// Test helper — builds the registry once, since the public
-    /// API now requires the caller to thread one through.  No
-    /// stub overlay; tests that need one construct it inline.
+    /// API now requires the caller to thread one through.  No document
+    /// declarations; tests that need them construct them inline.
     fn infer(params: &[&str], body: &str) -> HashMap<String, HashSet<ProcArgTrait>> {
         let registry = CommandRegistry::build_default();
         infer_param_traits(params, body, env_for(&registry, LexerConfig::default()))
     }
 
-    /// A scan environment over `registry` with no stub overlay and no document
-    /// binding facts — what a bare-body unit test scans under.
+    /// A scan environment over `registry` with no document declarations and
+    /// no document binding facts — what a bare-body unit test scans under.
     fn env_for(registry: &CommandRegistry, config: LexerConfig) -> TraitScanEnv<'_> {
         TraitScanEnv {
-            registry,
-            stub_overlay: None,
+            surface: DocumentCommandSurface::new(registry, None),
             config,
             identities: crate::realm::CommandBindingRealm::none(),
         }
     }
 
-    /// [`env_for`] with a stub overlay attached.
-    fn env_with_overlay<'a>(
+    /// [`env_for`] with the document's own declarations attached.
+    fn env_with_declarations<'a>(
         registry: &'a CommandRegistry,
-        overlay: &'a StubOverlay,
+        declared: &'a tcl_registry::model::DeclaredSurface,
     ) -> TraitScanEnv<'a> {
         TraitScanEnv {
-            stub_overlay: Some(overlay),
+            surface: DocumentCommandSurface::new(registry, Some(declared)),
             ..env_for(registry, LexerConfig::default())
         }
     }
@@ -1414,7 +1400,7 @@ mod tests {
     /// arguments) must reach real commands *inside* an `apply` lambda body,
     /// not misread the whole `{argList} {body}` blob as one script (which
     /// would treat the parameter word as a command name and never find the
-    /// `eval` at all) — mirrors `overlay_deep_recurses_through_stub_body_args`,
+    /// `eval` at all) — mirrors `declarations_deep_recurse_through_declared_body_args`,
     /// swapping the registry-known `apply`/`LambdaLiteral` shape in for a
     /// stub-declared `Body` shape. The lambda's own param is `x`, bound to
     /// the literal `1` — an enclosing `body` param is neither the lambda's
@@ -1833,7 +1819,7 @@ mod tests {
     fn stub_command_prefix_role_is_command() {
         // A stub-declared `command_prefix` argument names a command, so a
         // `$param` there is inferred `Command`.
-        let overlay = make_overlay(vec![stub_sig(
+        let declared = make_declarations(vec![stub_sig(
             "on_event",
             &[
                 ("event", ArgRole::Value),
@@ -1845,8 +1831,7 @@ mod tests {
             &["h"],
             "on_event click $h",
             TraitScanEnv {
-                registry: &registry,
-                stub_overlay: Some(&overlay),
+                surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
             },
@@ -2179,54 +2164,52 @@ mod tests {
         assert!(deep.is_empty());
     }
 
-    // stub-overlay integration
+    // document-declaration integration
     //
     // These tests pin the contract that a non-empty
-    // [`StubOverlay`] threaded through `infer_param_traits` /
-    // `infer_param_traits_deep` lets user-declared
-    // `# tcl-lsp: stub` commands participate in role-driven
-    // trait inference alongside the built-in registry.
+    // [`tcl_registry::model::DeclaredSurface`] threaded through
+    // `infer_param_traits` / `infer_param_traits_deep` lets user-declared
+    // `# tcl-lsp: stub` commands participate in role-driven trait
+    // inference alongside the catalogue.
 
-    use tcl_registry::stub_overlay::{StubArg, StubSig};
+    use tcl_dialect::model::Provenance;
+    use tcl_registry::model::{DeclaredArgument, DeclaredCommand, DeclaredSurface};
 
-    fn make_overlay(sigs: Vec<StubSig>) -> StubOverlay {
-        let mut o = StubOverlay::new();
-        for s in sigs {
-            o.insert(s);
+    fn make_declarations(commands: Vec<DeclaredCommand>) -> DeclaredSurface {
+        let mut surface = DeclaredSurface::new();
+        for command in commands {
+            surface.declare(command);
         }
-        o
+        surface
     }
 
-    fn stub_sig(name: &str, args: &[(&str, ArgRole)]) -> StubSig {
-        use tcl_registry::stub_overlay::StubSigFlags;
-        StubSig {
-            name: name.to_string(),
-            args: args
-                .iter()
-                .map(|(n, r)| StubArg {
+    fn stub_sig(name: &str, args: &[(&str, ArgRole)]) -> DeclaredCommand {
+        DeclaredCommand::new(
+            name.to_string(),
+            args.iter()
+                .map(|(n, r)| DeclaredArgument {
                     name: (*n).to_string(),
                     role: *r,
                     optional: false,
                 })
                 .collect(),
-            flags: StubSigFlags::empty(),
-        }
+            Provenance::Document,
+        )
     }
 
     #[test]
-    fn overlay_shallow_surfaces_stub_declared_body_role() {
-        // `my_eval` isn't in the built-in registry, but the
-        // overlay declares its arg-0 as `body`.  An invocation
+    fn declarations_shallow_surface_the_declared_body_role() {
+        // `my_eval` isn't in the catalogue, but the document
+        // declares its arg-0 as `body`.  An invocation
         // `my_eval $script` should therefore surface `Body` on
         // the `script` param.
-        let overlay = make_overlay(vec![stub_sig("my_eval", &[("script", ArgRole::Body)])]);
+        let declared = make_declarations(vec![stub_sig("my_eval", &[("script", ArgRole::Body)])]);
         let registry = CommandRegistry::build_default();
         let traits = infer_param_traits(
             &["script"],
             "my_eval $script",
             TraitScanEnv {
-                registry: &registry,
-                stub_overlay: Some(&overlay),
+                surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
             },
@@ -2235,10 +2218,10 @@ mod tests {
     }
 
     #[test]
-    fn overlay_shallow_surfaces_stub_declared_var_write_role() {
-        // Stub-declared `VarWrite` on a bare `$param` substitution
+    fn declarations_shallow_surface_the_declared_var_write_role() {
+        // A declared `VarWrite` on a bare `$param` substitution
         // surfaces the callee-local DynamicNameLocal refinement.
-        let overlay = make_overlay(vec![stub_sig(
+        let declared = make_declarations(vec![stub_sig(
             "with_var",
             &[("varName", ArgRole::VarWrite), ("value", ArgRole::Value)],
         )]);
@@ -2247,13 +2230,12 @@ mod tests {
             &["v"],
             "with_var $v 42",
             TraitScanEnv {
-                registry: &registry,
-                stub_overlay: Some(&overlay),
+                surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
             },
         );
-        // A stub `VarWrite` role on a bare `$v` substitution is the same
+        // A declared `VarWrite` role on a bare `$v` substitution is the same
         // callee-local dynamic-name shape as `set $v …` — refined to
         // DynamicNameLocal (+ VarRead), not a caller-frame VarWrite.
         assert_trait(&traits, "v", ProcArgTrait::DynamicNameLocal);
@@ -2261,73 +2243,73 @@ mod tests {
     }
 
     #[test]
-    fn overlay_deep_recurses_through_stub_body_args() {
-        // The overlay declares `my_loop`'s arg-1 as a body.
-        // Without the overlay the deep pass can't see that
+    fn declarations_deep_recurse_through_declared_body_args() {
+        // The document declares `my_loop`'s arg-1 as a body.
+        // Without the declaration the deep pass can't see that
         // `my_loop { uplevel 1 $body }` carries an Eval inside.
-        // With the overlay it should descend into the brace
-        // and surface the Eval.
-        let overlay = make_overlay(vec![stub_sig(
+        // With it the pass descends into the brace and surfaces
+        // the Eval.
+        let declared = make_declarations(vec![stub_sig(
             "my_loop",
             &[("count", ArgRole::Value), ("body", ArgRole::Body)],
         )]);
         let registry = CommandRegistry::build_default();
         let body = "my_loop 5 { uplevel 1 $script }";
-        // Sanity: without the overlay, the deep pass misses
+        // Sanity: without the declaration, the deep pass misses
         // the nested Eval because `my_loop` isn't recognised.
-        let no_overlay = infer_param_traits_deep(
+        let undeclared = infer_param_traits_deep(
             &["script"],
             body,
             env_for(&registry, LexerConfig::default()),
         );
         assert!(
-            !no_overlay
+            !undeclared
                 .get("script")
                 .is_some_and(|s| s.contains(&ProcArgTrait::Eval)),
-            "without overlay, my_loop body shouldn't be recognised, got {no_overlay:?}",
+            "undeclared, my_loop's body shouldn't be recognised, got {undeclared:?}",
         );
-        // With the overlay, the recursion fires.
-        let with_overlay = infer_param_traits_deep(
+        // With the declaration, the recursion fires.
+        let with_declaration = infer_param_traits_deep(
             &["script"],
             body,
             TraitScanEnv {
-                registry: &registry,
-                stub_overlay: Some(&overlay),
+                surface: DocumentCommandSurface::new(&registry, Some(&declared)),
                 config: LexerConfig::default(),
                 identities: crate::realm::CommandBindingRealm::none(),
             },
         );
-        assert_trait(&with_overlay, "script", ProcArgTrait::Eval);
+        assert_trait(&with_declaration, "script", ProcArgTrait::Eval);
     }
 
     #[test]
-    fn overlay_does_not_disturb_registry_resolution() {
-        // An overlay covering `my_thing` mustn't shadow any
-        // built-in command.  A built-in `foreach` invocation
-        // still records its `LoopList` / `Body` traits via the
-        // registry path even when an unrelated stub overlay is
-        // active.
-        let overlay = make_overlay(vec![stub_sig("my_thing", &[("a", ArgRole::Body)])]);
+    fn declarations_do_not_disturb_catalogue_resolution() {
+        // A declaration covering `my_thing` mustn't shadow any
+        // catalogue command.  A shipped `foreach` invocation
+        // still records its `LoopList` / `Body` traits through the
+        // catalogue path even when an unrelated document
+        // declaration is active.
+        let declared = make_declarations(vec![stub_sig("my_thing", &[("a", ArgRole::Body)])]);
         let registry = CommandRegistry::build_default();
         let traits = infer_param_traits(
             &["items", "body"],
             "foreach x $items $body",
-            env_with_overlay(&registry, &overlay),
+            env_with_declarations(&registry, &declared),
         );
         assert_trait(&traits, "items", ProcArgTrait::LoopList);
         assert_trait(&traits, "body", ProcArgTrait::Body);
     }
 
     #[test]
-    fn overlay_none_matches_overlay_empty() {
-        // An empty overlay should produce the same result as
-        // `None` — the overlay is a no-op when it has no
-        // entries.
+    fn no_declarations_matches_an_empty_declaration_set() {
+        // An empty declaration set should produce the same result as
+        // `None` — a document that declares nothing is exactly the
+        // catalogue.
         let registry = CommandRegistry::build_default();
         let body = "foreach x {1 2 3} $body";
         let none = infer_param_traits(&["body"], body, env_for(&registry, LexerConfig::default()));
-        let overlay = StubOverlay::new();
-        let empty = infer_param_traits(&["body"], body, env_with_overlay(&registry, &overlay));
+        let declared = DeclaredSurface::new();
+        let empty =
+            infer_param_traits(&["body"], body, env_with_declarations(&registry, &declared));
         assert_eq!(none, empty);
     }
 
@@ -2352,8 +2334,7 @@ mod tests {
             &["body"],
             body,
             TraitScanEnv {
-                registry: &registry,
-                stub_overlay: None,
+                surface: DocumentCommandSurface::new(&registry, None),
                 config: LexerConfig::default(),
                 identities: &identities,
             },
@@ -2427,8 +2408,7 @@ mod tests {
 
         let aliased = env_of("interp alias {} peek {} upvar\n");
         let env = TraitScanEnv {
-            registry: &registry,
-            stub_overlay: None,
+            surface: DocumentCommandSurface::new(&registry, None),
             config: LexerConfig::default(),
             identities: &aliased,
         };

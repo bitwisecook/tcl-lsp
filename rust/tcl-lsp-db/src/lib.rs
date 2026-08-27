@@ -1567,13 +1567,13 @@ pub fn item_body_analysis<'db>(db: &'db dyn TclDb, key: ItemBodyKey<'db>) -> Arc
         safe_interp_ctx: key.body_env(db).1.clone(),
     };
     let disabled: HashSet<String> = key.disabled(db).iter().cloned().collect();
-    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&[]);
+    let no_declarations = tcl_registry::model::DeclaredSurface::new();
     Arc::new(analyse_proc_body_isolated(
         &body,
         key.dialect(db),
         &disabled,
         key.non_ascii(db),
-        Some(overlay),
+        Some(no_declarations),
         key.body_env(db).2.clone(),
     ))
 }

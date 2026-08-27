@@ -55,6 +55,7 @@ enum AxisInner {
     Package(Arc<str>),
     BigIp,
     TmshSyntax,
+    Document,
 }
 
 impl VersionAxisId {
@@ -72,12 +73,29 @@ impl VersionAxisId {
         Self(AxisInner::Package(Arc::from(name)))
     }
 
+    /// The axis a **document's own** declaration lives on (gap ruling R1's
+    /// `# tcl-lsp: stub` surface).
+    ///
+    /// A buffer has no release train: a command the document declares for
+    /// itself exists for exactly as long as the declaration is in the
+    /// buffer. The axis exists so such a declaration is an ordinary,
+    /// axis-typed [`crate::model::SurfaceDeclaration`] rather than a
+    /// second, untyped kind of availability fact — its applicability is
+    /// always the whole axis.
+    #[must_use]
+    pub const fn document() -> Self {
+        Self(AxisInner::Document)
+    }
+
     /// The core family, when this is a core axis.
     #[must_use]
     pub fn core_family(&self) -> Option<Family> {
         match &self.0 {
             AxisInner::Core(family) => Some(*family),
-            AxisInner::Package(_) | AxisInner::BigIp | AxisInner::TmshSyntax => None,
+            AxisInner::Package(_)
+            | AxisInner::BigIp
+            | AxisInner::TmshSyntax
+            | AxisInner::Document => None,
         }
     }
 
@@ -86,7 +104,9 @@ impl VersionAxisId {
     pub fn package_name(&self) -> Option<&str> {
         match &self.0 {
             AxisInner::Package(name) => Some(name),
-            AxisInner::Core(_) | AxisInner::BigIp | AxisInner::TmshSyntax => None,
+            AxisInner::Core(_) | AxisInner::BigIp | AxisInner::TmshSyntax | AxisInner::Document => {
+                None
+            }
         }
     }
 
@@ -139,6 +159,7 @@ impl std::fmt::Display for VersionAxisId {
             AxisInner::Package(name) => write!(f, "package:{name}"),
             AxisInner::BigIp => f.write_str("bigip"),
             AxisInner::TmshSyntax => f.write_str("tmsh-syntax"),
+            AxisInner::Document => f.write_str("document"),
         }
     }
 }

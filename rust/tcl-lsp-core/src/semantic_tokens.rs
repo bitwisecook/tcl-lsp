@@ -702,22 +702,17 @@ fn add_stub_var_roles(
         return;
     }
     let (stub_cmds, _exprs) = tcl_compiler::analyser::utils::scan_source_for_stubs(source);
-    let overlay = tcl_compiler::analyser::types::build_stub_overlay(&stub_cmds);
-    let indices_for = |sig: &tcl_registry::stub_overlay::StubSig, role: tcl_registry::ArgRole| {
-        sig.args
-            .iter()
-            .enumerate()
-            .filter(|(_, a)| a.role == role)
-            .filter_map(|(i, _)| u32::try_from(i).ok())
-            .collect::<Vec<u32>>()
-    };
-    for (name, sig) in overlay.iter() {
+    let declared = tcl_compiler::analyser::types::build_declared_surface(&stub_cmds);
+    for (name, command) in declared.iter() {
         for (role, out) in [
             (tcl_registry::ArgRole::VarWrite, &mut *out_write),
             (tcl_registry::ArgRole::VarRead, &mut *out_read),
             (tcl_registry::ArgRole::CommandPrefix, &mut *out_command),
         ] {
-            let indices = indices_for(sig, role);
+            let indices: Vec<u32> = command
+                .arg_indices_for_role(role)
+                .filter_map(|index| u32::try_from(index).ok())
+                .collect();
             if !indices.is_empty() {
                 out.entry(name.to_owned()).or_insert(indices);
             }

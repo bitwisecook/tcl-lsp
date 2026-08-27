@@ -867,15 +867,18 @@ pub struct Analyser {
     /// intended for asynchronous use behind the `S*` call-graph
     /// / symbol-graph / dataflow-graph / semantic-graph builders.
     pub deep_param_traits: bool,
-    /// Per-document stub-command overlay built at the top of
-    /// [`Self::analyse`] from `result.stub_commands` via
-    /// [`super::types::build_stub_overlay`].  Lets analyser /
-    /// compiler queries see user-declared `# tcl-lsp: stub`
-    /// commands as first-class members of the command surface
-    /// without mutating the global [`tcl_registry::CommandRegistry`].
-    /// `None` outside an active analysis run.  Tied to the
-    /// (single-threaded) analyser instance rather than a thread-local.
-    pub stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    /// The commands this **document** declares for itself, ingested at
+    /// the top of [`Self::analyse`] from `result.stub_commands` via
+    /// [`super::types::build_declared_surface`] — inline
+    /// `# tcl-lsp: stub` blocks and workspace `.tcl.stubs` sidecars as
+    /// provenance-tagged surface declarations (gap ruling R1).  Paired
+    /// with the walk's registry generation by
+    /// [`Self::command_surface`], the one door analyser and compiler
+    /// queries ask; nothing mutates the shared
+    /// [`tcl_registry::CommandRegistry`].  `None` outside an active
+    /// analysis run.  Tied to the (single-threaded) analyser instance
+    /// rather than a thread-local.
+    pub declared_commands: Option<tcl_registry::model::DeclaredSurface>,
     /// The document's statically proven command-identity facts
     /// ([`crate::realm`]) — which registry command each head spelling
     /// really names, folding in `namespace import`, `interp alias`, `rename`,
@@ -1516,7 +1519,7 @@ impl Analyser {
             command_trust: None,
             recovery_known_commands: super::utils::RecoveryKnownCommands::default(),
             deep_param_traits: false,
-            stub_overlay: None,
+            declared_commands: None,
             head_identities: crate::realm::CommandBindingRealm::default(),
             line_offsets: None,
             cached_line_index: tcl_lexer::LineIndex::new(""),
@@ -1960,7 +1963,7 @@ impl Analyser {
         // The document-local declaration is nearest in scope and wins over a
         // workspace sidecar with the same name.
         overlay_cmds.extend(stub_cmds.iter().cloned());
-        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         let mut all_exprs = sidecar_exprs;
         all_exprs.extend(stub_exprs);
@@ -2455,7 +2458,7 @@ impl Analyser {
             super::utils::scan_sidecar_stubs(self.file_path.as_deref(), dialect);
         let mut overlay_cmds = sidecar_cmds;
         overlay_cmds.extend(stub_cmds.iter().cloned());
-        self.stub_overlay = Some(super::types::build_stub_overlay(&overlay_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&overlay_cmds));
         self.result.stub_commands = overlay_cmds;
         let mut all_exprs = sidecar_exprs;
         all_exprs.extend(stub_exprs);

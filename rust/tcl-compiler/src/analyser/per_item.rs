@@ -277,14 +277,14 @@ impl Analyser {
         let disabled = self.disabled_diagnostics.clone();
         let non_ascii = self.non_ascii_mode;
         let factories = self.workspace_class_factories.clone();
-        let empty_overlay = super::types::build_stub_overlay(&[]);
+        let no_declarations = tcl_registry::model::DeclaredSurface::new();
         let mut body_fn = |db: &DeferredBody| {
             analyse_proc_body_isolated(
                 db,
                 dialect,
                 &disabled,
                 non_ascii,
-                Some(empty_overlay.clone()),
+                Some(no_declarations.clone()),
                 factories.clone(),
             )
         };
@@ -500,7 +500,7 @@ impl Analyser {
             super::utils::parse_noqa_line_suppressions_for_dialect(source, self.profile),
         );
         let (stub_cmds, stub_exprs) = super::utils::scan_source_for_stubs(source);
-        self.stub_overlay = Some(super::types::build_stub_overlay(&stub_cmds));
+        self.declared_commands = Some(super::types::build_declared_surface(&stub_cmds));
         self.result.stub_commands = stub_cmds;
         self.result.stub_expr_defs = stub_exprs;
 
@@ -1353,7 +1353,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
     dialect: &str,
     disabled: &std::collections::HashSet<String, S>,
     non_ascii: super::state::NonAsciiMode,
-    stub_overlay: Option<tcl_registry::stub_overlay::StubOverlay>,
+    declared_commands: Option<tcl_registry::model::DeclaredSurface>,
     workspace_class_factories: Option<std::sync::Arc<super::types::ClassFactoryIndex>>,
 ) -> BodyFragment {
     // Rebuild into the default-hasher set `Analyser` stores.
@@ -1368,7 +1368,7 @@ pub fn analyse_proc_body_isolated<S: std::hash::BuildHasher>(
         .with_non_ascii_mode(non_ascii)
         .with_workspace_class_factories(workspace_class_factories);
     a.profile = crate::environment_ingress::resolve_environment(dialect).analyser_profile();
-    a.stub_overlay = stub_overlay;
+    a.declared_commands = declared_commands;
     // Offset 0: the body content is the whole source; a synthetic `Str` body
     // token spans it with `content_offset = 0` (no `{` to skip).
     a.source = db.body_text.to_string();

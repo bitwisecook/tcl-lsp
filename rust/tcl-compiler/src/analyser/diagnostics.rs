@@ -195,8 +195,8 @@ impl Analyser {
         for stub in &self.result.stub_commands {
             add(&stub.name);
         }
-        if let Some(overlay) = &self.stub_overlay {
-            for (name, _) in overlay.iter() {
+        if let Some(declared) = &self.declared_commands {
+            for (name, _) in declared.iter() {
                 add(name);
             }
         }
