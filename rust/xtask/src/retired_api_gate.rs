@@ -220,6 +220,20 @@ fn identifier_continues(text: &str, hit_end: usize) -> bool {
         .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_')
 }
 
+/// Whether the character *before* a hit continues an identifier — i.e. the
+/// needle matched a suffix of a longer name rather than a name of its own.
+///
+/// Without this, `arg_rows` matches inside `project_arg_rows` and a single
+/// retired call is reported twice under two needles. A path separator is
+/// not an identifier character, so a qualified spelling such as
+/// `cache::registry_for_dialect` still matches on its bare needle.
+fn identifier_precedes(text: &str, hit_start: usize) -> bool {
+    text[..hit_start]
+        .bytes()
+        .next_back()
+        .is_some_and(|b| b.is_ascii_alphanumeric() || b == b'_')
+}
+
 /// Scan the workspace's Rust sources; exit non-zero listing any offending
 /// site. `check` is accepted for CLI symmetry with the other gates — the
 /// gate never rewrites anything, so both modes verify.
@@ -305,7 +319,7 @@ fn scan(text: &str, inside_registry: bool) -> Vec<(usize, &'static str)> {
                 let start = from + off;
                 let end = start + pattern.needle.len();
                 from = end;
-                if identifier_continues(line, end) {
+                if identifier_precedes(line, start) || identifier_continues(line, end) {
                     continue;
                 }
                 out.push((idx + 1, pattern.needle));
@@ -331,43 +345,74 @@ mod tests {
     use super::*;
 
     /// The gate must fail on a seeded violation of every retired family.
+    ///
+    /// Each row is `(line, findings)`. Almost every seeded line carries one
+    /// retired spelling and must be flagged exactly once — asserting the
+    /// exact count is what catches a needle that has grown broad enough to
+    /// match its own neighbours. A line that genuinely contains two retired
+    /// spellings says so, rather than the assertion being relaxed for all of
+    /// them.
     #[test]
     fn seeded_violations_are_flagged() {
-        for seeded in [
-            "let p = tcl_dialect::DialectProfile::by_name(\"tcl8.6\");",
-            "let p = DialectProfile::by_opt_name(dialect);",
-            "let p = DialectProfile::resolve_known(name);",
-            "let mask = DialectProfile::availability_for_name(name);",
-            "let r = tcl_registry::registry_for_dialect(\"tcl8.6\");",
-            "let r = tcl_registry::cache::registry_for_dialect(dialect);",
-            "let r = registry_handle_for_dialect(dialect);",
-            "let r = tcl_registry::registry_for_profile(profile);",
-            "let r = registry_handle_for_profile(profile);",
-            "use tcl_registry::profile_queries::ProfileQueries;",
-            "let mask = tcl_registry::special_vars::resolve_dialect(dialect);",
-            "use tcl_compiler::head_identity::HeadWords;",
-            "let map = HeadIdentityMap::none();",
-            "let id = HeadIdentity::Rebound;",
-            "let map = command_head_identities(source, dialect, registry);",
+        for (seeded, findings) in [
+            (
+                "let p = tcl_dialect::DialectProfile::by_name(\"tcl8.6\");",
+                1,
+            ),
+            ("let p = DialectProfile::by_opt_name(dialect);", 1),
+            ("let p = DialectProfile::resolve_known(name);", 1),
+            ("let mask = DialectProfile::availability_for_name(name);", 1),
+            ("let r = tcl_registry::registry_for_dialect(\"tcl8.6\");", 1),
+            (
+                "let r = tcl_registry::cache::registry_for_dialect(dialect);",
+                1,
+            ),
+            ("let r = registry_handle_for_dialect(dialect);", 1),
+            ("let r = tcl_registry::registry_for_profile(profile);", 1),
+            ("let r = registry_handle_for_profile(profile);", 1),
+            ("use tcl_registry::profile_queries::ProfileQueries;", 1),
+            (
+                "let mask = tcl_registry::special_vars::resolve_dialect(dialect);",
+                1,
+            ),
+            ("use tcl_compiler::head_identity::HeadWords;", 1),
+            ("let map = HeadIdentityMap::none();", 1),
+            ("let id = HeadIdentity::Rebound;", 1),
+            (
+                "let map = command_head_identities(source, dialect, registry);",
+                1,
+            ),
             // Ledger O2 — the M9 dead axes.
-            "if spec.traits.contains(Traits::PASSWORD_OPTION) { }",
-            "PasswordOption => PASSWORD_OPTION, Security, \"takes a password option\";",
-            "if spec.traits.contains(Traits::IRULES_DATA_GETTER) { }",
-            "IrulesDataGetter => IRULES_DATA_GETTER, Irules, \"a getter\";",
-            "spec.xc_operation = Some(leak_str(&value));",
-            "spec.arg_rows = rows;",
-            "let row = VersionedArgRow { index: 0 };",
-            "let out = ProjectedArgs::default();",
-            "let tables = ArgTables::Stored { roles };",
-            "let tables = spec.arg_tables_at(floor);",
-            "let out = project_arg_rows(rows, None);",
-            "let idx = registry.arg_indices_for_role_at(name, args, role, floor);",
-            "let p = registry.command_prefixes_at(name, args, floor);",
-            "requires.init_only = parse_flag(stmt.tail());",
-            "if let Some(want) = requires.capability { }",
-            "let c: &[OptionConstraint] = &[];",
+            ("if spec.traits.contains(Traits::PASSWORD_OPTION) { }", 1),
+            (
+                "PasswordOption => PASSWORD_OPTION, Security, \"takes a password option\";",
+                2,
+            ),
+            ("if spec.traits.contains(Traits::IRULES_DATA_GETTER) { }", 1),
+            (
+                "IrulesDataGetter => IRULES_DATA_GETTER, Irules, \"a getter\";",
+                2,
+            ),
+            ("spec.xc_operation = Some(leak_str(&value));", 1),
+            ("spec.arg_rows = rows;", 1),
+            ("let row = VersionedArgRow { index: 0 };", 1),
+            ("let out = ProjectedArgs::default();", 1),
+            ("let tables = ArgTables::Stored { roles };", 1),
+            ("let tables = spec.arg_tables_at(floor);", 1),
+            ("let out = project_arg_rows(rows, None);", 1),
+            (
+                "let idx = registry.arg_indices_for_role_at(name, args, role, floor);",
+                1,
+            ),
+            (
+                "let p = registry.command_prefixes_at(name, args, floor);",
+                1,
+            ),
+            ("requires.init_only = parse_flag(stmt.tail());", 1),
+            ("if let Some(want) = requires.capability { }", 1),
+            ("let c: &[OptionConstraint] = &[];", 1),
         ] {
-            assert_eq!(scan(seeded, false).len(), 1, "{seeded}");
+            assert_eq!(scan(seeded, false).len(), findings, "{seeded}");
         }
     }
 
