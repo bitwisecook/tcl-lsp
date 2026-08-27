@@ -4419,7 +4419,17 @@ impl CommandRegistry {
     /// iRules intentionally has no `rename` or `interp`, even though the
     /// dialect-agnostic catalogue knows their Tcl specs. A profile-less
     /// registry (`build_default`) answers dialect-agnostically, exactly as
-    /// [`Self::get`] does. The explicitly global spellings answer
+    /// [`Self::get`] does.
+    ///
+    /// Reusing that primitive means a **subcommand-shaped** mutator now
+    /// resolves by the ordinary ensemble rule rather than by exact
+    /// spelling, which is a deliberate behavioural change from the retired
+    /// `command_table_effect`: `interp ali {} a {} b` really does create an
+    /// alias in C Tcl (`interp` is an ensemble), and the retired resolver's
+    /// exact-word lookup made it invisible to every binding consumer.
+    /// `interp aliases` is its own subcommand and still states nothing.
+    ///
+    /// The explicitly global spellings answer
     /// identically to the bare ones — `::rename format ::origfmt`,
     /// `::interp alias {} myfmt {} ::origfmt` and `::proc ::greet {} {…}`
     /// all really do mutate the command table (tclsh 9.0.4 and 8.6.16,
