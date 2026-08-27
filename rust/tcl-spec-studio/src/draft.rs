@@ -1096,7 +1096,11 @@ fn option_rows(options: &[OptionSpec], lost: &mut Unrecovered) -> Value {
 }
 
 /// Options, values, availability, behaviour flags, taint, and effects.
-fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+/// The subcommand's option table and the E-R14 relation fields over it.
+///
+/// Split out of [`subcommand_rest`] so neither grows past the line budget:
+/// the option surface is one topic and the rest of the descriptor is another.
+fn subcommand_option_surface(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
     d.insert("options".into(), option_rows(sub.options, lost));
     let option_relations = if sub.option_relations.is_empty() {
         Value::Null
@@ -1105,11 +1109,15 @@ fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
             .map_or_else(|| lost.expr("option_relations", true), |expr| json!(expr))
     };
     d.insert("option_relations".into(), option_relations);
-    d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "option_placement".into(),
         json!(catalogue::variant_name(&sub.option_placement)),
     );
+}
+
+fn subcommand_rest(d: &mut Draft, sub: &SubCommand, lost: &mut Unrecovered) {
+    subcommand_option_surface(d, sub, lost);
+    d.insert("min_abbrev".into(), opt_index(sub.min_abbrev));
     d.insert(
         "prefix_matching".into(),
         json!(catalogue::variant_name(&sub.prefix_matching)),

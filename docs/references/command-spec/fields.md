@@ -313,11 +313,11 @@ The command's `-flag` switches, each with whether it takes a value (`-nocase` ta
 
 Declared options get completion, spelling checks, and correct highlighting of flag-versus-value; undeclared ones are reported as unknown.
 
-### `option_relations` — Option constraints
+### `option_relations` — Option relations
 
 *command and subcommand* — Registry-declared relations between this command's options and arguments (E-R14) — mutual exclusion, directional requires, requires-one-of, and forbids, each checked natively with no VM entry.
 
-Pairs or sets of options that must not appear together in one call — mutually exclusive modes like `-glob` and `-regexp`. The checker reports a call using both, with no code written for the specific command.
+What this command's options and arguments require of one another. Four relations, and the checker evaluates every one of them natively — no script runs, whatever the document does. `option_conflict {-glob -regexp}` is the symmetric "not together"; `option_requires -command {-channel}` is the directional one (`bibtex::parse`'s `-command` is a channel callback and is useless without `-channel`); `option_requires_one_of {} {-channel {arg 0}}` says a call must supply at least one of a set, subject optional; and `option_forbids {-order in} {{-type bfs}}` is the asymmetric exclusion (`struct::tree walk` rejects an in-order breadth-first walk). A term is an option (`-channel`), an option carrying a value (`{-type bfs}`), a positional argument (`{arg 0}`), or a positional carrying a value (`{arg 1 text}`). Absence is only ever proven on a call the analyser could read to its end, so a `{*}$opts` call abstains instead of accusing.
 
 ### `option_placement` — Option placement
 

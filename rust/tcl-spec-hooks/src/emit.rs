@@ -136,19 +136,16 @@ struct ReadingView {
     options: Vec<(String, Option<String>)>,
     /// Positional words after the option run, `None` where not statically
     /// known.
+    ///
+    /// `RelationFacts::complete` deliberately has no reader verb of its own:
+    /// it reaches a body through `ctx`'s `complete` key, so the abstention
+    /// test has one spelling rather than two.
     positionals: Vec<Option<String>>,
-    /// Whether the call was read to its end with every word literal.
-    complete: bool,
 }
 
 impl Reading {
     /// Replace the view with this call's, before the body runs.
-    pub fn set(
-        &self,
-        options: &[(&'static str, Option<&str>)],
-        positionals: &[Option<&str>],
-        complete: bool,
-    ) {
+    pub fn set(&self, options: &[(&'static str, Option<&str>)], positionals: &[Option<&str>]) {
         *self.view.borrow_mut() = ReadingView {
             options: options
                 .iter()
@@ -158,7 +155,6 @@ impl Reading {
                 .iter()
                 .map(|word| word.map(str::to_owned))
                 .collect(),
-            complete,
         };
     }
 
@@ -227,7 +223,7 @@ impl Reading {
 /// One emitter or reader verb, bound to the sink and reading view of the
 /// invocation that will use it.
 struct Verb {
-    verb: &'static str,
+    name: &'static str,
     family: HookFamily,
     sink: Rc<Sink>,
     reading: Rc<Reading>,
@@ -306,7 +302,7 @@ impl HostCommand for Verb {
     fn invoke(&self, arguments: &[Value]) -> Result<Value, EngineError> {
         // Reader verbs answer from the invocation view and emit nothing —
         // they are how a `constraints` body reads the call it is judging.
-        match self.verb {
+        match self.name {
             "option-present" => return self.reading.option_present(arguments),
             "option-value" => return self.reading.option_value(arguments),
             "literal" => return self.reading.literal(arguments),
@@ -317,7 +313,7 @@ impl HostCommand for Verb {
         // family's: the literal-argument validator's flag form, and the
         // constraints family's positional `SLOT MESSAGE`.
         if self.family == HookFamily::Constraints {
-            let emission = match self.verb {
+            let emission = match self.name {
                 "invalid" => constraint_emission(arguments)?,
                 "abstain" => Emission::ConstraintAbstain,
                 other => return Err(misuse(other, "not an emitter verb of this family")),
@@ -325,34 +321,34 @@ impl HostCommand for Verb {
             self.sink.push(emission);
             return Ok(Value::Empty);
         }
-        let emission = match self.verb {
+        let emission = match self.name {
             "role" => {
                 let [index, role] = arguments else {
-                    return Err(misuse(self.verb, "expected IDX ROLE"));
+                    return Err(misuse(self.name, "expected IDX ROLE"));
                 };
-                let index = u8::try_from(index_of(self.verb, index)?)
-                    .map_err(|_| misuse(self.verb, "word index out of range"))?;
-                Emission::Role(index, role_by_name(self.verb, &text(role))?)
+                let index = u8::try_from(index_of(self.name, index)?)
+                    .map_err(|_| misuse(self.name, "word index out of range"))?;
+                Emission::Role(index, role_by_name(self.name, &text(role))?)
             }
             "prefix" => {
                 let [index, arity] = arguments else {
-                    return Err(misuse(self.verb, "expected IDX ARITY"));
+                    return Err(misuse(self.name, "expected IDX ARITY"));
                 };
-                let index = u8::try_from(index_of(self.verb, index)?)
-                    .map_err(|_| misuse(self.verb, "word index out of range"))?;
-                Emission::Prefix(index, appended_arity(self.verb, arity)?)
+                let index = u8::try_from(index_of(self.name, index)?)
+                    .map_err(|_| misuse(self.name, "word index out of range"))?;
+                Emission::Prefix(index, appended_arity(self.name, arity)?)
             }
             "timing" => {
                 let [index, timing] = arguments else {
-                    return Err(misuse(self.verb, "expected IDX SameInvocation|Deferred"));
+                    return Err(misuse(self.name, "expected IDX SameInvocation|Deferred"));
                 };
-                let index = u8::try_from(index_of(self.verb, index)?)
-                    .map_err(|_| misuse(self.verb, "word index out of range"))?;
+                let index = u8::try_from(index_of(self.name, index)?)
+                    .map_err(|_| misuse(self.name, "word index out of range"))?;
                 Emission::Timing(index, timing_by_name(&text(timing))?)
             }
             "fold" => {
                 let [value] = arguments else {
-                    return Err(misuse(self.verb, "expected VALUE"));
+                    return Err(misuse(self.name, "expected VALUE"));
                 };
                 Emission::Fold(text(value))
             }
@@ -360,33 +356,33 @@ impl HostCommand for Verb {
             "sink-suppressed" => Emission::SinkSuppressed,
             "reject" => {
                 let [message] = arguments else {
-                    return Err(misuse(self.verb, "expected MESSAGE"));
+                    return Err(misuse(self.name, "expected MESSAGE"));
                 };
                 Emission::Reject(text(message))
             }
             "invalid" => invalid_emission(arguments)?,
             "abstain" => {
                 let [reason] = arguments else {
-                    return Err(misuse(self.verb, "expected REASON"));
+                    return Err(misuse(self.name, "expected REASON"));
                 };
                 Emission::Abstain(decline_by_name(&text(reason))?)
             }
             "missing-expr" => match arguments {
                 [] => Emission::MissingExpr(None),
-                [after] => Emission::MissingExpr(Some(index_of(self.verb, after)?)),
-                _ => return Err(misuse(self.verb, "expected ?AFTER?")),
+                [after] => Emission::MissingExpr(Some(index_of(self.name, after)?)),
+                _ => return Err(misuse(self.name, "expected ?AFTER?")),
             },
             "missing-body" => {
                 let [after] = arguments else {
-                    return Err(misuse(self.verb, "expected AFTER"));
+                    return Err(misuse(self.name, "expected AFTER"));
                 };
-                Emission::MissingBody(index_of(self.verb, after)?)
+                Emission::MissingBody(index_of(self.name, after)?)
             }
             "extra-words" => {
                 let [first] = arguments else {
-                    return Err(misuse(self.verb, "expected FIRST"));
+                    return Err(misuse(self.name, "expected FIRST"));
                 };
-                Emission::ExtraWords(index_of(self.verb, first)?)
+                Emission::ExtraWords(index_of(self.name, first)?)
             }
             "consume" => consume_emission(arguments)?,
             other => return Err(misuse(other, "not an emitter verb of this family")),
@@ -537,7 +533,7 @@ pub fn verbs_for(
         .iter()
         .map(|verb| {
             let command: Rc<dyn HostCommand> = Rc::new(Verb {
-                verb,
+                name: verb,
                 family,
                 sink: Rc::clone(sink),
                 reading: Rc::clone(reading),
@@ -666,10 +662,7 @@ pub fn answer_of(family: HookFamily, emissions: Vec<Emission>) -> HookAnswer {
         // a body that discovers half-way through that it cannot judge the
         // call must be able to withdraw, not merely stop.
         HookFamily::Constraints => {
-            if emissions
-                .iter()
-                .any(|emission| *emission == Emission::ConstraintAbstain)
-            {
+            if emissions.contains(&Emission::ConstraintAbstain) {
                 return HookAnswer::Abstain;
             }
             let reports: Vec<ConstraintReport> = emissions

@@ -24,7 +24,8 @@
 | W127 | Value outside a closed set | `closed_value_args` + `arg_values` causes (positional); a closed `OptionValue::enumerated` causes (option values); `arg_values_accept_prefix` accepts prefixes |
 | W141 | Option value fails a shape check | An option-arity hook returning invalid causes |
 | W146 | Literal-argument relationship violated | `literal_argument_validator` returning Invalid causes; a `replacement_value` adds the quick fix |
-| W147 | Mutually exclusive options together | `option_constraints` causes |
+| W147 | Mutually exclusive options together, or a directional exclusion | an `option_conflict` / `option_forbids` row in `option_relations` causes; `option_placement` decides where the options are looked for |
+| W152 | An option relation is unmet — this one needs that one | an `option_requires` / `option_requires_one_of` row in `option_relations` causes; the `constraints` hook can also report one |
 | W304 / T102 | Missing `--` before a dynamic value / tainted option-position value | Only exist if an `OptionSpec` named `"--"` is declared; `reserved_trailing_words` exempts trailing words |
 
 ## Availability and lifecycle
@@ -65,7 +66,7 @@
 | W310 | Hardcoded credential | `credential_options`; `SubCommand::credential_arg` + `sensitive_headers` |
 | W312 / T105 | Cross-interp eval risks | `taint_interp_eval_subcommands` |
 | W313 | Destructive op on a variable path | `SubCommand::destructive`; path taint colours soften or suppress |
-| taint sources | Result is attacker-influenced | `Traits::TAINT_SOURCE` (+ `taint_source` colours), `IRULES_DATA_GETTER`, `UNNORMALISED_HTTP_GETTER` |
+| taint sources | Result is attacker-influenced | `Traits::TAINT_SOURCE` (+ `taint_source` colours), the `IRULES_TAINT_SOURCE_PREFIXES` namespace rule, `UNNORMALISED_HTTP_GETTER` |
 | T100 | Taint into code execution | `TAINT_SINK` or `EVALUATES_CODE` causes; `taint_code_sink_args` narrows the slots; `taint_sink_gate` and `taint_sink_safe_colour` suppress |
 | T101 / IRULE3001–3004 | Taint into output / header / log / redirect | The `taint_output_sink` / `taint_log_sink` code string picks the diagnostic; `taint_output_sink_subcommands` restricts it; the matching safe colour suppresses |
 | T104 | Taint into a network address | `taint_network_sink_args`; IP/port/FQDN colours suppress |

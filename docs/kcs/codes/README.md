@@ -94,6 +94,7 @@ This index lists every per-code KCS page.
 - [W149 — this call matches a different release of the command](kcs-diagnostic-w149-arity-matches-other-version.md)
 - [W146 — invalid literal argument members](kcs-diagnostic-w146-invalid-literal-argument-members.md)
 - [W147 — mutually exclusive options](kcs-diagnostic-w147-mutually-exclusive-options.md)
+- [W152 — option relation unmet](kcs-diagnostic-w152-option-relation-unmet.md)
 - [W200 — exec result not captured](kcs-diagnostic-w200-exec-result-not-captured.md)
 - [W201 — manual path concatenation](kcs-diagnostic-w201-manual-path-concatenation.md)
 - [W230 — list index out of range](kcs-diagnostic-w230-list-index-out-of-range.md)

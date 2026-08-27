@@ -271,6 +271,17 @@ fn call_shape_rows() -> Vec<CommandSpec> {
             "Declare one instance-manufacturing method of the command.",
             "`-names-instance-at` and `-constructor-args-from` are read by other consumers; only `-definition-body-at` feeds `arg_role_resolver from-manufacturers`, and only as a `Body` role.",
         ),
+    ]
+}
+
+/// The four E-R14 option-relation rows (redesign §11.1 O1).
+///
+/// Their own function because they share one shape and one flag set: a
+/// statement word, an optional subject term, a term list, and the flags every
+/// relation row takes. Splitting them out is also what keeps
+/// [`call_shape_rows`] readable now that there are four of them, not one.
+fn option_relation_rows() -> Vec<CommandSpec> {
+    vec![
         row(
             "option_conflict",
             Arity::at_least(1),
@@ -303,6 +314,12 @@ fn call_shape_rows() -> Vec<CommandSpec> {
             "Declare that one option or argument excludes every term of a set.",
             "`option_forbids SUBJECT {TERM …}` — the asymmetric exclusion a symmetric set cannot phrase (`struct::tree walk -order in` is illegal with `-type bfs`).",
         ),
+    ]
+}
+
+/// The rows that constrain individual values and second-level words.
+fn value_shape_rows() -> Vec<CommandSpec> {
+    vec![
         row(
             "setter_constraint",
             Arity::at_least(1),
@@ -412,6 +429,8 @@ fn semantic_rows() -> Vec<CommandSpec> {
 
 pub(super) fn specs() -> Vec<CommandSpec> {
     let mut specs = call_shape_rows();
+    specs.extend(option_relation_rows());
+    specs.extend(value_shape_rows());
     specs.extend(semantic_rows());
     specs
 }

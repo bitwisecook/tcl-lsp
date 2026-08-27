@@ -210,7 +210,9 @@ execution trace is absent.
 | `callback_taint_inputs` | `&'static [(u8, &'static [CallbackTaintInput])]` | `&[]` | User-controlled substitutions injected into deferred positional callbacks; generic taint replay never infers framework metadata |
 | `clause_shape_check` | `Option<ClauseShapeChecker>` | `None` | Validates a clause-chain shape a plain `min..=max` arity can't express (if's `elseif`/`else` chain -- see `tcl_registry::clause_shape`); the compiler dispatches on the hook's presence, not the command name |
 | `frame_effect` | `Option<FrameEffectSpec>` | `None` | How the command crosses stack frames: the level word, the frame-selected variable arguments, and caller-frame scripts |
-| `option_constraints` | `&'static [OptionConstraint]` | `&[]` | Relationships between otherwise valid leading options, including dialect gates. Drives generic W147 without naming the command. |
+| `option_relations` | `&'static [OptionRelation]` | `&[]` | Typed relations between the invocation's options and arguments (E-R14): mutual exclusion, directional requires, requires-one-of, forbids — over terms naming an option, an option *value*, a positional argument, or a positional value. Evaluated natively by `OptionRelation::evaluate`, driving generic W147 / W152 without naming the command. |
+| `option_placement` | `OptionPlacement` | `Leading` | Where the command's declared options may appear: a leading run stopping at the first non-option word (core Tcl), or anywhere between positionals up to `--` (`http::geturl`). |
+| `constraints` | `Option<ConstraintsHook>` | `None` | E-R14's escape hatch, consulted only when every declarative relation reported nothing. |
 | `literal_argument_validator` | `Option<LiteralArgumentValidator>` | `None` | Registry callback for literal argument relationships or collection members whose legal domain depends on surrounding words. It returns Valid, Invalid with an optional replacement Tcl value, or a typed Abstain. |
 | `arg_types` | `&'static [(u8, ArgTypeHint)]` | `&[]` | Per-argument type expectations (e.g. `Int`, `List`).  Drives shimmer detection |
 | `return_type` | `Option<TclType>` | `None` | Return type of the command |
@@ -288,7 +290,6 @@ still types `left` from `return_type`.
 | `taint_sink_gate` | `Option<fn(&[&str]) -> bool>` | `None` | Predicate over the call's own flags deciding whether the sink applies |
 | `credential_options` | `&'static [&'static str]` | `&[]` | Option flags that carry secrets (e.g. `-password`) |
 | `sensitive_headers` | `&'static [&'static str]` | `&[]` | Header names whose values are secrets |
-| `Traits::PASSWORD_OPTION` | trait bit | unset | Command has a password option |
 | `setter_constraints` | `&'static [SetterConstraint]` | `&[]` | Required argument prefixes on setter forms (IRULE3101) |
 
 #### Side effects
@@ -334,7 +335,6 @@ only names which one applies. `rust/tcl-registry/src/hooks.rs` declares them.
 |-------|------|---------|---------|
 | `Traits::DIAGRAM_ACTION` | trait bit | unset | Include in diagram extraction |
 | `xc_translatable` | `Option<bool>` | `None` | XC translatability.  `None` = follow default rules |
-| `xc_operation` | `Option<&'static str>` | `None` | The XC operation the command maps to when translatable |
 | `format_string_type` | `Option<FormatType>` | `None` | Format string metadata (e.g. `format`, `scan`) |
 | `pattern_type` | `Option<PatternType>` | `None` | Pattern metadata (e.g. glob, regex) |
 | `byte_array_effect` | `ByteArrayEffect` | `None` | How the command transforms a byte-array operand (S110) |
@@ -370,7 +370,6 @@ purity through `Traits::PURE`.
 | `is_unescape` | `bool` | `false` | Performs unescaping or decoding — undoes sanitisation in taint terms |
 | `credential_arg` | `Option<u8>` | `None` | Arg index that carries a secret |
 | `taint_output_sink` | `Option<&'static str>` | `None` | Per-subcommand output sink diagnostic code |
-| `xc_operation` | `Option<&'static str>` | `None` | XC translation operation |
 | `subcommand_forms` | `&'static [SubCommandForm]` | `&[]` | Per-form arity, roles, options, and hooks matched after the subcommand word |
 | `sub_subcommands` | `&'static [SubSubCommand]` | `&[]` | Operations selected by the word after this subcommand (`info object <op>`) |
 | `defines_command_at` | `Option<u8>` | `None` | Subcommand-level twin of the command-level `defines_command_at` (index 0-based, *after* the subcommand word) — `interp create ?-safe? ?--? ?name?` binds `name` as the child interpreter's command |
@@ -437,7 +436,7 @@ written.
 | `name` | The form's identifier |
 | `arity`, `arg_roles` | Per-form argument count and roles |
 | `literal_argument_prefix` | Optional known-literal words at the start of the form's arguments. Exact spelling wins; when enabled, abbreviations must uniquely identify a sibling selector word. Prefix-overlapping selectors are legal and the longest statically matched, arity-admitting form wins. A dynamic/expanded word while a longer selector remains viable abstains so parent semantics remain effective |
-| `options`, `option_constraints` | Per-form switches and their relationships |
+| `options`, `option_relations` | Per-form switches and their relations |
 | `semantic_operation`, `lowering_hook`, `codegen_hook` | Per-form dispatch |
 | `traits`, `mutator`, `side_effects` | Replacement-capable behavioural/effect refinements; `None` inherits, `Some` replaces the coarser row |
 | `result_stability`, `world_effects`, `state_transitions`, `dispatch_dependencies`, `representation_effect` | Per-form optimiser facts |

@@ -422,58 +422,38 @@ entry point, or gate moves without this contract being updated.
 5. Grammar direction is 9.0-first by design: the shared number grammar
    accepts `0d5` and `1_000` even though 8.6 rejects them (dialect
    gating is a lexer/analyser concern, not a per-consumer parser fork).
-6. A per-argument fact is projected, never filtered by the consumer.
+6. **A per-argument fact is one authored row, projected once at load.**
    `CommandSpec`'s six parallel per-argument tables (`arg_roles`,
    `arg_types`, `arg_values`, `closed_value_args`, `arg_presentation`,
-   `command_prefixes`) are index-keyed slices with no record to hang a
-   `Lifecycle` on, so the authored rows live beside them as
-   `arg_rows: &[VersionedArgRow]` and
-   `tcl_registry::spec::project_arg_rows` is the **only** thing that
-   turns a row into the parallel form. A consumer that wants the tables
-   at a resolved package floor re-projects; one that open-codes a
-   seventh "is this row in range" test over one table has re-derived the
-   owner in five-sixths of the places it matters, which is the defect
-   the record shape exists to prevent.
-   `spec::versioned_arg_row_tests::projection_carries_every_row_column`
-   is the drift gate: a column added to the record and not to the
-   projection fails there rather than silently vanishing.
+   `command_prefixes`) are index-keyed slices, and the loader's
+   `ArgRows::seal` is the **one** place an authored `arg` row becomes that
+   parallel form — a column added to the row and not to the projection
+   vanishes silently, which is the defect the record shape exists to
+   prevent.
 
-   The division of labour is fixed, because the floor is a **per-document**
-   fact and not a load-time one: **the loader projects unfiltered, and a
-   consumer that wants the tables at a floor re-projects.** The stored
-   tables are therefore the projection at *no floor* — byte-identical to
-   what the pack loader built before rows existed, which is what makes an
-   unversioned pack unaffected — and `arg_rows` is retained only when some
-   row is actually gated, since there is nothing to re-project when no row
-   can be filtered out. A loader that tried to filter would have to pick
-   one document's floor for every document that ever reads the registry.
+   *Retired (redesign §11.1 O2, ruled 2026-08-27).* The per-argument
+   **lifecycle** machinery this point used to describe —
+   `arg_rows: &[VersionedArgRow]` retained beside the slices,
+   `project_arg_rows`, `ArgTables`, `CommandSpec::arg_tables_at`,
+   `CommandRegistry::arg_indices_for_role_at` and `command_prefixes_at` —
+   is deleted. It was declared-and-unpopulated surface: no shipped spec and
+   no pack ever gated an argument row, so every accessor took the
+   `is_empty()` fast path at every call and the only consumers were their
+   own tests. The retired-api gate now holds all seven spellings. Anything
+   that needs a per-argument version gate later comes back **with** its
+   consumer (principle P-C), and the projection point above is where it
+   would attach.
 
-   **How a consumer re-projects (issue #1644).** Through the accessor
-   family every other lifecycle-bearing fact already uses:
-   `CommandSpec::arg_tables_at(package_version)` (and its `SubCommand`
-   twin) answers with the tables *as they exist at that floor*, and
-   `CommandRegistry::arg_indices_for_role_at` is the role query's
-   floor-aware form. The floor stays an **argument**, never registry
-   state — registry handles are cached per (profile, pack overlay) and
-   shared across documents, so one that remembered a floor would answer
-   the wrong document. `arg_rows.is_empty()` is the fast reject: no
-   shipped spec gates an argument, so those specs hand back their stored
-   `&'static` slices by reference and only a gated pack command ever
-   builds a projection.
-
-   The consumers wired to it are the **request-time** ones, which is the
-   only place the answer can be right: a document's floor is settled by
-   its `package require` lines, so it exists once the walk that records
-   them has finished. `document_floor::DocumentFloor` is the one place a
-   provider resolves it — completion's value offers go through
-   `available_arg_values_at`, which now applies the row gate before the
-   value gate, and the `expr`-argument context test resolves roles at the
-   floor. Consumers reading the tables **during** the walk keep the
-   permissive no-floor projection: their answers are formed before the
-   floor is knowable, which is exactly why the arity axis (invariant 7)
-   buffers its verdict and decides post-walk. Making a walk-time reader
-   floor-aware means giving it that same deferred-verdict treatment, and
-   is deliberately not done by pretending a floor exists mid-walk.
+   The version-gated facts that remain — a *value*'s own `Lifecycle` and
+   `versioned_arg_values` — keep the request-time discipline the rest of
+   this point states: the floor is a per-document fact settled by the
+   document's `package require` lines, so it is an **argument** to
+   `available_arg_values_at`, never registry state. Registry handles are
+   cached per (profile, pack overlay) and shared across documents, so one
+   that remembered a floor would answer the wrong document. Consumers
+   reading during the walk keep the permissive no-floor answer: their
+   verdicts are formed before the floor is knowable, which is why the arity
+   axis (invariant 7) buffers and decides post-walk.
 7. A version floor is a lower bound and composes by taking the greatest.
    Three things can state one — a `package require` in the document, a
    `SpecTcl` pack's `ambient_package` row, and the profile's

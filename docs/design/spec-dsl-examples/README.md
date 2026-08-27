@@ -553,7 +553,7 @@ precisely to stay inside the range where 8.x and 9.x agree, and
 ### Outputs: the emitter protocol
 
 **Every hook's own return value is ignored.** Each family injects one to
-three verbs; calling none is an abstention. One protocol for all ten hook
+six verbs; calling none is an abstention. One protocol for all eleven hook
 families, so "what does silence mean" has one answer per family and it is
 always the conservative one.
 
@@ -567,6 +567,7 @@ always the conservative one.
 | `context_gate` | `reject MESSAGE` | the call is allowed |
 | `literal_argument_validator` | `invalid -index N -subject S -reason … -allowed {…} ?-replacement V?`, `abstain REASON` | valid |
 | `clause_shape_check` | `missing-expr ?after?`, `missing-body after`, `extra-words first` | the shape is accepted |
+| `constraints` | readers `option-present OPTION`, `option-value OPTION`, `literal N`, `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?`, `abstain` | no report |
 | option-arity hook (`-arity-hook`) | `consume N ?-invalid MESSAGE?` | consume one word |
 
 Returning early (`return`) is the ordinary way to abstain, which is why
@@ -941,7 +942,7 @@ list of rows instead gets a **singular row statement** (`options` →
 `option`, `subcommands` → `subcommand`, `forms` → `form`,
 `side_effects` → `side_effect`, `setter_constraints` →
 `setter_constraint`, `repeated_args` → `repeat`, `manufacturer_methods`
-→ `manufacturer`, `option_constraints` → `option_conflict`,
+→ `manufacturer`, `option_constraints` → the four `option_*` relation rows,
 `oo_context_facts` → `oo_context_fact`, `sub_subcommands` →
 `sub_subcommand`, `versioned_arg_values` → `versioned_arg_value`), and a
 new field on a *row type* becomes a new flag on that statement — so the
@@ -1068,7 +1069,7 @@ is evidence about the *registry*, never an exemplar of the *syntax*.
 |---|---|---|
 | `object_class { superclasses {…} allow_unknown_methods no  method … }` | **`object_class NAME ?-superclass {…}? ?-allow-unknown? ?-method-prefix-matching Enabled\|Strict? { method … }`** | The scalar fields ride on the statement. The `NAME` word is `class_name`, which the drafts left implicit and which is *not* always the command name (a factory command may manufacture a differently-named class). Method matching defaults to `Strict`; `Enabled` requires evidence that the runtime accepts unique prefixes. |
 | `option NAME -since VERSION` | **`-introduced VERSION`** | the option row already carries the four lifecycle flags `-introduced` / `-deprecated` / `-retired` / `-deprecation-fix`, named for `Lifecycle`'s own fields. `-since` is a second word for the first of them. The drafts' underlying point stands and is unaffected: the version axis here is the *library's*, not Tcl's, which is exactly what `Lifecycle` is documented as being ("orthogonal to `dialects`"). |
-| `option_constraints { forbid {A B} … requires {A B} {C} }` | **`option_conflict {-a -b}`** rows for the `forbid` half; the `requires` half is a **known limit** (below), not syntax | `OptionConstraint` is a flat may-not-co-occur set with no directionality, so `forbid` maps and `requires` has nothing to map to. Writing `requires` inside an otherwise-backed block made an unbacked idea look one flag away from working; as a known limit it is visibly a registry gap. |
+| `option_constraints { forbid {A B} … requires {A B} {C} }` | **`option_conflict {-a -b}`** rows for the `forbid` half; **`option_requires SUBJECT {TERM …}`** for the `requires` half, added by E-R14 | The drafts' shape was right and the registry was the thing missing: `OptionConstraint` was a flat may-not-co-occur set with no directionality, so `requires` was recorded as a known limit rather than written as unbacked syntax. E-R14 (redesign §11.1 O1) supplied the registry half — a typed `OptionRelation` — and the row statements followed. The rule that a draft never writes syntax for an unbacked idea is what kept the two apart until then. |
 | `sub_subcommands { sub_subcommand … }` | **`sub_subcommand NAME …` rows** | the singular-row rule, unchanged: `sub_subcommands` is a list of rows, so it gets a row statement, exactly like `options` → `option`. |
 | `completion { codes {…} custom_code 5 … }` | **removed** — `completion` is excluded | writing syntax for an excluded field is the one thing a draft must not do, however well marked: it reads as a proposal to un-exclude. The real content (a library-defined code scoped to one command's body) is recorded as a known limit. |
 | `arg N -detail {…}` | **removed from the drafts** — there is no field to hold it | this was an *unmarked* invention in all four drafts, which is what makes it worth a ruling. No per-argument prose field exists on `CommandSpec` or `SubCommand`; argument documentation reaches the user through `synopsis` (inlay parameter names, signature help) and through `hover`'s `description`. *Rejected:* adding one. It would be a new registry field, so it is a contribution and an issue, not a DSL spelling — and the census's own rule is that every invention is marked. |
@@ -1098,16 +1099,23 @@ exemplar or a shipped struct, and none blocks the freeze.
 |---|---|---|
 | Per-flag-combination return typing | tarray column search: the returned representation depends on which *combination* of mode/shape flags is present | `return_type` is one value per command/subcommand, and even the excluded `command_forms` splits by form, not by flag combination |
 | Library-defined completion codes | `struct::tree::prune`'s `return -code 5`, meaningful only inside `struct::tree walk`'s body | `completion` is excluded, and the authorable traits name only break/continue/raise. Nothing pairs a custom code to the single command whose body accepts it, the way `HAS_LOOP_BODY` pairs with `BREAKS_LOOP` |
-| Option *requirement* relationships | SpiceGenTcl's `argparse` blocks: 189 `-require` vs 75 `-forbid` | `OptionConstraint` is a flat mutual-exclusion set with no direction. `option_conflict` covers the smaller half of what real libraries write |
 | Method-scoped taint sinks | SpiceGenTcl's `Batch::runAndRead` — an `exec` inside a TclOO instance method | `taint_code_sink_args` / `taint_network_sink_args` are command-only fields; the methods that actually spawn processes are `SubCommand`-shaped and cannot declare them |
 | Embedded-language naming beyond the closed catalogues | tDOM's XPath argument; ticklecharts' JS/G6 fragments | `pattern_type` and `format_string_type` are closed catalogues (Glob/Regex; Sprintf/Clock/Binary/Regsub) a pack cannot extend |
 | Callback *callee-shape* declaration | tclvfs's 9-shape `vfshandler` callback | on the registering command, only `-appends {AtLeast N}` / `Unknown` is available. Mitigated, and well: spec the handler proc itself as a `command` with nine `subcommand`s, which is fully expressible |
 | Runtime-assembled ensembles | `namespace ensemble create -map` where the map splices same-file procs | a pack declares commands, not the runtime construction of them |
 | Runtime-computed argument grammars | SpiceGenTcl's computed `argparse` definitions; mustache's position-dependent lambda arity | irreducibly dynamic — `Unknown` is the honest answer for any spec system, native included |
 
-Two of these (`requires`, method-scoped taint sinks) are registry
-changes rather than DSL changes, and both are worth filing; the rest are
-statements about what a static description of a command can be.
+**Closed since:** *option requirement relationships* — the row that read
+"`OptionConstraint` is a flat mutual-exclusion set with no direction;
+`option_conflict` covers the smaller half of what real libraries write",
+evidenced by SpiceGenTcl's 189 `-require` against 75 `-forbid`. E-R14
+(redesign §11.1 O1) replaced `OptionConstraint` with a typed
+`OptionRelation` and added `option_requires`, `option_requires_one_of` and
+`option_forbids` beside `option_conflict`; all four are checked natively.
+
+Method-scoped taint sinks remain a registry change rather than a DSL change
+and is worth filing; the rest are statements about what a static description
+of a command can be.
 
 ## Coverage matrix
 
@@ -1122,7 +1130,6 @@ schema order. "excluded" rows carry the reason.
 | `arity` | `arity N`, `N..M`, `N..`, `..M`, `..` ?-step S? ?-also N? | the `..` range word is the whole `Arity` struct |
 | `arity_windows` | `arity SHAPE -introduced V ?-deprecated V? ?-retired V?` | since 1.2; the same row with a lifecycle. Repeatable, must not overlap; the ungated `arity` row stays the fallback |
 | `arg_roles` | `arg N -role ROLE` |  |
-| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
@@ -1163,6 +1170,7 @@ schema order. "excluded" rows carry the reason.
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
+| `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | E-R14's rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `inferred_storage_type` | `inferred_storage_type Dict\|List\|Array` |  |
 | `required_package` | `required_package NAME` | also settable pack-wide with `default` |
 | `excluded_events` | `excluded_events {EVENT …}` |  |
@@ -1174,7 +1182,8 @@ schema order. "excluded" rows carry the reason.
 | `side_switch_target` | `side_switch_target Client\|Server` |  |
 | `event_handler_priority` | `event_handler_priority -default N ?-warn-implicit?` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
+| `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `reserved_trailing_words` | `reserved_trailing_words N` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
 | `versioned_arg_values` | `versioned_arg_value N VALUE ?-introduced V? ?-deprecated V? ?-retired V?` | one row per gate; the command-level mirror of the subcommand rows, legal at either scope since 1.1 |
@@ -1204,7 +1213,6 @@ schema order. "excluded" rows carry the reason.
 | `warn_missing_import` | `warn_missing_import ?yes\|no?` |  |
 | `is_namespace_exported` | `is_namespace_exported ?yes\|no?` |  |
 | `xc_translatable` | `xc_translatable yes\|no` | argument required — absent means unset |
-| `xc_operation` | `xc_operation NAME` |  |
 | `deprecated_replacement` | `deprecated_replacement NAME` |  |
 | `deprecated_replacement_drop_in` | `deprecated_replacement_drop_in ?yes\|no?` |  |
 | `byte_array_payload` | `byte_array_payload -replace-data-index N ?-message-flag-shift?` |  |
@@ -1234,7 +1242,6 @@ schema order. "excluded" rows carry the reason.
 | `synopsis` | `synopsis {…}` |  |
 | `hover` | `hover { … }` | block; see the hover statements below |
 | `arg_roles` | `arg N -role ROLE` |  |
-| `arg_rows` | any `arg N …` row plus `-introduced V` / `-deprecated V` / `-retired V` | since 1.2; the lifecycle gates the whole row, every column of it at once |
 | `arg_role_resolver` | `arg_role_resolver {words ctx} { … }` \| `-native ID` \| `from-manufacturers` | also **derived** from `clause_grammar`; emitter verb `role IDX ROLE` |
 | `arg_presentation` | `arg N -layout BlockScript\|InlineScript` |  |
 | `repeated_args` | `repeat ROLE -from N -stride N ?-exclude-trailing N? ?-optional-leading? ?-conditional?` | one row per layout |
@@ -1258,7 +1265,8 @@ schema order. "excluded" rows carry the reason.
 | `analyser_hook` | `analyser_hook -native ID` | closed catalogue |
 | `command_table_effect` | `command_table_effect DefinesProcedure\|RenamesCommands\|CreatesAliases` |  |
 | `options` | `option NAME ?-flag value? …` | one row per option; see the option flag table |
-| `option_constraints` | `option_conflict {-a -b} ?-dialects {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per constraint; a conflict only exists once both options do, which is what its own three releases say |
+| `option_relations` | `option_conflict {TERM …}` / `option_requires SUBJECT {TERM …}` / `option_requires_one_of SUBJECT {TERM …}` / `option_forbids SUBJECT {TERM …}`, each `?-dialects {…}? ?-message {…}? ?-introduced V? ?-deprecated V? ?-retired V?` | one row per relation; a relation only exists once both its operands do, which is what its own three releases say. A term is `-name`, `{-name value}`, `{arg N}` or `{arg N value}`; an empty subject (`{}`) makes the relation unconditional |
+| `option_placement` | `option_placement Leading\|Anywhere` | where the command's options may be found — `Leading` (the default, and what core Tcl's C option loops do) stops at the first non-option word; `Anywhere` keeps recognising them between positionals up to `--` |
 | `min_abbrev` | `min_abbrev N` |  |
 | `prefix_matching` | `prefix_matching Enabled\|Strict` |  |
 | `arg_values` | `arg N -values {v …}` \| `arg N -values-from NAME` | `values NAME { … }` declares the shared table, whose rows carry `-min-tcl` (the Tcl axis) and the three releases (the package axis) independently |
@@ -1287,13 +1295,13 @@ schema order. "excluded" rows carry the reason.
 | `sensitive_headers` | `sensitive_headers {NAME …}` |  |
 | `pattern_type` | `pattern_type Glob\|Regex` |  |
 | `format_string_type` | `format_string_type Sprintf\|Clock\|Binary\|Regsub` |  |
-| `xc_operation` | `xc_operation NAME` |  |
 | `side_effects` | `side_effect TARGET ?-reads? ?-writes? ?-side S? ?-dialects {…}?` | one row per effect |
 | `world_effects` | `world_effects none\|NAME\|{ … }` | block carries composition / access / callback / dynamic_fallback; `resolver` is reference-only |
 | `state_transitions` | `state_transitions NAME\|{ … }` | block carries composition / argument_shape / widen / covers / commit; `resolver` takes `none`, `from-frame-effect`, or `-native ID` |
 | `dispatch_dependencies` | **excluded** | specialisation-proof machinery whose meaning is defined by the optimiser, not by the command; fields.md itself says "leave unset" |
 | `result_stability` | `result_stability Unknown\|ReferentiallyTransparent\|Volatile\|{ReadsVersionedWorld {D …}}` |  |
 | `literal_argument_validator` | `literal_argument_validator {words ctx} { … }` \| `-native ID` | emitter verbs `invalid …` / `abstain REASON`; no call = valid |
+| `constraints` | `constraints -inputs {invocation} {words ctx} { … }` | E-R14's rare escape hatch, consulted only when every declarative option relation reported nothing. Readers `option-present` / `option-value` / `literal N` / `arg-count`; emitters `invalid SLOT MESSAGE ?-conflict?` / `abstain`; no call = no report |
 | `destructive` | `destructive ?yes\|no?` |  |
 | `returns_path` | `returns_path ?yes\|no?` |  |
 | `is_unescape` | `is_unescape ?yes\|no?` |  |

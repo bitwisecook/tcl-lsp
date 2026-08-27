@@ -174,7 +174,7 @@ impl Analyser {
             return;
         }
         let source = self.source.clone();
-        let (options, positionals, complete) = super::validity::scan_invocation_words(
+        let call = super::validity::scan_invocation_words(
             &sub.option_specs(None, None),
             sub.option_placement,
             &site.args_after_subcommand,
@@ -190,9 +190,7 @@ impl Analyser {
             &display_name,
             &relations,
             sub.constraints,
-            &options,
-            &positionals,
-            complete,
+            &call,
             site.cmd_span,
         ) {
             self.result.diagnostics.push(diagnostic);

@@ -449,7 +449,7 @@ impl<E: Engine> PackHookHost for HookHost<E> {
             // The `constraints` family's reading verbs answer from this cell,
             // refilled per call exactly as the sink is cleared per call.
             match call.constraints {
-                Some(view) => reading.set(view.options, view.positionals, view.complete),
+                Some(view) => reading.set(view.options, view.positionals),
                 None => reading.clear(),
             }
             let invoked =

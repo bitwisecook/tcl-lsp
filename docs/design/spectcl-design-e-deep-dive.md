@@ -262,6 +262,80 @@ type-checks, and all four names are SSA-visible writes — while a
 `binary scan $data $fmt …` site abstains to the static floor: every
 trailing var is `var-write` of `varname(any)`, nothing guessed.
 
+### 2.1 The `constraints` hook contract (E-R14)
+
+The `types` contract above is the pattern, and the `constraints` hook —
+E-R14's escape hatch for an option relation no declarative row can
+express — follows it **exactly**, for the same reason: principle P-B
+says a script must not run on every edit.
+
+**It is reached last, and usually not at all.** The analyser evaluates
+every declared `option_conflict` / `option_requires` /
+`option_requires_one_of` / `option_forbids` relation natively —
+`OptionRelation::evaluate` is a few slice scans over facts the option
+walk already produced — and only asks the hook when a spec declares one
+*and* every relation reported nothing. No shipped command declares one,
+so no shipped command's call site ever enters the VM. Measured on a
+40-call-site option-heavy corpus: **0 of 33 option-bearing call sites
+entered tclvm.** When a declarative row and a hook could both say
+something, the declarative row wins; a hook that restates one is a
+review comment.
+
+**Declared inputs, and content caching.** A body writes
+`constraints -inputs {invocation} {words ctx} { … }`. `invocation` is a
+*content* input: it earns `CacheMode::Content`, whose key is the call's
+shape plus a hash of its option names, its option values, its positional
+words and its `complete` flag. That is what makes "an edit elsewhere in
+the document must not re-run hooks for unrelated call sites" true rather
+than hoped: an unchanged call site hashes the same and is answered from
+the memo. An *undeclared* hook made no claim about what it reads, so
+nothing can be hashed on its behalf and it stays uncached — the
+conservative direction.
+
+**Abstention is explicit.** `ctx`'s `complete` key is false when the
+call carried a `{*}` expansion or a substituted word where an option
+could have been. A body tests it and calls `abstain`, which cancels
+every report it had already made — a body that discovers half way
+through that it cannot judge the call must be able to *withdraw*, not
+merely stop. Error means abstain: a hook that raises, blows its budget,
+panics, is quarantined, or has no host answers silence, like every other
+family.
+
+**The verbs are ones that already exist.** Four readers and two
+emitters, no new spellings invented (principle P-E):
+
+| verb | kind | answers / does |
+|---|---|---|
+| `option-present OPTION` | reader | whether the call supplied it |
+| `option-value OPTION` | reader | its first literal value word, or empty |
+| `literal N` | reader | positional word `N`, or empty when not statically known — the same spelling the `types` hook reaches a literal argument by |
+| `arg-count` | reader | how many positional words the call supplied |
+| `invalid SLOT MESSAGE ?-conflict?` | emitter | one report. `SLOT` is an option spelling, `arg N`, or `command`; `-conflict` selects W147 ("these cannot go together") over the default W152 ("this one needs that one") — the only structural choice a hook makes |
+| `abstain` | emitter | withdraw: this call cannot be judged |
+
+The analyser owns the diagnostic code and the span; the hook says only
+*where* and *what*. That asymmetry is deliberate — it is what keeps a
+pack from minting diagnostics.
+
+A worked body, for a rule the vocabulary genuinely cannot state (a
+*numeric* comparison between two option values):
+
+```tcl
+constraints -inputs {invocation} {words ctx} {
+    if {![dict get $ctx complete]} { abstain }
+    if {![option-present -min] || ![option-present -max]} { return }
+    set lo [option-value -min]
+    set hi [option-value -max]
+    if {$lo eq {} || $hi eq {}} { abstain }
+    if {$lo > $hi} { invalid -min "-min $lo exceeds -max $hi" }
+}
+```
+
+Everything the four declarative statements *can* say — including
+`bibtex::parse`'s three relations, `http::geturl`'s conditional pairs,
+and `struct::tree walk`'s `-order in` versus `-type bfs` — is declared,
+not hooked.
+
 ## 3. iRules against the profile and event graph
 
 The iRules surface is the strongest evidence that the dialect layer is
@@ -1060,8 +1134,11 @@ body role already is.
 >   P5 added the five `-command`-versus-SAX conflicts it also proves.
 >   Its *other* rule — `-command` requires `-channel` — is the G2
 >   directional half restated, and additionally needs a relation between
->   an option and a **positional** argument, which nothing in the model
->   has.
+>   an option and a **positional** argument. **Both landed under E-R14**:
+>   the shipped spec now carries `option_requires -command {-channel}`,
+>   `option_forbids -channel {{arg 0}}`, and
+>   `option_requires_one_of {} {-channel {arg 0}}` for the
+>   "neither specified" case.
 > - **E-R6 stands, narrowed.** `::struct::tree::prune` is now a real
 >   command with `introduced: "2.0"` on the `struct::tree` axis and a
 >   completion domain of exactly `{5}` — the *producer* half needed no
@@ -1291,11 +1368,16 @@ ratified; VersionSet made it general). G7/G15 (command-only fields on
 methods — M5). G16 (sub-subcommand fidelity — M11). G12 (property
 clause — member layout kind, §6).
 
-**Still open, now with a shape.** G2's directional half: `-forbid`
-mapped; option *requires* relations stay a known limit until a real
-consumer proves the semantics (the census found 189 `-require` uses in
-SpiceGenTcl alone, so this is the most valuable single model addition
-left — flagged for the owner rather than ruled here). G6 (foreign
+**Closed since.** G2's directional half is **done**: E-R14 replaced
+`OptionConstraint` with a typed `OptionRelation` and added
+`option_requires` / `option_requires_one_of` / `option_forbids` beside
+`option_conflict`, so all 189 of the `-require` uses the census found in
+SpiceGenTcl have a spelling — and so does the cross-option *value*
+legality row (`RelationTerm::OptionValue`), and the option-to-positional
+relation `bibtex::parse` needs (`RelationTerm::Argument`). Every one is
+checked natively with no VM entry.
+
+**Still open, now with a shape.** G6 (foreign
 code as a value — ticklecharts' `jsfunc` JS): E-R8 proposes
 pack-namespaced embedded-language names (`-language ticklecharts::js`)
 carrying *identity and taint colour only* — rendering and analysis
@@ -1576,7 +1658,7 @@ E-R11–E-R13 were written "(proposed)" in §15, implemented as written, and
 | E-R8 | Embedded-language identity is open and pack-namespaced (`ticklecharts::js`); embedded-language *semantics* come only from hooks | §11 (G6) | ratified; implemented |
 | E-R9 | The DSL vocabulary is single-sourced from the evaluator's command table; the editing-surface pack is emitted, never hand-kept | §12 | ratified; **partly implemented** — the SpecTcl self-spec gained `available`, `environment` and `dialect` so authoring a pack gets completion and hover, but the vocabulary is not yet single-sourced from the evaluator's command table |
 | E-R10 | Known limits that stand: option *requires* relations (pending owner ruling — best-value candidate), apave's nested tuples (G8/G9), position-dependent callback arity (`Unknown` is honest) | §11 | a statement of limits, not a proposal. Its first item (option *requires* relations) is O1 in the redesign's §11; P5 confirmed it independently from `bibtex::parse` |
-| E-R14 | **Option relations are a typed model with a native-Tcl escape hatch.** `OptionConstraint` generalises into a typed relation covering mutual exclusion, directional requires, requires-one-of, and relations reaching positional arguments and option *values*. Authors reach it through centralised utilities for the common patterns; anything else is a `constraints` hook whose body is ordinary Tcl (`if`, `switch`, `foreach`) able to read the whole invocation. Bound by principle P-B: the declarative forms compile to a structure checked natively with **no VM entry**, the hook is the rare exception, and hook results are shape-cached on declared inputs so an edit that does not change them never re-runs the script | owner ruling 2026-08-27; P5's `bibtex::parse` evidence (`-command` requires `-channel`); census gap G2's directional half and the cross-option value-legality row | ratified — the relation type, the vocabulary, the hook contract and the option-table consumer are the work |
+| E-R14 | **Option relations are a typed model with a native-Tcl escape hatch.** `OptionConstraint` generalises into a typed relation covering mutual exclusion, directional requires, requires-one-of, and relations reaching positional arguments and option *values*. Authors reach it through centralised utilities for the common patterns; anything else is a `constraints` hook whose body is ordinary Tcl (`if`, `switch`, `foreach`) able to read the whole invocation. Bound by principle P-B: the declarative forms compile to a structure checked natively with **no VM entry**, the hook is the rare exception, and hook results are shape-cached on declared inputs so an edit that does not change them never re-runs the script | owner ruling 2026-08-27; P5's `bibtex::parse` evidence (`-command` requires `-channel`); census gap G2's directional half and the cross-option value-legality row | **ratified and landed.** `OptionRelation { kind, subject, terms, dialects, lifecycle, message }` over `RelationTerm::{Option, OptionValue, Argument, ArgumentValue}`, with `OptionPlacement` telling the checker where a command's options live; `OptionRelation::evaluate` is the whole declarative checker and `RelationFacts::complete` is what licenses proving a term *absent*. Four statements at both loader seams (`option_conflict`, `option_requires`, `option_requires_one_of`, `option_forbids`), an export round-trip gate over every kind and term shape, W147 for the exclusions and **W152** for the requirements. The `constraints` hook follows the `types` contract exactly — see §2.1. Measured on a 40-call-site option-heavy corpus: 33 option-bearing sites walked, 14 judged, 50 relations evaluated natively, **0 entered tclvm** |
 | E-R11 | SpecTcl 2.0 has a **canonical form** — the straight-line subset of E; every generator emits it, `tcl spec export` expands any snapshot into it, contraction is never attempted | §15.1 | **proposed → implemented, unratified.** `tcl_spectcl::export` renders `Pack::registrations`; round-trip gate A holds over all 24 shipped packs (1,515 commands, 14,770 registration calls) snapshot-identical and text-idempotent; gate B proves three templated fixtures expand, reload and are fixed points. Wired as `tcl spec export`. See O3 |
 | E-R12 | The studio never rewrites a **programmed** pack: its source opens read-only beside its expansion and a form edit lands as a canonical patch pack in the `StudioOverride` tier | §15.2 | **proposed → implemented, unratified.** `PackStore::programmed` is a three-tiered predicate (target-dependent, expanded, or statements the snapshot did not record), `WriteBack::Patched` routes the edit, `PackStore::standing_overrides` is the queryable report, and a guard test holds the predicate over all twelve hand-written packs. See O3 |
 | E-R13 | The `spectcl_expand` MCP verb — pack source in, canonical form out — so a programmed pack is reviewable as its expansion rather than simulated in the reader's head | §15.3 | **proposed → implemented, unratified.** `spectcl_expand` ships; `spectcl_check` evaluates packs and surfaces `load_error`, `target_dependent`, per-notice classes and what an untrusted tier would refuse. See O3 |

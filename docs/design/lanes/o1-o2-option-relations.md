@@ -196,13 +196,40 @@ entering the VM fails a test rather than merely getting slower.
   `docs/references/command-spec/fields.md`, `ai/**`, `editors/**`,
   `rust/tcl-mcp/diagnostics.json`.
 
+## Sites done — docs
+
+* redesign §11.1 O1 and O2 rows rewritten to what landed (O2 records the
+  `ProfileSpec::conflicts` exception and why).
+* redesign §8's P5 known-limits list: gap (c) *option-requires relations*
+  struck through and closed.
+* deep dive **§2.1 The `constraints` hook contract** — new, beside the
+  `types` contract in §2, with the verb table and a worked body.
+* deep dive §14 E-R14 row marked landed, with the measurement.
+* deep dive §11 census: G2's directional half moved from "still open" to
+  "closed since"; the `bibtex::parse` note now names the three shipped rows.
+* `docs/design/spec-dsl-examples/README.md`: `constraints` in the hook-family
+  table, the four relation statements in both field tables, `option_placement`,
+  the `xc_operation` and `arg_rows` rows removed, and the "option requirement
+  relationships" known-limit closed.
+* `docs/design/contracts/shared-utility-contracts-rust.md` point 6 rewritten:
+  the projection point stands, the per-argument *lifecycle* machinery is
+  recorded as retired.
+* `docs/design/compiler/command-registry.md`: `option_relations`,
+  `option_placement`, `constraints`; `PASSWORD_OPTION` and `xc_operation` rows
+  removed.
+* `docs/references/command-spec/{fields,diagnostics}.md`; **new KCS article**
+  `docs/kcs/codes/kcs-diagnostic-w152-option-relation-unmet.md` with its index
+  entry and its `command-walk` stage row in the xtask gate; the W147 article
+  updated for directional and value-reaching exclusions.
+* `docs/design/README.md` gained the in-flight-lanes section the KCS index
+  gate needs, and `docs/design/lanes/README.md` lists this lane.
+
 ## Remaining
 
-* `make xtask-check` full run and clippy-pedantic/fmt sweep.
-* Docs: §11.1 O1/O2 rows, the constraints-hook contract beside the types-hook
-  one, E-R14's §14 row, and the census/gap rows this closes (G2's directional
-  half, the cross-option value-legality row, the P5 known-limits entries).
-* `docs/design/spec-dsl-examples/README.md` row table (mentions `xc_operation`).
+* `make xtask-check` full run.
+* Full `cargo test` sweep on the touched crates (`tcl-registry`,
+  `tcl-spectcl`, `tcl-spec-hooks`, `tcl-spec-studio`, `tcl-compiler`,
+  `tcl-lsp-core`, `tcl-lsp-server`, `tcl-mcp`, `xtask`).
 
 ## Behavioural deltas accepted
 

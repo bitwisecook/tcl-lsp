@@ -19,3 +19,8 @@ The protocol these files belong to — checkpoint commits, compile-before-
 commit, staging by explicit path, and why lanes commit locally while the
 orchestrator pushes — is in [`AGENTS.md`](../../../AGENTS.md) under
 "Long-running agent lanes: checkpoint or lose it".
+
+## In flight
+
+- [o1-o2-option-relations.md](o1-o2-option-relations.md) — redesign §11.1
+  rows O1 (the typed option-relation model, E-R14) and O2 (the M9 dead axes).

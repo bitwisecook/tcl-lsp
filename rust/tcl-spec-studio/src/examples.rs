@@ -459,16 +459,20 @@ const CATALOGUE_PREFIX: Example = Example {
 
 fn catalogue_template(id: &str) -> Option<Example> {
     match id {
-        "argRole" => Some(CATALOGUE_ARG_ROLE),
         "tclType" | "storageType" | "byteArrayEffect" => Some(CATALOGUE_TYPE),
         "bodyKind" | "argPresentation" => Some(CATALOGUE_PRESENTATION),
         "scriptTiming" => Some(FIELD_SCRIPT_TIMING),
         "variableScope" => Some(FIELD_VARIABLE_SCOPE),
         "commandTableEffect" | "definedSymbolKind" | "sideEffectTarget" | "connectionSide"
         | "formKind" => Some(CATALOGUE_EFFECT),
-        "patternType" | "formatType" | "defaultFormFirstWord" | "prefixMatching" => {
-            Some(CATALOGUE_ARG_ROLE)
-        }
+        // The plain "pick one variant" shape: every closed catalogue whose
+        // example is just "here is one of its values".
+        "argRole"
+        | "patternType"
+        | "formatType"
+        | "defaultFormFirstWord"
+        | "prefixMatching"
+        | "optionPlacement" => Some(CATALOGUE_ARG_ROLE),
         "loweringHook" | "codegenHook" | "inlineCodegenHook" | "analyserHook" => {
             Some(CATALOGUE_HOOK)
         }

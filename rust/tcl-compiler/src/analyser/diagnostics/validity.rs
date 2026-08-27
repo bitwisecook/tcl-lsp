@@ -199,6 +199,18 @@ pub(in crate::analyser) struct SeenPositional {
     pub(in crate::analyser) span: tcl_lexer::Span,
 }
 
+/// One invocation as the E-R14 relation checker reads it — the whole result
+/// of [`scan_invocation_words`], kept together so the three facts a verdict
+/// depends on cannot be passed apart.
+#[derive(Debug, Default)]
+pub(in crate::analyser) struct ScannedInvocation {
+    pub(in crate::analyser) options: Vec<SeenOption>,
+    pub(in crate::analyser) positionals: Vec<SeenPositional>,
+    /// Whether the call was read to its end with every word statically known.
+    /// **Only** this licenses proving a relation term *absent*.
+    pub(in crate::analyser) complete: bool,
+}
+
 /// The span a relation violation points at: the run from the first to the last
 /// word the violation names, or `fallback` when it names none the call
 /// actually supplied (a `requires-one-of` that found nothing).
@@ -243,11 +255,11 @@ pub(in crate::analyser) fn option_relation_diagnostics(
     display_name: &str,
     relations: &[&'static tcl_registry::OptionRelation],
     constraints_hook: Option<tcl_registry::ConstraintsHook>,
-    seen_options: &[SeenOption],
-    positionals: &[SeenPositional],
-    complete: bool,
+    call: &ScannedInvocation,
     fallback_span: tcl_lexer::Span,
 ) -> Vec<(Lifecycle, crate::analyser::types::Diagnostic)> {
+    let seen_options = &call.options;
+    let positionals = &call.positionals;
     if relations.is_empty() && constraints_hook.is_none() {
         tcl_registry::spec::note_relation_check(!seen_options.is_empty(), false, 0, false);
         return Vec::new();
@@ -263,7 +275,7 @@ pub(in crate::analyser) fn option_relation_diagnostics(
     let facts = tcl_registry::RelationFacts {
         options: &options,
         positionals: &positional_values,
-        complete,
+        complete: call.complete,
     };
 
     let mut out = Vec::new();
@@ -381,7 +393,7 @@ pub(in crate::analyser) fn scan_invocation_words(
     arg_expand: &[bool],
     source: &str,
     fallback_span: tcl_lexer::Span,
-) -> (Vec<SeenOption>, Vec<SeenPositional>, bool) {
+) -> ScannedInvocation {
     let expanded = |i: usize| arg_expand.get(i).copied().unwrap_or(false);
     let span_at = |index: usize| {
         arg_tokens.get(index).map_or(fallback_span, |token| {
@@ -436,7 +448,11 @@ pub(in crate::analyser) fn scan_invocation_words(
         });
         i += 1;
     }
-    (options, positionals, complete)
+    ScannedInvocation {
+        options,
+        positionals,
+        complete,
+    }
 }
 
 /// Compatibility adapter for existing end-offset consumers. The delimiter
@@ -1968,7 +1984,7 @@ impl Analyser {
         // relation must also know the option *values*, the positional words,
         // and whether the call was readable to its end.
         let source = self.source.clone();
-        let (seen_options, positionals, complete) = scan_invocation_words(
+        let call = scan_invocation_words(
             &sig.leading_option_specs,
             sig.option_placement,
             args,
@@ -1981,9 +1997,7 @@ impl Analyser {
             resolution_name,
             display_name,
             sig,
-            &seen_options,
-            &positionals,
-            complete,
+            &call,
             cmd_tok,
             scope_path,
         );
@@ -2122,15 +2136,12 @@ impl Analyser {
     /// owning package resolves to 1.x, and — like every other lifecycle fact —
     /// the floor is not known until every `package require` has been walked.
     /// An unversioned relation keeps the inline path exactly as it was.
-    #[allow(clippy::too_many_arguments)]
     fn queue_option_relation_violations(
         &mut self,
         resolution_name: &str,
         display_name: &str,
         sig: &super::dispatch::CommandSig,
-        seen_options: &[SeenOption],
-        positionals: &[SeenPositional],
-        complete: bool,
+        call: &ScannedInvocation,
         cmd_tok: tcl_lexer::Token,
         scope_path: &[usize],
     ) {
@@ -2138,9 +2149,7 @@ impl Analyser {
             display_name,
             &sig.option_relations,
             sig.constraints_hook,
-            seen_options,
-            positionals,
-            complete,
+            call,
             cmd_tok.span,
         );
         if reports.is_empty() {

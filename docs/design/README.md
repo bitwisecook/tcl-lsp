@@ -513,6 +513,13 @@ Distilled from the trickiest scars in the WASM runtime history
   recipe, and the eight-corpus inventory, alongside the raw findings data and
   the orchestration scripts that produced them.
 
+## In-flight agent lanes
+
+- [lanes/README.md](lanes/README.md) — one tracking document per in-flight
+  agent lane: goal, decisions taken and why, site inventory, behavioural
+  deltas, and open uncertainties. A file there means a lane is either in
+  flight or was interrupted; each is removed when its lane lands.
+
 ## Templates
 
 Templates for new design docs live at

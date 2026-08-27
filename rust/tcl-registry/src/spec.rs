@@ -1121,14 +1121,48 @@ pub struct RelationFacts<'a> {
     pub complete: bool,
 }
 
+/// What a call site says about one option — three cases, not two, because
+/// "supplied with a value nobody can read" answers differently from both
+/// "absent" and "supplied with this value".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OptionPresence<'a> {
+    /// The call did not supply the option here.
+    Absent,
+    /// Supplied, but its value word is not statically known.
+    PresentUnknownValue,
+    /// Supplied, carrying this literal value.
+    PresentWith(&'a str),
+}
+
 impl RelationFacts<'_> {
-    /// The value the call gave `name`, or `None` when the option is absent or
-    /// its value is not a literal.
-    fn option_value(&self, name: &str) -> Option<Option<&str>> {
-        self.options
-            .iter()
-            .find(|(option, _)| *option == name)
-            .map(|(_, value)| *value)
+    /// What the call said about `name`.
+    fn option_presence(&self, name: &str) -> OptionPresence<'_> {
+        match self.options.iter().find(|(option, _)| *option == name) {
+            None => OptionPresence::Absent,
+            Some((_, None)) => OptionPresence::PresentUnknownValue,
+            Some((_, Some(value))) => OptionPresence::PresentWith(value),
+        }
+    }
+
+    /// `Yes` when the word is proven to be `wanted`, `No` when proven not to
+    /// be, `Unknown` when the word is not statically known — the shared
+    /// answer for an option value and a positional value alike.
+    fn matches_literal(word: Option<&str>, wanted: &str) -> TermHolds {
+        match word {
+            Some(actual) if actual == wanted => TermHolds::Yes,
+            Some(_) => TermHolds::No,
+            None => TermHolds::Unknown,
+        }
+    }
+
+    /// The verdict for a term the call did not supply: proven absent only
+    /// when the invocation was read to its end.
+    const fn absent(&self) -> TermHolds {
+        if self.complete {
+            TermHolds::No
+        } else {
+            TermHolds::Unknown
+        }
     }
 }
 
@@ -1259,46 +1293,33 @@ impl OptionRelation {
     /// Whether `term` holds in `facts`.
     fn holds(term: RelationTerm, facts: &RelationFacts<'_>) -> TermHolds {
         match term {
-            RelationTerm::Option(name) => match facts.option_value(name) {
-                Some(_) => TermHolds::Yes,
-                None if facts.complete => TermHolds::No,
-                None => TermHolds::Unknown,
-            },
-            RelationTerm::OptionValue(name, wanted) => match facts.option_value(name) {
-                // Present with a literal value: an exact answer either way.
-                Some(Some(actual)) => {
-                    if actual == wanted {
-                        TermHolds::Yes
-                    } else {
-                        TermHolds::No
-                    }
+            RelationTerm::Option(name) => match facts.option_presence(name) {
+                OptionPresence::Absent => facts.absent(),
+                // Presence is provable whatever the value is.
+                OptionPresence::PresentUnknownValue | OptionPresence::PresentWith(_) => {
+                    TermHolds::Yes
                 }
-                // Present, value not statically known — it may be `wanted`.
-                Some(None) => TermHolds::Unknown,
-                None if facts.complete => TermHolds::No,
-                None => TermHolds::Unknown,
+            },
+            RelationTerm::OptionValue(name, wanted) => match facts.option_presence(name) {
+                OptionPresence::Absent => facts.absent(),
+                // Present, but its value could be anything at run time —
+                // including `wanted`.
+                OptionPresence::PresentUnknownValue => TermHolds::Unknown,
+                OptionPresence::PresentWith(actual) => {
+                    RelationFacts::matches_literal(Some(actual), wanted)
+                }
             },
             RelationTerm::Argument(index) => {
                 if usize::from(index) < facts.positionals.len() {
                     TermHolds::Yes
-                } else if facts.complete {
-                    TermHolds::No
                 } else {
-                    TermHolds::Unknown
+                    facts.absent()
                 }
             }
             RelationTerm::ArgumentValue(index, wanted) => {
                 match facts.positionals.get(usize::from(index)) {
-                    Some(Some(actual)) => {
-                        if *actual == wanted {
-                            TermHolds::Yes
-                        } else {
-                            TermHolds::No
-                        }
-                    }
-                    Some(None) => TermHolds::Unknown,
-                    None if facts.complete => TermHolds::No,
-                    None => TermHolds::Unknown,
+                    Some(word) => RelationFacts::matches_literal(*word, wanted),
+                    None => facts.absent(),
                 }
             }
         }
