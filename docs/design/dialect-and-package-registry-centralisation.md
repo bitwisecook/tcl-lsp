@@ -827,6 +827,38 @@ unregenerated. Each is in the redesign's §11.
   CMP overlays are recorded as evidence but not wired as overlays, and
   the corpus covers one build and four contexts.
 
+- **R12 — one relation mechanism, and the security floor under it**
+  (owner ruling 2026-08-28: *"is it something we should roll into one
+  mechanism?" → do it*). The registry checked "X requires / conflicts
+  with Y" in five places and four vocabularies: E-R14's typed
+  `OptionRelation`; `ProfileSpec::requires` and `::conflicts`, two bare
+  `&[&str]` slices with a hand-written walker each; and the event
+  graph's `implied_profiles`. Only the first had lifecycle gating or
+  evidence-carrying messages. `tcl-registry::relation` is the one core:
+  `Relation<T>` over a `RelationTermKind`, judged by one `evaluate`
+  against any `RelationFactSource`, with `closure_over` for the
+  transitive case. `OptionTerm`/`OptionFacts` and
+  `ProfileTerm`/`ProfileFacts` are its two domains.
+
+  The design content is `RelationMode`. `-command` requires `-channel`
+  **asserts**; `HTTP` requires `TCP` **infers**, because BIG-IP attaches
+  the parent itself and a configuration naming only `HTTP` is not
+  missing anything. Same data, opposite direction, so the mode is per
+  edge rather than derived from the kind.
+
+  `EventRequires` deliberately keeps its compact record — 461 literals
+  across as many files, on the hover and completion path, where
+  rebuilding a relation list per check would allocate for no semantic
+  gain; its profile half reads through the shared fact source, and the
+  R12 gate names the exemption rather than leaving it implicit.
+
+  Invariant **I6** landed with it, because one relation vocabulary means
+  packs author relations and an override able to *delete* a shipped
+  relation is the same defect as one able to clear `TAINT_SINK`.
+  `tcl-registry::security_floor` enforces it on every override from
+  every tier. See ledger O9 for what the measured probe showed and what
+  remains open.
+
 ## 5. Gates that prove the centralisation
 
 | Gate | Proves | Invariant |
