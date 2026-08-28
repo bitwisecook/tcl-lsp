@@ -1422,6 +1422,7 @@ fn merged(name: &str, pack: &Pack, tier: Tier) -> MergedPack {
         ambient_packages: pack.ambient_packages.clone(),
         environments: pack.environments.clone(),
         dialects: pack.dialects.clone(),
+        surface_rosters: pack.surface_rosters.clone(),
         commands: pack.commands.clone(),
     }
 }

@@ -134,25 +134,6 @@ pub struct Ancestry {
     pub lineage: Lineage,
 }
 
-/// The core Tcl commands Jim's ancestry edge inherits but Jim does not
-/// have — the **override** half of inherit-then-override, recorded as
-/// data so the gap is visible rather than silent.
-///
-/// Straight from `jim_tcl.txt`'s INTRODUCTION, which lists Jim's notable
-/// differences from Tcl 8.5/8.6/8.7: "Threads and coroutines are not
-/// supported. Command and variable traces are not supported." The
-/// inherited Tcl 8.6 surface therefore over-admits these three heads
-/// under a `jim` environment.
-///
-/// This list is deliberately *short and cited*, not a guess at Jim's full
-/// surface delta: the whole delta — including everything Jim **adds**
-/// (`ref`/`getref`/`setref`, `os.fork`, `lsubst`, `timerate`, the `$(…)`
-/// expr shorthand) — is the jim surface pack, design **Q6**. The pack is
-/// where a per-command negative declaration belongs; until it exists the
-/// model states the known over-admission here rather than pretending
-/// there is none.
-pub const JIM_ABSENT_FROM_THE_INHERITED_SURFACE: [&str; 3] = ["coroutine", "thread", "trace"];
-
 impl Family {
     /// Every admitted family, in declaration order.
     pub const ALL: [Self; 4] = [Self::Tcl, Self::F5Tcl, Self::F5Irules, Self::Jim];
@@ -219,12 +200,13 @@ impl Family {
     /// command set" (`jim_tcl.txt`, INTRODUCTION) — which is precisely
     /// the inherit-then-override mechanism the old bare-vendor-bit model
     /// lacked, and whose absence made the jim branch re-author 76 core
-    /// commands by hand (§1's wiring tax). The *override* half — Jim's
-    /// documented absences (threads, coroutines, command and variable
-    /// traces) and its own additions — is the jim surface pack, design
-    /// **Q6**; until it lands the inherited surface over-admits exactly
-    /// those, which `jim_inherits_the_tcl_surface_it_does_not_override`
-    /// names rather than leaves silent.
+    /// commands by hand (§1's wiring tax). The *override* half landed with
+    /// design **Q6**: a reimplementation implements a *subset* of its
+    /// ancestor, so the edge alone over-admits, and the subset is
+    /// enumerated as a roster
+    /// ([`mod@super::inherited_surface`]) authored in
+    /// `SpecTcl`. Consumers therefore ask the edge *and* the roster; the
+    /// edge alone is the carrier, not the answer.
     #[must_use]
     pub const fn ancestry(self) -> Option<Ancestry> {
         match self {
@@ -1206,17 +1188,21 @@ mod tests {
             grammar(Family::Jim, Release::JIM_0_84),
             grammar(Family::Tcl, ancestry.release)
         );
-        // The override half of inherit-then-override is design Q6's jim
-        // surface pack. Until it lands the inherited Tcl 8.6 surface
-        // over-admits exactly what `jim_tcl.txt` says Jim does not have
-        // — "Threads and coroutines are not supported. Command and
-        // variable traces are not supported." This assertion is the
-        // marker: it fails the day the pack lands, which is when the
-        // list must move into pack data.
-        assert_eq!(
-            JIM_ABSENT_FROM_THE_INHERITED_SURFACE,
-            ["coroutine", "thread", "trace"],
-            "the recorded over-admission, pending the Q6 surface pack"
+        // The override half of inherit-then-override is design Q6's
+        // roster, and it lives in pack data now — `core-surfaces/jim.tclspec`,
+        // measured from a built `jimsh` at all nine tags. What this test
+        // still owns is the *edge*: a reimplementation edge is the one
+        // shape a roster may narrow, which is why the lineage assertion
+        // above is load-bearing rather than descriptive.
+        assert!(
+            super::super::inherited_surface::admits(
+                Family::Jim,
+                Family::Tcl,
+                "coroutine",
+                None
+            ),
+            "with no roster registered the edge inherits wholesale — the \
+             fail-open contract this family's surface degrades to"
         );
     }
 

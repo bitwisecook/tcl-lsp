@@ -151,9 +151,11 @@ mod available;
 mod dialect_block;
 mod environment_block;
 mod eval;
+mod surface_roster;
 mod vocabulary_class;
 
 pub use dialect_block::{PackDialect, PackDialectAxis};
+pub use surface_roster::{PackRosterName, PackSurfaceRoster, family_named};
 pub(crate) use environment_block::reserved_name as reserved_environment_name;
 pub use environment_block::{PackCore, PackEnvironment, PackEnvironmentTier};
 pub use eval::{
@@ -880,6 +882,15 @@ pub struct Pack {
     /// §6.2 owner directive), in declaration order, with the rejected ones
     /// dropped.
     pub dialects: Vec<PackDialect>,
+    /// The `include from SOURCE into TARGET { … }` rows the pack declares
+    /// (`SpecTcl` 2.0 §6.2, design **Q6**), in declaration order, with the
+    /// rejected ones dropped.
+    ///
+    /// Each row enumerates part of one reimplementing family's inherited
+    /// command surface; several rows for the same pair accumulate, which
+    /// is how a roster with per-release windows is written without
+    /// repeating the pair. See [`surface_roster`].
+    pub surface_rosters: Vec<PackSurfaceRoster>,
     /// The commands, in declaration order.
     pub commands: Vec<PackCommand>,
     /// Why the whole pack failed closed, when it did (§6.1: an unsupported
@@ -1039,6 +1050,7 @@ fn empty_pack() -> Pack {
         ambient_packages: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
+        surface_rosters: Vec::new(),
         dsl_version: String::new(),
         commands: Vec::new(),
         load_error: None,
@@ -1054,6 +1066,55 @@ fn empty_pack() -> Pack {
 ///
 /// The one reader for a pack-level word: the evaluation loader's replay is
 /// its only caller, whether the row was written literally or computed.
+/// Read one `environment NAME { … }` block, keeping the first of a
+/// redeclared pair (a declaration and its `-extend` are different rows,
+/// so the identity is the pair).
+fn read_environment(pack: &mut Pack, stmt: &Stmt, log: &mut Log) {
+    log.v20(stmt.line, "environment");
+    let Some(environment) = environment_block::parse(stmt, log) else {
+        return;
+    };
+    if pack
+        .environments
+        .iter()
+        .any(|prior| prior.id == environment.id && prior.extends == environment.extends)
+    {
+        log.say(
+            stmt.line,
+            format!(
+                "`environment {}` redeclared; the first is kept",
+                environment.id
+            ),
+        );
+    } else {
+        pack.environments.push(environment);
+    }
+}
+
+/// Read an `include` row's **surface** form (`include from … into …`,
+/// design Q6), reporting whether the row was one.
+///
+/// The surface form composes no files, reads nothing off disk, and so has
+/// none of the determinism problem the file form has — which is why it is
+/// the one `include` shape that may reach this reader *computed*. A
+/// literal row arrives here too: the capture layer routes it straight
+/// through, so both spellings meet the one parser.
+fn read_surface_roster(pack: &mut Pack, stmt: &Stmt, log: &mut Log) -> bool {
+    let words: Vec<&str> = stmt
+        .words
+        .iter()
+        .skip(1)
+        .map(|word| word.text.as_str())
+        .collect();
+    if !surface_roster::is_surface_row(&words) {
+        return false;
+    }
+    if let Some(row) = surface_roster::from_statement(stmt, log) {
+        pack.surface_rosters.push(row);
+    }
+    true
+}
+
 fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &mut Log) -> bool {
     match stmt.word_text(0) {
         "values" => tables.add_values(stmt, log),
@@ -1119,6 +1180,9 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
             // building the row, which the determinism contract does not
             // follow.
             log.v20(stmt.line, "include");
+            if read_surface_roster(pack, stmt, log) {
+                return false;
+            }
             log.say_classified(
                 stmt.line,
                 VocabularyClass::Semantic,
@@ -1127,26 +1191,7 @@ fn apply_pack_stmt(pack: &mut Pack, tables: &mut PackTables, stmt: &Stmt, log: &
                  are not loaded",
             );
         }
-        "environment" => {
-            log.v20(stmt.line, "environment");
-            if let Some(environment) = environment_block::parse(stmt, log) {
-                if pack
-                    .environments
-                    .iter()
-                    .any(|prior| prior.id == environment.id && prior.extends == environment.extends)
-                {
-                    log.say(
-                        stmt.line,
-                        format!(
-                            "`environment {}` redeclared; the first is kept",
-                            environment.id
-                        ),
-                    );
-                } else {
-                    pack.environments.push(environment);
-                }
-            }
-        }
+        "environment" => read_environment(pack, stmt, log),
         "dialect" => {
             log.v20(stmt.line, "dialect");
             if let Some(dialect) = dialect_block::parse(stmt, log) {
@@ -1506,9 +1551,15 @@ pub(crate) fn uses_include(source: &str) -> bool {
     let Some(body) = speclib.arg(3) else {
         return false;
     };
-    block(body)
-        .iter()
-        .any(|stmt| stmt.word_text(0) == "include")
+    block(body).iter().any(|stmt| {
+        if stmt.word_text(0) != "include" {
+            return false;
+        }
+        // The surface form (`include from … into …`, Q6) resolves no
+        // file, so it neither needs nor deserves the uncached
+        // file-system route the file form takes.
+        stmt.word_text(1) != "from"
+    })
 }
 
 /// Why one `include NAME` word is unusable, or `Ok` with the name.

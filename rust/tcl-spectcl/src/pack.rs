@@ -141,6 +141,15 @@ pub struct MergedPack {
     /// with a grammar per declared release, plus the core bindings of the
     /// environments above that ride one.
     pub dialects: Vec<crate::loader::PackDialect>,
+    /// The `include from … into …` surface rosters the pack declares
+    /// (`SpecTcl` 2.0, design **Q6**), concatenated across its files.
+    ///
+    /// Concatenated, not first-wins: several rows are how one roster with
+    /// per-release windows is written, so dropping a later row for the
+    /// same pair would silently truncate the surface it enumerates. The
+    /// fold into one roster per pair happens at conversion
+    /// ([`crate::surface_roster_conversion`]).
+    pub surface_rosters: Vec<crate::loader::PackSurfaceRoster>,
     /// The merged commands: first definition of a name wins.
     pub commands: Vec<PackCommand>,
 }
@@ -596,6 +605,7 @@ fn merge_group(
         ambient_packages: Vec::new(),
         environments: Vec::new(),
         dialects: Vec::new(),
+        surface_rosters: Vec::new(),
         commands: Vec::new(),
     };
     // Where each command name was first defined, so the duplicate notice can
@@ -661,6 +671,7 @@ fn merge_group(
                 merged.dialects.push(dialect);
             }
         }
+        merged.surface_rosters.extend(pack.surface_rosters);
         for mut command in pack.commands {
             // The merge is the only layer that knows which file a command came
             // from, so this is where that gets recorded (issues #1637, #1638).

@@ -773,6 +773,64 @@ it produces. The rules below keep the first without paying for the second.
   tool, which is what makes it safe to run a *generated* pack through
   `spectcl_check` before reading a line of it.
 
+### Composing a surface: `include from … into …`
+
+`include NAME` splices another `.tclspec`'s declarations in — file
+composition. `include from SOURCE into TARGET ?-available {WINDOW}?
+{names…}` composes **surfaces**: it enumerates which of one family's
+command names another family, which reimplements it, actually has. The
+two share a word because they are the same idea at two scales, and they
+are told apart by the second word — `from` is never a file name.
+
+```tcl
+include from tcl into jim {
+    append apply array break catch cd clock close concat …
+}
+include from tcl into jim -available {0.77-} { interp }
+```
+
+It exists because an ancestry edge alone is too generous. A
+`Lineage::Fork` inherits its ancestor's surface wholesale and should:
+a fork *is* the ancestor's source plus changes. A
+`Lineage::Reimplementation` implements a *subset* — Jim implements "a
+significant subset of the Tcl 8.6 command set" — and a subset inherited
+wholesale over-admits everything outside it. The roster is that subset,
+written down.
+
+Rules a roster author needs:
+
+- **The row names both ends.** A roster is a two-ended fact, and the
+  target is a compiled family a pack cannot otherwise claim (`dialect
+  jim { … }` is refused — compiled family names are reserved). Saying
+  `into TARGET` out loud beats deriving it from which file the row sits
+  in.
+- **`-available` is a window on the *target's* own axis.** `{0.77-}`
+  reads on Jim's ladder, not Tcl's: it is when *Jim* grew the name.
+  A row with no `-available` covers the whole ladder.
+- **Several rows for one pair are one roster.** That is how per-release
+  windows are written without repeating the pair on every line; they
+  merge at conversion.
+- **A malformed row is dropped whole, with a notice.** A roster that
+  loaded *partly* would narrow a family's surface by an amount nobody
+  wrote.
+- **Rosters fail open.** A pair with no registered roster inherits
+  wholesale — today's behaviour. A build that did not load the surface
+  pack offers a few heads too many; it never offers nothing.
+- **Only a trusted tier may narrow a compiled family.** Rosters sit with
+  the grammar declarations at the top of the trust lattice: a workspace
+  pack that could enumerate `jim`'s inherited surface could delete `proc`
+  from it.
+
+Jim's own roster ships compiled into the binary
+(`rust/tcl-spectcl/core-surfaces/jim.tclspec`) rather than in `specs/`,
+for the reason the last rule gives: `specs/` is *replaceable* — a
+distribution, `TCL_LSP_SPEC_PACK_DIR`, or a dev checkout can put a
+different directory in front of it — and that contract is right for a
+vendor library and wrong for a core surface. It is `SpecTcl` in every
+sense that matters, read by the one loader through the same words a
+third-party pack would use; it is simply not a file anyone can take
+away.
+
 ## The acceptance rubric
 
 [`spec-dsl-examples/tricky-surfaces.md`](spec-dsl-examples/tricky-surfaces.md)

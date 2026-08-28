@@ -68,6 +68,7 @@
 pub mod bundled;
 pub mod cache;
 pub mod catalogue;
+pub mod core_surfaces;
 pub mod dialect_conversion;
 pub mod discovery;
 pub mod environment;
@@ -78,6 +79,7 @@ pub mod install;
 pub mod loader;
 pub mod pack;
 pub mod registration;
+pub mod surface_roster_conversion;
 pub mod upgrade;
 
 pub use cache::{evaluate_pack_cached, evaluate_pack_including, snapshot_memoised};

@@ -19,7 +19,7 @@
 //! The new core/environment model of the registry redesign (issue #1631,
 //! `docs/design/dialect-and-package-registry-redesign.md` — P1 of §8).
 //!
-//! Four submodules carry the model's first layer and its algebra:
+//! Five submodules carry the model's first layer and its algebra:
 //!
 //! - [`family`] — [`Family`] × [`Release`] × [`BuildProfileId`] core
 //!   profiles ([`CoreProfileId`] / [`CoreProfile`]), with typed build
@@ -31,6 +31,11 @@
 //! - [`environment`] — [`EnvironmentDefinition`] / [`EnvironmentOverlay`]
 //!   and the one-resolver [`EnvironmentRegistry`], seeded with every
 //!   current catalogue name.
+//! - [`inherited_surface`] — the roster a reimplementing family carries
+//!   over its ancestor's command surface (design Q6): the enumerated half
+//!   of inherit-then-override, without which a
+//!   [`Lineage::Reimplementation`](family::Lineage) edge admits everything
+//!   its ancestor has rather than the subset it implements.
 //!
 //! This model lands **alongside** the old `DialectSet`/`DialectProfile`
 //! types, which stay untouched until their consumers migrate; nothing
@@ -41,6 +46,7 @@ pub mod dynamic;
 pub mod environment;
 pub mod expr_grammar;
 pub mod family;
+pub mod inherited_surface;
 pub mod version_set;
 
 pub use dynamic::{
@@ -62,6 +68,10 @@ pub use expr_grammar::{
 pub use family::{
     BuildProfileId, CapabilityAnswer, CapabilitySet, CoreProfile, CoreProfileId, Family, Release,
     ReleaseParseError, grammar,
+};
+pub use inherited_surface::{
+    InheritedSurface, InheritedSurfaceError, InheritedSurfaceRegistration,
+    inherited_surface_generation, register_inherited_surfaces, roster_for,
 };
 pub use version_set::{
     HalfOpenRange, ItemHistory, ItemHistoryError, ItemState, Version, VersionAxisId, VersionSet,

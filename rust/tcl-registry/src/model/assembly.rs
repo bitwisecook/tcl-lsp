@@ -134,6 +134,12 @@ impl ContextRegistry {
                 let in_world = declarations.iter().any(|declaration| {
                     context.provider_active(&declaration.provider)
                         && context.predicate_passes(&declaration.predicate)
+                        // Q6: an ancestor row reaching a reimplementing
+                        // family is filtered by that family's enumerated
+                        // roster — the only availability question that
+                        // needs the command's name, which is why it is
+                        // asked here and not inside `provider_active`.
+                        && context.inherited_surface_admits(name, &declaration.provider)
                 });
                 if in_world {
                     let breadth = specificity_breadth(&declarations);
@@ -248,9 +254,15 @@ impl std::fmt::Debug for ContextRegistry {
 }
 
 /// The generation cache key: the environment's resolved identity
-/// (id, registry generation, overlay hash), the keyed-versions hash, and
-/// the pack-overlay content key.
-type GenerationKey = (EnvironmentIdentity, u64, u64);
+/// (id, registry generation, overlay hash), the keyed-versions hash, the
+/// pack-overlay content key, and the **surface-roster** generation.
+///
+/// The last component is Q6's: a pack that declares only an `include
+/// from` roster changes what a generation admits without changing any
+/// environment, so the environment registry's own generation would not
+/// move and a cached generation would answer from the surface the roster
+/// just replaced.
+type GenerationKey = (EnvironmentIdentity, u64, u64, u64);
 
 /// The interned catalogue profile whose command store backs
 /// `environment_id`'s generations — the wave-1 interop seam (P1-F): the
@@ -316,7 +328,12 @@ pub fn registry_for_environment_if_built(
 ) -> Option<Arc<ContextRegistry>> {
     static CACHE: OnceLock<Mutex<FxHashMap<GenerationKey, Arc<ContextRegistry>>>> = OnceLock::new();
     let cache = CACHE.get_or_init(|| Mutex::new(FxHashMap::default()));
-    let key: GenerationKey = (identity.clone(), keyed.content_hash(), overlay);
+    let key: GenerationKey = (
+        identity.clone(),
+        keyed.content_hash(),
+        overlay,
+        tcl_dialect::model::inherited_surface_generation(),
+    );
     if let Some(generation) = cache
         .lock()
         .expect("context registry cache mutex")
@@ -349,7 +366,7 @@ fn prune_overlaid_generations(
 ) {
     const GENERATION_LIMIT: usize = 64;
     if map.len() >= GENERATION_LIMIT {
-        map.retain(|&(_, _, overlay), _| overlay == 0 || overlay == current);
+        map.retain(|&(_, _, overlay, _), _| overlay == 0 || overlay == current);
     }
 }
 

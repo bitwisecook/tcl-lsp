@@ -1066,6 +1066,17 @@ fn stage_include(
     // vocabulary, and the replay turns this into the same per-site notice
     // the replay's readers log for a row they read themselves.
     state.borrow_mut().newer_word_sites.push((line, "include"));
+    // The surface form (`include from … into …`, design Q6) composes a
+    // command surface, not a file: there is nothing to resolve and nothing
+    // to evaluate, so it is captured as an ordinary row and read by
+    // `apply_pack_stmt` — the one parser both routes share.
+    if super::surface_roster::is_surface_row(words) {
+        let mut st = state.borrow_mut();
+        let owned: Vec<String> = words.iter().map(|word| (*word).to_owned()).collect();
+        let stmt = st.captured("include", &owned, line);
+        st.push_node(Node::Row(stmt));
+        return Ok(());
+    }
     let name = match super::include_name(words, line) {
         Ok(name) => name,
         Err(notice) => {

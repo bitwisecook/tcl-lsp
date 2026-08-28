@@ -519,6 +519,39 @@ impl ResolvedContext {
         }
     }
 
+    /// Whether `name`, offered by `provider`, survives the **enumerated**
+    /// half of inherit-then-override — design **Q6**.
+    ///
+    /// [`Self::provider_active`] answers the ancestor channel's *carrier*
+    /// question: is a `Core(Tcl)` declaration reachable from a `jim`
+    /// document at all? Yes — that edge is the whole reason P6 could
+    /// delete 76 re-authored specs. But a
+    /// [`Lineage::Reimplementation`](tcl_dialect::model::family::Lineage)
+    /// implements a *subset* of its ancestor, so the carrier alone
+    /// over-admits: measured against a built `jimsh`, the inherited Tcl
+    /// 8.6 surface offered `coroutine`, `trace`, `yield`, `yieldto` and
+    /// thirteen more heads Jim has never had.
+    ///
+    /// This is the second half of the question, and the only one that
+    /// needs the command's *name*: the roster the family's surface pack
+    /// enumerated (`include from tcl {…}`) says which ancestor names
+    /// actually reach it, over which window of its own ladder. A fork
+    /// edge, the family's own provider, and a build with no roster
+    /// loaded all answer `true` — see
+    /// [`inherited_surface::admits`](tcl_dialect::model::inherited_surface::admits)
+    /// for why fail-open is the honest degradation.
+    #[must_use]
+    pub fn inherited_surface_admits(&self, name: &str, provider: &Provider) -> bool {
+        let (Some(core), Provider::Core(source)) = (self.environment.core, provider) else {
+            return true;
+        };
+        if core.family == *source {
+            return true;
+        }
+        let at = self.floors.primary(&VersionAxisId::core(core.family));
+        tcl_dialect::model::inherited_surface::admits(core.family, *source, name, at)
+    }
+
     /// Whether the axis primary admits `declaration`'s applicability: the
     /// primary point is in the set, or — when the axis has no point
     /// primary — the set is non-empty (the permissive unknown-target rule).
