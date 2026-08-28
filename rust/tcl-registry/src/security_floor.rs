@@ -34,7 +34,6 @@
 //! security-bearing, and *adding* taint facts the shipped spec does not carry.
 //! The floor only prevents a fact from going away.
 
-use crate::side_effects::SideEffect;
 use crate::spec::CommandSpec;
 use crate::traits::{Trait, TraitCategory, Traits};
 
@@ -96,8 +95,7 @@ impl SecurityFloor {
             spec.taint_interp_eval_subcommands,
             shipped.taint_interp_eval_subcommands,
         );
-        spec.credential_options =
-            union_leaked(spec.credential_options, shipped.credential_options);
+        spec.credential_options = union_leaked(spec.credential_options, shipped.credential_options);
 
         take_shipped(&mut spec.taint_output_sink, shipped.taint_output_sink);
         take_shipped(&mut spec.taint_log_sink, shipped.taint_log_sink);

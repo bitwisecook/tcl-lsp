@@ -29,9 +29,6 @@ use crate::body_kind::BodyKind;
 use crate::clause_shape::ClauseShapeChecker;
 use crate::command_table::CommandTableEffect;
 use crate::dialects::DialectSet;
-use crate::relation::{
-    Relation, RelationFactSource, RelationTermKind, TermHolds,
-};
 use crate::dispatch_stability::{DispatchDependencies, DispatchDependencyDescriptor};
 use crate::events::{EventRequirementForm, ResolvedEventRequirements};
 use crate::forms::{CommandForm, SubCommandForm};
@@ -48,6 +45,7 @@ use crate::lifecycle::{Lifecycle, LifecycleState};
 use crate::literal_validation::LiteralArgumentValidator;
 use crate::patterns::{FormatType, PatternType};
 use crate::presentation::ArgPresentation;
+use crate::relation::{Relation, RelationFactSource, RelationTermKind, TermHolds};
 use crate::repeated::RepeatedArgLayout;
 use crate::representation::RepresentationEffect;
 use crate::side_effects::{SideEffect, StorageType};
@@ -1095,9 +1093,7 @@ impl RelationFactSource<OptionTerm> for OptionFacts<'_> {
                 // Present, but its value could be anything at run time —
                 // including `wanted`.
                 OptionPresence::PresentUnknownValue => TermHolds::Unknown,
-                OptionPresence::PresentWith(actual) => {
-                    Self::matches_literal(Some(actual), wanted)
-                }
+                OptionPresence::PresentWith(actual) => Self::matches_literal(Some(actual), wanted),
             },
             OptionTerm::Argument(index) => {
                 if usize::from(index) < self.positionals.len() {

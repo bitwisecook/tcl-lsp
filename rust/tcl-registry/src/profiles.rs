@@ -346,10 +346,7 @@ impl ProfileRegistry {
             self.get_profile(candidate).map_or_else(
                 // A profile the registry does not know carries no edges, so
                 // it can only be satisfied by appearing in the stack verbatim.
-                || {
-                    let wanted = candidate.to_uppercase();
-                    expanded.iter().any(|name| *name == wanted)
-                },
+                || expanded.contains(&candidate.to_uppercase()),
                 |spec| facts.holds(ProfileTerm(spec.name)) == TermHolds::Yes,
             )
         })
@@ -523,6 +520,8 @@ fn profile_specs() -> Vec<ProfileSpec> {
     out.extend(profile_specs_4());
     out.extend(profile_specs_5());
     out.extend(profile_specs_6());
+    out.extend(profile_specs_7());
+    out.extend(profile_specs_8());
     out
 }
 
@@ -533,9 +532,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("ACCESS"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("ACCESS"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -544,9 +544,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("AIMCP"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("AIMCP"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             lifecycle: Lifecycle::introduced_in("21.1.0"),
         },
@@ -555,9 +556,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("ANTIFRAUD"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("ANTIFRAUD"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -566,9 +568,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "security",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("ASM"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("ASM"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -577,9 +580,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("AUTH"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("AUTH"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -588,9 +592,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("AVR"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("AVR"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -599,42 +604,10 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("BOTDEFENSE"), &[ProfileTerm("HTTP")]),
-                ]
-            },
-            ..ProfileSpec::DEFAULT
-        },
-        ProfileSpec {
-            name: "CACHE",
-            layer: "acceleration",
-            side: "both",
-            relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("CACHE"), &[ProfileTerm("HTTP")]),
-                ]
-            },
-            ..ProfileSpec::DEFAULT
-        },
-        ProfileSpec {
-            name: "CATEGORY",
-            layer: "acceleration",
-            side: "both",
-            relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("CATEGORY"), &[ProfileTerm("HTTP")]),
-                ]
-            },
-            ..ProfileSpec::DEFAULT
-        },
-        ProfileSpec {
-            name: "CLASSIFICATION",
-            layer: "acceleration",
-            side: "both",
-            relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("CLASSIFICATION"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("BOTDEFENSE"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -644,13 +617,50 @@ fn profile_specs_0() -> Vec<ProfileSpec> {
 fn profile_specs_1() -> Vec<ProfileSpec> {
     vec![
         ProfileSpec {
+            name: "CACHE",
+            layer: "acceleration",
+            side: "both",
+            relations: const {
+                &[ProfileRelation::implies(
+                    ProfileTerm("CACHE"),
+                    &[ProfileTerm("HTTP")],
+                )]
+            },
+            ..ProfileSpec::DEFAULT
+        },
+        ProfileSpec {
+            name: "CATEGORY",
+            layer: "acceleration",
+            side: "both",
+            relations: const {
+                &[ProfileRelation::implies(
+                    ProfileTerm("CATEGORY"),
+                    &[ProfileTerm("HTTP")],
+                )]
+            },
+            ..ProfileSpec::DEFAULT
+        },
+        ProfileSpec {
+            name: "CLASSIFICATION",
+            layer: "acceleration",
+            side: "both",
+            relations: const {
+                &[ProfileRelation::implies(
+                    ProfileTerm("CLASSIFICATION"),
+                    &[ProfileTerm("TCP")],
+                )]
+            },
+            ..ProfileSpec::DEFAULT
+        },
+        ProfileSpec {
             name: "CLIENTSSL",
             layer: "tls",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("CLIENTSSL"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("CLIENTSSL"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -659,9 +669,10 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("CONNECTOR"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("CONNECTOR"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -670,9 +681,10 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("DATAGRAM"), &[ProfileTerm("UDP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("DATAGRAM"),
+                    &[ProfileTerm("UDP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -681,20 +693,27 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("DIAMETER"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("DIAMETER"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
+    ]
+}
+
+fn profile_specs_2() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "DIAMETERSESSION",
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("DIAMETERSESSION"), &[ProfileTerm("DIAMETER")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("DIAMETERSESSION"),
+                    &[ProfileTerm("DIAMETER")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -703,9 +722,10 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("DIAMETER_ENDPOINT"), &[ProfileTerm("DIAMETER")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("DIAMETER_ENDPOINT"),
+                    &[ProfileTerm("DIAMETER")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -721,9 +741,10 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "security",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("DOSL7"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("DOSL7"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -732,25 +753,22 @@ fn profile_specs_1() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("ECA"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("ECA"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
-    ]
-}
-
-fn profile_specs_2() -> Vec<ProfileSpec> {
-    vec![
         ProfileSpec {
             name: "FASTHTTP",
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("FASTHTTP"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("FASTHTTP"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -766,12 +784,18 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("FIX"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("FIX"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
+    ]
+}
+
+fn profile_specs_3() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "FLOW",
             layer: "application",
@@ -784,9 +808,10 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("GENERICMSG"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("GENERICMSG"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -802,9 +827,10 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("HTML"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("HTML"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -813,9 +839,10 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("HTTP"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("HTTP"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -824,9 +851,10 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("HTTP2"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("HTTP2"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -835,36 +863,39 @@ fn profile_specs_2() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("HTTP_PROXY_CONNECT"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("HTTP_PROXY_CONNECT"),
+                    &[ProfileTerm("HTTP")],
+                )]
+            },
+            ..ProfileSpec::DEFAULT
+        },
+        ProfileSpec {
+            name: "ICAP",
+            layer: "acceleration",
+            side: "both",
+            relations: const {
+                &[ProfileRelation::implies(
+                    ProfileTerm("ICAP"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
     ]
 }
 
-fn profile_specs_3() -> Vec<ProfileSpec> {
+fn profile_specs_4() -> Vec<ProfileSpec> {
     vec![
-        ProfileSpec {
-            name: "ICAP",
-            layer: "acceleration",
-            side: "both",
-            relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("ICAP"), &[ProfileTerm("TCP")]),
-                ]
-            },
-            ..ProfileSpec::DEFAULT
-        },
         ProfileSpec {
             name: "IPS",
             layer: "security",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("IPS"), &[ProfileTerm("PROTOCOL_INSPECTION")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("IPS"),
+                    &[ProfileTerm("PROTOCOL_INSPECTION")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -873,9 +904,10 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("IVS_ENTRY"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("IVS_ENTRY"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -884,9 +916,10 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("JSON"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("JSON"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -895,9 +928,10 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("L7CHECK"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("L7CHECK"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -913,9 +947,10 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("MQTT"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("MQTT"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -924,9 +959,10 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("MR"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("MR"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -935,28 +971,30 @@ fn profile_specs_3() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("MSSQL"), &[ProfileTerm("TDS")]),
-                ]
-            },
-            ..ProfileSpec::DEFAULT
-        },
-        ProfileSpec {
-            name: "NAME",
-            layer: "application",
-            side: "both",
-            relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("NAME"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("MSSQL"),
+                    &[ProfileTerm("TDS")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
     ]
 }
 
-fn profile_specs_4() -> Vec<ProfileSpec> {
+fn profile_specs_5() -> Vec<ProfileSpec> {
     vec![
+        ProfileSpec {
+            name: "NAME",
+            layer: "application",
+            side: "both",
+            relations: const {
+                &[ProfileRelation::implies(
+                    ProfileTerm("NAME"),
+                    &[ProfileTerm("TCP")],
+                )]
+            },
+            ..ProfileSpec::DEFAULT
+        },
         ProfileSpec {
             name: "PCP",
             layer: "application",
@@ -969,9 +1007,10 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("PEM"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("PEM"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -982,9 +1021,10 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "tls_shared",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("PERSIST"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("PERSIST"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -993,9 +1033,10 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "security",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("PROTOCOL_INSPECTION"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("PROTOCOL_INSPECTION"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1004,9 +1045,10 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("QOE"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("QOE"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1022,20 +1064,27 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("RADIUS_AAA"), &[ProfileTerm("RADIUS")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("RADIUS_AAA"),
+                    &[ProfileTerm("RADIUS")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
+    ]
+}
+
+fn profile_specs_6() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "REQUESTADAPT",
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("REQUESTADAPT"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("REQUESTADAPT"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1044,9 +1093,10 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("RESPONSEADAPT"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("RESPONSEADAPT"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1055,25 +1105,22 @@ fn profile_specs_4() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("REWRITE"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("REWRITE"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
-    ]
-}
-
-fn profile_specs_5() -> Vec<ProfileSpec> {
-    vec![
         ProfileSpec {
             name: "RTSP",
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("RTSP"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("RTSP"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1089,9 +1136,10 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             layer: "tls",
             side: "server",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SERVERSSL"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SERVERSSL"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1107,20 +1155,27 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SIPROUTER"), &[ProfileTerm("SIP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SIPROUTER"),
+                    &[ProfileTerm("SIP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
+    ]
+}
+
+fn profile_specs_7() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "SIPSESSION",
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SIPSESSION"), &[ProfileTerm("SIP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SIPSESSION"),
+                    &[ProfileTerm("SIP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1129,9 +1184,10 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             layer: "application",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SOCKS"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SOCKS"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1140,9 +1196,10 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SSE"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SSE"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1153,25 +1210,22 @@ fn profile_specs_5() -> Vec<ProfileSpec> {
             layer: "tls_shared",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("SSL_PERSISTENCE"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("SSL_PERSISTENCE"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
-    ]
-}
-
-fn profile_specs_6() -> Vec<ProfileSpec> {
-    vec![
         ProfileSpec {
             name: "STREAM",
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("STREAM"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("STREAM"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1180,9 +1234,10 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             layer: "security",
             side: "client",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("TAP"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("TAP"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1193,14 +1248,20 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             relations: &[],
             ..ProfileSpec::DEFAULT
         },
+    ]
+}
+
+fn profile_specs_8() -> Vec<ProfileSpec> {
+    vec![
         ProfileSpec {
             name: "TDS",
             layer: "application",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("TDS"), &[ProfileTerm("TCP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("TDS"),
+                    &[ProfileTerm("TCP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1216,9 +1277,10 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("WEBACCELERATION"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("WEBACCELERATION"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1227,9 +1289,10 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("WS"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("WS"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },
@@ -1238,9 +1301,10 @@ fn profile_specs_6() -> Vec<ProfileSpec> {
             layer: "acceleration",
             side: "both",
             relations: const {
-                &[
-                    ProfileRelation::implies(ProfileTerm("XML"), &[ProfileTerm("HTTP")]),
-                ]
+                &[ProfileRelation::implies(
+                    ProfileTerm("XML"),
+                    &[ProfileTerm("HTTP")],
+                )]
             },
             ..ProfileSpec::DEFAULT
         },

@@ -180,6 +180,10 @@ pub mod prelude {
     };
     pub use crate::patterns::{FormatType, PatternArg, PatternType};
     pub use crate::presentation::ArgPresentation;
+    pub use crate::relation::{
+        Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind,
+        RelationVerdict, RelationViolation, TermHolds,
+    };
     pub use crate::repeated::RepeatedArgLayout;
     pub use crate::representation::RepresentationEffect;
     pub use crate::result_stability::ResultStability;
@@ -187,10 +191,6 @@ pub mod prelude {
     pub use crate::semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
     pub use crate::side_effects::{
         ConnectionSide, SideEffect, SideEffectTarget, SideSwitchTarget, StorageType,
-    };
-    pub use crate::relation::{
-        Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind,
-        RelationVerdict, RelationViolation, TermHolds,
     };
     pub use crate::spec::{
         BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
@@ -274,6 +274,10 @@ pub use profile_queries::VendorSurface;
 pub use registry::{
     CommandRegistry, FormatStringArg, MethodDispatchKind, ResolvedCall, ResolvedTerminator,
 };
+pub use relation::{
+    Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
+    RelationViolation, TermHolds,
+};
 pub use repeated::RepeatedArgLayout;
 pub use representation::RepresentationEffect;
 pub use resolved_invocation::{
@@ -284,10 +288,6 @@ pub use resolved_invocation::{
 pub use result_stability::ResultStability;
 pub use semantic_operation::{InlineBodyErrorContext, SemanticOperationId};
 pub use side_effects::SideSwitchTarget;
-pub use relation::{
-    Relation, RelationFactSource, RelationKind, RelationMode, RelationTermKind, RelationVerdict,
-    RelationViolation, TermHolds,
-};
 pub use spec::{
     BytePayloadSpec, CaseForceListShape, CaseListSpec, CommandSpec, ConstraintReport,
     ConstraintSlot, ConstraintsHook, ContextGate, DefaultFormFirstWord, InlineCaseClause,
