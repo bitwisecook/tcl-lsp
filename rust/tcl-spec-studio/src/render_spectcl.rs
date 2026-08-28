@@ -1324,6 +1324,13 @@ fn option_conflict_rows(expr: &str, availability: bool) -> Option<Vec<Vec<String
             .map(relation_term_word)
             .collect();
         let terms = list_word(&terms?)?;
+        // R12: the SpecTcl vocabulary has no word for an inference edge —
+        // `option_requires` reads as an assertion, and rendering an Infer
+        // relation with it would export the opposite of what the row says.
+        // No option relation is Infer today; refuse rather than assume.
+        if fields.get("mode").map(|m| variant_of(m)) == Some("Infer") {
+            return None;
+        }
         let kind = fields
             .get("kind")
             .map_or("MutuallyExclusive", |k| variant_of(k));
@@ -3304,6 +3311,24 @@ mod tests {
             rows[0].join(" "),
             "repeat LoopVarList -stride 2 -exclude-trailing 1"
         );
+    }
+
+    /// R12: an inference edge has no `SpecTcl` statement, so the exporter must
+    /// refuse it rather than render it as the assertion it is not.
+    #[test]
+    fn an_inference_edge_is_not_exported_as_an_assertion() {
+        const INFER: &str = "&[OptionRelation { kind: RelationKind::Requires, \
+                             mode: RelationMode::Infer, \
+                             subject: Some(OptionTerm::Option(\"-a\")), \
+                             terms: &[OptionTerm::Option(\"-b\")], dialects: None }]";
+        // The same relation as an assertion still renders.
+        const ASSERT: &str = "&[OptionRelation { kind: RelationKind::Requires, \
+                              mode: RelationMode::Assert, \
+                              subject: Some(OptionTerm::Option(\"-a\")), \
+                              terms: &[OptionTerm::Option(\"-b\")], dialects: None }]";
+        assert!(option_conflict_rows(INFER, true).is_none());
+        let rows = option_conflict_rows(ASSERT, true).expect("the relation parses");
+        assert_eq!(rows[0].join(" "), "option_requires -a -b");
     }
 
     #[test]

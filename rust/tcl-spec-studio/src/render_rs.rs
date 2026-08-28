@@ -1688,7 +1688,8 @@ mod tests {
         assert!(
             out.contains(
                 "option_relations: &[OptionRelation { kind: RelationKind::MutuallyExclusive, \
-                 subject: None, terms: &[OptionTerm::Option(\"-encoding\"), \
+                 mode: RelationMode::Assert, subject: None, \
+                 terms: &[OptionTerm::Option(\"-encoding\"), \
                  OptionTerm::Option(\"-nopkg\")], dialects: None, \
                  lifecycle: Lifecycle { introduced: None, deprecated: None, \
                  retired: None, deprecation_fix: None }, message: None }],"

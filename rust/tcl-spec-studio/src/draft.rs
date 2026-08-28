@@ -858,9 +858,11 @@ fn option_relations_expr(constraints: &[OptionRelation]) -> Option<String> {
                 |text| format!("Some({})", rust_string(text)),
             );
             Some(format!(
-                "OptionRelation {{ kind: RelationKind::{:?}, subject: {subject}, \
-                 terms: &[{terms}], dialects: {dialects}, lifecycle: {}, message: {message} }}",
+                "OptionRelation {{ kind: RelationKind::{:?}, mode: RelationMode::{:?}, \
+                 subject: {subject}, terms: &[{terms}], dialects: {dialects}, \
+                 lifecycle: {}, message: {message} }}",
                 relation.kind,
+                relation.mode,
                 lifecycle_expr(relation.lifecycle)?,
             ))
         })
