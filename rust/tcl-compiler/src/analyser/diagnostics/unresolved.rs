@@ -1270,6 +1270,142 @@ impl Analyser {
         self.result.diagnostics.extend(new_diags);
     }
 
+    /// H301 — a command used *above* the `package require` that provides it.
+    ///
+    /// **The assistance half of Q8** (owner ruling 2026-08-28: on by
+    /// default). The semantic view is position-insensitive and stays that
+    /// way: a `package require` anywhere in the file makes its commands
+    /// available for the whole file, because Tcl only resolves a command
+    /// name when the call actually runs, so
+    ///
+    /// ```tcl
+    /// proc later {} { csv::join {a b} }
+    /// package require csv
+    /// ```
+    ///
+    /// is correct and must not be reported as broken. What this reports is
+    /// the *reading* problem: top-down, the call appears before the thing
+    /// that provides it. It is a hint, it carries no fix, and it never
+    /// changes what is available.
+    ///
+    /// Disjoint from W120 by construction: W120 fires when the package is
+    /// **not** required at all, this when it **is**.
+    ///
+    /// Silent when:
+    /// * the dialect has no `package` command, or the file loads packages
+    ///   dynamically — the same two gates W120 takes;
+    /// * the package is ambient (part of the runtime, so no `package
+    ///   require` exists for it at all);
+    /// * the file `package provide`s the package — it is the package's own
+    ///   implementation, and requiring yourself first is not a rule;
+    /// * every `package require` for it is conditional — inside a guarded
+    ///   branch there is no unconditional "before" to be after;
+    /// * H301 is in `disabled_diagnostics`.
+    ///
+    /// One hint per package, not per command: a package with twenty
+    /// commands used above its requirement is one ordering mistake with one
+    /// edit behind it, and twenty hints would be twenty ways of saying so.
+    pub fn emit_package_require_ordering_hints(
+        &mut self,
+        registry: &tcl_registry::CommandRegistry,
+    ) {
+        if self.disabled_diagnostics.contains("H301") {
+            return;
+        }
+        if registry.get("package").is_none() || self.result.has_dynamic_providers {
+            return;
+        }
+        // The package's own implementation file requires nothing of itself.
+        let provided: FxHashSet<&str> = self
+            .result
+            .package_provides
+            .iter()
+            .map(|pp| pp.name.as_str())
+            .collect();
+
+        // The earliest *unconditional* requirement per package. A
+        // conditional one cannot anchor an ordering claim.
+        let mut required_at: HashMap<&str, u32> = HashMap::new();
+        for pr in &self.result.package_requires {
+            if pr.conditional {
+                continue;
+            }
+            required_at
+                .entry(pr.name.as_str())
+                .and_modify(|at| *at = (*at).min(pr.range.start()))
+                .or_insert_with(|| pr.range.start());
+        }
+        if required_at.is_empty() {
+            return;
+        }
+        let generation = self.analysis_context();
+        let declared = super::validity::UserResolutionFacts::build(self);
+
+        // The earliest offending invocation per package, and the command
+        // name it was — the message names one command, because naming
+        // twenty would not help.
+        let mut earliest: HashMap<&str, (u32, tcl_lexer::Span, &str)> = HashMap::new();
+        for inv in &self.result.command_invocations {
+            let Some(spec) = generation.context().resolve_spec(registry, &inv.name) else {
+                continue;
+            };
+            let Some(pkg) = spec.required_package else {
+                continue;
+            };
+            if provided.contains(pkg) || generation.context().ambient_package(pkg) {
+                continue;
+            }
+            let Some(&require_start) = required_at.get(pkg) else {
+                continue;
+            };
+            if inv.range.start() >= require_start {
+                continue;
+            }
+            // The same two suppressions W120 takes: a head a scoped command
+            // environment resolved is not the package's command, and a
+            // command this document defines resolves to that definition.
+            if self.is_scoped_command_resolved(&inv.name, inv.range) {
+                continue;
+            }
+            let candidates: Vec<String> = if inv.resolution_candidates.is_empty() {
+                crate::naming::bareword_resolution_candidates("", &inv.name)
+            } else {
+                inv.resolution_candidates.clone()
+            };
+            let bare = inv.name.rsplit("::").next().unwrap_or(&inv.name);
+            if declared.declares_any(&candidates, bare) {
+                continue;
+            }
+            let row = (inv.range.start(), inv.range, inv.name.as_str());
+            earliest
+                .entry(pkg)
+                .and_modify(|cur| {
+                    if row.0 < cur.0 {
+                        *cur = row;
+                    }
+                })
+                .or_insert(row);
+        }
+
+        // Sorted so the emitted order does not depend on hash iteration.
+        let mut rows: Vec<(&str, (u32, tcl_lexer::Span, &str))> = earliest.into_iter().collect();
+        rows.sort_by_key(|(pkg, (start, _, _))| (*start, *pkg));
+        let new_diags: Vec<super::types::Diagnostic> = rows
+            .into_iter()
+            .map(|(pkg, (_, range, name))| {
+                crate::analyser::types::Diagnostic::new(
+                    DiagCode::H301,
+                    range,
+                    format!(
+                        "\"{name}\" is used above the `package require {pkg}` that provides it"
+                    ),
+                    Severity::Hint,
+                )
+            })
+            .collect();
+        self.result.diagnostics.extend(new_diags);
+    }
+
     /// Byte offset at which a `package require <pkg>` line
     /// should be inserted: just past the newline after the
     /// last existing `package require`, else `0` (top of
@@ -1292,5 +1428,94 @@ impl Analyser {
             off += 1; // past the newline
         }
         u32::try_from(off).unwrap_or(0)
+    }
+}
+
+#[cfg(test)]
+mod require_ordering_tests {
+    use crate::analyser::state::Analyser;
+
+    /// `(code, message)` for the two package-requirement codes only — H301
+    /// and the W120 it must stay disjoint from.
+    fn diags(source: &str) -> Vec<(String, String)> {
+        Analyser::new()
+            .analyse(source, "tcl8.6")
+            .diagnostics
+            .iter()
+            .filter(|d| matches!(d.code.as_str(), "H301" | "W120"))
+            .map(|d| (d.code.to_string(), d.message.clone()))
+            .collect()
+    }
+
+    fn count(source: &str, code: &str) -> usize {
+        diags(source).iter().filter(|(c, _)| c == code).count()
+    }
+
+    #[test]
+    fn a_command_above_its_require_is_hinted() {
+        let src = "csv::join {a b}\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+        // The requirement is present, so the missing-require warning must not
+        // also fire: the two are disjoint by construction.
+        assert_eq!(count(src, "W120"), 0, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn a_command_below_its_require_is_silent() {
+        let src = "package require csv\ncsv::join {a b}\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// The semantic view is position-insensitive and stays that way: a call
+    /// inside a proc body runs after the file has been sourced, so requiring
+    /// at the bottom is correct Tcl. It still *reads* as out of order, which
+    /// is the whole point of a hint — but W120 must not fire, because
+    /// nothing is missing.
+    #[test]
+    fn a_deferred_call_above_its_require_is_a_hint_and_not_a_warning() {
+        let src = "proc later {} { csv::join {a b} }\npackage require csv\n";
+        assert_eq!(count(src, "W120"), 0, "{:?}", diags(src));
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn a_missing_require_stays_w120_and_is_not_also_hinted() {
+        let src = "csv::join {a b}\n";
+        assert_eq!(count(src, "W120"), 1, "{:?}", diags(src));
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// One ordering mistake, one hint — not one per command.
+    #[test]
+    fn many_commands_above_one_require_hint_once() {
+        let src = "csv::join {a b}\ncsv::split x\ncsv::report x\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 1, "{:?}", diags(src));
+    }
+
+    /// The package's own implementation file requires nothing of itself.
+    #[test]
+    fn a_providing_file_is_silent() {
+        let src = "csv::join {a b}\npackage provide csv 1.0\npackage require csv\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    /// Inside a guarded branch there is no unconditional "before" to be
+    /// after, so the ordering claim cannot be made.
+    #[test]
+    fn a_conditional_require_anchors_nothing() {
+        let src = "csv::join {a b}\nif {$x} { package require csv }\n";
+        assert_eq!(count(src, "H301"), 0, "{:?}", diags(src));
+    }
+
+    #[test]
+    fn the_hint_is_off_when_disabled() {
+        let src = "csv::join {a b}\npackage require csv\n";
+        let out = Analyser::with_disabled_diagnostics(["H301".to_owned()].into_iter().collect())
+            .analyse(src, "tcl8.6");
+        assert!(
+            !out.diagnostics.iter().any(|d| d.code.as_str() == "H301"),
+            "{:?}",
+            out.diagnostics
+        );
     }
 }

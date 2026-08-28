@@ -408,6 +408,7 @@ diagnostic_codes! {
     E206 => "E206", diag_internal(Error, true, "Missing close brace for a `${name}` variable reference.");
     E207 => "E207", diag_internal(Error, true, "Nesting depth exceeds the analysis limit — diagnostics past this point are not collected (matches Tcl's own `interp recursionlimit` error, but reported as a diagnostic rather than a runtime error).");
     H300 => "H300", diag(Hint, true, "Possible paste error — repeated assignment to same variable with same value.");
+    H301 => "H301", diag(Hint, true, "Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.");
     I230 => "I230", diag(Hint, true, "Constant branch condition — the alternate branch is provably unreachable.");
     I231 => "I231", diag(Hint, true, "Constant switch arm condition — the arm is provably unreachable.");
     Irule1001 => "IRULE1001", diag(Irules, true, "Command invalid or ineffective in this iRules event.");

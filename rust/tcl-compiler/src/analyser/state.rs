@@ -2787,6 +2787,9 @@ impl Analyser {
         self.flush_ctor_arity_diagnostics();
         self.flush_next_arity_diagnostics();
         self.emit_missing_package_require_diagnostics(&diag_registry);
+        // Q8's assistance half. Disjoint from W120 by construction — that
+        // fires when the requirement is absent, this when it is merely late.
+        self.emit_package_require_ordering_hints(&diag_registry);
         self.emit_variable_usage_diagnostics();
         self.emit_cfg_ssa_diagnostics(source);
         self.flush_objdefine_abort_diagnostics();

@@ -145,6 +145,7 @@ This index lists every per-code KCS page.
 ## Hints (H-codes)
 
 - [H300 — repeated assignment to same variable with same value](kcs-diagnostic-h300-repeated-assignment-same-value.md)
+- [H301 — command used above its `package require`](kcs-diagnostic-h301-command-above-its-package-require.md)
 
 ## Information (I-codes)
 

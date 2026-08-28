@@ -6482,12 +6482,40 @@
             "markdownDescription": "Display severity for **H300:** Possible paste error — repeated assignment to same variable with same value.",
             "order": 0
           },
+          "tclLsp.diagnostics.H301": {
+            "scope": "resource",
+            "type": "boolean",
+            "default": true,
+            "markdownDescription": "**H301:** Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.",
+            "order": 1
+          },
+          "tclLsp.diagnosticSeverity.H301": {
+            "scope": "resource",
+            "type": "string",
+            "default": "default",
+            "enum": [
+              "default",
+              "error",
+              "warning",
+              "information",
+              "hint"
+            ],
+            "enumDescriptions": [
+              "Use the analyser's built-in severity",
+              "Report as an error",
+              "Report as a warning",
+              "Report as information",
+              "Report as a hint (faded)"
+            ],
+            "markdownDescription": "Display severity for **H301:** Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.",
+            "order": 1
+          },
           "tclLsp.diagnostics.I230": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**I230:** Constant branch condition — the alternate branch is provably unreachable.",
-            "order": 1
+            "order": 2
           },
           "tclLsp.diagnosticSeverity.I230": {
             "scope": "resource",
@@ -6508,14 +6536,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **I230:** Constant branch condition — the alternate branch is provably unreachable.",
-            "order": 1
+            "order": 2
           },
           "tclLsp.diagnostics.I231": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**I231:** Constant switch arm condition — the arm is provably unreachable.",
-            "order": 2
+            "order": 3
           },
           "tclLsp.diagnosticSeverity.I231": {
             "scope": "resource",
@@ -6536,14 +6564,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **I231:** Constant switch arm condition — the arm is provably unreachable.",
-            "order": 2
+            "order": 3
           },
           "tclLsp.diagnostics.W123": {
             "scope": "resource",
             "type": "boolean",
             "default": true,
             "markdownDescription": "**W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
-            "order": 3
+            "order": 4
           },
           "tclLsp.diagnosticSeverity.W123": {
             "scope": "resource",
@@ -6564,14 +6592,14 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W123:** Unresolved command — not found in registry, user procs, or `unknown` handler.",
-            "order": 3
+            "order": 4
           },
           "tclLsp.diagnostics.W242": {
             "scope": "resource",
             "type": "boolean",
             "default": false,
             "markdownDescription": "**W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
-            "order": 4
+            "order": 5
           },
           "tclLsp.diagnosticSeverity.W242": {
             "scope": "resource",
@@ -6592,7 +6620,7 @@
               "Report as a hint (faded)"
             ],
             "markdownDescription": "Display severity for **W242:** Loop termination cannot be proven — counter not provably modified by the loop body or step.",
-            "order": 4
+            "order": 5
           }
         }
       },

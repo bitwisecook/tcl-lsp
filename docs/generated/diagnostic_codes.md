@@ -105,6 +105,7 @@
 | W312 | security | `interp eval` with multiple or unbraced script words — concatenated like `eval`, injection risk. | ✓ |
 | W313 | security | Destructive file operation with variable path — path-traversal risk. | ✓ |
 | H300 | hint | Possible paste error — repeated assignment to same variable with same value. | ✓ |
+| H301 | hint | Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs. | ✓ |
 | I230 | hint | Constant branch condition — the alternate branch is provably unreachable. | ✓ |
 | I231 | hint | Constant switch arm condition — the arm is provably unreachable. | ✓ |
 | W123 | hint | Unresolved command — not found in registry, user procs, or `unknown` handler. | ✓ |

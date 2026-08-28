@@ -95,6 +95,7 @@
       "label": "Style & Best Practice",
       "codes": [
         "H300",
+        "H301",
         "I230",
         "I231",
         "IRULE2001",

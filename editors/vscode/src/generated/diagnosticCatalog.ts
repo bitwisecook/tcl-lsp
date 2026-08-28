@@ -599,6 +599,13 @@ export const DIAGNOSTICS: DiagnosticDef[] = [
     defaultEnabled: true,
   },
   {
+    code: "H301",
+    section: "hint",
+    description:
+      "Command used above the `package require` that provides it — the file reads top-down as if the package were not yet loaded, though Tcl only resolves the name when the call runs.",
+    defaultEnabled: true,
+  },
+  {
     code: "I230",
     section: "hint",
     description: "Constant branch condition — the alternate branch is provably unreachable.",
