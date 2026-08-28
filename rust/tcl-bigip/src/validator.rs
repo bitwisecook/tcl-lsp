@@ -599,7 +599,7 @@ fn check_virtual_event_profile_graph(view: &ModelView<'_>, out: &mut Vec<ConfigD
         }
 
         // Profile conflicts are relation data on ProfileSpec, judged by the
-        // one shared evaluator (R11) rather than a walker written here. A
+        // one shared evaluator (R12) rather than a walker written here. A
         // virtual server names every profile it attaches, so the stack is
         // closed-world and the checker never has to abstain.
         let stack: Vec<String> = active.iter().map(|name| (*name).to_owned()).collect();

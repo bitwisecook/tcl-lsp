@@ -51,7 +51,7 @@ impl RelationTermKind for ProfileTerm {
 }
 
 /// A declared relation between `BIG-IP` profile types — the profile domain's
-/// instance of the one relation mechanism (R11).
+/// instance of the one relation mechanism (R12).
 pub type ProfileRelation = Relation<ProfileTerm>;
 
 /// One virtual server's attached profile stack, as the relation checker reads
@@ -99,7 +99,7 @@ pub struct ProfileSpec {
     /// edges to the parents `BIG-IP` attaches for it, and its assertion edges
     /// to the profiles it cannot be stacked with.
     ///
-    /// R11: one mechanism, not the two bare `requires` / `conflicts` slices
+    /// R12: one mechanism, not the two bare `requires` / `conflicts` slices
     /// this replaced. The direction is on the edge
     /// ([`RelationMode`](crate::relation::RelationMode)) because the two read
     /// opposite ways: `HTTP` ⇒ `TCP` adds the parent, `FASTL4` ⊥ `HTTP`
@@ -318,16 +318,40 @@ impl ProfileRegistry {
     }
 
     /// True when `active`'s expanded profile stack satisfies any one of the
-    /// `required` profiles (OR semantics).
+    /// `required` profiles (OR semantics) — a `RequiresOneOf` over the
+    /// stack's facts, read through the same [`ProfileFacts`] the conflict
+    /// checker uses.
+    ///
+    /// The candidate's *own* expansion does not have to be computed. The
+    /// active expansion is a fixed point over the inference edges, so it is
+    /// already closed under them: if a candidate is in it, everything the
+    /// candidate implies is in it too, and `expand(candidate) ⊆ expanded`
+    /// reduces to `candidate ∈ expanded`. That is one closure per call rather
+    /// than one per call plus one per candidate, on a path the hover and
+    /// completion surfaces take
+    /// (`CommandRegistry::valid_irules_commands_for_event`);
+    /// `stack_satisfies_agrees_with_the_subset_formulation` holds the
+    /// equivalence over the whole shipped table.
     #[must_use]
     pub fn stack_satisfies(&self, required: &[&str], active: &[&str]) -> bool {
         if required.is_empty() {
             return true;
         }
-        let active_expanded = self.expand_profile_stack(active);
+        let expanded: Vec<String> = self.expand_profile_stack(active).into_iter().collect();
+        let facts = ProfileFacts {
+            active: &expanded,
+            complete: true,
+        };
         required.iter().any(|candidate| {
-            self.expand_profile_stack(std::slice::from_ref(candidate))
-                .is_subset(&active_expanded)
+            self.get_profile(candidate).map_or_else(
+                // A profile the registry does not know carries no edges, so
+                // it can only be satisfied by appearing in the stack verbatim.
+                || {
+                    let wanted = candidate.to_uppercase();
+                    expanded.iter().any(|name| *name == wanted)
+                },
+                |spec| facts.holds(ProfileTerm(spec.name)) == TermHolds::Yes,
+            )
         })
     }
 
@@ -2215,5 +2239,76 @@ mod tests {
     fn modification_specs_exist() {
         let reg = ProfileRegistry::build();
         assert_eq!(reg.modifications().len(), 4);
+    }
+
+    /// `stack_satisfies` dropped the per-candidate closure for a membership
+    /// test. The two agree because the active expansion is a fixed point over
+    /// the inference edges — this holds that claim over every ordered pair the
+    /// shipped table can form, plus a name the registry does not know.
+    #[test]
+    fn stack_satisfies_agrees_with_the_subset_formulation() {
+        let reg = ProfileRegistry::build();
+        let names = reg.all_profile_names();
+        let subset_formulation = |required: &[&str], active: &[&str]| {
+            if required.is_empty() {
+                return true;
+            }
+            let active_expanded = reg.expand_profile_stack(active);
+            required.iter().any(|candidate| {
+                reg.expand_profile_stack(std::slice::from_ref(candidate))
+                    .is_subset(&active_expanded)
+            })
+        };
+        let mut checked = 0_usize;
+        for required in &names {
+            for active in &names {
+                for stack in [
+                    vec![*active],
+                    vec![*active, "TCP"],
+                    vec![*active, "UNKNOWN_PROFILE"],
+                ] {
+                    assert_eq!(
+                        reg.stack_satisfies(&[*required], &stack),
+                        subset_formulation(&[*required], &stack),
+                        "required {required} against stack {stack:?}"
+                    );
+                    checked += 1;
+                }
+            }
+            assert_eq!(
+                reg.stack_satisfies(&["UNKNOWN_PROFILE"], &[*required]),
+                subset_formulation(&["UNKNOWN_PROFILE"], &[*required]),
+                "unknown requirement against {required}"
+            );
+        }
+        assert!(checked > 10_000, "expected a real sweep, checked {checked}");
+    }
+
+    /// Every profile relation names its own row as its subject, and every term
+    /// is the registry's own upper-case spelling — the two invariants the
+    /// closure and [`ProfileFacts`] rely on for a plain string comparison.
+    #[test]
+    fn profile_relations_are_row_owned_and_canonically_spelled() {
+        let reg = ProfileRegistry::build();
+        for name in reg.all_profile_names() {
+            let spec = reg.get_profile(name).expect("listed profile resolves");
+            for relation in spec.relations {
+                assert_eq!(
+                    relation.subject,
+                    Some(ProfileTerm(spec.name)),
+                    "{}: a row-owned relation must name its own row",
+                    spec.name
+                );
+                for term in relation.terms {
+                    assert_eq!(
+                        term.0.to_uppercase(),
+                        term.0,
+                        "{}: term {} is not canonically spelled",
+                        spec.name,
+                        term.0
+                    );
+                }
+            }
+        }
     }
 }

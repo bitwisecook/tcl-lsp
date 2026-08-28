@@ -2,7 +2,7 @@
 //! One relation mechanism, for every "X requires / conflicts with Y" fact the
 //! registry knows.
 //!
-//! **R11** (owner ruling 2026-08-28). Before this module the registry checked
+//! **R12** (owner ruling 2026-08-28). Before this module the registry checked
 //! the same idea five times in four vocabularies: E-R14's typed
 //! [`OptionRelation`] over an invocation, `ProfileSpec`'s bare `requires` and
 //! `conflicts` slices walked by two hand-written loops, and the event graph's
@@ -130,7 +130,7 @@ impl RelationKind {
     }
 }
 
-/// Which direction an edge is read in — the distinction R11 had to make
+/// Which direction an edge is read in — the distinction R12 had to make
 /// explicit to put the profile graph and the option table on one mechanism.
 ///
 /// See the module docs: the same `X requires Y` data means "diagnose a subject
@@ -149,7 +149,7 @@ pub enum RelationMode {
 /// A registry-declared relation between the parts of one subject.
 ///
 /// **The declarative half of E-R14** (owner ruling 2026-08-27), generalised
-/// over its term domain by R11. Every relation expressible here is evaluated
+/// over its term domain by R12. Every relation expressible here is evaluated
 /// natively by [`Self::evaluate`] — a few slice scans over facts the caller
 /// already collected — so the common case never enters the hook VM.
 ///
@@ -528,6 +528,146 @@ impl<T: RelationTermKind> RelationViolation<T> {
                 join(&self.present),
                 join(&self.missing)
             ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct Letter(&'static str);
+
+    impl RelationTermKind for Letter {
+        fn collective_noun() -> &'static str {
+            "Letters"
+        }
+        fn describe(self) -> String {
+            self.0.to_owned()
+        }
+        fn spelling(self) -> String {
+            self.0.to_owned()
+        }
+    }
+
+    struct Held(&'static [&'static str], bool);
+
+    impl RelationFactSource<Letter> for Held {
+        fn holds(&self, term: Letter) -> TermHolds {
+            if self.0.contains(&term.0) {
+                TermHolds::Yes
+            } else if self.1 {
+                TermHolds::No
+            } else {
+                TermHolds::Unknown
+            }
+        }
+    }
+
+    const A: Letter = Letter("a");
+    const B: Letter = Letter("b");
+    const C: Letter = Letter("c");
+
+    #[test]
+    fn an_infer_edge_is_never_a_judgement() {
+        let relation = Relation::implies(A, &[B]);
+        // `b` is absent and the facts are complete: an Assert edge would
+        // report. An Infer edge is not a judgement at all.
+        assert_eq!(
+            relation.evaluate(&Held(&["a"], true)),
+            RelationVerdict::Satisfied
+        );
+        assert_eq!(
+            Relation {
+                mode: RelationMode::Assert,
+                ..relation
+            }
+            .evaluate(&Held(&["a"], true)),
+            RelationVerdict::Violated(RelationViolation {
+                kind: RelationKind::Requires,
+                present: vec![A],
+                missing: vec![B],
+                message: None,
+            })
+        );
+    }
+
+    #[test]
+    fn absence_is_only_provable_when_the_subject_was_read_in_full() {
+        let relation = Relation {
+            mode: RelationMode::Assert,
+            ..Relation::implies(A, &[B])
+        };
+        assert_eq!(
+            relation.evaluate(&Held(&["a"], false)),
+            RelationVerdict::Abstain
+        );
+    }
+
+    #[test]
+    fn closure_follows_infer_edges_to_a_fixed_point() {
+        fn edges(term: Letter) -> &'static [Relation<Letter>] {
+            match term.0 {
+                "a" => const { &[Relation::implies(A, &[B])] },
+                "b" => const { &[Relation::implies(B, &[C])] },
+                // An Assert edge is not an inference and must not be followed.
+                "c" => const { &[Relation::forbids(C, &[A])] },
+                _ => &[],
+            }
+        }
+        let mut reached = closure_over([A], edges);
+        reached.sort_by_key(|term| term.0);
+        assert_eq!(reached, vec![A, B, C]);
+    }
+
+    #[test]
+    fn a_generated_message_names_the_domain() {
+        let violation = RelationViolation {
+            kind: RelationKind::MutuallyExclusive,
+            present: vec![A, B],
+            missing: vec![],
+            message: None,
+        };
+        assert_eq!(
+            violation.message_for("thing"),
+            "Letters a, b cannot be used together for 'thing'"
+        );
+    }
+
+    /// R12's own gate: no registry table may grow a second relation
+    /// vocabulary.
+    ///
+    /// A bare `requires` / `conflicts` slice of names is exactly the shape
+    /// this ruling collapsed — it carries no direction, no lifecycle and no
+    /// evidence, and it always arrives with a hand-written walker behind it.
+    /// Declare a `Relation<T>` list instead.
+    #[test]
+    fn no_registry_table_declares_a_bare_relation_slice() {
+        const SOURCES: &[(&str, &str)] = &[
+            ("profiles.rs", include_str!("profiles.rs")),
+            ("events.rs", include_str!("events.rs")),
+            ("spec.rs", include_str!("spec.rs")),
+            ("forms.rs", include_str!("forms.rs")),
+        ];
+        // `EventRequires` keeps its compact record: 461 literals across as many
+        // files, on the hover and completion path, where rebuilding a relation
+        // list per check would allocate for no semantic gain. Its profile half
+        // already reads through `ProfileFacts` (R12, checkpoint C4).
+        const ALLOWED: &[&str] = &["    pub profiles: &'static [&'static str],"];
+        for (file, source) in SOURCES {
+            for (index, line) in source.lines().enumerate() {
+                let trimmed = line.trim_end();
+                let is_bare_relation_slice = (trimmed.contains("pub requires:")
+                    || trimmed.contains("pub conflicts:"))
+                    && trimmed.contains("&'static [&'static str]");
+                assert!(
+                    !is_bare_relation_slice || ALLOWED.contains(&trimmed),
+                    "{file}:{}: a bare relation slice — declare a \
+                     `Relation<T>` list instead (R12).\n  {trimmed}",
+                    index + 1
+                );
+            }
         }
     }
 }

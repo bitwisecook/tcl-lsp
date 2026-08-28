@@ -212,7 +212,7 @@ pub fn profile_graph_snapshot() -> Json {
         entry.insert("layer".to_owned(), Json::s(layer));
         entry.insert("side".to_owned(), Json::s(spec.side));
         // Published as the two flat lists the snapshot has always carried;
-        // the registry itself holds one relation list (R11) and projects the
+        // the registry itself holds one relation list (R12) and projects the
         // two directions back out here.
         entry.insert(
             "requires".to_owned(),

@@ -99,6 +99,7 @@ pub mod representation;
 pub mod resolved_invocation;
 pub mod result_stability;
 pub mod scoped;
+pub mod security_floor;
 pub mod semantic_operation;
 pub mod side_effects;
 pub mod snapshot;

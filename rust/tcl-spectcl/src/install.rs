@@ -47,6 +47,7 @@ use tcl_registry::registry::CommandRegistry;
 
 use crate::hooks;
 use crate::pack::{PackSet, installs_over};
+use tcl_registry::security_floor::SecurityFloor;
 
 /// The registry for `profile` with `packs` installed.
 ///
@@ -137,7 +138,20 @@ fn install_into(
             if context.required_package_available(command.spec.required_package)
                 && installs_over(command, registry)
             {
-                registry.insert(hooks::specialise(command, &plan).clone());
+                let specialised = hooks::specialise(command, &plan);
+                // Invariant I6. An override replaces the shipped spec
+                // wholesale, so without this a four-line workspace pack could
+                // strip `exec`'s TAINT_SINK and silence taint diagnostics
+                // about the repository that shipped the pack. The floor is not
+                // keyed on the tier: see `security_floor`'s module docs.
+                match registry.get(specialised.name) {
+                    Some(shipped) => {
+                        let mut merged = specialised.clone();
+                        SecurityFloor::of(shipped).apply(&mut merged);
+                        registry.insert(merged);
+                    }
+                    None => registry.insert(specialised.clone()),
+                }
             }
         }
     }
